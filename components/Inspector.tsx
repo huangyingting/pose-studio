@@ -1,21 +1,27 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  addFigure, addProp, copyPose, deleteFigure, deleteProp, duplicateFigure, duplicateProp, mirrorPose, pastePose, renameFigure,
-  resetPose, setFigureHidden, setGrounded, setHand, setJoint, setSceneView, symmetrizePose,
+  ArrowDownToLine, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Focus, ImagePlus, Mars, RotateCcw, Trash2, Venus, X,
+} from 'lucide-react';
+import {
+  copyPose, deleteProp, duplicateProp, mirrorPose, pastePose, renameFigure, resetPose, setGrounded, setHand, setJoint, setSceneView,
+  symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
-import { JOINT_LABELS, SHORT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
-import { PROP_LABELS } from '@/lib/props';
-import { VIEW_PRESETS } from '@/lib/views';
+import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { DEFAULT_LIGHT } from '@/lib/lighting';
-import { FINGERS, JOINTS, PROP_KINDS, type Hand, type Light, type Side, type Style, type Vec3, type View } from '@/lib/types';
+import { PROP_LABELS } from '@/lib/props';
+import { STYLE_LIST, styleDef } from '@/lib/styles';
+import { sharedRenderer } from '@/lib/thumbnails';
+import { FINGERS, type Hand, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
+import BodyMap from './BodyMap';
+import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
-import { Segmented, Slider, Toggle, type Notify } from './ui';
+import { IconButton, NumberField, Section, Segmented, Select, Slider, Toggle, type Notify } from './ui';
 
-export type Tab = 'pose' | 'body' | 'scene' | 'view';
+export type Tab = 'pose' | 'body' | 'render';
 
 export interface InspectorContext {
   frame(view: Partial<View> & Pick<View, 'yaw' | 'pitch'>): void;
@@ -28,49 +34,47 @@ export interface InspectorContext {
   setReference(r: Partial<{ url: string | null; opacity: number; visible: boolean }>): void;
 }
 
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'pose', label: 'Pose' },
+  { id: 'body', label: 'Body' },
+  { id: 'render', label: 'Render' },
+];
+
+/** Right-hand properties panel. Its content follows the selection, like a design tool's inspector. */
 export default function Inspector({ tab, setTab, ctx }: { tab: Tab; setTab(t: Tab): void; ctx: InspectorContext }) {
   return (
     <aside className="panel" aria-label="Inspector">
       <nav className="tabs" role="tablist">
-        {(['pose', 'body', 'scene', 'view'] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-            {t[0].toUpperCase() + t.slice(1)}
+        {TABS.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+            {t.label}
           </button>
         ))}
       </nav>
       <div className="panel-scroll">
         {tab === 'pose' && <PoseTab ctx={ctx} />}
         {tab === 'body' && <BodyTab />}
-        {tab === 'scene' && <SceneTab ctx={ctx} />}
-        {tab === 'view' && <ViewTab ctx={ctx} />}
+        {tab === 'render' && <RenderTab ctx={ctx} />}
       </div>
     </aside>
   );
 }
 
-function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
-  return (
-    <section>
-      <div className="row between"><h3>{title}</h3>{aside}</div>
-      {children}
-    </section>
-  );
-}
-
+/** Which figure the panel edits, when the pose has several. */
 function FigurePicker() {
   const store = useStore();
   const scene = useScene();
   const active = useStudio((s) => s.activeFigure);
-  if (scene.figures.length < 2) return null;
+  if (scene.figures.length < 2 || !active) return null;
   return (
-    <section>
-      <h3>Figure</h3>
-      <div className="chips">
-        {scene.figures.map((f) => (
-          <button key={f.id} className={f.id === active ? 'chip on' : 'chip'} onClick={() => store.setActiveFigure(f.id)}>{f.name}</button>
-        ))}
-      </div>
-    </section>
+    <div className="panel-row">
+      <Select
+        label="Figure"
+        value={active}
+        onChange={(id) => store.setActiveFigure(id)}
+        options={scene.figures.map((f) => ({ value: f.id, label: f.hidden ? `${f.name} (hidden)` : f.name }))}
+      />
+    </div>
   );
 }
 
@@ -87,7 +91,7 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
     const prop = scene.props.find((p) => p.id === selection.prop);
     if (prop) return <PropEditor id={prop.id} ctx={ctx} />;
   }
-  if (!figure) return <section><p className="muted">This pose has no figures. Add one in the Scene tab.</p></section>;
+  if (!figure) return <p className="empty-note">This pose has no figures. Add one from the Layers list.</p>;
 
   const joint = selection?.kind === 'joint' && selection.figure === figure.id ? selection.joint : null;
   const rot = joint ? figure.joints[joint] ?? [0, 0, 0] : null;
@@ -95,9 +99,18 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
   return (
     <>
       <FigurePicker />
-      <Section title={joint ? JOINT_LABELS[joint] : 'Joint'}>
-        {joint && rot ? (
+      <Section
+        title={joint ? JOINT_LABELS[joint] : 'Joints'}
+        actions={joint && (
           <>
+            <IconButton icon={RotateCcw} label="Reset joint" onClick={() => setJoint(store, figure.id, joint, [0, 0, 0], '')} />
+            <IconButton icon={X} label="Deselect" shortcut="Esc" onClick={() => store.select(null)} />
+          </>
+        )}
+      >
+        <BodyMap selected={joint} onSelect={(j) => store.select({ kind: 'joint', figure: figure.id, joint: j })} />
+        {joint && rot ? (
+          <div className="stack">
             {axisLabels(joint).map((label, axis) => {
               const [min, max] = limits ? jointLimits(joint)[axis] : [-180, 180];
               return (
@@ -117,46 +130,34 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
                 />
               );
             })}
-            <div className="row">
-              <button onClick={() => setJoint(store, figure.id, joint, [0, 0, 0], '')}>Reset joint</button>
-              <button onClick={() => store.select(null)}>Deselect</button>
-            </div>
-            {joint === 'root' && <p className="muted small">Tip: press <kbd>W</kbd> to move the whole figure, <kbd>E</kbd> to rotate.</p>}
-          </>
+            {joint === 'root' && <p className="hint-text">Press <kbd>W</kbd> to move the whole figure, <kbd>E</kbd> to rotate it.</p>}
+          </div>
         ) : (
-          <p className="muted">Click a body part to rotate it, or drag the coloured dots to move hands, feet and hips.</p>
+          <p className="hint-text">Pick a body part, or drag the dots on the figure: hands and feet follow, the hips move the body.</p>
         )}
-        <div className="chips">
-          {JOINTS.map((j) => (
-            <button
-              key={j}
-              className={j === joint ? 'chip on' : 'chip'}
-              onClick={() => store.select({ kind: 'joint', figure: figure.id, joint: j })}
-            >
-              {SHORT_LABELS[j]}
-            </button>
-          ))}
-        </div>
       </Section>
 
-      <HandsSection hands={figure.hands} />
-
-      <Section title="Pose tools">
-        <div className="grid2">
-          <button onClick={() => mirrorPose(store)} title="Mirror left ↔ right (M)">Mirror</button>
-          <button onClick={() => resetPose(store)}>Reset pose</button>
-          <button onClick={() => symmetrizePose(store, 'L')} title="Copy the figure's left side onto its right">Left → Right</button>
-          <button onClick={() => symmetrizePose(store, 'R')} title="Copy the figure's right side onto its left">Right → Left</button>
-          <button onClick={() => { if (copyPose(store)) ctx.notify('Pose copied'); }} title="Ctrl+C">Copy pose</button>
-          <button onClick={() => { if (!pastePose(store)) ctx.notify('Copy a pose first', 'error'); }} title="Ctrl+V">Paste pose</button>
+      <Section title="Pose">
+        <div className="toolrow">
+          <IconButton icon={FlipHorizontal2} label="Mirror pose" shortcut="M" onClick={() => mirrorPose(store)} />
+          <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => symmetrizePose(store, 'L')}>L→R</button>
+          <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="Right → Left" onClick={() => symmetrizePose(store, 'R')}>R→L</button>
+          <span className="toolrow-sep" />
+          <IconButton icon={ClipboardCopy} label="Copy pose" shortcut="Ctrl C" onClick={() => { if (copyPose(store)) ctx.notify('Pose copied'); }} />
+          <IconButton icon={ClipboardPaste} label="Paste pose" shortcut="Ctrl V" onClick={() => { if (!pastePose(store)) ctx.notify('Copy a pose first', 'error'); }} />
+          <span className="toolrow-sep" />
+          <IconButton icon={RotateCcw} label="Reset pose" onClick={() => resetPose(store)} />
         </div>
         <Toggle
           label="Stand on the floor"
           checked={figure.grounded}
-          hint="When off, the figure keeps its height (e.g. to sit on a chair)"
+          hint="Turn off to keep the figure's height, e.g. to sit on a chair"
           onChange={(on) => setGrounded(store, figure.id, on, ctx.rootPosition(figure.id) ?? undefined)}
         />
+        <Toggle label="Natural joint limits" checked={limits} onChange={(l) => store.setSettings({ limits: l })} />
       </Section>
+
+      <HandsSection hands={figure.hands} />
     </>
   );
 }
@@ -165,44 +166,50 @@ function HandsSection({ hands }: { hands: Record<Side, Hand> }) {
   const store = useStore();
   const [side, setSide] = useState<Side>('L');
   const hand = hands[side];
+  const preset = HAND_PRESETS.find((p) => p.hand.spread === hand.spread && p.hand.curl.every((c, i) => c === hand.curl[i]))?.name ?? '';
   return (
     <Section
+      id="hands"
       title="Hands"
-      aside={<Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left' }, { value: 'R', label: 'Right' }]} />}
+      collapsible
+      defaultOpen={false}
+      actions={<Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left' }, { value: 'R', label: 'Right' }]} />}
     >
       <div className="chips">
         {HAND_PRESETS.map((p) => (
-          <button key={p.name} className="chip" onClick={() => setHand(store, side, p.hand)}>{p.name}</button>
+          <button key={p.name} type="button" className={p.name === preset ? 'chip on' : 'chip'} onClick={() => setHand(store, side, p.hand)}>{p.name}</button>
         ))}
-        <button className="chip" onClick={() => setHand(store, side === 'L' ? 'R' : 'L', hand)} title="Copy to the other hand">
-          Copy → {side === 'L' ? 'right' : 'left'}
-        </button>
       </div>
-      {FINGERS.map((f, i) => (
+      <div className="stack">
+        {FINGERS.map((f, i) => (
+          <Slider
+            key={f}
+            label={f[0].toUpperCase() + f.slice(1)}
+            min={0}
+            max={1}
+            step={0.01}
+            value={hand.curl[i]}
+            display={`${Math.round(hand.curl[i] * 100)}%`}
+            onChange={(v) => {
+              const curl = [...hand.curl] as Hand['curl'];
+              curl[i] = v;
+              setHand(store, side, { ...hand, curl }, `hand:${side}:${i}`);
+            }}
+          />
+        ))}
         <Slider
-          key={f}
-          label={f[0].toUpperCase() + f.slice(1)}
+          label="Spread"
           min={0}
           max={1}
           step={0.01}
-          value={hand.curl[i]}
-          display={`${Math.round(hand.curl[i] * 100)}%`}
-          onChange={(v) => {
-            const curl = [...hand.curl] as Hand['curl'];
-            curl[i] = v;
-            setHand(store, side, { ...hand, curl }, `hand:${side}:${i}`);
-          }}
+          value={hand.spread}
+          display={`${Math.round(hand.spread * 100)}%`}
+          onChange={(spread) => setHand(store, side, { ...hand, spread }, `hand:${side}:spread`)}
         />
-      ))}
-      <Slider
-        label="Spread"
-        min={0}
-        max={1}
-        step={0.01}
-        value={hand.spread}
-        display={`${Math.round(hand.spread * 100)}%`}
-        onChange={(spread) => setHand(store, side, { ...hand, spread }, `hand:${side}:spread`)}
-      />
+      </div>
+      <button type="button" className="btn subtle" onClick={() => setHand(store, side === 'L' ? 'R' : 'L', hand)}>
+        <Copy size={14} aria-hidden /> Copy to {side === 'L' ? 'right' : 'left'} hand
+      </button>
     </Section>
   );
 }
@@ -211,33 +218,47 @@ function PropEditor({ id, ctx }: { id: string; ctx: InspectorContext }) {
   const store = useStore();
   const scene = useScene();
   const prop = scene.props.find((p) => p.id === id)!;
-  const field = (key: 'position' | 'rotation' | 'scale', axis: number, step: number) => (
-    <input
-      type="number"
-      step={step}
-      value={prop[key][axis]}
-      aria-label={`${key} ${'xyz'[axis]}`}
-      onChange={(e) => {
-        const v = Number(e.target.value);
-        if (!Number.isFinite(v)) return;
-        const next: Vec3 = [...prop[key]];
-        next[axis] = key === 'scale' ? Math.max(0.02, v) : v;
-        store.updateProp(id, (p) => ({ ...p, [key]: next }), `prop:${id}:${key}:${axis}`);
-      }}
-    />
+  const Icon = PROP_ICONS[prop.kind];
+  const index = scene.props.filter((p) => p.kind === prop.kind).indexOf(prop) + 1;
+  const set = (key: 'position' | 'rotation' | 'scale', axis: number, v: number) => {
+    const next: Vec3 = [...prop[key]];
+    next[axis] = key === 'scale' ? Math.max(0.02, v) : v;
+    store.updateProp(id, (p) => ({ ...p, [key]: next }), `prop:${id}:${key}:${axis}`);
+  };
+  const row = (key: 'position' | 'rotation' | 'scale', label: string, step: number) => (
+    <div className="prop-row">
+      <span className="prop-row-label">{label}</span>
+      {(['X', 'Y', 'Z'] as const).map((axis, a) => (
+        <NumberField
+          key={axis}
+          prefix={axis}
+          label={`${label} ${axis}`}
+          value={prop[key][a]}
+          step={step}
+          digits={key === 'rotation' ? 1 : 2}
+          min={key === 'scale' ? 0.02 : -Infinity}
+          onChange={(v) => set(key, a, v)}
+        />
+      ))}
+    </div>
   );
   return (
-    <Section title={PROP_LABELS[prop.kind]}>
-      <p className="muted small">Drag the gizmo: <kbd>W</kbd> move · <kbd>E</kbd> rotate · <kbd>R</kbd> scale.</p>
-      <div className="xyz"><span>Position (m)</span>{[0, 1, 2].map((a) => <span key={a}>{field('position', a, 0.05)}</span>)}</div>
-      <div className="xyz"><span>Rotation (°)</span>{[0, 1, 2].map((a) => <span key={a}>{field('rotation', a, 5)}</span>)}</div>
-      <div className="xyz"><span>Size</span>{[0, 1, 2].map((a) => <span key={a}>{field('scale', a, 0.05)}</span>)}</div>
-      <div className="row">
-        <button onClick={() => store.updateProp(id, (p) => ({ ...p, position: [p.position[0], 0, p.position[2]] }))}>Drop to floor</button>
-        <button onClick={() => duplicateProp(store, id)}>Duplicate</button>
-        <button className="danger" onClick={() => { deleteProp(store, id); ctx.notifyUndo('Prop deleted'); }}>Delete</button>
+    <>
+      <div className="panel-title">
+        <Icon size={16} strokeWidth={1.75} aria-hidden />
+        <span>{PROP_LABELS[prop.kind]} {index}</span>
+        <span className="spacer" />
+        <IconButton icon={ArrowDownToLine} label="Drop to floor" onClick={() => store.updateProp(id, (p) => ({ ...p, position: [p.position[0], 0, p.position[2]] }))} />
+        <IconButton icon={Copy} label="Duplicate" onClick={() => duplicateProp(store, id)} />
+        <IconButton icon={Trash2} label="Delete" shortcut="Del" onClick={() => { deleteProp(store, id); ctx.notifyUndo('Prop deleted'); }} />
       </div>
-    </Section>
+      <Section title="Transform">
+        {row('position', 'Position', 0.05)}
+        {row('rotation', 'Rotation', 5)}
+        {row('scale', 'Size', 0.05)}
+        <p className="hint-text">Drag a letter to scrub. On the canvas: <kbd>W</kbd> move, <kbd>E</kbd> rotate, <kbd>R</kbd> scale.</p>
+      </Section>
+    </>
   );
 }
 
@@ -246,98 +267,79 @@ function PropEditor({ id, ctx }: { id: string; ctx: InspectorContext }) {
 function BodyTab() {
   const store = useStore();
   const figure = useActiveFigure();
-  if (!figure) return <section><p className="muted">No figure selected.</p></section>;
+  if (!figure) return <p className="empty-note">No figure selected.</p>;
+  const body = figure.body;
+  const setBody = (patch: Partial<typeof body>, key = '') => store.updateActiveFigure((f) => ({ ...f, body: { ...f.body, ...patch } }), key);
+  const sexField = BODY_FIELDS.find((f) => f.key === 'sex')!;
   return (
     <>
       <FigurePicker />
-      <Section title="Name">
-        <input type="text" value={figure.name} onChange={(e) => renameFigure(store, figure.id, e.target.value)} aria-label="Figure name" />
+      <Section title="Figure">
+        <input
+          type="text"
+          className="text-input"
+          value={figure.name}
+          onChange={(e) => renameFigure(store, figure.id, e.target.value)}
+          aria-label="Figure name"
+        />
+        <div className="sex-switch" role="radiogroup" aria-label="Sex">
+          <button type="button" role="radio" aria-checked={body.sex < 0.5} className={body.sex < 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 0, bust: 0 })}>
+            <Mars size={18} strokeWidth={1.75} aria-hidden /> Male
+          </button>
+          <button type="button" role="radio" aria-checked={body.sex >= 0.5} className={body.sex >= 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 1, bust: body.bust || 0.5 })}>
+            <Venus size={18} strokeWidth={1.75} aria-hidden /> Female
+          </button>
+        </div>
+        <Slider
+          label="Masculine ↔ Feminine"
+          min={sexField.min}
+          max={sexField.max}
+          step={sexField.step}
+          value={body.sex}
+          display={sexField.format(body.sex)}
+          onChange={(sex) => setBody({ sex }, 'body:sex')}
+        />
       </Section>
       <Section title="Body type">
-        <div className="chips">
-          {BODY_PRESETS.map((p) => (
-            <button key={p.name} className="chip" onClick={() => store.updateActiveFigure((f) => ({ ...f, body: { ...p.body } }))}>{p.name}</button>
-          ))}
+        <div className="preset-grid">
+          {BODY_PRESETS.map((p) => {
+            const on = (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]);
+            return (
+              <button
+                key={p.name}
+                type="button"
+                className={on ? 'preset on' : 'preset'}
+                aria-label={p.name}
+                onClick={() => store.updateActiveFigure((f) => ({ ...f, body: { ...p.body } }))}
+              >
+                {p.body.sex < 0.5 ? <Mars size={14} aria-hidden /> : <Venus size={14} aria-hidden />}
+                {p.name}
+              </button>
+            );
+          })}
         </div>
       </Section>
       <Section title="Proportions">
-        {BODY_FIELDS.map((f) => (
-          <Slider
-            key={f.key}
-            label={f.label}
-            min={f.min}
-            max={f.max}
-            step={f.step}
-            value={figure.body[f.key]}
-            display={f.format(figure.body[f.key])}
-            onChange={(v) => store.updateActiveFigure((fig) => ({ ...fig, body: { ...fig.body, [f.key]: v } }), `body:${f.key}`)}
-          />
-        ))}
-      </Section>
-    </>
-  );
-}
-
-/* ---------------- Scene ---------------- */
-
-function SceneTab({ ctx }: { ctx: InspectorContext }) {
-  const store = useStore();
-  const scene = useScene();
-  const active = useStudio((s) => s.activeFigure);
-  const selection = useStudio((s) => s.selection);
-  return (
-    <>
-      <Section title="Pose name">
-        <input type="text" value={scene.name} onChange={(e) => store.updateScene((s) => ({ ...s, name: e.target.value }), 'rename')} aria-label="Pose name" />
-      </Section>
-      <Section title={`Figures (${scene.figures.length})`} aside={<button onClick={() => addFigure(store)}>+ Add</button>}>
-        <ul className="list">
-          {scene.figures.map((f) => (
-            <li key={f.id} className={f.id === active ? 'on' : ''}>
-              <button className={f.hidden ? 'grow hidden-figure' : 'grow'} onClick={() => store.setActiveFigure(f.id)}>{f.name}</button>
-              <button
-                className={f.hidden ? 'icon' : 'icon on'}
-                title={f.hidden ? 'Hidden (not drawn or exported). Click to show' : 'Visible. Click to hide'}
-                aria-label={`${f.hidden ? 'Show' : 'Hide'} ${f.name}`}
-                aria-pressed={!f.hidden}
-                onClick={() => setFigureHidden(store, f.id, !f.hidden)}
-              >
-                {f.hidden ? '◌' : '◉'}
-              </button>
-              <button className="icon" title="Duplicate" aria-label={`Duplicate ${f.name}`} onClick={() => duplicateFigure(store, f.id)}>⧉</button>
-              <button
-                className="icon"
-                title="Delete"
-                aria-label={`Delete ${f.name}`}
-                disabled={scene.figures.length <= 1}
-                onClick={() => { if (deleteFigure(store, f.id)) ctx.notifyUndo(`Deleted ${f.name}`); }}
-              >
-                ✕
-              </button>
-            </li>
+        <div className="stack">
+          {BODY_FIELDS.filter((f) => f.key !== 'sex').map((f) => (
+            <Slider
+              key={f.key}
+              label={f.label}
+              min={f.min}
+              max={f.max}
+              step={f.step}
+              value={body[f.key]}
+              display={f.format(body[f.key])}
+              onChange={(v) => setBody({ [f.key]: v }, `body:${f.key}`)}
+            />
           ))}
-        </ul>
-      </Section>
-      <Section title={`Props (${scene.props.length})`}>
-        <div className="chips">
-          {PROP_KINDS.map((k) => <button key={k} className="chip" onClick={() => addProp(store, k)}>+ {PROP_LABELS[k]}</button>)}
         </div>
-        {scene.props.length > 0 && (
-          <ul className="list">
-            {scene.props.map((p, i) => (
-              <li key={p.id} className={selection?.kind === 'prop' && selection.prop === p.id ? 'on' : ''}>
-                <button className="grow" onClick={() => store.select({ kind: 'prop', prop: p.id })}>{PROP_LABELS[p.kind]} {i + 1}</button>
-                <button className="icon" title="Delete" aria-label={`Delete ${PROP_LABELS[p.kind]} ${i + 1}`} onClick={() => { deleteProp(store, p.id); ctx.notifyUndo('Prop deleted'); }}>✕</button>
-              </li>
-            ))}
-          </ul>
-        )}
       </Section>
     </>
   );
 }
 
-/* ---------------- View ---------------- */
+/* ---------------- Render ---------------- */
 
 const LIGHT_PRESETS: { name: string; light: Pick<Light, 'azimuth' | 'elevation'> }[] = [
   { name: 'Three-quarter', light: { azimuth: DEFAULT_LIGHT.azimuth, elevation: DEFAULT_LIGHT.elevation } },
@@ -347,97 +349,122 @@ const LIGHT_PRESETS: { name: string; light: Pick<Light, 'azimuth' | 'elevation'>
   { name: 'Top', light: { azimuth: 0, elevation: 85 } },
 ];
 
-function ViewTab({ ctx }: { ctx: InspectorContext }) {
+/** Small previews of the current pose in every style (rendered off-screen, debounced). */
+function useStylePreviews(scene: Scene, light: Light) {
+  const [previews, setPreviews] = useState<Partial<Record<Style, string>>>({});
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const r = sharedRenderer();
+      const out: Partial<Record<Style, string>> = {};
+      for (const s of STYLE_LIST) out[s.id] = r.render(scene, 96, 120, 1, { style: s.id, light, margin: 0.08 }).toDataURL('image/png');
+      setPreviews(out);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [scene, light]);
+  return previews;
+}
+
+function RenderTab({ ctx }: { ctx: InspectorContext }) {
   const store = useStore();
   const scene = useScene();
   const settings = useStudio((s) => s.settings);
+  const def = styleDef(settings.style);
+  const previews = useStylePreviews(scene, settings.light);
   const v = scene.view;
   const setView = (patch: Partial<View>) => setSceneView(store, { ...v, ...patch });
+  const setLight = (patch: Partial<Light>) => store.setSettings({ light: { ...settings.light, ...patch } });
+
   return (
     <>
-      <Section title="Export camera">
-        <p className="muted small">Angle used for the thumbnail and image export of this pose.</p>
-        <Slider label="Turn" min={-180} max={180} value={v.yaw} display={`${Math.round(v.yaw)}°`} onChange={(yaw) => setView({ yaw })} />
-        <Slider label="Height" min={-60} max={89} value={v.pitch} display={`${Math.round(v.pitch)}°`} onChange={(pitch) => setView({ pitch })} />
-        <Slider label="Lens (field of view)" min={8} max={70} value={v.fov} display={`${Math.round(v.fov)}°`} onChange={(fov) => setView({ fov })} />
-        <div className="row">
-          <button onClick={() => { const cur = ctx.currentView(); if (cur) setView({ yaw: cur.yaw, pitch: cur.pitch }); }}>Use current view</button>
-          <button onClick={() => ctx.frame(v)}>Look through it</button>
-        </div>
-      </Section>
-      <Section title="Editor view">
-        <div className="grid3">
-          {VIEW_PRESETS.map((p) => (
-            <button key={p.label} onClick={() => ctx.frame({ yaw: p.yaw, pitch: p.pitch })} title={`Shortcut: ${p.key}`}>{p.label}</button>
+      <Section title="Style">
+        <div className="style-grid" role="radiogroup" aria-label="Render style">
+          {STYLE_LIST.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={settings.style === s.id}
+              aria-label={s.label}
+              title={s.description}
+              className={settings.style === s.id ? 'style-card on' : 'style-card'}
+              onClick={() => store.setSettings({ style: s.id })}
+            >
+              <span className="style-thumb" style={{ background: s.background }}>
+                {/* Generated data: URLs, so next/image does not apply. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {previews[s.id] && <img src={previews[s.id]} alt="" />}
+              </span>
+              <span className="style-name">{s.label}</span>
+            </button>
           ))}
         </div>
+        <p className="hint-text">{def.description}. Exports and practice sessions can use any style.</p>
+        {def.outline && (
+          <Slider
+            label="Line weight"
+            min={0.5}
+            max={4}
+            step={0.1}
+            value={settings.editorLine}
+            display={`${settings.editorLine.toFixed(1)} px`}
+            onChange={(editorLine) => store.setSettings({ editorLine })}
+          />
+        )}
       </Section>
-      <Section title="Display">
-        <Segmented<Style>
-          label="Style"
-          value={settings.style}
-          onChange={(style) => store.setSettings({ style })}
-          options={[
-            { value: 'line', label: 'Line art' },
-            { value: 'shaded', label: 'Shaded' },
-            { value: 'silhouette', label: 'Silhouette', title: 'Solid shapes, for gesture and silhouette studies' },
-          ]}
-        />
-        <Slider
-          label="Line weight"
-          min={0.5}
-          max={4}
-          step={0.1}
-          value={settings.editorLine}
-          display={`${settings.editorLine.toFixed(1)} px`}
-          onChange={(editorLine) => store.setSettings({ editorLine })}
-        />
-        <Toggle label="Drag handles" checked={settings.showHandles} onChange={(showHandles) => store.setSettings({ showHandles })} />
-        <Toggle label="Floor grid" checked={settings.showGrid} onChange={(showGrid) => store.setSettings({ showGrid })} />
-        <Toggle
-          label="Joint limits"
-          hint="Keep joints within natural ranges"
-          checked={settings.limits}
-          onChange={(limits) => store.setSettings({ limits })}
-        />
-      </Section>
+
+      {def.lit && (
+        <Section title="Light">
+          <div className="stack">
+            <Slider label="Direction" min={-180} max={180} value={settings.light.azimuth} display={`${Math.round(settings.light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
+            <Slider label="Height" min={5} max={89} value={settings.light.elevation} display={`${Math.round(settings.light.elevation)}°`} typeable onChange={(elevation) => setLight({ elevation })} />
+          </div>
+          <div className="chips">
+            {LIGHT_PRESETS.map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                className={p.light.azimuth === settings.light.azimuth && p.light.elevation === settings.light.elevation ? 'chip on' : 'chip'}
+                onClick={() => setLight(p.light)}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+          {def.shadows && <Toggle label="Cast shadows" checked={settings.light.shadows} onChange={(shadows) => setLight({ shadows })} />}
+        </Section>
+      )}
+
       <Section
-        title="Light"
-        aside={settings.style !== 'shaded' && <button className="chip" onClick={() => store.setSettings({ style: 'shaded' })}>Show shaded</button>}
+        title="Export camera"
+        actions={<IconButton icon={Focus} label="Look through it" onClick={() => ctx.frame(v)} />}
       >
-        <p className="muted small">Key light for the shaded style, in the editor and in exports.</p>
-        <Slider
-          label="Direction (+ from the left)"
-          min={-180}
-          max={180}
-          value={settings.light.azimuth}
-          display={`${Math.round(settings.light.azimuth)}°`}
-          typeable
-          onChange={(azimuth) => store.setSettings({ light: { ...settings.light, azimuth } })}
-        />
-        <Slider
-          label="Height"
-          min={5}
-          max={89}
-          value={settings.light.elevation}
-          display={`${Math.round(settings.light.elevation)}°`}
-          typeable
-          onChange={(elevation) => store.setSettings({ light: { ...settings.light, elevation } })}
-        />
-        <div className="chips">
-          {LIGHT_PRESETS.map((p) => (
-            <button key={p.name} className="chip" onClick={() => store.setSettings({ light: { ...settings.light, ...p.light } })}>{p.name}</button>
-          ))}
+        <div className="stack">
+          <Slider label="Turn" min={-180} max={180} value={v.yaw} display={`${Math.round(v.yaw)}°`} typeable onChange={(yaw) => setView({ yaw })} />
+          <Slider label="Height" min={-60} max={89} value={v.pitch} display={`${Math.round(v.pitch)}°`} typeable onChange={(pitch) => setView({ pitch })} />
+          <Slider label="Lens (field of view)" min={8} max={70} value={v.fov} display={`${Math.round(v.fov)}°`} typeable onChange={(fov) => setView({ fov })} />
         </div>
-        <Toggle
-          label="Cast shadows"
-          checked={settings.light.shadows}
-          onChange={(shadows) => store.setSettings({ light: { ...settings.light, shadows } })}
-        />
+        <button type="button" className="btn subtle" onClick={() => { const cur = ctx.currentView(); if (cur) setView({ yaw: cur.yaw, pitch: cur.pitch }); }}>
+          Use current view
+        </button>
       </Section>
-      <Section title="Reference image">
-        <p className="muted small">Overlay a photo or drawing to match a pose by eye.</p>
-        <label className="file-button">
+
+      <Section
+        id="reference"
+        title="Reference image"
+        collapsible
+        defaultOpen={!!ctx.reference.url}
+        actions={ctx.reference.url && (
+          <>
+            <IconButton
+              icon={ctx.reference.visible ? Eye : EyeOff}
+              label={ctx.reference.visible ? 'Hide reference' : 'Show reference'}
+              onClick={() => ctx.setReference({ visible: !ctx.reference.visible })}
+            />
+            <IconButton icon={Trash2} label="Remove reference" onClick={() => ctx.setReference({ url: null })} />
+          </>
+        )}
+      >
+        <label className="btn subtle file-button">
           <input
             type="file"
             accept="image/*"
@@ -447,24 +474,18 @@ function ViewTab({ ctx }: { ctx: InspectorContext }) {
               e.target.value = '';
             }}
           />
-          Choose image…
+          <ImagePlus size={14} aria-hidden /> {ctx.reference.url ? 'Replace image…' : 'Overlay a photo or drawing…'}
         </label>
         {ctx.reference.url && (
-          <>
-            <Slider
-              label="Opacity"
-              min={0.05}
-              max={1}
-              step={0.01}
-              value={ctx.reference.opacity}
-              display={`${Math.round(ctx.reference.opacity * 100)}%`}
-              onChange={(opacity) => ctx.setReference({ opacity })}
-            />
-            <div className="row">
-              <Toggle label="Show" checked={ctx.reference.visible} onChange={(visible) => ctx.setReference({ visible })} />
-              <button onClick={() => ctx.setReference({ url: null })}>Remove</button>
-            </div>
-          </>
+          <Slider
+            label="Opacity"
+            min={0.05}
+            max={1}
+            step={0.01}
+            value={ctx.reference.opacity}
+            display={`${Math.round(ctx.reference.opacity * 100)}%`}
+            onChange={(opacity) => ctx.setReference({ opacity })}
+          />
         )}
       </Section>
     </>

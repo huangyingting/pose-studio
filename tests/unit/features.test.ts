@@ -127,3 +127,32 @@ describe('lighting settings', () => {
     expect(new Store(fake).getState().settings.style).toBe('silhouette');
   });
 });
+
+describe('render styles', () => {
+  it('defines every style, with a unique label', async () => {
+    const { STYLE_DEFS, STYLE_LIST } = await import('@/lib/styles');
+    const { STYLES } = await import('@/lib/types');
+    expect(STYLE_LIST.map((s) => s.id)).toEqual([...STYLES]);
+    for (const s of STYLES) expect(STYLE_DEFS[s].id).toBe(s);
+    expect(new Set(STYLE_LIST.map((s) => s.label)).size).toBe(STYLES.length);
+  });
+
+  it('accepts the new styles in stored export and practice options', () => {
+    expect(parseExportOptions({ style: 'ink' }).style).toBe('ink');
+    expect(parseExportOptions({ style: 'watercolour' }).style).toBe('line');
+    expect(parsePracticeOptions({ style: 'anime' }).style).toBe('anime');
+  });
+
+  it('builds materials for every style', async () => {
+    const { Ink } = await import('@/lib/ink');
+    const { STYLES } = await import('@/lib/types');
+    const ink = new Ink();
+    for (const s of STYLES) {
+      const m = ink.materialsFor(s);
+      expect(m.body).toBeTruthy();
+      expect(m.propSel).toBeTruthy();
+      ink.setStyle(s);
+    }
+    ink.dispose();
+  });
+});

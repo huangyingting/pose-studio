@@ -86,7 +86,8 @@ export type Selection =
   | { kind: 'prop'; prop: string }
   | null;
 
-export const STYLES = ['line', 'shaded', 'silhouette'] as const;
+/** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
+export const STYLES = ['line', 'sketch', 'ink', 'anime', 'shaded', 'minimal', 'silhouette'] as const;
 export type Style = (typeof STYLES)[number];
 export type GizmoMode = 'rotate' | 'translate' | 'scale';
 

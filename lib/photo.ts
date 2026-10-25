@@ -25,7 +25,27 @@ async function exists(url: string) {
   }
 }
 
+/*
+ * MediaPipe Tasks sends usage statistics to Google every minute and offers no switch to turn
+ * them off. The CSP would block the request anyway (with console errors); answer it locally
+ * instead, so nothing about the user's photos or usage leaves the device.
+ */
+const TELEMETRY = 'https://odml.pa.googleapis.com/';
+let telemetryBlocked = false;
+
+function blockTelemetry() {
+  if (telemetryBlocked || typeof window === 'undefined') return;
+  telemetryBlocked = true;
+  const original = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.startsWith(TELEMETRY)) return Promise.resolve(new Response(null, { status: 204 }));
+    return original(input, init);
+  };
+}
+
 async function create(): Promise<PoseLandmarker> {
+  blockTelemetry();
   const { FilesetResolver, PoseLandmarker } = await import('@mediapipe/tasks-vision');
   const local = (await exists(`${LOCAL.wasm}/vision_wasm_internal.wasm`)) && (await exists(LOCAL.model));
   const src = local ? LOCAL : CDN;

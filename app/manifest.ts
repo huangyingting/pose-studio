@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: './',
     scope: './',
     display: 'standalone',
-    background_color: '#f5f5f7',
-    theme_color: '#4f6bed',
+    background_color: '#f4f4f3',
+    theme_color: '#ffffff',
     // URLs are relative to the manifest's own URL, so they also work under a base path.
     icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' }],
   };

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { styleDef } from './styles';
 import type { Light, Style } from './types';
 
 export const DEFAULT_LIGHT: Light = { azimuth: 40, elevation: 45, shadows: true };
@@ -36,7 +37,10 @@ export class LightRig {
     this.object.add(this.ambient, this.key, this.key.target, this.floor);
   }
 
-  /** Aim the key light at `focus` (the scene bounds) from the given direction. */
+  /**
+   * Aim the key light at `focus` (the scene bounds) from the given direction. Returns the
+   * world-space direction towards the light, for the painterly shaders.
+   */
   update(light: Light, style: Style, focus: THREE.Box3) {
     const center = focus.isEmpty() ? new THREE.Vector3(0, 1, 0) : focus.getCenter(new THREE.Vector3());
     const radius = focus.isEmpty() ? 2 : Math.max(1, focus.getSize(new THREE.Vector3()).length() / 2);
@@ -54,9 +58,10 @@ export class LightRig {
     cam.near = 0.1;
     cam.far = radius * 10;
     cam.updateProjectionMatrix();
-    const on = light.shadows && style === 'shaded';
+    const on = light.shadows && styleDef(style).shadows;
     this.key.castShadow = on;
     this.floor.visible = on;
+    return dir;
   }
 
   dispose() {

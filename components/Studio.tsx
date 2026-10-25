@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  appendScenes, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
+  ChevronDown, ChevronUp, CircleDot, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, FilePlus2, FileUp, Focus, FolderOpen,
+  Grid3x3, Keyboard, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2, Video,
+} from 'lucide-react';
+import {
+  addScene, appendScenes, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam, shareUrl } from '@/lib/share';
 import { Store, type SaveStatus } from '@/lib/store';
+import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type View } from '@/lib/types';
 import { VIEW_PRESETS } from '@/lib/views';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
@@ -17,7 +22,8 @@ import Inspector, { type InspectorContext, type Tab } from './Inspector';
 import LibraryPanel from './LibraryPanel';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
-import { Segmented, Toasts, type Notify, type Toast } from './ui';
+import { STYLE_ICONS } from './icons';
+import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './ui';
 import Viewport, { type FrameRequest, type ViewportApi } from './Viewport';
 
 function webglAvailable() {
@@ -257,41 +263,64 @@ function App() {
   };
 
   const gizmoForSelection = selection?.kind === 'prop' || (selection?.kind === 'joint' && selection.joint === 'root');
+  const openFilePicker = (mode: 'append' | 'replace') => {
+    fileRef.current!.dataset.mode = mode;
+    fileRef.current!.click();
+  };
+  const style = styleDef(settings.style);
+  const StyleIcon = STYLE_ICONS[settings.style];
 
   return (
     <div className={`studio${drawer ? ` drawer-${drawer}` : ''}`}>
       <header className="topbar">
-        <button className="icon only-mobile" aria-label="Poses" onClick={() => setDrawer(drawer === 'library' ? null : 'library')}>☰</button>
-        <div className="brand"><span className="logo" aria-hidden /> Pose Studio</div>
-        <input
-          className="scene-name"
-          type="text"
-          value={scene.name}
-          onChange={(e) => store.updateScene((s) => ({ ...s, name: e.target.value }), 'rename')}
-          aria-label="Pose name"
-        />
-        <div className="group">
-          <button onClick={() => store.undo()} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-          <button onClick={() => store.redo()} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        <div className="tb-left">
+          <IconButton icon={PanelLeft} label="Poses" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
+          <Menu
+            label="Main menu"
+            className="brand"
+            items={[
+              { label: 'New pose', icon: FilePlus2, onSelect: () => addScene(store) },
+              { label: 'Duplicate pose', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
+              '-',
+              { label: 'Save library (.json)', icon: Save, shortcut: 'Ctrl S', onSelect: saveFile },
+              { label: 'Import poses…', icon: FileUp, onSelect: () => openFilePicker('append') },
+              { label: 'Open library (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
+              '-',
+              { label: 'Pose from photo…', icon: ScanFace, onSelect: () => setDialog('photo') },
+              { label: 'Copy share link', icon: Link, onSelect: share },
+              { label: 'Gesture practice', icon: Timer, shortcut: 'P', onSelect: () => setDialog('practice') },
+              { label: 'Keyboard shortcuts', icon: Keyboard, shortcut: '?', onSelect: () => setDialog('help') },
+            ]}
+          >
+            <Logo />
+            <span className="brand-name">Pose Studio</span>
+            <ChevronDown size={14} className="brand-chevron" aria-hidden />
+          </Menu>
         </div>
-        <SaveIndicator status={saveStatus} />
-        <span className="spacer" />
-        <button onClick={() => setDialog('practice')} title="Timed gesture-drawing slideshow (P)">⏱ <span className="hide-sm">Practice</span></button>
-        <button onClick={() => setDialog('photo')} title="Detect a pose in a photo">📷 <span className="hide-sm">Pose from photo</span></button>
-        <button onClick={share} title="Copy a link to this pose">🔗 <span className="hide-sm">Share</span></button>
-        <details className="menu">
-          <summary>File</summary>
-          <div className="menu-items" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')}>
-            <button onClick={saveFile}>Save library (.json)</button>
-            <button onClick={() => { fileRef.current!.dataset.mode = 'append'; fileRef.current!.click(); }}>Import poses…</button>
-            <button onClick={() => { fileRef.current!.dataset.mode = 'replace'; fileRef.current!.click(); }}>Open library (replace)…</button>
-            <button onClick={() => setDialog('practice')}>Gesture practice…</button>
-            <button onClick={() => setDialog('help')}>Help &amp; shortcuts</button>
-          </div>
-        </details>
-        <button className="primary" onClick={() => setDialog('export')} title="Export image (Ctrl+E)">Export</button>
-        <button className="icon hide-mobile" onClick={() => setDialog('help')} aria-label="Help" title="Help (?)">?</button>
-        <button className="icon only-mobile" aria-label="Inspector" onClick={() => setDrawer(drawer === 'inspector' ? null : 'inspector')}>⚙</button>
+        <div className="tb-center">
+          <input
+            className="scene-name"
+            type="text"
+            value={scene.name}
+            onChange={(e) => store.updateScene((s) => ({ ...s, name: e.target.value }), 'rename')}
+            aria-label="Pose name"
+            spellCheck={false}
+          />
+          <SaveIndicator status={saveStatus} />
+        </div>
+        <div className="tb-right">
+          <IconButton icon={Undo2} label="Undo" shortcut="Ctrl Z" onClick={() => store.undo()} disabled={!canUndo} />
+          <IconButton icon={Redo2} label="Redo" shortcut="Ctrl Shift Z" onClick={() => store.redo()} disabled={!canRedo} />
+          <span className="tb-sep hide-mobile" />
+          <IconButton icon={Timer} label="Gesture practice" shortcut="P" onClick={() => setDialog('practice')} className="hide-mobile" />
+          <IconButton icon={ScanFace} label="Pose from photo" onClick={() => setDialog('photo')} className="hide-mobile" />
+          <IconButton icon={Link} label="Share link" onClick={share} className="hide-mobile" />
+          <IconButton icon={CircleHelp} label="Help" shortcut="?" onClick={() => setDialog('help')} className="hide-mobile" />
+          <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export image  Ctrl E">
+            <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
+          </button>
+          <IconButton icon={SlidersHorizontal} label="Inspector" className="only-mobile" onClick={() => setDrawer(drawer === 'inspector' ? null : 'inspector')} />
+        </div>
         <input
           ref={fileRef}
           type="file"
@@ -307,7 +336,7 @@ function App() {
 
       <LibraryPanel onPick={() => setDrawer(null)} notifyUndo={notifyUndo} />
 
-      <main className="stage">
+      <main className="stage" style={{ background: style.background }}>
         <Viewport
           store={store}
           scene={scene}
@@ -321,30 +350,59 @@ function App() {
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={reference.url} alt="" style={{ opacity: reference.opacity }} />
         )}
-        <div className="viewbar">
+        <div className="toolbar" role="toolbar" aria-label="Canvas tools">
           <Segmented<GizmoMode>
             label="Gizmo"
             value={settings.gizmo}
             onChange={setGizmo}
+            iconOnly
             options={[
-              { value: 'rotate', label: 'Rotate', title: 'Rotate (E)' },
-              { value: 'translate', label: 'Move', title: 'Move pelvis or prop (W)' },
-              { value: 'scale', label: 'Scale', title: 'Scale prop (R)' },
+              { value: 'rotate', label: 'Rotate', icon: Rotate3d, title: 'Rotate  E' },
+              { value: 'translate', label: 'Move', icon: Move3d, title: 'Move pelvis or prop  W' },
+              { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
             ]}
           />
-          <span className="sep" />
-          {VIEW_PRESETS.map((v) => (
-            <button key={v.label} onClick={() => frame(v)} title={`${v.label} view (${v.key})`}>{v.label}</button>
-          ))}
-          <button onClick={frameCurrent} title="Frame everything (F)">Frame</button>
-          <span className="sep" />
-          <button
-            className={settings.showHandles ? 'on' : ''}
-            onClick={() => store.setSettings({ showHandles: !settings.showHandles })}
-            title="Drag handles (H)"
+          <span className="tb-sep" />
+          <Menu
+            label="Camera view"
+            side="top"
+            className="btn ghost"
+            tip="Camera view  1–6"
+            items={VIEW_PRESETS.map((v) => ({ label: v.label, shortcut: v.key, onSelect: () => frame(v) }))}
           >
-            Handles
-          </button>
+            <Video size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronUp size={13} aria-hidden />
+          </Menu>
+          <IconButton icon={Focus} label="Frame all" shortcut="F" onClick={frameCurrent} tipSide="top" />
+          <span className="tb-sep" />
+          <Menu
+            label="Render style"
+            side="top"
+            className="btn ghost"
+            tip="Render style  L"
+            items={STYLE_LIST.map((s) => ({
+              label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === settings.style, onSelect: () => store.setSettings({ style: s.id }),
+            }))}
+          >
+            <StyleIcon size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronUp size={13} aria-hidden />
+          </Menu>
+          <span className="tb-sep" />
+          <IconButton
+            icon={CircleDot}
+            label="Drag handles"
+            shortcut="H"
+            tipSide="top"
+            active={settings.showHandles}
+            pressed={settings.showHandles}
+            onClick={() => store.setSettings({ showHandles: !settings.showHandles })}
+          />
+          <IconButton
+            icon={Grid3x3}
+            label="Floor grid"
+            tipSide="top"
+            active={settings.showGrid}
+            pressed={settings.showGrid}
+            onClick={() => store.setSettings({ showGrid: !settings.showGrid })}
+          />
         </div>
         {settings.gizmo !== 'rotate' && !gizmoForSelection && (
           <div className="hint">Select the pelvis or a prop to {settings.gizmo === 'translate' ? 'move' : 'scale'} it</div>
@@ -369,14 +427,26 @@ function App() {
   );
 }
 
+function Logo() {
+  return (
+    <svg className="logo" viewBox="0 0 32 32" aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#18181b" />
+      <circle cx="16" cy="7.6" r="3.1" fill="#3b6cff" />
+      <path d="M16 12v8M16 13.5l-5.5 3.5M16 13.5l5.5-4.5M16 20l-3.5 6.5M16 20l4.5 6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function SaveIndicator({ status }: { status: SaveStatus }) {
   const text = status === 'saved' ? 'Saved' : status === 'pending' ? 'Saving…' : 'Not saved';
+  const Icon = status === 'error' ? CloudOff : status === 'saved' ? CloudCheck : Cloud;
   return (
     <span
-      className={`save-status ${status} hide-sm`}
-      title={status === 'error' ? 'Browser storage is full or blocked. Use File → Save library.' : 'Poses are saved in this browser automatically'}
+      className={`save-status ${status}`}
+      title={status === 'error' ? 'Browser storage is full or blocked. Use Save library in the main menu.' : 'Poses are saved in this browser automatically'}
     >
-      {text}
+      <Icon size={14} aria-hidden />
+      <span className="hide-sm">{text}</span>
     </span>
   );
 }

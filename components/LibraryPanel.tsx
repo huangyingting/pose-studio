@@ -1,13 +1,31 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { addScene, deleteScene, duplicateCurrentScene, moveScene, resetLibrary } from '@/lib/actions';
+import { Copy, Ellipsis, Eye, EyeOff, Plus, RotateCcw, Search, Trash2, PersonStanding } from 'lucide-react';
+import {
+  addFigure, addProp, addScene, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
+  resetLibrary, setFigureHidden,
+} from '@/lib/actions';
+import { PROP_LABELS } from '@/lib/props';
 import { thumbnail } from '@/lib/thumbnails';
-import { useStore, useStudio } from './store-context';
+import { PROP_KINDS } from '@/lib/types';
+import { PROP_ICONS } from './icons';
+import { useScene, useStore, useStudio } from './store-context';
+import { IconButton, Menu } from './ui';
 
 const COLUMNS = 2;
 
+/** Left sidebar: the pose library on top, the layers (figures and props) of the open pose below. */
 export default function LibraryPanel({ onPick, notifyUndo }: { onPick?(): void; notifyUndo(text: string): void }) {
+  return (
+    <aside className="library" aria-label="Pose library">
+      <Poses onPick={onPick} notifyUndo={notifyUndo} />
+      <Layers notifyUndo={notifyUndo} />
+    </aside>
+  );
+}
+
+function Poses({ onPick, notifyUndo }: { onPick?(): void; notifyUndo(text: string): void }) {
   const store = useStore();
   const scenes = useStudio((s) => s.library.scenes);
   const index = useStudio((s) => s.sceneIndex);
@@ -49,42 +67,43 @@ export default function LibraryPanel({ onPick, notifyUndo }: { onPick?(): void; 
     if (e.altKey && Number.isFinite(step)) {
       if (targetPos === pos) return;
       moveScene(store, i, visible[targetPos].i);
-      // The moved pose re-renders at its new position.
       requestAnimationFrame(() => focusThumb(targetPos));
     } else {
       focusThumb(targetPos);
     }
   };
 
+  const deleteCurrent = () => {
+    const name = store.scene.name;
+    if (deleteScene(store)) notifyUndo(`Deleted “${name}”`);
+  };
+
   return (
-    <aside className="library" aria-label="Pose library">
-      <header>
-        <div className="row between">
-          <h2>Poses <span className="count">{scenes.length}</span></h2>
-        </div>
-        <input
-          className="search"
-          type="search"
-          placeholder="Search poses…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search poses"
-        />
-        <div className="row">
-          <button onClick={() => addScene(store)} title="New pose (empty figure)">+ New</button>
-          <button onClick={() => duplicateCurrentScene(store)} title="Duplicate (Ctrl+D)">Duplicate</button>
-          <button
-            onClick={() => {
-              const name = store.scene.name;
-              if (deleteScene(store)) notifyUndo(`Deleted “${name}”`);
-            }}
-            disabled={scenes.length <= 1}
-            title="Delete pose"
+    <section className="lib-poses">
+      <div className="side-head">
+        <h2>Poses <span className="count">{scenes.length}</span></h2>
+        <div className="side-actions">
+          <IconButton icon={Plus} label="New pose" onClick={() => addScene(store)} />
+          <Menu
+            label="Pose actions"
+            className="ibtn"
+            align="end"
+            tip="More"
+            items={[
+              { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
+              { label: 'Delete', icon: Trash2, onSelect: deleteCurrent, disabled: scenes.length <= 1, danger: true },
+              '-',
+              { label: 'Restore built-in poses', icon: RotateCcw, onSelect: () => { resetLibrary(store); notifyUndo('Restored the 20 built-in poses'); } },
+            ]}
           >
-            Delete
-          </button>
+            <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+          </Menu>
         </div>
-      </header>
+      </div>
+      <label className="search">
+        <Search size={14} aria-hidden />
+        <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search poses" />
+      </label>
       <ol className="thumbs" ref={list}>
         {visible.map(({ s, i }, pos) => (
           <li
@@ -108,24 +127,91 @@ export default function LibraryPanel({ onPick, notifyUndo }: { onPick?(): void; 
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={thumbs[s.id]} alt="" draggable={false} />
               ) : <div className="ph" />}
-              <span>{i + 1}. {s.name}</span>
+              <span>{s.name}</span>
               {s.figures.length > 1 && <i className="badge" aria-label={`${s.figures.length} figures`}>{s.figures.length}</i>}
             </button>
           </li>
         ))}
         {!visible.length && <li className="empty">No poses match “{query}”.</li>}
       </ol>
-      <footer>
-        <button
-          onClick={() => {
-            resetLibrary(store);
-            notifyUndo('Restored the 20 built-in poses');
-          }}
-          title="Replace the library with the built-in poses (undoable)"
+    </section>
+  );
+}
+
+function Layers({ notifyUndo }: { notifyUndo(text: string): void }) {
+  const store = useStore();
+  const scene = useScene();
+  const active = useStudio((s) => s.activeFigure);
+  const selection = useStudio((s) => s.selection);
+  const counts: Record<string, number> = {};
+  return (
+    <section className="lib-layers">
+      <div className="side-head">
+        <h2>Layers</h2>
+        <Menu
+          label="Add layer"
+          className="ibtn"
+          align="end"
+          side="top"
+          tip="Add figure or prop"
+          items={[
+            { label: 'Figure', icon: PersonStanding, onSelect: () => addFigure(store) },
+            '-',
+            ...PROP_KINDS.map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k) })),
+          ]}
         >
-          Restore built-in poses
-        </button>
-      </footer>
-    </aside>
+          <Plus size={16} strokeWidth={1.75} aria-hidden />
+        </Menu>
+      </div>
+      <ul className="layers" aria-label="Layers">
+        {scene.figures.map((f) => {
+          const on = f.id === active && selection?.kind !== 'prop';
+          return (
+            <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}`}>
+              <button type="button" className="layer-main" onClick={() => store.setActiveFigure(f.id)}>
+                <PersonStanding size={15} strokeWidth={1.75} aria-hidden />
+                <span>{f.name}</span>
+              </button>
+              <span className="layer-actions">
+                <IconButton icon={Copy} label={`Duplicate ${f.name}`} onClick={() => duplicateFigure(store, f.id)} size={14} />
+                <IconButton
+                  icon={Trash2}
+                  label={`Delete ${f.name}`}
+                  disabled={scene.figures.length <= 1}
+                  onClick={() => { if (deleteFigure(store, f.id)) notifyUndo(`Deleted ${f.name}`); }}
+                  size={14}
+                />
+                <IconButton
+                  icon={f.hidden ? EyeOff : Eye}
+                  label={`${f.hidden ? 'Show' : 'Hide'} ${f.name}`}
+                  pressed={!f.hidden}
+                  className={f.hidden ? 'keep' : ''}
+                  onClick={() => setFigureHidden(store, f.id, !f.hidden)}
+                  size={14}
+                />
+              </span>
+            </li>
+          );
+        })}
+        {scene.props.map((p) => {
+          counts[p.kind] = (counts[p.kind] ?? 0) + 1;
+          const name = `${PROP_LABELS[p.kind]} ${counts[p.kind]}`;
+          const Icon = PROP_ICONS[p.kind];
+          const on = selection?.kind === 'prop' && selection.prop === p.id;
+          return (
+            <li key={p.id} className={on ? 'on' : ''}>
+              <button type="button" className="layer-main" onClick={() => store.select({ kind: 'prop', prop: p.id })}>
+                <Icon size={15} strokeWidth={1.75} aria-hidden />
+                <span>{name}</span>
+              </button>
+              <span className="layer-actions">
+                <IconButton icon={Copy} label={`Duplicate ${name}`} onClick={() => duplicateProp(store, p.id)} size={14} />
+                <IconButton icon={Trash2} label={`Delete ${name}`} onClick={() => { deleteProp(store, p.id); notifyUndo('Prop deleted'); }} size={14} />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

@@ -6,21 +6,29 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 
 **Posing**
 - **Direct manipulation**: drag the orange (hands) and green (feet) dots and the limb follows (two-bone IK). Drag the purple hip dot to move the body while the feet stay planted, e.g. to drop into a squat. Drag the small dots on the elbows and knees to point them.
-- **Joint gizmo and sliders**: click any body part to rotate it in 3D, or fine-tune it with labelled sliders ("Swing − forward", "Raise + out", …). Click a slider's value to type an exact angle.
+- **Joint gizmo and sliders**: click any body part in the viewport or on the body map in the Pose panel, then rotate it in 3D or fine-tune it with labelled sliders ("Swing − forward", "Raise + out", …). Click a slider's value to type an exact angle.
 - **Joint limits**: optional anatomical ranges keep poses natural (View tab → Joint limits).
 - **Fingers**: five three-segment fingers per hand, with presets (relaxed, fist, point, peace, grip, …) and per-finger curl and spread.
 - **Pose tools**: mirror, symmetrize left→right / right→left, copy/paste pose, reset, undo/redo (200 steps). Undo and redo switch to the pose they change, and deletions show a toast with an **Undo** button.
 - **Pose from photo**: detects up to four people in a photo (MediaPipe, on-device) and poses figures to match. The photo can stay on screen as a reference overlay.
 
 **Figures and scenes**
-- **Body proportions**: male↔female blend, height, build, head size, leg length and chest, plus presets (Female, Male, Athletic, Heroic, Slender, Child).
-- **Multiple figures** per pose, each with its own body and pose. Figures can be hidden (kept in the pose but not drawn or exported).
-- **Props**: box, ball, cylinder, chair, stool, step and wall, which you can move, rotate, scale and duplicate. Turn off "Stand on the floor" to seat a figure on a prop.
+- **Male and female anatomy**: the sex setting blends real secondary sex characteristics, not just scale. Male figures have broad shoulders over narrow hips, sculpted pectorals, a thicker neck, a squarer jaw, more muscular arms and calves and larger hands. Female figures have shoulders narrower than the hips, a defined waist, breasts, fuller glutes and thighs and a slender neck. Height, build, head size, leg length and chest can be adjusted too, or picked from presets (Female, Male, Athletic, Heroic, Slender, Child).
+- **Layers**: multiple figures and props per pose, listed in the Layers panel, where you can add, duplicate, hide and delete them. Hidden figures stay in the pose but are not drawn or exported.
+- **Props**: box, ball, cylinder, chair, stool, step and wall. Move, rotate and scale them with the gizmo or with X/Y/Z fields (drag a field's letter to scrub the value). Turn off "Stand on the floor" to seat a figure on a prop.
 - **Pose library**: 20 built-in poses taken from the reference sheet. You can search, reorder by drag and drop or with Alt+arrow keys, and duplicate or delete poses. Arrow keys move between thumbnails. Thumbnails update live.
 
 **Output**
-- **Three styles**: line art (constant-width ink outlines, lines wherever parts meet, ball joints and contour lines, matching the reference sheet), **shaded** with an adjustable key light and cast shadows for value studies, and **silhouette** for gesture and readability checks. Press `L` to cycle.
-- **Export**: a sheet of all poses, just the current pose, or a **turnaround** of the current pose from 4 or 8 evenly spaced angles, as JPG or PNG, in any of the three styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
+- **Seven render styles**, each with a live preview in the Render panel; press `L` to cycle through them:
+  - **Line art**: constant-width ink outlines, lines wherever parts meet, ball joints and contour lines, matching the reference sheet.
+  - **Pencil**: graphite outlines with hand-drawn wobble and cross-hatched shading.
+  - **Ink wash** (sumi-e): brush outlines of varying width with soft, bleeding ink washes on rice paper.
+  - **Anime**: cel shading with a crisp shadow band, a highlight and rim light.
+  - **Clay**: soft studio lighting with cast shadows, for value studies.
+  - **Minimal**: flat shapes with a hairline outline.
+  - **Silhouette**: solid shapes, for checking gesture and readability.
+- **Key light**: direction, height and presets for the lit styles (Pencil, Ink wash, Anime, Clay), with cast shadows where the style supports them.
+- **Export**: a sheet of all poses, just the current pose, or a **turnaround** of the current pose from 4 or 8 evenly spaced angles, as JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
 - **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
@@ -30,7 +38,8 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
 - Several open tabs stay in sync: a tab adopts changes saved by another one instead of overwriting them.
 - Works offline once loaded (service worker; production builds only) and can be installed as an app.
-- Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs, and an error screen if something crashes.
+- A design-tool layout: pose library and layers on the left, a contextual inspector (Pose / Body / Render) on the right and a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
+- Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs and menus, and an error screen if something crashes.
 
 ## Getting started
 
@@ -76,10 +85,12 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/pages.yml`, whi
 ```
 app/                    Next.js App Router shell (page loads the studio client-side only)
 components/
-  Studio.tsx            Layout, top bar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
+  Studio.tsx            Layout, top bar, canvas toolbar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
   Viewport.tsx          React Three Fiber canvas: selection, gizmo, IK handles, line-art render loop
-  Inspector.tsx         Pose / Body / Scene / View tabs
-  LibraryPanel.tsx      Pose library with thumbnails
+  Inspector.tsx         Contextual Pose / Body / Render panel (joint, prop and style editors)
+  LibraryPanel.tsx      Pose library with thumbnails, and the layers list
+  BodyMap.tsx           Clickable body schematic for picking joints
+  ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
   Practice.tsx          Gesture-practice slideshow
 lib/
@@ -87,11 +98,13 @@ lib/
   store.ts              App state, undo/redo history, persistence
   actions.ts            All document operations used by the UI and shortcuts
   doc.ts                Factories, mirror/symmetrize, validation and migration of untrusted JSON
-  mannequin.ts          Procedural figure: proportions, fingers, IK, swivel, joint limits, grounding
+  mannequin.ts          Procedural figure: male/female anatomy, fingers, IK, swivel, joint limits, grounding
   props.ts              Prop geometry
   sceneview.ts          Keeps three.js objects in sync with a Scene (shared by editor and exporter)
-  ink.ts, lineart.ts    Outline hulls + part-ID edge pass that produce the line-art look; style materials
-  lighting.ts           Key light + shadow-catching floor for the shaded style (editor and export)
+  styles.ts             Render style definitions (outline, rings, interior lines, background, lighting)
+  ink.ts, shaders.ts    Outline hulls with brush jitter, per-style materials, pencil / ink-wash / anime shaders
+  lineart.ts            Part-ID edge pass for the lines where body parts meet
+  lighting.ts           Key light + shadow-catching floor for the lit styles (editor and export)
   render.ts             Camera fitting, off-screen rendering, sheet / turnaround export
   practice.ts           Gesture-practice session building
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting

@@ -1,26 +1,38 @@
 import * as THREE from 'three';
+import { NOISE_GLSL, styleMaterial } from './shaders';
+import { styleDef } from './styles';
 import type { Style, Vec3 } from './types';
 
-/** Inverted-hull outline with a constant on-screen thickness (in CSS pixels). */
+/**
+ * Inverted-hull outline with a constant on-screen thickness (in CSS pixels). `jitter` modulates
+ * the width with noise over the surface, which reads as a brush or pencil stroke.
+ */
 function createOutlineMaterial(uniforms: Ink['uniforms']) {
   return new THREE.ShaderMaterial({
     uniforms,
     side: THREE.BackSide,
     vertexShader: /* glsl */ `
       uniform float thickness;
+      uniform float jitter;
       uniform vec2 resolution;
+      ${NOISE_GLSL}
       void main() {
         vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         vec3 n = normalize(normalMatrix * normal);
         vec2 dir = (projectionMatrix * vec4(n, 0.0)).xy * resolution;
         float len = length(dir);
         if (len > 1e-6) dir /= len;
-        clip.xy += dir * thickness * 2.0 / resolution * clip.w;
+        float w = thickness;
+        if (jitter > 0.0) w *= max(0.15, 1.0 + jitter * (noise3(position * 32.0) * 2.0 - 1.0) * 1.2);
+        clip.xy += dir * w * 2.0 / resolution * clip.w;
         gl_Position = clip;
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 color;
-      void main() { gl_FragColor = vec4(color, 1.0); }`,
+      void main() {
+        gl_FragColor = vec4(color, 1.0);
+        #include <colorspace_fragment>
+      }`,
   });
 }
 
@@ -33,28 +45,28 @@ export function encodeId(id: number) {
 const ID_VERT = 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
 const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }';
 
+interface StyleMaterials {
+  body: THREE.Material;
+  bodySel: THREE.Material;
+  prop: THREE.Material;
+  propSel: THREE.Material;
+}
+
 /** Shared materials and uniforms for one rendering context (the editor or the exporter). */
 export class Ink {
   readonly uniforms = {
     thickness: { value: 1.6 },
+    jitter: { value: 0 },
     resolution: { value: new THREE.Vector2(1, 1) },
-    color: { value: new THREE.Color('#1c1c1c') },
+    color: { value: new THREE.Color('#0b0b0b') },
+    /** World-space direction towards the key light (painterly shaders). */
+    lightDir: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
   readonly ring = new THREE.MeshBasicMaterial({ color: '#8f8f8f' });
-  readonly body = {
-    line: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
-    lineSel: new THREE.MeshBasicMaterial({ color: '#d5e5ff' }),
-    shaded: new THREE.MeshLambertMaterial({ color: '#f2f0ec' }),
-    shadedSel: new THREE.MeshLambertMaterial({ color: '#a8c6ff' }),
-    lineProp: new THREE.MeshBasicMaterial({ color: '#fbfbfb' }),
-    shadedProp: new THREE.MeshLambertMaterial({ color: '#d9d6cf' }),
-    // The ink shaders skip the sRGB output conversion, so '#1c1c1c' ink shows as ~#030303.
-    // Match it so part boundaries disappear inside a silhouette.
-    silhouette: new THREE.MeshBasicMaterial({ color: '#030303' }),
-    silhouetteSel: new THREE.MeshBasicMaterial({ color: '#4f6bed' }),
-    silhouetteProp: new THREE.MeshBasicMaterial({ color: '#b4b4bb' }),
-  };
+  private baseThickness = 1.6;
+  private style: Style = 'line';
+  private materials = new Map<Style, StyleMaterials>();
   private idMats = new Map<number, THREE.ShaderMaterial>();
 
   idMaterial(id: number) {
@@ -70,23 +82,103 @@ export class Ink {
     this.uniforms.resolution.value.set(w, h);
   }
 
+  /** Outline width in pixels, before the style's own scale. */
   setThickness(px: number) {
-    this.uniforms.thickness.value = px;
+    this.baseThickness = px;
+    this.applyThickness();
+  }
+
+  setLightDirection(dir: THREE.Vector3) {
+    this.uniforms.lightDir.value.copy(dir).normalize();
+  }
+
+  /** Outline colour, brush jitter and ring colour for a style. */
+  setStyle(style: Style) {
+    this.style = style;
+    const def = styleDef(style);
+    if (def.outline) {
+      this.uniforms.color.value.set(def.outline.color);
+      this.uniforms.jitter.value = def.outline.jitter;
+    }
+    if (def.rings) this.ring.color.set(def.rings);
+    this.applyThickness();
+  }
+
+  private applyThickness() {
+    const o = styleDef(this.style).outline;
+    this.uniforms.thickness.value = this.baseThickness * (o ? o.scale : 0);
+  }
+
+  /** Surface materials for a style, created on first use. */
+  materialsFor(style: Style): StyleMaterials {
+    let m = this.materials.get(style);
+    if (!m) {
+      m = this.createMaterials(style);
+      this.materials.set(style, m);
+    }
+    return m;
+  }
+
+  private createMaterials(style: Style): StyleMaterials {
+    const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
+    const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
+    const shader = (s: 'ink' | 'sketch' | 'anime', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
+    switch (style) {
+      case 'shaded':
+        return { body: lambert('#f2f0ec'), bodySel: lambert('#a8c6ff'), prop: lambert('#d9d6cf'), propSel: lambert('#a8c6ff') };
+      case 'sketch':
+        return {
+          body: shader('sketch', '#fbfaf6', '#33312e'),
+          bodySel: shader('sketch', '#e3ebff', '#33312e'),
+          prop: shader('sketch', '#f3f1eb', '#33312e'),
+          propSel: shader('sketch', '#e3ebff', '#33312e'),
+        };
+      case 'ink':
+        return {
+          body: shader('ink', '#f1ebdd', '#1d1b18'),
+          bodySel: shader('ink', '#dde4f2', '#1d1b18'),
+          prop: shader('ink', '#e8e1d0', '#1d1b18'),
+          propSel: shader('ink', '#dde4f2', '#1d1b18'),
+        };
+      case 'anime':
+        return {
+          body: shader('anime', '#fcf2ec', '#d7bccb'),
+          bodySel: shader('anime', '#dce7ff', '#a6b9e6'),
+          prop: shader('anime', '#eef1f6', '#c2c9d8'),
+          propSel: shader('anime', '#dce7ff', '#a6b9e6'),
+        };
+      case 'minimal':
+        return { body: basic('#ffffff'), bodySel: basic('#e2e9ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
+      case 'silhouette':
+        // Same colour as the outline, so part boundaries disappear.
+        return { body: basic('#111111'), bodySel: basic('#3366ff'), prop: basic('#b4b4bb'), propSel: basic('#3366ff') };
+      default:
+        return { body: basic('#ffffff'), bodySel: basic('#d5e5ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
+    }
+  }
+
+  dispose() {
+    for (const m of this.materials.values()) for (const mat of Object.values(m)) mat.dispose();
+    this.materials.clear();
+    for (const m of this.idMats.values()) m.dispose();
+    this.idMats.clear();
+    this.outline.dispose();
+    this.ring.dispose();
   }
 }
 
-/** Something drawn in the line-art style: solid parts with outline hulls and contour rings. */
+/** Something drawn in the ink styles: solid parts with outline hulls and contour rings. */
 export class InkedParts {
   readonly bodies: THREE.Mesh[] = [];
   private decorations: THREE.Mesh[] = [];
-  /** Contour rings (a subset of decorations); hidden in the silhouette style. */
+  /** Contour rings (a subset of decorations); hidden in styles without rings. */
   private rings: THREE.Mesh[] = [];
   private geometries = new Set<THREE.BufferGeometry>();
 
   constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
 
   add(parent: THREE.Object3D, geo: THREE.BufferGeometry, tag: Record<string, unknown>, pos?: Vec3, rings: THREE.BufferGeometry[] = []) {
-    const mesh = new THREE.Mesh(geo, this.ink.body.line);
+    const mesh = new THREE.Mesh(geo, this.ink.materialsFor('line').body);
     Object.assign(mesh.userData, tag);
     if (pos) mesh.position.set(...pos);
     mesh.castShadow = true;
@@ -115,22 +207,22 @@ export class InkedParts {
       for (const d of this.decorations) d.visible = false;
       this.bodies.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
     } else {
-      for (const d of this.decorations) d.visible = true;
       this.refresh(style, isSelected);
     }
     return firstId + this.bodies.length;
   }
 
   refresh(style: Style, isSelected: (m: THREE.Mesh) => boolean) {
-    const b = this.ink.body;
+    const m = this.ink.materialsFor(style);
     const prop = this.kind === 'prop';
     for (const mesh of this.bodies) {
       const sel = isSelected(mesh);
-      if (style === 'line') mesh.material = sel ? b.lineSel : prop ? b.lineProp : b.line;
-      else if (style === 'shaded') mesh.material = sel ? b.shadedSel : prop ? b.shadedProp : b.shaded;
-      else mesh.material = sel ? b.silhouetteSel : prop ? b.silhouetteProp : b.silhouette;
+      mesh.material = prop ? (sel ? m.propSel : m.prop) : sel ? m.bodySel : m.body;
     }
-    for (const r of this.rings) r.visible = style !== 'silhouette';
+    const def = styleDef(style);
+    for (const d of this.decorations) d.visible = true;
+    for (const r of this.rings) r.visible = def.rings !== null;
+    if (!def.outline) for (const d of this.decorations) if (!this.rings.includes(d)) d.visible = false;
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void) {
@@ -150,6 +242,64 @@ export class InkedParts {
 }
 
 /* Geometry helpers shared by the mannequin and props. */
+
+/**
+ * Push the surface outwards in a smooth ellipsoidal patch (muscles, glutes) instead of adding a
+ * separate part, so the form reads in shading and silhouette without extra outlines.
+ * `radius` is the patch size per axis; `amount` the peak displacement along the normal.
+ */
+export function bulge(geo: THREE.BufferGeometry, center: Vec3, radius: Vec3, amount: number) {
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const dx = (v.x - center[0]) / radius[0];
+    const dy = (v.y - center[1]) / radius[1];
+    const dz = (v.z - center[2]) / radius[2];
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 >= 1) continue;
+    const w = (1 - d2) * (1 - d2);
+    n.fromBufferAttribute(nrm, i);
+    v.addScaledVector(n, amount * w);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  return geo;
+}
+
+/**
+ * Recompute normals and average them across seam vertices that share a position (lathe seams),
+ * which keeps the outline hull from cracking open along the seam.
+ */
+export function smoothNormals(geo: THREE.BufferGeometry) {
+  geo.computeVertexNormals();
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const groups = new Map<string, number[]>();
+  for (let i = 0; i < pos.count; i++) {
+    const key = `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
+    const g = groups.get(key);
+    if (g) g.push(i);
+    else groups.set(key, [i]);
+  }
+  const sum = new THREE.Vector3();
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    sum.set(0, 0, 0);
+    for (const i of g) sum.add(new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i)));
+    sum.normalize();
+    for (const i of g) nrm.setXYZ(i, sum.x, sum.y, sum.z);
+  }
+  nrm.needsUpdate = true;
+  return geo;
+}
+
+/** An open curve drawn as a thin contour line (e.g. the lower edge of the pectorals). */
+export function contour(points: THREE.Vector3[], radius = 0.0022) {
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false), points.length * 4, radius, 5, false);
+}
 
 export function ellipsoid(rx: number, ry: number, rz: number, w = 36, h = 24) {
   return new THREE.SphereGeometry(1, w, h).scale(rx, ry, rz);

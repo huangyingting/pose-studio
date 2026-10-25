@@ -7,7 +7,9 @@ import {
 import { sharedRenderer } from '@/lib/thumbnails';
 import type { Style } from '@/lib/types';
 import { useScene, useStudio } from './store-context';
-import { Field, Segmented, Toggle } from './ui';
+import { CircleCheck, Pause, Play, SkipBack, SkipForward, Timer, X } from 'lucide-react';
+import { STYLE_LIST } from '@/lib/styles';
+import { Field, Segmented, Select, Toggle } from './ui';
 
 const PRACTICE_KEY = 'pose-studio-practice-v1';
 
@@ -64,7 +66,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
 
   return (
     <div className="practice-setup">
-      <h2>Gesture practice</h2>
+      <h2><Timer size={18} aria-hidden /> Gesture practice</h2>
       <p className="muted">A timed slideshow of poses to draw from. Keys: <kbd>Space</kbd> pause, <kbd>←</kbd> <kbd>→</kbd> previous / next, <kbd>Esc</kbd> stop.</p>
       <div className="form">
         <Field label="Poses">
@@ -88,21 +90,17 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
             options={COUNTS.map((c) => ({ value: String(c), label: c === 0 ? (o.source === 'all' ? 'All' : '10') : String(c) }))}
           />
         </Field>
-        <Field label="Style">
-          <Segmented<Style> label="Style"
-            value={o.style}
-            onChange={(style) => set({ style })}
-            options={[{ value: 'line', label: 'Line art' }, { value: 'shaded', label: 'Shaded' }, { value: 'silhouette', label: 'Silhouette' }]}
-          />
-        </Field>
+        <label>Style
+          <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
+        </label>
         {o.source === 'all' && <Toggle label="Shuffle" checked={o.shuffle} onChange={(shuffle) => set({ shuffle })} />}
         {o.source === 'all' && <Toggle label="Random camera angles" checked={o.randomAngle} onChange={(randomAngle) => set({ randomAngle })} />}
         <Toggle label="Randomly mirror poses" checked={o.mirror} onChange={(mirror) => set({ mirror })} />
       </div>
       <div className="row practice-actions">
         <span className="muted">{total ? `About ${formatTime(total)} in total` : 'Advance with → or the Next button'}</span>
-        <button onClick={onCancel}>Cancel</button>
-        <button className="primary" onClick={start} autoFocus>Start</button>
+        <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn primary" onClick={start} autoFocus>Start</button>
       </div>
     </div>
   );
@@ -188,11 +186,11 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
   if (done) {
     return (
       <div className="practice-setup">
-        <h2>Session complete</h2>
+        <h2><CircleCheck size={18} aria-hidden /> Session complete</h2>
         <p className="muted">{slides.length} {slides.length === 1 ? 'pose' : 'poses'} in {formatTime(elapsed)}. Nice work.</p>
         <div className="row practice-actions">
-          <button onClick={onExit}>Close</button>
-            <button className="primary" onClick={onRestart} autoFocus>New session</button>
+          <button type="button" className="btn ghost" onClick={onExit}>Close</button>
+            <button type="button" className="btn primary" onClick={onRestart} autoFocus>New session</button>
         </div>
       </div>
     );
@@ -214,12 +212,18 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
         {paused && <div className="practice-paused">Paused</div>}
       </div>
       <footer>
-        <button onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous pose">◀ Prev</button>
-        <button onClick={() => setPaused((p) => !p)} className="primary" aria-label={paused ? 'Resume' : 'Pause'}>
-          {paused ? '▶ Resume' : '❚❚ Pause'}
+        <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous pose" title="Previous  ←">
+          <SkipBack size={18} aria-hidden />
         </button>
-        <button onClick={() => go(index + 1)} aria-label="Next pose">{index === slides.length - 1 ? 'Finish' : 'Next ▶'}</button>
-        <button onClick={onExit}>Stop</button>
+        <button type="button" onClick={() => setPaused((p) => !p)} className="play" aria-label={paused ? 'Resume' : 'Pause'} title="Pause / resume  Space">
+          {paused ? <Play size={18} aria-hidden /> : <Pause size={18} aria-hidden />}
+        </button>
+        <button type="button" onClick={() => go(index + 1)} aria-label={index === slides.length - 1 ? 'Finish' : 'Next pose'} title="Next  →">
+          <SkipForward size={18} aria-hidden />
+        </button>
+        <button type="button" onClick={onExit} aria-label="Stop" title="Stop  Esc">
+          <X size={18} aria-hidden /> <span>Stop</span>
+        </button>
       </footer>
     </div>
   );

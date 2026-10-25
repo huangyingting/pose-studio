@@ -1,4 +1,4 @@
-import type { Scene, Style } from './types';
+import { STYLES, type Scene, type Style } from './types';
 
 /*
  * Gesture-drawing practice: a timed slideshow of poses, like the timers artists use for
@@ -40,7 +40,7 @@ export function parsePracticeOptions(raw: unknown): PracticeOptions {
     shuffle: o.shuffle !== false,
     randomAngle: o.randomAngle === true,
     mirror: o.mirror === true,
-    style: o.style === 'shaded' || o.style === 'silhouette' ? o.style : 'line',
+    style: STYLES.includes(o.style as Style) ? (o.style as Style) : 'line',
   };
 }
 

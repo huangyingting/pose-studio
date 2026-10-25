@@ -45,6 +45,16 @@ function jpegSize(buf: Buffer) {
   throw new Error('No SOF marker');
 }
 
+async function addLayer(page: Page, what: string) {
+  await page.getByRole('button', { name: 'Add layer' }).click();
+  await page.getByRole('menuitem', { name: what, exact: true }).click();
+}
+
+async function deleteCurrentPose(page: Page) {
+  await page.getByRole('button', { name: 'Pose actions' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+}
+
 const errors: string[] = [];
 
 test.beforeEach(async ({ page }) => {
@@ -96,7 +106,7 @@ test('dragging a hand moves the arm with IK', async ({ page }) => {
 });
 
 test('dragging the hips down bends the knees and keeps the feet planted', async ({ page }) => {
-  await page.getByRole('button', { name: 'Front' }).click();
+  await page.keyboard.press('1');
   await page.waitForTimeout(300);
   const ankle = await project(page, 'ankleL');
   const root = await project(page, 'root');
@@ -108,9 +118,8 @@ test('dragging the hips down bends the knees and keeps the feet planted', async 
 });
 
 test('figures, props, body and hand presets', async ({ page }) => {
-  await page.getByRole('tab', { name: 'Scene' }).click();
-  await page.getByRole('button', { name: '+ Add' }).click();
-  await page.getByRole('button', { name: '+ Chair' }).click();
+  await addLayer(page, 'Figure');
+  await addLayer(page, 'Chair');
   let s = (await state(page)).scene;
   expect(s.figures).toHaveLength(2);
   expect(s.props).toHaveLength(1);
@@ -123,6 +132,7 @@ test('figures, props, body and hand presets', async ({ page }) => {
 
   await page.getByRole('tab', { name: 'Pose' }).click();
   await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Hands', exact: true }).click();
   await page.getByRole('button', { name: 'Fist' }).click();
   s = (await state(page)).scene;
   expect(s.figures[1].hands.L.curl[1]).toBe(1);
@@ -159,12 +169,12 @@ test('share links open as a new pose', async ({ page, context }) => {
 });
 
 test('saves and re-imports the library as JSON', async ({ page }) => {
-  await page.getByText('File').click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save library (.json)' }).click()]);
+  await page.getByRole('button', { name: 'Main menu' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save library (.json)' }).click()]);
   const path = (await download.path())!;
-  await page.getByText('File').click();
+  await page.getByRole('button', { name: 'Main menu' }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Import poses…' }).click();
+  await page.getByRole('menuitem', { name: 'Import poses…' }).click();
   await (await chooser).setFiles(path);
   await expect(page.getByText('Loaded 20 poses')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(40);
@@ -194,6 +204,9 @@ test('poses a figure from a photo', async ({ page }) => {
   // The fixture is a lunge with arms pushing forward.
   expect(s.scene.figures[0].joints.kneeL?.[0] ?? 0).toBeGreaterThan(20);
   await expect(page.locator('img.reference')).toBeVisible();
+  // MediaPipe's usage logging is answered locally instead of reaching Google (or the CSP).
+  const status = await page.evaluate(() => fetch('https://odml.pa.googleapis.com/v1/log', { method: 'POST' }).then((r) => r.status));
+  expect(status).toBe(204);
 });
 
 test('mobile layout uses drawers', async ({ page }) => {
@@ -209,7 +222,7 @@ test('mobile layout uses drawers', async ({ page }) => {
 test('exports a turnaround of the current pose', async ({ page }) => {
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Turnaround', exact: true }).click();
-  await page.getByRole('radio', { name: 'Silhouette', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Style' }).selectOption('silhouette');
   await expect(page.getByText('2400 × 640 px')).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toBe('Hand_on_head_turnaround.jpg');
@@ -236,7 +249,7 @@ test('gesture practice steps through poses', async ({ page }) => {
 });
 
 test('deleting a pose can be undone from the toast, which shows the pose again', async ({ page }) => {
-  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await deleteCurrentPose(page);
   await expect(page.getByText('Deleted “Hand on head”')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(19);
   await page.keyboard.press(']');
@@ -248,7 +261,7 @@ test('deleting a pose can be undone from the toast, which shows the pose again',
 });
 
 test('typing an exact joint angle', async ({ page }) => {
-  await page.getByRole('button', { name: 'L thigh', exact: true }).click();
+  await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
   await page.getByRole('button', { name: /^Swing \(− forward\): .*Click to type a value$/ }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type('-42.5');
@@ -277,8 +290,7 @@ test('library keyboard navigation and reordering', async ({ page }) => {
 });
 
 test('figures can be hidden without deleting them', async ({ page }) => {
-  await page.getByRole('tab', { name: 'Scene' }).click();
-  await page.getByRole('button', { name: '+ Add' }).click();
+  await addLayer(page, 'Figure');
   await page.getByRole('button', { name: 'Hide Figure 2' }).click();
   let s = (await state(page)).scene;
   expect(s.figures).toHaveLength(2);
@@ -295,9 +307,31 @@ test('changes made in another tab are picked up', async ({ page, context }) => {
   const other = await context.newPage();
   await other.goto('/');
   await other.locator('.stage canvas').waitFor();
-  await other.getByRole('button', { name: 'Delete', exact: true }).click();
+  await deleteCurrentPose(other);
   await expect(other.locator('.save-status')).toHaveText('Saved');
   await expect(page.getByText('Your poses were updated in another tab')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(19);
   await other.close();
+});
+
+test('render styles switch from the toolbar and the Render tab', async ({ page }) => {
+  await page.getByRole('button', { name: 'Render style' }).click();
+  await page.getByRole('menuitemradio', { name: 'Ink wash' }).click();
+  expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('ink');
+  await page.getByRole('tab', { name: 'Render' }).click();
+  await page.getByRole('radio', { name: 'Anime' }).click();
+  expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('anime');
+  await expect(page.locator('.style-card.on img')).toBeVisible();
+  // L cycles through every style.
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('l');
+  expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('shaded');
+});
+
+test('male and female presets change the body', async ({ page }) => {
+  await page.getByRole('tab', { name: 'Body' }).click();
+  await page.getByRole('radio', { name: 'Male', exact: true }).click();
+  expect((await state(page)).scene.figures[0].body.sex).toBe(0);
+  await page.getByRole('radio', { name: 'Female', exact: true }).click();
+  expect((await state(page)).scene.figures[0].body.sex).toBe(1);
 });

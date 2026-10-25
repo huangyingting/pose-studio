@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { SceneView } from './sceneview';
+import { styleDef } from './styles';
+import type { Style } from './types';
 
 /**
  * Draws ink lines where one body part meets another (joints, waist, limbs crossing).
@@ -19,6 +21,7 @@ export class LineArtPass {
   private material: THREE.ShaderMaterial;
   private size = new THREE.Vector2();
   private clearColor = new THREE.Color();
+  private enabled = true;
 
   constructor() {
     this.material = new THREE.ShaderMaterial({
@@ -26,7 +29,8 @@ export class LineArtPass {
         tId: { value: this.target.texture },
         texel: { value: new THREE.Vector2() },
         radius: { value: 1 },
-        color: { value: new THREE.Color('#1c1c1c') },
+        color: { value: new THREE.Color('#0b0b0b') },
+        opacity: { value: 1 },
       },
       transparent: true,
       depthTest: false,
@@ -39,6 +43,7 @@ export class LineArtPass {
         uniform vec2 texel;
         uniform float radius;
         uniform vec3 color;
+        uniform float opacity;
         varying vec2 vUv;
         float differs(vec3 c, vec2 offset) {
           vec3 s = texture2D(tId, vUv + offset * texel * radius).rgb;
@@ -55,14 +60,26 @@ export class LineArtPass {
                          + differs(c, vec2(0.7, -0.7)) + differs(c, vec2(-0.7, -0.7)));
           float a = clamp(d / 2.0, 0.0, 1.0);
           if (a <= 0.0) discard;
-          gl_FragColor = vec4(color, a);
+          gl_FragColor = vec4(color, a * opacity);
+          #include <colorspace_fragment>
         }`,
     });
     this.quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material));
   }
 
+  /** Line colour and opacity for a style; styles without interior lines skip the pass. */
+  setStyle(style: Style) {
+    const lines = styleDef(style).interior;
+    this.enabled = lines !== null;
+    if (lines) {
+      this.material.uniforms.color.value.set(lines.color);
+      this.material.uniforms.opacity.value = lines.alpha;
+    }
+  }
+
   /** Render the ID buffer. Call before the main scene render. */
   prepare(renderer: THREE.WebGLRenderer, view: SceneView, camera: THREE.Camera, lineWidthPx: number) {
+    if (!this.enabled) return;
     renderer.getDrawingBufferSize(this.size);
     this.target.setSize(this.size.x, this.size.y);
     this.material.uniforms.texel.value.set(1 / this.size.x, 1 / this.size.y);
@@ -83,6 +100,7 @@ export class LineArtPass {
 
   /** Overlay the interior lines. Call after the main scene render. */
   overlay(renderer: THREE.WebGLRenderer) {
+    if (!this.enabled) return;
     const autoClear = renderer.autoClear;
     renderer.autoClear = false;
     renderer.render(this.quadScene, this.quadCamera);

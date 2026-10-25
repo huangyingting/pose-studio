@@ -3,6 +3,7 @@ import { wrapDeg } from './joints';
 import { DEFAULT_LIGHT, LightRig } from './lighting';
 import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
+import { styleDef } from './styles';
 import { STYLES, type Light, type Scene, type Style, type View } from './types';
 
 const D2R = Math.PI / 180;
@@ -164,7 +165,7 @@ export class SceneRenderer {
   private view = new SceneView();
   private lights = new LightRig();
   private lines = new LineArtPass();
-  private white = new THREE.Color('#ffffff');
+  private background = new THREE.Color('#ffffff');
 
   constructor() {
     this.renderer.setPixelRatio(1);
@@ -182,13 +183,15 @@ export class SceneRenderer {
   render(doc: Scene, w: number, h: number, line = 2, opts: RenderOptions = {}): HTMLCanvasElement {
     const style = opts.style ?? 'line';
     this.renderer.setSize(w, h, false);
-    this.scene.background = opts.transparent ? null : this.white;
-    this.renderer.setClearColor(0xffffff, opts.transparent ? 0 : 1);
+    this.background.set(styleDef(style).background);
+    this.scene.background = opts.transparent ? null : this.background;
+    this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
     this.view.sync(doc);
     this.view.setStyle(style);
+    this.lines.setStyle(style);
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
-    this.lights.update(opts.light ?? DEFAULT_LIGHT, style, this.view.bounds());
+    this.view.ink.setLightDirection(this.lights.update(opts.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
     this.camera.aspect = w / h;
     fitCamera(this.camera, this.view, doc.view, opts.margin ?? 0.07, opts.minDistance ?? 0);
     this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
@@ -211,7 +214,7 @@ export class SceneRenderer {
     out.height = height;
     const ctx = out.getContext('2d')!;
     if (!transparent) {
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = styleDef(o.style).background;
       ctx.fillRect(0, 0, out.width, out.height);
     }
     // Same scale: the apparent size depends on distance × tan(fov / 2), so match that product.

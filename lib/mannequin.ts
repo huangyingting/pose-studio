@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian } from './ink';
+import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals } from './ink';
 import { clampRotation, jointLimits, wrapDeg } from './joints';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
@@ -65,23 +65,64 @@ export function stableEuler(e: THREE.Euler, prev: Vec3): Vec3 {
 
 /* ---------- body proportions ---------- */
 
+/*
+ * Sex blends the secondary sex characteristics an artist looks for in a figure:
+ *   male    broad shoulders and rib cage tapering to narrow hips (V shape), pectorals, trapezius
+ *           slope, thicker neck, squarer jaw, more muscular arms and calves, larger hands and feet
+ *   female  shoulders narrower than the hips, defined waist (hourglass), breasts, fuller hips,
+ *           glutes and upper thighs, slender neck and limbs, rounder head with a narrower chin
+ */
 function proportions(b: BodyParams) {
   const k = b.height / 1.8;
-  const mix = (male: number, female: number) => male + (female - male) * b.sex;
+  const female = b.sex;
+  const male = 1 - b.sex;
+  const mix = (m: number, f: number) => m + (f - m) * female;
   const torso = (0.9 + 0.3 * b.build) * k;
   return {
     k,
     torso,
-    limbR: (0.82 + 0.42 * b.build) * mix(1.08, 0.94) * k,
+    limbR: (0.82 + 0.42 * b.build) * mix(1.1, 0.92) * k,
     legs: b.legs * k,
-    head: b.head * k,
-    pelvis: { rx: mix(0.152, 0.172) * torso, ry: 0.13 * k, rz: mix(0.108, 0.118) * torso, taper: mix(-0.14, -0.3) },
-    waist: { rx: mix(0.14, 0.118) * torso, ry: 0.13 * k, rz: mix(0.1, 0.088) * torso, taper: 0.1 },
-    chest: { rx: mix(0.182, 0.152) * torso, ry: mix(0.19, 0.18) * k, rz: mix(0.118, 0.1) * torso, taper: mix(0.3, 0.2) },
-    shoulderX: mix(0.192, 0.163) * (0.92 + 0.16 * b.build) * k,
-    hipX: mix(0.084, 0.094) * torso,
-    bust: b.sex * b.bust,
+    head: b.head * mix(1.02, 0.97) * k,
+    headTaper: mix(0.03, 0.17),
+    neckR: mix(0.05, 0.038) * (0.9 + 0.25 * b.build) * k,
+    pelvis: { rx: mix(0.142, 0.186) * torso, ry: mix(0.122, 0.135) * k, rz: mix(0.104, 0.122) * torso, taper: mix(-0.08, -0.34) },
+    waist: { rx: mix(0.14, 0.106) * torso, ry: 0.13 * k, rz: mix(0.1, 0.084) * torso, taper: mix(0.16, 0.05) },
+    chest: { rx: mix(0.194, 0.146) * torso, ry: mix(0.196, 0.172) * k, rz: mix(0.122, 0.096) * torso, taper: mix(0.38, 0.16) },
+    shoulderX: mix(0.206, 0.158) * (0.92 + 0.16 * b.build) * k,
+    hipX: mix(0.08, 0.102) * torso,
+    /** Breast size (female). */
+    bust: female * b.bust,
+    /** Pectoral / trapezius / muscle definition (male). */
+    muscle: male * (0.65 + 0.7 * b.build),
+    /** Glute and upper-thigh fullness. */
+    hips: mix(0.75, 1.15) * (0.85 + 0.3 * b.build),
+    /** Hand and foot size. */
+    extremity: mix(1.06, 0.92),
   };
+}
+
+type Egg = { rx: number; ry: number; rz: number; taper: number };
+
+/** Point on the front of an egg() surface at (x, y), in the egg's local coordinates. */
+function eggFront(e: Egg, x: number, y: number) {
+  const cy = THREE.MathUtils.clamp(y / e.ry, -1, 1);
+  const r = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy);
+  return (e.rz / e.rx) * Math.sqrt(Math.max(0, r * r - x * x));
+}
+
+/** The curved lower edge of one pectoral, from the sternum out towards the armpit. */
+function pectoralLine(c: Egg, s: number, pecY: number, torso: number, k: number, pm: number) {
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12;
+    const x = s * (0.012 + 0.11 * t) * torso;
+    // Low and flat near the sternum, sweeping up to the armpit.
+    const y = pecY - 0.05 * k + 0.07 * k * t * t;
+    const lift = 0.012 * pm * torso * Math.sin(Math.PI * Math.min(1, t * 1.15));
+    pts.push(new THREE.Vector3(x, y, eggFront(c, x, y) + lift + 0.001));
+  }
+  return contour(pts);
 }
 
 /* ---------- fingers ---------- */
@@ -152,7 +193,12 @@ export class Mannequin {
 
     const root = joint('root', this.object, 0, 1);
     const pv = P.pelvis;
-    part('root', egg(pv.rx, pv.ry, pv.rz, pv.taper), [0, -0.04 * k, 0], [meridian(pv.ry, pv.rz, pv.taper)]);
+    const pelvis = egg(pv.rx, pv.ry, pv.rz, pv.taper);
+    // Glutes: rounder and fuller on female figures.
+    for (const s of [1, -1]) {
+      bulge(pelvis, [s * 0.056 * P.torso, -0.035 * k, -pv.rz * 0.85], [0.07 * P.torso, 0.08 * k, 0.09 * P.torso], 0.026 * P.hips * P.torso);
+    }
+    part('root', smoothNormals(pelvis), [0, -0.04 * k, 0], [meridian(pv.ry, pv.rz, pv.taper)]);
 
     const spine = joint('spine', root, 0, 0.07 * k);
     const w = P.waist;
@@ -160,54 +206,71 @@ export class Mannequin {
 
     const chest = joint('chest', spine, 0, 0.17 * k);
     const c = P.chest;
-    part('chest', egg(c.rx, c.ry, c.rz, c.taper), [0, 0.12 * k, 0], [meridian(c.ry, c.rz, c.taper)]);
-    if (P.bust > 0.02) {
-      const r = (0.04 + 0.03 * P.bust) * P.torso;
+    const ribs = egg(c.rx, c.ry, c.rz, c.taper);
+    const chestLines = [meridian(c.ry, c.rz, c.taper)];
+    if (P.muscle > 0.2) {
+      // Pectorals: sculpted into the rib cage, with a contour line along their lower edge.
+      const pm = Math.min(1.2, P.muscle);
+      const pecY = 0.04 * k;
       for (const s of [1, -1]) {
-        part('chest', ellipsoid(r, r * 0.9, r * 0.8, 28, 20), [s * 0.062 * P.torso, 0.105 * k, c.rz * 0.62 + r * 0.3]);
+        bulge(ribs, [s * 0.072 * P.torso, pecY, c.rz * 0.9], [0.08 * P.torso, 0.058 * k, 0.07 * P.torso], 0.016 * pm * P.torso);
+      }
+      chestLines.push(...[1, -1].map((s) => pectoralLine(c, s, pecY, P.torso, k, pm)));
+    }
+    part('chest', smoothNormals(ribs), [0, 0.12 * k, 0], chestLines);
+    if (P.bust > 0.02) {
+      // Breasts: set low and apart, angled outwards and down.
+      const r = (0.04 + 0.034 * P.bust) * P.torso;
+      for (const s of [1, -1]) {
+        const breast = ellipsoid(r, r * 1.04, r * 0.84, 28, 20).rotateX(0.16).rotateY(s * 0.28);
+        part('chest', breast, [s * (0.03 * P.torso + r * 0.85), 0.092 * k, c.rz * 0.6 + r * 0.3]);
       }
     }
 
     const neck = joint('neck', chest, 0, 0.29 * k);
-    part('neck', limb(0.1 * k, 0.042 * P.limbR, 0.046 * P.limbR).geometry.rotateZ(Math.PI), [0, -0.02 * k, 0]);
+    part('neck', limb(0.1 * k, P.neckR * 0.92, P.neckR).geometry.rotateZ(Math.PI), [0, -0.02 * k, 0]);
 
     joint('head', neck, 0, 0.08 * k);
     const h = P.head;
-    const [hx, hy, hz, ht] = [0.085 * h, 0.115 * h, 0.1 * h, 0.1];
+    // A smaller taper gives a squarer jaw (male); a larger one a rounder skull and narrower chin.
+    const [hx, hy, hz, ht] = [0.085 * h, 0.115 * h, 0.1 * h, P.headTaper];
     part('head', egg(hx, hy, hz, ht), [0, 0.1 * h, 0.01 * h], [meridian(hy, hz, ht), latitude(hx, hy, hz, -0.012 * h, ht)]);
 
     const R = P.limbR;
+    const mus = P.muscle;
     for (const side of ['L', 'R'] as const) {
       const s = side === 'L' ? 1 : -1;
       const n = (base: string) => `${base}${side}` as JointName;
 
       const shoulder = joint(n('shoulder'), chest, P.shoulderX * s, 0.235 * k);
-      part(n('shoulder'), ball(0.056 * R));
-      const upper = limb(0.27 * k, 0.047 * R, 0.036 * R, 0.006 * R, 0.3);
+      part(n('shoulder'), ball((0.054 + 0.01 * mus) * R)); // deltoid
+      const upper = limb(0.27 * k, 0.047 * R, 0.036 * R, (0.004 + 0.007 * mus) * R, 0.35);
       part(n('shoulder'), upper.geometry, undefined, [upper.ring(0.5)]);
 
       const elbow = joint(n('elbow'), shoulder, 0, -0.28 * k);
       part(n('elbow'), ball(0.042 * R));
-      const fore = limb(0.23 * k, 0.038 * R, 0.027 * R, 0.007 * R, 0.25);
+      const fore = limb(0.23 * k, 0.038 * R, 0.026 * R, (0.005 + 0.006 * mus) * R, 0.22);
       part(n('elbow'), fore.geometry, undefined, [fore.ring(0.5)]);
 
       const wrist = joint(n('wrist'), elbow, 0, -0.245 * k);
       part(n('wrist'), ball(0.029 * R));
-      this.hands[side] = this.buildHand(wrist, n('wrist'), s, k);
+      this.hands[side] = this.buildHand(wrist, n('wrist'), s, k * P.extremity);
 
       const hip = joint(n('hip'), root, P.hipX * s, -0.07 * k);
       part(n('hip'), ball(0.08 * R));
-      const thigh = limb(0.4 * P.legs, 0.085 * R, 0.05 * R, 0.01 * R, 0.3);
+      // Fuller upper thighs on female figures, more taper on male ones.
+      const thigh = limb(0.4 * P.legs, 0.085 * R * (0.92 + 0.12 * P.hips), 0.05 * R, (0.006 + 0.008 * P.hips) * R, 0.28);
       part(n('hip'), thigh.geometry, undefined, [thigh.ring(0.45)]);
 
       const knee = joint(n('knee'), hip, 0, -0.43 * P.legs);
       part(n('knee'), ball(0.057 * R));
-      const shin = limb(0.37 * P.legs, 0.05 * R, 0.032 * R, 0.012 * R, 0.3);
+      const shin = limb(0.37 * P.legs, 0.05 * R, 0.031 * R, (0.01 + 0.007 * mus) * R, 0.3); // calf
       part(n('knee'), shin.geometry, undefined, [shin.ring(0.4)]);
 
       joint(n('ankle'), knee, 0, -0.4 * P.legs);
       part(n('ankle'), ball(0.036 * R));
-      part(n('ankle'), ellipsoid(0.045 * R, 0.035 * k, 0.115 * k), [0, -0.05 * k, 0.055 * k]);
+      const fk = k * P.extremity;
+      part(n('ankle'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
     }
   }
 

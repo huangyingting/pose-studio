@@ -9,8 +9,9 @@ import { LineArtPass } from '@/lib/lineart';
 import { IK_CHAINS, POLE_CHAINS, type Mannequin } from '@/lib/mannequin';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { SceneView } from '@/lib/sceneview';
+import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
-import type { Figure, JointName, Scene, Selection, Vec3, View } from '@/lib/types';
+import type { Figure, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -110,7 +111,7 @@ export default function Viewport({ store, scene, selection, activeFigure, settin
           if (!moved && performance.now() - gizmoBusy.current > 250) store.select(null);
         }}
       >
-        <color attach="background" args={['#ffffff']} />
+        <color attach="background" args={[styleDef(settings.style).background]} />
         <Lights sv={sv} settings={settings} scene={scene} />
         {settings.showGrid && <gridHelper args={[10, 40, '#d4d4d8', '#ededf0']} />}
         <primitive object={sv.root} onClick={handleClick} />
@@ -137,7 +138,7 @@ export default function Viewport({ store, scene, selection, activeFigure, settin
         )}
         <OrbitControls makeDefault />
         <Bridge sv={sv} apiRef={apiRef} frameRequest={frameRequest} sceneId={scene.id} sceneView={scene.view} />
-        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} />
+        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={settings.style} />
       </Canvas>
     </div>
   );
@@ -281,14 +282,15 @@ function Lights({ sv, settings, scene }: { sv: SceneView; settings: Settings; sc
   useFrame(() => {
     if (!stale.current) return;
     stale.current = false;
-    rig.update(settings.light, settings.style, sv.bounds());
+    sv.ink.setLightDirection(rig.update(settings.light, settings.style, sv.bounds()));
   });
   return <primitive object={rig.object} />;
 }
 
 /** Takes over R3F's render loop to add the interior line-art pass. */
-function LineArtRenderer({ sv, lineWidth }: { sv: SceneView; lineWidth: number }) {
+function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
   const pass = useMemo(() => new LineArtPass(), []);
+  useEffect(() => pass.setStyle(style), [pass, style]);
   const size = useThree((s) => s.size);
   useEffect(() => {
     sv.ink.setResolution(size.width, size.height);

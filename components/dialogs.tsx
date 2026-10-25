@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, ImagePlus, Keyboard, LayoutGrid, RefreshCw, ScanFace, Square } from 'lucide-react';
 import { addFigures, appendScenes } from '@/lib/actions';
 import { newFigure, newScene } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
@@ -10,10 +11,11 @@ import {
   canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, type ExportOptions,
 } from '@/lib/render';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
+import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
 import type { BodyParams, Figure, Style } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
-import { Field, Modal, Segmented, Toggle, type Notify } from './ui';
+import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify } from './ui';
 
 /* ---------------- Export ---------------- */
 
@@ -29,11 +31,6 @@ function loadExportOptions(): ExportOptions {
   return { ...DEFAULT_EXPORT };
 }
 
-const STYLE_OPTIONS: { value: Style; label: string }[] = [
-  { value: 'line', label: 'Line art' },
-  { value: 'shaded', label: 'Shaded' },
-  { value: 'silhouette', label: 'Silhouette' },
-];
 
 export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
   const scenes = useStudio((s) => s.library.scenes);
@@ -105,14 +102,15 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
   return (
     <Modal
       title="Export image"
+      icon={Download}
       onClose={onClose}
       wide
       footer={
         <>
-          <span className="muted">{width} × {height} px{tooBig ? ' — too large for most browsers' : ''}</span>
-          <button onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>
-          <button className="primary" onClick={run} disabled={busy || tooBig} data-autofocus>
-            {busy ? 'Rendering…' : 'Download'}
+          <span className={tooBig ? 'error-text' : 'muted'}>{width} × {height} px{tooBig ? ' — too large for most browsers' : ''}</span>
+          <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>
+          <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig} data-autofocus>
+            <Download size={15} aria-hidden /> {busy ? 'Rendering…' : 'Download'}
           </button>
         </>
       }
@@ -120,57 +118,61 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
       <div className="export-grid">
         <div className="form">
           <Field label="What">
-            <Segmented<ExportOptions['scope']> label="What"
+            <Segmented<ExportOptions['scope']>
+              label="What"
+              full
               value={o.scope}
               onChange={(scope) => set({ scope })}
               options={[
-                { value: 'all', label: `All poses (${scenes.length})` },
-                { value: 'current', label: 'This pose' },
-                { value: 'turnaround', label: 'Turnaround', title: 'This pose from evenly spaced angles' },
+                { value: 'all', label: `All ${scenes.length}`, icon: LayoutGrid, title: 'Every pose in the library' },
+                { value: 'current', label: 'This pose', icon: Square },
+                { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This pose from evenly spaced angles' },
               ]}
             />
           </Field>
           {o.scope === 'turnaround' && (
             <Field label="Angles">
-              <Segmented<'4' | '8'> label="Angles"
+              <Segmented<'4' | '8'>
+                label="Angles"
+                full
                 value={String(o.angles) as '4' | '8'}
                 onChange={(v) => set({ angles: Number(v) as 4 | 8 })}
-                options={[{ value: '4', label: '4 (every 90°)' }, { value: '8', label: '8 (every 45°)' }]}
+                options={[{ value: '4', label: '4 · every 90°' }, { value: '8', label: '8 · every 45°' }]}
               />
             </Field>
           )}
-          <Field label="Style">
-            <Segmented<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_OPTIONS} />
-          </Field>
-          <Field label="Format">
-            <Segmented<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
-          </Field>
+          <div className="row">
+            <label>Style
+              <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
+            </label>
+            <label>Format
+              <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
+            </label>
+          </div>
           <div className="row">
             <label>Columns {num('columns', 1, 12)}</label>
             <label>Cell width {num('cellWidth', 100, 4000)}</label>
             <label>Cell height {num('cellHeight', 100, 4000)}</label>
           </div>
-          <label>Line weight: {o.lineWidth.toFixed(1)} px
-            <input type="range" min={0.5} max={8} step={0.1} value={o.lineWidth} onChange={(e) => set({ lineWidth: Number(e.target.value) })} />
-          </label>
-          <label>Padding: {Math.round(o.margin * 100)}%
-            <input type="range" min={0} max={0.4} step={0.01} value={o.margin} onChange={(e) => set({ margin: Number(e.target.value) })} />
-          </label>
-          <Toggle label="Captions under each cell" checked={o.labels} onChange={(labels) => set({ labels })} />
-          {o.scope === 'all' && (
+          <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
+          <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
+          <div className="stack">
+            <Toggle label="Captions under each cell" checked={o.labels} onChange={(labels) => set({ labels })} />
+            {o.scope === 'all' && (
+              <Toggle
+                label="Same scale in every cell"
+                hint="Keep figures comparable in size instead of filling each cell"
+                checked={o.sameScale}
+                onChange={(sameScale) => set({ sameScale })}
+              />
+            )}
             <Toggle
-              label="Same scale in every cell"
-              hint="Keep figures comparable in size instead of filling each cell"
-              checked={o.sameScale}
-              onChange={(sameScale) => set({ sameScale })}
+              label="Transparent background (PNG)"
+              checked={o.transparent && o.format === 'png'}
+              onChange={(transparent) => set({ transparent, format: transparent ? 'png' : o.format })}
             />
-          )}
-          <Toggle
-            label="Transparent background (PNG)"
-            checked={o.transparent && o.format === 'png'}
-            onChange={(transparent) => set({ transparent, format: transparent ? 'png' : o.format })}
-          />
-          {o.style === 'shaded' && <p className="muted small">Shaded exports use the light set in the View tab.</p>}
+          </div>
+          {styleDef(o.style).lit && <p className="muted small">Uses the light set in the Render tab.</p>}
         </div>
         <div className="preview" ref={preview} aria-label="Preview" />
       </div>
@@ -284,12 +286,13 @@ export function PhotoDialog({ onClose, notify, onReference }: {
   return (
     <Modal
       title="Pose from photo"
+      icon={ScanFace}
       onClose={onClose}
       wide
       footer={
         <>
           <span className={status === 'error' ? 'error-text' : 'muted'}>{message}</span>
-          <button className="primary" disabled={status !== 'done'} onClick={apply}>Apply pose</button>
+          <button type="button" className="btn primary" disabled={status !== 'done'} onClick={apply}>Apply pose</button>
         </>
       }
     >
@@ -305,11 +308,14 @@ export function PhotoDialog({ onClose, notify, onReference }: {
             }}
           >
             <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} data-autofocus />
+            <ImagePlus size={22} strokeWidth={1.5} aria-hidden />
             <strong>Choose a photo</strong>
             <span className="muted small">or drop it here. Full-body shots work best. The photo never leaves your computer.</span>
           </label>
           <Field label="Put the pose on">
-            <Segmented<'new' | 'current'> label="Put the pose on"
+            <Segmented<'new' | 'current'>
+              label="Put the pose on"
+              full
               value={target}
               onChange={setTarget}
               options={[{ value: 'new', label: 'A new pose' }, { value: 'current', label: 'The current figure' }]}
@@ -330,43 +336,39 @@ export function PhotoDialog({ onClose, notify, onReference }: {
 /* ---------------- Help ---------------- */
 
 const SHORTCUTS: [string, string][] = [
-  ['Click a body part', 'Select it and rotate with the gizmo or sliders'],
-  ['Drag orange / green dots', 'Move hands / feet (the limb follows)'],
-  ['Drag the purple dot', 'Move the hips; feet stay planted'],
-  ['Drag the small dots', 'Point elbows and knees'],
-  ['Left drag · right drag · wheel', 'Orbit · pan · zoom'],
-  ['W / E / R', 'Move / rotate / scale gizmo'],
-  ['1 – 6', 'Front, back, left, right, top, ¾ view'],
-  ['F', 'Frame the scene'],
-  ['M', 'Mirror pose'],
-  ['H', 'Show / hide drag handles'],
-  ['L', 'Cycle line art / shaded / silhouette'],
-  ['P', 'Gesture practice (timed slideshow)'],
-  ['[  /  ]', 'Previous / next pose'],
-  ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'],
-  ['Ctrl+C / Ctrl+V', 'Copy / paste pose'],
-  ['Ctrl+D', 'Duplicate pose'],
-  ['Ctrl+E', 'Export image'],
-  ['Click a slider value', 'Type an exact angle'],
-  ['Arrow keys in the library', 'Move between poses (Alt+arrows reorders)'],
-  ['Delete', 'Delete selected prop'],
-  ['Esc', 'Deselect'],
-  ['?', 'This help'],
+  ['Select a body part', 'Click'],
+  ['Move hands / feet (IK)', 'Drag dots'],
+  ['Orbit · pan · zoom', 'Drag · Right drag · Wheel'],
+  ['Move / rotate / scale', 'W  E  R'],
+  ['Camera views', '1 – 6'],
+  ['Frame all', 'F'],
+  ['Mirror pose', 'M'],
+  ['Drag handles', 'H'],
+  ['Next render style', 'L'],
+  ['Gesture practice', 'P'],
+  ['Previous / next pose', '[  ]'],
+  ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
+  ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],
+  ['Duplicate pose', 'Ctrl D'],
+  ['Export image', 'Ctrl E'],
+  ['Save library', 'Ctrl S'],
+  ['Reorder poses', 'Alt + arrows'],
+  ['Delete prop', 'Del'],
+  ['Deselect', 'Esc'],
+  ['This help', '?'],
 ];
 
 export function HelpDialog({ onClose }: { onClose(): void }) {
   return (
-    <Modal title="How to use Pose Studio" onClose={onClose}>
-      <table className="shortcuts">
-        <tbody>
-          {SHORTCUTS.map(([k, v]) => (
-            <tr key={k}><th><kbd>{k}</kbd></th><td>{v}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted small">
-        Your poses are saved in this browser automatically. Use <b>Save</b> in the menu to keep a file copy, and <b>Share</b> to send a
-        single pose as a link.
+    <Modal title="Keyboard shortcuts" icon={Keyboard} onClose={onClose} wide>
+      <div className="shortcuts">
+        {SHORTCUTS.map(([what, keys]) => (
+          <div key={what} className="shortcut"><span>{what}</span><kbd>{keys}</kbd></div>
+        ))}
+      </div>
+      <p className="muted small" style={{ marginTop: 14 }}>
+        Click a slider&apos;s value to type an exact number. Poses are saved in this browser automatically; use <b>Save library</b> in
+        the main menu to keep a file, and <b>Share link</b> to send a single pose.
       </p>
     </Modal>
   );

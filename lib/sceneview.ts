@@ -86,6 +86,7 @@ export class SceneView {
 
   setStyle(style: Style) {
     this.style = style;
+    this.ink.setStyle(style);
     for (const m of this.figures.values()) m.setStyle(style);
     for (const p of this.props.values()) p.setStyle(style);
   }
@@ -125,5 +126,6 @@ export class SceneView {
     this.figures.clear();
     this.props.clear();
     this.root.clear();
+    this.ink.dispose();
   }
 }

@@ -132,3 +132,18 @@ describe('Mannequin', () => {
     expect(tipOf().getSize(new THREE.Vector3()).y).toBeLessThan(open * 0.8);
   });
 });
+
+describe('sex characteristics', () => {
+  const width = (m: Mannequin, a: 'shoulderL' | 'hipL') => m.joints[a].getWorldPosition(new THREE.Vector3()).x * 2;
+  it('gives male figures broader shoulders than hips, and female figures the reverse ratio', () => {
+    const male = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 0, bust: 0 });
+    const female = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 1 });
+    const ratio = (m: Mannequin) => width(m, 'shoulderL') / width(m, 'hipL');
+    expect(ratio(male)).toBeGreaterThan(ratio(female) * 1.4);
+    // Pectoral contour lines on the male chest, breasts as separate forms on the female one.
+    const chestParts = (m: Mannequin) => m.parts.bodies.filter((b) => b.userData.joint === 'chest').length;
+    expect(chestParts(female)).toBe(chestParts(male) + 2);
+    male.dispose();
+    female.dispose();
+  });
+});

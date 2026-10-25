@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+import { Geist_Mono, Inter } from 'next/font/google';
 import { contentSecurityPolicy } from '@/lib/csp';
 import './globals.css';
+
+// Self-hosted at build time by next/font (no requests to Google at runtime).
+const sans = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Pose Studio — posable mannequin for drawing reference',
@@ -14,12 +19,12 @@ const metaCsp = process.env.NEXT_OUTPUT === 'export' ? contentSecurityPolicy({ m
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#4f6bed',
+  themeColor: '#ffffff',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       {metaCsp && <head><meta httpEquiv="Content-Security-Policy" content={metaCsp} /></head>}
       <body>{children}</body>
     </html>
