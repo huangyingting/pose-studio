@@ -2,20 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import {
-  ArrowDownToLine, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Focus, ImagePlus, Mars, RotateCcw, Trash2, Venus, X,
+  ArrowDownToLine, ArrowLeftRight, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Focus, Hand, ImagePlus, Mars, Navigation,
+  PanelLeft, PanelRight, Repeat, RotateCcw, Trash2, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  copyPose, deleteProp, duplicateProp, mirrorPose, pastePose, renameFigure, resetPose, setGrounded, setHand, setJoint, setSceneView,
-  symmetrizePose,
+  arrange, copyPose, deleteProp, duplicateProp, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, resetPose, setDistance,
+  setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { DEFAULT_LIGHT } from '@/lib/lighting';
 import { PROP_LABELS } from '@/lib/props';
+import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import { FINGERS, type Hand, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
+import { FINGERS, type Figure, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
 import BodyMap from './BodyMap';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
@@ -148,21 +150,107 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
           <span className="toolrow-sep" />
           <IconButton icon={RotateCcw} label="Reset pose" onClick={() => resetPose(store)} />
         </div>
-        <Toggle
-          label="Stand on the floor"
-          checked={figure.grounded}
-          hint="Turn off to keep the figure's height, e.g. to sit on a chair"
-          onChange={(on) => setGrounded(store, figure.id, on, ctx.rootPosition(figure.id) ?? undefined)}
-        />
         <Toggle label="Natural joint limits" checked={limits} onChange={(l) => store.setSettings({ limits: l })} />
       </Section>
 
+      <PlacementSection figure={figure} ctx={ctx} />
+      {scene.figures.length > 1 && <RelationSection figure={figure} ctx={ctx} />}
       <HandsSection hands={figure.hands} />
     </>
   );
 }
 
-function HandsSection({ hands }: { hands: Record<Side, Hand> }) {
+/** Where the figure stands and which way it faces. */
+function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
+  const store = useStore();
+  return (
+    <Section title="Placement">
+      <div className="prop-row">
+        <span className="prop-row-label">Floor</span>
+        <NumberField prefix="X" label="Position X" value={figure.position[0]} step={0.05} onChange={(x) => setPlacement(store, figure.id, { x }, `place:${figure.id}:x`)} />
+        <NumberField prefix="Z" label="Position Z" value={figure.position[2]} step={0.05} onChange={(z) => setPlacement(store, figure.id, { z }, `place:${figure.id}:z`)} />
+        <NumberField prefix="↻" label="Facing" value={facing(figure)} step={5} digits={0} onChange={(yaw) => setPlacement(store, figure.id, { yaw }, `place:${figure.id}:yaw`)} />
+      </div>
+      <Toggle
+        label="Stand on the floor"
+        checked={figure.grounded}
+        hint="Turn off to keep the figure's height, e.g. to sit on a chair"
+        onChange={(on) => setGrounded(store, figure.id, on, ctx.rootPosition(figure.id) ?? undefined)}
+      />
+    </Section>
+  );
+}
+
+function Action({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick(): void }) {
+  return (
+    <button type="button" className="action" onClick={onClick}>
+      <Icon size={15} strokeWidth={1.75} aria-hidden />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/** Arrange the active figure relative to another one: facing, spacing, gaze and touch. */
+function RelationSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
+  const store = useStore();
+  const scene = useScene();
+  const others = scene.figures.filter((f) => f.id !== figure.id);
+  const [otherId, setOtherId] = useState(others[0]?.id ?? '');
+  const [side, setSide] = useState<Side>('R');
+  const [contact, setContact] = useState<Contact>('shoulderL');
+  const other = others.find((f) => f.id === otherId) ?? others[0];
+  if (!other) return null;
+  const d = distance(figure, other);
+  return (
+    <Section id="relation" title="Relation" collapsible>
+      <div className="relation-target">
+        <span>To</span>
+        <Select label="Other figure" value={other.id} onChange={setOtherId} options={others.map((f) => ({ value: f.id, label: f.name }))} />
+      </div>
+      <div className="action-grid">
+        <Action icon={Navigation} label="Turn to" onClick={() => arrange(store, figure.id, other.id, 'face')} />
+        <Action icon={ArrowLeftRight} label="Face each other" onClick={() => arrange(store, figure.id, other.id, 'faceEachOther')} />
+        <Action icon={Eye} label="Look at" onClick={() => lookAtFigure(store, figure.id, other.id)} />
+        <Action icon={PanelLeft} label="Beside (left)" onClick={() => arrange(store, figure.id, other.id, 'besideL')} />
+        <Action icon={PanelRight} label="Beside (right)" onClick={() => arrange(store, figure.id, other.id, 'besideR')} />
+        <Action icon={Repeat} label="Back to back" onClick={() => arrange(store, figure.id, other.id, 'backToBack')} />
+      </div>
+      <Slider
+        label="Distance"
+        min={0.2}
+        max={4}
+        step={0.01}
+        value={Math.min(4, Math.max(0.2, d))}
+        display={`${d.toFixed(2)} m`}
+        typeable
+        onChange={(v) => setDistance(store, figure.id, other.id, v, `dist:${figure.id}`)}
+      />
+      <div className="reach">
+        <span className="reach-label">Reach</span>
+        <Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left hand' }, { value: 'R', label: 'Right hand' }]} full />
+        <div className="reach-row">
+          <Select<Contact>
+            label="Touch"
+            value={contact}
+            onChange={setContact}
+            options={CONTACTS.map((c) => ({ value: c, label: `${other.name}: ${CONTACT_LABELS[c]}` }))}
+          />
+          <button
+            type="button"
+            className="btn subtle"
+            onClick={() => {
+              if (!reachFor(store, figure.id, side, other.id, contact)) ctx.notify('Out of reach: move the figures closer', 'error');
+            }}
+          >
+            <Hand size={14} aria-hidden /> Reach
+          </button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function HandsSection({ hands }: { hands: Record<Side, HandPose> }) {
   const store = useStore();
   const [side, setSide] = useState<Side>('L');
   const hand = hands[side];
@@ -191,7 +279,7 @@ function HandsSection({ hands }: { hands: Record<Side, Hand> }) {
             value={hand.curl[i]}
             display={`${Math.round(hand.curl[i] * 100)}%`}
             onChange={(v) => {
-              const curl = [...hand.curl] as Hand['curl'];
+              const curl = [...hand.curl] as HandPose['curl'];
               curl[i] = v;
               setHand(store, side, { ...hand, curl }, `hand:${side}:${i}`);
             }}
@@ -350,17 +438,17 @@ const LIGHT_PRESETS: { name: string; light: Pick<Light, 'azimuth' | 'elevation'>
 ];
 
 /** Small previews of the current pose in every style (rendered off-screen, debounced). */
-function useStylePreviews(scene: Scene, light: Light) {
+function useStylePreviews(scene: Scene, light: Light, faces: boolean) {
   const [previews, setPreviews] = useState<Partial<Record<Style, string>>>({});
   useEffect(() => {
     const t = setTimeout(() => {
       const r = sharedRenderer();
       const out: Partial<Record<Style, string>> = {};
-      for (const s of STYLE_LIST) out[s.id] = r.render(scene, 96, 120, 1, { style: s.id, light, margin: 0.08 }).toDataURL('image/png');
+      for (const s of STYLE_LIST) out[s.id] = r.render(scene, 96, 120, 1, { style: s.id, light, faces, margin: 0.08 }).toDataURL('image/png');
       setPreviews(out);
     }, 250);
     return () => clearTimeout(t);
-  }, [scene, light]);
+  }, [scene, light, faces]);
   return previews;
 }
 
@@ -369,7 +457,7 @@ function RenderTab({ ctx }: { ctx: InspectorContext }) {
   const scene = useScene();
   const settings = useStudio((s) => s.settings);
   const def = styleDef(settings.style);
-  const previews = useStylePreviews(scene, settings.light);
+  const previews = useStylePreviews(scene, settings.light, settings.faces);
   const v = scene.view;
   const setView = (patch: Partial<View>) => setSceneView(store, { ...v, ...patch });
   const setLight = (patch: Partial<Light>) => store.setSettings({ light: { ...settings.light, ...patch } });
@@ -399,6 +487,12 @@ function RenderTab({ ctx }: { ctx: InspectorContext }) {
           ))}
         </div>
         <p className="hint-text">{def.description}. Exports and practice sessions can use any style.</p>
+        <Toggle
+          label="Simple face features"
+          hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks"
+          checked={settings.faces}
+          onChange={(faces) => store.setSettings({ faces })}
+        />
         {def.outline && (
           <Slider
             label="Line weight"

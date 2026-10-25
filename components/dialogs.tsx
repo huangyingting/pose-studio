@@ -35,6 +35,7 @@ function loadExportOptions(): ExportOptions {
 export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
   const scenes = useStudio((s) => s.library.scenes);
   const light = useStudio((s) => s.settings.light);
+  const faces = useStudio((s) => s.settings.faces);
   const scene = useScene();
   const [o, setO] = useState<ExportOptions>(loadExportOptions);
   const [busy, setBusy] = useState(false);
@@ -60,18 +61,18 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
         cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
         lineWidth: Math.max(0.8, o.lineWidth * scale * 1.5),
         labels: false,
-      }, light);
+      }, light, faces);
       small.className = 'preview-canvas';
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, cells, width, height, light]);
+  }, [o, cells, width, height, light, faces]);
 
   const run = async () => {
     setBusy(true);
     await new Promise((r) => setTimeout(r, 30)); // let the button state paint
     try {
-      const canvas = sharedRenderer().sheet(cells, o, light);
+      const canvas = sharedRenderer().sheet(cells, o, light, faces);
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
       const base = o.scope === 'all' ? 'Pose' : safeFilename(scene.name);

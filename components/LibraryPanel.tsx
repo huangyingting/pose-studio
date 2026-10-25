@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Copy, Ellipsis, Eye, EyeOff, Plus, RotateCcw, Search, Trash2, PersonStanding } from 'lucide-react';
+import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, PersonStanding, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
 import {
   addFigure, addProp, addScene, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
   resetLibrary, setFigureHidden,
 } from '@/lib/actions';
 import { PROP_LABELS } from '@/lib/props';
+import { TEMPLATES } from '@/lib/templates';
 import { thumbnail } from '@/lib/thumbnails';
 import { PROP_KINDS } from '@/lib/types';
 import { PROP_ICONS } from './icons';
@@ -83,7 +84,23 @@ function Poses({ onPick, notifyUndo }: { onPick?(): void; notifyUndo(text: strin
       <div className="side-head">
         <h2>Poses <span className="count">{scenes.length}</span></h2>
         <div className="side-actions">
-          <IconButton icon={Plus} label="New pose" onClick={() => addScene(store)} />
+          <Menu
+            label="New pose"
+            className="ibtn"
+            align="end"
+            tip="New pose"
+            items={[
+              { label: 'Blank pose', icon: FilePlus2, onSelect: () => addScene(store) },
+              '-',
+              ...TEMPLATES.map((t) => ({
+                label: t.name,
+                icon: t.people > 2 ? Users : UsersRound,
+                onSelect: () => addScene(store, t.build()),
+              })),
+            ]}
+          >
+            <Plus size={16} strokeWidth={1.75} aria-hidden />
+          </Menu>
           <Menu
             label="Pose actions"
             className="ibtn"

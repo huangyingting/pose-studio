@@ -1,0 +1,218 @@
+import * as THREE from 'three';
+import { Ink } from './ink';
+import { IK_CHAINS, Mannequin, setWorldQuaternion, worldPos } from './mannequin';
+import type { Figure, JointName, Side, Vec3 } from './types';
+
+/*
+ * Spatial relationships between figures: facing, distance, side-by-side / back-to-back
+ * placement, looking at someone and reaching for a point on another figure (IK).
+ *
+ * A figure faces +Z with yaw 0; its yaw is the root joint's Y rotation (turn, + to its left).
+ * Positions are root (pelvis) positions on the floor plane; y is left alone.
+ */
+
+const D2R = Math.PI / 180;
+const R2D = 180 / Math.PI;
+
+const round = (v: number, step = 0.001) => Math.round(v / step) * step || 0; // `|| 0` turns -0 into 0
+const wrap = (a: number) => ((((a + 180) % 360) + 360) % 360) - 180;
+
+export function facing(f: Figure) {
+  return f.joints.root?.[1] ?? 0;
+}
+
+export function withFacing(f: Figure, yaw: number): Figure {
+  const r = f.joints.root ?? [0, 0, 0];
+  return { ...f, joints: { ...f.joints, root: [r[0], round(wrap(yaw), 0.1), r[2]] } };
+}
+
+export function withPosition(f: Figure, x: number, z: number): Figure {
+  return { ...f, position: [round(x), f.position[1], round(z)] };
+}
+
+/** Unit vector the figure faces, on the floor plane. */
+export function forward(f: Figure): [number, number] {
+  const y = facing(f) * D2R;
+  return [Math.sin(y), Math.cos(y)];
+}
+
+/** Unit vector towards the figure's own left. */
+export function leftward(f: Figure): [number, number] {
+  const y = facing(f) * D2R;
+  return [Math.cos(y), -Math.sin(y)];
+}
+
+/** Yaw that makes a figure at `from` face the point `to` (x, z). */
+export function yawTowards(from: Vec3, to: Vec3) {
+  const dx = to[0] - from[0];
+  const dz = to[2] - from[2];
+  if (Math.hypot(dx, dz) < 1e-6) return null;
+  return Math.atan2(dx, dz) * R2D;
+}
+
+/** Floor distance between two figures' pelvises. */
+export function distance(a: Figure, b: Figure) {
+  return Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2]);
+}
+
+/** Turn `a` to face `b`. */
+export function turnTowards(a: Figure, b: Figure): Figure {
+  const yaw = yawTowards(a.position, b.position);
+  return yaw === null ? a : withFacing(a, yaw);
+}
+
+/** Turn both figures towards each other. */
+export function faceEachOther(a: Figure, b: Figure): [Figure, Figure] {
+  return [turnTowards(a, b), turnTowards(b, a)];
+}
+
+/** Move `a` so its pelvis is `d` metres from `b`'s, along the line between them. */
+export function atDistance(a: Figure, b: Figure, d: number): Figure {
+  let dx = a.position[0] - b.position[0];
+  let dz = a.position[2] - b.position[2];
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-6) [dx, dz] = forward(b);
+  else { dx /= len; dz /= len; }
+  return withPosition(a, b.position[0] + dx * d, b.position[2] + dz * d);
+}
+
+/** Place `a` beside `b` (on b's left or right), facing the same way. */
+export function besides(a: Figure, b: Figure, side: Side, gap = 0.6): Figure {
+  const [lx, lz] = leftward(b);
+  const s = side === 'L' ? 1 : -1;
+  return withFacing(withPosition(a, b.position[0] + lx * gap * s, b.position[2] + lz * gap * s), facing(b));
+}
+
+/** Place `a` back to back with `b`. */
+export function backToBack(a: Figure, b: Figure, gap = 0.3): Figure {
+  const [fx, fz] = forward(b);
+  return withFacing(withPosition(a, b.position[0] - fx * gap, b.position[2] - fz * gap), facing(b) + 180);
+}
+
+/** Place `a` in front of `b`, facing it. */
+export function inFrontOf(a: Figure, b: Figure, d = 1): Figure {
+  const [fx, fz] = forward(b);
+  return withFacing(withPosition(a, b.position[0] + fx * d, b.position[2] + fz * d), facing(b) + 180);
+}
+
+/* ---------- posing against other figures (needs the 3D model) ---------- */
+
+/** Builds and caches posed mannequins for a set of figures, to measure and solve against. */
+export class Rig {
+  private ink = new Ink();
+  private models = new Map<string, Mannequin>();
+
+  model(f: Figure) {
+    let m = this.models.get(f.id);
+    if (!m) {
+      m = new Mannequin(this.ink, f.body, f.id);
+      this.models.set(f.id, m);
+    }
+    m.apply(f);
+    return m;
+  }
+
+  dispose() {
+    for (const m of this.models.values()) m.dispose();
+    this.models.clear();
+    this.ink.dispose();
+  }
+}
+
+/** Parts of a figure another figure can reach for. */
+export const CONTACTS = ['head', 'shoulderL', 'shoulderR', 'chest', 'back', 'waist', 'wristL', 'wristR'] as const;
+export type Contact = (typeof CONTACTS)[number];
+
+export const CONTACT_LABELS: Record<Contact, string> = {
+  head: 'Head',
+  shoulderL: 'Left shoulder',
+  shoulderR: 'Right shoulder',
+  chest: 'Chest',
+  back: 'Upper back',
+  waist: 'Waist',
+  wristL: 'Left hand',
+  wristR: 'Right hand',
+};
+
+/** World position of a contact point on a posed figure (on the surface, not inside). */
+export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
+  const k = f.body.height / 1.8;
+  const at = (j: JointName, local: Vec3) => m.joints[j].localToWorld(new THREE.Vector3(...local));
+  switch (c) {
+    case 'head': return at('head', [0, 0.17 * k, 0]);
+    case 'shoulderL': return at('shoulderL', [0, 0.06 * k, 0]);
+    case 'shoulderR': return at('shoulderR', [0, 0.06 * k, 0]);
+    case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k]);
+    case 'back': return at('chest', [0, 0.13 * k, -0.15 * k]);
+    case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);
+    case 'wristL': return at('wristL', [0, -0.06 * k, 0]);
+    case 'wristR': return at('wristR', [0, -0.06 * k, 0]);
+  }
+}
+
+/**
+ * Pose `f`'s arm so its hand rests on `target` (world space). The wrist stops a palm's length
+ * short of the point. Returns the new joints and whether the hand actually got there.
+ */
+export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, limits = true) {
+  const m = rig.model(f);
+  const k = f.body.height / 1.8;
+  const shoulder = worldPos(m.joints[`shoulder${side}`]);
+  const wristTarget = target.clone().add(shoulder.clone().sub(target).normalize().multiplyScalar(0.07 * k));
+  m.setGroundLock(true);
+  m.solveIK(IK_CHAINS[`wrist${side}`], wristTarget, undefined, limits);
+  // Point the hand at the target.
+  const wrist = m.joints[`wrist${side}`];
+  const dir = target.clone().sub(worldPos(wrist)).normalize();
+  const parentQ = wrist.parent!.getWorldQuaternion(new THREE.Quaternion());
+  const handDown = new THREE.Vector3(0, -1, 0).applyQuaternion(parentQ);
+  setWorldQuaternion(wrist, new THREE.Quaternion().setFromUnitVectors(handDown, dir).multiply(parentQ));
+  if (limits) m.constrain([`wrist${side}`]);
+  const reached = worldPos(wrist).distanceTo(wristTarget) < 0.04 * k;
+  const joints = m.read().joints;
+  m.setGroundLock(false);
+  return { joints, reached };
+}
+
+/**
+ * Turn the head (and neck, and the chest for big turns) so the figure looks at `target`,
+ * without tilting the head sideways: each joint turns (yaw) and then nods (pitch).
+ */
+export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true): Figure['joints'] {
+  const m = rig.model(f);
+  const k = f.body.height / 1.8;
+  /** Direction to the target as yaw / pitch-down (degrees) in the chest's frame. */
+  const aim = () => {
+    const eye = m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * k, 0.05 * k));
+    const chestQ = m.joints.chest.getWorldQuaternion(new THREE.Quaternion());
+    const d = target.clone().sub(eye).applyQuaternion(chestQ.invert()).normalize();
+    return { yaw: Math.atan2(d.x, d.z) * R2D, pitch: Math.asin(THREE.MathUtils.clamp(-d.y, -1, 1)) * R2D };
+  };
+  // Beyond what the neck can turn, twist the chest as well.
+  const { yaw } = aim();
+  const extra = Math.sign(yaw) * Math.max(0, Math.abs(yaw) - 100);
+  if (extra) {
+    const c = f.joints.chest ?? [0, 0, 0];
+    m.joints.chest.rotation.y = THREE.MathUtils.clamp(c[1] + extra, -40, 40) * D2R;
+    m.object.updateMatrixWorld(true);
+  }
+  const turn = (j: JointName, y: number, p: number) => {
+    m.joints[j].quaternion
+      .setFromAxisAngle(new THREE.Vector3(0, 1, 0), y * D2R)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), p * D2R));
+    m.object.updateMatrixWorld(true);
+  };
+  // The eye moves as the head turns, so refine a few times.
+  for (let pass = 0; pass < 3; pass++) {
+    const a = aim();
+    turn('neck', a.yaw * 0.45, a.pitch * 0.4);
+    turn('head', a.yaw * 0.55, a.pitch * 0.6);
+  }
+  if (limits) m.constrain(['neck', 'head']);
+  return m.read().joints;
+}
+
+/** Head centre of a posed figure, for looking at someone. */
+export function headPoint(m: Mannequin, f: Figure) {
+  return m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * (f.body.height / 1.8), 0.02));
+}

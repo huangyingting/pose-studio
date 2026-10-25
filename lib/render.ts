@@ -155,6 +155,8 @@ export interface RenderOptions {
   light?: Light;
   /** Minimum camera distance from the subject's centre (see fitCamera). */
   minDistance?: number;
+  /** Simple face details (default on). */
+  faces?: boolean;
 }
 
 /** Off-screen renderer used for thumbnails and image export. */
@@ -186,6 +188,7 @@ export class SceneRenderer {
     this.background.set(styleDef(style).background);
     this.scene.background = opts.transparent ? null : this.background;
     this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
+    this.view.setFaces(opts.faces ?? true);
     this.view.sync(doc);
     this.view.setStyle(style);
     this.lines.setStyle(style);
@@ -205,7 +208,7 @@ export class SceneRenderer {
   }
 
   /** Lay cells out in a grid, optionally captioned. */
-  sheet(cells: Cell[], o: ExportOptions, light?: Light): HTMLCanvasElement {
+  sheet(cells: Cell[], o: ExportOptions, light?: Light, faces = true): HTMLCanvasElement {
     const { cols, width, height } = sheetSize(cells.length, o);
     const labelH = o.labels ? LABEL_HEIGHT : 0;
     const transparent = o.transparent && o.format === 'png';
@@ -225,7 +228,7 @@ export class SceneRenderer {
       const x = (i % cols) * o.cellWidth;
       const y = Math.floor(i / cols) * (o.cellHeight + labelH);
       const canvas = this.render(scene, o.cellWidth, o.cellHeight, o.lineWidth, {
-        transparent, margin: o.margin, style: o.style, light, minDistance: size / tan(scene),
+        transparent, margin: o.margin, style: o.style, light, faces, minDistance: size / tan(scene),
       });
       ctx.drawImage(canvas, x, y);
       if (o.labels) {

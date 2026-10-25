@@ -15,6 +15,8 @@ export interface StyleDef {
   outline: { color: string; scale: number; jitter: number } | null;
   /** Cross-contour rings on limbs and torso. */
   rings: string | null;
+  /** Face feature lines (eyes, brows, mouth). */
+  face: string | null;
   /** Lines where parts meet (line-art ID pass). */
   interior: { color: string; alpha: number } | null;
   /** The key light casts shadows onto the floor. */
@@ -31,6 +33,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#ffffff',
     outline: { color: '#0b0b0b', scale: 1, jitter: 0 },
     rings: '#8f8f8f',
+    face: '#4a4a4a',
     interior: { color: '#0b0b0b', alpha: 1 },
     shadows: false,
     lit: false,
@@ -42,6 +45,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#fbfaf6',
     outline: { color: '#2e2d2b', scale: 0.85, jitter: 0.45 },
     rings: '#a9a59d',
+    face: '#55524d',
     interior: { color: '#2e2d2b', alpha: 0.75 },
     shadows: false,
     lit: true,
@@ -53,6 +57,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#f1ebdd',
     outline: { color: '#141210', scale: 1.35, jitter: 0.75 },
     rings: null,
+    face: '#2c2925',
     interior: { color: '#141210', alpha: 0.55 },
     shadows: false,
     lit: true,
@@ -64,6 +69,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#f6f7fb',
     outline: { color: '#3b2b3a', scale: 1.15, jitter: 0 },
     rings: null,
+    face: '#6b4f5f',
     interior: { color: '#3b2b3a', alpha: 0.9 },
     shadows: true,
     lit: true,
@@ -75,6 +81,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#ffffff',
     outline: { color: '#0b0b0b', scale: 1, jitter: 0 },
     rings: '#8f8f8f',
+    face: '#4a4a4a',
     interior: { color: '#0b0b0b', alpha: 1 },
     shadows: true,
     lit: true,
@@ -86,6 +93,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#eeece7',
     outline: { color: '#a29d93', scale: 0.7, jitter: 0 },
     rings: null,
+    face: '#b9b4aa',
     interior: null,
     shadows: false,
     lit: false,
@@ -97,6 +105,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#ffffff',
     outline: { color: '#111111', scale: 1, jitter: 0 },
     rings: null,
+    face: null,
     interior: null,
     shadows: false,
     lit: false,

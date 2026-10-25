@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals } from './ink';
+import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals, tube } from './ink';
 import { clampRotation, jointLimits, wrapDeg } from './joints';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
@@ -56,7 +56,7 @@ export function stableEuler(e: THREE.Euler, prev: Vec3): Vec3 {
   const b: Vec3 = [...a];
   const mid = e.order === 'YXZ' ? 0 : 2; // middle axis of the rotation order
   for (let i = 0; i < 3; i++) b[i] = i === mid ? 180 - a[i] : a[i] + 180;
-  const fix = (v: Vec3) => v.map((x) => Math.round(wrapDeg(x) * 10) / 10) as Vec3;
+  const fix = (v: Vec3) => v.map((x) => Math.round(wrapDeg(x) * 10) / 10 || 0) as Vec3;
   const dist = (v: Vec3) => v.reduce((s, x, i) => s + Math.abs(wrapDeg(x - prev[i])), 0);
   const ca = fix(a);
   const cb = fix(b);
@@ -151,6 +151,7 @@ export class Mannequin {
   grounded = true;
 
   private hands = {} as Record<Side, FingerRig>;
+  private faces = true;
   private bodyKey = '';
   private last: Figure['joints'] = {};
   private style: Style = 'line';
@@ -173,6 +174,7 @@ export class Mannequin {
     this.parts = new InkedParts(this.ink, 'figure');
     this.build(proportions(body));
     this.refresh();
+    this.parts.setFeatures(this.faces);
     return true;
   }
 
@@ -234,7 +236,8 @@ export class Mannequin {
     const h = P.head;
     // A smaller taper gives a squarer jaw (male); a larger one a rounder skull and narrower chin.
     const [hx, hy, hz, ht] = [0.085 * h, 0.115 * h, 0.1 * h, P.headTaper];
-    part('head', egg(hx, hy, hz, ht), [0, 0.1 * h, 0.01 * h], [meridian(hy, hz, ht), latitude(hx, hy, hz, -0.012 * h, ht)]);
+    const headMesh = part('head', egg(hx, hy, hz, ht), [0, 0.1 * h, 0.01 * h], [meridian(hy, hz, ht), latitude(hx, hy, hz, -0.012 * h, ht)]);
+    this.buildFace(headMesh, { rx: hx, ry: hy, rz: hz, taper: ht }, h);
 
     const R = P.limbR;
     const mus = P.muscle;
@@ -272,6 +275,56 @@ export class Mannequin {
       const fk = k * P.extremity;
       part(n('ankle'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
     }
+  }
+
+  /**
+   * Simple, construction-style face details on the head egg, so figures read which way they
+   * face and look: nose and ears as small forms, eyes / brows / mouth as surface lines.
+   * They can be switched off (setFaceFeatures).
+   */
+  private buildFace(head: THREE.Mesh, e: Egg, h: number) {
+    const [ox, oy, oz] = [head.position.x, head.position.y, head.position.z];
+    const tag = { joint: 'head' as JointName, figure: this.id };
+    const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => {
+      const mesh = this.parts.add(this.joints.head, geo, tag, [ox + x, oy + y, oz + z]);
+      this.parts.markFeature(mesh);
+    };
+    const noseY = -0.05 * h;
+    add(ellipsoid(0.0095 * h, 0.024 * h, 0.012 * h, 20, 14).rotateX(-0.3), 0, noseY, eggFront(e, 0, noseY) - 0.004 * h);
+    const earY = -0.024 * h;
+    const cy = earY / e.ry;
+    const earX = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy) * 0.96;
+    for (const s of [1, -1]) add(ellipsoid(0.011 * h, 0.027 * h, 0.018 * h, 20, 14), s * earX, earY, -0.01 * h);
+
+    const on = (x: number, y: number) => new THREE.Vector3(x, y, eggFront(e, x, y) + 0.0012);
+    const r = 0.0015 * h;
+    const lines: THREE.BufferGeometry[] = [];
+    for (const s of [1, -1]) {
+      // Almond-shaped eye on the eye line, and a brow arching above it.
+      const eye = Array.from({ length: 24 }, (_, i) => {
+        const t = (i / 24) * Math.PI * 2;
+        const lid = Math.sin(t) > 0 ? 0.0068 : 0.0048;
+        return on(s * 0.031 * h + 0.015 * h * Math.cos(t), -0.017 * h + lid * h * Math.sin(t));
+      });
+      lines.push(tube(eye, r));
+      const brow = Array.from({ length: 9 }, (_, i) => {
+        const t = i / 8;
+        return on(s * (0.015 + 0.036 * t) * h, (0.004 + 0.006 * Math.sin(Math.PI * (0.25 + 0.75 * t))) * h);
+      });
+      lines.push(contour(brow, r * 1.1));
+    }
+    const mouth = Array.from({ length: 9 }, (_, i) => {
+      const t = (i / 8) * 2 - 1;
+      return on(t * 0.021 * h, (-0.079 + 0.004 * t * t) * h);
+    });
+    lines.push(contour(mouth, r));
+    this.parts.addFaceLines(head, lines);
+  }
+
+  /** Show or hide the face details. */
+  setFaceFeatures(on: boolean) {
+    this.faces = on;
+    this.parts.setFeatures(on);
   }
 
   /** Palm + thumb + four three-segment fingers. The palm faces the body (−X for the left hand). */
@@ -351,7 +404,7 @@ export class Mannequin {
       if (v.some((a) => a !== 0)) joints[name] = v;
     }
     const p = this.joints.root.position;
-    const r = (x: number) => Math.round(x * 1000) / 1000;
+    const r = (x: number) => Math.round(x * 1000) / 1000 || 0;
     return { joints, position: [r(p.x), r(p.y), r(p.z)] };
   }
 
@@ -420,9 +473,22 @@ export class Mannequin {
     const newB = A.clone().addScaledVector(dir, a * cosA).addScaledVector(pole, a * sinA);
     const newC = A.clone().addScaledVector(dir, d);
 
-    rotateToward(u, B.clone().sub(A), newB.clone().sub(A));
-    const B2 = worldPos(m);
-    rotateToward(m, worldPos(e).sub(B2), newC.sub(B2));
+    // Orient the upper bone so the middle joint is a true hinge: the bone hangs along its
+    // local −Y, and the lower bone bends towards local +Z (elbow) or −Z (knee).
+    const y = A.clone().sub(newB).normalize();
+    const bendDir = newC.clone().sub(newB);
+    bendDir.addScaledVector(y, -bendDir.dot(y));
+    if (bendDir.lengthSq() < 1e-10) {
+      // Straight limb: keep the current twist.
+      bendDir.set(0, 0, isLeg ? -1 : 1).applyQuaternion(u.getWorldQuaternion(new THREE.Quaternion()));
+      bendDir.addScaledVector(y, -bendDir.dot(y));
+    }
+    const z = bendDir.normalize().multiplyScalar(isLeg ? -1 : 1);
+    const x = new THREE.Vector3().crossVectors(y, z).normalize();
+    setWorldQuaternion(u, new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z)));
+    const bend = y.clone().negate().angleTo(newC.clone().sub(newB));
+    m.rotation.set(isLeg ? bend : -bend, 0, 0);
+    this.object.updateMatrixWorld(true);
     if (limits) this.constrain([chain[0], chain[1]]);
     setWorldQuaternion(e, endQ);
     if (limits) this.constrain([chain[2]]);

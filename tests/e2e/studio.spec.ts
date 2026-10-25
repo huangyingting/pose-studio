@@ -335,3 +335,52 @@ test('male and female presets change the body', async ({ page }) => {
   await page.getByRole('radio', { name: 'Female', exact: true }).click();
   expect((await state(page)).scene.figures[0].body.sex).toBe(1);
 });
+
+type Fig = { id: string; position: number[]; joints: Record<string, number[]> };
+const figs = async (page: Page) => (await state(page)).scene.figures as unknown as Fig[];
+
+test('multi-person templates and relation tools', async ({ page }) => {
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Handshake' }).click();
+  expect((await state(page)).scene.name).toBe('Handshake');
+  let [a, b] = await figs(page);
+  expect(Math.abs(a.joints.root[1] - b.joints.root[1])).toBeCloseTo(180, 0);
+
+  await page.getByRole('button', { name: 'Back to back' }).click();
+  [a, b] = await figs(page);
+  expect(Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2])).toBeCloseTo(0.32, 2);
+  expect(Math.abs(Math.abs(a.joints.root[1] - b.joints.root[1]) - 180)).toBeLessThan(0.5);
+
+  await page.getByRole('button', { name: 'Face each other' }).click();
+  await page.getByRole('slider', { name: 'Distance' }).fill('1.5');
+  [a, b] = await figs(page);
+  expect(Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2])).toBeCloseTo(1.5, 1);
+
+  // Too far apart to touch: the app says so.
+  await page.getByRole('combobox', { name: 'Touch' }).selectOption('shoulderL');
+  await page.getByRole('button', { name: 'Reach' }).click();
+  await expect(page.getByText('Out of reach')).toBeVisible();
+  await page.getByRole('slider', { name: 'Distance' }).fill('0.6');
+  const before = (await figs(page))[0].joints.shoulderR;
+  await page.getByRole('button', { name: 'Reach' }).click();
+  expect((await figs(page))[0].joints.shoulderR).not.toEqual(before);
+
+  await page.getByRole('button', { name: 'Look at' }).click();
+  expect((await figs(page))[0].joints.head).toBeTruthy();
+});
+
+test('placement fields move and turn the figure, and faces can be hidden', async ({ page }) => {
+  const x = page.getByRole('textbox', { name: 'Position X' });
+  await x.fill('0.5');
+  await x.press('Enter');
+  const facingField = page.getByRole('textbox', { name: 'Facing' });
+  await facingField.fill('90');
+  await facingField.press('Enter');
+  const [f] = await figs(page);
+  expect(f.position[0]).toBe(0.5);
+  expect(f.joints.root[1]).toBe(90);
+
+  await page.getByRole('tab', { name: 'Render' }).click();
+  await page.getByRole('switch', { name: 'Simple face features' }).uncheck();
+  expect(((await state(page)) as unknown as { settings: { faces: boolean } }).settings.faces).toBe(false);
+});

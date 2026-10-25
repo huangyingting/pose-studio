@@ -14,6 +14,10 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 
 **Figures and scenes**
 - **Male and female anatomy**: the sex setting blends real secondary sex characteristics, not just scale. Male figures have broad shoulders over narrow hips, sculpted pectorals, a thicker neck, a squarer jaw, more muscular arms and calves and larger hands. Female figures have shoulders narrower than the hips, a defined waist, breasts, fuller glutes and thighs and a slender neck. Height, build, head size, leg length and chest can be adjusted too, or picked from presets (Female, Male, Athletic, Heroic, Slender, Child).
+- **Multi-person scenes**: templates for two and three people (conversation, handshake, hand on shoulder, walking hand in hand, waltz hold, back to back, sparring, group photo), built with the same tools you can use yourself:
+  - **Placement**: exact floor position and facing for each figure; the Move tool (`W`) moves whole figures; floor markers show where everyone stands and faces (click one to pick that figure).
+  - **Relations** to another figure: turn to it, face each other, look at it (head, neck and if needed chest turn without tilting), stand beside it or back to back, set the distance, and **reach** a hand to its head, shoulder, chest, back, waist or hand (IK; tells you when it is out of reach).
+- **Simple face features**: nose, ears, eyes, brows and mouth in a construction-drawing style, so you can tell where each figure faces and looks. They can be turned off in the Render panel.
 - **Layers**: multiple figures and props per pose, listed in the Layers panel, where you can add, duplicate, hide and delete them. Hidden figures stay in the pose but are not drawn or exported.
 - **Props**: box, ball, cylinder, chair, stool, step and wall. Move, rotate and scale them with the gizmo or with X/Y/Z fields (drag a field's letter to scrub the value). Turn off "Stand on the floor" to seat a figure on a prop.
 - **Pose library**: 20 built-in poses taken from the reference sheet. You can search, reorder by drag and drop or with Alt+arrow keys, and duplicate or delete poses. Arrow keys move between thumbnails. Thumbnails update live.
@@ -107,11 +111,13 @@ lib/
   lighting.ts           Key light + shadow-catching floor for the lit styles (editor and export)
   render.ts             Camera fitting, off-screen rendering, sheet / turnaround export
   practice.ts           Gesture-practice session building
+  relations.ts          Spatial relations between figures: facing, spacing, look-at, reach
+  templates.ts          Multi-person scene templates
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
 app/api/health          Liveness endpoint
 public/sw.js            Service worker (offline cache)
-tests/unit              Vitest: model, IK, limits, retargeting, store/history, share links, export, practice
+tests/unit              Vitest: model, IK, limits, retargeting, store/history, share links, export, practice, relations, templates
 tests/e2e               Playwright: real-browser flows incl. IK drags, export/turnaround sizes, photo posing, practice,
                         undo toasts, typed angles, library keyboard reordering, cross-tab sync, mobile
 ```

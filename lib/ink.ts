@@ -64,6 +64,7 @@ export class Ink {
   };
   readonly outline = createOutlineMaterial(this.uniforms);
   readonly ring = new THREE.MeshBasicMaterial({ color: '#8f8f8f' });
+  readonly face = new THREE.MeshBasicMaterial({ color: '#4a4a4a' });
   private baseThickness = 1.6;
   private style: Style = 'line';
   private materials = new Map<Style, StyleMaterials>();
@@ -101,6 +102,7 @@ export class Ink {
       this.uniforms.jitter.value = def.outline.jitter;
     }
     if (def.rings) this.ring.color.set(def.rings);
+    if (def.face) this.face.color.set(def.face);
     this.applyThickness();
   }
 
@@ -164,6 +166,7 @@ export class Ink {
     this.idMats.clear();
     this.outline.dispose();
     this.ring.dispose();
+    this.face.dispose();
   }
 }
 
@@ -173,6 +176,11 @@ export class InkedParts {
   private decorations: THREE.Mesh[] = [];
   /** Contour rings (a subset of decorations); hidden in styles without rings. */
   private rings: THREE.Mesh[] = [];
+  /** Optional face details: nose and ear parts, and eye / brow / mouth lines. */
+  private features = new Set<THREE.Mesh>();
+  private faceLines: THREE.Mesh[] = [];
+  private featuresOn = true;
+  private style: Style = 'line';
   private geometries = new Set<THREE.BufferGeometry>();
 
   constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
@@ -201,6 +209,31 @@ export class InkedParts {
     return mesh;
   }
 
+  /** Mark a part as an optional face detail (see setFeatures). */
+  markFeature(mesh: THREE.Mesh) {
+    this.features.add(mesh);
+    mesh.visible = this.featuresOn;
+  }
+
+  /** Thin lines drawn on a part's surface (eyes, brows, mouth), in the style's face colour. */
+  addFaceLines(mesh: THREE.Mesh, geos: THREE.BufferGeometry[]) {
+    for (const g of geos) {
+      const line = new THREE.Mesh(g, this.ink.face);
+      line.raycast = () => {};
+      mesh.add(line);
+      this.decorations.push(line);
+      this.faceLines.push(line);
+      this.geometries.add(g);
+    }
+  }
+
+  setFeatures(on: boolean) {
+    this.featuresOn = on;
+    for (const m of this.features) m.visible = on;
+    const face = styleDef(this.style).face !== null;
+    for (const l of this.faceLines) l.visible = on && face;
+  }
+
   /** Swap to flat per-part colours for the ID pass; returns the next free id. */
   setIdMode(on: boolean, firstId: number, style: Style, isSelected: (m: THREE.Mesh) => boolean) {
     if (on) {
@@ -220,14 +253,17 @@ export class InkedParts {
       mesh.material = prop ? (sel ? m.propSel : m.prop) : sel ? m.bodySel : m.body;
     }
     const def = styleDef(style);
+    this.style = style;
     for (const d of this.decorations) d.visible = true;
     for (const r of this.rings) r.visible = def.rings !== null;
     if (!def.outline) for (const d of this.decorations) if (!this.rings.includes(d)) d.visible = false;
+    this.setFeatures(this.featuresOn);
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void) {
     const p = new THREE.Vector3();
     for (const mesh of this.bodies) {
+      if (!mesh.visible) continue;
       const pos = mesh.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) cb(p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
     }

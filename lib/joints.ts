@@ -78,6 +78,8 @@ export function mirrorJointName(j: JointName): JointName {
 
 /** Wrap an angle into (-180, 180]. */
 export function wrapDeg(a: number) {
+  // Leave in-range angles untouched (the modulo arithmetic below adds float noise).
+  if (a > -180 && a <= 180) return a;
   const w = ((((a + 180) % 360) + 360) % 360) - 180;
   return w === -180 ? 180 : w;
 }

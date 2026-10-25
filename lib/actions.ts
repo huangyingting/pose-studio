@@ -3,6 +3,10 @@ import {
   NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid,
 } from './doc';
 import { presetScenes } from './presets';
+import {
+  Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
+  withFacing, withPosition, type Contact,
+} from './relations';
 import type { Store } from './store';
 import type { Figure, Hand, JointName, Prop, PropKind, Scene, Side, Vec3, View } from './types';
 
@@ -181,4 +185,71 @@ export function deleteSelection(store: Store) {
     return true;
   }
   return false;
+}
+
+/* Placement and relationships between figures */
+
+/** Move / turn a figure on the floor (any of x, z, facing yaw). */
+export function setPlacement(store: Store, id: string, p: { x?: number; z?: number; yaw?: number }, key = '') {
+  store.updateFigure(id, (f) => {
+    let next = f;
+    if (p.x !== undefined || p.z !== undefined) next = withPosition(next, p.x ?? f.position[0], p.z ?? f.position[2]);
+    if (p.yaw !== undefined) next = withFacing(next, p.yaw);
+    return next;
+  }, key);
+}
+
+export type Arrangement = 'face' | 'faceEachOther' | 'besideL' | 'besideR' | 'backToBack' | 'inFront';
+
+/** Arrange figure `a` relative to figure `b` (only `faceEachOther` also turns `b`). */
+export function arrange(store: Store, a: string, b: string, how: Arrangement) {
+  const fa = store.scene.figures.find((f) => f.id === a);
+  const fb = store.scene.figures.find((f) => f.id === b);
+  if (!fa || !fb || a === b) return;
+  let na = fa;
+  let nb = fb;
+  if (how === 'face') na = turnTowards(fa, fb);
+  else if (how === 'faceEachOther') [na, nb] = faceEachOther(fa, fb);
+  else if (how === 'besideL' || how === 'besideR') na = besides(fa, fb, how === 'besideL' ? 'L' : 'R', 0.55 * (fa.body.height + fb.body.height) / 3.4);
+  else if (how === 'backToBack') na = backToBack(fa, fb, 0.32);
+  else na = inFrontOf(fa, fb, Math.max(0.8, distance(fa, fb)));
+  store.updateScene((s) => ({ ...s, figures: s.figures.map((f) => (f.id === a ? na : f.id === b ? nb : f)) }));
+}
+
+/** Set the floor distance between two figures by moving `a`. */
+export function setDistance(store: Store, a: string, b: string, d: number, key = '') {
+  const fb = store.scene.figures.find((f) => f.id === b);
+  if (!fb || a === b) return;
+  store.updateFigure(a, (f) => atDistance(f, fb, d), key);
+}
+
+/** Turn `a`'s head (and if needed its chest) to look at `b`'s face. */
+export function lookAtFigure(store: Store, a: string, b: string) {
+  const fa = store.scene.figures.find((f) => f.id === a);
+  const fb = store.scene.figures.find((f) => f.id === b);
+  if (!fa || !fb || a === b) return;
+  const rig = new Rig();
+  try {
+    const target = headPoint(rig.model(fb), fb);
+    const joints = lookAt(rig, fa, target, store.getState().settings.limits);
+    store.updateFigure(a, (f) => ({ ...f, joints }));
+  } finally {
+    rig.dispose();
+  }
+}
+
+/** Put `a`'s hand on a part of `b`. Returns false if it could not reach (the arm still stretches towards it). */
+export function reachFor(store: Store, a: string, side: Side, b: string, contact: Contact) {
+  const fa = store.scene.figures.find((f) => f.id === a);
+  const fb = store.scene.figures.find((f) => f.id === b);
+  if (!fa || !fb) return false;
+  const rig = new Rig();
+  try {
+    const target = contactPoint(rig.model(fb), fb, contact);
+    const { joints, reached } = reach(rig, fa, side, target, store.getState().settings.limits);
+    store.updateFigure(a, (f) => ({ ...f, joints }));
+    return reached;
+  } finally {
+    rig.dispose();
+  }
 }

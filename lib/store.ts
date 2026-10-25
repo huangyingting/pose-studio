@@ -13,6 +13,8 @@ export interface Settings {
   editorLine: number;
   /** Key light for the shaded style (editor and export). */
   light: Light;
+  /** Simple face details (nose, ears, eyes, brows, mouth). */
+  faces: boolean;
 }
 
 export type SaveStatus = 'saved' | 'pending' | 'error';
@@ -30,7 +32,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT,
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true,
 };
 
 const STORAGE = { library: 'pose-studio-library-v2', legacy: 'pose-studio-library-v1', settings: 'pose-studio-settings-v1', index: 'pose-studio-index' };
@@ -74,6 +76,7 @@ function loadSettings(storage: Storage | null): Settings {
         gizmo: s.gizmo === 'translate' || s.gizmo === 'scale' ? s.gizmo : 'rotate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
         light: clampLight(s.light),
+        faces: s.faces !== false,
       };
     }
   } catch {

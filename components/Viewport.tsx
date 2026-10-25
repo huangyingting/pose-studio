@@ -52,6 +52,7 @@ export default function Viewport({ store, scene, selection, activeFigure, settin
   }, [sv, scene]);
   useLayoutEffect(() => sv.setSelection(selection), [sv, selection, scene]);
   useLayoutEffect(() => sv.setStyle(settings.style), [sv, settings.style]);
+  useLayoutEffect(() => sv.setFaces(settings.faces), [sv, settings.faces]);
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
@@ -71,13 +72,16 @@ export default function Viewport({ store, scene, selection, activeFigure, settin
   let mode: 'rotate' | 'translate' | 'scale' = 'rotate';
   let showY = true;
   let onGizmoChange = () => {};
-  if (selection?.kind === 'joint') {
-    const m = sv.figures.get(selection.figure);
-    const doc = figureDoc(selection.figure);
+  // The Move tool always moves a whole figure: the selected one, or the active one.
+  const moving = settings.gizmo === 'translate';
+  const gizmoFigure = selection?.kind === 'joint' ? selection.figure : !selection && moving ? activeFigure : null;
+  if (gizmoFigure) {
+    const m = sv.figures.get(gizmoFigure);
+    const doc = figureDoc(gizmoFigure);
     if (m && doc) {
-      const joint = selection.joint;
+      const joint: JointName = moving ? 'root' : selection?.kind === 'joint' ? selection.joint : 'root';
       target = m.joints[joint];
-      mode = joint === 'root' && settings.gizmo === 'translate' ? 'translate' : 'rotate';
+      mode = moving ? 'translate' : 'rotate';
       showY = !(mode === 'translate' && doc.grounded);
       onGizmoChange = () => {
         if (settings.limits && mode === 'rotate') m.constrain([joint]);
@@ -135,6 +139,9 @@ export default function Viewport({ store, scene, selection, activeFigure, settin
             limits={settings.limits}
             onCommit={(read) => store.updateFigure(activeDoc.id, (f) => ({ ...f, ...read }), 'ik')}
           />
+        )}
+        {settings.showHandles && (scene.figures.length > 1 || moving) && (
+          <FigureMarkers sv={sv} scene={scene} version={version} active={activeFigure} onPick={(id) => store.setActiveFigure(id)} />
         )}
         <OrbitControls makeDefault />
         <Bridge sv={sv} apiRef={apiRef} frameRequest={frameRequest} sceneId={scene.id} sceneView={scene.view} />
@@ -268,6 +275,60 @@ function IKHandles({ m, figure, limits, onCommit }: {
           <meshBasicMaterial color={h.color} transparent opacity={0.88} depthTest={false} />
         </mesh>
       ))}
+    </>
+  );
+}
+
+/**
+ * Floor markers under each figure: a ring at its position and an arrow for the way it faces,
+ * so the spatial layout of a group reads from any angle (best from the Top view). Click to pick.
+ */
+function FigureMarkers({ sv, scene, version, active, onPick }: {
+  sv: SceneView;
+  scene: Scene;
+  version: number;
+  active: string | null;
+  onPick(id: string): void;
+}) {
+  const groups = useRef<Record<string, THREE.Group | null>>({});
+  const tmp = useMemo(() => ({ p: new THREE.Vector3(), q: new THREE.Quaternion(), f: new THREE.Vector3() }), []);
+  useFrame(() => {
+    for (const f of scene.figures) {
+      const g = groups.current[f.id];
+      const m = sv.figures.get(f.id);
+      if (!g || !m) continue;
+      const root = m.joints.root;
+      root.getWorldPosition(tmp.p);
+      g.position.set(tmp.p.x, 0.004, tmp.p.z);
+      tmp.f.set(0, 0, 1).applyQuaternion(root.getWorldQuaternion(tmp.q));
+      g.rotation.y = Math.atan2(tmp.f.x, tmp.f.z);
+    }
+  });
+  void version;
+  return (
+    <>
+      {scene.figures.filter((f) => !f.hidden).map((f) => {
+        const k = f.body.height / 1.8;
+        const color = f.id === active ? '#3b6cff' : '#a1a1a6';
+        return (
+          <group
+            key={f.id}
+            ref={(el) => { groups.current[f.id] = el; }}
+            onClick={(e) => { if (e.delta > 4) return; e.stopPropagation(); onPick(f.id); }}
+            onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+            onPointerOut={() => { document.body.style.cursor = ''; }}
+          >
+            <mesh rotation-x={-Math.PI / 2} renderOrder={5}>
+              <ringGeometry args={[0.26 * k, 0.275 * k, 64]} />
+              <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, -Math.PI / 2]} position={[0, 0, 0.33 * k]} renderOrder={5}>
+              <circleGeometry args={[0.055 * k, 3]} />
+              <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
+            </mesh>
+          </group>
+        );
+      })}
     </>
   );
 }

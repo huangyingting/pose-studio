@@ -620,6 +620,31 @@ button.psec-title svg { color: var(--text-3); }
 .style-name { font-size: 11px; color: var(--text-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .style-card.on .style-name { color: var(--text); }
 
+.relation-target { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 4px; color: var(--text-2); }
+.action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.action {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.action:hover { background: var(--hover); color: var(--text); }
+.action:active { background: var(--accent-soft); color: var(--accent); }
+.reach { display: grid; gap: 6px; }
+.reach-label { color: var(--text-2); }
+.reach-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
 .prop-row { display: grid; grid-template-columns: 58px repeat(3, minmax(0, 1fr)); gap: 4px; align-items: center; }
 .prop-row-label { color: var(--text-2); }
 

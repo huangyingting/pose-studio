@@ -262,7 +262,8 @@ function App() {
     setReference,
   };
 
-  const gizmoForSelection = selection?.kind === 'prop' || (selection?.kind === 'joint' && selection.joint === 'root');
+  // Move works on any figure; Scale only on props.
+  const gizmoForSelection = selection?.kind === 'prop' || (settings.gizmo === 'translate' && !!activeFigure);
   const openFilePicker = (mode: 'append' | 'replace') => {
     fileRef.current!.dataset.mode = mode;
     fileRef.current!.click();
@@ -358,7 +359,7 @@ function App() {
             iconOnly
             options={[
               { value: 'rotate', label: 'Rotate', icon: Rotate3d, title: 'Rotate  E' },
-              { value: 'translate', label: 'Move', icon: Move3d, title: 'Move pelvis or prop  W' },
+              { value: 'translate', label: 'Move', icon: Move3d, title: 'Move figure or prop  W' },
               { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
             ]}
           />
@@ -405,7 +406,7 @@ function App() {
           />
         </div>
         {settings.gizmo !== 'rotate' && !gizmoForSelection && (
-          <div className="hint">Select the pelvis or a prop to {settings.gizmo === 'translate' ? 'move' : 'scale'} it</div>
+          <div className="hint">Select a prop to {settings.gizmo === 'translate' ? 'move' : 'scale'} it</div>
         )}
       </main>
 
