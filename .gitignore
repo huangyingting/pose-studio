@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+.DS_Store
+
+# Downloaded / copied by `npm install` (scripts/setup-mediapipe.mjs)
+public/mediapipe/
