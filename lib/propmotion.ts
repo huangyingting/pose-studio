@@ -50,6 +50,7 @@ export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: numbe
   const a = scene.animation;
   if (!a || !a.keys.some((k) => k.props && Object.keys(k.props).length)) return scene.props;
   rig ??= new Rig();
+  rig.ground = groundOf(scene.props);
   const wrists = new Map<string, THREE.Matrix4 | null>();
   /** The world matrix of a figure's wrist at time `at`. */
   const wrist = (figure: string, hand: Side, at: number) => {
@@ -139,9 +140,10 @@ export function throwTime(from: Vec3, to: Vec3) {
   return Math.sqrt((2 * (top - from[1])) / GRAVITY) + Math.sqrt((2 * (top - to[1])) / GRAVITY);
 }
 
-/** Where a figure's hand (wrist) is, in the world. */
-export function handPosition(f: Figure, hand: Side): Vec3 {
+/** Where a figure's hand (wrist) is, in the world (standing on the tops of `props`, if given). */
+export function handPosition(f: Figure, hand: Side, props?: Prop[]): Vec3 {
   rig ??= new Rig();
+  rig.ground = props ? groundOf(props) : null;
   const p = rig.model(f).joints[hand === 'L' ? 'wristL' : 'wristR'].getWorldPosition(new THREE.Vector3());
   return [p.x, p.y, p.z];
 }
@@ -152,6 +154,7 @@ export function worldOfProp(scene: Scene, id: string, figureAt: (fid: string, at
   if (!p) return null;
   if (!p.hold) return { position: p.position, rotation: p.rotation };
   rig ??= new Rig();
+  rig.ground = groundOf(scene.props);
   const f = figureAt(p.hold.figure, t);
   if (!f) return { position: p.position, rotation: p.rotation };
   const j = rig.model(f).joints[p.hold.hand === 'L' ? 'wristL' : 'wristR'];

@@ -101,6 +101,8 @@ export function inFrontOf(a: Figure, b: Figure, d = 1): Figure {
 export class Rig {
   private ink = new Ink();
   private models = new Map<string, Mannequin>();
+  /** What grounded figures stand on (the tops of props, as in the scene), or the floor (null). */
+  ground: ((x: number, z: number) => number) | null = null;
 
   model(f: Figure) {
     let m = this.models.get(f.id);
@@ -108,6 +110,7 @@ export class Rig {
       m = new Mannequin(this.ink, f.body, f.id);
       this.models.set(f.id, m);
     }
+    m.setGround(this.ground);
     m.apply(f);
     return m;
   }

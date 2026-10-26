@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { builtInPoses, poseScene } from '../../lib/poses';
+import { CMU, bvh } from '../fixtures/bvh';
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
@@ -619,8 +620,8 @@ const anim = async (page: Page) => page.evaluate(() => {
 });
 
 test('a library motion plays, takes keys and is filmed by a shot camera', async ({ page }) => {
-  await sceneWithMotion(page, 'Walk cycle');
-  // Four keys of the cycle, and the first again to close it.
+  await sceneWithMotion(page, 'Dance groove');
+  // Four keys of the loop, and the first again to close it.
   expect((await anim(page)).animation!.keys).toHaveLength(5);
 
   await page.getByRole('button', { name: 'Play' }).click();
@@ -740,7 +741,7 @@ test('storyboard: panels with captions, reordering, board sheet export and persi
 
 test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   test.setTimeout(120_000);
-  await sceneWithMotion(page, 'Walk cycle');
+  await sceneWithMotion(page, 'Walk ahead');
   await page.locator('.tl-qa').click();
   await expect(page.locator('.tl-qa')).toHaveText('No issues', { timeout: 30_000 });
 
@@ -857,5 +858,122 @@ test('library assets apply to the selection: poses to a figure, motions to its t
     return sc.figures.map((f) => sc.animation!.keys.filter((k) => k.poses[f.id]).length);
   });
   expect(tracks[0]).toBe(1);
-  expect(tracks[1]).toBeGreaterThan(4);
+  // Where it stands and where it lands; the jump in between is generated.
+  expect(tracks[1]).toBe(2);
+});
+
+/** The live scene, as the tests below need it. */
+type LiveScene = {
+  figures: { id: string; name: string; color?: string; gaze?: { figure?: string } }[];
+  props: { id: string; name: string; hold?: unknown }[];
+  light?: { warmth: number; azimuth: number };
+  animation?: {
+    duration: number;
+    shots?: { subject?: string }[];
+    keys: { t: number; poses: Record<string, { travel?: string; spin?: number; position: number[] }>; props?: Record<string, { throw?: boolean; hold?: unknown }> }[];
+  };
+};
+type LiveStore = { scene: LiveScene; getState(): { activeFigure: string; time: number; library: { motions?: { name: string }[] } } };
+const live = (page: Page) =>
+  page.evaluate(() => {
+    const store = (window as unknown as { __poseStudio: { store: LiveStore } }).__poseStudio.store;
+    return { scene: store.scene, active: store.getState().activeFigure, time: store.getState().time, motions: store.getState().library.motions ?? [] };
+  });
+
+/** Right-click a point on the floor and pick from its menu. */
+async function floorMenu(page: Page, at: number[], item: string | RegExp) {
+  const p = await projectPoint(page, at);
+  const canvas = (await page.locator('.stage canvas').boundingBox())!;
+  expect(p.y, 'the point is on screen').toBeLessThan(canvas.y + canvas.height - 10);
+  await page.mouse.click(p.x, p.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: item }).click();
+}
+
+test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
+  await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
+  let s = await live(page);
+  let track = s.scene.animation!.keys.filter((k) => k.poses[s.active]);
+  expect(track).toHaveLength(2);
+  expect(track[1].poses[s.active].travel).toBe('walk');
+  expect(track[1].poses[s.active].position[0]).toBeCloseTo(0.8, 1);
+  expect(track[1].poses[s.active].position[2]).toBeCloseTo(-1.2, 1);
+  // The playhead waits at the new mark; the next one chains on.
+  expect(s.time).toBeCloseTo(track[1].t, 1);
+  await floorMenu(page, [-0.8, 0, -2.4], 'Run here');
+  s = await live(page);
+  track = s.scene.animation!.keys.filter((k) => k.poses[s.active]);
+  expect(track.map((k) => k.poses[s.active].travel ?? null)).toEqual([null, 'walk', 'run']);
+
+  // Right-click between the first two keys on the timeline: jump there instead, with a full turn.
+  const box = (await page.locator('[aria-label="Pose keyframes"]').boundingBox())!;
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const x = lanes.x + (lanes.width * (track[0].t + track[1].t)) / 2 / s.scene.animation!.duration;
+  await page.mouse.click(x, box.y + box.height / 2, { button: 'right' });
+  await page.getByRole('menuitemradio', { name: 'Jump', exact: true }).click();
+  await page.mouse.click(x, box.y + box.height / 2, { button: 'right' });
+  await page.getByRole('menuitemradio', { name: 'Full turn' }).click();
+  s = await live(page);
+  const key = s.scene.animation!.keys.filter((k) => k.poses[s.active])[1].poses[s.active];
+  expect(key.travel).toBe('jump');
+  expect(key.spin).toBe(1);
+});
+
+test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {
+  await addLayer(page, 'Stick');
+  let s = await live(page);
+  expect(s.scene.props[0].hold).toBeTruthy();
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  for (let i = 0; i < 6; i++) await page.keyboard.press('.');
+  await floorMenu(page, [1.2, 0, -1], /^Throw .* here$/);
+  s = await live(page);
+  const keys = s.scene.animation!.keys.filter((k) => k.props?.[s.scene.props[0].id]);
+  expect(keys.some((k) => k.props![s.scene.props[0].id].throw)).toBe(true);
+  await expect(page.locator('.tl-key.prop').first()).toBeVisible();
+});
+
+test('eyes on another figure, figure colours, a shot subject and the scene light', async ({ page }) => {
+  await addLayer(page, 'Figure');
+  let s = await live(page);
+  const [first, second] = s.scene.figures;
+  expect(s.active).toBe(second.id);
+  await choose(page, 'Eyes on', first.name);
+  s = await live(page);
+  expect(s.scene.figures[1].gaze?.figure).toBe(first.id);
+
+  await page.getByRole('tab', { name: 'Body' }).click();
+  await page.getByRole('radiogroup', { name: 'Colour' }).getByRole('radio').nth(1).click();
+  s = await live(page);
+  expect(s.scene.figures[1].color).toMatch(/^#/);
+
+  // A shot that follows one figure.
+  await openSection(page, 'Scene');
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await page.locator('.tl-shot').first().click();
+  await choose(page, 'Shot subject', second.name);
+  s = await live(page);
+  expect(s.scene.animation!.shots?.[0]?.subject).toBe(second.id);
+
+  // Dusk light, kept with the scene.
+  await page.getByRole('tab', { name: 'Render' }).click();
+  await page.getByRole('radio', { name: 'Clay' }).click();
+  await page.getByRole('group', { name: 'Lighting presets' }).getByRole('button', { name: 'Dusk' }).click();
+  s = await live(page);
+  expect(s.scene.light?.warmth).toBeGreaterThan(0.5);
+});
+
+test('a motion file is imported into My motions and given to the figure', async ({ page }) => {
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
+  const mine = page.getByRole('list', { name: 'My motions' });
+  await expect(mine.getByRole('button', { name: /^Step forward/ })).toBeVisible();
+  expect((await live(page)).motions.map((m) => m.name)).toEqual(['Step forward']);
+  await mine.getByRole('button', { name: /^Step forward/ }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+  const s = await live(page);
+  expect(s.scene.animation!.keys.filter((k) => k.poses[s.active]).length).toBeGreaterThan(2);
+  // Deleting it takes it out of the library (the figure keeps its keys).
+  await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
+  await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
 });

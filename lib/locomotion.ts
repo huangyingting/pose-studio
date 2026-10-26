@@ -22,7 +22,9 @@ const R2D = 180 / Math.PI;
 export const GRAVITY = 9.81;
 
 /** Typical speeds (m/s for a 1.8 m figure), used to time a new walk or run. */
-export const SPEED: Record<Exclude<Travel, 'jump'>, number> = { walk: 1.35, run: 3.6 };
+export /** The highest step up a walk or run takes onto a prop, as a share of the leg's length. */
+const MAX_STEP_UP = 0.55;
+const SPEED: Record<Exclude<Travel, 'jump'>, number> = { walk: 1.35, run: 3.6 };
 
 /** Time a jump spends in the air to rise `h` metres (and back to the same height). */
 export const flightTime = (h: number) => Math.sqrt((8 * Math.max(0.02, h)) / GRAVITY);
@@ -133,7 +135,8 @@ export function chainAt(a: Animation, id: string, t: number): Chain | null {
   const track = a.keys.filter((k) => k.poses[id]).map((k) => ({ t: k.t, pose: k.poses[id] }));
   let i = track.length - 2;
   while (i >= 0 && track[i].t > t) i--;
-  if (i < 0 || i >= track.length - 1) return null;
+  // Before the first key or after the last, the figure stands as keyed.
+  if (i < 0 || i >= track.length - 1 || t > track[i + 1].t + 1e-9) return null;
   const kind = track[i + 1].pose.travel;
   if (!kind) return null;
   let s = i;
@@ -365,18 +368,33 @@ function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
     steps.push({ side, from: last[side], to, s0, s1: Math.max(s0 + 1e-3, s1) });
     last[side] = to;
   }
-  // Standing at either end: exactly where the keyed pose has its feet.
-  const startFeet = keyedFeet(body, c.start);
-  const endFeet = keyedFeet(body, c.end);
-  const spot = (arc: number, side: 'L' | 'R'): [number, number, number] => {
-    if (arc <= 1e-6) return startFeet[side];
-    if (arc >= D - 1e-6) return endFeet[side];
+  // Standing at either end: exactly where the keyed pose has its feet, on what is under them (a
+  // grounded key stands on the floor, or on top of a box or step).
+  const onGround = (key: PoseKey, side: 'L' | 'R'): [number, number, number] => {
+    const k = keyedFeet(body, key)[side];
+    return key.grounded ? [k[0], k[1] + ground(key.position[0], key.position[2]), k[2]] : k;
+  };
+  const place = (arc: number, side: 'L' | 'R') => {
     const [px, pz] = line.point(arc);
     const l = leftOf(yawAt(arc));
     const sgn = side === 'L' ? 1 : -1;
-    const fx = px + l[0] * sgn * width;
-    const fz = pz + l[1] * sgn * width;
-    return [fx, ground(fx, fz) + legs.ankleY, fz];
+    return [px + l[0] * sgn * width, pz + l[1] * sgn * width] as const;
+  };
+  // What each step stands on: a top under it, unless that is higher than a step up from the foot
+  // before (then it stays on its level, and the motion check says it walks through the prop).
+  const levels = new Map<string, number>();
+  let support = Math.min(onGround(c.start, 'L')[1], onGround(c.start, 'R')[1]) - legs.ankleY;
+  for (const st of steps) {
+    if (st.to >= D - 1e-6) break;
+    const g = ground(...place(st.to, st.side));
+    support = g - support > MAX_STEP_UP * leg ? support : g;
+    levels.set(`${st.side}${st.to}`, support);
+  }
+  const spot = (arc: number, side: 'L' | 'R'): [number, number, number] => {
+    if (arc <= 1e-6) return onGround(c.start, side);
+    if (arc >= D - 1e-6) return onGround(c.end, side);
+    const [fx, fz] = place(arc, side);
+    return [fx, (levels.get(`${side}${arc}`) ?? ground(fx, fz)) + legs.ankleY, fz];
   };
   return { line, D, dur, run, ramp, distance, scale, step, stance, len, half, width, steps, spot, yawAt, startYaw, endYaw, strafe };
 }
@@ -423,12 +441,15 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   const roll = (pose.joints.root?.[2] ?? 0) - lean * 0.6 * Math.sin((heading - yaw) * D2R);
 
   const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
+  // The level each foot stands on, or is stepping to (eased over the swing, without its lift).
+  const level = {} as Record<'L' | 'R', number>;
   for (const side of ['L', 'R'] as const) {
     const mine = steps.filter((st) => st.side === side);
     const now = mine.find((st) => s > st.s0 && s < st.s1);
     if (!now) {
       const done = mine.filter((st) => s >= st.s1);
       feet[side] = { world: spot(done.length ? done[done.length - 1].to : 0, side), swing: 0 };
+      level[side] = feet[side].world[1];
       continue;
     }
     const q = (s - now.s0) / (now.s1 - now.s0);
@@ -438,12 +459,15 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
     // Up over the swing (and over a step up).
     const up = (lift * Math.min(1, (now.to - now.from) / (2 * len) + 0.35) + Math.max(0, b[1] - a[1])) * bump(q);
     feet[side] = { world: [lerp(a[0], b[0], k), lerp(a[1], b[1], k) + up, lerp(a[2], b[2], k)], swing: bump(q) };
+    level[side] = lerp(a[1], b[1], smoother(q));
   }
 
   // Pelvis: the height of a walking body follows a smooth wave (the "compass gait"): lowest as
   // the front heel lands, highest passing over the planted foot; a runner is lowest mid-stance and
   // highest in the air. The walk's dip is just deep enough for the landing leg to reach the floor.
-  const floor = Math.max(ground(x, z), Math.min(feet.L.world[1], feet.R.world[1]) - legs.ankleY);
+  // The level is the lower foot's (feet stand on what is under them), so a step up raises the body
+  // over the trailing foot's step, not all at once when the pelvis passes an edge.
+  const floor = Math.min(level.L, level.R) - legs.ankleY;
   const reach = (legs.thigh + legs.shin) * 0.985;
   const hipUp = legs.hipDrop * Math.cos(pitch * D2R);
   let y: number;
@@ -523,7 +547,20 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   let yaw: number;
   let pitch: number;
   let roll = pose.joints.root?.[2] ?? 0;
-  let raise = 0;
+  // The arms: wound back in the crouch, swung up through the take-off (overhead at the top, or to
+  // the keyed arms of a posed jump), brought down forward into the landing and relaxed. Each swing starts and ends at rest and
+  // takes enough frames not to snap.
+  const back = 0.4 * prep;
+  const top = posed ? prep + 0.15 * flight : prep + 0.45 * flight;
+  const armsAt = (s: number) => {
+    if (s < back) return 30 * smoother(s / back);
+    if (s < top) return lerp(30, posed ? -60 : -150, smoother((s - back) / (top - back)));
+    if (posed) return lerp(-60, 0, smoother((s - top) / (0.3 * flight)));
+    const settle = prep + flight + 0.3 * land;
+    if (s < settle) return lerp(-150, -30, smoother((s - top) / (settle - top)));
+    return -30 * (1 - smoother((s - settle) / (0.7 * land)));
+  };
+  const raise = armsAt(tau);
   const feet: Generated['feet'] = { L: null, R: null };
   // Taking off from and landing on the keyed feet (raised onto a prop if the key stands on one).
   const startFeet = keyedFeet(body, c.start);
@@ -542,7 +579,6 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
       ? hermite01(y0 + soft, 0, y0 - crouch, 0, u / 0.55)
       : hermite01(y0 - crouch, 0, y0, vy * prep * 0.45, (u - 0.55) / 0.45);
     pitch = startPitch + 16 * bump(u * 0.5) * (1 - smooth((u - 0.6) / 0.4));
-    raise = 40 * smoother(u / 0.5) * (1 - smoother((u - 0.35) / 0.65)) - 60 * smoother((u - 0.35) / 0.65);
     planted('start', ga);
   } else if (tau <= prep + flight) {
     const u = (tau - prep) / flight;
@@ -557,7 +593,6 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
     if (!posed) {
       // Knees up at the top (tighter in a flip), legs reaching down again for the landing.
       const tuck = bump(u) * clamp(apex / 0.35, 0.35, 1) * (flip ? 1.25 : 1);
-      raise = -60 + (-90 * smoother(u / 0.45)) * (1 - smoother((u - 0.55) / 0.45)) + 40 * smoother((u - 0.55) / 0.45);
       // The legs keep extending at the speed they left the floor with, and compress at the speed
       // the body comes down with when they meet it again.
       const full = leg * 0.995;
@@ -575,7 +610,7 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
         const ahead = 0.32 * leg * clamp(tuck, 0, 1);
         feet[side] = { body: [0, -Math.sqrt(Math.max(1e-4, len * len - ahead * ahead)), ahead], point };
       }
-    } else raise = -60 * (1 - smooth(u / 0.3));
+    }
   } else {
     // Land at the speed the flight ends with, absorb, stand up.
     const u = (tau - prep - flight) / land;
@@ -584,7 +619,6 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
     y = u < 0.4
       ? hermite01(y1, vLand * land * 0.4, y1 - crouch * 0.9, 0, u / 0.4)
       : hermite01(y1 - crouch * 0.9, 0, y1 + soft, 0, (u - 0.4) / 0.6);
-    raise = posed ? 0 : -20 * (1 - smoother(u));
     roll = c.end.joints.root?.[2] ?? 0;
     planted('end', gb);
   }

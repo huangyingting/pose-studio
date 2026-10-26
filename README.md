@@ -48,16 +48,22 @@ On the server edition the AI assistant does any of these from a description ("tw
 - **Scene outline**: the open scene's cast (figures, stand-ins), set (props) and shots, where you add, select, duplicate, hide and delete them. Hidden figures stay in the scene but are not drawn or exported.
 - **Props**: box, ball, cylinder, chair, stool, step and wall on the floor, and a stick, phone, cup and book that go into the selected figure's hand (it closes into a grip). Any small prop can be held (right-click it, or **Held by** in the inspector): it follows the hand through poses and animation, dragging it moves the hand, and **Let go** sets it down on the floor. Drag props to move them, turn them by their floor ring, move them up and down (`W`) and scale them (`R`) with the gizmo, or type X/Y/Z values (drag a field's letter to scrub). Turn off "Stand on the floor" to seat a figure on a prop.
 - **A solid, endless floor**: the grid covers the whole floor; nothing goes through it (figures and props are kept on or above it, dragged limbs stop at it) and the view stays above it.
-- **Library**: the 20 reference poses from the drawing sheet and your saved poses (applied to the selected figure, where it stands), one-person motions (put on the selected figure's track at the playhead, from where it stands and facing its way) and camera moves (applied to the selected shot). Several-people motions open as new scenes.
+- **Library**: the 20 reference poses from the drawing sheet and your saved poses (applied to the selected figure, where it stands), one-person motions, built in or imported (put on the selected figure's track at the playhead, from where it stands and facing its way), and camera moves (applied to the selected shot). Several-people motions open as new scenes.
+- **Figure colours**: tint a figure (inspector swatches) to tell the people in a busy scene apart; the tint shows in every style and export.
 - **Scenes**: a project holds any number of scenes; switch, search, reorder (drag or Alt+arrows), duplicate and delete them in the scene picker next to the scene name.
 
 **Animation and camera**
 - **Keyframe animation**: press **Animate** (or start from an animation template), move the playhead and pose: every edit is keyed at that time (auto-key). Keys are joined by smooth curves, loops wrap seamlessly, and a grounded figure bobs naturally as its legs bend. Each figure has its own key track: posing one figure keys only that figure, and its keys can be dragged to retime it while the others keep their timing (the timeline shows a row per figure; click a name to pick the figure). `Space` plays, `,` / `.` step a frame, `K` keys the selected figure. Onion skin shows the previous and next keys as ghosts.
-- **Motions** (Library): walk cycle, run cycle, jump, dance groove, front kick, wave hello and bow go on the selected figure's track; waltz turn and boxing exchange (two people) open as scenes with their own camera move.
+- **Walking, running and jumping from mark to mark**: with a figure selected, right-click the floor and pick **Walk here**, **Run here**, **Jump here** or **Step here, keeping facing** (side steps and backing up). The figure gets there in a natural time, its steps generated with the feet planted (no sliding), and the playhead waits at the new mark for the next one; marks in a row make one continuous path, shown on the floor with its footprints. Right-click a segment on the timeline to change how the figure gets to that key (glide as keyed, walk, run or jump), and for a jump its height and any turns or flips in the air. Jumps follow gravity and can land on, or start from, the top of a box or step; figures stand on props too. Keys inside a walk or run still pose the upper body (carry, wave, look around), so the generated legs and the posed arms play together.
+- **Props over time**: in an animated scene, moving a prop keys it. A held prop rides in the hand; right-click it to **throw** it to a point on the floor (right-click the floor) or into another figure's hand (it flies in a ballistic arc and is caught), or to let it go (it falls). Each prop has its own row on the timeline.
+- **Eyes on someone or something** (inspector or right-click a figure): a figure keeps its head turned to another figure or a prop as either moves.
+- **Copy moves to** (right-click a figure): give another figure the same track, from where it stands. Keys snap to other figures' keys while dragging, to keep people in sync.
+- **Motions** (Library): walk, run and jump ahead; dance groove, front kick, jab & cross, block & duck, take a hit, throw overhand, pirouette, cartwheel, fall & get up, wave hello and bow go on the selected figure's track; waltz turn and boxing exchange (two people) open as scenes with their own camera move.
+- **Import motions** (Library → Motions → **Import motion…**): BVH (motion capture), FBX (e.g. Mixamo) or glTF/GLB animations are fitted onto the mannequin: bones are matched by name (Mixamo, CMU, Unreal, 3ds Max Biped, VRM, MakeHuman and similar rigs), the skeleton is stood upright and its travel is scaled to the figure. Imported motions are kept in **My motions** and apply like built-in ones.
 - **Director's camera**: a shot camera with its own keys (orbit angle, height, lens, push-in and pan). Look through it with a 16:9 letterbox, frame a view and press the camera key, or pick a ready-made move: locked-off wide, push in, pull out, arc, 360° orbit, crane up, low-angle hero, tracking shot, dolly zoom and hand-held.
 - **Camera path**: outside the shot camera, the viewport shows each shot's camera path and a camera at every key. Drag a camera around the figures to change that key's angle and distance.
-- **Shots and cuts**: press `C` (or the scissors) to cut the timeline into shots; each shot has its own camera keys and move, a name and a caption (select it in the Scene outline or on the timeline to edit it in the inspector, with its camera move, follow and hand-held options). **Cut for** a video model (Veo, Sora, Kling, Runway, Seedance, Hailuo, Luma, Wan) and shots longer than that model's clip limit are flagged.
-- **Motion check**: one click plays the animation through and flags feet sliding while planted, figures passing through each other or through props, joints bent past their natural range and pops (a joint snapping in a frame). Issues are marked on the timeline with a hint each; click one to jump to its frame and select the joint.
+- **Shots and cuts**: press `C` (or the scissors) to cut the timeline into shots; each shot has its own camera keys and move, a name and a caption (select it in the Scene outline or on the timeline to edit it in the inspector, with its camera move, follow and hand-held options). A shot frames everyone, or one **subject** it follows (shot inspector → Frames). **Cut for** a video model (Veo, Sora, Kling, Runway, Seedance, Hailuo, Luma, Wan) and shots longer than that model's clip limit are flagged.
+- **Motion check**: one click plays the animation through and flags feet sliding while planted, figures passing through each other or through props, joints bent past their natural range, pops (a joint snapping in a frame) and figures hidden from a shot's camera behind props. Issues are marked on the timeline with a hint each; click one to jump to its frame and select the joint.
 - **Shot description** (shot inspector): copy a plain-language description of each shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
 - **Storyboard** (`B`): line poses up as numbered 16:9 panels, each framed by its pose's camera, with a caption and a hold time. Drag to reorder. Export a **board sheet** (PNG) or an **animatic** video in which each panel holds for its time, animated poses play and captions appear as subtitles.
 
@@ -70,12 +76,12 @@ On the server edition the AI assistant does any of these from a description ("tw
   - **Clay**: soft studio lighting with cast shadows, for value studies.
   - **Minimal**: flat shapes with a hairline outline.
   - **Silhouette**: solid shapes, for checking gesture and readability.
-- **Key light**: direction, height and presets for the lit styles (Pencil, Ink wash, Anime, Clay), with cast shadows where the style supports them.
+- **Scene lighting**: each scene has its own key light (Render panel → Light, for the lit styles: Pencil, Ink wash, Anime, Clay): presets (studio, soft, side, backlit, noon sun, dusk, night), direction, height, brightness and warmth, with cast shadows where the style supports them. Props between the editor's camera and the selected figure turn see-through while you edit (clicks pass through them).
 - **Export**: the current scene, a sheet of all scenes, the **pose library** as a reference sheet, a **turnaround** of the current scene from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and camera keys, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too, and the posed scene as a **3D model** (`.glb`) for Blender and other 3D tools. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The pose library sheet reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
 - **Share links** (main menu): one scene, compressed into the URL fragment. Nothing is sent to a server.
-- **Save / import** the whole project (scenes, storyboard, saved poses) as JSON.
+- **Save / import** the whole project (scenes, storyboard, saved poses and motions) as JSON.
 
 **AI assistant** (server edition)
 - An **AI** tab in the inspector: describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, reaches hands to bodies, adds props and stand-ins, animates, picks camera moves and runs the motion check, using the same tools as you; every change can be undone.
@@ -186,14 +192,18 @@ lib/
   relations.ts          Spatial relations between figures: facing, spacing, look-at, reach
   templates.ts          Multi-person scene templates
   animation.ts          Keyframes, cubic interpolation, auto-key helpers
-  motions.ts            Animation templates
+  motions.ts            Motion library (animation templates)
   shot.ts               Shot camera: framing, camera keys, camera moves
   shots.ts, otio.ts     Cuts and per-model clip limits; OpenTimelineIO cut list
-  qa.ts                 Motion check: foot slide, floor, interpenetration (bone capsules), joint limits, pops
+  qa.ts                 Motion check: foot slide, interpenetration (bone capsules), joint limits, pops, hidden from the camera
   pack.ts, zip.ts       Keyframe pack for AI video tools; a small store-only zip writer
   board.ts, boardExport.ts  Storyboard panels; board sheet and animatic export
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
+  locomotion.ts         Generated walking, running and jumping between keys: footstep plan, leg IK, jump arcs
+  surfaces.ts           What figures stand on: the tops of props, seen from above
+  propmotion.ts         Props over time: held, gliding, thrown (ballistic), falling
+  importmotion.ts       Motion import: BVH/FBX/glTF bones matched by name and retargeted per frame
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
   poses.ts, apply.ts    The pose library; applying poses and motions to a figure
   agent/                AI assistant: tool registry and the browser side of a turn (tools run here, the model on the server)

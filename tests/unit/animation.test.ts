@@ -6,6 +6,7 @@ import { duplicateScene, mirrorScene, newFigure, newScene, parseScene } from '@/
 import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
 import { describeShot } from '@/lib/prompt';
+import { checkMotion } from '@/lib/qa';
 import { CAMERA_MOVES, captureShot, framingFor, placeShot, shotAt } from '@/lib/shot';
 import { Store } from '@/lib/store';
 import type { Figure, JointName } from '@/lib/types';
@@ -160,6 +161,11 @@ describe('shot camera', () => {
 });
 
 describe('animation templates', () => {
+  it('gives one-person motions that pass the motion check (no slides, pops or bad joints)', () => {
+    for (const m of MOTIONS.filter((x) => x.people === 1)) expect(checkMotion(m.build()).map((i) => i.message), m.id).toEqual([]);
+  }, 30_000);
+
+
   it('builds every motion with valid keys within joint limits', () => {
     for (const m of MOTIONS) {
       const s = m.build();

@@ -127,8 +127,43 @@ const STANCE: Joints = {
 /** Fists up by the face (boxing guard), solved with IK for this figure's proportions. */
 function guard(rig: Rig, f: Figure): Figure {
   let g = reachTo(rig, f, 'L', local(rig, f, 'head', [0.04, 0.02, 0.36]));
-  g = reachTo(rig, g, 'R', local(rig, g, 'head', [-0.1, -0.04, 0.18]));
+  g = reachTo(rig, g, 'R', local(rig, g, 'head', [-0.13, -0.04, 0.2]));
   return { ...g, hands: { L: hand('Fist'), R: hand('Fist') } };
+}
+
+/** The same joints with some changed (bending a guard, sinking a stance…). */
+function adjusted(f: Figure, joints: Joints, extra: Partial<Figure> = {}): Figure {
+  return { ...f, ...extra, joints: { ...f.joints, ...joints } };
+}
+
+/** Pitch the pelvis by `by` (negative: back), the thighs countering it so the feet stay put. */
+function rock(f: Figure, by: number): Figure {
+  const j = f.joints;
+  const r = j.root ?? [0, 0, 0];
+  const thigh = (h: Vec3 | undefined): Vec3 => [(h?.[0] ?? 0) - by, h?.[1] ?? 0, h?.[2] ?? 0];
+  return adjusted(f, { root: [r[0] + by, r[1], r[2]], hipL: thigh(j.hipL), hipR: thigh(j.hipR) });
+}
+
+/** Sink by bending the knees: thighs forward and shins back as much, so the feet stay put. */
+function sink(f: Figure, knee: number): Figure {
+  const j = f.joints;
+  const add = (r: Vec3 | undefined, by: number): Vec3 => [(r?.[0] ?? 0) + by, r?.[1] ?? 0, r?.[2] ?? 0];
+  return adjusted(f, {
+    kneeL: add(j.kneeL, knee), kneeR: add(j.kneeR, knee),
+    hipL: add(j.hipL, -knee / 2), hipR: add(j.hipR, -knee / 2),
+    ankleL: add(j.ankleL, -knee / 2), ankleR: add(j.ankleR, -knee / 2),
+  });
+}
+
+/** A point near one of a figure's joints, offset in the world ([x, y, z]; motions are built facing +Z, +X on the left). */
+function near(rig: Rig, f: Figure, joint: JointName, offset: Vec3) {
+  return rig.model(f).joints[joint].getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(...offset));
+}
+
+/** Turn a figure about a vertical axis through a floor point (a pirouette turns on the standing foot). */
+function turnOn(f: Figure, deg: number, pivot: [number, number]): Figure {
+  const t = turnAbout({ ...f, position: [f.position[0] - pivot[0], f.position[1], f.position[2] - pivot[1]] }, deg);
+  return { ...t, position: [Math.round((t.position[0] + pivot[0]) * 1000) / 1000 || 0, t.position[1], Math.round((t.position[2] + pivot[1]) * 1000) / 1000 || 0] };
 }
 
 export const MOTIONS: Motion[] = [
@@ -246,6 +281,141 @@ export const MOTIONS: Motion[] = [
         { t: 0, figures: [stance] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
       ], { duration: 1.5, loop: true, view: { yaw: 70, pitch: 2, fov: 28 }, camera: 'hero' });
     }),
+  },
+  {
+    id: 'jab-cross',
+    name: 'Jab & cross',
+    people: 1,
+    build: () => withRig((rig) => {
+      const stance = guard(rig, posed(person('Boxer', body('Athletic')), STANCE));
+      // Straight ahead at chin height, arm's length away.
+      const target = near(rig, stance, 'head', [0.08, -0.06, 0.62]);
+      const jab = reachTo(rig, adjusted(stance, { chest: [4, -16, 0] }), 'L', target);
+      const turned = adjusted(stance, { chest: [6, 18, 0], spine: [8, 10, 0], ankleR: [16, 0, 0] });
+      const cross = reachTo(rig, turned, 'R', target.clone().add(new THREE.Vector3(-0.08, 0, 0.1)));
+      return animated('Jab & cross', [
+        { t: 0, figures: [stance] }, { t: 0.16, figures: [jab] }, { t: 0.36, figures: [stance] }, { t: 0.56, figures: [cross] }, { t: 0.82, figures: [stance] },
+      ], { duration: 1.2, loop: false, view: { yaw: 60, pitch: 4, fov: 28 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'block-duck',
+    name: 'Block & duck',
+    people: 1,
+    build: () => withRig((rig) => {
+      const stance = guard(rig, posed(person('Boxer', body('Athletic')), STANCE));
+      // Forearms up in front of the face, then under a swing: knees bent, chest down.
+      let block = reachTo(rig, adjusted(stance, { chest: [10, -10, 0], neck: [12, 0, 0] }), 'L', near(rig, stance, 'head', [0.06, 0.06, 0.16]));
+      block = reachTo(rig, block, 'R', near(rig, stance, 'head', [-0.07, 0.05, 0.15]));
+      const duck = adjusted(sink(stance, 40), { spine: [24, -12, -10], chest: [10, -10, 0], neck: [-10, 0, 0] });
+      return animated('Block & duck', [
+        { t: 0, figures: [stance] }, { t: 0.2, figures: [block] }, { t: 0.55, figures: [block] }, { t: 0.75, figures: [stance] },
+        { t: 1.0, figures: [duck] }, { t: 1.3, figures: [duck] }, { t: 1.6, figures: [stance] },
+      ], { duration: 1.9, loop: true, view: { yaw: 60, pitch: 4, fov: 28 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'hit',
+    name: 'Take a hit',
+    people: 1,
+    build: () => withRig((rig) => {
+      const stance = guard(rig, posed(person('Boxer', body('Athletic')), STANCE));
+      // The head snaps back and aside, the body rocks back on its heels, the guard flies open.
+      const snap = adjusted(rock(stance, -10), {
+        spine: [-14, -4, 8], chest: [-10, 10, 0], neck: [-30, 18, 10], head: [-15, 10, 0],
+        shoulderL: [-30, 0, 45], elbowL: [-40, 0, 0], shoulderR: [-20, 0, -50], elbowR: [-35, 0, 0],
+      }, { hands: { L: hand('Open'), R: hand('Open') } });
+      const reel = adjusted(sink(rock(stance, -4), 16), { spine: [6, -8, 4], neck: [10, 8, 0], shoulderL: [-25, 0, 25], elbowL: [-60, 0, 0], shoulderR: [-25, 0, -25], elbowR: [-60, 0, 0] });
+      return animated('Take a hit', [
+        { t: 0, figures: [stance] }, { t: 0.16, figures: [snap] }, { t: 0.6, figures: [reel] }, { t: 1.2, figures: [stance] },
+      ], { duration: 1.4, loop: false, view: { yaw: 50, pitch: 4, fov: 28 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'throw',
+    name: 'Throw overhand',
+    people: 1,
+    build: () => withRig((rig) => {
+      // Left foot forward. The shoulders wind up side-on (the left one to the target) with the arm
+      // back behind the head, then unwind as the arm whips over and follows through across the body.
+      // The pelvis stays put (turning it would slide the feet): the spine and chest do the turning.
+      const f = { ...person('Thrower', body('Athletic'), STAND), hands: { L: hand('Open'), R: hand('Grip') } };
+      const ready = posed(f, { ...STAND, root: [0, -20, 0], hipL: [-22, 0, 6], kneeL: [12, 0, 0], hipR: [14, 0, -6], kneeR: [10, 0, 0], ankleR: [8, 0, 0] });
+      let windup = adjusted(ready, { spine: [-4, -30, 0], chest: [-6, -35, 0], neck: [0, 30, 0], head: [0, 25, 0] });
+      windup = reachTo(rig, windup, 'R', near(rig, windup, 'shoulderR', [-0.12, 0.3, -0.38]));
+      windup = reachTo(rig, windup, 'L', near(rig, windup, 'shoulderL', [-0.05, 0.08, 0.5]));
+      let release = adjusted(ready, { spine: [8, 15, 0], chest: [8, 20, 0], neck: [0, -10, 0], hipL: [-26, 0, 6], kneeL: [14, 0, 0], hipR: [8, 0, -6], ankleR: [24, 0, 0] });
+      release = reachTo(rig, release, 'R', near(rig, release, 'shoulderR', [0.04, 0.26, 0.45]));
+      release = reachTo(rig, release, 'L', near(rig, release, 'shoulderL', [0.12, -0.35, -0.05]));
+      let follow = adjusted(sink(ready, 16), { spine: [26, 20, 0], chest: [12, 25, 0], neck: [-10, -15, 0], ankleR: [30, 0, 0] }, { hands: { L: hand('Open'), R: hand('Open') } });
+      follow = reachTo(rig, follow, 'R', near(rig, follow, 'hipL', [0.15, 0.05, 0.35]));
+      return animated('Throw overhand', [
+        { t: 0, figures: [ready] }, { t: 0.5, figures: [windup] }, { t: 0.68, figures: [release] }, { t: 0.88, figures: [follow] }, { t: 1.5, figures: [ready] },
+      ], { duration: 1.7, loop: false, view: { yaw: 80, pitch: 4, fov: 30 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'pirouette',
+    name: 'Pirouette',
+    people: 1,
+    build: () => withRig((rig) => {
+      const f = { ...person('Dancer', body('Slender'), STAND), hands: { L: hand('Open'), R: hand('Open') } };
+      // Demi-plié, then up on the left toes with the right foot at the knee and the arms rounded, turning once on the toes.
+      const prep = sink(posed(f, { shoulderL: [-20, 0, 60], shoulderR: [-20, 0, -60], elbowL: [-15, 0, 0], elbowR: [-15, 0, 0], hipL: [0, 0, 3], hipR: [0, 0, -3] }), 30);
+      const up = posed(f, {
+        hipL: [0, 0, 3], ankleL: [40, 0, 0], hipR: [-50, -35, -55], kneeR: [125, 0, 0], ankleR: [35, 0, 0],
+        shoulderL: [-75, 0, 18], shoulderR: [-75, 0, -18], elbowL: [-55, 0, 0], elbowR: [-55, 0, 0], neck: [-4, 0, 0],
+      });
+      const m = rig.model(up);
+      const toe = m.joints.ankleL.getWorldPosition(new THREE.Vector3());
+      const pivot: [number, number] = [toe.x, toe.z];
+      return animated('Pirouette', [
+        { t: 0, figures: [posed(f, STAND)] }, { t: 0.35, figures: [prep] }, { t: 0.45, figures: [prep] },
+        { t: 0.7, figures: [up] }, { t: 0.95, figures: [turnOn(up, 120, pivot)] }, { t: 1.2, figures: [turnOn(up, 240, pivot)] }, { t: 1.45, figures: [turnOn(up, 360, pivot)] },
+        { t: 1.75, figures: [prep] }, { t: 1.9, figures: [prep] }, { t: 2.25, figures: [posed(f, STAND)] },
+      ], { duration: 2.5, loop: false, view: { yaw: 20, pitch: 6, fov: 26 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'cartwheel',
+    name: 'Cartwheel',
+    people: 1,
+    build: () => withRig((rig) => {
+      const f = { ...person('Gymnast', body('Slender'), STAND), hands: { L: hand('Open'), R: hand('Open') } };
+      const arms = posed(f, { shoulderL: [0, 0, 140], shoulderR: [0, 0, -140] });
+      // An X (arms up, legs apart) wheeling over sideways to its right: hand, hand, foot, foot. The
+      // hips' height is keyed from where the X rests at each eighth of the turn, so they ride
+      // smoothly from one contact to the next.
+      const keys: Key[] = [{ t: 0, figures: [posed(f, STAND)] }, { t: 0.3, figures: [arms] }];
+      for (let i = 0; i <= 8; i++) {
+        const roll = wrapDeg(45 * i);
+        const x = Math.round(-0.26 * i * 1000) / 1000 || 0;
+        const star = { ...posed(f, { root: [0, 0, roll], shoulderL: [0, 0, 140], shoulderR: [0, 0, -140], hipL: [0, 0, 40], hipR: [0, 0, -40] }), position: [x, 0, 0] as Vec3 };
+        const y = rig.model(star).joints.root.position.y;
+        keys.push({ t: Math.round((0.5 + i * 0.16) * 1000) / 1000, figures: [{ ...star, grounded: false, position: [x, Math.round(y * 1000) / 1000, 0] }] });
+      }
+      keys.push({ t: 2.0, figures: [{ ...arms, position: [-2.08, 0, 0] }] }, { t: 2.35, figures: [{ ...posed(f, STAND), position: [-2.08, 0, 0] }] });
+      return animated('Cartwheel', keys, { duration: 2.5, loop: false, view: { yaw: 0, pitch: 4, fov: 36 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'fall',
+    name: 'Fall & get up',
+    people: 1,
+    build: () => {
+      const f = person('Faller', body('Male'), STAND);
+      const stand = posed(f, STAND);
+      // Off balance backwards, down to a crouch, rolled onto the back; then sitting up, onto a knee and up.
+      const totter = posed(f, { root: [-14, 0, 0], hipL: [-10, 0, 6], hipR: [-30, 0, -6], kneeL: [20, 0, 0], kneeR: [40, 0, 0], shoulderL: [-90, 0, 30], shoulderR: [-100, 0, -30], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], neck: [20, 0, 0] });
+      const crouch = posed(f, { root: [-10, 0, 0], hipL: [-115, 0, 12], hipR: [-115, 0, -12], kneeL: [140, 0, 0], kneeR: [140, 0, 0], ankleL: [-25, 0, 0], ankleR: [-25, 0, 0], shoulderL: [-70, 0, 25], shoulderR: [-70, 0, -25], spine: [20, 0, 0], neck: [25, 0, 0] });
+      const down = { ...posed(f, { root: [-88, 0, 0], hipL: [-70, 0, 10], hipR: [-55, 0, -10], kneeL: [100, 0, 0], kneeR: [80, 0, 0], shoulderL: [0, 0, 50], shoulderR: [0, 0, -50], neck: [8, 0, 0] }), position: [0, 0, -0.55] as Vec3 };
+      const sitUp = { ...posed(f, { root: [-20, 0, 0], spine: [15, 0, 0], hipL: [-60, 0, 8], hipR: [-75, 0, -8], kneeL: [40, 0, 0], kneeR: [110, 0, 0], shoulderL: [30, 0, 25], shoulderR: [30, 0, -25], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0] }), position: [0, 0, -0.35] as Vec3 };
+      const kneel = { ...posed(f, { root: [20, 0, 0], hipL: [-80, 0, 6], kneeL: [90, 0, 0], hipR: [10, 0, -6], kneeR: [100, 0, 0], ankleR: [40, 0, 0], shoulderL: [-30, 0, 15], shoulderR: [-30, 0, -15], spine: [10, 0, 0] }), position: [0, 0, -0.2] as Vec3 };
+      return animated('Fall & get up', [
+        { t: 0, figures: [stand] }, { t: 0.3, figures: [totter] }, { t: 0.6, figures: [{ ...crouch, position: [0, 0, -0.15] }] }, { t: 0.95, figures: [down] },
+        { t: 1.8, figures: [down] }, { t: 2.3, figures: [sitUp] }, { t: 2.8, figures: [kneel] }, { t: 3.4, figures: [{ ...stand, position: [0, 0, -0.2] }] },
+      ], { duration: 3.6, loop: false, view: { yaw: 80, pitch: 6, fov: 32 }, camera: 'static' });
+    },
   },
   {
     id: 'wave',

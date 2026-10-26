@@ -490,6 +490,8 @@ const SHORTCUTS: [string, string][] = [
   ['Twist a part · turn a figure or prop', 'Shift drag'],
   ['Move a figure or prop on the floor', 'Drag its torso / it'],
   ['Turn a figure or prop', 'Drag its floor ring (Shift: 15°)'],
+  ['Walk · run · jump the selected figure there', 'Right click the floor'],
+  ['How a figure gets to its next key (walk, run, jump…)', 'Right click between its keys'],
   ['Orbit · pan · zoom', 'Drag empty space or Alt drag · Right drag · Wheel'],
   ['Tools: pose · move (with height) · scale props', 'E  W  R'],
   ['Camera views', '1 – 6'],

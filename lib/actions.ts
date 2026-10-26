@@ -299,7 +299,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   } else {
     const catcher = at(target.figure, t0);
     if (!catcher) return null;
-    to = handPosition(catcher, target.hand);
+    to = handPosition(catcher, target.hand, scene.props);
     const g = grip(prop.kind, target.hand, catcher.body.height);
     end = { position: g.position, rotation: g.rotation, hold: { ...target }, throw: true };
   }

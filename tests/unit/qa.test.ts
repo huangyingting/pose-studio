@@ -52,7 +52,8 @@ describe('motion QA', () => {
     const issues = checkMotion(animate([[0, [a, b]]]));
     expect(issues.some((i) => i.kind === 'overlap' && /A’s body passes \d+ cm into B’s body/.test(i.message))).toBe(true);
 
-    const scene = animate([[0, [a]]]);
+    // Keyed into a box (a grounded figure there would stand on top of it).
+    const scene = animate([[0, [{ ...a, grounded: false, position: [0, 0.93, 0] }]]]);
     scene.props = [{ id: 'p', name: 'Box', kind: 'box', position: [0, 0, 0], rotation: [0, 0, 0], scale: [0.6, 1.2, 0.6] }];
     expect(kinds(scene)).toContain('overlap');
   });

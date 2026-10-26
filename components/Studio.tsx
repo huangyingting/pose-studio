@@ -81,6 +81,12 @@ function App() {
   const canRedo = useStudio((s) => s.canRedo);
 
   const [tab, setTab] = useState<Tab>('pose');
+  // Body is about figures: selecting a shot or prop brings up the Edit tab, where it is edited.
+  const [selected, setSelected] = useState(selection);
+  if (selection !== selected) {
+    setSelected(selection);
+    if (tab === 'body' && (selection?.kind === 'shot' || selection?.kind === 'prop')) setTab('pose');
+  }
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [reference, setReferenceState] = useState<Reference>({ url: null, opacity: 0.45, visible: true });

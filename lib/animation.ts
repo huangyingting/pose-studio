@@ -256,8 +256,14 @@ function interpolator(k0: { t: number }, k1: { t: number }, k2: { t: number }, k
 export function samplePose(a: Animation, id: string, t: number): PoseKey | null {
   const track: Track[] = a.keys.filter((k) => k.poses[id]).map((k) => ({ t: k.t, pose: k.poses[id] }));
   if (!track.length) return null;
-  const { k0, k1, k2, k3, time } = segment(track, t, a.duration, a.loop);
+  const seg = segment(track, t, a.duration, a.loop);
+  const { k1, k2, time } = seg;
   if (k2.t - k1.t <= 1e-9) return structuredClone(k1.pose);
+  // Walks, runs and jumps start and end at rest: a keyed stretch next to one does not take its
+  // speed from the far end of the walk (it would drift off and back while standing).
+  const gap = k2.t - k1.t;
+  const k0 = !k2.pose.travel && k1.pose.travel ? { ...k1, t: k1.t - gap } : seg.k0;
+  const k3 = !k2.pose.travel && seg.k3.pose.travel ? { ...k2, t: k2.t + gap } : seg.k3;
   const { num, ang } = interpolator(k0, k1, k2, k3, time);
   const ks = [k0, k1, k2, k3];
   const joints: Figure['joints'] = {};

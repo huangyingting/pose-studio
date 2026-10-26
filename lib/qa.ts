@@ -6,9 +6,10 @@ import { Ink } from './ink';
 import { PropObject } from './props';
 import { Rig } from './relations';
 import { SceneView } from './sceneview';
+import { groundOf } from './surfaces';
 import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
 import { shotSpans } from './shots';
-import { JOINTS, type Figure, type JointName, type Scene } from './types';
+import { JOINTS, type Figure, type JointName, type Prop, type Scene } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -179,16 +180,23 @@ export function checkMotion(scene: Scene): Issue[] {
 
   const rig = new Rig();
   const ink = new Ink();
-  // Held props move with the hand that holds them: they are part of the pose, not obstacles.
-  const props = scene.props.filter((p) => !p.hold).map((p) => {
-    const o = new PropObject(ink, p.kind, p.id);
+  // Props are obstacles where they are at each frame. Held props move with the hand that holds
+  // them (part of the pose), and ones on the move (thrown, falling) only touch in passing.
+  const props = new Map(scene.props.map((p) => [p.id, new PropObject(ink, p.kind, p.id)]));
+  const placed = new Map<string, string>();
+  const piecesAt = (now: Prop[]) => now.flatMap((p) => {
+    const where = JSON.stringify([p.position, p.rotation, p.scale]);
+    const still = placed.get(p.id) === undefined || placed.get(p.id) === where;
+    placed.set(p.id, where);
+    if (p.hold || !still) return [];
+    const o = props.get(p.id)!;
     o.apply(p);
-    return o;
+    o.object.updateMatrixWorld(true);
+    return o.parts.bodies.map((mesh) => {
+      mesh.geometry.computeBoundingBox();
+      return { box: mesh.geometry.boundingBox!.clone().expandByScalar(-0.01), inverse: mesh.matrixWorld.clone().invert() };
+    });
   });
-  const pieces = props.flatMap((o) => o.parts.bodies.map((mesh) => {
-    mesh.geometry.computeBoundingBox();
-    return { box: mesh.geometry.boundingBox!.clone().expandByScalar(-0.01), inverse: mesh.matrixWorld.clone().invert() };
-  }));
 
   const stamps = a.loop ? [...times, a.duration] : times;
   const ranges = new Ranges(stamps, (key, worst, d) => {
@@ -225,6 +233,7 @@ export function checkMotion(scene: Scene): Issue[] {
   // Floor level of each foot: its lowest point over the clip.
   const frames = times.map((t) => sceneAt(scene, t));
   for (const s of frames) {
+    rig.ground = groundOf(s.props);
     for (const f of s.figures) {
       if (!figures.some((x) => x.id === f.id)) continue;
       const m = rig.model(f);
@@ -243,6 +252,8 @@ export function checkMotion(scene: Scene): Issue[] {
     const wrap = step === frames.length;
     const visible = s.figures.filter((f) => figures.some((x) => x.id === f.id));
     const caps = new Map<string, Capsule[]>();
+    const pieces = wrap ? [] : piecesAt(s.props);
+    rig.ground = groundOf(s.props);
     for (const f of visible) {
       const m = rig.model(f);
       // Foot slide: a planted foot (at its floor level and slow) should not drift.
@@ -324,7 +335,7 @@ export function checkMotion(scene: Scene): Issue[] {
   });
 
   rig.dispose();
-  for (const p of props) p.dispose();
+  for (const p of props.values()) p.dispose();
   ink.dispose();
   const order2: IssueKind[] = ['hidden', 'overlap', 'slide', 'pop', 'limit'];
   return [...ranges.finish(), ...hiddenInShots(scene)].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
