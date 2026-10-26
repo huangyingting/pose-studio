@@ -6,7 +6,7 @@ import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
   FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Travel, type Vec3, type View,
+  type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -72,14 +72,20 @@ export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0], name: stri
 
 export function duplicateScene(s: Scene): Scene {
   const ids = new Map(s.figures.map((f) => [f.id, uid('f')]));
+  const propIds = new Map(s.props.map((p) => [p.id, uid('p')]));
   const copy: Scene = {
     ...structuredClone(s),
     id: uid('s'),
     name: `${s.name} copy`,
     figures: s.figures.map((f) => ({ ...structuredClone(f), id: ids.get(f.id)! })),
-    props: s.props.map((p) => ({ ...structuredClone(p), id: uid('p') })),
+    // Held props stay in the copied figures' hands.
+    props: s.props.map((p) => ({
+      ...structuredClone(p),
+      id: propIds.get(p.id)!,
+      ...(p.hold ? { hold: { ...p.hold, figure: ids.get(p.hold.figure) ?? p.hold.figure } } : {}),
+    })),
   };
-  if (s.animation) copy.animation = remapAnimation(s.animation, ids);
+  if (s.animation) copy.animation = remapAnimation(s.animation, ids, propIds);
   return copy;
 }
 
@@ -215,7 +221,7 @@ export function parseScene(v: unknown, i = 0): Scene {
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     view: parseView(v.view),
   };
-  const animation = parseAnimation(v.animation, ids, parsePoseKey);
+  const animation = parseAnimation(v.animation, ids, parsePoseKey, new Set(scene.props.map((p) => p.id)), parsePropKey);
   if (animation) scene.animation = animation;
   return scene;
 }
@@ -248,6 +254,20 @@ function parsePoseKey(v: unknown): PoseKey | null {
     ...(v.strafe === true ? { strafe: true } : {}),
     ...(spin ? { spin } : {}),
     ...(flip ? { flip } : {}),
+  };
+}
+
+function parsePropKey(v: unknown): PropKey | null {
+  if (!isObj(v)) return null;
+  const hold = isObj(v.hold) && typeof v.hold.figure === 'string' && (v.hold.hand === 'L' || v.hold.hand === 'R')
+    ? { figure: v.hold.figure, hand: v.hold.hand as Side }
+    : undefined;
+  return {
+    position: vec3(v.position, [0, 0, 0]),
+    rotation: vec3(v.rotation, [0, 0, 0]),
+    ...(hold ? { hold } : {}),
+    ...(v.release === true ? { release: true } : {}),
+    ...(v.throw === true ? { throw: true } : {}),
   };
 }
 

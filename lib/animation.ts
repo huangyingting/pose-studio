@@ -1,8 +1,9 @@
 import { jointLimits, wrapDeg } from './joints';
 import { chainAt, locomote } from './locomotion';
+import { propsAt } from './propmotion';
 import { groundOf } from './surfaces';
 import { keysInShot, spanAt } from './shots';
-import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Shot, type Hand, type Keyframe, type PoseKey, type Scene, type Vec3 } from './types';
+import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Shot, type Hand, type Keyframe, type PoseKey, type Prop, type PropKey, type Scene, type Vec3 } from './types';
 
 export type { Animation, Keyframe, PoseKey };
 
@@ -61,7 +62,7 @@ export function setKey(a: Animation, t: number, figures: Figure[]): Animation {
     return [f.id, { ...pose, ...travel }];
   }));
   const keys = i >= 0
-    ? a.keys.map((k, j) => (j === i ? { t: time, poses: { ...k.poses, ...poses } } : k))
+    ? a.keys.map((k, j) => (j === i ? { ...k, t: time, poses: { ...k.poses, ...poses } } : k))
     : [...a.keys, { t: time, poses }].sort((p, q) => p.t - q.t);
   return { ...a, keys };
 }
@@ -76,12 +77,54 @@ function pick(p: PoseKey): Partial<PoseKey> {
   return out;
 }
 
+/** A prop's place as a key (held props: relative to the hand). */
+export function propKeyOf(p: Prop): PropKey {
+  return { position: [...p.position], rotation: [...p.rotation], ...(p.hold ? { hold: { ...p.hold } } : {}) };
+}
+
+/**
+ * Key a prop at time t with its current place; an existing key keeps whether it was let go or
+ * thrown there. The first key of a prop also keys where it was before (`was`) at the start, so it
+ * moves from there.
+ */
+export function setPropKey(a: Animation, t: number, prop: Prop, extra: Partial<PropKey> = {}, was?: Prop): Animation {
+  const time = snapTime(a, t);
+  let keys = a.keys;
+  if (was && !keys.some((k) => k.props?.[prop.id]) && time > 0) {
+    const first = keys.findIndex((k) => Math.abs(k.t) < 0.5 / a.fps);
+    const start = propKeyOf(was);
+    keys = first >= 0
+      ? keys.map((k, j) => (j === first ? { ...k, props: { ...k.props, [prop.id]: start } } : k))
+      : [{ t: 0, poses: {}, props: { [prop.id]: start } }, ...keys];
+  }
+  const i = keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);
+  const old = i >= 0 ? keys[i].props?.[prop.id] : undefined;
+  const key: PropKey = { ...propKeyOf(prop), ...(old?.release ? { release: true } : {}), ...(old?.throw ? { throw: true } : {}), ...extra };
+  keys = i >= 0
+    ? keys.map((k, j) => (j === i ? { ...k, props: { ...k.props, [prop.id]: key } } : k))
+    : [...keys, { t: time, poses: {}, props: { [prop.id]: key } }].sort((p, q) => p.t - q.t);
+  return { ...a, keys };
+}
+
+/** Only the keys of these props (after props are deleted). */
+export function keepProps(a: Animation, ids: Set<string>): Animation {
+  if (a.keys.every((k) => Object.keys(k.props ?? {}).every((id) => ids.has(id)))) return a;
+  return withoutEmpty({
+    ...a,
+    keys: a.keys.map((k) => {
+      const props = Object.fromEntries(Object.entries(k.props ?? {}).filter(([id]) => ids.has(id)));
+      return Object.keys(props).length ? { ...k, props } : { t: k.t, poses: k.poses };
+    }),
+  });
+}
+
 /** Times of one figure's keys. */
 export function figureKeyTimes(a: Animation, id: string) {
   return a.keys.filter((k) => k.poses[id]).map((k) => k.t);
 }
 
-const withoutEmpty = (a: Animation): Animation => ({ ...a, keys: a.keys.filter((k) => Object.keys(k.poses).length) });
+const hasAny = (k: Keyframe) => Object.keys(k.poses).length > 0 || Object.keys(k.props ?? {}).length > 0;
+const withoutEmpty = (a: Animation): Animation => ({ ...a, keys: a.keys.filter(hasAny) });
 
 /**
  * Remove the key at time t: one figure's (`id`), or the whole keyframe. A figure keeps at least
@@ -119,7 +162,7 @@ export function moveKey(a: Animation, from: number, to: number, id?: string): An
 /** Only the tracks of these figures (after figures are deleted). */
 export function keepFigures(a: Animation, ids: Set<string>): Animation {
   if (a.keys.every((k) => Object.keys(k.poses).every((id) => ids.has(id)))) return a;
-  const keys = a.keys.map((k) => ({ ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => ids.has(id))) })).filter((k) => Object.keys(k.poses).length);
+  const keys = a.keys.map((k) => ({ ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => ids.has(id))) })).filter(hasAny);
   return { ...a, keys: keys.length ? keys : a.keys.slice(0, 1) };
 }
 
@@ -257,6 +300,17 @@ export function sampleCamera(a: Animation, t: number): CameraKey | null {
   };
 }
 
+/** One figure as it is at time t (keys interpolated, its walks, runs and jumps generated). */
+export function figurePoseAt(scene: Scene, id: string, t: number): Figure | null {
+  const f = scene.figures.find((x) => x.id === id);
+  const a = scene.animation;
+  if (!f || !a) return f ?? null;
+  const p = samplePose(a, f.id, t);
+  if (!p) return f;
+  const { joints, position, hands, grounded } = locomote(a, f, t, p, groundOf(scene.props));
+  return { ...f, joints, position, hands, grounded };
+}
+
 /**
  * The scene as it looks at time t: keys interpolated, with walks, runs and jumps generated on
  * top (lib/locomotion.ts). Figures without keys keep their pose.
@@ -265,15 +319,19 @@ export function sceneAt(scene: Scene, t: number): Scene {
   const a = scene.animation;
   if (!a) return scene;
   const ground = groundOf(scene.props);
-  return {
-    ...scene,
-    figures: scene.figures.map((f) => {
-      const p = samplePose(a, f.id, t);
-      if (!p) return f;
-      const { joints, position, hands, grounded } = locomote(a, f, t, p, ground);
-      return { ...f, joints, position, hands, grounded };
-    }),
+  const figureAt = (f: Figure, at: number): Figure => {
+    const p = samplePose(a, f.id, at);
+    if (!p) return f;
+    const { joints, position, hands, grounded } = locomote(a, f, at, p, ground);
+    return { ...f, joints, position, hands, grounded };
   };
+  const figures = scene.figures.map((f) => figureAt(f, t));
+  // Props ride in hands, fly and fall: they need the figures' hands at their key times too.
+  const props = propsAt(scene, t, (id, at) => {
+    const f = Math.abs(at - t) < 1e-9 ? figures.find((x) => x.id === id) : scene.figures.find((x) => x.id === id);
+    return !f ? null : Math.abs(at - t) < 1e-9 ? f : figureAt(f, at);
+  });
+  return { ...scene, figures, props };
 }
 
 /** Times of evenly spaced frames, for frame sheets and video. */
@@ -291,6 +349,8 @@ export function parseAnimation(
   v: unknown,
   figureIds: Set<string>,
   parsePose: (p: unknown) => PoseKey | null,
+  propIds: Set<string> = new Set(),
+  parseProp: (p: unknown) => PropKey | null = () => null,
 ): Animation | undefined {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
   const o = v as Record<string, unknown>;
@@ -309,7 +369,16 @@ export function parseAnimation(
         if (pose) poses[id] = pose;
       }
     }
-    if (Object.keys(poses).length) keys.push({ t: Math.min(duration, Math.max(0, num(kk.t, 0))), poses });
+    const props: Record<string, PropKey> = {};
+    if (typeof kk.props === 'object' && kk.props !== null) {
+      for (const [id, p] of Object.entries(kk.props as Record<string, unknown>)) {
+        if (!propIds.has(id)) continue;
+        const key = parseProp(p);
+        if (key) props[id] = key;
+      }
+    }
+    const t = Math.min(duration, Math.max(0, num(kk.t, 0)));
+    if (Object.keys(poses).length || Object.keys(props).length) keys.push({ t, poses, ...(Object.keys(props).length ? { props } : {}) });
   }
   if (!keys.length) return undefined;
   keys.sort((p, q) => p.t - q.t);
@@ -360,13 +429,22 @@ function parseCamera(v: unknown, duration: number): CameraTrack | undefined {
 }
 
 /** Replace figure ids in the keys (after copying a scene with fresh ids). */
-export function remapAnimation(a: Animation, ids: Map<string, string>): Animation {
+export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: Map<string, string> = new Map()): Animation {
   return {
     ...a,
-    keys: a.keys.map((k) => ({
-      ...k,
-      poses: Object.fromEntries(Object.entries(k.poses).flatMap(([id, p]) => (ids.has(id) ? [[ids.get(id)!, structuredClone(p)]] : []))),
-    })),
+    keys: a.keys.map((k) => {
+      const props = Object.fromEntries(Object.entries(k.props ?? {}).flatMap(([id, p]) => {
+        if (!propIds.has(id)) return [];
+        const key = structuredClone(p);
+        if (key.hold) key.hold = { ...key.hold, figure: ids.get(key.hold.figure) ?? key.hold.figure };
+        return [[propIds.get(id)!, key]];
+      }));
+      return {
+        ...k,
+        poses: Object.fromEntries(Object.entries(k.poses).flatMap(([id, p]) => (ids.has(id) ? [[ids.get(id)!, structuredClone(p)]] : []))),
+        ...(Object.keys(props).length ? { props } : { props: undefined }),
+      };
+    }),
   };
 }
 

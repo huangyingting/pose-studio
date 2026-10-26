@@ -64,7 +64,7 @@ export function insertMotion(scene: Scene, figureId: string, motion: Scene, star
   // Clear the figure's keys in that span, then key the motion.
   let keys = a.keys
     .map((k) => (k.t >= t0 - 1e-6 && k.t <= t1 + 1e-6 && k.poses[figureId] ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => id !== figureId)) } : k))
-    .filter((k) => Object.keys(k.poses).length);
+    .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
   for (const { t, pose } of moves) {
     const time = snapTime(a, start + t);
     const i = keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);

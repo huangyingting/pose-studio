@@ -1,4 +1,4 @@
-import { keepFigures, poseOf, sceneAt, setKey } from './animation';
+import { keepFigures, keepProps, poseOf, propKeyOf, sceneAt, setKey, setPropKey } from './animation';
 import { newScene, parseLibrary } from './doc';
 import { shotSpans } from './shots';
 import { DEFAULT_LIGHT, clampLight } from './lighting';
@@ -233,11 +233,18 @@ export class Store {
     const i = this.state.sceneIndex;
     const before = prev.scenes[i];
     const after = next.scenes[i];
-    if (!after?.animation || !before || before.id !== after.id || before.figures === after.figures) return next;
+    if (!after?.animation || !before || before.id !== after.id || (before.figures === after.figures && before.props === after.props)) return next;
     const was = new Map(before.figures.map((f) => [f.id, JSON.stringify(poseOf(f))]));
     const changed = after.figures.filter((f) => was.get(f.id) !== JSON.stringify(poseOf(f)));
     let animation = changed.length ? setKey(after.animation, this.state.time, changed) : after.animation;
     animation = keepFigures(animation, new Set(after.figures.map((f) => f.id)));
+    // Props too: moving one, or putting it in a hand, keys it here (the first time, from where it was).
+    const wasProp = new Map(before.props.map((p) => [p.id, p]));
+    for (const p of after.props) {
+      const old = wasProp.get(p.id);
+      if (old && JSON.stringify(propKeyOf(old)) !== JSON.stringify(propKeyOf(p))) animation = setPropKey(animation, this.state.time, p, {}, old);
+    }
+    animation = keepProps(animation, new Set(after.props.map((p) => p.id)));
     if (animation === after.animation) return next;
     return { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
   }

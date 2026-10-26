@@ -120,6 +120,21 @@ export interface Keyframe {
   t: number;
   /** Pose per figure id. */
   poses: Record<string, PoseKey>;
+  /** Place per prop id (props without keys stay where they are). */
+  props?: Record<string, PropKey>;
+}
+
+/** One prop's place in a keyframe. */
+export interface PropKey {
+  /** World place, or (held) relative to the holding hand. */
+  position: Vec3;
+  rotation: Vec3;
+  /** In a figure's hand from this key on. */
+  hold?: { figure: string; hand: Side };
+  /** Let go here: it starts from where the hand had it (and falls, or flies if thrown on). */
+  release?: boolean;
+  /** Thrown here from the previous key: it flies under gravity (into a hand if this key holds it). */
+  throw?: boolean;
 }
 
 /**

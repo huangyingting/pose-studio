@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { PropObject } from './props';
-import type { Prop } from './types';
+import { HANDHELD, type Prop } from './types';
 
 /*
  * What a figure can stand on: the top of every part of every prop standing in the scene (not
@@ -9,7 +9,7 @@ import type { Prop } from './types';
  * top under them, or on the floor.
  */
 
-interface Top { minX: number; maxX: number; minZ: number; maxZ: number; y: number }
+interface Top { id: string; minX: number; maxX: number; minZ: number; maxZ: number; y: number }
 
 let ink: Ink | null = null;
 const cache = new WeakMap<Prop[], Top[]>();
@@ -21,7 +21,8 @@ function topsOf(props: Prop[]): Top[] {
   const box = new THREE.Box3();
   tops = [];
   for (const p of props) {
-    if (p.hold) continue;
+    // Not stood on: held props, balls and things that fit in a hand.
+    if (p.hold || p.kind === 'sphere' || HANDHELD.includes(p.kind)) continue;
     const o = new PropObject(ink, p.kind, p.id);
     o.apply(p);
     o.liftAboveFloor();
@@ -29,7 +30,7 @@ function topsOf(props: Prop[]): Top[] {
       box.setFromObject(mesh);
       // Thin upright parts (a chair back, a wall) are not stood on unless wide enough for a foot.
       if (box.max.x - box.min.x < 0.08 || box.max.z - box.min.z < 0.08) continue;
-      tops.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, y: box.max.y });
+      tops.push({ id: p.id, minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, y: box.max.y });
     }
     o.dispose();
   }
@@ -37,13 +38,13 @@ function topsOf(props: Prop[]): Top[] {
   return tops;
 }
 
-/** Height of what stands under a floor point: the highest prop top there, or the floor (0). */
-export function groundOf(props: Prop[]) {
-  if (!props.some((p) => !p.hold)) return () => 0;
+/** Height of what stands under a floor point: the highest prop top there (but `except`), or the floor (0). */
+export function groundOf(props: Prop[], except?: string) {
+  if (!props.some((p) => !p.hold && p.kind !== 'sphere' && !HANDHELD.includes(p.kind))) return () => 0;
   const tops = topsOf(props);
   return (x: number, z: number) => {
     let y = 0;
-    for (const t of tops) if (x >= t.minX && x <= t.maxX && z >= t.minZ && z <= t.maxZ && t.y > y) y = t.y;
+    for (const t of tops) if (t.id !== except && x >= t.minX && x <= t.maxX && z >= t.minZ && z <= t.maxZ && t.y > y) y = t.y;
     return y;
   };
 }

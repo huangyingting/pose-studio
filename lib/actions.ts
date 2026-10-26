@@ -4,7 +4,9 @@ import {
 } from './doc';
 import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
-import { figureKeyTimes, keyAt, moveKey, newAnimation, poseOf, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
+import { figureKeyTimes, figurePoseAt, keyAt, moveKey, newAnimation, poseOf, removeKey, setDuration as setAnimDuration, setKey, setPropKey, snapTime } from './animation';
+import { handPosition, throwTime, worldOfProp } from './propmotion';
+import { groundOf } from './surfaces';
 import { JUMP_PREP, flightTime, travelTime } from './locomotion';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure } from './poses';
@@ -16,8 +18,8 @@ import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
-import { held, released } from './hold';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, PoseKey, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import { grip, held, released } from './hold';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, PoseKey, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -216,8 +218,89 @@ export function addProp(store: Store, kind: PropKind, at = besideFigures(store, 
   store.select({ kind: 'prop', prop: prop.id });
 }
 
+/**
+ * Throw a prop from the hand holding it at the playhead: to a floor point, or into another
+ * figure's hand (caught there). It flies under gravity; the hands are wherever the figures have
+ * them at those moments. The playhead goes to where it lands.
+ */
+export function throwProp(store: Store, id: string, target: { at: [number, number] } | { figure: string; hand: Side }) {
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  const scene = store.scene;
+  const a = scene.animation!;
+  const prop = scene.props.find((p) => p.id === id);
+  if (!prop?.hold) return null;
+  const t0 = snapTime(a, store.getState().time);
+  const at = (fid: string, t: number) => figurePoseAt(scene, fid, t);
+  const from = worldOfProp(scene, id, at, t0);
+  if (!from) return null;
+  let to: Vec3;
+  let end: PropKey;
+  if ('at' in target) {
+    const [x, z] = target.at;
+    to = [Math.round(x * 1000) / 1000, groundOf(scene.props, id)(x, z), Math.round(z * 1000) / 1000];
+    end = { position: to, rotation: from.rotation, throw: true };
+  } else {
+    const catcher = at(target.figure, t0);
+    if (!catcher) return null;
+    to = handPosition(catcher, target.hand);
+    const g = grip(prop.kind, target.hand, catcher.body.height);
+    end = { position: g.position, rotation: g.rotation, hold: { ...target }, throw: true };
+  }
+  const t1 = Math.min(60, Math.round((t0 + throwTime(from.position, to)) * a.fps) / a.fps);
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const free = { ...prop, position: from.position, rotation: from.rotation, hold: undefined };
+    let anim = setPropKey(s.animation, t0, free, { release: true }, prop);
+    anim = shiftPropTrack(anim, id, t0, t1 - t0);
+    const i = anim.keys.findIndex((k) => Math.abs(k.t - t1) < 0.5 / anim.fps);
+    const keys = i >= 0
+      ? anim.keys.map((k, j) => (j === i ? { ...k, props: { ...k.props, [id]: end } } : k))
+      : [...anim.keys, { t: t1, poses: {}, props: { [id]: end } }].sort((p, q) => p.t - q.t);
+    return {
+      ...s,
+      props: s.props.map((p) => (p.id === id ? free : p)),
+      animation: { ...anim, keys, duration: Math.min(60, Math.max(anim.duration, t1)) },
+    };
+  });
+  store.setTime(t1);
+  store.select({ kind: 'prop', prop: id });
+  return { from: t0, to: t1 };
+}
+
+/** Move one prop's keys after `after` later by `by` seconds. */
+function shiftPropTrack(a: Animation, id: string, after: number, by: number): Animation {
+  const moved: { t: number; key: PropKey }[] = [];
+  const keys = a.keys.map((k) => {
+    if (k.t <= after + 1e-6 || !k.props?.[id]) return k;
+    moved.push({ t: Math.min(60, Math.round((k.t + by) * a.fps) / a.fps), key: k.props[id] });
+    const { [id]: _, ...rest } = k.props;
+    void _;
+    return { ...k, props: rest };
+  }).filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
+  for (const m of moved) {
+    const i = keys.findIndex((k) => Math.abs(k.t - m.t) < 0.5 / a.fps);
+    if (i >= 0) keys[i] = { ...keys[i], props: { ...keys[i].props, [id]: m.key } };
+    else keys.push({ t: m.t, poses: {}, props: { [id]: m.key } });
+  }
+  return { ...a, keys: keys.sort((p, q) => p.t - q.t), duration: Math.min(60, Math.max(a.duration, ...keys.map((k) => k.t))) };
+}
+
 /** Put a prop in a figure's hand (it closes into a grip), or (null) let it go onto the floor. */
 export function holdProp(store: Store, id: string, to: { figure: string; hand: Side } | null) {
+  // Animated: letting go at the playhead drops it from the hand; it falls under gravity.
+  const scene = store.scene;
+  const current = scene.props.find((p) => p.id === id);
+  if (!to && scene.animation && current?.hold) {
+    const t = snapTime(scene.animation, store.getState().time);
+    const from = worldOfProp(scene, id, (fid, at) => figurePoseAt(scene, fid, at), t);
+    if (!from) return;
+    store.updateScene((s) => {
+      if (!s.animation) return s;
+      const free = { ...current, position: from.position, rotation: from.rotation, hold: undefined };
+      return { ...s, props: s.props.map((p) => (p.id === id ? free : p)), animation: setPropKey(s.animation, t, free, { release: true }, current) };
+    });
+    return;
+  }
   store.updateScene((s) => {
     const prop = s.props.find((p) => p.id === id);
     if (!prop) return s;
@@ -409,7 +492,7 @@ function shiftTrack(a: Animation, id: string, after: number, by: number): Animat
     const { [id]: _, ...rest } = k.poses;
     void _;
     return { ...k, poses: rest };
-  }).filter((k) => Object.keys(k.poses).length);
+  }).filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
   for (const m of moved) {
     const i = keys.findIndex((k) => Math.abs(k.t - m.t) < 0.5 / a.fps);
     if (i >= 0) keys[i] = { ...keys[i], poses: { ...keys[i].poses, [id]: m.pose } };
