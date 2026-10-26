@@ -1,4 +1,5 @@
-import { wrapDeg } from './joints';
+import * as THREE from 'three';
+import { clampRotation, wrapDeg } from './joints';
 import { Rig } from './relations';
 import type { Animation, BodyParams, Figure, JointName, PoseKey, Travel, Vec3 } from './types';
 
@@ -650,4 +651,52 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
     planted('end', gb);
   }
   return compose(pose, legs, { position: [x, y, z], yaw, pitch, roll, feet, swing: 0, raise, elbows: raise < 0 ? 0.12 * raise : 0 });
+}
+
+/* ---------- planting feet in keyed poses ---------- */
+
+/** Where a figure's feet are in the world (ankles, and how they are turned). */
+export function feetOf(rig: Rig, f: Figure, sides: ('L' | 'R')[] = ['L', 'R']) {
+  const m = rig.model(f);
+  return sides.map((side) => {
+    const j = m.joints[side === 'L' ? 'ankleL' : 'ankleR'];
+    return { side, p: j.getWorldPosition(new THREE.Vector3()), q: j.getWorldQuaternion(new THREE.Quaternion()) };
+  });
+}
+
+/**
+ * The pose with its feet (or one) put where they are in `ref` (or at `feet`), turned as they were:
+ * planted feet do not slide from key to key. The legs are solved as walking solves them (swing and
+ * spread at the hip, the knee a hinge, no twist), in the pelvis's own frame however it is turned.
+ */
+export function plantFeet(rig: Rig, pose: Figure, ref: Figure | ReturnType<typeof feetOf>, sides: ('L' | 'R')[] = ['L', 'R']): Figure {
+  const want = Array.isArray(ref) ? ref : feetOf(rig, ref, sides);
+  const legs = legsOf(pose.body);
+  const r1 = (v: number) => Math.round(v * 10) / 10 || 0;
+  let f = pose;
+  // A grounded figure settles on its new lowest point: solve again until the feet stay.
+  for (let i = 0; i < 3; i++) {
+    let m = rig.model(f);
+    const joints = { ...f.joints };
+    for (const w of want) {
+      const hip = m.joints[w.side === 'L' ? 'hipL' : 'hipR'];
+      const frame = hip.parent!.getWorldQuaternion(new THREE.Quaternion()).invert();
+      const t = w.p.clone().sub(hip.getWorldPosition(new THREE.Vector3())).applyQuaternion(frame);
+      const ik = legAngles(legs, [t.x, t.y, t.z], 0);
+      joints[w.side === 'L' ? 'hipL' : 'hipR'] = [r1(ik.hip[0]), 0, r1(ik.hip[2])];
+      joints[w.side === 'L' ? 'kneeL' : 'kneeR'] = [r1(ik.knee), 0, 0];
+    }
+    m = rig.model({ ...f, joints });
+    // The foot turned as wanted, from the shin it hangs on.
+    for (const w of want) {
+      const ankle = m.joints[w.side === 'L' ? 'ankleL' : 'ankleR'];
+      const local = ankle.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(w.q);
+      const e = new THREE.Euler().setFromQuaternion(local, 'XZY');
+      // Within the ankle's range: past it (a deep squat) the heel lifts, as people's do.
+      const name = w.side === 'L' ? 'ankleL' : 'ankleR';
+      joints[name] = clampRotation(name, [r1(e.x * R2D), r1(e.y * R2D), r1(e.z * R2D)]);
+    }
+    f = { ...f, joints };
+  }
+  return f;
 }

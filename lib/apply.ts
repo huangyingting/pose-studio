@@ -1,8 +1,8 @@
-import { newAnimation, snapTime } from './animation';
+import { newAnimation, samplePose, snapTime } from './animation';
 import { cloneHand } from './hands';
 import { wrapDeg } from './joints';
-import { legsOf } from './locomotion';
-import { Rig, facing, feetOf, plantFeet } from './relations';
+import { feetOf, legsOf, plantFeet } from './locomotion';
+import { Rig, facing } from './relations';
 import type { Animation, Figure, PoseAsset, PoseKey, Scene, Vec3 } from './types';
 
 /*
@@ -48,11 +48,12 @@ export function insertMotion(scene: Scene, figureId: string, motion: Scene, star
   const turnBy = facing(target) - facing(src);
   // Heights are of the hips; a grounded figure's are those of standing.
   const hipsOf = (f: Figure) => (f.grounded ? legsOf(f.body).rootY : f.position[1]);
-  const rise = hipsOf(target) - hipsOf(src);
+  // Travel and changes of height scale with the figure (a child's cartwheel covers less ground).
+  const size = legsOf(target.body).rootY / legsOf(src.body).rootY;
   const retarget = (p: PoseKey): PoseKey => {
-    const [dx, dz] = turn(p.position[0] - src.position[0], p.position[2] - src.position[2], turnBy);
+    const [dx, dz] = turn((p.position[0] - src.position[0]) * size, (p.position[2] - src.position[2]) * size, turnBy);
     const root = p.joints.root ?? [0, 0, 0];
-    const y = p.grounded ? target.position[1] : r3(p.position[1] + rise);
+    const y = p.grounded ? target.position[1] : r3(hipsOf(target) + (p.position[1] - hipsOf(src)) * size);
     return {
       joints: { ...structuredClone(p.joints), root: [root[0], r3(wrapDeg(root[1] + turnBy)), root[2]] },
       position: [r3(target.position[0] + dx), y, r3(target.position[2] + dz)] as Vec3,
@@ -66,15 +67,19 @@ export function insertMotion(scene: Scene, figureId: string, motion: Scene, star
   };
 
   // The motion's keys for its figure, and for a loop the first again at the end (a full cycle).
-  const moves = m.keys.filter((k) => k.poses[src.id]).map((k) => ({ t: k.t, pose: k.poses[src.id] }));
-  if (m.loop && moves.length) moves.push({ t: m.duration, pose: moves[0].pose });
+  const keyed = m.keys.filter((k) => k.poses[src.id]).map((k) => ({ t: k.t, pose: k.poses[src.id] }));
+  if (m.loop && keyed.length) keyed.push({ t: m.duration, pose: keyed[0].pose });
+  const same = JSON.stringify(src.body) === JSON.stringify(target.body);
+  // On other proportions, stretches with a foot planted get a key every frame, each with the
+  // foot locked (blended joint angles alone would let it drift between keys far apart).
+  const moves = same ? keyed : densePlanted(m, src, keyed);
 
   // Clear the figure's keys in that span, then key the motion.
   let keys = a.keys
     .map((k) => (k.t >= t0 - 1e-6 && k.t <= t1 + 1e-6 && k.poses[figureId] ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => id !== figureId)) } : k))
     .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
   const retargeted = moves.map((m) => retarget(m.pose));
-  const locked = JSON.stringify(src.body) === JSON.stringify(target.body) ? retargeted : lockFeet(src, target, moves.map((m) => m.pose), retargeted);
+  const locked = same ? retargeted : lockFeet(src, target, moves.map((m) => m.pose), retargeted);
   for (const [n, { t }] of moves.entries()) {
     const time = snapTime(a, start + t);
     const i = keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);
@@ -93,6 +98,16 @@ function lockFeet(src: Figure, target: Figure, from: PoseKey[], to: PoseKey[]): 
   const rig = new Rig();
   try {
     const as = (f: Figure, p: PoseKey): Figure => ({ ...f, joints: p.joints, position: p.position, hands: p.hands, grounded: p.grounded });
+    // Keyed heights keep their contacts: where the motion's figure touches the floor (a hand in a
+    // cartwheel), this figure does too, whatever its proportions.
+    to = to.map((p, i) => {
+      if (p.grounded) return p;
+      const touch = rig.model(as(src, from[i])).lowest();
+      if (touch > 0.05) return p;
+      const m = rig.model(as(target, p));
+      const y = m.joints.root.position.y - Math.max(0, m.lowest() - touch);
+      return { ...p, position: [p.position[0], Math.round(y * 1000) / 1000, p.position[2]] };
+    });
     const source = from.map((p) => feetOf(rig, as(src, p)));
     const floor = Math.min(...source.flat().map((foot) => foot.p.y));
     const landed = to.map((p) => feetOf(rig, as(target, p)));
@@ -102,17 +117,44 @@ function lockFeet(src: Figure, target: Figure, from: PoseKey[], to: PoseKey[]): 
       for (let i = 0; i < from.length; i++) {
         const now = source[i][side];
         const before = i > 0 ? source[i - 1][side] : null;
-        const down = (y: number) => y - floor < 0.03;
-        const stays = !!before && down(now.p.y) && down(before.p.y) && Math.hypot(now.p.x - before.p.x, now.p.z - before.p.z) < 0.02;
-        if (!stays || from[i].travel) {
+        if (!before || !stays(before, now, floor) || from[i].travel) {
           anchor = landed[i][side];
+          // A run of planted keys starts here: this key's leg is solved too (where its foot is), so
+          // it matches the keys after it (and a loop's closing copy of it).
+          if (!from[i].travel && i + 1 < from.length && stays(now, source[i + 1][side], floor)) anchors[i].push(anchor);
           continue;
         }
-        // Only where it would move (a pose that already keeps the foot is left as made).
-        if (landed[i][side].p.distanceTo(anchor!.p) > 0.01) anchors[i].push(anchor!);
+        anchors[i].push(anchor!);
       }
     }
     return to.map((p, i) => (anchors[i].length ? { ...p, joints: plantFeet(rig, as(target, p), anchors[i]).joints } : p));
+  } finally {
+    rig.dispose();
+  }
+}
+
+/** Is the foot down (near the motion's floor) and in the same place from `a` to the later `b`, not lifting off? */
+const stays = (a: { p: { x: number; y: number; z: number } }, b: { p: { x: number; y: number; z: number } }, floor: number) =>
+  a.p.y - floor < 0.03 && b.p.y - floor < 0.03 && b.p.y - a.p.y < 0.005 && Math.hypot(a.p.x - b.p.x, a.p.z - b.p.z) < 0.02;
+
+/** The motion's keys, plus a sample every frame between keys where a foot stays planted. */
+function densePlanted(m: Animation, src: Figure, keyed: { t: number; pose: PoseKey }[]) {
+  const rig = new Rig();
+  try {
+    const feet = keyed.map((k) => feetOf(rig, { ...src, joints: k.pose.joints, position: k.pose.position, hands: k.pose.hands, grounded: k.pose.grounded }));
+    const floor = Math.min(...feet.flat().map((f) => f.p.y));
+    const step = 1 / m.fps;
+    const out: { t: number; pose: PoseKey }[] = [];
+    keyed.forEach((k, i) => {
+      out.push(k);
+      const next = keyed[i + 1];
+      if (!next || next.pose.travel || !feet[i].some((f, s) => stays(f, feet[i + 1][s], floor))) return;
+      for (let t = k.t + step; t < next.t - step / 2; t += step) {
+        const pose = samplePose(m, src.id, Math.min(t, m.duration - 1e-6));
+        if (pose) out.push({ t: Math.round(t * 1000) / 1000, pose });
+      }
+    });
+    return out;
   } finally {
     rig.dispose();
   }

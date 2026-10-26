@@ -648,10 +648,13 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
       const lift = Math.max(0, f.position[1] - ground(f.position[0], f.position[2]) - legs.rootY);
       points.push([f.position[0], ground(f.position[0], f.position[2]) + 0.012 + lift, f.position[2]]);
     }
-    const marks = figureKeyTimes(a, figureId).map((t) => {
+    // A mark where the figure gets to somewhere new (a run of keys in one place, as in a dance, is one mark).
+    const marks: { t: number; x: number; z: number }[] = [];
+    for (const t of figureKeyTimes(a, figureId)) {
       const k = a.keys.find((x) => x.t === t)!.poses[figureId];
-      return { t, x: k.position[0], z: k.position[2] };
-    });
+      const last = marks[marks.length - 1];
+      if (!last || k.travel || Math.hypot(k.position[0] - last.x, k.position[2] - last.z) > 0.15) marks.push({ t, x: k.position[0], z: k.position[2] });
+    }
     return { points, marks, prints: footprints(a, figure, ground) };
   }, [a, figure, figureId, scene, ground]);
 
