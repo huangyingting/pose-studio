@@ -696,6 +696,10 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.walk { background: rgba(48, 164, 108, 0.14); color: #23784f; }
 .tl-travel.run { background: rgba(245, 158, 11, 0.16); color: #a35e00; }
 .tl-travel.jump { background: rgba(139, 92, 246, 0.15); color: #6b44d6; }
+.tl-travel.held { background: rgba(96, 97, 106, 0.1); color: var(--text-2); }
+.tl-travel.throw { background: rgba(229, 72, 77, 0.12); color: #b4383c; }
+.tl-key.prop { width: 9px; height: 9px; margin: -5px 0 0 -5px; background: #8a8b95; }
+.tl-figure.tl-prop { color: var(--text-3); }
 .tl-key {
   position: absolute;
   top: 50%;

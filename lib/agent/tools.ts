@@ -1,6 +1,6 @@
 import {
   addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
-  holdProp, nextName, reachFor, setTravel, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  holdProp, nextName, reachFor, setTravel, throwProp, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
@@ -16,7 +16,7 @@ import { CAMERA_MOVES } from '../shot';
 import { shotSpans } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
-import { JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
+import { JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -45,6 +45,13 @@ const FIGURE = str('Figure id or name');
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const r2 = (v: number) => Math.round(v * 100) / 100;
+
+function findProp(store: Store, ref: unknown) {
+  const props = store.scene.props;
+  const p = props.find((x) => x.id === ref) ?? props.find((x) => x.name.toLowerCase() === String(ref).toLowerCase());
+  if (!p) throw new Error(`No prop "${ref}". Props: ${props.map((x) => `${x.name} (${x.id})`).join(', ') || 'none'}`);
+  return p;
+}
 
 function findFigure(store: Store, ref: unknown): Figure {
   const s = String(ref ?? '').trim().toLowerCase();
@@ -275,6 +282,34 @@ export const TOOLS: AgentTool[] = [
       const hand = i.hand === 'L' ? 'L' : 'R';
       holdProp(store, prop.id, { figure: holder.id, hand });
       return `Added ${prop.name} (${prop.id}) in ${holder.name}'s ${hand === 'L' ? 'left' : 'right'} hand.`;
+    },
+  },
+  {
+    name: 'throw_prop',
+    description: 'Throw a prop out of the hand holding it at the playhead (animated): into another figure\'s hand (to_figure and hand: caught there), or to a floor point (x, z). It flies under gravity from where the hand is; the playhead goes to the arrival. Put it in a hand first with add_prop held_by or hold_prop.',
+    schema: obj({ prop: str('Prop id or name'), to_figure: opt(FIGURE), hand: opt(str('Catching hand', ['L', 'R'])), x: opt(num('Floor X')), z: opt(num('Floor Z')) }),
+    run: (store, i) => {
+      const p = findProp(store, i.prop);
+      if (!p.hold) throw new Error(`${p.name} is not in anyone's hand at ${r2(store.getState().time)} s`);
+      const target = i.to_figure ? { figure: findFigure(store, i.to_figure).id, hand: (i.hand === 'L' ? 'L' : 'R') as Side } : { at: [Number(i.x ?? 0), Number(i.z ?? 0)] as [number, number] };
+      const span = throwProp(store, p.id, target);
+      if (!span) throw new Error(`Could not throw ${p.name}`);
+      return `${p.name} thrown at ${r2(span.from)} s, arriving at ${r2(span.to)} s.`;
+    },
+  },
+  {
+    name: 'hold_prop',
+    description: 'Put a prop in a figure\'s hand (it grips it; animated: from the playhead on), or with figure null let it go (animated: it falls from the hand).',
+    schema: obj({ prop: str('Prop id or name'), figure: opt(FIGURE), hand: opt(str('Hand', ['L', 'R'])) }),
+    run: (store, i) => {
+      const p = findProp(store, i.prop);
+      if (!i.figure) {
+        holdProp(store, p.id, null);
+        return `${p.name} let go.`;
+      }
+      const f = findFigure(store, i.figure);
+      holdProp(store, p.id, { figure: f.id, hand: i.hand === 'L' ? 'L' : 'R' });
+      return `${p.name} in ${f.name}'s ${i.hand === 'L' ? 'left' : 'right'} hand.`;
     },
   },
   {

@@ -106,6 +106,21 @@ export function setPropKey(a: Animation, t: number, prop: Prop, extra: Partial<P
   return { ...a, keys };
 }
 
+/** Remove one prop's key at time t. */
+export function removePropKey(a: Animation, t: number, id: string): Animation {
+  const i = keyAt(a, t);
+  if (i < 0 || !a.keys[i].props?.[id]) return a;
+  return withoutEmpty({
+    ...a,
+    keys: a.keys.map((k, j) => {
+      if (j !== i) return k;
+      const { [id]: _, ...rest } = k.props!;
+      void _;
+      return Object.keys(rest).length ? { ...k, props: rest } : { t: k.t, poses: k.poses };
+    }),
+  });
+}
+
 /** Only the keys of these props (after props are deleted). */
 export function keepProps(a: Animation, ids: Set<string>): Animation {
   if (a.keys.every((k) => Object.keys(k.props ?? {}).every((id) => ids.has(id)))) return a;

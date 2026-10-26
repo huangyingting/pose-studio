@@ -7,11 +7,12 @@ import {
 import {
   addKeyframe, cutShot, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, setAnimationOptions, setCameraKey,
 } from '@/lib/actions';
-import { figureKeyTimes, snapTime } from '@/lib/animation';
+import { figureKeyTimes, removePropKey, snapTime } from '@/lib/animation';
+import { propKeyTimes, propTrack } from '@/lib/propmotion';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
-import type { Animation, CameraKey } from '@/lib/types';
+import type { Animation, CameraKey, Figure } from '@/lib/types';
 import type { Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { figureMenu, shotMenu, travelMenu } from './menus';
@@ -154,7 +155,9 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
 
   const pct = (t: number) => `${(t / a.duration) * 100}%`;
   // Ruler, shots, one row per figure (taller when there is just one), camera.
-  const rows = `18px 24px ${multi ? figures.map(() => '24px').join(' ') : '26px'} 26px`;
+  // Props that move over time get a row each, under the figures.
+  const moving = scene.props.filter((p) => propKeyTimes(a, p.id).length > 0);
+  const rows = `18px 24px ${multi ? figures.map(() => '24px').join(' ') : '26px'} ${moving.map(() => '22px').join(' ')} 26px`;
   const ticks = Array.from({ length: Math.floor(a.duration / 0.5) + 1 }, (_, i) => i * 0.5);
 
   return (
@@ -252,6 +255,11 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               {f.name}
             </button>
           )) : <span aria-hidden>Pose</span>}
+          {moving.map((p) => (
+            <button key={p.id} type="button" className="tl-figure tl-prop" onClick={() => store.select({ kind: 'prop', prop: p.id })} title={`${p.name}: carried, thrown and dropped over time`}>
+              {p.name}
+            </button>
+          ))}
           <span aria-hidden>Camera</span>
         </div>
         <div className="tl-lanes" ref={track} onPointerDown={scrub} style={{ gridTemplateRows: rows }}>
@@ -346,6 +354,33 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             ))}
           </div>
         ))}
+        {moving.map((p) => (
+          <div key={p.id} className="tl-row" aria-label={`${p.name} keys`}>
+            {propBars(a, p.id, figures).map((b) => (
+              <span key={b.t0} className={`tl-travel ${b.kind}`} style={{ left: pct(b.t0), width: pct(b.t1 - b.t0) }} title={b.label}>
+                <span>{b.label}</span>
+              </span>
+            ))}
+            {propKeyTimes(a, p.id).map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`tl-key prop${near(t) ? ' on' : ''}`}
+                style={{ left: pct(t) }}
+                aria-label={`${p.name} key at ${t.toFixed(2)} s`}
+                onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(t); store.select({ kind: 'prop', prop: p.id }); }}
+                onContextMenu={(e) => {
+                  e.stopPropagation();
+                  seek(t);
+                  openContextMenu(e, [{
+                    label: 'Delete key', icon: Trash2, danger: true,
+                    onSelect: () => store.updateScene((s) => (s.animation ? { ...s, animation: removePropKey(s.animation, t, p.id) } : s)),
+                  }], `${p.name} · ${t.toFixed(2)} s`);
+                }}
+              />
+            ))}
+          </div>
+        ))}
         <div className="tl-row camera" aria-label="Camera keyframes">
           {cam?.keys.map((k) => (
             <button
@@ -412,6 +447,20 @@ function travelBars(a: Animation, id: string) {
       if (p.flip) label += p.flip > 0 ? ' · front flip' : ' · back flip';
     } else if (p.strafe) label += ' · keep facing';
     bars.push({ t0, t1, kind: p.travel, label });
+  }
+  return bars;
+}
+
+/** The stretches of a prop's track: in a hand, or flying (thrown). */
+function propBars(a: Animation, id: string, figures: Figure[]) {
+  const track = propTrack(a, id);
+  const bars: { t0: number; t1: number; kind: string; label: string }[] = [];
+  const name = (fid: string) => figures.find((f) => f.id === fid)?.name ?? 'a hand';
+  for (let i = 1; i < track.length; i++) {
+    const prev = track[i - 1].key;
+    const k = track[i].key;
+    if (k.throw) bars.push({ t0: track[i - 1].t, t1: track[i].t, kind: 'throw', label: k.hold ? `To ${name(k.hold.figure)}` : 'Thrown' });
+    else if (prev.hold && !k.release) bars.push({ t0: track[i - 1].t, t1: track[i].t, kind: 'held', label: `${name(prev.hold.figure)}'s hand` });
   }
   return bars;
 }

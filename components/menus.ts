@@ -1,9 +1,9 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setJumpHeight, setTravel, travelTo,
+  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
@@ -77,7 +77,11 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
     { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateProp(store, id) },
     ...(hands.length || p.hold ? ['-' as const] : []),
     ...hands,
-    ...(p.hold ? [{ label: 'Let go', icon: ArrowDownToLine, onSelect: () => holdProp(store, id, null) }] : []),
+    ...(p.hold ? [{ label: store.scene.animation ? 'Let go (it falls)' : 'Let go', icon: ArrowDownToLine, onSelect: () => holdProp(store, id, null) }] : []),
+    // Thrown to someone else, caught in a hand.
+    ...(p.hold ? store.scene.figures.filter((x) => x.id !== p.hold!.figure).flatMap((x) => (['R', 'L'] as const).map((hand): MenuItem => ({
+      label: `Throw to ${x.name}'s ${hand === 'L' ? 'left' : 'right'} hand`, icon: Send, onSelect: () => throwProp(store, id, { figure: x.id, hand }),
+    }))) : []),
     '-',
     { label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },
   ];
@@ -182,12 +186,19 @@ export function canvasMenu(store: Store, at: Vec3 | undefined, frameAll: () => v
   const spot = at && ([Math.round(at[0] * 100) / 100, 0, Math.round(at[2] * 100) / 100] as Vec3);
   const f = store.figure;
   const go = (kind: Travel, opts: { strafe?: boolean } = {}) => () => { if (f && spot) travelTo(store, f.id, [spot[0], spot[2]], kind, opts); };
+  // What the selected figure holds right now can be thrown here.
+  const throws: MenuItem[] = f && spot
+    ? store.scene.props.filter((p) => p.hold?.figure === f.id).map((p) => ({
+      label: `Throw ${p.name} here`, icon: Send, onSelect: () => throwProp(store, p.id, { at: [spot[0], spot[2]] }),
+    }))
+    : [];
   const moves: MenuItem[] = f && spot ? [
     { group: `Move ${f.name} here` },
     { label: 'Walk here', icon: Footprints, onSelect: go('walk') },
     { label: 'Run here', icon: Wind, onSelect: go('run') },
     { label: 'Jump here', icon: MoveUpRight, onSelect: go('jump') },
     { label: 'Step here, keeping facing', icon: ArrowLeftRight, onSelect: go('walk', { strafe: true }) },
+    ...throws,
     '-',
   ] : [];
   return [
