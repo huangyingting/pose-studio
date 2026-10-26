@@ -1,7 +1,7 @@
 import { parseLibrary } from './doc';
 import { withBase } from './paths';
 import type { Store } from './store';
-import { canonical, mergeLibraries, sceneHash, syncBase, type SyncBase } from './sync';
+import { canonical, matchesBase, mergeLibraries, sceneHash, syncBase, type SyncBase } from './sync';
 import type { Library } from './types';
 
 /*
@@ -22,7 +22,7 @@ interface Saved {
 const KEY = 'pose-studio:sync';
 const PUSH_DELAY = 1500;
 
-const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}:${p.caption ?? ''}`).join();
+const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}:${p.caption ?? ''}`).join() + (lib.poses ?? []).map((p) => p.id).join();
 
 export class CloudSync {
   status: CloudStatus = 'syncing';
@@ -131,7 +131,7 @@ export class CloudSync {
       const lib = this.local();
       const print = fingerprint(lib);
       const base = this.saved.base;
-      const unchanged = base && lib.scenes.length === Object.keys(base.scenes).length && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s));
+      const unchanged = matchesBase(lib, base);
       if ((print === this.pushed || unchanged) && this.saved.version > 0 && (!force || unchanged)) {
         this.pushed = print;
         this.setStatus('synced');

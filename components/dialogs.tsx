@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Film, ImagePlus, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/animation';
 import { addFigures, appendScenes } from '@/lib/actions';
 import { newFigure, newScene } from '@/lib/doc';
+import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
@@ -37,7 +38,8 @@ function loadExportOptions(): ExportOptions {
 
 
 export function ExportDialog({ onClose, notify, initialScope }: { onClose(): void; notify: Notify; initialScope?: ExportOptions['scope'] }) {
-  const scenes = useStudio((s) => s.library.scenes);
+  const library = useStudio((s) => s.library);
+  const scenes = library.scenes;
   const light = useStudio((s) => s.settings.light);
   const faces = useStudio((s) => s.settings.faces);
   const scene = useScene();
@@ -49,14 +51,19 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
   const preview = useRef<HTMLDivElement>(null);
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
   // Animation outputs fall back to the single pose when the open pose is not animated.
-  const scope: ExportOptions['scope'] = !animated && (o.scope === 'frames' || o.scope === 'video') ? 'current' : o.scope;
+  const scope: ExportOptions['scope'] = (!animated && (o.scope === 'frames' || o.scope === 'video')) || (o.scope === 'all' && scenes.length < 2) ? 'current' : o.scope;
   const video = scope === 'video';
   const pack = scope === 'pack';
   // Video and keyframe packs are framed by the shot camera at a video size.
   const filmed = video || pack;
   const canRecord = videoSupported();
 
-  const cells = useMemo(() => exportCells(scenes, scene, { ...o, scope }), [o, scope, scenes, scene]);
+  // The pose library sheet shows each pose on its own figure (the reference sheet layout).
+  const poseCount = allPoses(library).length;
+  const cells = useMemo(
+    () => exportCells(scope === 'poses' ? allPoses(library).map((p) => poseScene(p)) : scenes, scene, { ...o, scope }),
+    [o, scope, scenes, scene, library],
+  );
   const size = filmed ? VIDEO_SIZES[o.videoSize] : sheetSize(cells.length, o);
   const { width, height } = size;
   const tooBig = !filmed && (width * height > 120_000_000 || width > 16384 || height > 16384);
@@ -128,7 +135,7 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
       const canvas = sharedRenderer().sheet(cells, { ...o, scope }, light, faces);
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
-      const base = scope === 'all' ? 'Pose' : safeFilename(scene.name);
+      const base = scope === 'poses' ? 'Pose' : scope === 'all' ? 'Scenes' : safeFilename(scene.name);
       const name = `${base}${scope === 'turnaround' ? '_turnaround' : scope === 'frames' ? '_frames' : ''}.${ext}`;
       downloadBlob(blob, name);
       notify(`Saved ${name} (${canvas.width} × ${canvas.height})`);
@@ -154,9 +161,10 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
   );
 
   const images: SegmentOption<ExportOptions['scope']>[] = [
-    { value: 'all', label: `All ${scenes.length}`, icon: LayoutGrid, title: 'Every pose in the library' },
-    { value: 'current', label: 'This pose', icon: Square },
-    { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This pose from evenly spaced angles' },
+    { value: 'current', label: 'This scene', icon: Square },
+    { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This scene from evenly spaced angles' },
+    ...(scenes.length > 1 ? [{ value: 'all' as const, label: `${scenes.length} scenes`, icon: LayoutGrid, title: 'Every scene of the project' }] : []),
+    { value: 'poses', label: `Poses ${poseCount}`, icon: Images, title: 'The pose library as a reference sheet' },
   ];
   const forVideo: SegmentOption<ExportOptions['scope']>[] = [
     ...(animated ? [
@@ -280,7 +288,7 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
               <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
               <div className="stack">
                 <Toggle label="Captions under each cell" checked={o.labels} onChange={(labels) => set({ labels })} />
-                {scope === 'all' && (
+                {(scope === 'all' || scope === 'poses') && (
                   <Toggle
                     label="Same scale in every cell"
                     hint="Keep figures comparable in size instead of filling each cell"
@@ -474,13 +482,13 @@ const SHORTCUTS: [string, string][] = [
   ['Play / pause animation', 'Space'],
   ['Step a frame', ',  .'],
   ['Key the selected figure · cut shot', 'K · C'],
-  ['Previous / next pose', '[  ]'],
+  ['Previous / next scene', '[  ]'],
   ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
   ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],
-  ['Duplicate pose', 'Ctrl D'],
+  ['Duplicate scene', 'Ctrl D'],
   ['Export image', 'Ctrl E'],
   ['Save library', 'Ctrl S'],
-  ['Reorder poses', 'Alt + arrows'],
+  ['Reorder scenes (scene picker)', 'Alt + arrows'],
   ['Delete prop', 'Del'],
   ['Deselect', 'Esc'],
   ['This help', '?'],

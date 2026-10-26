@@ -149,9 +149,22 @@ export interface Shot {
 
 export interface Library {
   version: 2;
+  /** The project's scenes: each a set, a cast and their animation and shots. */
   scenes: Scene[];
-  /** Storyboard: panels in story order, each showing one pose (see lib/board.ts). */
+  /** Storyboard: panels in story order, each showing one scene (see lib/board.ts). */
   board?: Panel[];
+  /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
+  poses?: PoseAsset[];
+}
+
+/** A pose in the library: joint angles and hands, applied to a figure without moving it. */
+export interface PoseAsset {
+  id: string;
+  name: string;
+  joints: Figure['joints'];
+  hands: Figure['hands'];
+  /** Camera for its thumbnail. */
+  view: View;
 }
 
 export interface Panel {
@@ -166,6 +179,8 @@ export interface Panel {
 export type Selection =
   | { kind: 'joint'; figure: string; joint: JointName }
   | { kind: 'prop'; prop: string }
+  /** A shot of the animation (see lib/shots.ts; 'main' when it is not cut). */
+  | { kind: 'shot'; shot: string }
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */

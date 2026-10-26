@@ -76,7 +76,8 @@ export interface ExportOptions {
    * All poses, the current pose, the current pose from several angles, or (animations) a
    * sheet of frames or a video.
    */
-  scope: 'all' | 'current' | 'turnaround' | 'frames' | 'video' | 'pack';
+  /** all: every scene; poses: the pose library (built-in and saved). */
+  scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'video' | 'pack';
   /** The styled picture, or a depth / normal pass (for AI image and video tools). */
   pass: Pass;
   /** Keyframe packs: add a clay-shaded clip of each shot. */
@@ -115,7 +116,7 @@ export const VIDEO_SIZES: Record<VideoSize, { label: string; width: number; heig
 };
 
 export const DEFAULT_EXPORT: ExportOptions = {
-  scope: 'all', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
+  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
 
@@ -128,7 +129,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   return {
-    scope: ['current', 'turnaround', 'frames', 'video', 'pack'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'all',
+    scope: ['all', 'poses', 'turnaround', 'frames', 'video', 'pack'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
     pass: o.pass === 'depth' || o.pass === 'normal' ? o.pass : 'beauty',
     greybox: o.greybox !== false,
     angles: o.angles === 8 ? 8 : 4,
@@ -163,7 +164,7 @@ export interface Cell {
  * the figure; a frame sheet shows evenly spaced moments of its animation.
  */
 export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptions, 'scope' | 'angles' | 'frames'>): Cell[] {
-  if (o.scope === 'all') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}` }));
+  if (o.scope === 'all' || o.scope === 'poses') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}` }));
   if ((o.scope === 'frames' || o.scope === 'video') && current.animation) {
     return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s` }));
   }

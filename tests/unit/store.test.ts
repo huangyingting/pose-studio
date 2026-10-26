@@ -28,9 +28,20 @@ describe('share links', () => {
   });
 });
 
+/** Storage holding a project of the 20 reference scenes (a new project has just one blank scene). */
+function seeded() {
+  const storage = new MemoryStorage();
+  storage.setItem(Store.LIBRARY_KEY, JSON.stringify({ version: 2, scenes: presetScenes() }));
+  return storage;
+}
+
 describe('Store', () => {
+  it('starts a new project with one blank scene', () => {
+    expect(new Store(new MemoryStorage()).getState().library.scenes.map((s) => s.name)).toEqual(['Scene 1']);
+  });
+
   it('undoes and redoes edits', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     const before = store.scene.name;
     store.updateScene((s) => ({ ...s, name: 'Renamed' }));
     expect(store.scene.name).toBe('Renamed');
@@ -42,14 +53,14 @@ describe('Store', () => {
   });
 
   it('merges continuous edits with the same key into one undo step', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     for (let i = 0; i < 10; i++) store.updateScene((s) => ({ ...s, view: { ...s.view, yaw: i } }), 'drag');
     store.undo();
     expect(store.scene.view.yaw).toBe(0); // preset value, not 8
   });
 
   it('clears the selection when its target disappears', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     addProp(store, 'box');
     const sel = store.getState().selection;
     expect(sel?.kind).toBe('prop');
@@ -58,7 +69,7 @@ describe('Store', () => {
   });
 
   it('keeps an active figure and never deletes the last one', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     const first = store.getState().activeFigure!;
     expect(first).toBe(store.scene.figures[0].id);
     addFigure(store);
@@ -71,7 +82,7 @@ describe('Store', () => {
   });
 
   it('persists the library and restores it', async () => {
-    const storage = new MemoryStorage();
+    const storage = seeded();
     const a = new Store(storage);
     duplicateCurrentScene(a);
     a.save();
@@ -89,14 +100,14 @@ describe('Store', () => {
   });
 
   it('never deletes the last pose', () => {
-    const storage = new MemoryStorage();
+    const storage = seeded();
     storage.setItem('pose-studio-library-v2', JSON.stringify({ version: 2, scenes: [presetScenes()[0]] }));
     const store = new Store(storage);
     expect(deleteScene(store)).toBe(false);
   });
 
   it('reports storage failures instead of throwing', () => {
-    const storage = new MemoryStorage();
+    const storage = seeded();
     storage.setItem = () => { throw new Error('QuotaExceededError'); };
     const store = new Store(storage);
     store.save();
@@ -104,7 +115,7 @@ describe('Store', () => {
   });
 
   it('undo brings the edited pose back into view', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     store.setSceneIndex(3);
     store.updateScene((s) => ({ ...s, name: 'Edited' }));
     store.setSceneIndex(10);
@@ -118,7 +129,7 @@ describe('Store', () => {
   });
 
   it('undoing a new pose returns to the pose it was added after', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     store.setSceneIndex(5);
     duplicateCurrentScene(store);
     expect(store.getState().sceneIndex).toBe(6);
@@ -130,7 +141,7 @@ describe('Store', () => {
   });
 
   it('reordering keeps the open pose selected', () => {
-    const store = new Store(new MemoryStorage());
+    const store = new Store(seeded());
     store.setSceneIndex(2);
     const id = store.scene.id;
     moveScene(store, 0, 5);
@@ -142,7 +153,7 @@ describe('Store', () => {
   });
 
   it('adopts a library saved by another tab', () => {
-    const storage = new MemoryStorage();
+    const storage = seeded();
     const a = new Store(storage);
     a.save();
     const b = new Store(storage);

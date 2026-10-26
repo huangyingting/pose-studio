@@ -1,5 +1,5 @@
 import {
-  addScene, addFigures, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
+  addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
   reachFor, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
@@ -8,6 +8,7 @@ import { HAND_PRESETS, cloneHand } from '../hands';
 import { mapPoses } from '../animation';
 import { clampRotation } from '../joints';
 import { MOTIONS, buildMotion } from '../motions';
+import { allPoses, builtInPoses } from '../poses';
 import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
@@ -84,7 +85,6 @@ function sceneSummary(store: Store) {
   };
 }
 
-const TEMPLATE_IDS = ['blank', ...TEMPLATES.map((t) => t.id), ...MOTIONS.map((m) => m.id)];
 const RELATIONS = ['turn_to', 'face_each_other', 'look_at', 'beside_left', 'beside_right', 'back_to_back', 'in_front', 'distance'] as const;
 
 export const TOOLS: AgentTool[] = [
@@ -248,15 +248,39 @@ export const TOOLS: AgentTool[] = [
     },
   },
   {
-    name: 'new_pose',
-    description: `Start a new pose in the library and open it: blank, a multi-person template (${TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}) or an animation template (${MOTIONS.map((m) => `${m.id} = ${m.name}`).join(', ')}).`,
-    schema: obj({ template: str('Template', TEMPLATE_IDS), name: opt(str('Name for the pose')) }),
+    name: 'new_scene',
+    description: `Start a new scene in the project and open it: blank, or a set-up with people (${TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}) or an animated set-up for several people (${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}).`,
+    schema: obj({ template: str('Template', ['blank', ...TEMPLATES.map((t) => t.id), ...MOTIONS.filter((m) => m.people > 1).map((m) => m.id)]), name: opt(str('Name for the scene')) }),
     run: (store, i) => {
       const id = String(i.template);
       const scene = id === 'blank' ? newScene() : buildTemplate(id) ?? buildMotion(id);
       if (!scene) throw new Error(`Unknown template "${id}"`);
       addScene(store, i.name ? { ...scene, name: String(i.name).slice(0, 80) } : scene);
       return `Opened "${store.scene.name}". ${JSON.stringify(sceneSummary(store))}`;
+    },
+  },
+  {
+    name: 'apply_pose',
+    description: `Put a pose from the library on a figure (it keeps its place and facing; keyed at the playhead when animated). A quick start before refining with set_joints and reach. Built-in poses: ${builtInPoses().map((p) => p.name).join('; ')}; plus the user's saved poses by name.`,
+    schema: obj({ figure: FIGURE, pose: str('Pose name') }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      const q = String(i.pose).trim().toLowerCase();
+      const pose = allPoses(store.getState().library).find((p) => p.name.toLowerCase() === q) ?? allPoses(store.getState().library).find((p) => p.name.toLowerCase().includes(q));
+      if (!pose) throw new Error(`No pose "${i.pose}"`);
+      applyPose(store, f.id, pose.id);
+      return `${f.name}: ${pose.name}.`;
+    },
+  },
+  {
+    name: 'apply_motion',
+    description: `Give a figure a one-person motion from the library, on its own track from the playhead (the scene is animated if needed), starting where it stands and facing its way: ${MOTIONS.filter((m) => m.people === 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
+    schema: obj({ figure: FIGURE, motion: str('Motion', MOTIONS.filter((m) => m.people === 1).map((m) => m.id)) }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      if (!applyMotion(store, f.id, String(i.motion))) throw new Error(`"${i.motion}" is not a one-person motion`);
+      const a = store.scene.animation!;
+      return `${f.name}: ${MOTIONS.find((m) => m.id === i.motion)?.name} from ${r2(store.getState().time)} s (animation ${a.duration} s).`;
     },
   },
   {
@@ -356,4 +380,5 @@ Joint angles are degrees, Euler X/Y/Z:
 - elbowL/R: X− bends (to −150). kneeL/R: X+ bends (to 160). ankleL/R: X+ points the toes. wrists: X flex, Z sideways.
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
+Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (apply_pose or apply_motion from the library as a start, then refine), then shoot (camera_move, check_motion).
 Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. To put a figure beside, in front of or facing another, use relate rather than working out coordinates. For animation: animate, then set_time and set_joints for each key (a few keys, then let interpolation do the rest), add a camera_move, and run check_motion. Keep replies short: say what you did.`;

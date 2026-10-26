@@ -102,9 +102,18 @@ describe('assistant tools', () => {
     expect(store.scene.animation!.keys.map((k) => k.poses[fig].position[0])).toEqual([1, 2]);
   });
 
+  it('applies library poses and motions to a figure', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    expect(run(store, 'apply_pose', { figure: id, pose: 'hand on head' })).toBe('Figure: Hand on head.');
+    expect(run(store, 'apply_motion', { figure: id, motion: 'walk' })).toMatch(/Walk cycle from 0 s/);
+    expect(store.scene.animation!.keys.length).toBeGreaterThan(2);
+    expect(runTool(store, 'apply_pose', { figure: id, pose: 'moonwalk' }).ok).toBe(false);
+  });
+
   it('opens templates and explains bad input', () => {
     const store = new Store(new MemoryStorage());
-    expect(run(store, 'new_pose', { template: 'handshake', name: 'Deal' })).toMatch(/Opened "Deal"/);
+    expect(run(store, 'new_scene', { template: 'handshake', name: 'Deal' })).toMatch(/Opened "Deal"/);
     expect(store.scene.figures).toHaveLength(2);
     expect(runTool(store, 'set_joints', { figure: 'Nobody', joints: [] })).toEqual({ ok: false, text: expect.stringMatching(/No figure "Nobody". Figures: /) });
     expect(runTool(store, 'fly', {}).ok).toBe(false);

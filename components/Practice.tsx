@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   COUNTS, DURATIONS, buildSession, durationLabel, formatTime, parsePracticeOptions, sessionLength, type PracticeOptions, type Slide,
 } from '@/lib/practice';
 import { sharedRenderer } from '@/lib/thumbnails';
 import type { Style } from '@/lib/types';
+import { allPoses, poseScene } from '@/lib/poses';
 import { useScene, useStudio } from './store-context';
 import { CircleCheck, Pause, Play, SkipBack, SkipForward, Timer, X } from 'lucide-react';
 import { STYLE_LIST } from '@/lib/styles';
@@ -41,7 +42,9 @@ export function PracticeMode({ onClose }: { onClose(): void }) {
 }
 
 function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOptions): void; onCancel(): void }) {
-  const scenes = useStudio((s) => s.library.scenes);
+  // Practice draws from the pose library (built-in and saved poses).
+  const library = useStudio((s) => s.library);
+  const scenes = useMemo(() => allPoses(library).map((p) => poseScene(p)), [library]);
   const scene = useScene();
   const [o, setO] = useState<PracticeOptions>(loadOptions);
   const set = (patch: Partial<PracticeOptions>) => setO((prev) => ({ ...prev, ...patch }));
@@ -73,7 +76,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
           <Segmented<PracticeOptions['source']> label="Poses"
             value={o.source}
             onChange={(source) => set({ source })}
-            options={[{ value: 'all', label: `Library (${scenes.length})` }, { value: 'current', label: 'This pose, random angles' }]}
+            options={[{ value: 'all', label: `Pose library (${scenes.length})` }, { value: 'current', label: 'This scene, random angles' }]}
           />
         </Field>
         <Field label="Time per pose">

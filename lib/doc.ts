@@ -6,7 +6,7 @@ import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
   FINGERS, JOINTS, POSTURES, PROP_KINDS,
-  type Figure, type Hand, type JointName, type Library, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
+  type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -48,7 +48,7 @@ export function withPosture(f: Figure, posture: Posture): Figure {
   return { ...f, proxy: posture, joints: { ...structuredClone(p), ...(root[0] || yaw ? { root: [root[0], yaw, root[2]] } : {}) } };
 }
 
-export function newScene(name = 'New pose', figures: Figure[] = [newFigure()]): Scene {
+export function newScene(name = 'New scene', figures: Figure[] = [newFigure()]): Scene {
   return { id: uid('s'), name, figures, props: [], view: { ...DEFAULT_VIEW } };
 }
 
@@ -216,6 +216,19 @@ export function parseScene(v: unknown, i = 0): Scene {
   return scene;
 }
 
+/** Saved poses from storage or a file. */
+export function parsePoses(v: unknown): PoseAsset[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const poses = v.slice(0, 500).filter(isObj).map((o, i) => ({
+    id: str(o.id, uid('pose')),
+    name: str(o.name, `Pose ${i + 1}`).slice(0, 80),
+    joints: parseJoints(o.joints),
+    hands: { L: parseHand(isObj(o.hands) ? o.hands.L : undefined), R: parseHand(isObj(o.hands) ? o.hands.R : undefined) },
+    view: parseView(o.view),
+  }));
+  return poses.length ? poses : undefined;
+}
+
 function parsePoseKey(v: unknown): PoseKey | null {
   if (!isObj(v)) return null;
   const hands = isObj(v.hands) ? v.hands : {};
@@ -228,8 +241,8 @@ export function parseLibrary(data: unknown): Library {
   if (isObj(data) && Array.isArray(data.scenes)) entries = data.scenes;
   else if (Array.isArray(data)) entries = data;
   else if (isObj(data) && (Array.isArray(data.figures) || isObj(data.joints))) entries = [data];
-  else throw new Error('Not a pose library');
-  if (!entries.length) throw new Error('The file contains no poses');
+  else throw new Error('Not a Pose Studio library');
+  if (!entries.length) throw new Error('The file contains no scenes');
   const scenes = entries.slice(0, 500).map(parseScene);
   const ids = new Set<string>();
   for (const s of scenes) {
@@ -237,5 +250,6 @@ export function parseLibrary(data: unknown): Library {
     ids.add(s.id);
   }
   const board = isObj(data) ? parseBoard(data.board, ids) : undefined;
-  return board ? { version: 2, scenes, board } : { version: 2, scenes };
+  const poses = isObj(data) ? parsePoses(data.poses) : undefined;
+  return { version: 2, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}) };
 }

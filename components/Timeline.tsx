@@ -5,7 +5,7 @@ import {
   Activity, Camera, Clapperboard, ClipboardCopy, Diamond, ListVideo, Scissors, TriangleAlert, X, Ellipsis, Film, Ghost, Pause, Play, Repeat, StepBack, StepForward, Trash2, Video,
 } from 'lucide-react';
 import {
-  addKeyframe, applyCameraMove, cutShot, deleteCameraKey, deleteKeyframe, editShot, moveKeyframe, removeAnimation, removeShotCut,
+  addKeyframe, applyCameraMove, cutShot, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation,
   setAnimationOptions, setCameraKey, setCameraOptions, setTargetModel,
 } from '@/lib/actions';
 import { figureKeyTimes, snapTime } from '@/lib/animation';
@@ -13,7 +13,7 @@ import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { downloadBlob, safeFilename } from '@/lib/render';
-import { VIDEO_MODELS, overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
+import { VIDEO_MODELS, overLimit, shotSpans, videoModel } from '@/lib/shots';
 import { CAMERA_MOVES } from '@/lib/shot';
 import type { Animation, CameraKey } from '@/lib/types';
 import type { Clock } from './clock';
@@ -67,8 +67,6 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const onKey = activeKeys.some(near);
   const cam = a.camera;
   const spans = shotSpans(a);
-  const [editing, setEditing] = useState<string | null>(null);
-  const editingSpan = spans.find((sp) => sp.shot.id === editing) ?? null;
   const onCamKey = !!cam?.keys.some((k) => Math.abs(k.t - time) < 0.5 / a.fps);
   // Motion check results, valid until the animation changes.
   const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
@@ -320,9 +318,8 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 type="button"
                 className={`tl-shot${on ? ' on' : ''}${over ? ' over' : ''}`}
                 style={{ left: pct(sp.start), width: pct(sp.end - sp.start) }}
-                title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (double-click to edit)${over ? `\nLonger than ${videoModel(a.target)!.name} allows (${videoModel(a.target)!.max} s)` : ''}`}
-                onPointerDown={(e) => { e.stopPropagation(); seek(sp.start); }}
-                onDoubleClick={() => setEditing(sp.shot.id)}
+                title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${videoModel(a.target)!.name} allows (${videoModel(a.target)!.max} s)` : ''}`}
+                onPointerDown={(e) => { e.stopPropagation(); seek(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
               >
                 {over && <TriangleAlert size={11} aria-hidden />}
                 <span>{sp.shot.name}</span>
@@ -362,41 +359,6 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
         </div>
       </div>
       {issues && issues.length > 0 && qaOpen && <MotionIssues issues={issues} goTo={goTo} onClose={() => setQaOpen(false)} />}
-      {editingSpan && <ShotEditor key={editingSpan.shot.id} span={editingSpan} canRemove={editingSpan.index > 0} onClose={() => setEditing(null)} />}
-    </div>
-  );
-}
-
-/** Small card for a shot's name and caption (what happens, used in prompts and cut lists). */
-function ShotEditor({ span, canRemove, onClose }: { span: ShotSpan; canRemove: boolean; onClose(): void }) {
-  const store = useStore();
-  const [name, setName] = useState(span.shot.name);
-  const [caption, setCaption] = useState(span.shot.caption ?? '');
-  const save = () => {
-    editShot(store, span.shot.id, { name: name.trim() || span.shot.name, caption: caption.trim() });
-    onClose();
-  };
-  return (
-    <div
-      className="shot-editor"
-      role="dialog"
-      aria-label="Edit shot"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
-        if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') save();
-      }}
-    >
-      <div className="shot-editor-head">
-        <strong>{span.start.toFixed(2)}–{span.end.toFixed(2)} s</strong>
-        <IconButton icon={X} label="Close" onClick={onClose} size={14} />
-      </div>
-      <input type="text" value={name} onChange={(e) => setName(e.target.value)} aria-label="Shot name" autoFocus />
-      <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="What happens in this shot…" aria-label="Shot caption" rows={2} />
-      <div className="row">
-        {canRemove && <button type="button" className="btn ghost danger" onClick={() => { removeShotCut(store, span.shot.id); onClose(); }}>Remove cut</button>}
-        <span className="spacer" />
-        <button type="button" className="btn primary" onClick={save}>Save</button>
-      </div>
     </div>
   );
 }
@@ -424,3 +386,4 @@ function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issu
     </div>
   );
 }
+

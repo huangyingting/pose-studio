@@ -14,6 +14,18 @@ It comes in two editions built from the same code:
 
 The static build leaves the account, sync and AI code out entirely.
 
+## Workflow
+
+The app follows how a scene is made, and the layout follows the app:
+
+1. **Scene**: start one from the scene picker in the top bar (blank, or a set-up with people).
+2. **Cast and set**: add figures, stand-ins and props in the **Scene** outline (left), and place them.
+3. **Act**: pose each figure by hand, or apply a pose or a motion from the **Library**; every figure has its own track on the timeline.
+4. **Shoot**: cut the timeline into shots; select a shot in the outline to name it, caption it and give it a camera move.
+5. **Output**: storyboard (the rail), export (sheets, video, keyframe pack).
+
+On the server edition the AI assistant does any of these from a description ("two people at a café table; she gets up and walks to him; film it in three shots").
+
 ## Features
 
 **Posing**
@@ -31,9 +43,10 @@ The static build leaves the account, sync and AI code out entirely.
   - **Relations** to another figure: turn to it, face each other, look at it (head, neck and if needed chest turn without tilting), stand beside it or back to back, set the distance, and **reach** a hand to its head, shoulder, chest, back, waist or hand (IK; tells you when it is out of reach).
 - **Sculpted faces**: brow ridge, eyes, nose, cheekbones, lips, chin and ears are modelled into the head as one smooth surface, finished with a few quiet lines (eyelids, brows, lips), and differ between male and female figures. So you can always tell where a figure faces and looks. Turn them off in the Render panel for a plain construction head with centre and eye lines.
 - **Stand-ins**: capsule figures for blocking a scene (extras, a crowd, where people will be), standing, sitting or lying. Place, turn and animate them like figures; turn one into a posable figure when it needs a real pose.
-- **Layers**: multiple figures, stand-ins and props per pose, listed in the Layers panel, where you can add, duplicate, hide and delete them. Hidden figures stay in the pose but are not drawn or exported.
+- **Scene outline**: the open scene's cast (figures, stand-ins), set (props) and shots, where you add, select, duplicate, hide and delete them. Hidden figures stay in the scene but are not drawn or exported.
 - **Props**: box, ball, cylinder, chair, stool, step and wall. Move, rotate and scale them with the gizmo or with X/Y/Z fields (drag a field's letter to scrub the value). Turn off "Stand on the floor" to seat a figure on a prop.
-- **Pose library**: 20 built-in poses taken from the reference sheet. You can search, reorder by drag and drop or with Alt+arrow keys, and duplicate or delete poses. Arrow keys move between thumbnails. Thumbnails update live.
+- **Library**: the 20 reference poses from the drawing sheet and your saved poses (applied to the selected figure, where it stands), one-person motions (put on the selected figure's track at the playhead, from where it stands and facing its way) and camera moves (applied to the selected shot). Several-people motions open as new scenes.
+- **Scenes**: a project holds any number of scenes; switch, search, reorder (drag or Alt+arrows), duplicate and delete them in the scene picker next to the scene name.
 
 **Animation and camera**
 - **Keyframe animation**: press **Animate** (or start from an animation template), move the playhead and pose: every edit is keyed at that time (auto-key). Keys are joined by smooth curves, loops wrap seamlessly, and a grounded figure bobs naturally as its legs bend. Each figure has its own key track: posing one figure keys only that figure, and its keys can be dragged to retime it while the others keep their timing (the timeline shows a row per figure; click a name to pick the figure). `Space` plays, `,` / `.` step a frame, `K` keys the selected figure. Onion skin shows the previous and next keys as ghosts.
@@ -55,7 +68,7 @@ The static build leaves the account, sync and AI code out entirely.
   - **Minimal**: flat shapes with a hairline outline.
   - **Silhouette**: solid shapes, for checking gesture and readability.
 - **Key light**: direction, height and presets for the lit styles (Pencil, Ink wash, Anime, Clay), with cast shadows where the style supports them.
-- **Export**: a sheet of all poses, just the current pose, a **turnaround** of the current pose from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and camera keys, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
+- **Export**: the current scene, a sheet of all scenes, the **pose library** as a reference sheet, a **turnaround** of the current scene from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and camera keys, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The pose library sheet reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
 - **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
@@ -73,7 +86,7 @@ The static build leaves the account, sync and AI code out entirely.
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
 - Several open tabs stay in sync: a tab adopts changes saved by another one instead of overwriting them.
 - Works offline once loaded (service worker; production builds only) and can be installed as an app.
-- A design-tool layout: on the left a rail of sections (Poses, Layers, Animate) with the open one's panel, and the Storyboard workspace; click the open section to fold the panel away for more canvas. A contextual inspector (Pose / Body / Render, and AI on the server edition) on the right and a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
+- A design-tool layout: on the left a rail with the Scene outline, the Library and the Storyboard workspace (click the open section to fold the panel away); the scene picker in the top bar; an inspector on the right that edits the selection (a figure's pose, a prop, a shot) with Body / Render (and AI on the server edition) tabs; a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
 - Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs and menus, and an error screen if something crashes.
 
 ## Getting started
@@ -140,7 +153,9 @@ components/
   Studio.tsx            Layout, top bar, canvas toolbar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
   Viewport.tsx          React Three Fiber canvas: selection, gizmo, IK handles, line-art render loop
   Inspector.tsx         Contextual Pose / Body / Render panel (joint, prop and style editors)
-  side/                 Left side panel: the section rail and registry (sections.ts: add a section there), Poses, Layers and Animate
+  side/                 Left side panel: the section rail and registry (sections.ts: add a section there), the Scene outline and the Library
+  ScenePicker.tsx       The project's scenes, from the top bar
+  ShotInspector.tsx     Inspector for a selected shot
   BodyMap.tsx           Clickable body schematic for picking joints
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
@@ -174,6 +189,7 @@ lib/
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
+  poses.ts, apply.ts    The pose library; applying poses and motions to a figure
   agent/                AI assistant: tool registry and the browser side of a turn (tools run here, the model on the server)
   sync.ts, cloud.ts     Library sync: three-way merge per pose; the client that pulls, pushes and merges
   server/               Server-only: NextAuth options, Prisma client, AI upstream config

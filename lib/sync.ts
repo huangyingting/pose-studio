@@ -11,6 +11,8 @@ import type { Library, Panel, Scene } from './types';
 export interface SyncBase {
   scenes: Record<string, string>;
   board: string;
+  /** Saved poses both sides had. */
+  poses?: string[];
 }
 
 function hash(text: string) {
@@ -59,7 +61,16 @@ export function canonical(lib: Library): Library {
 }
 
 export function syncBase(lib: Library): SyncBase {
-  return { scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board) };
+  return { scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board), poses: (lib.poses ?? []).map((p) => p.id) };
+}
+
+/** Whether a library is exactly what both sides last agreed on (nothing to push). */
+export function matchesBase(lib: Library, base: SyncBase | null) {
+  if (!base) return false;
+  return lib.scenes.length === Object.keys(base.scenes).length
+    && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s))
+    && boardHash(lib.board) === base.board
+    && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join();
 }
 
 export function mergeLibraries(server: Library, local: Library, base: SyncBase | null): Library {
@@ -103,5 +114,18 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     board = [...(server.board ?? []), ...(local.board ?? []).filter((p) => !known.has(p.id))];
   }
   board = board?.filter((p) => ids.has(p.sceneId));
-  return { ...server, scenes: out.length ? out : server.scenes, ...(board?.length ? { board } : { board: undefined }) };
+  // Saved poses: everything from both sides, except those one side deleted since they last agreed.
+  const had = new Set(base?.poses ?? []);
+  const serverPoses = new Set((server.poses ?? []).map((p) => p.id));
+  const localPoses = new Set((local.poses ?? []).map((p) => p.id));
+  const poses = [
+    ...(server.poses ?? []).filter((p) => localPoses.has(p.id) || !had.has(p.id)),
+    ...(local.poses ?? []).filter((p) => !serverPoses.has(p.id) && !had.has(p.id)),
+  ];
+  return {
+    ...server,
+    scenes: out.length ? out : server.scenes,
+    ...(board?.length ? { board } : { board: undefined }),
+    ...(poses.length ? { poses } : { poses: undefined }),
+  };
 }

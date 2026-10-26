@@ -23,6 +23,7 @@ import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 import { Account, ServerRoot } from '@edition/server';
 import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext, type Tab } from './Inspector';
+import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
@@ -147,7 +148,7 @@ function App() {
     decodeScene(encoded)
       .then((s) => {
         appendScenes(store, [{ ...s, id: uid('s') }]);
-        notify(`Opened shared pose “${s.name}”`);
+        notify(`Opened shared scene “${s.name}”`);
       })
       .catch((err) => notify(`Could not open the shared link: ${(err as Error).message}`, 'error'));
   }, [store, notify]);
@@ -181,7 +182,7 @@ function App() {
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== Store.LIBRARY_KEY || e.storageArea !== localStorage) return;
-      if (store.adoptExternal(e.newValue)) notify('Your poses were updated in another tab');
+      if (store.adoptExternal(e.newValue)) notify('Your scenes were updated in another tab');
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -203,13 +204,13 @@ function App() {
 
   const saveFile = useCallback(() => {
     const json = JSON.stringify(store.getState().library, null, 2);
-    downloadBlob(new Blob([json], { type: 'application/json' }), 'poses.json');
+    downloadBlob(new Blob([json], { type: 'application/json' }), 'pose-studio.json');
   }, [store]);
 
   const openFile = async (file: File, mode: 'replace' | 'append') => {
     try {
       const lib = parseLibrary(JSON.parse(await file.text()));
-      const what = `${lib.scenes.length} pose${lib.scenes.length === 1 ? '' : 's'}`;
+      const what = `${lib.scenes.length} scene${lib.scenes.length === 1 ? '' : 's'}`;
       if (mode === 'replace') {
         replaceLibrary(store, lib.scenes, lib.board);
         notifyUndo(`Opened ${what}`);
@@ -324,11 +325,11 @@ function App() {
             label="Main menu"
             className="brand"
             items={[
-              { label: 'New pose', icon: FilePlus2, onSelect: () => addScene(store) },
-              { label: 'Duplicate pose', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
+              { label: 'New scene', icon: FilePlus2, onSelect: () => addScene(store) },
+              { label: 'Duplicate scene', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
               '-',
               { label: 'Save library (.json)', icon: Save, shortcut: 'Ctrl S', onSelect: saveFile },
-              { label: 'Import poses…', icon: FileUp, onSelect: () => openFilePicker('append') },
+              { label: 'Import scenes…', icon: FileUp, onSelect: () => openFilePicker('append') },
               { label: 'Open library (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
               '-',
               { label: 'Pose from photo…', icon: ScanFace, onSelect: () => setDialog('photo') },
@@ -349,9 +350,10 @@ function App() {
             type="text"
             value={scene.name}
             onChange={(e) => store.updateScene((s) => ({ ...s, name: e.target.value }), 'rename')}
-            aria-label="Pose name"
+            aria-label="Scene name"
             spellCheck={false}
           />
+          <ScenePicker notifyUndo={notifyUndo} />
           <SaveIndicator status={saveStatus} />
         </div>
         <div className="tb-right">
@@ -464,7 +466,7 @@ function App() {
           {!scene.animation && (
             <>
               <span className="tb-sep" />
-              <button type="button" className="btn ghost" onClick={() => { startAnimation(store); notify('Animation started: pose the figures at other times on the timeline'); }} data-tip="Animate this pose" data-tip-side="top">
+              <button type="button" className="btn ghost" onClick={() => { startAnimation(store); notify('Animation started: pose the figures at other times on the timeline'); }} data-tip="Animate this scene" data-tip-side="top">
                 <Film size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">Animate</span>
               </button>
             </>

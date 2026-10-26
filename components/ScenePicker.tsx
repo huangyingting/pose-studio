@@ -1,20 +1,58 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Copy, Ellipsis, FilePlus2, Film, LayoutPanelTop, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
-import { addScene, addToBoard, deleteScene, duplicateCurrentScene, moveScene, resetLibrary } from '@/lib/actions';
-import { MOTIONS } from '@/lib/motions';
+import { ChevronDown, Copy, Ellipsis, FilePlus2, LayoutPanelTop, Search, Trash2, Users, UsersRound } from 'lucide-react';
+import { addScene, addToBoard, deleteScene, duplicateCurrentScene, moveScene } from '@/lib/actions';
 import { TEMPLATES } from '@/lib/templates';
 import { thumbnail } from '@/lib/thumbnails';
-import { useStore, useStudio } from '../store-context';
-import { Menu } from '../ui';
+import { useStore, useStudio } from './store-context';
+import { Menu } from './ui';
 
-import type { SectionProps } from './sections';
+const COLUMNS = 3;
 
-const COLUMNS = 2;
+/**
+ * The project's scenes, from the top bar: switch scene (search, thumbnails; drag or Alt+arrows
+ * to reorder), start a new one, duplicate, delete or put it on the storyboard.
+ */
+export default function ScenePicker({ notifyUndo }: { notifyUndo(text: string): void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const scenes = useStudio((s) => s.library.scenes);
 
-/** The pose library: search, thumbnails (drag or Alt+arrows to reorder), new pose and pose actions. */
-export default function PosesSection({ onPick, notifyUndo }: SectionProps) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      // Menus render inside; anything else outside closes the picker.
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  return (
+    <div className="scene-picker" ref={root}>
+      <button
+        type="button"
+        className={`ibtn scene-switch${open ? ' on' : ''}`}
+        aria-label="Scenes"
+        aria-expanded={open}
+        data-tip={open ? undefined : `Scenes (${scenes.length})  [ ]`}
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronDown size={15} aria-hidden />
+      </button>
+      {open && (
+        <div className="scene-popover" role="dialog" aria-label="Scenes">
+          <SceneGrid onPick={() => setOpen(false)} notifyUndo={notifyUndo} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: string): void }) {
   const store = useStore();
   const scenes = useStudio((s) => s.library.scenes);
   const index = useStudio((s) => s.sceneIndex);
@@ -68,35 +106,29 @@ export default function PosesSection({ onPick, notifyUndo }: SectionProps) {
   };
 
   return (
-    <div className="side-section">
+    <>
       <div className="side-head">
-        <h2>Poses <span className="count">{scenes.length}</span></h2>
+        <h2>Scenes <span className="count">{scenes.length}</span></h2>
         <div className="side-actions">
           <Menu
-            label="New pose"
-            className="ibtn"
+            label="New scene"
+            className="btn subtle"
             align="end"
-            tip="New pose"
+            tip="New scene"
             items={[
-              { label: 'Blank pose', icon: FilePlus2, onSelect: () => addScene(store) },
-              { group: 'People together' },
+              { label: 'Blank scene', icon: FilePlus2, onSelect: () => { addScene(store); onPick(); } },
+              { group: 'From a set-up' },
               ...TEMPLATES.map((t) => ({
                 label: t.name,
                 icon: t.people > 2 ? Users : UsersRound,
-                onSelect: () => addScene(store, t.build()),
-              })),
-              { group: 'Animations' },
-              ...MOTIONS.map((m) => ({
-                label: m.name,
-                icon: m.people > 1 ? UsersRound : Film,
-                onSelect: () => addScene(store, m.build()),
+                onSelect: () => { addScene(store, t.build()); onPick(); },
               })),
             ]}
           >
-            <Plus size={16} strokeWidth={1.75} aria-hidden />
+            <FilePlus2 size={14} strokeWidth={1.75} aria-hidden /> New
           </Menu>
           <Menu
-            label="Pose actions"
+            label="Scene actions"
             className="ibtn"
             align="end"
             tip="More"
@@ -104,8 +136,6 @@ export default function PosesSection({ onPick, notifyUndo }: SectionProps) {
               { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
               { label: 'Add to storyboard', icon: LayoutPanelTop, onSelect: () => { addToBoard(store); notifyUndo('Added to the storyboard (B)'); } },
               { label: 'Delete', icon: Trash2, onSelect: deleteCurrent, disabled: scenes.length <= 1, danger: true },
-              '-',
-              { label: 'Restore built-in poses', icon: RotateCcw, onSelect: () => { resetLibrary(store); notifyUndo('Restored the 20 built-in poses'); } },
             ]}
           >
             <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
@@ -114,7 +144,7 @@ export default function PosesSection({ onPick, notifyUndo }: SectionProps) {
       </div>
       <label className="search">
         <Search size={14} aria-hidden />
-        <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search poses" />
+        <input type="search" placeholder="Search scenes" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search scenes" autoFocus />
       </label>
       <ol className="thumbs" ref={list}>
         {visible.map(({ s, i }, pos) => (
@@ -129,7 +159,7 @@ export default function PosesSection({ onPick, notifyUndo }: SectionProps) {
           >
             <button
               className="thumb"
-              onClick={() => { store.setSceneIndex(i); onPick?.(); }}
+              onClick={() => { store.setSceneIndex(i); onPick(); }}
               onKeyDown={(e) => onThumbKey(e, pos, i)}
               aria-current={i === index}
               title={`${s.name} — Alt+arrow keys to reorder`}
@@ -144,8 +174,8 @@ export default function PosesSection({ onPick, notifyUndo }: SectionProps) {
             </button>
           </li>
         ))}
-        {!visible.length && <li className="empty">No poses match “{query}”.</li>}
+        {!visible.length && <li className="empty">No scenes match “{query}”.</li>}
       </ol>
-    </div>
+    </>
   );
 }

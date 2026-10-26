@@ -1,9 +1,8 @@
 import type { ComponentType } from 'react';
-import { Film, Images, Layers, type LucideIcon } from 'lucide-react';
+import { Library, ListTree, type LucideIcon } from 'lucide-react';
 import type { SIDE_SECTIONS } from '@/lib/store';
-import AnimateSection from './AnimateSection';
-import LayersSection from './LayersSection';
-import PosesSection from './PosesSection';
+import LibrarySection from './LibrarySection';
+import OutlineSection from './OutlineSection';
 
 /*
  * The left side panel's sections. A new concept is one entry here: its rail icon and label, and
@@ -25,7 +24,8 @@ export interface SideSectionDef {
 }
 
 export const SECTIONS: SideSectionDef[] = [
-  { id: 'poses', label: 'Poses', icon: Images, Panel: PosesSection },
-  { id: 'layers', label: 'Layers', icon: Layers, Panel: LayersSection },
-  { id: 'animate', label: 'Animate', icon: Film, Panel: AnimateSection },
+  // The open scene in workflow order: cast, set, shots.
+  { id: 'scene', label: 'Scene', icon: ListTree, Panel: OutlineSection },
+  // Ready-made poses, motions, camera moves and scene set-ups, applied to the selection.
+  { id: 'library', label: 'Library', icon: Library, Panel: LibrarySection },
 ];

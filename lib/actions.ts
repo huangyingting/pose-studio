@@ -2,8 +2,11 @@ import { cloneHand } from './hands';
 import {
   NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
+import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { moveKey, newAnimation, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
+import { MOTIONS } from './motions';
+import { allPoses, poseFromFigure } from './poses';
 import { presetScenes } from './presets';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
@@ -16,7 +19,7 @@ import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel,
 
 /* Scenes (library entries) */
 
-export function addScene(store: Store, scene: Scene = newScene()) {
+export function addScene(store: Store, scene: Scene = newScene(`Scene ${store.getState().library.scenes.length + 1}`)) {
   const at = store.getState().sceneIndex + 1;
   store.commit((lib) => ({ ...lib, scenes: [...lib.scenes.slice(0, at), scene, ...lib.scenes.slice(at)] }), '', {
     sceneIndex: at, selection: null, activeFigure: null,
@@ -447,4 +450,45 @@ export function moveOnBoard(store: Store, from: number, to: number) {
 
 export function editPanel(store: Store, id: string, patch: { caption?: string; hold?: number }) {
   updateBoard(store, (b) => b.map((p) => (p.id === id ? { ...p, ...patch } : p)), `panel:${id}:${Object.keys(patch).join()}`);
+}
+
+/* Library assets applied to the scene */
+
+/** Put a library pose on a figure (it keeps its place and facing; keyed when animated). */
+export function applyPose(store: Store, figureId: string, poseId: string) {
+  const pose = allPoses(store.getState().library).find((p) => p.id === poseId);
+  if (!pose) return false;
+  store.updateFigure(figureId, (f) => (f.proxy ? f : withPose(f, pose)), '');
+  return true;
+}
+
+/** Save a figure's pose to the library; returns the saved pose. */
+export function savePose(store: Store, figureId: string, name: string) {
+  const f = store.scene.figures.find((x) => x.id === figureId);
+  if (!f) return null;
+  const pose = poseFromFigure(f, name, store.scene.view);
+  store.commit((lib) => ({ ...lib, poses: [...(lib.poses ?? []), pose] }));
+  return pose;
+}
+
+export function deletePose(store: Store, id: string) {
+  store.commit((lib) => {
+    const poses = (lib.poses ?? []).filter((p) => p.id !== id);
+    const { poses: _old, ...rest } = lib;
+    void _old;
+    return poses.length ? { ...rest, poses } : rest;
+  });
+}
+
+/**
+ * Give a figure a one-person motion from the library, starting at the playhead (the scene is
+ * animated if it is not yet). Returns false for motions with several people.
+ */
+export function applyMotion(store: Store, figureId: string, motionId: string) {
+  const motion = MOTIONS.find((m) => m.id === motionId);
+  if (!motion || motion.people !== 1) return false;
+  const start = store.scene.animation ? store.getState().time : 0;
+  store.updateScene((s) => insertMotion(s, figureId, motion.build(), start));
+  store.setTime(start);
+  return true;
 }

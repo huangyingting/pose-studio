@@ -20,6 +20,7 @@ import { sharedRenderer } from '@/lib/thumbnails';
 import { FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
 import { Assistant } from '@edition/server';
 import BodyMap from './BodyMap';
+import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
 import { IconButton, NumberField, Section, Segmented, Select, Slider, Toggle, type Notify } from './ui';
@@ -38,7 +39,8 @@ export interface InspectorContext {
 }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'pose', label: 'Pose' },
+  // Edits whatever is selected: a figure's pose, a prop, a shot.
+  { id: 'pose', label: 'Edit' },
   { id: 'body', label: 'Body' },
   { id: 'render', label: 'Render' },
   // The AI tab: server edition only (Assistant is null in the static build).
@@ -100,7 +102,8 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
     const prop = scene.props.find((p) => p.id === selection.prop);
     if (prop) return <PropEditor id={prop.id} ctx={ctx} />;
   }
-  if (!figure) return <p className="empty-note">This pose has no figures. Add one from the Layers list.</p>;
+  if (selection?.kind === 'shot') return <ShotInspector id={selection.shot} notify={ctx.notify} />;
+  if (!figure) return <p className="empty-note">This scene has no figures. Add one to the cast in the Scene outline.</p>;
 
   const joint = selection?.kind === 'joint' && selection.figure === figure.id ? selection.joint : null;
   const rot = joint ? figure.joints[joint] ?? [0, 0, 0] : null;

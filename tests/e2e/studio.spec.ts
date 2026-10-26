@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { presetScenes } from '../../lib/presets';
 
 type Hook = {
   store: {
@@ -46,22 +47,60 @@ function jpegSize(buf: Buffer) {
 }
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
-async function openSection(page: Page, name: 'Poses' | 'Layers' | 'Animate') {
+async function openSection(page: Page, name: 'Scene' | 'Library') {
   const tab = page.getByRole('tab', { name, exact: true });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
+/** Add to the open scene's cast (Figure, Stand-in…) or set (props), from the Scene outline. */
 async function addLayer(page: Page, what: string) {
-  await openSection(page, 'Layers');
-  await page.getByRole('button', { name: 'Add layer' }).click();
-  await page.getByRole('menuitem', { name: what, exact: true }).click();
+  await openSection(page, 'Scene');
+  const cast = what === 'Figure' || what.startsWith('Stand-in');
+  await page.getByRole('button', { name: cast ? 'Add to cast' : 'Add to set' }).click();
+  await page.getByRole('menuitem', { name: what, exact: !what.startsWith('Stand-in') }).click();
+}
+
+/** The scene picker in the top bar (opened if needed). */
+async function openScenes(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Scenes' });
+  if (!(await dialog.isVisible())) await page.getByRole('button', { name: 'Scenes', exact: true }).click();
+  return dialog;
+}
+
+async function closeScenes(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Scenes' });
+  for (let i = 0; i < 3 && (await dialog.isVisible()); i++) await page.keyboard.press('Escape');
 }
 
 async function deleteCurrentPose(page: Page) {
-  await openSection(page, 'Poses');
-  await page.getByRole('button', { name: 'Pose actions' }).click();
+  await openScenes(page);
+  await page.getByRole('button', { name: 'Scene actions' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await closeScenes(page);
 }
+
+/** A new blank scene whose figure has a motion from the library. */
+async function sceneWithMotion(page: Page, motion: string, name = motion) {
+  await openScenes(page);
+  await page.getByRole('button', { name: 'New scene' }).click();
+  await page.getByRole('menuitem', { name: 'Blank scene' }).click();
+  await page.getByLabel('Scene name').fill(name);
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByRole('list', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+}
+
+/** A scene from a several-people motion in the library (opens as a new scene). */
+async function motionScene(page: Page, motion: string) {
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByRole('list', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+}
+
+// The tests work in a project of the 20 reference scenes (a new project has one blank scene).
+const SEEDED = JSON.stringify({ version: 2, scenes: presetScenes() });
 
 const errors: string[] = [];
 
@@ -70,10 +109,10 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
+  await page.evaluate((lib) => { localStorage.clear(); localStorage.setItem('pose-studio-library-v2', lib); }, SEEDED);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
-  await expect(page.locator('.thumbs img')).toHaveCount(20);
+  await expect(page.getByLabel('Scene name')).toHaveValue('Hand on head');
   await page.waitForTimeout(800); // first frames + framing
 });
 
@@ -81,9 +120,18 @@ test.afterEach(() => {
   expect(errors).toEqual([]);
 });
 
-test('loads the 20 reference poses', async ({ page }) => {
-  await expect(page.locator('.count')).toHaveText('20');
-  await expect(page.locator('.scene-name')).toHaveValue('Hand on head');
+test('a new project is one blank scene; the 20 reference poses are in the library', async ({ page }) => {
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await expect(page.getByLabel('Scene name')).toHaveValue('Scene 1');
+  await expect(page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure', exact: true })).toBeVisible();
+  await openSection(page, 'Library');
+  const poses = page.getByRole('list', { name: 'Poses' });
+  await expect(poses.locator('img')).toHaveCount(20);
+  await poses.getByRole('button', { name: /Hand on head/ }).click();
+  await expect(page.getByText('Figure: Hand on head')).toBeVisible();
+  expect((await state(page)).scene.figures[0].joints.shoulderR).toEqual(presetScenes()[0].figures[0].joints.shoulderR);
 });
 
 test('clicking a body part selects it and the sliders edit it', async ({ page }) => {
@@ -140,7 +188,7 @@ test('figures, props, body and hand presets', async ({ page }) => {
   expect(s.figures[1].body.sex).toBe(0);
   expect(s.figures[0].body.sex).toBe(1);
 
-  await page.getByRole('tab', { name: 'Pose', exact: true }).click();
+  await page.getByRole('tab', { name: 'Edit', exact: true }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Hands', exact: true }).click();
   await page.getByRole('button', { name: 'Fist' }).click();
@@ -153,8 +201,9 @@ test('figures, props, body and hand presets', async ({ page }) => {
   expect(s.props).toHaveLength(0);
 });
 
-test('exports a 2400×3200 Pose.jpg sheet', async ({ page }) => {
+test('exports the pose library as a 2400×3200 Pose.jpg sheet', async ({ page }) => {
   await page.keyboard.press('Control+e');
+  await page.getByRole('radio', { name: 'Poses 20' }).click();
   await expect(page.getByText('2400 × 3200 px')).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toBe('Pose.jpg');
@@ -162,16 +211,16 @@ test('exports a 2400×3200 Pose.jpg sheet', async ({ page }) => {
   expect(size).toEqual({ width: 2400, height: 3200 });
 });
 
-test('share links open as a new pose', async ({ page, context }) => {
+test('share links open as a new scene', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.locator('.thumbs li').nth(4).locator('button').click();
+  await (await openScenes(page)).locator('.thumbs li').nth(4).locator('button').click();
   await page.getByRole('button', { name: /Share/ }).click();
   await expect(page.getByText('Share link copied')).toBeVisible();
   const url = await page.evaluate(() => navigator.clipboard.readText());
   expect(url).toContain('#scene=');
   await page.goto(url);
   await page.reload();
-  await expect(page.getByText(/Opened shared pose/)).toBeVisible();
+  await expect(page.getByText(/Opened shared scene/)).toBeVisible();
   const s = await state(page);
   expect(s.library.scenes).toHaveLength(21);
   expect(s.scene.name).toBe('Side sit, leaning on arm');
@@ -184,9 +233,9 @@ test('saves and re-imports the library as JSON', async ({ page }) => {
   const path = (await download.path())!;
   await page.getByRole('button', { name: 'Main menu' }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Import poses…' }).click();
+  await page.getByRole('menuitem', { name: 'Import scenes…' }).click();
   await (await chooser).setFiles(path);
-  await expect(page.getByText('Loaded 20 poses')).toBeVisible();
+  await expect(page.getByText('Loaded 20 scenes')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(40);
 });
 
@@ -224,8 +273,11 @@ test('mobile layout uses drawers', async ({ page }) => {
   await expect(page.locator('.side')).not.toBeInViewport();
   await page.getByRole('button', { name: 'Poses', exact: true }).click();
   await expect(page.locator('.side')).toBeInViewport();
-  await page.locator('.thumbs li').nth(2).locator('button').click();
+  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+  await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
   await expect(page.locator('.side')).not.toBeInViewport();
+  // Scenes switch from the top bar.
+  await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
   expect((await state(page)).sceneIndex).toBe(2);
 });
 
@@ -285,18 +337,19 @@ test('typing an exact joint angle', async ({ page }) => {
   expect((await state(page)).scene.figures[0].joints.hipL?.[0]).toBe(50);
 });
 
-test('library keyboard navigation and reordering', async ({ page }) => {
-  const first = page.locator('.thumbs button.thumb').first();
-  await first.focus();
+test('scene picker keyboard navigation and reordering', async ({ page }) => {
+  const picker = await openScenes(page);
+  const thumbs = picker.locator('.thumbs button.thumb');
+  await thumbs.first().focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.locator('.thumbs button.thumb').nth(1)).toBeFocused();
+  await expect(thumbs.nth(1)).toBeFocused();
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('Alt+ArrowDown');
   const s = await state(page);
-  // "Hand on head" (the open pose) moved two places down and stays open.
-  expect(s.library.scenes[2].name).toBe('Hand on head');
-  expect(s.sceneIndex).toBe(2);
-  await expect(page.locator('.thumbs button.thumb').nth(2)).toBeFocused();
+  // "Hand on head" (the open scene) moved a row (three places) down and stays open.
+  expect(s.library.scenes[3].name).toBe('Hand on head');
+  expect(s.sceneIndex).toBe(3);
+  await expect(thumbs.nth(3)).toBeFocused();
 });
 
 test('figures can be hidden without deleting them', async ({ page }) => {
@@ -321,7 +374,7 @@ test('changes made in another tab are picked up', async ({ page, context }) => {
   await other.locator('.stage canvas').waitFor({ timeout: 180_000 });
   await deleteCurrentPose(other);
   await expect(other.locator('.save-status')).toHaveText('Saved');
-  await expect(page.getByText('Your poses were updated in another tab')).toBeVisible();
+  await expect(page.getByText('Your scenes were updated in another tab')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(19);
   await other.close();
 });
@@ -351,8 +404,9 @@ test('male and female presets change the body', async ({ page }) => {
 type Fig = { id: string; position: number[]; joints: Record<string, number[]> };
 const figs = async (page: Page) => (await state(page)).scene.figures as unknown as Fig[];
 
-test('multi-person templates and relation tools', async ({ page }) => {
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+test('multi-person set-ups and relation tools', async ({ page }) => {
+  await openScenes(page);
+  await page.getByRole('button', { name: 'New scene' }).click();
   await page.getByRole('menuitem', { name: 'Handshake' }).click();
   expect((await state(page)).scene.name).toBe('Handshake');
   let [a, b] = await figs(page);
@@ -403,11 +457,10 @@ const anim = async (page: Page) => page.evaluate(() => {
   return { time: s.time, animation: s.library.scenes[s.sceneIndex].animation as Anim | undefined };
 });
 
-test('animation templates play, take keys and use a shot camera', async ({ page }) => {
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Walk cycle' }).click();
-  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
-  expect((await anim(page)).animation!.keys).toHaveLength(4);
+test('a library motion plays, takes keys and is filmed by a shot camera', async ({ page }) => {
+  await sceneWithMotion(page, 'Walk cycle');
+  // Four keys of the cycle, and the first again to close it.
+  expect((await anim(page)).animation!.keys).toHaveLength(5);
 
   await page.getByRole('button', { name: 'Play' }).click();
   await page.waitForTimeout(500);
@@ -419,7 +472,7 @@ test('animation templates play, take keys and use a shot camera', async ({ page 
   await page.keyboard.press('.');
   await page.keyboard.press('.');
   await page.keyboard.press('k');
-  expect((await anim(page)).animation!.keys).toHaveLength(5);
+  expect((await anim(page)).animation!.keys).toHaveLength(6);
 
   await page.getByRole('button', { name: 'Look through the shot camera' }).click();
   await expect(page.locator('.letterbox')).toBeVisible();
@@ -428,8 +481,8 @@ test('animation templates play, take keys and use a shot camera', async ({ page 
   expect((await anim(page)).animation!.camera!.keys).toHaveLength(4);
 });
 
-test('a static pose can be animated with auto-keys', async ({ page }) => {
-  await page.getByRole('button', { name: 'Animate' }).click();
+test('a still scene can be animated with auto-keys', async ({ page }) => {
+  await page.getByRole('button', { name: 'Animate' }).first().click();
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
   expect((await anim(page)).time).toBeCloseTo(0.5, 2);
   await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
@@ -442,8 +495,7 @@ test('a static pose can be animated with auto-keys', async ({ page }) => {
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
   // Software rendering and encoding on CI machines without a GPU is slow.
   test.setTimeout(300_000);
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Wave hello' }).click();
+  await sceneWithMotion(page, 'Wave hello');
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Frame sheet' }).click();
   await expect(page.getByText('2400 × 1280 px')).toBeVisible();
@@ -462,14 +514,16 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
 
 test('cuts shots and exports a keyframe pack with depth and normal passes', async ({ page }) => {
   test.setTimeout(240_000);
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Wave hello' }).click();
+  await sceneWithMotion(page, 'Wave hello');
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
   await page.getByRole('button', { name: /^Cut: start a new shot here/ }).click();
   await expect(page.locator('.tl-shot')).toHaveCount(2);
-  await page.locator('.tl-shot').nth(1).dblclick();
+  // Shots are listed in the Scene outline and edited in the inspector.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 2/ }).click();
   await page.getByRole('textbox', { name: 'Shot caption' }).fill('She waves back');
-  await page.getByRole('button', { name: 'Save' }).click();
+  // Shortcuts are off while typing.
+  await page.getByRole('textbox', { name: 'Shot caption' }).blur();
 
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Keyframe pack' }).click();
@@ -490,11 +544,13 @@ test('storyboard: panels with captions, reordering, board sheet export and persi
   await board.getByRole('button', { name: /^Add “/ }).first().click();
   await board.getByRole('button', { name: 'Close storyboard' }).click();
 
-  // A second pose, added from the pose actions menu.
-  await page.locator('.thumbs li').nth(3).click();
+  // A second scene, added from the scene picker's actions.
+  await (await openScenes(page)).locator('.thumbs li').nth(3).click();
   const second = (await state(page)).scene.name;
-  await page.getByRole('button', { name: 'Pose actions' }).click();
+  await openScenes(page);
+  await page.getByRole('button', { name: 'Scene actions' }).click();
   await page.getByRole('menuitem', { name: 'Add to storyboard' }).click();
+  await closeScenes(page);
   await page.keyboard.press('b');
   await expect(board.locator('.panel-card')).toHaveCount(2);
   await expect(board.getByText('2 panels · 4.0 s')).toBeVisible();
@@ -520,13 +576,11 @@ test('storyboard: panels with captions, reordering, board sheet export and persi
 
 test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   test.setTimeout(120_000);
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Walk cycle' }).click();
+  await sceneWithMotion(page, 'Walk cycle');
   await page.locator('.tl-qa').click();
   await expect(page.locator('.tl-qa')).toHaveText('No issues', { timeout: 30_000 });
 
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Waltz turn' }).click();
+  await motionScene(page, 'Waltz turn');
   await page.locator('.tl-qa').click();
   const card = page.getByRole('dialog', { name: 'Motion check' });
   await expect(card).toBeVisible({ timeout: 30_000 });
@@ -541,9 +595,7 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
 });
 
 test('stand-ins block a scene in a posture and can become posable figures', async ({ page }) => {
-  await openSection(page, 'Layers');
-  await page.getByRole('button', { name: 'Add layer' }).click();
-  await page.getByRole('menuitem', { name: /Stand-in/ }).click();
+  await addLayer(page, 'Stand-in');
   await expect(page.getByRole('button', { name: 'Stand-in 1', exact: true })).toBeVisible();
   await page.getByRole('radio', { name: 'Sit' }).click();
   let s = await state(page);
@@ -572,8 +624,8 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   const server = () => page.evaluate(() => fetch('/api/library').then((r) => r.json()) as Promise<{ version: number; library: { scenes: { name: string }[] } | null }>);
   await expect.poll(async () => (await server()).library?.scenes.length ?? 0, { timeout: 30_000 }).toBeGreaterThanOrEqual(20);
   // Edits follow a moment later.
-  await page.getByLabel('Pose name').fill('Synced pose');
-  await expect.poll(async () => (await server()).library?.scenes.map((s) => s.name), { timeout: 30_000 }).toContain('Synced pose');
+  await page.getByLabel('Scene name').fill('Synced scene');
+  await expect.poll(async () => (await server()).library?.scenes.map((s) => s.name), { timeout: 30_000 }).toContain('Synced scene');
   await page.locator('.avatar').click();
   await expect(page.getByRole('menuitem', { name: /Library synced/ })).toBeVisible();
 });
@@ -591,8 +643,7 @@ test('the AI assistant runs on the server and its tools on the open pose', async
 });
 
 test('each figure has its own key track', async ({ page }) => {
-  await page.getByRole('button', { name: 'New pose', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Boxing exchange' }).click();
+  await motionScene(page, 'Boxing exchange');
   await expect(page.getByRole('button', { name: /^Kai key at 0.82 s/ })).toBeVisible();
   await page.locator('.tl-figure', { hasText: 'Kai' }).click();
   await expect(page.locator('.tl-figure.on')).toHaveText('Kai');
@@ -604,19 +655,43 @@ test('each figure has its own key track', async ({ page }) => {
 });
 
 test('the side panel switches sections, folds away and remembers it', async ({ page }) => {
-  await openSection(page, 'Layers');
-  await expect(page.getByRole('tabpanel').getByRole('heading', { name: /Layers/ })).toBeVisible();
-  await openSection(page, 'Animate');
-  await page.getByRole('button', { name: 'Animate this pose' }).click();
+  await openSection(page, 'Library');
+  await expect(page.getByRole('tabpanel').getByRole('heading', { name: 'Library' })).toBeVisible();
+  await openSection(page, 'Scene');
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
   await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
   // Clicking the open section folds the panel; the canvas gets the room.
   const before = (await page.locator('.stage').boundingBox())!.width;
-  await page.getByRole('tab', { name: 'Animate', exact: true }).click();
+  await page.getByRole('tab', { name: 'Scene', exact: true }).click();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
   expect((await page.locator('.stage').boundingBox())!.width).toBeGreaterThan(before + 200);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
-  await openSection(page, 'Poses');
-  await expect(page.locator('.thumbs img')).toHaveCount(20);
+  await openSection(page, 'Scene');
+  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+});
+
+test('library assets apply to the selection: poses to a figure, motions to its track, saved poses', async ({ page }) => {
+  await addLayer(page, 'Figure');
+  const [, second] = await figs(page);
+  await openSection(page, 'Library');
+  await page.getByRole('list', { name: 'Poses' }).getByRole('button', { name: /Cobra/ }).click();
+  const [a, b] = await figs(page);
+  // The selected (new) figure took the pose where it stands; the first one did not change.
+  expect(b.id).toBe(second.id);
+  expect(b.joints).toMatchObject({ root: [presetScenes()[10].figures[0].joints.root![0], 0, presetScenes()[10].figures[0].joints.root![2]] });
+  expect(a.joints).toEqual(presetScenes()[0].figures[0].joints);
+  // Save it, then a motion goes on this figure's track only.
+  await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
+  await expect(page.getByRole('list', { name: 'Poses' }).locator('li')).toHaveCount(21);
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByRole('list', { name: 'Motions' }).getByRole('button', { name: /^Jump/ }).click();
+  const tracks = await page.evaluate(() => {
+    const st = (window as unknown as { __poseStudio: { store: { getState(): { sceneIndex: number; library: { scenes: { figures: { id: string }[]; animation?: { keys: { poses: Record<string, unknown> }[] } }[] } } } } }).__poseStudio.store.getState();
+    const sc = st.library.scenes[st.sceneIndex];
+    return sc.figures.map((f) => sc.animation!.keys.filter((k) => k.poses[f.id]).length);
+  });
+  expect(tracks[0]).toBe(1);
+  expect(tracks[1]).toBeGreaterThan(4);
 });

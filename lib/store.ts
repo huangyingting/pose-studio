@@ -1,7 +1,7 @@
 import { keepFigures, poseOf, sceneAt, setKey } from './animation';
-import { parseLibrary } from './doc';
+import { newScene, parseLibrary } from './doc';
+import { shotSpans } from './shots';
 import { DEFAULT_LIGHT, clampLight } from './lighting';
-import { presetScenes } from './presets';
 import { STYLES, type Figure, type GizmoMode, type Library, type Light, type Prop, type Scene, type Selection, type Style } from './types';
 
 export interface Settings {
@@ -20,7 +20,7 @@ export interface Settings {
   side: SideSection;
 }
 
-export const SIDE_SECTIONS = ['poses', 'layers', 'animate'] as const;
+export const SIDE_SECTIONS = ['scene', 'library'] as const;
 export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
 
 export type SaveStatus = 'saved' | 'pending' | 'error';
@@ -40,7 +40,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'poses',
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'scene',
 };
 
 const STORAGE = { library: 'pose-studio-library-v2', legacy: 'pose-studio-library-v1', settings: 'pose-studio-settings-v1', index: 'pose-studio-index' };
@@ -68,7 +68,8 @@ function loadLibrary(storage: Storage | null): Library {
       // Corrupt entry: fall through to the next source.
     }
   }
-  return { version: 2, scenes: presetScenes() };
+  // A new project: one empty scene (the built-in poses live in the pose library).
+  return { version: 2, scenes: [newScene('Scene 1')] };
 }
 
 function loadSettings(storage: Storage | null): Settings {
@@ -85,7 +86,7 @@ function loadSettings(storage: Storage | null): Settings {
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
         light: clampLight(s.light),
         faces: s.faces !== false,
-        side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'poses',
+        side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
       };
     }
   } catch {
@@ -146,6 +147,9 @@ export class Store {
     } else if (selection?.kind === 'prop') {
       const prop = selection.prop;
       if (!scene.props.some((p) => p.id === prop)) selection = null;
+    } else if (selection?.kind === 'shot') {
+      const shot = selection.shot;
+      if (!scene.animation || !shotSpans(scene.animation).some((sp) => sp.shot.id === shot)) selection = null;
     }
     let activeFigure = selection?.kind === 'joint' ? selection.figure : s.activeFigure;
     if (!scene.figures.some((f) => f.id === activeFigure)) activeFigure = scene.figures[0]?.id ?? null;
