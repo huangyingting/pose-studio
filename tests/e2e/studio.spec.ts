@@ -14,7 +14,7 @@ type Hook = {
       selection: unknown;
     };
   };
-  viewport: { current: { project(figure: string, joint: string): { x: number; y: number } | null } | null };
+  viewport: { current: { project(figure: string, joint: string): { x: number; y: number } | null; projectPoint(p: number[]): { x: number; y: number } } | null };
 };
 
 const state = (page: Page) =>
@@ -30,11 +30,17 @@ const project = (page: Page, joint: string) =>
     return h.viewport.current!.project(s.activeFigure, j)!;
   }, joint);
 
-async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+/** Screen position of a world point. */
+const projectPoint = (page: Page, p: number[]) =>
+  page.evaluate((q) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.projectPoint(q), p);
+
+async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, modifier?: 'Shift') {
   await page.mouse.move(from.x, from.y);
+  if (modifier) await page.keyboard.down(modifier);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) await page.mouse.move(from.x + ((to.x - from.x) * i) / 10, from.y + ((to.y - from.y) * i) / 10);
   await page.mouse.up();
+  if (modifier) await page.keyboard.up(modifier);
 }
 
 /** Width/height from a JPEG's SOF marker. */
@@ -233,6 +239,41 @@ test('dragging the hips down bends the knees and keeps the feet planted', async 
   const ankleAfter = await project(page, 'ankleL');
   expect(Math.hypot(ankleAfter.x - ankle.x, ankleAfter.y - ankle.y)).toBeLessThan(6);
   expect((await state(page)).scene.figures[0].joints.kneeL[0]).toBeGreaterThan(30);
+});
+
+test('figures and props move by dragging them and turn by their floor ring', async ({ page }) => {
+  await page.keyboard.press('1');
+  await page.waitForTimeout(400);
+  type Placed = { position: number[]; rotation: number[]; joints: Record<string, number[]> };
+  const figure = async () => (await state(page)).scene.figures[0] as unknown as Placed;
+  const before = await figure();
+
+  // Drag the torso: the figure moves on the floor, its pose unchanged.
+  const chest = await project(page, 'chest');
+  await drag(page, { x: chest.x, y: chest.y - 20 }, { x: chest.x + 100, y: chest.y - 20 });
+  let f = await figure();
+  expect(f.position[0]).toBeGreaterThan(before.position[0] + 0.1);
+  expect(f.joints.shoulderR).toEqual(before.joints.shoulderR);
+  expect((await state(page)).selection).toMatchObject({ kind: 'figure' });
+
+  // Drag its floor ring around a quarter turn, with Shift: whole 15° steps.
+  const [x, , z] = f.position;
+  await drag(page, await projectPoint(page, [x, 0, z + 0.3]), await projectPoint(page, [x + 0.3, 0, z]), 'Shift');
+  f = await figure();
+  expect(f.joints.root[1] % 15).toBe(0);
+  expect(f.joints.root[1]).not.toBe(before.joints.root?.[1] ?? 0);
+
+  // A prop moves the same way; one undo step per drag.
+  await addLayer(page, 'Box');
+  await page.keyboard.press('f');
+  await page.waitForTimeout(400);
+  const prop = async () => (await state(page)).scene.props[0] as unknown as Placed;
+  const p0 = await prop();
+  const box = await projectPoint(page, [p0.position[0], 0.25, p0.position[2]]);
+  await drag(page, box, { x: box.x - 80, y: box.y });
+  expect((await prop()).position[0]).toBeLessThan(p0.position[0] - 0.1);
+  await page.keyboard.press('Control+z');
+  expect((await prop()).position).toEqual(p0.position);
 });
 
 test('figures, props, body and hand presets', async ({ page }) => {
@@ -669,11 +710,11 @@ test('stand-ins block a scene in a posture and can become posable figures', asyn
   expect(standIn().proxy).toBe('sit');
   expect(standIn().joints.kneeL[0]).toBeGreaterThan(80);
   // Not posed joint by joint: no IK handles, no joint panel.
-  await expect(page.getByText('Pick a body part')).toHaveCount(0);
+  await expect(page.getByText(/drag a limb or the head to pose it/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Make it a posable figure' }).click();
   s = await state(page);
   expect(standIn().proxy).toBeUndefined();
-  await expect(page.getByText('Pick a body part')).toBeVisible();
+  await expect(page.getByText(/drag a limb or the head to pose it/)).toBeVisible();
 });
 
 async function signIn(page: Page) {

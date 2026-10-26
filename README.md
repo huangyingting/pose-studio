@@ -31,7 +31,7 @@ On the server edition the AI assistant does any of these from a description ("tw
 ## Features
 
 **Posing**
-- **Direct manipulation**: drag the orange (hands) and green (feet) dots and the limb follows (two-bone IK). Drag the purple hip dot to move the body while the feet stay planted, e.g. to drop into a squat. Drag the small dots on the elbows and knees to point them.
+- **Direct manipulation**: the things are the handles. Drag a figure's torso (or a prop, or a stand-in) to move it on the floor, a limb, the neck or the head to swing it from its joint, a hand or a foot to move it with the limb following (two-bone IK), and the ring on the floor under the selected figure or prop to turn it (Shift: 15° steps). A click still selects; dragging empty space (or Alt-drag anywhere) orbits. The dots stay for finer control and keep a usable size on screen at any zoom: drag the purple hip dot to move the body while the feet stay planted (e.g. to drop into a squat), the small elbow and knee dots to point them.
 - **Joint gizmo and sliders**: click any body part in the viewport or on the body map in the Pose panel, then rotate it in 3D or fine-tune it with labelled sliders ("Swing − forward", "Raise + out", …). Click a slider's value to type an exact angle.
 - **Joint limits**: optional anatomical ranges keep poses natural (View tab → Joint limits).
 - **Fingers**: five three-segment fingers per hand, with presets (relaxed, fist, point, peace, grip, …) and per-finger curl and spread.
@@ -153,7 +153,8 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/pages.yml`, whi
 app/                    Next.js App Router shell (page loads the studio client-side only)
 components/
   Studio.tsx            Layout, top bar, canvas toolbar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
-  Viewport.tsx          React Three Fiber canvas: selection, gizmo, IK handles, line-art render loop
+  Viewport.tsx          React Three Fiber canvas: selection, gizmo, line-art render loop
+  Manipulators.tsx      Direct manipulation: drag figures, props and body parts, floor rings to turn, IK dots
   Inspector.tsx         Contextual Pose / Body / Render panel (joint, prop and style editors)
   side/                 Left side panel: the section rail and registry (sections.ts: add a section there), the Scene outline and the Library
   ScenePicker.tsx       The project's scenes, from the top bar

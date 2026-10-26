@@ -8,15 +8,15 @@ import { editCameraKey } from '@/lib/actions';
 import { sceneAt } from '@/lib/animation';
 import { LightRig } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
-import { IK_CHAINS, POLE_CHAINS, type Mannequin } from '@/lib/mannequin';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { SceneView } from '@/lib/sceneview';
 import { SHOT_ASPECT, captureShot, figuresCenter, framingFor, placeShot, shotAt, type Framing } from '@/lib/shot';
 import { shotSpans } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
-import type { CameraKey, Figure, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { CameraKey, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
+import { FigureMarkers, IKHandles, PropRing, SceneObjects } from './Manipulators';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -25,6 +25,8 @@ export interface ViewportApi {
   rootPosition(figure: string): Vec3 | null;
   /** Screen (client) coordinates of a joint, for tests and tooling. */
   project(figure: string, joint: JointName): { x: number; y: number } | null;
+  /** Screen (client) coordinates of a world point. */
+  projectPoint(p: Vec3): { x: number; y: number };
   /** The shot (camera key) that reproduces the current view. */
   captureShot(): Omit<CameraKey, 't'> | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
@@ -57,6 +59,15 @@ interface Props {
 }
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
+
+/**
+ * Rotation rings without the free-rotation ball: the ball covers everything inside the rings, so
+ * a press there would turn the joint instead of reaching the body part under the pointer.
+ */
+function ringsOnly(gizmo: unknown) {
+  const picker = (gizmo as { gizmo?: { picker?: Record<string, THREE.Object3D> } } | null)?.gizmo?.picker?.rotate;
+  for (const handle of picker?.children ?? []) if (handle.name === 'XYZE') handle.raycast = () => {};
+}
 
 export default function Viewport({
   store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, shotMode, onion, onMenu,
@@ -111,9 +122,10 @@ export default function Viewport({
   let mode: 'rotate' | 'translate' | 'scale' = 'rotate';
   let showY = true;
   let onGizmoChange = () => {};
-  // The Move tool always moves a whole figure: the selected one, or the active one.
+  // The Move tool always moves a whole figure: the selected one, or the active one. Otherwise a
+  // selected joint gets rotation rings; a whole figure none (drag its torso, turn it by its ring).
   const moving = settings.gizmo === 'translate';
-  const gizmoFigure = selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : !selection && moving ? activeFigure : null;
+  const gizmoFigure = selection?.kind === 'joint' ? selection.figure : (selection?.kind === 'figure' || !selection) && moving ? (selection?.figure ?? activeFigure) : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
@@ -127,7 +139,8 @@ export default function Viewport({
         store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}:${joint}`);
       };
     }
-  } else if (selection?.kind === 'prop') {
+  } else if (selection?.kind === 'prop' && settings.gizmo !== 'rotate') {
+    // Props turn by their floor ring (exact angles in the inspector); Move and Scale use the gizmo.
     const p = sv.props.get(selection.prop);
     if (p) {
       target = p.object;
@@ -167,13 +180,14 @@ export default function Viewport({
         <color attach="background" args={[styleDef(settings.style).background]} />
         <Lights sv={sv} settings={settings} scene={scene} />
         {settings.showGrid && <gridHelper args={[10, 40, '#d4d4d8', '#ededf0']} />}
-        <primitive object={sv.root} onClick={handleClick} />
+        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
         {target && (
           <TransformControls
             object={target}
             mode={mode}
             space={mode === 'translate' ? 'world' : 'local'}
-            size={0.6}
+            size={0.8}
+            ref={ringsOnly}
             showY={showY}
             onMouseDown={() => { gizmoBusy.current = Infinity; }}
             onMouseUp={() => { gizmoBusy.current = performance.now(); }}
@@ -189,8 +203,26 @@ export default function Viewport({
             onCommit={(read) => store.updateFigure(activeDoc.id, (f) => ({ ...f, ...read }), 'ik')}
           />
         )}
-        {settings.showHandles && (scene.figures.length > 1 || moving) && (
-          <FigureMarkers sv={sv} scene={scene} version={version} active={activeFigure} onPick={(id) => store.setActiveFigure(id)} />
+        {settings.showHandles && (
+          <FigureMarkers
+            sv={sv}
+            scene={scene}
+            version={version}
+            active={selection?.kind === 'prop' || selection?.kind === 'shot' ? null : activeFigure}
+            onPick={(id) => store.select({ kind: 'figure', figure: id })}
+            onTurn={(id, read) => { store.select({ kind: 'figure', figure: id }); store.updateFigure(id, (f) => ({ ...f, ...read })); }}
+          />
+        )}
+        {settings.showHandles && selection?.kind === 'prop' && (
+          <PropRing
+            sv={sv}
+            id={selection.prop}
+            version={version}
+            onTurn={() => {
+              const p = sv.props.get(selection.prop);
+              if (p) store.updateProp(selection.prop, (doc) => ({ ...doc, ...p.read() }));
+            }}
+          />
         )}
         <OrbitControls makeDefault />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
@@ -211,188 +243,6 @@ export default function Viewport({
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={settings.style} />
       </Canvas>
     </div>
-  );
-}
-
-type HandleId = 'wristL' | 'wristR' | 'ankleL' | 'ankleR' | 'root' | 'elbowL' | 'elbowR' | 'kneeL' | 'kneeR';
-
-const HANDLES: { id: HandleId; color: string; r: number }[] = [
-  { id: 'wristL', color: '#f97316', r: 0.034 },
-  { id: 'wristR', color: '#f97316', r: 0.034 },
-  { id: 'ankleL', color: '#10b981', r: 0.038 },
-  { id: 'ankleR', color: '#10b981', r: 0.038 },
-  { id: 'root', color: '#8b5cf6', r: 0.045 },
-  { id: 'elbowL', color: '#fdba74', r: 0.024 },
-  { id: 'elbowR', color: '#fdba74', r: 0.024 },
-  { id: 'kneeL', color: '#6ee7b7', r: 0.026 },
-  { id: 'kneeR', color: '#6ee7b7', r: 0.026 },
-];
-
-const isPole = (id: HandleId): id is keyof typeof POLE_CHAINS => id in POLE_CHAINS;
-
-interface Drag {
-  id: HandleId;
-  plane: THREE.Plane;
-  grab: THREE.Vector3;
-  start: THREE.Vector3;
-  rootStart: THREE.Vector3;
-  endQ: THREE.Quaternion;
-  feet: { id: 'ankleL' | 'ankleR'; pos: THREE.Vector3; q: THREE.Quaternion }[];
-}
-
-/**
- * Draggable dots: hands/feet move with two-bone IK, the hips move the body while the feet
- * stay planted, and the small elbow/knee dots swing the limb around its own axis.
- */
-function IKHandles({ m, figure, limits, onCommit }: {
-  m: Mannequin;
-  figure: Figure;
-  limits: boolean;
-  onCommit(read: Pick<Figure, 'joints' | 'position'>): void;
-}) {
-  const refs = useRef<Partial<Record<HandleId, THREE.Mesh | null>>>({});
-  const drag = useRef<Drag | null>(null);
-  const camera = useThree((s) => s.camera);
-  const get = useThree((s) => s.get);
-  const setOrbit = (enabled: boolean) => {
-    const controls = get().controls as unknown as Controls;
-    if (controls) controls.enabled = enabled;
-  };
-  const scale = figure.body.height / 1.8;
-
-  useFrame(() => {
-    for (const h of HANDLES) {
-      const mesh = refs.current[h.id];
-      if (mesh) m.joints[h.id].getWorldPosition(mesh.position);
-    }
-  });
-
-  const down = (id: HandleId) => (e: ThreeEvent<PointerEvent>) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    const start = m.joints[id].getWorldPosition(new THREE.Vector3());
-    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), start);
-    const hit = e.ray.intersectPlane(plane, new THREE.Vector3());
-    if (!hit) return;
-    (e.target as Element).setPointerCapture(e.pointerId);
-    const endJoint: JointName = isPole(id) ? POLE_CHAINS[id][2] : id;
-    drag.current = {
-      id,
-      plane,
-      start,
-      grab: start.clone().sub(hit),
-      rootStart: m.joints.root.position.clone(),
-      endQ: m.joints[endJoint].getWorldQuaternion(new THREE.Quaternion()),
-      feet: (['ankleL', 'ankleR'] as const).map((f) => ({
-        id: f,
-        pos: m.joints[f].getWorldPosition(new THREE.Vector3()),
-        q: m.joints[f].getWorldQuaternion(new THREE.Quaternion()),
-      })),
-    };
-    m.setGroundLock(true);
-    setOrbit(false);
-  };
-
-  const move = (e: ThreeEvent<PointerEvent>) => {
-    const d = drag.current;
-    if (!d) return;
-    e.stopPropagation();
-    const hit = e.ray.intersectPlane(d.plane, new THREE.Vector3());
-    if (!hit) return;
-    const target = hit.add(d.grab);
-    if (d.id === 'root') {
-      m.joints.root.position.copy(d.rootStart).add(target.sub(d.start));
-      m.object.updateMatrixWorld(true);
-      for (const f of d.feet) m.solveIK(IK_CHAINS[f.id], f.pos, f.q, limits);
-    } else if (isPole(d.id)) {
-      m.swivel(POLE_CHAINS[d.id], target, d.endQ, limits);
-    } else {
-      m.solveIK(IK_CHAINS[d.id], target, d.endQ, limits);
-    }
-  };
-
-  const up = (e: ThreeEvent<PointerEvent>) => {
-    if (!drag.current) return;
-    (e.target as Element).releasePointerCapture(e.pointerId);
-    drag.current = null;
-    m.setGroundLock(false);
-    setOrbit(true);
-    onCommit(m.read());
-  };
-
-  return (
-    <>
-      {HANDLES.map((h) => (
-        <mesh
-          key={h.id}
-          name={`handle:${h.id}`}
-          ref={(el) => { refs.current[h.id] = el; }}
-          renderOrder={10}
-          onPointerDown={down(h.id)}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerOver={() => { document.body.style.cursor = 'grab'; }}
-          onPointerOut={() => { document.body.style.cursor = ''; }}
-        >
-          <sphereGeometry args={[h.r * scale, 20, 14]} />
-          <meshBasicMaterial color={h.color} transparent opacity={0.88} depthTest={false} />
-        </mesh>
-      ))}
-    </>
-  );
-}
-
-/**
- * Floor markers under each figure: a ring at its position and an arrow for the way it faces,
- * so the spatial layout of a group reads from any angle (best from the Top view). Click to pick.
- */
-function FigureMarkers({ sv, scene, version, active, onPick }: {
-  sv: SceneView;
-  scene: Scene;
-  version: number;
-  active: string | null;
-  onPick(id: string): void;
-}) {
-  const groups = useRef<Record<string, THREE.Group | null>>({});
-  const tmp = useMemo(() => ({ p: new THREE.Vector3(), q: new THREE.Quaternion(), f: new THREE.Vector3() }), []);
-  useFrame(() => {
-    for (const f of scene.figures) {
-      const g = groups.current[f.id];
-      const m = sv.figures.get(f.id);
-      if (!g || !m) continue;
-      const root = m.joints.root;
-      root.getWorldPosition(tmp.p);
-      g.position.set(tmp.p.x, 0.004, tmp.p.z);
-      tmp.f.set(0, 0, 1).applyQuaternion(root.getWorldQuaternion(tmp.q));
-      g.rotation.y = Math.atan2(tmp.f.x, tmp.f.z);
-    }
-  });
-  void version;
-  return (
-    <>
-      {scene.figures.filter((f) => !f.hidden).map((f) => {
-        const k = f.body.height / 1.8;
-        const color = f.id === active ? '#3b6cff' : '#a1a1a6';
-        return (
-          <group
-            key={f.id}
-            ref={(el) => { groups.current[f.id] = el; }}
-            onClick={(e) => { if (e.delta > 4) return; e.stopPropagation(); onPick(f.id); }}
-            onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
-            onPointerOut={() => { document.body.style.cursor = ''; }}
-          >
-            <mesh rotation-x={-Math.PI / 2} renderOrder={5}>
-              <ringGeometry args={[0.26 * k, 0.275 * k, 64]} />
-              <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
-            </mesh>
-            <mesh rotation={[-Math.PI / 2, 0, -Math.PI / 2]} position={[0, 0, 0.33 * k]} renderOrder={5}>
-              <circleGeometry args={[0.055 * k, 3]} />
-              <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
-            </mesh>
-          </group>
-        );
-      })}
-    </>
   );
 }
 
@@ -545,16 +395,19 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   useEffect(() => { captureRef.current = capture; });
 
   useEffect(() => {
+    const toScreen = (v: THREE.Vector3) => {
+      const p = v.project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+    };
     apiRef.current = {
       getView: () => viewFromCamera(camera, controls?.target ?? new THREE.Vector3(0, 1, 0)),
       rootPosition: (id) => sv.figures.get(id)?.read().position ?? null,
       project: (id, joint) => {
         const m = sv.figures.get(id);
-        if (!m) return null;
-        const p = m.joints[joint].getWorldPosition(new THREE.Vector3()).project(camera);
-        const r = gl.domElement.getBoundingClientRect();
-        return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+        return m ? toScreen(m.joints[joint].getWorldPosition(new THREE.Vector3())) : null;
       },
+      projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
       captureShot: () => captureRef.current(),
       pick: (x, y) => {
         const r = gl.domElement.getBoundingClientRect();

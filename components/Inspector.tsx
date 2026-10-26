@@ -160,10 +160,10 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
                 />
               );
             })}
-            {joint === 'root' && <p className="hint-text">Press <kbd>W</kbd> to move the whole figure, <kbd>E</kbd> to rotate it.</p>}
+            {joint === 'root' && <p className="hint-text">To move the whole figure drag its torso; to turn it, the ring on the floor.</p>}
           </div>
         ) : (
-          <p className="hint-text">Pick a body part, or drag the dots on the figure: hands and feet follow, the hips move the body.</p>
+          <p className="hint-text">On the canvas, drag a limb or the head to pose it (hands and feet pull the limb), the torso to move the figure, the ring on the floor to turn it. Click a part to fine-tune it here.</p>
         )}
       </Section>
 
@@ -371,7 +371,7 @@ function PropEditor({ id }: { id: string }) {
         {row('position', 'Position', 0.05)}
         {row('rotation', 'Rotation', 5)}
         {row('scale', 'Size', 0.05)}
-        <p className="hint-text">Drag a letter to scrub. On the canvas: <kbd>W</kbd> move, <kbd>E</kbd> rotate, <kbd>R</kbd> scale.</p>
+        <p className="hint-text">Drag a letter to scrub. On the canvas: drag the prop to move it, its ring to turn it; <kbd>W</kbd> also moves it up and down, <kbd>R</kbd> scales it.</p>
       </Section>
     </>
   );
