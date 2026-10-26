@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react';
-import { Library, ListTree, type LucideIcon } from 'lucide-react';
+import { Library, ListTree, Sparkles, type LucideIcon } from 'lucide-react';
+import { Assistant } from '@edition/server';
 import type { SIDE_SECTIONS } from '@/lib/store';
+import AssistantSection from './AssistantSection';
 import LibrarySection from './LibrarySection';
 import OutlineSection from './OutlineSection';
 
@@ -23,6 +25,8 @@ export interface SideSectionDef {
   label: string;
   icon: LucideIcon;
   Panel: ComponentType<SectionProps>;
+  /** A wider panel (a chat). */
+  wide?: boolean;
 }
 
 export const SECTIONS: SideSectionDef[] = [
@@ -30,4 +34,6 @@ export const SECTIONS: SideSectionDef[] = [
   { id: 'scene', label: 'Scene', icon: ListTree, Panel: OutlineSection },
   // Ready-made poses, motions, camera moves and scene set-ups, applied to the selection.
   { id: 'library', label: 'Library', icon: Library, Panel: LibrarySection },
+  // Describe what you want (server edition only).
+  ...(Assistant ? [{ id: 'ai' as const, label: 'AI assistant', icon: Sparkles, Panel: AssistantSection, wide: true }] : []),
 ];

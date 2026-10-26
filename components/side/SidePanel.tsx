@@ -14,7 +14,7 @@ export interface RailAction {
 }
 
 /**
- * The left side: a rail of sections (Scene, Library, …) with the open one's panel next
+ * The left side: a rail of sections (Scene, Library, AI assistant) with the open one's panel next
  * to it, and below a divider, workspaces that open on their own (Storyboard). Clicking the open
  * section's icon folds the panel away for more canvas.
  */
@@ -52,7 +52,7 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
         ))}
       </nav>
       {open && (
-        <div className="side-panel" id="side-panel" role="tabpanel" aria-labelledby={`side-tab-${open.id}`}>
+        <div className={`side-panel${open.wide ? ' wide' : ''}`} id="side-panel" role="tabpanel" aria-labelledby={`side-tab-${open.id}`}>
           <open.Panel {...props} />
         </div>
       )}

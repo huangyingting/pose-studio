@@ -128,7 +128,7 @@ export default function Viewport({
   let showY = true;
   let onGizmoChange = () => {};
   const moving = settings.gizmo === 'translate';
-  const gizmoFigure = moving && selection?.kind !== 'prop' && selection?.kind !== 'shot' ? (selection?.figure ?? activeFigure) : null;
+  const gizmoFigure = moving && selection?.kind !== 'prop' && selection?.kind !== 'shot' ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);

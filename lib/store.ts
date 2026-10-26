@@ -26,7 +26,7 @@ export interface Settings {
 export const LIBRARY_TABS = ['poses', 'motions', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
-export const SIDE_SECTIONS = ['scene', 'library'] as const;
+export const SIDE_SECTIONS = ['scene', 'library', 'ai'] as const;
 export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
 
 export type SaveStatus = 'saved' | 'pending' | 'error';

@@ -211,18 +211,27 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
  * The inspector's title: what is selected, its name editable (Enter or leaving keeps it, Escape
  * reverts), then actions for it.
  */
-export function NameHeader({ lead, name, label, onRename, children }: {
+/** Where a header sits: what comes before its icon (a way back up) and after its actions (the panel's own buttons). */
+export interface HeaderChrome {
+  before?: ReactNode;
+  after?: ReactNode;
+}
+
+export function NameHeader({ lead, name, label, onRename, children, chrome }: {
   lead: ReactNode;
   name: string;
   label: string;
   onRename(name: string): void;
   children?: ReactNode;
+  chrome?: HeaderChrome;
 }) {
   return (
     <div className="panel-title">
+      {chrome?.before}
       {lead}
       <TitleInput key={name} name={name} label={label} onRename={onRename} />
       {children}
+      {chrome?.after}
     </div>
   );
 }

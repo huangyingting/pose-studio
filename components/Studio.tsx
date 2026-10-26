@@ -22,7 +22,7 @@ import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 // Accounts, library sync and AI: the server edition only (null in the static build).
 import { Account, ServerRoot } from '@edition/server';
 import ErrorBoundary from './ErrorBoundary';
-import Inspector, { type InspectorContext, type Tab } from './Inspector';
+import Inspector, { type InspectorContext } from './Inspector';
 import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
@@ -80,14 +80,7 @@ function App() {
   const canUndo = useStudio((s) => s.canUndo);
   const canRedo = useStudio((s) => s.canRedo);
 
-  const [tab, setTab] = useState<Tab>('pose');
   const toggleInspector = () => store.setSettings({ inspector: !store.getState().settings.inspector });
-  // Body is about figures: selecting a shot or prop brings up the Edit tab, where it is edited.
-  const [selected, setSelected] = useState(selection);
-  if (selection !== selected) {
-    setSelected(selection);
-    if (tab === 'body' && (selection?.kind === 'shot' || selection?.kind === 'prop')) setTab('pose');
-  }
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [reference, setReferenceState] = useState<Reference>({ url: null, opacity: 0.45, visible: true });
@@ -289,7 +282,7 @@ function App() {
         }
         case 'F2': {
           const sel = store.getState().selection;
-          const id = sel?.kind === 'prop' ? sel.prop : sel?.kind === 'shot' ? sel.shot : sel ? sel.figure : store.getState().activeFigure;
+          const id = sel?.kind === 'prop' ? sel.prop : sel?.kind === 'shot' ? sel.shot : sel?.kind === 'joint' || sel?.kind === 'figure' ? sel.figure : sel ? null : store.getState().activeFigure;
           if (id) run(() => renameInOutline(store, id));
           return;
         }
@@ -328,7 +321,6 @@ function App() {
   };
 
   const ctx: InspectorContext = {
-    frame,
     currentView: () => apiRef.current?.getView() ?? null,
     rootPosition: (id) => apiRef.current?.rootPosition(id) ?? null,
     notify,
@@ -519,11 +511,11 @@ function App() {
         )}
       </main>
 
-      <Inspector tab={tab} setTab={setTab} ctx={ctx} onHide={toggleInspector} />
+      <Inspector ctx={ctx} onHide={toggleInspector} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
       {dialog === 'export' && (
-        <ExportDialog onClose={() => setDialog(null)} notify={notify} />
+        <ExportDialog onClose={() => setDialog(null)} notify={notify} currentView={ctx.currentView} />
       )}
       {dialog === 'photo' && (
         <PhotoDialog

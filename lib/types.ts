@@ -240,6 +240,8 @@ export type Selection =
   | { kind: 'prop'; prop: string }
   /** A shot of the animation (see lib/shots.ts; 'main' when it is not cut). */
   | { kind: 'shot'; shot: string }
+  /** The scene itself: its light, look and reference image. */
+  | { kind: 'scene' }
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */

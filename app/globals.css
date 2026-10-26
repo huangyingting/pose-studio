@@ -450,6 +450,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .rail-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .rail-sep { width: 20px; height: 1px; margin: 6px 0; background: var(--border); }
 .side-panel { width: 240px; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.side-panel.wide { width: 300px; }
 .side-section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .side-section > .search { margin: 0 10px 8px; flex: none; }
 .side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
@@ -847,20 +848,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   border-left: 1px solid var(--border);
   min-height: 0;
 }
-.tabs { display: flex; gap: 4px; height: 40px; align-items: center; padding: 0 10px; border-bottom: 1px solid var(--border); flex: none; }
-.tabs button {
-  height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--text-2);
-  font-weight: 600;
-  cursor: pointer;
-}
-.tabs button:hover { color: var(--text); }
-.tabs button.on { color: var(--text); background: var(--hover); }
-.tabs .tabs-hide { margin-left: auto; width: 28px; height: 28px; padding: 0; color: var(--text-3); }
 /* Folded away: the canvas takes the room (the header button and I bring it back). */
 @media (min-width: 861px) {
   .studio.inspector-closed { grid-template-columns: auto minmax(0, 1fr) 0; }
@@ -911,6 +898,14 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .assistant-setup .row { display: flex; align-items: center; gap: 8px; }
 .panel-row { padding: 12px 14px 0; }
 .panel-title { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
+/* The header stays while the sections scroll: the way back to the scene, what is selected, the panel's own buttons. */
+.panel-scroll > .panel-title { position: sticky; top: 0; z-index: 2; background: var(--panel); }
+.crumb { display: inline-flex; align-items: center; gap: 2px; flex: none; height: 24px; margin-left: -6px; padding: 0 2px 0 6px; border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text-3); font: inherit; font-weight: 500; cursor: pointer; }
+.crumb:hover { background: var(--hover); color: var(--text); }
+.panel-hide { flex: none; width: 28px; height: 28px; color: var(--text-3); }
+/* A picked part: a small map to pick another, beside its sliders. */
+.joint-edit { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: start; }
+.joint-edit .bodymap { max-width: 56px; }
 .panel-title > svg { color: var(--text-2); }
 .panel-title .title-input { flex: 1; min-width: 0; margin-left: -8px; font-weight: 600; text-overflow: ellipsis; }
 .panel-title .title-input:not(:focus) { background: transparent; }
@@ -977,21 +972,6 @@ button.psec-title svg { color: var(--text-3); }
 .preset.on { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .preset.on svg { color: var(--accent); }
 
-.style-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 6px; }
-.style-card { display: grid; gap: 5px; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
-.style-thumb {
-  display: block;
-  aspect-ratio: 4 / 5;
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: inset 0 0 0 1px var(--border);
-  transition: box-shadow 0.12s;
-}
-.style-thumb img { width: 100%; height: 100%; display: block; }
-.style-card:hover .style-thumb { box-shadow: 0 0 0 1px var(--border-strong); }
-.style-card.on .style-thumb { box-shadow: 0 0 0 2px var(--accent); }
-.style-name { font-size: 11px; color: var(--text-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.style-card.on .style-name { color: var(--text); }
 
 .relation-target { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 4px; color: var(--text-2); }
 .action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }

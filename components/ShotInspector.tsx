@@ -3,10 +3,10 @@ import { editShot, removeShotCut, setCameraOptions, setTargetModel } from '@/lib
 import { describeSpan } from '@/lib/prompt';
 import { VIDEO_MODELS, overLimit, shotSpans, videoModel } from '@/lib/shots';
 import { useScene, useStore } from './store-context';
-import { IconButton, NameHeader, Section, Select, Toggle, type Notify } from './ui';
+import { IconButton, NameHeader, Section, Select, Toggle, type HeaderChrome, type Notify } from './ui';
 
 /** Inspector for a selected shot: what it is called and shows, how long, what it is cut for, its camera. */
-export default function ShotInspector({ id, notify }: { id: string; notify: Notify }) {
+export default function ShotInspector({ id, notify, chrome }: { id: string; notify: Notify; chrome?: HeaderChrome }) {
   const store = useStore();
   const scene = useScene();
   const a = scene.animation;
@@ -17,7 +17,7 @@ export default function ShotInspector({ id, notify }: { id: string; notify: Noti
 
   return (
     <>
-      <NameHeader lead={<span className="shot-no">{span.index + 1}</span>} name={span.shot.name} label="Shot name" onRename={(name) => editShot(store, id, { name })}>
+      <NameHeader chrome={chrome} lead={<span className="shot-no">{span.index + 1}</span>} name={span.shot.name} label="Shot name" onRename={(name) => editShot(store, id, { name })}>
         <IconButton
           icon={ClipboardCopy}
           label="Copy description (for AI video tools)"

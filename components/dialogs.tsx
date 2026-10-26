@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/animation';
-import { addFigures, appendScenes } from '@/lib/actions';
+import { addFigures, appendScenes, setSceneView } from '@/lib/actions';
 import { newFigure, newScene } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
@@ -18,7 +18,7 @@ import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import type { BodyParams, Figure, Style } from '@/lib/types';
+import type { BodyParams, Figure, Style, View } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
 import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
@@ -37,7 +37,8 @@ function loadExportOptions(): ExportOptions {
 }
 
 
-export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
+export function ExportDialog({ onClose, notify, currentView }: { onClose(): void; notify: Notify; currentView(): View | null }) {
+  const store = useStore();
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
   const faces = useStudio((s) => s.settings.faces);
@@ -241,6 +242,17 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
               />
             </Field>
           )}
+          {(scope === 'current' || scope === 'turnaround' || scope === 'frames') && (
+            // Stills of this scene are taken from its own camera (saved with it), not the editor's.
+            <Field label="Camera">
+              <Slider label="Turn" min={-180} max={180} value={scene.view.yaw} display={`${Math.round(scene.view.yaw)}°`} typeable onChange={(yaw) => setSceneView(store, { ...scene.view, yaw })} />
+              <Slider label="Height" min={-60} max={89} value={scene.view.pitch} display={`${Math.round(scene.view.pitch)}°`} typeable onChange={(pitch) => setSceneView(store, { ...scene.view, pitch })} />
+              <Slider label="Lens (field of view)" min={8} max={70} value={scene.view.fov} display={`${Math.round(scene.view.fov)}°`} typeable onChange={(fov) => setSceneView(store, { ...scene.view, fov })} />
+              <button type="button" className="btn subtle" onClick={() => { const v = currentView(); if (v) setSceneView(store, { ...scene.view, yaw: v.yaw, pitch: v.pitch }); }}>
+                Use the editor&apos;s view
+              </button>
+            </Field>
+          )}
           {!pack && (
             <Field label="Pass">
               <Segmented<Pass>
@@ -320,7 +332,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
               </div>
             </>
           )}
-          {styleDef(o.style).lit && <p className="muted small">Each scene is lit by its own light (Render tab).</p>}
+          {styleDef(o.style).lit && <p className="muted small">Each scene is lit by its own light (select the scene in the inspector).</p>}
         </div>
         <div className="preview" ref={preview} aria-label="Preview" />
       </div>

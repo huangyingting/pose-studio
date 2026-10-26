@@ -10,5 +10,5 @@ import type { ComponentType, ReactNode } from 'react';
 export const ServerRoot: ComponentType<{ children: ReactNode }> | null = dynamic(() => import('./Account'));
 /** Sign in, or the account menu. */
 export const Account: ComponentType | null = dynamic(() => import('./Account').then((m) => m.Account));
-/** The AI tab. */
+/** The AI assistant (a section of the left side panel). */
 export const Assistant: ComponentType | null = dynamic(() => import('./Assistant'));

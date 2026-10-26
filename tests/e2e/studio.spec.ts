@@ -341,13 +341,14 @@ test('figures, props, body and hand presets', async ({ page }) => {
   expect(s.figures).toHaveLength(2);
   expect(s.props).toHaveLength(1);
 
-  await page.getByRole('tab', { name: 'Body' }).click();
+  // The chair is selected: pick the new figure again, then its body.
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Body & colour' }).click();
   await page.getByRole('button', { name: 'Male', exact: true }).click();
   s = (await state(page)).scene;
   expect(s.figures[1].body.sex).toBe(0);
   expect(s.figures[0].body.sex).toBe(1);
 
-  await page.getByRole('tab', { name: 'Edit', exact: true }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Hands', exact: true }).click();
   await page.getByRole('button', { name: 'Fist' }).click();
@@ -485,6 +486,7 @@ test('deleting a pose can be undone from the toast, which shows the pose again',
 });
 
 test('typing an exact joint angle', async ({ page }) => {
+  await page.getByRole('button', { name: 'Joints' }).click();
   await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
   await page.getByRole('button', { name: /^Swing \(− forward\): .*Click to type a value$/ }).click();
   await page.keyboard.press('Control+a');
@@ -541,14 +543,17 @@ test('changes made in another tab are picked up', async ({ page, context }) => {
   await other.close();
 });
 
-test('render styles switch from the toolbar and the Render tab', async ({ page }) => {
+test('render styles switch from the toolbar; the scene inspector shows the look', async ({ page }) => {
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Ink wash' }).click();
   expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('ink');
-  await page.getByRole('tab', { name: 'Render' }).click();
-  await page.getByRole('radio', { name: 'Anime' }).click();
+  await page.getByRole('button', { name: 'Render style' }).click();
+  await page.getByRole('menuitemradio', { name: 'Anime' }).click();
   expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('anime');
-  await expect(page.locator('.style-card.on img')).toBeVisible();
+  // The scene (the crumb in the inspector's header): its light and look.
+  await page.locator('.crumb').click();
+  await expect(page.getByRole('group', { name: 'Lighting presets' })).toBeVisible();
+  await expect(page.getByText(/^Anime: /)).toBeVisible();
   // L cycles through every style.
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('l');
@@ -556,7 +561,7 @@ test('render styles switch from the toolbar and the Render tab', async ({ page }
 });
 
 test('male and female presets change the body', async ({ page }) => {
-  await page.getByRole('tab', { name: 'Body' }).click();
+  await page.getByRole('button', { name: 'Body & colour' }).click();
   await page.getByRole('radio', { name: 'Male', exact: true }).click();
   expect((await state(page)).scene.figures[0].body.sex).toBe(0);
   await page.getByRole('radio', { name: 'Female', exact: true }).click();
@@ -608,7 +613,7 @@ test('placement fields move and turn the figure, and faces can be hidden', async
   expect(f.position[0]).toBe(0.5);
   expect(f.joints.root[1]).toBe(90);
 
-  await page.getByRole('tab', { name: 'Render' }).click();
+  await page.locator('.crumb').click();
   await page.getByRole('switch', { name: 'Simple face features' }).uncheck();
   expect(((await state(page)) as unknown as { settings: { faces: boolean } }).settings.faces).toBe(false);
 });
@@ -650,6 +655,7 @@ test('a still scene can be animated with auto-keys', async ({ page }) => {
   await page.getByRole('button', { name: 'Animate' }).first().click();
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
   expect((await anim(page)).time).toBeCloseTo(0.5, 2);
+  await page.getByRole('button', { name: 'Joints' }).click();
   await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
   const slider = page.locator('.slider input').first();
   await slider.focus();
@@ -774,11 +780,11 @@ test('stand-ins block a scene in a posture and can become posable figures', asyn
   expect(standIn().proxy).toBe('sit');
   expect(standIn().joints.kneeL[0]).toBeGreaterThan(80);
   // Not posed joint by joint: no IK handles, no joint panel.
-  await expect(page.getByText(/drag a limb or the head to pose it/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Joints' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Make it a posable figure' }).click();
   s = await state(page);
   expect(standIn().proxy).toBeUndefined();
-  await expect(page.getByText(/drag a limb or the head to pose it/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Joints' })).toBeVisible();
 });
 
 async function signIn(page: Page) {
@@ -789,7 +795,7 @@ async function signIn(page: Page) {
 
 test('signing in syncs the library to the account (server edition)', async ({ page }) => {
   test.setTimeout(150_000);
-  await page.getByRole('tab', { name: 'AI' }).click();
+  await page.getByRole('tab', { name: 'AI assistant' }).click();
   await expect(page.getByText('Sign in to pose, stage and animate')).toBeVisible();
   await signIn(page);
   const server = () => page.evaluate(() => fetch('/api/library').then((r) => r.json()) as Promise<{ version: number; library: { scenes: { name: string }[] } | null }>);
@@ -804,7 +810,7 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
 test('the AI assistant runs on the server and its tools on the open pose', async ({ page }) => {
   test.setTimeout(150_000);
   await signIn(page);
-  await page.getByRole('tab', { name: 'AI' }).click();
+  await page.getByRole('tab', { name: 'AI assistant' }).click();
   await page.getByLabel('Message the assistant').fill('Anime style please');
   await page.keyboard.press('Enter');
   await expect(page.getByText(/Switched to anime/)).toBeVisible({ timeout: 30_000 });
@@ -960,7 +966,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   s = await live(page);
   expect(s.scene.figures[1].gaze?.figure).toBe(first.id);
 
-  await page.getByRole('tab', { name: 'Body' }).click();
+  await page.getByRole('button', { name: 'Body & colour' }).click();
   await page.getByRole('radiogroup', { name: 'Colour' }).getByRole('radio').nth(1).click();
   s = await live(page);
   expect(s.scene.figures[1].color).toMatch(/^#/);
@@ -974,8 +980,9 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   expect(s.scene.animation!.shots?.[0]?.subject).toBe(second.id);
 
   // Dusk light, kept with the scene.
-  await page.getByRole('tab', { name: 'Render' }).click();
-  await page.getByRole('radio', { name: 'Clay' }).click();
+  await page.getByRole('button', { name: 'Render style' }).click();
+  await page.getByRole('menuitemradio', { name: 'Clay' }).click();
+  await page.locator('.crumb').click();
   await page.getByRole('group', { name: 'Lighting presets' }).getByRole('button', { name: 'Dusk' }).click();
   s = await live(page);
   expect(s.scene.light?.warmth).toBeGreaterThan(0.5);

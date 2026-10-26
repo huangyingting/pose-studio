@@ -24,6 +24,8 @@ The app follows how a scene is made, and the layout follows the app:
 4. **Shoot**: cut the timeline into shots; select a shot in the outline to name it, caption it and give it a camera move.
 5. **Output**: storyboard (the rail), export (sheets, video, keyframe pack).
 
+The inspector on the right shows what is selected: a figure (pose, place, others, movement, hands, body), a prop or a shot; the **Scene** crumb in its header shows the scene itself (light, look, reference image).
+
 Everything has a name and a menu: double-click (or F2) renames a figure, prop or shot in the outline or in the inspector's title; right-click a figure or prop on the canvas, any outline row, a scene in the picker or a timeline key for what you can do with it (right-click empty floor to add something there). `Del` and `Ctrl D` delete and duplicate the selection. Both side panels fold away for more canvas (click the open section in the left rail; the panel button at the right of the top bar, or `I`, for the inspector).
 
 On the server edition the AI assistant does any of these from a description ("two people at a café table; she gets up and walks to him; film it in three shots").
@@ -43,7 +45,7 @@ On the server edition the AI assistant does any of these from a description ("tw
 - **Multi-person scenes**: templates for two and three people (conversation, handshake, hand on shoulder, walking hand in hand, waltz hold, back to back, sparring, group photo), built with the same tools you can use yourself:
   - **Placement**: exact floor position and facing for each figure; the Move tool (`W`) moves whole figures; floor markers show where everyone stands and faces (click one to pick that figure).
   - **Relations** to another figure: turn to it, face each other, look at it (head, neck and if needed chest turn without tilting), stand beside it or back to back, set the distance, and **reach** a hand to its head, shoulder, chest, back, waist or hand (IK; tells you when it is out of reach).
-- **Sculpted faces**: brow ridge, eyes, nose, cheekbones, lips, chin and ears are modelled into the head as one smooth surface, finished with a few quiet lines (eyelids, brows, lips), and differ between male and female figures. So you can always tell where a figure faces and looks. Turn them off in the Render panel for a plain construction head with centre and eye lines.
+- **Sculpted faces**: brow ridge, eyes, nose, cheekbones, lips, chin and ears are modelled into the head as one smooth surface, finished with a few quiet lines (eyelids, brows, lips), and differ between male and female figures. So you can always tell where a figure faces and looks. Turn them off in the scene's inspector (Look) for a plain construction head with centre and eye lines.
 - **Stand-ins**: capsule figures for blocking a scene (extras, a crowd, where people will be), standing, sitting or lying. Place, turn and animate them like figures; turn one into a posable figure when it needs a real pose.
 - **Scene outline**: the open scene's cast (figures, stand-ins), set (props) and shots, where you add, select, duplicate, hide and delete them. Hidden figures stay in the scene but are not drawn or exported.
 - **Props**: box, ball, cylinder, chair, stool, step and wall on the floor, and a stick, phone, cup and book that go into the selected figure's hand (it closes into a grip). Any small prop can be held (right-click it, or **Held by** in the inspector): it follows the hand through poses and animation, dragging it moves the hand, and **Let go** sets it down on the floor. Drag props to move them, turn them by their floor ring, move them up and down (`W`) and scale them (`R`) with the gizmo, or type X/Y/Z values (drag a field's letter to scrub). Turn off "Stand on the floor" to seat a figure on a prop.
@@ -68,7 +70,7 @@ On the server edition the AI assistant does any of these from a description ("tw
 - **Storyboard** (`B`): line poses up as numbered 16:9 panels, each framed by its pose's camera, with a caption and a hold time. Drag to reorder. Export a **board sheet** (PNG) or an **animatic** video in which each panel holds for its time, animated poses play and captions appear as subtitles.
 
 **Output**
-- **Seven render styles**, each with a live preview in the Render panel; press `L` to cycle through them:
+- **Seven render styles**, picked in the top bar; press `L` to cycle through them:
   - **Line art**: constant-width ink outlines, lines wherever parts meet, ball joints and contour lines, matching the reference sheet.
   - **Pencil**: graphite outlines with hand-drawn wobble and cross-hatched shading.
   - **Ink wash** (sumi-e): brush outlines of varying width with soft, bleeding ink washes on rice paper.
@@ -76,10 +78,10 @@ On the server edition the AI assistant does any of these from a description ("tw
   - **Clay**: soft studio lighting with cast shadows, for value studies.
   - **Minimal**: flat shapes with a hairline outline.
   - **Silhouette**: solid shapes, for checking gesture and readability.
-- **Scene lighting**: each scene has its own key light (Render panel → Light, for the lit styles: Pencil, Ink wash, Anime, Clay): presets (studio, soft, side, backlit, noon sun, dusk, night), direction, height, brightness and warmth, with cast shadows where the style supports them. Props between the editor's camera and the selected figure turn see-through while you edit (clicks pass through them).
+- **Scene lighting**: each scene has its own key light (the scene's inspector → Light, for the lit styles: Pencil, Ink wash, Anime, Clay): presets (studio, soft, side, backlit, noon sun, dusk, night), direction, height, brightness and warmth, with cast shadows where the style supports them. Props between the editor's camera and the selected figure turn see-through while you edit (clicks pass through them).
 - **Export**: the current scene, a sheet of all scenes, the **pose library** as a reference sheet, a **turnaround** of the current scene from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and camera keys, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too, and the posed scene as a **3D model** (`.glb`) for Blender and other 3D tools. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The pose library sheet reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
-- **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
+- **Per-scene export camera**: stills of a scene use its own camera; set its angle and lens in the Export dialog (with a live preview), or take the editor's view.
 - **Share links** (main menu): one scene, compressed into the URL fragment. Nothing is sent to a server.
 - **Save / import** the whole project (scenes, storyboard, saved poses and motions) as JSON.
 
@@ -124,7 +126,7 @@ Copy `.env.example` to `.env` and fill it in:
 
 - `NEXTAUTH_URL` (the public URL) and `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`).
 - Sign-in: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and/or `AZURE_AD_CLIENT_ID` / `AZURE_AD_CLIENT_SECRET` / `AZURE_AD_TENANT_ID`. Each provider appears when it is configured. Redirect URIs: `{NEXTAUTH_URL}/api/auth/callback/google` and `{NEXTAUTH_URL}/api/auth/callback/azure-ad`.
-- AI: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT` (or `OPENAI_API_KEY` and `OPENAI_MODEL`); `AI_DAILY_LIMIT` caps model requests per user per day (default 200). Without these the AI tab says the assistant is not set up.
+- AI: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT` (or `OPENAI_API_KEY` and `OPENAI_MODEL`); `AI_DAILY_LIMIT` caps model requests per user per day (default 200). Without these the AI assistant (left rail) says it is not set up.
 - `DATABASE_URL`: the SQLite file (default `file:./data/pose-studio.db`).
 
 ```bash
@@ -162,7 +164,7 @@ components/
   Studio.tsx            Layout, top bar, canvas toolbar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
   Viewport.tsx          React Three Fiber canvas: selection, gizmo, line-art render loop
   Manipulators.tsx      Direct manipulation: drag figures, props and body parts, floor rings to turn, IK dots
-  Inspector.tsx         Contextual Pose / Body / Render panel (joint, prop and style editors)
+  Inspector.tsx         The inspector: what is selected (figure, prop, shot) or the scene itself (light, look)
   side/                 Left side panel: the section rail and registry (sections.ts: add a section there), the Scene outline and the Library
   ScenePicker.tsx       The project's scenes, from the top bar
   menus.ts, ContextMenu.tsx  Right-click menus (one definition per kind of thing) and the host that shows them
@@ -171,7 +173,7 @@ components/
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
   Board.tsx             Storyboard workspace
-  server/               Server edition only (imported as '@edition/server'; static builds get server/none.ts): account menu, sync, AI tab
+  server/               Server edition only (imported as '@edition/server'; static builds get server/none.ts): account menu, sync, AI assistant
   Practice.tsx          Gesture-practice slideshow
   Timeline.tsx, clock.ts  Animation timeline and playback clock
 lib/

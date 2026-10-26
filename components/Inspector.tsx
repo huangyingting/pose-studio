@@ -1,35 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  ArrowDownToLine, ArrowLeftRight, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Focus, Hand, ImagePlus, Mars, Navigation,
+  ArrowDownToLine, ArrowLeftRight, ChevronRight, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Hand, ImagePlus, Mars, Navigation,
   PanelLeft, PanelRight, PanelRightClose, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdProp, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
-  setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
+  arrange, copyPose, holdProp, renameScene, setFigureColor, setGaze, setJumpHeight, setPosture, setSceneLight, setTravel, lookAtFigure, mirrorPose, pastePose,
+  reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, symmetrizePose,
 } from '@/lib/actions';
+import { figureKeyTimes } from '@/lib/animation';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
-import { chainAt } from '@/lib/locomotion';
+import { JUMP_PREP, chainAt, jumpHeight } from '@/lib/locomotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { sharedRenderer } from '@/lib/thumbnails';
-import { FIGURE_COLORS, FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View, PROP_LABELS } from '@/lib/types';
-import { Assistant } from '@edition/server';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Figure, type JointName, type Posture, type Hand as HandPose, type Light, type Side, type Travel, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
-import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type Notify } from './ui';
-
-export type Tab = 'pose' | 'body' | 'render' | 'ai';
+import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
 
 export interface InspectorContext {
-  frame(view: Partial<View> & Pick<View, 'yaw' | 'pitch'>): void;
   currentView(): View | null;
   rootPosition(figure: string): Vec3 | null;
   notify: Notify;
@@ -39,44 +35,49 @@ export interface InspectorContext {
   setReference(r: Partial<{ url: string | null; opacity: number; visible: boolean }>): void;
 }
 
-const TABS: { id: Tab; label: string }[] = [
-  // Edits whatever is selected: a figure's pose, a prop, a shot.
-  { id: 'pose', label: 'Edit' },
-  { id: 'body', label: 'Body' },
-  { id: 'render', label: 'Render' },
-  // The AI tab: server edition only (Assistant is null in the static build).
-  ...(Assistant ? [{ id: 'ai' as const, label: 'AI' }] : []),
-];
+/**
+ * Right-hand properties panel. It shows what is selected, as a design tool's inspector does: a
+ * figure (its pose, place, others, movement, hands and body), a prop, a shot, or the scene itself
+ * (its light and look; the "Scene" crumb in the header). It folds away for more canvas.
+ */
+export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHide(): void }) {
+  const store = useStore();
+  const selection = useStudio((s) => s.selection);
+  const figure = useActiveFigure();
+  const scene = useScene();
+  const hide = <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut="I" className="panel-hide hide-mobile" size={15} onClick={onHide} />;
+  const chrome: HeaderChrome = {
+    before: (
+      <button type="button" className="crumb" data-tip="The scene: its light and look" onClick={() => store.select({ kind: 'scene' })}>
+        Scene <ChevronRight size={12} aria-hidden />
+      </button>
+    ),
+    after: hide,
+  };
 
-/** Right-hand properties panel. Its content follows the selection, like a design tool's inspector. */
-export default function Inspector({ tab, setTab, ctx, onHide }: { tab: Tab; setTab(t: Tab): void; ctx: InspectorContext; onHide(): void }) {
+  let content;
+  if (selection?.kind === 'prop' && scene.props.some((p) => p.id === selection.prop)) content = <PropEditor id={selection.prop} chrome={chrome} />;
+  else if (selection?.kind === 'shot') content = <ShotInspector id={selection.shot} notify={ctx.notify} chrome={chrome} />;
+  else if (selection?.kind === 'scene' || !figure) content = <SceneInspector ctx={ctx} chrome={{ after: hide }} />;
+  else content = <FigureInspector figure={figure} ctx={ctx} chrome={chrome} />;
+
   return (
     <aside className="panel" aria-label="Inspector">
-      <nav className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
-        <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut="I" className="tabs-hide hide-mobile" size={15} onClick={onHide} />
-      </nav>
-      {tab === 'ai' && Assistant ? <Assistant /> : (
-        <div className="panel-scroll">
-          {tab === 'pose' && <PoseTab ctx={ctx} />}
-          {tab === 'body' && <BodyTab />}
-          {tab === 'render' && <RenderTab ctx={ctx} />}
-        </div>
-      )}
+      <div className="panel-scroll">{content}</div>
     </aside>
   );
 }
 
-/** Which figure the panel edits (pick another in the Scene outline or on the canvas), and its name. */
-function FigureHeader({ figure }: { figure: Figure }) {
+/* ---------------- Figure ---------------- */
+
+const POSTURE_LABELS: Record<Posture, string> = { stand: 'Stand', sit: 'Sit', lie: 'Lie' };
+
+function FigureHeader({ figure, chrome }: { figure: Figure; chrome: HeaderChrome }) {
   const store = useStore();
   const Icon = figure.proxy ? UserRound : PersonStanding;
   return (
     <NameHeader
+      chrome={chrome}
       lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
       name={figure.name}
       label="Figure name"
@@ -87,31 +88,15 @@ function FigureHeader({ figure }: { figure: Figure }) {
   );
 }
 
-/* ---------------- Pose ---------------- */
-
-const POSTURE_LABELS: Record<Posture, string> = { stand: 'Stand', sit: 'Sit', lie: 'Lie' };
-
-function PoseTab({ ctx }: { ctx: InspectorContext }) {
+function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: InspectorContext; chrome: HeaderChrome }) {
   const store = useStore();
   const selection = useStudio((s) => s.selection);
-  const limits = useStudio((s) => s.settings.limits);
-  const figure = useActiveFigure();
-  const scene = useScene();
-
-  if (selection?.kind === 'prop') {
-    const prop = scene.props.find((p) => p.id === selection.prop);
-    if (prop) return <PropEditor id={prop.id} />;
-  }
-  if (selection?.kind === 'shot') return <ShotInspector id={selection.shot} notify={ctx.notify} />;
-  if (!figure) return <p className="empty-note">This scene has no figures. Add one to the cast in the Scene outline.</p>;
-
   const joint = selection?.kind === 'joint' && selection.figure === figure.id ? selection.joint : null;
-  const rot = joint ? figure.joints[joint] ?? [0, 0, 0] : null;
 
   if (figure.proxy) {
     return (
       <>
-        <FigureHeader figure={figure} />
+        <FigureHeader figure={figure} chrome={chrome} />
         <Section title="Stand-in">
           <Segmented<Posture>
             label="Posture"
@@ -124,94 +109,99 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
           <button type="button" className="btn subtle" onClick={() => setPosture(store, figure.id, null)}>Make it a posable figure</button>
         </Section>
         <PlacementSection figure={figure} ctx={ctx} />
-        {scene.figures.length > 1 && <RelationSection figure={figure} ctx={ctx} />}
+        <OthersSection figure={figure} ctx={ctx} />
+        <MovementSection figure={figure} />
       </>
     );
   }
 
   return (
     <>
-      <FigureHeader figure={figure} />
-      <Section
-        title={joint ? JOINT_LABELS[joint] : 'Joints'}
-        actions={joint && (
-          <>
-            <IconButton icon={RotateCcw} label="Reset joint" onClick={() => setJoint(store, figure.id, joint, [0, 0, 0], '')} />
-            <IconButton icon={X} label="Deselect" shortcut="Esc" onClick={() => store.select(null)} />
-          </>
-        )}
-      >
-        <BodyMap selected={joint} onSelect={(j) => store.select({ kind: 'joint', figure: figure.id, joint: j })} />
-        {joint && rot ? (
-          <div className="stack">
-            {axisLabels(joint).map((label, axis) => {
-              const [min, max] = limits ? jointLimits(joint)[axis] : [-180, 180];
-              return (
-                <Slider
-                  key={axis}
-                  label={label}
-                  min={min}
-                  max={max}
-                  value={Math.min(max, Math.max(min, rot[axis]))}
-                  display={`${Math.round(rot[axis])}°`}
-                  typeable
-                  onChange={(v) => {
-                    const next: Vec3 = [...rot];
-                    next[axis] = v;
-                    setJoint(store, figure.id, joint, next, `slider:${figure.id}:${joint}:${axis}`);
-                  }}
-                />
-              );
-            })}
-            {joint === 'root' && <p className="hint-text">To move the whole figure drag its torso; to turn it, the ring on the floor.</p>}
-          </div>
-        ) : (
-          <p className="hint-text">On the canvas, drag a limb or the head to pose it (hands and feet pull the limb), the torso to move the figure, the ring on the floor to turn it. Click a part to fine-tune it here.</p>
-        )}
-      </Section>
-
-      <Section title="Pose">
-        <div className="toolrow">
-          <IconButton icon={FlipHorizontal2} label="Mirror pose" shortcut="M" onClick={() => mirrorPose(store)} />
-          <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => symmetrizePose(store, 'L')}>L→R</button>
-          <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="Right → Left" onClick={() => symmetrizePose(store, 'R')}>R→L</button>
-          <span className="toolrow-sep" />
-          <IconButton icon={ClipboardCopy} label="Copy pose" shortcut="Ctrl C" onClick={() => { if (copyPose(store)) ctx.notify('Pose copied'); }} />
-          <IconButton icon={ClipboardPaste} label="Paste pose" shortcut="Ctrl V" onClick={() => { if (!pastePose(store)) ctx.notify('Copy a pose first', 'error'); }} />
-          <span className="toolrow-sep" />
-          <IconButton icon={RotateCcw} label="Reset pose" onClick={() => resetPose(store)} />
-        </div>
-        <Toggle label="Natural joint limits" checked={limits} onChange={(l) => store.setSettings({ limits: l })} />
-      </Section>
-
+      <FigureHeader figure={figure} chrome={chrome} />
+      {joint && <JointSection figure={figure} joint={joint} />}
+      <PoseSection ctx={ctx} />
+      {!joint && <JointPicker figure={figure} />}
       <PlacementSection figure={figure} ctx={ctx} />
-      {scene.figures.length > 1 && <RelationSection figure={figure} ctx={ctx} />}
+      <OthersSection figure={figure} ctx={ctx} />
+      <MovementSection figure={figure} />
       <HandsSection hands={figure.hands} />
+      <BodySection figure={figure} />
     </>
   );
 }
 
-/** Where a figure keeps its eyes (another figure or a prop), turning its head to it all the time. */
-function EyesOn({ figure }: { figure: Figure }) {
+/** The selected part: its sliders, next to a small map to pick another. */
+function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
   const store = useStore();
-  const scene = useScene();
-  const others = scene.figures.filter((f) => f.id !== figure.id && !f.hidden);
-  if (!others.length && !scene.props.length) return null;
-  const value = !figure.gaze ? 'free' : 'figure' in figure.gaze ? `f:${figure.gaze.figure}` : `p:${figure.gaze.prop}`;
+  const limits = useStudio((s) => s.settings.limits);
+  const rot = figure.joints[joint] ?? [0, 0, 0];
   return (
-    <div className="relation-target">
-      <span>Eyes on</span>
-      <Select
-        label="Eyes on"
-        value={value}
-        onChange={(v) => setGaze(store, figure.id, v === 'free' ? null : v.startsWith('f:') ? { figure: v.slice(2) } : { prop: v.slice(2) })}
-        options={[
-          { value: 'free', label: 'Free (as posed)' },
-          ...others.map((f) => ({ value: `f:${f.id}`, label: f.name })),
-          ...scene.props.map((p) => ({ value: `p:${p.id}`, label: p.name })),
-        ]}
-      />
-    </div>
+    <Section
+      title={JOINT_LABELS[joint]}
+      actions={(
+        <>
+          <IconButton icon={RotateCcw} label="Reset joint" onClick={() => setJoint(store, figure.id, joint, [0, 0, 0], '')} />
+          <IconButton icon={X} label="Deselect" shortcut="Esc" onClick={() => store.select(null)} />
+        </>
+      )}
+    >
+      <div className="joint-edit">
+        <BodyMap selected={joint} onSelect={(j) => store.select({ kind: 'joint', figure: figure.id, joint: j })} />
+        <div className="stack">
+          {axisLabels(joint).map((label, axis) => {
+            const [min, max] = limits ? jointLimits(joint)[axis] : [-180, 180];
+            return (
+              <Slider
+                key={axis}
+                label={label}
+                min={min}
+                max={max}
+                value={Math.min(max, Math.max(min, rot[axis]))}
+                display={`${Math.round(rot[axis])}°`}
+                typeable
+                onChange={(v) => {
+                  const next: Vec3 = [...rot];
+                  next[axis] = v;
+                  setJoint(store, figure.id, joint, next, `slider:${figure.id}:${joint}:${axis}`);
+                }}
+              />
+            );
+          })}
+          {joint === 'root' && <p className="hint-text">To move the whole figure drag its torso; to turn it, the ring on the floor.</p>}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/** Pick a part to fine-tune (folded away until wanted: on the canvas a click does the same). */
+function JointPicker({ figure }: { figure: Figure }) {
+  const store = useStore();
+  return (
+    <Section id="joints" title="Joints" collapsible defaultOpen={false}>
+      <BodyMap selected={null} onSelect={(j) => store.select({ kind: 'joint', figure: figure.id, joint: j })} />
+      <p className="hint-text">Pick a part here or click it on the canvas to fine-tune it with sliders.</p>
+    </Section>
+  );
+}
+
+function PoseSection({ ctx }: { ctx: InspectorContext }) {
+  const store = useStore();
+  const limits = useStudio((s) => s.settings.limits);
+  return (
+    <Section title="Pose">
+      <div className="toolrow">
+        <IconButton icon={FlipHorizontal2} label="Mirror pose" shortcut="M" onClick={() => mirrorPose(store)} />
+        <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => symmetrizePose(store, 'L')}>L→R</button>
+        <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="Right → Left" onClick={() => symmetrizePose(store, 'R')}>R→L</button>
+        <span className="toolrow-sep" />
+        <IconButton icon={ClipboardCopy} label="Copy pose" shortcut="Ctrl C" onClick={() => { if (copyPose(store)) ctx.notify('Pose copied'); }} />
+        <IconButton icon={ClipboardPaste} label="Paste pose" shortcut="Ctrl V" onClick={() => { if (!pastePose(store)) ctx.notify('Copy a pose first', 'error'); }} />
+        <span className="toolrow-sep" />
+        <IconButton icon={RotateCcw} label="Reset pose" onClick={() => resetPose(store)} />
+      </div>
+      <Toggle label="Natural joint limits" checked={limits} onChange={(l) => store.setSettings({ limits: l })} />
+    </Section>
   );
 }
 
@@ -222,21 +212,16 @@ function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorConte
   const time = useStudio((s) => s.time);
   // Between two marks of a walk, run or jump the generated steps place the figure.
   const chain = animation ? chainAt(animation, figure.id, time) : null;
-  const moving = chain && time > chain.t0 + 1e-6 && time < chain.t1 - 1e-6 ? chain.kind : null;
+  const moving = chain && time > chain.t0 + 1e-6 && time < chain.t1 - 1e-6;
   return (
     <Section title="Placement">
-      {!figure.proxy && <EyesOn figure={figure} />}
       <div className="prop-row">
         <span className="prop-row-label">Floor</span>
         <NumberField prefix="X" label="Position X" value={figure.position[0]} step={0.05} onChange={(x) => setPlacement(store, figure.id, { x }, `place:${figure.id}:x`)} />
         <NumberField prefix="Z" label="Position Z" value={figure.position[2]} step={0.05} onChange={(z) => setPlacement(store, figure.id, { z }, `place:${figure.id}:z`)} />
         <NumberField prefix="↻" label="Facing" value={facing(figure)} step={5} digits={0} onChange={(yaw) => setPlacement(store, figure.id, { yaw }, `place:${figure.id}:yaw`)} />
       </div>
-      {moving ? (
-        <p className="hint-text">
-          {moving === 'jump' ? 'Jumping' : moving === 'run' ? 'Running' : 'Walking'} from mark to mark: its steps are generated. Drag its marks on the floor, or right-click its track on the timeline to change how it gets there.
-        </p>
-      ) : (
+      {!moving && (
         <Toggle
           label="Stand on the floor"
           checked={figure.grounded}
@@ -257,62 +242,167 @@ function Action({ icon: Icon, label, onClick }: { icon: LucideIcon; label: strin
   );
 }
 
-/** Arrange the active figure relative to another one: facing, spacing, gaze and touch. */
-function RelationSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
+/** The figure with the others: where it keeps its eyes, and placing and touching another figure. */
+function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
   const store = useStore();
   const scene = useScene();
   const others = scene.figures.filter((f) => f.id !== figure.id);
   const [otherId, setOtherId] = useState(others[0]?.id ?? '');
   const [side, setSide] = useState<Side>('R');
   const [contact, setContact] = useState<Contact>('shoulderL');
+  const watchable = others.filter((f) => !f.hidden);
+  if (!others.length && !scene.props.length) return null;
   const other = others.find((f) => f.id === otherId) ?? others[0];
-  if (!other) return null;
-  const d = distance(figure, other);
+  const gaze = !figure.gaze ? 'free' : 'figure' in figure.gaze ? `f:${figure.gaze.figure}` : `p:${figure.gaze.prop}`;
+  const d = other ? distance(figure, other) : 0;
   return (
-    <Section id="relation" title="Relation" collapsible>
-      <div className="relation-target">
-        <span>To</span>
-        <Select label="Other figure" value={other.id} onChange={setOtherId} options={others.map((f) => ({ value: f.id, label: f.name }))} />
-      </div>
-      <div className="action-grid">
-        <Action icon={Navigation} label="Turn to" onClick={() => arrange(store, figure.id, other.id, 'face')} />
-        <Action icon={ArrowLeftRight} label="Face each other" onClick={() => arrange(store, figure.id, other.id, 'faceEachOther')} />
-        <Action icon={Eye} label="Look at" onClick={() => lookAtFigure(store, figure.id, other.id)} />
-        <Action icon={PanelLeft} label="Beside (left)" onClick={() => arrange(store, figure.id, other.id, 'besideL')} />
-        <Action icon={PanelRight} label="Beside (right)" onClick={() => arrange(store, figure.id, other.id, 'besideR')} />
-        <Action icon={Repeat} label="Back to back" onClick={() => arrange(store, figure.id, other.id, 'backToBack')} />
-      </div>
-      <Slider
-        label="Distance"
-        min={0.2}
-        max={4}
-        step={0.01}
-        value={Math.min(4, Math.max(0.2, d))}
-        display={`${d.toFixed(2)} m`}
-        typeable
-        onChange={(v) => setDistance(store, figure.id, other.id, v, `dist:${figure.id}`)}
-      />
-      <div className="reach">
-        <span className="reach-label">Reach</span>
-        <Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left hand' }, { value: 'R', label: 'Right hand' }]} full />
-        <div className="reach-row">
-          <Select<Contact>
-            label="Touch"
-            value={contact}
-            onChange={setContact}
-            options={CONTACTS.map((c) => ({ value: c, label: `${other.name}: ${CONTACT_LABELS[c]}` }))}
+    <Section id="others" title="With others" collapsible>
+      {!figure.proxy && (
+        <div className="relation-target">
+          <span>Eyes on</span>
+          <Select
+            label="Eyes on"
+            value={gaze}
+            onChange={(v) => setGaze(store, figure.id, v === 'free' ? null : v.startsWith('f:') ? { figure: v.slice(2) } : { prop: v.slice(2) })}
+            options={[
+              { value: 'free', label: 'Free (as posed)' },
+              ...watchable.map((f) => ({ value: `f:${f.id}`, label: f.name })),
+              ...scene.props.map((p) => ({ value: `p:${p.id}`, label: p.name })),
+            ]}
           />
-          <button
-            type="button"
-            className="btn subtle"
-            onClick={() => {
-              if (!reachFor(store, figure.id, side, other.id, contact)) ctx.notify('Out of reach: move the figures closer', 'error');
-            }}
-          >
-            <Hand size={14} aria-hidden /> Reach
-          </button>
         </div>
-      </div>
+      )}
+      {other && (
+        <>
+          <div className="relation-target">
+            <span>To</span>
+            <Select label="Other figure" value={other.id} onChange={setOtherId} options={others.map((f) => ({ value: f.id, label: f.name }))} />
+          </div>
+          <div className="action-grid">
+            <Action icon={Navigation} label="Turn to" onClick={() => arrange(store, figure.id, other.id, 'face')} />
+            <Action icon={ArrowLeftRight} label="Face each other" onClick={() => arrange(store, figure.id, other.id, 'faceEachOther')} />
+            <Action icon={Eye} label="Look at" onClick={() => lookAtFigure(store, figure.id, other.id)} />
+            <Action icon={PanelLeft} label="Beside (left)" onClick={() => arrange(store, figure.id, other.id, 'besideL')} />
+            <Action icon={PanelRight} label="Beside (right)" onClick={() => arrange(store, figure.id, other.id, 'besideR')} />
+            <Action icon={Repeat} label="Back to back" onClick={() => arrange(store, figure.id, other.id, 'backToBack')} />
+          </div>
+          <Slider
+            label="Distance"
+            min={0.2}
+            max={4}
+            step={0.01}
+            value={Math.min(4, Math.max(0.2, d))}
+            display={`${d.toFixed(2)} m`}
+            typeable
+            onChange={(v) => setDistance(store, figure.id, other.id, v, `dist:${figure.id}`)}
+          />
+          {!figure.proxy && (
+            <div className="reach">
+              <span className="reach-label">Reach</span>
+              <Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left hand' }, { value: 'R', label: 'Right hand' }]} full />
+              <div className="reach-row">
+                <Select<Contact>
+                  label="Touch"
+                  value={contact}
+                  onChange={setContact}
+                  options={CONTACTS.map((c) => ({ value: c, label: `${other.name}: ${CONTACT_LABELS[c]}` }))}
+                />
+                <button
+                  type="button"
+                  className="btn subtle"
+                  onClick={() => {
+                    if (!reachFor(store, figure.id, side, other.id, contact)) ctx.notify('Out of reach: move the figures closer', 'error');
+                  }}
+                >
+                  <Hand size={14} aria-hidden /> Reach
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+type Getting = 'glide' | Travel;
+const JUMP_HEIGHTS = [0.3, 0.5, 0.8, 1.2];
+
+/**
+ * How the figure gets to its next key from the playhead: as keyed (gliding), or walking, running
+ * or jumping there with generated steps; for a jump its height and turns. The same choices as
+ * right-clicking its track on the timeline.
+ */
+function MovementSection({ figure }: { figure: Figure }) {
+  const store = useStore();
+  const a = useScene().animation;
+  const time = useStudio((s) => s.time);
+  if (!a) return null;
+  const times = figureKeyTimes(a, figure.id);
+  const next = times.find((k) => k > time + 1e-6);
+  const started = times.some((k) => k <= time + 1e-6);
+  const key = next !== undefined ? a.keys.find((k) => Math.abs(k.t - next) < 1e-6)?.poses[figure.id] : undefined;
+  if (next === undefined || !started || !key) {
+    return (
+      <Section id="movement" title="Movement" collapsible>
+        <p className="hint-text">Right-click the floor to walk, run or jump there from here: it makes a new mark.</p>
+      </Section>
+    );
+  }
+  const kind: Getting = key.travel ?? 'glide';
+  const keep = { strafe: key.strafe, spin: key.spin, flip: key.flip };
+  const set = (k: Getting, patch: { strafe?: boolean; spin?: number; flip?: number } = {}) => setTravel(store, figure.id, next, k === 'glide' ? null : k, { ...keep, ...patch });
+  const chain = kind === 'jump' ? chainAt(a, figure.id, next - 1e-3) : null;
+  const height = chain ? jumpHeight(Math.max(0, chain.t1 - chain.t0 - 2 * JUMP_PREP)) : 0;
+  const nearest = JUMP_HEIGHTS.reduce((b, h) => (Math.abs(h - height) < Math.abs(b - height) ? h : b));
+  return (
+    <Section id="movement" title={`Movement · to ${next.toFixed(2)} s`} collapsible>
+      <Segmented<Getting>
+        label="Getting there"
+        full
+        value={kind}
+        onChange={(k) => set(k)}
+        options={[{ value: 'glide', label: 'Glide' }, { value: 'walk', label: 'Walk' }, { value: 'run', label: 'Run' }, { value: 'jump', label: 'Jump' }]}
+      />
+      {(kind === 'walk' || kind === 'run') && (
+        <Toggle label="Keep facing" hint="Side steps and backing up instead of turning to the way it goes" checked={!!key.strafe} onChange={(strafe) => set(kind, { strafe })} />
+      )}
+      {kind === 'jump' && (
+        <>
+          <div className="field">
+            <span>Height · {height.toFixed(2)} m</span>
+            <Segmented<string>
+              label="Jump height"
+              full
+              value={String(nearest)}
+              onChange={(h) => setJumpHeight(store, figure.id, next, Number(h))}
+              options={JUMP_HEIGHTS.map((h) => ({ value: String(h), label: `${h} m` }))}
+            />
+          </div>
+          <div className="field">
+            <span>In the air</span>
+            <Segmented<string>
+              label="Turns in the air"
+              full
+              value={String(key.spin ?? 0)}
+              onChange={(v) => set('jump', { spin: Number(v) })}
+              options={[{ value: '0', label: 'No turn' }, { value: '0.5', label: '½' }, { value: '1', label: '1' }, { value: '2', label: '2' }]}
+            />
+            <Segmented<string>
+              label="Flip"
+              full
+              value={String(key.flip ?? 0)}
+              onChange={(v) => set('jump', { flip: Number(v) })}
+              options={[{ value: '0', label: 'No flip' }, { value: '1', label: 'Front flip' }, { value: '-1', label: 'Back flip' }]}
+            />
+          </div>
+        </>
+      )}
+      <p className="hint-text">
+        {kind === 'glide'
+          ? 'It moves between its keys as posed. Walk, run or jump to step there instead.'
+          : 'Its steps are generated between the marks. Drag the marks on the floor to change the way.'}
+      </p>
     </Section>
   );
 }
@@ -369,7 +459,84 @@ function HandsSection({ hands }: { hands: Record<Side, HandPose> }) {
   );
 }
 
-function PropEditor({ id }: { id: string }) {
+/** Who the figure is: its colour in the scene, sex, body type and proportions (folded until wanted). */
+function BodySection({ figure }: { figure: Figure }) {
+  const store = useStore();
+  const body = figure.body;
+  const setBody = (patch: Partial<typeof body>, key = '') => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...f.body, ...patch } }), key);
+  const sexField = BODY_FIELDS.find((f) => f.key === 'sex')!;
+  return (
+    <Section id="body" title="Body & colour" collapsible defaultOpen={false}>
+      <div className="swatches" role="radiogroup" aria-label="Colour">
+        <button type="button" role="radio" aria-checked={!figure.color} aria-label="No colour" className={`swatch none${!figure.color ? ' on' : ''}`} onClick={() => setFigureColor(store, figure.id, null)} />
+        {FIGURE_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="radio"
+            aria-checked={figure.color === c}
+            aria-label={`Colour ${c}`}
+            className={`swatch${figure.color === c ? ' on' : ''}`}
+            style={{ background: c }}
+            onClick={() => setFigureColor(store, figure.id, c)}
+          />
+        ))}
+      </div>
+      <div className="sex-switch" role="radiogroup" aria-label="Sex">
+        <button type="button" role="radio" aria-checked={body.sex < 0.5} className={body.sex < 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 0, bust: 0 })}>
+          <Mars size={18} strokeWidth={1.75} aria-hidden /> Male
+        </button>
+        <button type="button" role="radio" aria-checked={body.sex >= 0.5} className={body.sex >= 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 1, bust: body.bust || 0.5 })}>
+          <Venus size={18} strokeWidth={1.75} aria-hidden /> Female
+        </button>
+      </div>
+      <Slider
+        label="Masculine ↔ Feminine"
+        min={sexField.min}
+        max={sexField.max}
+        step={sexField.step}
+        value={body.sex}
+        display={sexField.format(body.sex)}
+        onChange={(sex) => setBody({ sex }, 'body:sex')}
+      />
+      <div className="preset-grid" role="group" aria-label="Body type">
+        {BODY_PRESETS.map((p) => {
+          const on = (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]);
+          return (
+            <button
+              key={p.name}
+              type="button"
+              className={on ? 'preset on' : 'preset'}
+              aria-label={p.name}
+              onClick={() => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...p.body } }))}
+            >
+              {p.body.sex < 0.5 ? <Mars size={14} aria-hidden /> : <Venus size={14} aria-hidden />}
+              {p.name}
+            </button>
+          );
+        })}
+      </div>
+      <div className="stack">
+        {BODY_FIELDS.filter((f) => f.key !== 'sex').map((f) => (
+          <Slider
+            key={f.key}
+            label={f.label}
+            min={f.min}
+            max={f.max}
+            step={f.step}
+            value={body[f.key]}
+            display={f.format(body[f.key])}
+            onChange={(v) => setBody({ [f.key]: v }, `body:${f.key}`)}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* ---------------- Prop ---------------- */
+
+function PropEditor({ id, chrome }: { id: string; chrome: HeaderChrome }) {
   const store = useStore();
   const scene = useScene();
   const prop = scene.props.find((p) => p.id === id)!;
@@ -399,6 +566,7 @@ function PropEditor({ id }: { id: string }) {
   return (
     <>
       <NameHeader
+        chrome={chrome}
         lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
         name={prop.name}
         label={`${PROP_LABELS[prop.kind]} name`}
@@ -440,146 +608,50 @@ function PropEditor({ id }: { id: string }) {
   );
 }
 
-/* ---------------- Body ---------------- */
+/* ---------------- Scene ---------------- */
 
-function BodyTab() {
-  const store = useStore();
-  const figure = useActiveFigure();
-  if (!figure) return <p className="empty-note">No figure selected.</p>;
-  const body = figure.body;
-  const setBody = (patch: Partial<typeof body>, key = '') => store.updateActiveFigure((f) => ({ ...f, body: { ...f.body, ...patch } }), key);
-  const sexField = BODY_FIELDS.find((f) => f.key === 'sex')!;
-  return (
-    <>
-      <FigureHeader figure={figure} />
-      <Section title="Figure">
-        <div className="swatches" role="radiogroup" aria-label="Colour">
-          <button type="button" role="radio" aria-checked={!figure.color} aria-label="No colour" className={`swatch none${!figure.color ? ' on' : ''}`} onClick={() => setFigureColor(store, figure.id, null)} />
-          {FIGURE_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              role="radio"
-              aria-checked={figure.color === c}
-              aria-label={`Colour ${c}`}
-              className={`swatch${figure.color === c ? ' on' : ''}`}
-              style={{ background: c }}
-              onClick={() => setFigureColor(store, figure.id, c)}
-            />
-          ))}
-        </div>
-        <div className="sex-switch" role="radiogroup" aria-label="Sex">
-          <button type="button" role="radio" aria-checked={body.sex < 0.5} className={body.sex < 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 0, bust: 0 })}>
-            <Mars size={18} strokeWidth={1.75} aria-hidden /> Male
-          </button>
-          <button type="button" role="radio" aria-checked={body.sex >= 0.5} className={body.sex >= 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 1, bust: body.bust || 0.5 })}>
-            <Venus size={18} strokeWidth={1.75} aria-hidden /> Female
-          </button>
-        </div>
-        <Slider
-          label="Masculine ↔ Feminine"
-          min={sexField.min}
-          max={sexField.max}
-          step={sexField.step}
-          value={body.sex}
-          display={sexField.format(body.sex)}
-          onChange={(sex) => setBody({ sex }, 'body:sex')}
-        />
-      </Section>
-      <Section title="Body type">
-        <div className="preset-grid">
-          {BODY_PRESETS.map((p) => {
-            const on = (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]);
-            return (
-              <button
-                key={p.name}
-                type="button"
-                className={on ? 'preset on' : 'preset'}
-                aria-label={p.name}
-                onClick={() => store.updateActiveFigure((f) => ({ ...f, body: { ...p.body } }))}
-              >
-                {p.body.sex < 0.5 ? <Mars size={14} aria-hidden /> : <Venus size={14} aria-hidden />}
-                {p.name}
-              </button>
-            );
-          })}
-        </div>
-      </Section>
-      <Section title="Proportions">
-        <div className="stack">
-          {BODY_FIELDS.filter((f) => f.key !== 'sex').map((f) => (
-            <Slider
-              key={f.key}
-              label={f.label}
-              min={f.min}
-              max={f.max}
-              step={f.step}
-              value={body[f.key]}
-              display={f.format(body[f.key])}
-              onChange={(v) => setBody({ [f.key]: v }, `body:${f.key}`)}
-            />
-          ))}
-        </div>
-      </Section>
-    </>
-  );
-}
+const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label).join(', ');
 
-/* ---------------- Render ---------------- */
-
-/** Small previews of the current pose in every style (rendered off-screen, debounced). */
-function useStylePreviews(scene: Scene, faces: boolean) {
-  const [previews, setPreviews] = useState<Partial<Record<Style, string>>>({});
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const r = sharedRenderer();
-      const out: Partial<Record<Style, string>> = {};
-      for (const s of STYLE_LIST) out[s.id] = r.render(scene, 96, 120, 1, { style: s.id, faces, margin: 0.08 }).toDataURL('image/png');
-      setPreviews(out);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [scene, faces]);
-  return previews;
-}
-
-function RenderTab({ ctx }: { ctx: InspectorContext }) {
+/** The scene itself: its light (saved with it, used by its exports), how it is drawn, a reference image. */
+function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: HeaderChrome }) {
   const store = useStore();
   const scene = useScene();
   const settings = useStudio((s) => s.settings);
   const def = styleDef(settings.style);
-  const previews = useStylePreviews(scene, settings.faces);
-  const v = scene.view;
-  const setView = (patch: Partial<View>) => setSceneView(store, { ...v, ...patch });
-  // The scene's own light (saved with it, used by every export of it).
   const light = scene.light ?? DEFAULT_LIGHT;
   const setLight = (patch: Partial<Light>, key = 'light') => setSceneLight(store, { ...light, ...patch }, key);
   const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
-
   return (
     <>
-      <Section title="Style">
-        <div className="style-grid" role="radiogroup" aria-label="Render style">
-          {STYLE_LIST.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="radio"
-              aria-checked={settings.style === s.id}
-              aria-label={s.label}
-              title={s.description}
-              className={settings.style === s.id ? 'style-card on' : 'style-card'}
-              onClick={() => store.setSettings({ style: s.id })}
-            >
-              <span className="style-thumb" style={{ background: s.background }}>
-                {/* Generated data: URLs, so next/image does not apply. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {previews[s.id] && <img src={previews[s.id]} alt="" />}
-              </span>
-              <span className="style-name">{s.label}</span>
+      <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={scene.name} label="Scene name" onRename={(name) => renameScene(store, name)} />
+      <Section title="Light">
+        <div className="chips" role="group" aria-label="Lighting presets">
+          {LIGHT_PRESETS.map((p) => (
+            <button key={p.id} type="button" className={same(p.light, light) ? 'chip on' : 'chip'} onClick={() => setLight(p.light, '')}>
+              {p.name}
             </button>
           ))}
         </div>
-        <p className="hint-text">{def.description}. Exports and practice sessions can use any style.</p>
+        <div className="stack">
+          <Slider label="Direction" min={-180} max={180} value={light.azimuth} display={`${Math.round(light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
+          <Slider label="Height" min={5} max={89} value={light.elevation} display={`${Math.round(light.elevation)}°`} typeable onChange={(elevation) => setLight({ elevation })} />
+          <Slider label="Brightness" min={0.2} max={2} step={0.05} value={light.intensity} display={`${Math.round(light.intensity * 100)}%`} onChange={(intensity) => setLight({ intensity })} />
+          <Slider
+            label="Warmth"
+            min={-1}
+            max={1}
+            step={0.05}
+            value={light.warmth}
+            display={light.warmth > 0.05 ? 'Warm' : light.warmth < -0.05 ? 'Cool' : 'White'}
+            onChange={(warmth) => setLight({ warmth })}
+          />
+        </div>
+        <Toggle label="Cast shadows" checked={light.shadows} onChange={(shadows) => setLight({ shadows }, '')} />
+        <p className="hint-text">
+          Saved with the scene and used by its exports.{def.lit ? '' : ` It shows in the lit styles (${LIT}): pick one in the top bar.`}
+        </p>
+      </Section>
+      <Section title="Look">
         <Toggle
           label="Simple face features"
           hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks"
@@ -597,50 +669,8 @@ function RenderTab({ ctx }: { ctx: InspectorContext }) {
             onChange={(editorLine) => store.setSettings({ editorLine })}
           />
         )}
+        <p className="hint-text">{def.label}: {def.description.toLowerCase()}. Switch styles in the top bar (<kbd>L</kbd>).</p>
       </Section>
-
-      {def.lit && (
-        <Section title="Light">
-          <div className="chips" role="group" aria-label="Lighting presets">
-            {LIGHT_PRESETS.map((p) => (
-              <button key={p.id} type="button" className={same(p.light, light) ? 'chip on' : 'chip'} onClick={() => setLight(p.light, '')}>
-                {p.name}
-              </button>
-            ))}
-          </div>
-          <div className="stack">
-            <Slider label="Direction" min={-180} max={180} value={light.azimuth} display={`${Math.round(light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
-            <Slider label="Height" min={5} max={89} value={light.elevation} display={`${Math.round(light.elevation)}°`} typeable onChange={(elevation) => setLight({ elevation })} />
-            <Slider label="Brightness" min={0.2} max={2} step={0.05} value={light.intensity} display={`${Math.round(light.intensity * 100)}%`} onChange={(intensity) => setLight({ intensity })} />
-            <Slider
-              label="Warmth"
-              min={-1}
-              max={1}
-              step={0.05}
-              value={light.warmth}
-              display={light.warmth > 0.05 ? 'Warm' : light.warmth < -0.05 ? 'Cool' : 'White'}
-              onChange={(warmth) => setLight({ warmth })}
-            />
-          </div>
-          {def.shadows && <Toggle label="Cast shadows" checked={light.shadows} onChange={(shadows) => setLight({ shadows }, '')} />}
-          <p className="hint-text">This scene&apos;s light: saved with it and used by its exports.</p>
-        </Section>
-      )}
-
-      <Section
-        title="Export camera"
-        actions={<IconButton icon={Focus} label="Look through it" onClick={() => ctx.frame(v)} />}
-      >
-        <div className="stack">
-          <Slider label="Turn" min={-180} max={180} value={v.yaw} display={`${Math.round(v.yaw)}°`} typeable onChange={(yaw) => setView({ yaw })} />
-          <Slider label="Height" min={-60} max={89} value={v.pitch} display={`${Math.round(v.pitch)}°`} typeable onChange={(pitch) => setView({ pitch })} />
-          <Slider label="Lens (field of view)" min={8} max={70} value={v.fov} display={`${Math.round(v.fov)}°`} typeable onChange={(fov) => setView({ fov })} />
-        </div>
-        <button type="button" className="btn subtle" onClick={() => { const cur = ctx.currentView(); if (cur) setView({ yaw: cur.yaw, pitch: cur.pitch }); }}>
-          Use current view
-        </button>
-      </Section>
-
       <Section
         id="reference"
         title="Reference image"
