@@ -199,7 +199,8 @@ export function setDuration(a: Animation, duration: number): Animation {
 /** Cubic Hermite through p1→p2 with Catmull-Rom tangents from the neighbours (non-uniform times). */
 function hermite(p0: number, p1: number, p2: number, p3: number, t0: number, t1: number, t2: number, t3: number, t: number) {
   const h = t2 - t1;
-  if (h <= 1e-9) return p1;
+  // A value held between two keys stays put (not drawn off by the keys around them).
+  if (h <= 1e-9 || Math.abs(p2 - p1) < 1e-9) return p1;
   const u = (t - t1) / h;
   const m1 = t2 - t0 > 1e-9 ? ((p2 - p0) / (t2 - t0)) * h : 0;
   const m2 = t3 - t1 > 1e-9 ? ((p3 - p1) / (t3 - t1)) * h : 0;

@@ -172,6 +172,31 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
   }
 }
 
+/** Where a figure's feet are in the world (ankles, and how they are turned). */
+export function feetOf(rig: Rig, f: Figure, sides: Side[] = ['L', 'R']) {
+  const m = rig.model(f);
+  return sides.map((side) => {
+    const j = m.joints[side === 'L' ? 'ankleL' : 'ankleR'];
+    return { side, p: j.getWorldPosition(new THREE.Vector3()), q: j.getWorldQuaternion(new THREE.Quaternion()) };
+  });
+}
+
+/**
+ * The pose with its feet (or one) put where they are in `ref` (or at `feet`), turned as they were
+ * (leg IK): planted feet do not slide from key to key.
+ */
+export function plantFeet(rig: Rig, pose: Figure, ref: Figure | ReturnType<typeof feetOf>, sides: Side[] = ['L', 'R']): Figure {
+  const want = Array.isArray(ref) ? ref : feetOf(rig, ref, sides);
+  let f = pose;
+  // A grounded figure settles on its new lowest point: solve again until the feet stay.
+  for (let i = 0; i < 3; i++) {
+    const m = rig.model(f);
+    for (const w of want) m.solveIK(IK_CHAINS[w.side === 'L' ? 'ankleL' : 'ankleR'], w.p, w.q, true);
+    f = { ...f, joints: m.read().joints };
+  }
+  return f;
+}
+
 /**
  * Pose `f`'s arm so its hand rests on `target` (world space). The wrist stops a palm's length
  * short of the point. Returns the new joints and whether the hand actually got there.

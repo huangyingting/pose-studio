@@ -161,9 +161,9 @@ describe('shot camera', () => {
 });
 
 describe('animation templates', () => {
-  it('gives one-person motions that pass the motion check (no slides, pops or bad joints)', () => {
-    for (const m of MOTIONS.filter((x) => x.people === 1)) expect(checkMotion(m.build()).map((i) => i.message), m.id).toEqual([]);
-  }, 30_000);
+  it('gives motions that pass the motion check (no slides, pops, bad joints or people through each other)', () => {
+    for (const m of MOTIONS) expect(checkMotion(m.build()).map((i) => i.message), m.id).toEqual([]);
+  }, 60_000);
 
 
   it('builds every motion with valid keys within joint limits', () => {

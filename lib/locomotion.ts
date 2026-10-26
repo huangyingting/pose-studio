@@ -36,11 +36,13 @@ export const JUMP_PREP = 0.3;
 export const JUMP_HEIGHT = 0.45;
 
 /** How long a figure takes to walk or run `distance` metres, or to jump `height` high. */
-export function travelTime(kind: Travel, distance: number, body: BodyParams, height = JUMP_HEIGHT) {
+export function travelTime(kind: Travel, distance: number, body: BodyParams, height = JUMP_HEIGHT, sideways = 0) {
   if (kind === 'jump') return flightTime(height) + 2 * JUMP_PREP;
   const legs = legsOf(body);
   const scale = (legs.thigh + legs.shin) / 0.85;
-  return Math.max(0.6, distance / (SPEED[kind] * scale) + (kind === 'run' ? 0.45 : 0.35));
+  // Side-stepping is slower than walking (short steps that do not cross).
+  const speed = SPEED[kind] * scale / (kind === 'walk' ? 1 + 2 * sideways : 1);
+  return Math.max(0.6, distance / speed + (kind === 'run' ? 0.45 : 0.35));
 }
 
 /** Height of what stands under a floor point (0: the floor). */
@@ -126,6 +128,8 @@ export interface Chain {
   end: PoseKey;
   /** Floor positions of the keys, start to end. */
   path: [number, number][];
+  /** The keyed facing at each point of the path (turned to from mark to mark when strafing). */
+  yaws: number[];
   /** The figure's keys inside the chain (waypoints; poses in the air for a jump). */
   inner: number;
 }
@@ -151,6 +155,7 @@ export function chainAt(a: Animation, id: string, t: number): Chain | null {
     start: track[s].pose,
     end: track[e].pose,
     path: (kind === 'jump' ? [keys[0], keys[keys.length - 1]] : keys).map((k) => [k.pose.position[0], k.pose.position[2]]),
+    yaws: (kind === 'jump' ? [keys[0], keys[keys.length - 1]] : keys).map((k) => k.pose.joints.root?.[1] ?? 0),
     inner: keys.length - 2,
   };
 }
@@ -329,6 +334,15 @@ const hermite01 = (y0: number, m0: number, y1: number, m1: number, u: number) =>
  * walk the stretches never overlap (one foot is always down), in a run they do (both feet in the
  * air). Footfalls are fixed points on the floor: nothing slides.
  */
+/** How much of a path goes sideways to the way the body faces along it (0 forward or back, 1 sideways). */
+function sidewaysShare(line: ReturnType<typeof polyline>, D: number, yawAt: (arc: number) => number) {
+  return Math.max(...[0.1, 0.3, 0.5, 0.7, 0.9].map((u) => {
+    const d = line.direction(u * D);
+    const l = leftOf(yawAt(u * D));
+    return Math.abs(d[0] * l[0] + d[1] * l[1]);
+  }));
+}
+
 function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const line = polyline(c.path);
   const D = line.length;
@@ -348,13 +362,24 @@ function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const startYaw = c.start.joints.root?.[1] ?? 0;
   const endYaw = c.end.joints.root?.[1] ?? 0;
   const strafe = !!c.end.strafe;
-  // Which way the body faces at a point of the path: along it, or (strafing) turning from the
-  // start facing to the end facing over the distance.
-  const yawAt = (arc: number) => (strafe || D < 0.05 ? lerpAngle(startYaw, endYaw, D > 1e-3 ? arc / D : 1) : yawOf(line.direction(arc)));
-  const n = Math.max(1, Math.round(D / step));
+  // Which way the body faces at a point of the path: along it, or (strafing) turning from each
+  // mark's keyed facing to the next's over the way between them.
+  const marks = c.path.map((_, i) => c.path.slice(1, i + 1).reduce((n, p, j) => n + Math.hypot(p[0] - c.path[j][0], p[1] - c.path[j][1]), 0));
+  const yawAt = (arc: number) => {
+    if (!strafe && D >= 0.05) return yawOf(line.direction(arc));
+    if (D <= 1e-3) return endYaw;
+    let i = 0;
+    while (i < marks.length - 2 && marks[i + 1] < arc) i++;
+    const seg = marks[i + 1] - marks[i];
+    return lerpAngle(c.yaws[i], c.yaws[i + 1], seg > 1e-6 ? clamp((arc - marks[i]) / seg, 0, 1) : 1);
+  };
+  const width = legs.hipX * (run ? 0.6 : 0.9);
+  // Walking sideways, a step moves less than the feet are apart, so the legs never cross (a
+  // runner may cross over, as in sport).
+  const sideways = run || D < 0.05 ? 0 : sidewaysShare(line, D, yawAt);
+  const n = Math.max(1, Math.round(D / (sideways > 0.2 ? Math.min(step, (1.8 * width) / sideways) : step)));
   const len = D / n;
   const half = (1 - stance) * len;
-  const width = legs.hipX * (run ? 0.6 : 0.9);
   type Step = { side: 'L' | 'R'; from: number; to: number; s0: number; s1: number };
   const steps: Step[] = [];
   const last: Record<'L' | 'R', number> = { L: 0, R: 0 };
@@ -430,9 +455,11 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   // or, strafing, the keyed facing all the way.
   const turn = Math.min(0.35, dur / 3);
   const keyedYaw = pose.joints.root?.[1] ?? 0;
-  const yaw = plan.strafe || D < 0.05
+  const yaw = D < 0.05
     ? keyedYaw
-    : lerpAngle(lerpAngle(startYaw, yawAt(s), smooth(tau / turn)), endYaw, smooth(1 - (dur - tau) / turn));
+    : plan.strafe
+      ? yawAt(s)
+      : lerpAngle(lerpAngle(startYaw, yawAt(s), smooth(tau / turn)), endYaw, smooth(1 - (dur - tau) / turn));
   const [x, z] = line.point(s);
   // Lean into the way it goes (forwards, or to the side or back when strafing).
   const heading = D > 0.05 ? yawOf(line.direction(s)) : yaw;

@@ -46,8 +46,10 @@ const HINTS: Record<IssueKind, string> = {
 /** Thresholds (metres, degrees). */
 const SLIDE_MIN = 0.06;
 const PLANTED = 0.025;
-/** Faster than this (m/s) a foot near the floor is swinging, not planted. */
+/** Faster than this (m/s) a foot near the floor is swinging, not planted (unless both feet move: gliding). */
 const CONTACT_SPEED = 0.4;
+/** Both feet moving at least this far in a frame (m) on the floor: the figure glides. */
+const GLIDE_STEP = 0.008;
 const LIMIT_SLACK = 4;
 /** A pop is a sudden change of speed from one frame to the next (fast but smooth is fine). */
 const POP_STEP = 25;
@@ -256,17 +258,20 @@ export function checkMotion(scene: Scene): Issue[] {
     rig.ground = groundOf(s.props);
     for (const f of visible) {
       const m = rig.model(f);
-      // Foot slide: a planted foot (at its floor level and slow) should not drift.
+      // Foot slide: a planted foot (at its floor level and slow) should not drift, and a figure
+      // should not glide along with both feet on the floor (in a step only one foot moves).
       // Stand-ins glide from place to place by design: no foot slide or joint limits for them.
-      for (const k of f.proxy ? [] : (['ankleL', 'ankleR'] as const)) {
+      const feet = (f.proxy ? [] : (['ankleL', 'ankleR'] as const)).map((k) => {
         const p = m.joints[k].getWorldPosition(new THREE.Vector3());
         const prev = prevAnkle.get(f.id + k);
         const floor = minAnkle.get(f.id + k)!;
-        if (prev && p.y - floor < PLANTED && prev.y - floor < PLANTED) {
-          const moved = Math.hypot(p.x - prev.x, p.z - prev.z);
-          if (moved > 0.003 && moved * a.fps < CONTACT_SPEED) ranges.add(`slide:${f.id}:${k}`, step, moved, { kind: 'slide', figure: f.id, joint: k });
-        }
         prevAnkle.set(f.id + k, p);
+        const planted = !!prev && p.y - floor < PLANTED && prev.y - floor < PLANTED;
+        return { k, planted, moved: prev ? Math.hypot(p.x - prev.x, p.z - prev.z) : 0 };
+      });
+      const gliding = feet.length === 2 && feet.every((x) => x.planted && x.moved > GLIDE_STEP);
+      for (const { k, planted, moved } of feet) {
+        if (planted && moved > 0.003 && (gliding || moved * a.fps < CONTACT_SPEED)) ranges.add(`slide:${f.id}:${k}`, step, moved, { kind: 'slide', figure: f.id, joint: k });
       }
       // Pops: a large rotation, or the body jumping, in a single frame. Walks, runs and jumps are
       // generated smooth (tests sample them finely), and legs really move that fast when running

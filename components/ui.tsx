@@ -651,14 +651,14 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: numbe
       {toasts.map((t) => {
         const Icon = t.kind === 'error' ? CircleAlert : CircleCheck;
         return (
-          <div key={t.id} className={`toast ${t.kind}`} onClick={() => dismiss(t.id)}>
+          <div key={t.id} className={`toast ${t.kind}`}>
             <Icon size={16} aria-hidden />
             <span>{t.text}</span>
             {t.action && (
               <button
                 type="button"
                 className="toast-action"
-                onClick={(e) => { e.stopPropagation(); t.action!.run(); dismiss(t.id); }}
+                onClick={() => { t.action!.run(); dismiss(t.id); }}
               >
                 {t.action.label}
               </button>

@@ -513,7 +513,9 @@ export function travelTo(store: Store, figureId: string, to: [number, number], k
   if (!f) return null;
   const t0 = snapTime(a, store.getState().time);
   const d = Math.hypot(to[0] - f.position[0], to[1] - f.position[2]);
-  const duration = travelTime(kind, d, f.body, opts.height);
+  const heading = Math.atan2(to[0] - f.position[0], to[1] - f.position[2]);
+  const sideways = opts.strafe && d > 0.05 ? Math.abs(Math.sin(heading - facing(f) * (Math.PI / 180))) : 0;
+  const duration = travelTime(kind, d, f.body, opts.height, sideways);
   const t1 = Math.round((t0 + duration) * a.fps) / a.fps;
   const yaw = kind === 'jump' || opts.strafe || d < 0.05 ? facing(f) : Math.atan2(to[0] - f.position[0], to[1] - f.position[2]) * (180 / Math.PI);
   const end: PoseKey = {

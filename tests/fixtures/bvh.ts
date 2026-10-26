@@ -15,8 +15,9 @@ export const UNREAL = {
 };
 
 /**
- * A T-posed skeleton in centimetres facing +Z, three frames 0.1 s apart: standing, then stepping
- * forward with the left thigh swung forward, the hips 40 cm ahead.
+ * A T-posed skeleton in centimetres facing +Z, three frames 0.1 s apart: standing, then a step
+ * forward with the left foot. The right foot stays planted (its leg tilts back as the hips go
+ * ahead and dip), the left swings through off the floor and lands 80 cm ahead, the hips 40 cm.
  */
 export function bvh(n: typeof CMU): string {
   const joint = (name: string, offset: string, inner: string) => `JOINT ${name}\n{\nOFFSET ${offset}\nCHANNELS 3 Zrotation Xrotation Yrotation\n${inner}}\n`;
@@ -30,8 +31,10 @@ export function bvh(n: typeof CMU): string {
   const order = hierarchy.match(/(ROOT|JOINT) \S+/g)!.map((s) => s.split(' ')[1]);
   const frame = (hips: number[], turns: Record<string, number[]>) =>
     [...hips, 0, 0, 0, ...order.slice(1).flatMap((j) => turns[j] ?? [0, 0, 0])].join(' ');
-  const swing = { [n.upLeg(n.side.L)]: [0, -40, 0], [n.leg(n.side.L)]: [0, 20, 0], [n.arm(n.side.R)]: [0, 0, 0] };
+  // Channels are Z, X, Y: an X turn of −θ swings a leg forward, +θ back (and bends a knee).
+  const swinging = { [n.upLeg(n.side.R)]: [0, 13.4, 0], [n.upLeg(n.side.L)]: [0, -30, 0], [n.leg(n.side.L)]: [0, 40, 0] };
+  const landed = { [n.upLeg(n.side.R)]: [0, 28.4, 0], [n.upLeg(n.side.L)]: [0, -28.4, 0] };
   const motion = ['MOTION', 'Frames: 3', 'Frame Time: 0.1',
-    frame([0, 92, 0], {}), frame([0, 90, 20], swing), frame([0, 92, 40], swing)].join('\n');
+    frame([0, 92, 0], {}), frame([0, 89.7, 20], swinging), frame([0, 81.9, 40], landed)].join('\n');
   return `${hierarchy}${motion}\n`;
 }

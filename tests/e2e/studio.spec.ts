@@ -745,15 +745,21 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   await page.locator('.tl-qa').click();
   await expect(page.locator('.tl-qa')).toHaveText('No issues', { timeout: 30_000 });
 
-  await motionScene(page, 'Waltz turn');
+  // Gliding the same 3 m instead of walking: the feet slide.
+  const keys = (await anim(page)).animation!.keys.map((k) => k.t);
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const row = (await page.locator('[aria-label="Pose keyframes"]').boundingBox())!;
+  const duration = (await anim(page)).animation!.duration;
+  await page.mouse.click(lanes.x + (lanes.width * (keys[0] + keys[1])) / 2 / duration, row.y + row.height / 2, { button: 'right' });
+  await page.getByRole('menuitemradio', { name: 'Glide (as keyed)' }).click();
   await page.locator('.tl-qa').click();
   const card = page.getByRole('dialog', { name: 'Motion check' });
   await expect(card).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.tl-issue').first()).toBeVisible();
-  await card.locator('li button').filter({ hasText: '0.71' }).first().click();
+  await card.locator('li button').filter({ hasText: /foot slides/ }).first().click();
   const s = await state(page);
-  expect((s as unknown as { time: number }).time).toBeCloseTo(0.71, 1);
-  expect(s.selection).toMatchObject({ kind: 'joint', joint: 'ankleR' });
+  expect((s as unknown as { time: number }).time).toBeGreaterThan(0);
+  expect(s.selection).toMatchObject({ kind: 'joint', joint: expect.stringMatching(/^ankle[LR]$/) });
   // Editing the animation clears the results.
   await page.keyboard.press('k');
   await expect(page.locator('.tl-issue')).toHaveCount(0);
@@ -809,14 +815,14 @@ test('the AI assistant runs on the server and its tools on the open pose', async
 
 test('each figure has its own key track', async ({ page }) => {
   await motionScene(page, 'Boxing exchange');
-  await expect(page.getByRole('button', { name: /^Kai key at 0.82 s/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Kai key at 0.83 s/ })).toBeVisible();
   await page.locator('.tl-figure', { hasText: 'Kai' }).click();
   await expect(page.locator('.tl-figure.on')).toHaveText('Kai');
-  // Delete Kai's key at 0.82 s: Ben's stays.
-  await page.getByRole('button', { name: /^Kai key at 0.82 s/ }).click();
+  // Delete Kai's key at 0.83 s: Ben's stays.
+  await page.getByRole('button', { name: /^Kai key at 0.83 s/ }).click();
   await page.getByRole('button', { name: 'Delete keyframe (Kai)' }).click();
-  await expect(page.getByRole('button', { name: /^Kai key at 0.82 s/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Ben key at 0.82 s/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Kai key at 0.83 s/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Ben key at 0.83 s/ })).toBeVisible();
 });
 
 test('the side panel switches sections, folds away and remembers it', async ({ page }) => {

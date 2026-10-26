@@ -2,7 +2,7 @@ import { newAnimation, snapTime } from './animation';
 import { cloneHand } from './hands';
 import { wrapDeg } from './joints';
 import { legsOf } from './locomotion';
-import { facing } from './relations';
+import { Rig, facing, feetOf, plantFeet } from './relations';
 import type { Animation, Figure, PoseAsset, PoseKey, Scene, Vec3 } from './types';
 
 /*
@@ -73,11 +73,47 @@ export function insertMotion(scene: Scene, figureId: string, motion: Scene, star
   let keys = a.keys
     .map((k) => (k.t >= t0 - 1e-6 && k.t <= t1 + 1e-6 && k.poses[figureId] ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => id !== figureId)) } : k))
     .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
-  for (const { t, pose } of moves) {
+  const retargeted = moves.map((m) => retarget(m.pose));
+  const locked = JSON.stringify(src.body) === JSON.stringify(target.body) ? retargeted : lockFeet(src, target, moves.map((m) => m.pose), retargeted);
+  for (const [n, { t }] of moves.entries()) {
     const time = snapTime(a, start + t);
     const i = keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);
-    const keyed = retarget(pose);
+    const keyed = locked[n];
     keys = i >= 0 ? keys.map((k, j) => (j === i ? { ...k, poses: { ...k.poses, [figureId]: keyed } } : k)) : [...keys, { t: time, poses: { [figureId]: keyed } }];
   }
   return { ...scene, animation: { ...a, keys: keys.sort((p, q) => p.t - q.t) } };
+}
+
+/**
+ * Feet planted in a motion stay planted on the figure it is put on (whose legs may be longer or
+ * hips wider), as game engines lock feet when retargeting: wherever a foot stays put from key to
+ * key in the motion, the figure's leg is solved to keep its foot where it landed.
+ */
+function lockFeet(src: Figure, target: Figure, from: PoseKey[], to: PoseKey[]): PoseKey[] {
+  const rig = new Rig();
+  try {
+    const as = (f: Figure, p: PoseKey): Figure => ({ ...f, joints: p.joints, position: p.position, hands: p.hands, grounded: p.grounded });
+    const source = from.map((p) => feetOf(rig, as(src, p)));
+    const floor = Math.min(...source.flat().map((foot) => foot.p.y));
+    const landed = to.map((p) => feetOf(rig, as(target, p)));
+    const anchors: ReturnType<typeof feetOf>[] = to.map(() => []);
+    for (const side of [0, 1]) {
+      let anchor: ReturnType<typeof feetOf>[number] | null = null;
+      for (let i = 0; i < from.length; i++) {
+        const now = source[i][side];
+        const before = i > 0 ? source[i - 1][side] : null;
+        const down = (y: number) => y - floor < 0.03;
+        const stays = !!before && down(now.p.y) && down(before.p.y) && Math.hypot(now.p.x - before.p.x, now.p.z - before.p.z) < 0.02;
+        if (!stays || from[i].travel) {
+          anchor = landed[i][side];
+          continue;
+        }
+        // Only where it would move (a pose that already keeps the foot is left as made).
+        if (landed[i][side].p.distanceTo(anchor!.p) > 0.01) anchors[i].push(anchor!);
+      }
+    }
+    return to.map((p, i) => (anchors[i].length ? { ...p, joints: plantFeet(rig, as(target, p), anchors[i]).joints } : p));
+  } finally {
+    rig.dispose();
+  }
 }

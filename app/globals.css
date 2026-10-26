@@ -1098,7 +1098,7 @@ button.psec-title svg { color: var(--text-3); }
 .shortcut span { color: var(--text-2); }
 .shortcut kbd { white-space: nowrap; }
 
-.toasts { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: 8px; justify-items: center; max-width: min(440px, calc(100vw - 32px)); }
+.toasts { pointer-events: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: 8px; justify-items: center; max-width: min(440px, calc(100vw - 32px)); }
 .toast {
   display: flex;
   align-items: center;
@@ -1109,13 +1109,14 @@ button.psec-title svg { color: var(--text-3); }
   min-height: 38px;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
+  /* Clicks go through to the timeline or canvas underneath; only the action button takes them. */
+  pointer-events: none;
   animation: rise 0.18s ease-out;
 }
 .toast > svg { color: #4ade80; flex: none; }
 .toast.error > svg { color: #ff8a8f; }
 .toast > span { flex: 1; padding-right: 4px; }
-.toast .toast-action { height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 600; cursor: pointer; }
+.toast .toast-action { pointer-events: auto; height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 600; cursor: pointer; }
 .toast .toast-action:hover { background: rgba(255, 255, 255, 0.2); }
 
 @keyframes fade { from { opacity: 0; } }
