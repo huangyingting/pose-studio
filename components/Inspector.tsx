@@ -18,7 +18,7 @@ import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
 import { FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
-import Assistant from './Assistant';
+import { Assistant } from '@edition/server';
 import BodyMap from './BodyMap';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
@@ -41,7 +41,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'pose', label: 'Pose' },
   { id: 'body', label: 'Body' },
   { id: 'render', label: 'Render' },
-  { id: 'ai', label: 'AI' },
+  // The AI tab: server edition only (Assistant is null in the static build).
+  ...(Assistant ? [{ id: 'ai' as const, label: 'AI' }] : []),
 ];
 
 /** Right-hand properties panel. Its content follows the selection, like a design tool's inspector. */
@@ -55,7 +56,7 @@ export default function Inspector({ tab, setTab, ctx }: { tab: Tab; setTab(t: Ta
           </button>
         ))}
       </nav>
-      {tab === 'ai' ? <Assistant /> : (
+      {tab === 'ai' && Assistant ? <Assistant /> : (
         <div className="panel-scroll">
           {tab === 'pose' && <PoseTab ctx={ctx} />}
           {tab === 'body' && <BodyTab />}

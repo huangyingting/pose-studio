@@ -18,6 +18,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # The static edition (GitHub Pages) must not contain any account, sync or AI code.
+      - run: npm run build:static && ! grep -rlE "next-auth|/api/ai|/api/library" out
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7

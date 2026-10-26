@@ -1196,12 +1196,25 @@ button.psec-title svg { color: var(--text-3); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-.assistant-mcp { display: grid; gap: 6px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
-.assistant-mcp .hint-text { margin: 0; }
-.assistant-mcp code { font: 11px var(--mono); padding: 1px 4px; border-radius: 4px; background: var(--panel-2); overflow-wrap: anywhere; }
-.bridge-status { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-2); }
-.bridge-status span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
-.bridge-status.connected span { background: var(--ok); }
-.bridge-status.offline span { background: #f5a524; }
-.companion-error { margin: 2px 0 0; color: var(--danger); line-height: 1.45; }
-.companion-error .link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.assistant-usage { font: 500 11px var(--mono); color: var(--text-3); }
+.signin-buttons { display: grid; gap: 8px; }
+.signin-buttons .btn { justify-content: center; }
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ink);
+  color: #fff;
+  font: 600 12px var(--font);
+  cursor: pointer;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.avatar.warn { box-shadow: 0 0 0 2px #f5a524; }

@@ -1,5 +1,5 @@
 import { HAND_PRESETS } from './hands';
-import { newFigure, uid } from './doc';
+import { newFigure } from './doc';
 import type { Figure, Hand, Scene, View } from './types';
 
 interface RawPose {
@@ -175,10 +175,11 @@ const hand = (name: string): Hand => {
   return { curl: [...h.curl] as Hand['curl'], spread: h.spread };
 };
 
+/** The built-in poses. Their ids are stable, so the same pose is recognised on every device (library sync). */
 export function presetScenes(): Scene[] {
-  return RAW.map((p) => {
+  return RAW.map((p, i) => {
     const [l, r] = HAND_HINTS[p.name] ?? ['Relaxed', 'Relaxed'];
-    const figure = newFigure({ name: 'Figure', joints: structuredClone(p.joints), hands: { L: hand(l), R: hand(r) } });
-    return { id: uid('s'), name: p.name, figures: [figure], props: [], view: { ...p.view } };
+    const figure = newFigure({ id: `preset${i + 1}-f`, name: 'Figure', joints: structuredClone(p.joints), hands: { L: hand(l), R: hand(r) } });
+    return { id: `preset${i + 1}`, name: p.name, figures: [figure], props: [], view: { ...p.view } };
   });
 }

@@ -2,6 +2,18 @@
 
 A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser / Design Doll / PoseMy.Art. Pose figures by dragging hands, feet and hips, then export clean line-art pose sheets such as the 4 × 5 `Pose.jpg` grid.
 
+It comes in two editions built from the same code:
+
+| | Static edition | Server edition |
+| --- | --- | --- |
+| Where | GitHub Pages or any static host (`npm run build:static`) | Node server / Docker (`npm run build`) |
+| Posing, animation, storyboard, export | ✓ (everything runs in the browser) | ✓ |
+| Accounts (Google, Microsoft Entra ID) | | ✓ NextAuth |
+| Library synced across devices | | ✓ Prisma + SQLite |
+| AI assistant | | ✓ Azure OpenAI or OpenAI, with the server's key |
+
+The static build leaves the account, sync and AI code out entirely.
+
 ## Features
 
 **Posing**
@@ -49,11 +61,13 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 - **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
 - **Save / import** the whole library as JSON. Files from the earlier MVP format are migrated automatically.
 
-**AI assistant**
-- An **AI** tab in the inspector: describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, adds props and stand-ins, animates, picks camera moves and runs the motion check, using the same tools as you; every change can be undone.
-- **GitHub Copilot** (default): uses your Copilot plan through the [local companion](#local-companion), with any model the plan offers; no key in the browser. The Copilot session can only use the studio's tools (no shell, no files).
-- Or your own **OpenAI** or **Azure OpenAI** key (Responses API), stored in this browser only and sent only to that provider; the site has no server.
-- **MCP**: Copilot CLI, VS Code or any MCP client can drive an open studio tab through the same companion.
+**AI assistant** (server edition)
+- An **AI** tab in the inspector: describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, reaches hands to bodies, adds props and stand-ins, animates, picks camera moves and runs the motion check, using the same tools as you; every change can be undone.
+- The model runs on the server with the server's Azure OpenAI or OpenAI key; signed-in users just chat, within a daily limit per user. The tools run in the browser on the open pose.
+
+**Accounts and sync** (server edition)
+- Sign in with Google or Microsoft. Your library and storyboard are saved to your account and follow you across devices; the browser copy stays the working copy, so editing works offline and syncs when you are back.
+- Edits from two devices are merged pose by pose: a pose changed on one side wins, one changed on both keeps both (the other marked "this device"), and nothing edited is lost.
 
 **App**
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
@@ -74,45 +88,42 @@ Requires Node 20.9+ and a browser with WebGL.
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | Development server |
-| `npm run build` / `npm start` | Production build / server |
-| `npm run build:static` | Static export to `out/` (see [Static hosting](#static-hosting--github-pages)) |
+| `npm run build` / `npm start` | Server edition: production build / server (see [Server edition](#server-edition)) |
+| `npm run build:static` | Static edition: export to `out/` (see [Static hosting](#static-hosting--github-pages)) |
+| `npm run db:migrate` | Apply database migrations (server edition) |
 | `npm run check` | Type-check + lint + unit tests |
 | `npm test` | Unit tests (Vitest) |
-| `npm run test:e2e` | Browser tests (Playwright). Builds and starts the app unless `BASE_URL` is set; set `PW_CHANNEL=chrome` to use an installed Chrome |
+| `npm run test:e2e` | Browser tests (Playwright) against the server edition, with a fresh test database, a test sign-in and a mock AI. Builds and starts the app unless `BASE_URL` is set; set `PW_CHANNEL=chrome` to use an installed Chrome |
 | `npm run setup:mediapipe` | Re-fetch the pose-detection assets (`-- --force` to re-download the model) |
 
-## Local companion
+## Server edition
 
-`companion/server.mjs` runs on your machine next to an open Pose Studio tab (local or on GitHub Pages). The tab connects to it from the **AI** tab (settings → **Local companion**; choosing GitHub Copilot connects automatically; from the Pages site, Chrome asks once to let the site access apps on your device: allow it), and the companion relays tool calls to the tab through a bridge on `127.0.0.1:8765`, so the tools act on what you see. One companion serves both kinds of clients:
+Copy `.env.example` to `.env` and fill it in:
 
-- **GitHub Copilot** chats from the AI tab: a [GitHub Copilot SDK](https://www.npmjs.com/package/@github/copilot-sdk) session with your Copilot login, limited to the studio's tools.
+- `NEXTAUTH_URL` (the public URL) and `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`).
+- Sign-in: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and/or `AZURE_AD_CLIENT_ID` / `AZURE_AD_CLIENT_SECRET` / `AZURE_AD_TENANT_ID`. Each provider appears when it is configured. Redirect URIs: `{NEXTAUTH_URL}/api/auth/callback/google` and `{NEXTAUTH_URL}/api/auth/callback/azure-ad`.
+- AI: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT` (or `OPENAI_API_KEY` and `OPENAI_MODEL`); `AI_DAILY_LIMIT` caps model requests per user per day (default 200). Without these the AI tab says the assistant is not set up.
+- `DATABASE_URL`: the SQLite file (default `file:./data/pose-studio.db`).
 
-  ```bash
-  cd companion && npm install && npm start
-  ```
+```bash
+npm run db:migrate && npm run dev     # local development
+docker compose up --build             # or the Docker image, database on a volume
+```
 
-- **MCP clients** start it themselves as a stdio MCP server, for example in Copilot CLI:
-
-  ```bash
-  copilot mcp add pose-studio -- node /path/to/pose-studio/companion/server.mjs --mcp
-  ```
-
-  (In VS Code, add the same command as a stdio server in `.vscode/mcp.json`.) The MCP side has no dependencies; `npm install` is only needed for Copilot chats.
-
-Only the studio's own origins may connect to the bridge (localhost and the Pages site; set `POSE_STUDIO_ORIGINS` for another host, `POSE_STUDIO_PORT` for another port). Node 20.19+.
+`/api/auth/*` (NextAuth), `/api/library` (sync, with optimistic versioning) and `/api/ai` (the model proxy) are named `route.server.ts`, which only server builds include.
 
 ## Deployment
 
 ```bash
 docker build -t pose-studio .
-docker run -p 3000:3000 pose-studio
+docker run -p 3000:3000 --env-file .env -v pose-studio-data:/data pose-studio
 ```
 
-The image uses Next.js standalone output, runs as a non-root user and has a `HEALTHCHECK` against `GET /api/health` (also usable as a liveness probe elsewhere). The pose model and WASM runtime are served from the app itself, so photo detection makes no third-party requests. If they are missing, it falls back to the jsDelivr / Google CDN. Responses carry a Content-Security-Policy and other security headers (see `next.config.ts`).
+The image is the server edition. It applies pending database migrations on start (`scripts/migrate.mjs`, no Prisma CLI needed), keeps the SQLite database on the `/data` volume, uses Next.js standalone output, runs as a non-root user and has a `HEALTHCHECK` against `GET /api/health` (also usable as a liveness probe elsewhere). The pose model and WASM runtime are served from the app itself, so photo detection makes no third-party requests. If they are missing, it falls back to the jsDelivr / Google CDN. Responses carry a Content-Security-Policy and other security headers (see `next.config.ts`).
 
 ### Static hosting / GitHub Pages
 
-The app is fully client-side: poses live in browser storage, share links live in the URL fragment and photo detection runs on-device. It needs no backend, so it can be exported as static files:
+The static edition is fully client-side: poses live in browser storage, share links live in the URL fragment and photo detection runs on-device. It needs no backend, so it can be exported as static files:
 
 ```bash
 npm run build:static                                   # → out/
@@ -134,7 +145,7 @@ components/
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
   Board.tsx             Storyboard workspace
-  Assistant.tsx         AI tab: chat, provider settings and the local companion toggle
+  server/               Server edition only (imported as '@edition/server'; static builds get server/none.ts): account menu, sync, AI tab
   Practice.tsx          Gesture-practice slideshow
   Timeline.tsx, clock.ts  Animation timeline and playback clock
 lib/
@@ -163,8 +174,11 @@ lib/
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
-  agent/                AI assistant: tool registry, GitHub Copilot (via the companion) and OpenAI/Azure Responses adapters, companion bridge client
-companion/server.mjs    Local companion: GitHub Copilot sessions (Copilot SDK) and an MCP server, both relaying tool calls to the open tab
+  agent/                AI assistant: tool registry and the browser side of a turn (tools run here, the model on the server)
+  sync.ts, cloud.ts     Library sync: three-way merge per pose; the client that pulls, pushes and merges
+  server/               Server-only: NextAuth options, Prisma client, AI upstream config
+app/api/*/route.server.ts  Server edition API: auth, library, AI
+prisma/                 Database schema and migrations (SQLite)
 app/api/health          Liveness endpoint
 public/sw.js            Service worker (offline cache)
 tests/unit              Vitest: model, IK, limits, retargeting, store/history, share links, export, practice, relations, templates

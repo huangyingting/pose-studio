@@ -20,7 +20,7 @@ import { JOINTS, POSTURES, PROP_KINDS, STYLES, type Figure, type JointName, type
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
  * actions as the UI (so every change can be undone). One registry serves the assistant panel
- * (OpenAI / Azure tools in the browser, GitHub Copilot and MCP clients through the local companion).
+ * (server edition: the model runs on the server, the tools here in the browser).
  */
 
 type Schema = Record<string, unknown>;

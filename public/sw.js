@@ -1,6 +1,7 @@
 /*
- * Offline support. Pose Studio is fully client-side, so once the app shell and its static
- * assets have been cached it works without a network connection.
+ * Offline support. The editor runs in the browser, so once the app shell and its static assets
+ * have been cached it works without a network connection. API requests (the server edition's
+ * sign-in, sync and AI) always go to the network and are never cached.
  *
  * - Page navigations: network first, falling back to the cached shell when offline.
  * - Hashed build assets (/_next/static) and the MediaPipe runtime: cache first (immutable).

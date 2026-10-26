@@ -8,7 +8,6 @@ import {
 import {
   addKeyframe, addScene, appendScenes, cutShot, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
-import { bridge } from '@/lib/agent/bridge';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
@@ -20,6 +19,8 @@ import { STYLES, type GizmoMode, type View } from '@/lib/types';
 import { VIEW_PRESETS } from '@/lib/views';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
+// Accounts, library sync and AI: the server edition only (null in the static build).
+import { Account, ServerRoot } from '@edition/server';
 import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext, type Tab } from './Inspector';
 import LibraryPanel from './LibraryPanel';
@@ -57,7 +58,7 @@ export default function Studio() {
   return (
     <ErrorBoundary>
       <StoreContext.Provider value={store}>
-        <App />
+        {ServerRoot ? <ServerRoot><App /></ServerRoot> : <App />}
       </StoreContext.Provider>
     </ErrorBoundary>
   );
@@ -287,12 +288,6 @@ function App() {
     navigator.serviceWorker.register(withBase('/sw.js'), { scope: withBase('/') }).catch((err) => console.warn('Service worker registration failed', err));
   }, []);
 
-  // Reconnect the local MCP bridge if it was on.
-  useEffect(() => {
-    if (bridge.enabled()) bridge.start(store);
-    return () => bridge.stop(false);
-  }, [store]);
-
   // Read-only hook for automated tests and power users (e.g. `__poseStudio.store.getState()` in the console).
   useEffect(() => {
     (window as unknown as { __poseStudio?: unknown }).__poseStudio = { store, viewport: apiRef };
@@ -368,6 +363,7 @@ function App() {
           <IconButton icon={ScanFace} label="Pose from photo" onClick={() => setDialog('photo')} className="hide-mobile" />
           <IconButton icon={Link} label="Share link" onClick={share} className="hide-mobile" />
           <IconButton icon={CircleHelp} label="Help" shortcut="?" onClick={() => setDialog('help')} className="hide-mobile" />
+          {Account && <Account />}
           <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export image  Ctrl E">
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>

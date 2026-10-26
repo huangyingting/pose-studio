@@ -5,3 +5,7 @@ playwright-report
 coverage
 public/mediapipe
 out
+data
+.env
+.env.*
+!.env.example

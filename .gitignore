@@ -12,4 +12,5 @@ next-env.d.ts
 
 # Downloaded / copied by `npm install` (scripts/setup-mediapipe.mjs)
 public/mediapipe/
-companion/.tools-cache.json
+data/
+.env

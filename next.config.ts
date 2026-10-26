@@ -7,9 +7,15 @@ import { contentSecurityPolicy } from './lib/csp';
  *   standalone   self-contained server bundle for the Docker image (set in the Dockerfile)
  *   export       static files in out/ for any static host (GitHub Pages: .github/workflows/pages.yml)
  * NEXT_PUBLIC_BASE_PATH serves the app from a sub-path, e.g. "/pose-studio".
+ *
+ * Two editions come out of the same code:
+ *   static   the export: everything runs in the browser, no accounts and no AI
+ *   server   everything else: sign-in (NextAuth), library sync (Prisma, SQLite) and the AI assistant
+ * Server-only route handlers are named `route.server.ts`; static exports leave them out.
  */
 const output = process.env.NEXT_OUTPUT;
 const staticExport = output === 'export';
+const edition = staticExport ? 'static' : 'server';
 
 const csp = contentSecurityPolicy({ dev: process.env.NODE_ENV !== 'production' });
 
@@ -19,6 +25,10 @@ const nextConfig: NextConfig = {
   output: staticExport ? 'export' : output === 'standalone' ? 'standalone' : undefined,
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || undefined,
   poweredByHeader: false,
+  pageExtensions: edition === 'server' ? ['server.ts', 'tsx', 'ts'] : ['tsx', 'ts'],
+  turbopack: {
+    resolveAlias: { '@edition/server': edition === 'server' ? './components/server/index.ts' : './components/server/none.ts' },
+  },
   // Static hosts cannot be told to send headers; the CSP becomes a <meta> tag instead (app/layout.tsx).
   ...(staticExport ? {} : { headers }),
 };

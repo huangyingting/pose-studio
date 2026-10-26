@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { responsesTurn, azureTarget } from '@/lib/agent/openai';
+import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
 import { Store } from '@/lib/store';
 
@@ -110,20 +110,20 @@ describe('assistant tools', () => {
     expect(runTool(store, 'fly', {}).ok).toBe(false);
   });
 
-  it('runs a Responses API turn: tool calls, results and the conversation chain', async () => {
+  it('runs a turn through the server: tool calls run here, results go back, the conversation chains', async () => {
     const store = new Store(new MemoryStorage());
-    const bodies: Record<string, unknown>[] = [];
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
     const replies = [
       { id: 'r1', output: [{ type: 'function_call', name: 'set_style', arguments: '{"style":"ink"}', call_id: 'c1' }] },
       { id: 'r2', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Switched to ink.' }] }] },
     ];
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
-      bodies.push(JSON.parse(String(init.body)));
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, body: JSON.parse(String(init.body)) });
       return new Response(JSON.stringify(replies.shift()), { status: 200 });
     }));
     const texts: string[] = [];
     const tools: string[] = [];
-    const last = await responsesTurn(azureTarget('k', 'https://x.openai.azure.com/', 'dep'), 'r0', 'Make it ink', store, {
+    const last = await assistantTurn('r0', 'Make it ink', store, {
       onText: (t) => texts.push(t),
       onTool: (n, _i, r) => tools.push(`${n}: ${r}`),
     }, new AbortController().signal);
@@ -131,7 +131,16 @@ describe('assistant tools', () => {
     expect(store.getState().settings.style).toBe('ink');
     expect(tools).toEqual(['set_style: Style: ink.']);
     expect(texts).toEqual(['Switched to ink.']);
-    expect(bodies[0]).toMatchObject({ model: 'dep', previous_response_id: 'r0', input: [{ role: 'user', content: 'Make it ink' }] });
-    expect(bodies[1]).toMatchObject({ previous_response_id: 'r1', input: [{ type: 'function_call_output', call_id: 'c1', output: 'Style: ink.' }] });
+    expect(calls.map((c) => c.url)).toEqual(['/api/ai', '/api/ai']);
+    // Only the conversation goes to the server: it adds the instructions, tools and model itself.
+    expect(calls[0].body).toEqual({ previous_response_id: 'r0', input: [{ role: 'user', content: 'Make it ink' }] });
+    expect(calls[1].body).toEqual({ previous_response_id: 'r1', input: [{ type: 'function_call_output', call_id: 'c1', output: 'Style: ink.' }] });
   });
+
+  it('reports server errors (limits, not signed in) as they are', async () => {
+    const store = new Store(new MemoryStorage());
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'Daily assistant limit reached' }), { status: 429 })));
+    await expect(assistantTurn(null, 'Hi', store, { onText: () => {}, onTool: () => {} }, new AbortController().signal)).rejects.toThrow('Daily assistant limit reached');
+  });
+
 });

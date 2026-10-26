@@ -286,6 +286,16 @@ export class Store {
     return true;
   }
 
+  /** Take the library from elsewhere (server-side library sync): saved here; resets undo. */
+  adoptLibrary(library: Library) {
+    this.past = [];
+    this.future = [];
+    this.lastKey = '';
+    const same = library.scenes.findIndex((s) => s.id === this.scene.id);
+    const sceneIndex = same >= 0 ? same : Math.min(this.state.sceneIndex, library.scenes.length - 1);
+    this.set({ library: this.withFrame(library, sceneIndex, this.state.time), sceneIndex });
+  }
+
   static readonly LIBRARY_KEY = STORAGE.library;
 
   /* ---------- UI state (not undoable) ---------- */
