@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { frameTimes, sceneAt } from './animation';
 import { wrapDeg } from './joints';
 import { DEFAULT_LIGHT, LightRig } from './lighting';
 import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
-import { STYLES, type Light, type Scene, type Style, type View } from './types';
+import { figuresCenter, placeShot, type Framing } from './shot';
+import { STYLES, type CameraKey, type Light, type Scene, type Style, type View } from './types';
 
 const D2R = Math.PI / 180;
 
@@ -70,10 +72,18 @@ export function fitCamera(camera: THREE.PerspectiveCamera, source: PointSource, 
 }
 
 export interface ExportOptions {
-  /** All poses, the current pose, or the current pose from several angles. */
-  scope: 'all' | 'current' | 'turnaround';
+  /**
+   * All poses, the current pose, the current pose from several angles, or (animations) a
+   * sheet of frames or a video.
+   */
+  scope: 'all' | 'current' | 'turnaround' | 'frames' | 'video';
   /** Number of angles in a turnaround (every 360/n degrees). */
   angles: 4 | 8;
+  /** Number of frames in a frame sheet. */
+  frames: number;
+  /** Video frame size and how many times to play the animation. */
+  videoSize: VideoSize;
+  videoLoops: number;
   columns: number;
   cellWidth: number;
   cellHeight: number;
@@ -91,8 +101,17 @@ export interface ExportOptions {
 }
 
 /** Matches the layout of the original Pose.jpg: 4 × 5 cells of 600 × 640. */
+export type VideoSize = '720p' | '1080p' | 'square' | 'vertical';
+
+export const VIDEO_SIZES: Record<VideoSize, { label: string; width: number; height: number }> = {
+  '720p': { label: '1280 × 720 (16:9)', width: 1280, height: 720 },
+  '1080p': { label: '1920 × 1080 (16:9)', width: 1920, height: 1080 },
+  square: { label: '1080 × 1080 (1:1)', width: 1080, height: 1080 },
+  vertical: { label: '1080 × 1920 (9:16)', width: 1080, height: 1920 },
+};
+
 export const DEFAULT_EXPORT: ExportOptions = {
-  scope: 'all', angles: 4, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
+  scope: 'all', angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
 
@@ -105,8 +124,11 @@ export function parseExportOptions(raw: unknown): ExportOptions {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   return {
-    scope: o.scope === 'current' || o.scope === 'turnaround' ? o.scope : 'all',
+    scope: o.scope === 'current' || o.scope === 'turnaround' || o.scope === 'frames' || o.scope === 'video' ? o.scope : 'all',
     angles: o.angles === 8 ? 8 : 4,
+    frames: int(o.frames, d.frames, 2, 48),
+    videoSize: typeof o.videoSize === 'string' && o.videoSize in VIDEO_SIZES ? (o.videoSize as VideoSize) : d.videoSize,
+    videoLoops: int(o.videoLoops, d.videoLoops, 1, 5),
     columns: int(o.columns, d.columns, 1, 12),
     cellWidth: int(o.cellWidth, d.cellWidth, 100, 4000),
     cellHeight: int(o.cellHeight, d.cellHeight, 100, 4000),
@@ -130,10 +152,16 @@ export interface Cell {
   caption: string;
 }
 
-/** The cells of an export sheet. A turnaround shows `current` from evenly spaced angles around the figure. */
-export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptions, 'scope' | 'angles'>): Cell[] {
+/**
+ * The cells of an export sheet. A turnaround shows `current` from evenly spaced angles around
+ * the figure; a frame sheet shows evenly spaced moments of its animation.
+ */
+export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptions, 'scope' | 'angles' | 'frames'>): Cell[] {
   if (o.scope === 'all') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}` }));
-  if (o.scope === 'current') return [{ scene: current, caption: current.name }];
+  if ((o.scope === 'frames' || o.scope === 'video') && current.animation) {
+    return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s` }));
+  }
+  if (o.scope === 'current' || o.scope === 'frames' || o.scope === 'video') return [{ scene: current, caption: current.name }];
   return TURNAROUND_NAMES[o.angles].map((name, i) => ({
     scene: { ...current, view: { ...current.view, yaw: wrapDeg((360 / o.angles) * i) } },
     caption: name,
@@ -203,6 +231,27 @@ export class SceneRenderer {
     return this.renderer.domElement;
   }
 
+  /** One frame of a shot: the scene filmed by the shot camera (see lib/shot.ts). */
+  renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { shot: CameraKey; framing: Framing; follow: boolean; shake: number }) {
+    const style = opts.style ?? 'line';
+    this.renderer.setSize(w, h, false);
+    this.background.set(styleDef(style).background);
+    this.scene.background = this.background;
+    this.renderer.setClearColor(this.background, 1);
+    this.view.setFaces(opts.faces ?? true);
+    this.view.sync(doc);
+    this.view.setStyle(style);
+    this.lines.setStyle(style);
+    this.view.ink.setResolution(w, h);
+    this.view.ink.setThickness(line);
+    this.view.ink.setLightDirection(this.lights.update(opts.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
+    placeShot(this.camera, opts.framing, opts.shot, w / h, { follow: opts.follow ? figuresCenter(this.view) : null, shake: opts.shake, t: opts.shot.t });
+    this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
+    this.renderer.render(this.scene, this.camera);
+    this.lines.overlay(this.renderer);
+    return this.renderer.domElement;
+  }
+
   thumbnail(doc: Scene): string {
     return this.render(doc, 180, 192, 1.1).toDataURL('image/png');
   }
@@ -222,8 +271,8 @@ export class SceneRenderer {
     }
     // Same scale: the apparent size depends on distance × tan(fov / 2), so match that product.
     const tan = (s: Scene) => Math.tan((s.view.fov * D2R) / 2);
-    // A turnaround is only useful if every angle has the same scale.
-    const size = o.sameScale || o.scope === 'turnaround' ? Math.max(...cells.map((c) => this.measure(c.scene, o.cellWidth, o.cellHeight, o.margin) * tan(c.scene))) : 0;
+    // Turnarounds and frame sheets are only useful if every cell has the same scale.
+    const size = o.sameScale || o.scope === 'turnaround' || o.scope === 'frames' ? Math.max(...cells.map((c) => this.measure(c.scene, o.cellWidth, o.cellHeight, o.margin) * tan(c.scene))) : 0;
     cells.forEach(({ scene, caption }, i) => {
       const x = (i % cols) * o.cellWidth;
       const y = Math.floor(i / cols) * (o.cellHeight + labelH);

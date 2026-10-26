@@ -1,3 +1,4 @@
+import { sceneAt, setKey } from './animation';
 import { parseLibrary } from './doc';
 import { DEFAULT_LIGHT, clampLight } from './lighting';
 import { presetScenes } from './presets';
@@ -29,6 +30,8 @@ export interface State {
   canUndo: boolean;
   canRedo: boolean;
   saveStatus: SaveStatus;
+  /** Animation time (seconds) of the open pose; its figures always show the pose at this time. */
+  time: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -105,8 +108,10 @@ export class Store {
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
-      library, sceneIndex, selection: null, activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved',
+      library, sceneIndex, selection: null, activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0,
     });
+    // An animated pose opens at its first frame.
+    this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
   }
 
   getState = () => this.state;
@@ -186,8 +191,9 @@ export class Store {
   commit(update: (lib: Library) => Library, key = '', extra: Partial<State> = {}) {
     const prev = this.state.library;
     const prevIndex = this.state.sceneIndex;
-    const next = update(prev);
+    let next = update(prev);
     if (next === prev) return;
+    next = this.autoKey(prev, next);
     const now = Date.now();
     const merge = key && key === this.lastKey && now - this.lastTime < MERGE_MS && this.past.length > 0;
     if (!merge) {
@@ -199,6 +205,26 @@ export class Store {
     this.lastTime = now;
     this.set({ library: next, ...extra });
     this.past[this.past.length - 1].after = this.state.sceneIndex;
+  }
+
+  /**
+   * Auto-key: in an animated pose, any change to the figures is recorded as a keyframe at the
+   * current time (creating one, or updating the key already there).
+   */
+  private autoKey(prev: Library, next: Library): Library {
+    const i = this.state.sceneIndex;
+    const before = prev.scenes[i];
+    const after = next.scenes[i];
+    if (!after?.animation || !before || before.id !== after.id || before.figures === after.figures) return next;
+    const animation = setKey(after.animation, this.state.time, after.figures);
+    return { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
+  }
+
+  /** The library with an animated scene's figures posed for `time`. */
+  private withFrame(lib: Library, index: number, time: number): Library {
+    const s = lib.scenes[index];
+    if (!s?.animation) return lib;
+    return { ...lib, scenes: lib.scenes.map((x, j) => (j === index ? sceneAt(x, time) : x)) };
   }
 
   updateScene(fn: (s: Scene) => Scene, key = '') {
@@ -225,7 +251,7 @@ export class Store {
     if (!e) return;
     this.future.push({ library: this.state.library, index: e.after, after: e.index });
     this.lastKey = '';
-    this.set({ library: e.library, sceneIndex: e.index });
+    this.set({ library: this.withFrame(e.library, e.index, this.state.time), sceneIndex: e.index });
   }
 
   redo() {
@@ -233,7 +259,7 @@ export class Store {
     if (!e) return;
     this.past.push({ library: this.state.library, index: e.after, after: e.index });
     this.lastKey = '';
-    this.set({ library: e.library, sceneIndex: e.index });
+    this.set({ library: this.withFrame(e.library, e.index, this.state.time), sceneIndex: e.index });
   }
 
   /**
@@ -265,7 +291,14 @@ export class Store {
   /* ---------- UI state (not undoable) ---------- */
 
   setSceneIndex(sceneIndex: number) {
-    this.set({ sceneIndex, selection: null, activeFigure: null });
+    this.set({ sceneIndex, selection: null, activeFigure: null, time: 0, library: this.withFrame(this.state.library, sceneIndex, 0) });
+  }
+
+  /** Move the animation playhead; the figures take the pose for that time (not an undo step). */
+  setTime(time: number) {
+    const a = this.scene.animation;
+    const t = a ? Math.min(a.duration, Math.max(0, time)) : 0;
+    this.set({ time: t, library: this.withFrame(this.state.library, this.state.sceneIndex, t) });
   }
 
   select(selection: Selection) {

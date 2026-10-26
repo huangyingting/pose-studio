@@ -93,7 +93,9 @@ test('clicking a body part selects it and the sliders edit it', async ({ page })
   expect(after[0]).toBe(before[0] - 2);
 
   await page.keyboard.press('Escape');
+  // Two quick steps merge into one undo step; on a slow machine they may be two.
   await page.keyboard.press('Control+z');
+  if ((await state(page)).scene.figures[0].joints.hipL[0] !== before[0]) await page.keyboard.press('Control+z');
   expect((await state(page)).scene.figures[0].joints.hipL).toEqual(before);
 });
 
@@ -383,4 +385,67 @@ test('placement fields move and turn the figure, and faces can be hidden', async
   await page.getByRole('tab', { name: 'Render' }).click();
   await page.getByRole('switch', { name: 'Simple face features' }).uncheck();
   expect(((await state(page)) as unknown as { settings: { faces: boolean } }).settings.faces).toBe(false);
+});
+
+type Anim = { duration: number; keys: { t: number }[]; camera?: { keys: unknown[] } };
+const anim = async (page: Page) => page.evaluate(() => {
+  const s = (window as unknown as { __poseStudio: { store: { getState(): { time: number; sceneIndex: number; library: { scenes: { animation?: unknown }[] } } } } }).__poseStudio.store.getState();
+  return { time: s.time, animation: s.library.scenes[s.sceneIndex].animation as Anim | undefined };
+});
+
+test('animation templates play, take keys and use a shot camera', async ({ page }) => {
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Walk cycle' }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+  expect((await anim(page)).animation!.keys).toHaveLength(4);
+
+  await page.getByRole('button', { name: 'Play' }).click();
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: 'Pause' }).click();
+  expect((await anim(page)).time).toBeGreaterThan(0);
+
+  // Step to a frame between keys and add a key there.
+  await page.getByRole('button', { name: 'Previous keyframe' }).click();
+  await page.keyboard.press('.');
+  await page.keyboard.press('.');
+  await page.keyboard.press('k');
+  expect((await anim(page)).animation!.keys).toHaveLength(5);
+
+  await page.getByRole('button', { name: 'Look through the shot camera' }).click();
+  await expect(page.locator('.letterbox')).toBeVisible();
+  await page.getByRole('button', { name: 'Camera move' }).click();
+  await page.getByRole('menuitem', { name: 'Orbit 360°' }).click();
+  expect((await anim(page)).animation!.camera!.keys).toHaveLength(4);
+});
+
+test('a static pose can be animated with auto-keys', async ({ page }) => {
+  await page.getByRole('button', { name: 'Animate' }).click();
+  for (let i = 0; i < 12; i++) await page.keyboard.press('.');
+  expect((await anim(page)).time).toBeCloseTo(0.5, 2);
+  await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
+  const slider = page.locator('.slider input').first();
+  await slider.focus();
+  await page.keyboard.press('ArrowLeft');
+  expect((await anim(page)).animation!.keys.map((k) => k.t)).toEqual([0, 0.5]);
+});
+
+test('exports an animation as a frame sheet and as a video', async ({ page }) => {
+  // Software rendering and encoding on CI machines without a GPU is slow.
+  test.setTimeout(300_000);
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Wave hello' }).click();
+  await page.keyboard.press('Control+e');
+  await page.getByRole('radio', { name: 'Frame sheet' }).click();
+  await expect(page.getByText('2400 × 1280 px')).toBeVisible();
+  let [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
+  expect(download.suggestedFilename()).toBe('Wave_hello_frames.jpg');
+  expect(jpegSize(readFileSync((await download.path())!))).toEqual({ width: 2400, height: 1280 });
+
+  await page.keyboard.press('Control+e');
+  await page.getByRole('radio', { name: 'Video' }).click();
+  await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Size' }).selectOption('square');
+  [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Record video' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
+  expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);
 });

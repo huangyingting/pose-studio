@@ -74,6 +74,56 @@ export interface Scene {
   figures: Figure[];
   props: Prop[];
   view: View;
+  /** Optional keyframe animation (see lib/animation.ts). */
+  animation?: Animation;
+}
+
+/* ---------- animation ---------- */
+
+/** One figure's pose in a keyframe. */
+export interface PoseKey {
+  joints: Figure['joints'];
+  position: Vec3;
+  hands: Figure['hands'];
+  grounded: boolean;
+}
+
+export interface Keyframe {
+  /** Seconds from the start. */
+  t: number;
+  /** Pose per figure id. */
+  poses: Record<string, PoseKey>;
+}
+
+/**
+ * A shot camera key: an orbit around the (auto-framed) subject.
+ * zoom 1 frames everything; > 1 moves closer. pan shifts the frame (fractions of half the frame).
+ */
+export interface CameraKey {
+  t: number;
+  yaw: number;
+  pitch: number;
+  fov: number;
+  zoom: number;
+  pan: [number, number];
+}
+
+export interface CameraTrack {
+  keys: CameraKey[];
+  /** Re-centre on the figures every frame (tracking shot) instead of a fixed frame. */
+  follow: boolean;
+  /** Hand-held camera shake, 0–1. */
+  shake: number;
+}
+
+export interface Animation {
+  /** Length in seconds. */
+  duration: number;
+  fps: number;
+  loop: boolean;
+  /** Sorted by time. */
+  keys: Keyframe[];
+  camera?: CameraTrack;
 }
 
 export interface Library {

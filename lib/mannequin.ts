@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals, tube } from './ink';
+import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals } from './ink';
 import { clampRotation, jointLimits, wrapDeg } from './joints';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
@@ -99,6 +99,7 @@ function proportions(b: BodyParams) {
     hips: mix(0.75, 1.15) * (0.85 + 0.3 * b.build),
     /** Hand and foot size. */
     extremity: mix(1.06, 0.92),
+    female,
   };
 }
 
@@ -109,6 +110,53 @@ function eggFront(e: Egg, x: number, y: number) {
   const cy = THREE.MathUtils.clamp(y / e.ry, -1, 1);
   const r = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy);
   return (e.rz / e.rx) * Math.sqrt(Math.max(0, r * r - x * x));
+}
+
+interface Sculpt {
+  c: Vec3;
+  r: Vec3;
+  a: number;
+}
+
+/** Facial forms in head-egg coordinates (front is +Z, y = 0 is the egg's middle, units of head size). */
+function faceSculpts(e: Egg, h: number, female: number): Sculpt[] {
+  const male = 1 - female;
+  const front = (x: number, y: number): Vec3 => [x * h, y * h, eggFront(e, x * h, y * h)];
+  const cy = -0.022 * h / e.ry;
+  const side = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy);
+  const s = (c: Vec3, r: Vec3, a: number): Sculpt => ({ c, r: r.map((v) => v * h) as Vec3, a: a * h });
+  const out: Sculpt[] = [
+    s(front(0, 0.007), [0.056, 0.014, 0.03], 0.0032 + 0.003 * male), // brow ridge
+    s(front(0, -0.032), [0.0085, 0.03, 0.03], 0.0065 + 0.002 * male), // nose bridge
+    s(front(0, -0.052), [0.012, 0.011, 0.03], 0.0105 + 0.003 * male), // nose tip
+    s(front(0, -0.0712), [0.02, 0.0068, 0.025], 0.0032 + 0.0015 * female), // upper lip
+    s(front(0, -0.082), [0.017, 0.0072, 0.025], 0.0038 + 0.0022 * female), // lower lip
+    s(front(0, -0.103), [0.02 + 0.009 * male, 0.016, 0.035], 0.0045 + 0.004 * male), // chin
+  ];
+  for (const k of [1, -1]) {
+    out.push(
+      s(front(k * 0.031, -0.0145), [0.019, 0.012, 0.03], -0.0042), // eye socket
+      s(front(k * 0.011, -0.055), [0.0075, 0.0068, 0.02], 0.0038), // nostril wing
+      s(front(k * 0.046, -0.033), [0.026, 0.02, 0.04], 0.0032 + 0.001 * female), // cheekbone
+      { c: [k * side, -0.022 * h, -0.008 * h], r: [0.02 * h, 0.031 * h, 0.022 * h], a: 0.0075 * h }, // ear
+    );
+  }
+  return out;
+}
+
+/** Point on the sculpted face surface at (x, y), lifted slightly so lines sit on top. */
+function onFace(e: Egg, sculpts: Sculpt[], x: number, y: number, lift: number) {
+  const p = new THREE.Vector3(x, y, eggFront(e, x, y));
+  const n = new THREE.Vector3(p.x / (e.rx * e.rx), p.y / (e.ry * e.ry), p.z / (e.rz * e.rz)).normalize();
+  let d = lift;
+  for (const c of sculpts) {
+    const dx = (p.x - c.c[0]) / c.r[0];
+    const dy = (p.y - c.c[1]) / c.r[1];
+    const dz = (p.z - c.c[2]) / c.r[2];
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < 1) d += c.a * (1 - d2) * (1 - d2);
+  }
+  return p.addScaledVector(n, d);
 }
 
 /** The curved lower edge of one pectoral, from the sternum out towards the armpit. */
@@ -236,8 +284,7 @@ export class Mannequin {
     const h = P.head;
     // A smaller taper gives a squarer jaw (male); a larger one a rounder skull and narrower chin.
     const [hx, hy, hz, ht] = [0.085 * h, 0.115 * h, 0.1 * h, P.headTaper];
-    const headMesh = part('head', egg(hx, hy, hz, ht), [0, 0.1 * h, 0.01 * h], [meridian(hy, hz, ht), latitude(hx, hy, hz, -0.012 * h, ht)]);
-    this.buildFace(headMesh, { rx: hx, ry: hy, rz: hz, taper: ht }, h);
+    this.buildHead({ rx: hx, ry: hy, rz: hz, taper: ht }, h, P.female);
 
     const R = P.limbR;
     const mus = P.muscle;
@@ -278,47 +325,48 @@ export class Mannequin {
   }
 
   /**
-   * Simple, construction-style face details on the head egg, so figures read which way they
-   * face and look: nose and ears as small forms, eyes / brows / mouth as surface lines.
-   * They can be switched off (setFaceFeatures).
+   * The face, sculpted into the head rather than assembled from parts: brow ridge, eye
+   * sockets, nose, cheekbones, lips, chin and ears are smooth swellings and hollows of one
+   * surface, finished with a few quiet lines (upper eyelids, the line between the lips and
+   * under the nose). A plain construction head stands in when face features are off.
    */
-  private buildFace(head: THREE.Mesh, e: Egg, h: number) {
-    const [ox, oy, oz] = [head.position.x, head.position.y, head.position.z];
+  private buildHead(e: Egg, h: number, female: number) {
+    const pos: Vec3 = [0, 0.1 * h, 0.01 * h];
     const tag = { joint: 'head' as JointName, figure: this.id };
-    const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => {
-      const mesh = this.parts.add(this.joints.head, geo, tag, [ox + x, oy + y, oz + z]);
-      this.parts.markFeature(mesh);
-    };
-    const noseY = -0.05 * h;
-    add(ellipsoid(0.0095 * h, 0.024 * h, 0.012 * h, 20, 14).rotateX(-0.3), 0, noseY, eggFront(e, 0, noseY) - 0.004 * h);
-    const earY = -0.024 * h;
-    const cy = earY / e.ry;
-    const earX = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy) * 0.96;
-    for (const s of [1, -1]) add(ellipsoid(0.011 * h, 0.027 * h, 0.018 * h, 20, 14), s * earX, earY, -0.01 * h);
+    const plain = this.parts.add(this.joints.head, egg(e.rx, e.ry, e.rz, e.taper), tag, pos, [
+      meridian(e.ry, e.rz, e.taper), latitude(e.rx, e.ry, e.rz, -0.012 * h, e.taper),
+    ]);
+    this.parts.markPlain(plain);
 
-    const on = (x: number, y: number) => new THREE.Vector3(x, y, eggFront(e, x, y) + 0.0012);
-    const r = 0.0015 * h;
+    const sculpts = faceSculpts(e, h, female);
+    // Fine mesh for the small forms; the lathe seam is turned to the back of the head.
+    const geo = egg(e.rx, e.ry, e.rz, e.taper, 112, 120).rotateY(Math.PI);
+    for (const c of sculpts) bulge(geo, c.c, c.r, c.a);
+    const face = this.parts.add(this.joints.head, smoothNormals(geo), tag, pos);
+    this.parts.markFeature(face);
+
+    const at = (x: number, y: number) => onFace(e, sculpts, x * h, y * h, 0.0009 * h);
+    const curve = (n: number, f: (u: number) => [number, number]) => Array.from({ length: n + 1 }, (_, i) => at(...f(i / n)));
+    const r = 0.0013 * h;
     const lines: THREE.BufferGeometry[] = [];
     for (const s of [1, -1]) {
-      // Almond-shaped eye on the eye line, and a brow arching above it.
-      const eye = Array.from({ length: 24 }, (_, i) => {
-        const t = (i / 24) * Math.PI * 2;
-        const lid = Math.sin(t) > 0 ? 0.0068 : 0.0048;
-        return on(s * 0.031 * h + 0.015 * h * Math.cos(t), -0.017 * h + lid * h * Math.sin(t));
-      });
-      lines.push(tube(eye, r));
-      const brow = Array.from({ length: 9 }, (_, i) => {
-        const t = i / 8;
-        return on(s * (0.015 + 0.036 * t) * h, (0.004 + 0.006 * Math.sin(Math.PI * (0.25 + 0.75 * t))) * h);
-      });
-      lines.push(contour(brow, r * 1.1));
+      // Open almond eyes: a firmer upper lid arching up, a finer lower lid; they meet at the
+      // corners, the outer corner a touch higher than the inner one.
+      const eyeX = (u: number) => s * (0.017 + 0.029 * u);
+      const corner = (u: number) => -0.0152 + 0.0014 * u;
+      lines.push(contour(curve(16, (u) => [eyeX(u), corner(u) + 0.0058 * Math.sin(Math.PI * u) ** 0.75]), r * 1.15));
+      lines.push(contour(curve(12, (u) => [eyeX(0.08 + 0.84 * u), corner(0.08 + 0.84 * u) - 0.0028 * Math.sin(Math.PI * u)]), r * 0.6));
+      // A slender brow following the brow ridge.
+      lines.push(contour(curve(12, (u) => [s * (0.013 + 0.038 * u), 0.0035 + 0.0055 * Math.sin(Math.PI * (0.2 + 0.8 * u)) - 0.002 * u]), r * 0.75));
     }
-    const mouth = Array.from({ length: 9 }, (_, i) => {
-      const t = (i / 8) * 2 - 1;
-      return on(t * 0.021 * h, (-0.079 + 0.004 * t * t) * h);
-    });
-    lines.push(contour(mouth, r));
-    this.parts.addFaceLines(head, lines);
+    // Between the lips, with a gentle dip in the middle.
+    lines.push(contour(curve(16, (u) => {
+      const x = (u * 2 - 1) * (0.019 - 0.002 * female);
+      return [x, -0.0765 + 0.0016 * (x / 0.019) ** 2 - 0.0009 * Math.cos(Math.PI * u * 2) * (1 - Math.abs(u * 2 - 1))];
+    }), r * 0.9));
+    // Under the nose.
+    lines.push(contour(curve(10, (u) => [(u * 2 - 1) * 0.0085, -0.0605 - 0.0018 * Math.sin(Math.PI * u)]), r * 0.8));
+    this.parts.addFaceLines(face, lines);
   }
 
   /** Show or hide the face details. */

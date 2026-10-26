@@ -110,6 +110,7 @@ export function IconButton({ icon: Icon, label, shortcut, onClick, active, disab
 
 export type MenuItem =
   | { label: string; icon?: LucideIcon; shortcut?: string; onSelect(): void; danger?: boolean; disabled?: boolean; checked?: boolean }
+  | { group: string }
   | '-';
 
 /** Button that opens a list of actions. Closes on selection, outside click or Escape. */
@@ -169,6 +170,8 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
           {items.map((it, i) =>
             it === '-' ? (
               <div key={i} className="menu-sep" role="separator" />
+            ) : 'group' in it ? (
+              <div key={i} className="menu-group" role="presentation">{it.group}</div>
             ) : (
               <button
                 key={i}

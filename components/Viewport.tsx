@@ -4,14 +4,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, TransformControls } from '@react-three/drei';
+import { sceneAt } from '@/lib/animation';
 import { LightRig } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { IK_CHAINS, POLE_CHAINS, type Mannequin } from '@/lib/mannequin';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { SceneView } from '@/lib/sceneview';
+import { SHOT_ASPECT, captureShot, figuresCenter, framingFor, placeShot, shotAt } from '@/lib/shot';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
-import type { Figure, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { CameraKey, Figure, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { Clock } from './clock';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -20,6 +23,8 @@ export interface ViewportApi {
   rootPosition(figure: string): Vec3 | null;
   /** Screen (client) coordinates of a joint, for tests and tooling. */
   project(figure: string, joint: JointName): { x: number; y: number } | null;
+  /** The shot (camera key) that reproduces the current view. */
+  captureShot(): Omit<CameraKey, 't'> | null;
 }
 
 export interface FrameRequest {
@@ -36,11 +41,19 @@ interface Props {
   /** Explicit camera requests (view buttons, shortcuts). The view also re-frames when `scene.id` changes. */
   frameRequest: FrameRequest;
   apiRef: RefObject<ViewportApi | null>;
+  /** Animation playback clock, playhead time, and director tools. */
+  clock: Clock;
+  time: number;
+  shotMode: boolean;
+  onion: boolean;
 }
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
 
-export default function Viewport({ store, scene, selection, activeFigure, settings, frameRequest, apiRef }: Props) {
+export default function Viewport({
+  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, shotMode, onion,
+}: Props) {
+  const captureRef = useRef<(() => Omit<CameraKey, 't'> | null) | null>(null);
   const sv = useMemo(() => new SceneView(), []);
   // Re-render when sync() replaces three.js objects, so the gizmo/handles get the new joints.
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
@@ -144,7 +157,18 @@ export default function Viewport({ store, scene, selection, activeFigure, settin
           <FigureMarkers sv={sv} scene={scene} version={version} active={activeFigure} onPick={(id) => store.setActiveFigure(id)} />
         )}
         <OrbitControls makeDefault />
-        <Bridge sv={sv} apiRef={apiRef} frameRequest={frameRequest} sceneId={scene.id} sceneView={scene.view} />
+        {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
+        {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
+        <ShotDriver sv={sv} scene={scene} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
+        <Bridge
+          sv={sv}
+          apiRef={apiRef}
+          frameRequest={frameRequest}
+          sceneId={scene.id}
+          sceneView={scene.view}
+          shotMode={shotMode}
+          capture={() => captureRef.current?.() ?? null}
+        />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={settings.style} />
       </Canvas>
     </div>
@@ -348,6 +372,107 @@ function Lights({ sv, settings, scene }: { sv: SceneView; settings: Settings; sc
   return <primitive object={rig.object} />;
 }
 
+/** While playing, pose the figures for the clock's time on every frame (without touching the document). */
+function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Clock }) {
+  useFrame(() => {
+    if (clock.playing) sv.sync(sceneAt(scene, clock.time));
+  }, -2);
+  return null;
+}
+
+/** Translucent ghosts of the previous (blue) and next (orange) keyframes. */
+function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: Clock }) {
+  const views = useMemo(() => [
+    new SceneView({ color: '#3b6cff', opacity: 0.1 }),
+    new SceneView({ color: '#f97316', opacity: 0.1 }),
+  ], []);
+  const size = useThree((s) => s.size);
+  const has = useRef([false, false]);
+  useEffect(() => () => views.forEach((v) => v.dispose()), [views]);
+  useEffect(() => {
+    for (const v of views) {
+      v.ink.setResolution(size.width, size.height);
+      v.ink.setThickness(1.3);
+    }
+  }, [views, size]);
+  useLayoutEffect(() => {
+    const a = scene.animation!;
+    const tol = 0.5 / a.fps;
+    let prev = [...a.keys].reverse().find((k) => k.t < time - tol);
+    let next = a.keys.find((k) => k.t > time + tol);
+    if (a.loop && a.keys.length > 1) {
+      prev ??= a.keys[a.keys.length - 1];
+      next ??= a.keys[0];
+    }
+    [prev, next].forEach((k, i) => {
+      has.current[i] = !!k && Math.abs(k.t - time) >= tol;
+      if (k) views[i].sync({ ...sceneAt(scene, k.t), props: [] });
+    });
+  }, [scene, time, views]);
+  useFrame(() => {
+    views.forEach((v, i) => { v.root.visible = has.current[i] && !clock.playing; });
+  });
+  return <>{views.map((v, i) => <primitive key={i} object={v.root} />)}</>;
+}
+
+/**
+ * Look through the shot camera: follow the camera track while playing or scrubbing. In between,
+ * the view can be orbited freely to compose the next camera key.
+ */
+function ShotDriver({ sv, scene, clock, time, enabled, captureRef }: {
+  sv: SceneView;
+  scene: Scene;
+  clock: Clock;
+  time: number;
+  enabled: boolean;
+  captureRef: RefObject<(() => Omit<CameraKey, 't'> | null) | null>;
+}) {
+  const get = useThree((s) => s.get);
+  const size = useThree((s) => s.size);
+  // What the shot frames only changes with the animation (or the static pose).
+  const basis = scene.animation ?? scene.figures;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const frame = useMemo(() => framingFor(scene), [basis]);
+  const dirty = useRef(true);
+  useEffect(() => { dirty.current = true; }, [time, scene, enabled, size, frame]);
+
+  const stageAspect = size.width / Math.max(1, size.height);
+  /** Vertical lens for the editor so the 16:9 letterbox shows exactly the shot. */
+  const displayFov = (fov: number) =>
+    stageAspect < SHOT_ASPECT ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov) / 2) * (SHOT_ASPECT / stageAspect))) : fov;
+
+  useEffect(() => {
+    captureRef.current = () => {
+      const { camera, controls } = get() as unknown as { camera: THREE.PerspectiveCamera; controls: Controls };
+      if (!controls) return null;
+      const cam = camera.clone();
+      if (enabled && stageAspect < SHOT_ASPECT) {
+        cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (stageAspect / SHOT_ASPECT)));
+      }
+      const follow = scene.animation?.camera?.follow ? figuresCenter(sv) : null;
+      return captureShot(cam, controls.target, frame, SHOT_ASPECT, follow);
+    };
+  });
+
+  useFrame((state) => {
+    const camera = state.camera as THREE.PerspectiveCamera;
+    const controls = state.controls as unknown as Controls;
+    if (!enabled || !controls) return;
+    if (!clock.playing && !dirty.current) return;
+    dirty.current = false;
+    const t = clock.playing ? clock.time : time;
+    const shot = shotAt(scene, t);
+    const track = scene.animation?.camera;
+    const target = placeShot(camera, frame, shot, SHOT_ASPECT, { follow: track?.follow ? figuresCenter(sv) : null, shake: track?.shake, t });
+    camera.aspect = stageAspect;
+    camera.fov = displayFov(shot.fov);
+    camera.updateProjectionMatrix();
+    controls.target.copy(target);
+    controls.update();
+  }, -1);
+  return null;
+}
+
 /** Takes over R3F's render loop to add the interior line-art pass. */
 function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
   const pass = useMemo(() => new LineArtPass(), []);
@@ -365,18 +490,23 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
   return null;
 }
 
-function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView }: {
+function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture }: {
   sv: SceneView;
   apiRef: Props['apiRef'];
   frameRequest: FrameRequest;
   sceneId: string;
   sceneView: View;
+  shotMode: boolean;
+  capture(): Omit<CameraKey, 't'> | null;
 }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const controls = useThree((s) => s.controls) as unknown as Controls;
   const gl = useThree((s) => s.gl);
   const latestView = useRef(sceneView);
   useEffect(() => { latestView.current = sceneView; }, [sceneView]);
+
+  const captureRef = useRef(capture);
+  useEffect(() => { captureRef.current = capture; });
 
   useEffect(() => {
     apiRef.current = {
@@ -389,6 +519,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView }: {
         const r = gl.domElement.getBoundingClientRect();
         return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
       },
+      captureShot: () => captureRef.current(),
     };
   }, [apiRef, camera, controls, sv, gl]);
 
@@ -404,12 +535,24 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView }: {
     });
   };
 
-  // Switching to another pose shows it from its export angle.
+  // Switching to another pose shows it from its export angle (the shot camera takes over in shot mode).
+  const shotRef = useRef(shotMode);
+  useEffect(() => { shotRef.current = shotMode; }, [shotMode]);
   useEffect(() => {
+    if (shotRef.current) return;
     const id = frame({ ...latestView.current, fov: 35 });
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId, controls]);
+
+  // Leaving shot mode returns to the normal editor lens.
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    if (shotMode) return;
+    const cam = get().camera as THREE.PerspectiveCamera;
+    cam.fov = 35;
+    cam.updateProjectionMatrix();
+  }, [shotMode, get]);
 
   useEffect(() => {
     if (frameRequest.n === 0) return;

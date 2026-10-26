@@ -2,17 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ChevronDown, ChevronUp, CircleDot, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, FilePlus2, FileUp, Focus, FolderOpen,
+  ChevronDown, ChevronUp, CircleDot, Film, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, FilePlus2, FileUp, Focus, FolderOpen,
   Grid3x3, Keyboard, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2, Video,
 } from 'lucide-react';
 import {
-  addScene, appendScenes, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addScene, appendScenes, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam, shareUrl } from '@/lib/share';
 import { Store, type SaveStatus } from '@/lib/store';
+import { snapTime } from '@/lib/animation';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type View } from '@/lib/types';
 import { VIEW_PRESETS } from '@/lib/views';
@@ -22,7 +23,9 @@ import Inspector, { type InspectorContext, type Tab } from './Inspector';
 import LibraryPanel from './LibraryPanel';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
+import { Clock } from './clock';
 import { STYLE_ICONS } from './icons';
+import Timeline from './Timeline';
 import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './ui';
 import Viewport, { type FrameRequest, type ViewportApi } from './Viewport';
 
@@ -77,6 +80,32 @@ function App() {
   const [frameRequest, setFrameRequest] = useState<FrameRequest>({ view: { yaw: 0, pitch: 4 }, n: 0 });
   const [drawer, setDrawer] = useState<null | 'library' | 'inspector'>(null);
   const apiRef = useRef<ViewportApi | null>(null);
+  // Animation: playback clock and director tools (UI state, not saved).
+  const [clock] = useState(() => new Clock());
+  const time = useStudio((s) => s.time);
+  const [shotMode, setShotMode] = useState(false);
+  const [onion, setOnion] = useState(false);
+  const [exportScope, setExportScope] = useState<'video' | null>(null);
+  const togglePlay = useCallback(() => {
+    if (!store.scene.animation) return;
+    if (clock.playing) {
+      clock.pause();
+      store.setTime(clock.time);
+      return;
+    }
+    clock.set(store.getState().time);
+    clock.play(() => {
+      const a = store.scene.animation;
+      return a ? { duration: a.duration, loop: a.loop } : null;
+    }, (t) => store.setTime(t));
+  }, [clock, store]);
+  /** Stop playback before any edit, so changes are keyed at the frame on screen. */
+  const stopPlayback = useCallback(() => {
+    if (!clock.playing) return;
+    clock.pause();
+    store.setTime(clock.time);
+  }, [clock, store]);
+  useEffect(() => stopPlayback, [scene.id, stopPlayback]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = useCallback<Notify>((text, kind = 'info', action) => {
@@ -228,6 +257,13 @@ function App() {
           store.setSettings({ style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] });
         });
         case 'p': case 'P': return run(() => setDialog('practice'));
+        case ' ': if (store.scene.animation) run(togglePlay); return;
+        case 'k': case 'K': if (store.scene.animation) run(() => { stopPlayback(); addKeyframe(store); }); return;
+        case ',': case '.': {
+          const a = store.scene.animation;
+          if (!a) return;
+          return run(() => { stopPlayback(); store.setTime(snapTime(a, store.getState().time + (e.key === ',' ? -1 : 1) / a.fps)); });
+        }
         case '[': return run(() => store.setSceneIndex(Math.max(0, store.getState().sceneIndex - 1)));
         case ']': return run(() => store.setSceneIndex(Math.min(store.getState().library.scenes.length - 1, store.getState().sceneIndex + 1)));
         case 'Delete': case 'Backspace':
@@ -239,7 +275,7 @@ function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dialog, store, notify, notifyUndo, frame, frameCurrent, saveFile, setGizmo]);
+  }, [dialog, store, notify, notifyUndo, frame, frameCurrent, saveFile, setGizmo, togglePlay, stopPlayback]);
 
   // Offline support (production only: in development the cache would serve stale code).
   useEffect(() => {
@@ -272,7 +308,10 @@ function App() {
   const StyleIcon = STYLE_ICONS[settings.style];
 
   return (
-    <div className={`studio${drawer ? ` drawer-${drawer}` : ''}`}>
+    <div
+      className={`studio${drawer ? ` drawer-${drawer}` : ''}`}
+      onPointerDownCapture={(e) => { if (!(e.target as HTMLElement).closest('.timeline')) stopPlayback(); }}
+    >
       <header className="topbar">
         <div className="tb-left">
           <IconButton icon={PanelLeft} label="Poses" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
@@ -337,7 +376,7 @@ function App() {
 
       <LibraryPanel onPick={() => setDrawer(null)} notifyUndo={notifyUndo} />
 
-      <main className="stage" style={{ background: style.background }}>
+      <main className={`stage${scene.animation ? ' animated' : ''}`} style={{ background: style.background }}>
         <Viewport
           store={store}
           scene={scene}
@@ -346,7 +385,12 @@ function App() {
           settings={settings}
           frameRequest={frameRequest}
           apiRef={apiRef}
+          clock={clock}
+          time={time}
+          shotMode={shotMode}
+          onion={onion}
         />
+        {shotMode && <div className="letterbox" aria-hidden><div /></div>}
         {reference.url && reference.visible && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={reference.url} alt="" style={{ opacity: reference.opacity }} />
@@ -404,7 +448,27 @@ function App() {
             pressed={settings.showGrid}
             onClick={() => store.setSettings({ showGrid: !settings.showGrid })}
           />
+          {!scene.animation && (
+            <>
+              <span className="tb-sep" />
+              <button type="button" className="btn ghost" onClick={() => { startAnimation(store); notify('Animation started: pose the figures at other times on the timeline'); }} data-tip="Animate this pose" data-tip-side="top">
+                <Film size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">Animate</span>
+              </button>
+            </>
+          )}
         </div>
+        {scene.animation && (
+          <Timeline
+            clock={clock}
+            shotMode={shotMode}
+            setShotMode={setShotMode}
+            onion={onion}
+            setOnion={setOnion}
+            captureShot={() => apiRef.current?.captureShot() ?? null}
+            onExportVideo={() => { setExportScope('video'); setDialog('export'); }}
+            notify={notify}
+          />
+        )}
         {settings.gizmo !== 'rotate' && !gizmoForSelection && (
           <div className="hint">Select a prop to {settings.gizmo === 'translate' ? 'move' : 'scale'} it</div>
         )}
@@ -413,7 +477,9 @@ function App() {
       <Inspector tab={tab} setTab={setTab} ctx={ctx} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
-      {dialog === 'export' && <ExportDialog onClose={() => setDialog(null)} notify={notify} />}
+      {dialog === 'export' && (
+        <ExportDialog onClose={() => { setDialog(null); setExportScope(null); }} notify={notify} initialScope={exportScope ?? undefined} />
+      )}
       {dialog === 'photo' && (
         <PhotoDialog
           onClose={() => setDialog(null)}

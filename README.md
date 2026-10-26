@@ -17,10 +17,16 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 - **Multi-person scenes**: templates for two and three people (conversation, handshake, hand on shoulder, walking hand in hand, waltz hold, back to back, sparring, group photo), built with the same tools you can use yourself:
   - **Placement**: exact floor position and facing for each figure; the Move tool (`W`) moves whole figures; floor markers show where everyone stands and faces (click one to pick that figure).
   - **Relations** to another figure: turn to it, face each other, look at it (head, neck and if needed chest turn without tilting), stand beside it or back to back, set the distance, and **reach** a hand to its head, shoulder, chest, back, waist or hand (IK; tells you when it is out of reach).
-- **Simple face features**: nose, ears, eyes, brows and mouth in a construction-drawing style, so you can tell where each figure faces and looks. They can be turned off in the Render panel.
+- **Sculpted faces**: brow ridge, eyes, nose, cheekbones, lips, chin and ears are modelled into the head as one smooth surface, finished with a few quiet lines (eyelids, brows, lips), and differ between male and female figures. So you can always tell where a figure faces and looks. Turn them off in the Render panel for a plain construction head with centre and eye lines.
 - **Layers**: multiple figures and props per pose, listed in the Layers panel, where you can add, duplicate, hide and delete them. Hidden figures stay in the pose but are not drawn or exported.
 - **Props**: box, ball, cylinder, chair, stool, step and wall. Move, rotate and scale them with the gizmo or with X/Y/Z fields (drag a field's letter to scrub the value). Turn off "Stand on the floor" to seat a figure on a prop.
 - **Pose library**: 20 built-in poses taken from the reference sheet. You can search, reorder by drag and drop or with Alt+arrow keys, and duplicate or delete poses. Arrow keys move between thumbnails. Thumbnails update live.
+
+**Animation and camera**
+- **Keyframe animation**: press **Animate** (or start from an animation template), move the playhead and pose: every edit is keyed at that time (auto-key). Keys are joined by smooth curves, loops wrap seamlessly, and a grounded figure bobs naturally as its legs bend. Drag keys along the timeline to retime them; `Space` plays, `,` / `.` step a frame, `K` sets a key. Onion skin shows the previous and next keys as ghosts.
+- **Animation templates**: walk cycle, run cycle, jump, dance groove, waltz turn (two people), boxing exchange (two people), front kick, wave hello and bow. Each comes with a camera move.
+- **Director's camera**: a shot camera with its own keys (orbit angle, height, lens, push-in and pan). Look through it with a 16:9 letterbox, frame a view and press the camera key, or pick a ready-made move: locked-off wide, push in, pull out, arc, 360° orbit, crane up, low-angle hero, tracking shot, dolly zoom and hand-held.
+- **Shot description**: copy a plain-language description of the shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
 
 **Output**
 - **Seven render styles**, each with a live preview in the Render panel; press `L` to cycle through them:
@@ -32,7 +38,7 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
   - **Minimal**: flat shapes with a hairline outline.
   - **Silhouette**: solid shapes, for checking gesture and readability.
 - **Key light**: direction, height and presets for the lit styles (Pencil, Ink wash, Anime, Clay), with cast shadows where the style supports them.
-- **Export**: a sheet of all poses, just the current pose, or a **turnaround** of the current pose from 4 or 8 evenly spaced angles, as JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
+- **Export**: a sheet of all poses, just the current pose, a **turnaround** of the current pose from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), or a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical). Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
 - **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
@@ -97,6 +103,7 @@ components/
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
   Practice.tsx          Gesture-practice slideshow
+  Timeline.tsx, clock.ts  Animation timeline and playback clock
 lib/
   types.ts              Document model: Library → Scene → Figure / Prop
   store.ts              App state, undo/redo history, persistence
@@ -113,6 +120,10 @@ lib/
   practice.ts           Gesture-practice session building
   relations.ts          Spatial relations between figures: facing, spacing, look-at, reach
   templates.ts          Multi-person scene templates
+  animation.ts          Keyframes, cubic interpolation, auto-key helpers
+  motions.ts            Animation templates
+  shot.ts               Shot camera: framing, camera keys, camera moves
+  video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
 app/api/health          Liveness endpoint

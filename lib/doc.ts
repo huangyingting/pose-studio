@@ -1,9 +1,10 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
+import { mapPoses, parseAnimation, remapAnimation } from './animation';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
   FINGERS, JOINTS, PROP_KINDS,
-  type Figure, type Hand, type JointName, type Library, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
+  type Figure, type Hand, type JointName, type Library, type PoseKey, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
 } from './types';
 
 let counter = 0;
@@ -50,13 +51,16 @@ export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0]): Prop {
 }
 
 export function duplicateScene(s: Scene): Scene {
-  return {
+  const ids = new Map(s.figures.map((f) => [f.id, uid('f')]));
+  const copy: Scene = {
     ...structuredClone(s),
     id: uid('s'),
     name: `${s.name} copy`,
-    figures: s.figures.map((f) => ({ ...structuredClone(f), id: uid('f') })),
+    figures: s.figures.map((f) => ({ ...structuredClone(f), id: ids.get(f.id)! })),
     props: s.props.map((p) => ({ ...structuredClone(p), id: uid('p') })),
   };
+  if (s.animation) copy.animation = remapAnimation(s.animation, ids);
+  return copy;
 }
 
 const mirrorVec = (r: Vec3): Vec3 => [r[0], r[1] === 0 ? 0 : -r[1], r[2] === 0 ? 0 : -r[2]];
@@ -74,12 +78,22 @@ export function mirrorFigure(f: Figure): Figure {
 }
 
 export function mirrorScene(s: Scene): Scene {
-  return {
+  const mirrorPose = (p: PoseKey): PoseKey => {
+    const m = mirrorFigure({ ...newFigure(), ...p });
+    return { joints: m.joints, position: m.position, hands: m.hands, grounded: p.grounded };
+  };
+  const mirrored: Scene = {
     ...s,
     figures: s.figures.map(mirrorFigure),
     props: s.props.map((p) => ({ ...p, position: [-p.position[0], p.position[1], p.position[2]], rotation: mirrorVec(p.rotation) })),
     view: { ...s.view, yaw: -s.view.yaw },
   };
+  if (s.animation) {
+    const a = mapPoses(s.animation, mirrorPose);
+    if (a.camera) a.camera = { ...a.camera, keys: a.camera.keys.map((k) => ({ ...k, yaw: -k.yaw, pan: [-k.pan[0], k.pan[1]] })) };
+    mirrored.animation = a;
+  }
+  return mirrored;
 }
 
 /** Copy one side of the body onto the other. */
@@ -173,13 +187,22 @@ export function parseScene(v: unknown, i = 0): Scene {
     if (ids.has(f.id)) f.id = uid('f');
     ids.add(f.id);
   }
-  return {
+  const scene: Scene = {
     id: str(v.id, uid('s')),
     name: str(v.name, `Pose ${i + 1}`),
     figures,
     props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null),
     view: parseView(v.view),
   };
+  const animation = parseAnimation(v.animation, ids, parsePoseKey);
+  if (animation) scene.animation = animation;
+  return scene;
+}
+
+function parsePoseKey(v: unknown): PoseKey | null {
+  if (!isObj(v)) return null;
+  const hands = isObj(v.hands) ? v.hands : {};
+  return { joints: parseJoints(v.joints), position: vec3(v.position, [0, 0, 0]), hands: { L: parseHand(hands.L), R: parseHand(hands.R) }, grounded: v.grounded !== false };
 }
 
 /** Accepts a v2 library, a v1 array of poses, or a single scene. Throws on unusable input. */

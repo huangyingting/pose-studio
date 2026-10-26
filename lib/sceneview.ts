@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Ink } from './ink';
+import { Ink, type Ghost } from './ink';
 import { Mannequin } from './mannequin';
 import { PropObject } from './props';
 import type { Scene, Selection, Style } from './types';
@@ -9,7 +9,7 @@ import type { Scene, Selection, Style } from './types';
  * editor and the off-screen exporter, each with their own instance.
  */
 export class SceneView {
-  readonly ink = new Ink();
+  readonly ink: Ink;
   readonly root = new THREE.Group();
   readonly figures = new Map<string, Mannequin>();
   readonly props = new Map<string, PropObject>();
@@ -27,6 +27,16 @@ export class SceneView {
   };
 
   getVersion = () => this.version;
+
+  /** A ghost view (onion skin) is translucent and cannot be clicked. */
+  constructor(ghost: Ghost | null = null) {
+    this.ink = new Ink(ghost);
+    if (ghost) {
+      this.faces = false;
+      this.style = 'minimal';
+      this.ink.setStyle('minimal');
+    }
+  }
 
   /** Returns true if any three.js objects were replaced. */
   sync(scene: Scene): boolean {
@@ -78,6 +88,7 @@ export class SceneView {
     }
 
     this.root.updateMatrixWorld(true);
+    if (changed && this.ink.ghost) this.root.traverse((o) => { o.raycast = () => {}; });
     if (changed) {
       this.version++;
       this.applySelection();

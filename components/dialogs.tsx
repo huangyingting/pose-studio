@@ -1,21 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, ImagePlus, Keyboard, LayoutGrid, RefreshCw, ScanFace, Square } from 'lucide-react';
+import { Download, Film, ImagePlus, Keyboard, LayoutGrid, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { sceneAt } from '@/lib/animation';
 import { addFigures, appendScenes } from '@/lib/actions';
 import { newFigure, newScene } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
-  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, type ExportOptions,
+  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, type ExportOptions, type VideoSize,
 } from '@/lib/render';
+import { framingFor, shotAt } from '@/lib/shot';
+import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
 import type { BodyParams, Figure, Style } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
-import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify } from './ui';
+import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
 /* ---------------- Export ---------------- */
 
@@ -32,19 +35,29 @@ function loadExportOptions(): ExportOptions {
 }
 
 
-export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
+export function ExportDialog({ onClose, notify, initialScope }: { onClose(): void; notify: Notify; initialScope?: ExportOptions['scope'] }) {
   const scenes = useStudio((s) => s.library.scenes);
   const light = useStudio((s) => s.settings.light);
   const faces = useStudio((s) => s.settings.faces);
   const scene = useScene();
-  const [o, setO] = useState<ExportOptions>(loadExportOptions);
+  const animated = !!scene.animation;
+  const [o, setO] = useState<ExportOptions>(() => ({ ...loadExportOptions(), ...(initialScope ? { scope: initialScope } : {}) }));
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const abort = useRef<AbortController | null>(null);
   const preview = useRef<HTMLDivElement>(null);
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
+  // Animation outputs fall back to the single pose when the open pose is not animated.
+  const scope: ExportOptions['scope'] = !animated && (o.scope === 'frames' || o.scope === 'video') ? 'current' : o.scope;
+  const video = scope === 'video';
+  const canRecord = videoSupported();
 
-  const cells = useMemo(() => exportCells(scenes, scene, o), [o, scenes, scene]);
-  const { width, height } = sheetSize(cells.length, o);
-  const tooBig = width * height > 120_000_000 || width > 16384 || height > 16384;
+  const cells = useMemo(() => exportCells(scenes, scene, { ...o, scope }), [o, scope, scenes, scene]);
+  const size = video ? VIDEO_SIZES[o.videoSize] : sheetSize(cells.length, o);
+  const { width, height } = size;
+  const tooBig = !video && (width * height > 120_000_000 || width > 16384 || height > 16384);
+
+  useEffect(() => () => abort.current?.abort(), []);
 
   useEffect(() => {
     try {
@@ -52,36 +65,60 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
     } catch {
       // Not critical: the options just won't be remembered.
     }
-    // Low-resolution preview of the layout.
+    // Low-resolution preview of the layout (or the first frame of the video).
     const t = setTimeout(() => {
       const scale = Math.min(1, 360 / Math.max(width, height));
-      const small = sharedRenderer().sheet(cells, {
-        ...o,
-        cellWidth: Math.max(24, Math.round(o.cellWidth * scale)),
-        cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
-        lineWidth: Math.max(0.8, o.lineWidth * scale * 1.5),
-        labels: false,
-      }, light, faces);
+      let small: HTMLCanvasElement;
+      if (video) {
+        const r = sharedRenderer().renderShot(sceneAt(scene, 0), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
+          style: o.style, light, faces, shot: shotAt(scene, 0), framing: framingFor(scene), follow: !!scene.animation?.camera?.follow, shake: 0,
+        });
+        small = document.createElement('canvas');
+        small.width = r.width;
+        small.height = r.height;
+        small.getContext('2d')!.drawImage(r, 0, 0);
+      } else {
+        small = sharedRenderer().sheet(cells, {
+          ...o,
+          scope,
+          cellWidth: Math.max(24, Math.round(o.cellWidth * scale)),
+          cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
+          lineWidth: Math.max(0.8, o.lineWidth * scale * 1.5),
+          labels: false,
+        }, light, faces);
+      }
       small.className = 'preview-canvas';
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, cells, width, height, light, faces]);
+  }, [o, scope, video, cells, width, height, light, faces, scene]);
 
   const run = async () => {
     setBusy(true);
+    setProgress(0);
     await new Promise((r) => setTimeout(r, 30)); // let the button state paint
     try {
-      const canvas = sharedRenderer().sheet(cells, o, light, faces);
+      if (video) {
+        abort.current = new AbortController();
+        const { blob, ext } = await recordVideo(scene, {
+          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), loops: o.videoLoops, light, faces,
+        }, setProgress, abort.current.signal);
+        const name = `${safeFilename(scene.name)}.${ext}`;
+        downloadBlob(blob, name);
+        notify(`Saved ${name} (${width} × ${height})`);
+        onClose();
+        return;
+      }
+      const canvas = sharedRenderer().sheet(cells, { ...o, scope }, light, faces);
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
-      const base = o.scope === 'all' ? 'Pose' : safeFilename(scene.name);
-      const name = `${base}${o.scope === 'turnaround' ? '_turnaround' : ''}.${ext}`;
+      const base = scope === 'all' ? 'Pose' : safeFilename(scene.name);
+      const name = `${base}${scope === 'turnaround' ? '_turnaround' : scope === 'frames' ? '_frames' : ''}.${ext}`;
       downloadBlob(blob, name);
       notify(`Saved ${name} (${canvas.width} × ${canvas.height})`);
       onClose();
     } catch (err) {
-      notify(`Export failed: ${(err as Error).message}`, 'error');
+      if ((err as Error).message !== 'Cancelled') notify(`Export failed: ${(err as Error).message}`, 'error');
     } finally {
       setBusy(false);
     }
@@ -100,18 +137,33 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
     />
   );
 
+  const images: SegmentOption<ExportOptions['scope']>[] = [
+    { value: 'all', label: `All ${scenes.length}`, icon: LayoutGrid, title: 'Every pose in the library' },
+    { value: 'current', label: 'This pose', icon: Square },
+    { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This pose from evenly spaced angles' },
+  ];
+  const motion: SegmentOption<ExportOptions['scope']>[] = [
+    { value: 'frames', label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' },
+    { value: 'video', label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' },
+  ];
+
   return (
     <Modal
-      title="Export image"
-      icon={Download}
+      title={video ? 'Export video' : 'Export image'}
+      icon={video ? Film : Download}
       onClose={onClose}
       wide
       footer={
         <>
-          <span className={tooBig ? 'error-text' : 'muted'}>{width} × {height} px{tooBig ? ' — too large for most browsers' : ''}</span>
-          <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>
-          <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig} data-autofocus>
-            <Download size={15} aria-hidden /> {busy ? 'Rendering…' : 'Download'}
+          <span className={tooBig ? 'error-text' : 'muted'}>
+            {width} × {height} px{tooBig ? ' — too large for most browsers' : ''}
+            {video && scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`}
+          </span>
+          {!video && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>}
+          {busy && video && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
+          <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
+            {video ? <Film size={15} aria-hidden /> : <Download size={15} aria-hidden />}
+            {busy ? (video ? `Recording… ${Math.round(progress * 100)}%` : 'Rendering…') : video ? 'Record video' : 'Download'}
           </button>
         </>
       }
@@ -119,19 +171,12 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
       <div className="export-grid">
         <div className="form">
           <Field label="What">
-            <Segmented<ExportOptions['scope']>
-              label="What"
-              full
-              value={o.scope}
-              onChange={(scope) => set({ scope })}
-              options={[
-                { value: 'all', label: `All ${scenes.length}`, icon: LayoutGrid, title: 'Every pose in the library' },
-                { value: 'current', label: 'This pose', icon: Square },
-                { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This pose from evenly spaced angles' },
-              ]}
-            />
+            <Segmented<ExportOptions['scope']> label="What" full value={scope} onChange={(sc) => set({ scope: sc })} options={images} />
+            {animated && (
+              <Segmented<ExportOptions['scope']> label="Animation" full value={scope} onChange={(sc) => set({ scope: sc })} options={motion} />
+            )}
           </Field>
-          {o.scope === 'turnaround' && (
+          {scope === 'turnaround' && (
             <Field label="Angles">
               <Segmented<'4' | '8'>
                 label="Angles"
@@ -142,37 +187,74 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
               />
             </Field>
           )}
+          {scope === 'frames' && (
+            <Field label="Frames">
+              <Segmented<string>
+                label="Frames"
+                full
+                value={String(o.frames)}
+                onChange={(v) => set({ frames: Number(v) })}
+                options={['4', '6', '8', '12', '16'].map((v) => ({ value: v, label: v }))}
+              />
+            </Field>
+          )}
           <div className="row">
             <label>Style
               <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
             </label>
-            <label>Format
-              <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
-            </label>
-          </div>
-          <div className="row">
-            <label>Columns {num('columns', 1, 12)}</label>
-            <label>Cell width {num('cellWidth', 100, 4000)}</label>
-            <label>Cell height {num('cellHeight', 100, 4000)}</label>
-          </div>
-          <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
-          <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
-          <div className="stack">
-            <Toggle label="Captions under each cell" checked={o.labels} onChange={(labels) => set({ labels })} />
-            {o.scope === 'all' && (
-              <Toggle
-                label="Same scale in every cell"
-                hint="Keep figures comparable in size instead of filling each cell"
-                checked={o.sameScale}
-                onChange={(sameScale) => set({ sameScale })}
-              />
+            {video ? (
+              <label>Size
+                <Select<VideoSize> label="Size" value={o.videoSize} onChange={(videoSize) => set({ videoSize })} options={(Object.keys(VIDEO_SIZES) as VideoSize[]).map((k) => ({ value: k, label: VIDEO_SIZES[k].label }))} />
+              </label>
+            ) : (
+              <label>Format
+                <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
+              </label>
             )}
-            <Toggle
-              label="Transparent background (PNG)"
-              checked={o.transparent && o.format === 'png'}
-              onChange={(transparent) => set({ transparent, format: transparent ? 'png' : o.format })}
-            />
           </div>
+          {video ? (
+            <>
+              <Field label="Play the animation">
+                <Segmented<string>
+                  label="Play the animation"
+                  value={String(o.videoLoops)}
+                  onChange={(v) => set({ videoLoops: Number(v) })}
+                  options={[{ value: '1', label: 'Once' }, { value: '2', label: 'Twice' }, { value: '3', label: '3 times' }]}
+                />
+              </Field>
+              <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
+              <p className="muted small">
+                Filmed through the shot camera: set camera keys or pick a camera move on the timeline.
+                {!canRecord && ' This browser cannot record video.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="row">
+                <label>Columns {num('columns', 1, 12)}</label>
+                <label>Cell width {num('cellWidth', 100, 4000)}</label>
+                <label>Cell height {num('cellHeight', 100, 4000)}</label>
+              </div>
+              <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
+              <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
+              <div className="stack">
+                <Toggle label="Captions under each cell" checked={o.labels} onChange={(labels) => set({ labels })} />
+                {scope === 'all' && (
+                  <Toggle
+                    label="Same scale in every cell"
+                    hint="Keep figures comparable in size instead of filling each cell"
+                    checked={o.sameScale}
+                    onChange={(sameScale) => set({ sameScale })}
+                  />
+                )}
+                <Toggle
+                  label="Transparent background (PNG)"
+                  checked={o.transparent && o.format === 'png'}
+                  onChange={(transparent) => set({ transparent, format: transparent ? 'png' : o.format })}
+                />
+              </div>
+            </>
+          )}
           {styleDef(o.style).lit && <p className="muted small">Uses the light set in the Render tab.</p>}
         </div>
         <div className="preview" ref={preview} aria-label="Preview" />

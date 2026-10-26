@@ -29,11 +29,18 @@ function createOutlineMaterial(uniforms: Ink['uniforms']) {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 color;
+      uniform float opacity;
       void main() {
-        gl_FragColor = vec4(color, 1.0);
+        gl_FragColor = vec4(color, opacity);
         #include <colorspace_fragment>
       }`,
   });
+}
+
+/** Translucent single-colour look for onion-skin ghosts. */
+export interface Ghost {
+  color: string;
+  opacity: number;
 }
 
 /** Encode a part id as a colour with 16 levels per channel (robust to 8-bit precision). */
@@ -59,6 +66,7 @@ export class Ink {
     jitter: { value: 0 },
     resolution: { value: new THREE.Vector2(1, 1) },
     color: { value: new THREE.Color('#0b0b0b') },
+    opacity: { value: 1 },
     /** World-space direction towards the key light (painterly shaders). */
     lightDir: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
   };
@@ -69,6 +77,14 @@ export class Ink {
   private style: Style = 'line';
   private materials = new Map<Style, StyleMaterials>();
   private idMats = new Map<number, THREE.ShaderMaterial>();
+
+  constructor(readonly ghost: Ghost | null = null) {
+    if (ghost) {
+      this.outline.transparent = true;
+      this.outline.depthWrite = false;
+      this.uniforms.opacity.value = Math.min(1, ghost.opacity * 2);
+    }
+  }
 
   idMaterial(id: number) {
     let m = this.idMats.get(id);
@@ -97,6 +113,12 @@ export class Ink {
   setStyle(style: Style) {
     this.style = style;
     const def = styleDef(style);
+    if (this.ghost) {
+      this.uniforms.color.value.set(this.ghost.color);
+      this.uniforms.jitter.value = 0;
+      this.applyThickness();
+      return;
+    }
     if (def.outline) {
       this.uniforms.color.value.set(def.outline.color);
       this.uniforms.jitter.value = def.outline.jitter;
@@ -108,7 +130,7 @@ export class Ink {
 
   private applyThickness() {
     const o = styleDef(this.style).outline;
-    this.uniforms.thickness.value = this.baseThickness * (o ? o.scale : 0);
+    this.uniforms.thickness.value = this.baseThickness * (this.ghost ? 0.8 : o ? o.scale : 0);
   }
 
   /** Surface materials for a style, created on first use. */
@@ -122,6 +144,10 @@ export class Ink {
   }
 
   private createMaterials(style: Style): StyleMaterials {
+    if (this.ghost) {
+      const m = new THREE.MeshBasicMaterial({ color: this.ghost.color, transparent: true, opacity: this.ghost.opacity, depthWrite: false });
+      return { body: m, bodySel: m, prop: m, propSel: m };
+    }
     const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
     const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
     const shader = (s: 'ink' | 'sketch' | 'anime', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
@@ -179,6 +205,8 @@ export class InkedParts {
   /** Optional face details: nose and ear parts, and eye / brow / mouth lines. */
   private features = new Set<THREE.Mesh>();
   private faceLines: THREE.Mesh[] = [];
+  /** Shown instead of the features when they are off (e.g. the plain construction head). */
+  private plain = new Set<THREE.Mesh>();
   private featuresOn = true;
   private style: Style = 'line';
   private geometries = new Set<THREE.BufferGeometry>();
@@ -215,6 +243,12 @@ export class InkedParts {
     mesh.visible = this.featuresOn;
   }
 
+  /** Mark a part as the plain stand-in shown while face features are off. */
+  markPlain(mesh: THREE.Mesh) {
+    this.plain.add(mesh);
+    mesh.visible = !this.featuresOn;
+  }
+
   /** Thin lines drawn on a part's surface (eyes, brows, mouth), in the style's face colour. */
   addFaceLines(mesh: THREE.Mesh, geos: THREE.BufferGeometry[]) {
     for (const g of geos) {
@@ -230,6 +264,7 @@ export class InkedParts {
   setFeatures(on: boolean) {
     this.featuresOn = on;
     for (const m of this.features) m.visible = on;
+    for (const m of this.plain) m.visible = !on;
     const face = styleDef(this.style).face !== null;
     for (const l of this.faceLines) l.visible = on && face;
   }
@@ -342,14 +377,13 @@ export function ellipsoid(rx: number, ry: number, rz: number, w = 36, h = 24) {
 }
 
 /** Egg-like body segment centred on the origin; taper > 0 widens the top, < 0 the bottom. */
-export function egg(rx: number, ry: number, rz: number, taper: number) {
+export function egg(rx: number, ry: number, rz: number, taper: number, n = 32, segments = 40) {
   const pts: THREE.Vector2[] = [];
-  const n = 32;
   for (let i = 0; i <= n; i++) {
     const phi = Math.PI * (1 - i / n);
     pts.push(new THREE.Vector2(rx * Math.sin(phi) * (1 + taper * Math.cos(phi)), ry * Math.cos(phi)));
   }
-  return new THREE.LatheGeometry(pts, 40).scale(1, 1, rz / rx);
+  return new THREE.LatheGeometry(pts, segments).scale(1, 1, rz / rx);
 }
 
 /** Tapered capsule hanging from y=0 down to y=-len, with an optional muscle bulge. */

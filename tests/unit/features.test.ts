@@ -35,7 +35,7 @@ describe('export options', () => {
   it('builds a turnaround from evenly spaced angles around the figure', () => {
     const scenes = presetScenes();
     const current = { ...scenes[3], view: { yaw: 25, pitch: 10, fov: 24 } };
-    const cells = exportCells(scenes, current, { scope: 'turnaround', angles: 8 });
+    const cells = exportCells(scenes, current, { scope: 'turnaround', angles: 8, frames: 8 });
     expect(cells.map((c) => c.scene.view.yaw)).toEqual([0, 45, 90, 135, 180, -135, -90, -45]);
     expect(cells.every((c) => c.scene.view.pitch === 10 && c.scene.view.fov === 24)).toBe(true);
     expect(cells.map((c) => c.caption)).toContain('Back');
@@ -45,10 +45,10 @@ describe('export options', () => {
 
   it('numbers captions for the whole library', () => {
     const scenes = presetScenes();
-    const cells = exportCells(scenes, scenes[0], { scope: 'all', angles: 4 });
+    const cells = exportCells(scenes, scenes[0], { scope: 'all', angles: 4, frames: 8 });
     expect(cells).toHaveLength(20);
     expect(cells[1].caption).toBe(`2. ${scenes[1].name}`);
-    expect(exportCells(scenes, scenes[4], { scope: 'current', angles: 4 })).toEqual([{ scene: scenes[4], caption: scenes[4].name }]);
+    expect(exportCells(scenes, scenes[4], { scope: 'current', angles: 4, frames: 8 })).toEqual([{ scene: scenes[4], caption: scenes[4].name }]);
   });
 });
 

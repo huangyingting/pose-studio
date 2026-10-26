@@ -2,13 +2,15 @@ import { cloneHand } from './hands';
 import {
   NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid,
 } from './doc';
+import { moveKey, newAnimation, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
 import { presetScenes } from './presets';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   withFacing, withPosition, type Contact,
 } from './relations';
+import { CAMERA_MOVES } from './shot';
 import type { Store } from './store';
-import type { Figure, Hand, JointName, Prop, PropKind, Scene, Side, Vec3, View } from './types';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Prop, PropKind, Scene, Side, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -252,4 +254,95 @@ export function reachFor(store: Store, a: string, side: Side, b: string, contact
   } finally {
     rig.dispose();
   }
+}
+
+/* Animation */
+
+/** Turn the open pose into an animation (its current pose becomes the first keyframe). */
+export function startAnimation(store: Store, duration = 2) {
+  store.updateScene((s) => (s.animation ? s : { ...s, animation: newAnimation(s, duration) }));
+  store.setTime(0);
+}
+
+export function removeAnimation(store: Store) {
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const { animation: _removed, ...rest } = s;
+    void _removed;
+    return rest;
+  });
+}
+
+/** Record the current pose as a keyframe at the playhead. */
+export function addKeyframe(store: Store) {
+  const t = store.getState().time;
+  store.updateScene((s) => (s.animation ? { ...s, animation: setKey(s.animation, t, s.figures) } : s));
+}
+
+export function deleteKeyframe(store: Store) {
+  const t = store.getState().time;
+  store.updateScene((s) => (s.animation ? { ...s, animation: removeKey(s.animation, t) } : s));
+  store.setTime(t);
+}
+
+export function moveKeyframe(store: Store, from: number, to: number) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: moveKey(s.animation, from, to) } : s), 'move-key');
+  store.setTime(store.getState().time);
+}
+
+export function setAnimationOptions(store: Store, patch: { duration?: number; loop?: boolean; fps?: number }) {
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    let a = s.animation;
+    if (patch.duration !== undefined) a = setAnimDuration(a, patch.duration);
+    if (patch.loop !== undefined) a = { ...a, loop: patch.loop };
+    if (patch.fps !== undefined) a = { ...a, fps: Math.round(Math.min(60, Math.max(4, patch.fps))) };
+    return { ...s, animation: a };
+  }, 'anim-options');
+  store.setTime(store.getState().time);
+}
+
+/* Shot camera */
+
+function cameraTrack(a: Animation): CameraTrack {
+  return a.camera ?? { keys: [], follow: false, shake: 0 };
+}
+
+/** Set (or replace) the camera key at the playhead. */
+export function setCameraKey(store: Store, shot: Omit<CameraKey, 't'>) {
+  const t = store.getState().time;
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const a = s.animation;
+    const track = cameraTrack(a);
+    const time = snapTime(a, t);
+    const tol = 0.5 / a.fps;
+    const keys = [...track.keys.filter((k) => Math.abs(k.t - time) >= tol), { ...shot, t: time }].sort((p, q) => p.t - q.t);
+    return { ...s, animation: { ...a, camera: { ...track, keys } } };
+  });
+}
+
+export function deleteCameraKey(store: Store) {
+  const t = store.getState().time;
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a?.camera) return s;
+    const tol = 0.5 / a.fps;
+    return { ...s, animation: { ...a, camera: { ...a.camera, keys: a.camera.keys.filter((k) => Math.abs(k.t - t) >= tol) } } };
+  });
+}
+
+/** Replace the camera track with a ready-made move. */
+export function applyCameraMove(store: Store, id: string) {
+  const move = CAMERA_MOVES.find((m) => m.id === id);
+  if (!move) return;
+  store.updateScene((s) => {
+    const a = s.animation ?? newAnimation(s, 4);
+    const keys = move.keys(a, s.view);
+    return { ...s, animation: { ...a, camera: { keys, follow: move.follow ?? false, shake: move.shake ?? 0 } } };
+  });
+}
+
+export function setCameraOptions(store: Store, patch: Partial<Pick<CameraTrack, 'follow' | 'shake'>>) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, camera: { ...cameraTrack(s.animation), ...patch } } } : s), 'camera-options');
 }

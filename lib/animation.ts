@@ -1,0 +1,264 @@
+import { wrapDeg } from './joints';
+import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Hand, type Keyframe, type PoseKey, type Scene, type Vec3 } from './types';
+
+export type { Animation, Keyframe, PoseKey };
+
+/*
+ * Keyframe animation for a pose. Each keyframe stores every figure's pose (joints, position,
+ * hands, grounding) at a time; in between, values follow a cubic Hermite (Catmull-Rom) curve
+ * through the neighbouring keys, so cycles like a walk move smoothly instead of stopping at
+ * each key. Looping animations wrap around: the last key flows back into the first.
+ */
+
+export const DEFAULT_FPS = 24;
+
+export function poseOf(f: Figure): PoseKey {
+  return {
+    joints: structuredClone(f.joints),
+    position: [...f.position],
+    hands: { L: { curl: [...f.hands.L.curl], spread: f.hands.L.spread }, R: { curl: [...f.hands.R.curl], spread: f.hands.R.spread } },
+    grounded: f.grounded,
+  };
+}
+
+export function newAnimation(scene: Scene, duration = 2): Animation {
+  return { duration, fps: DEFAULT_FPS, loop: true, keys: [{ t: 0, poses: Object.fromEntries(scene.figures.map((f) => [f.id, poseOf(f)])) }] };
+}
+
+/** Snap a time to the frame grid and the animation's range. */
+export function snapTime(a: Pick<Animation, 'fps' | 'duration'>, t: number) {
+  const frame = Math.round(t * a.fps);
+  return Math.min(a.duration, Math.max(0, frame / a.fps));
+}
+
+/** Index of the key at time t (within half a frame), or -1. */
+export function keyAt(a: Animation, t: number) {
+  const tol = 0.5 / a.fps;
+  return a.keys.findIndex((k) => Math.abs(k.t - t) < tol);
+}
+
+/** Insert or replace the key at time t with the figures' current poses. */
+export function setKey(a: Animation, t: number, figures: Figure[]): Animation {
+  const time = snapTime(a, t);
+  const key: Keyframe = { t: time, poses: Object.fromEntries(figures.map((f) => [f.id, poseOf(f)])) };
+  const i = keyAt(a, time);
+  const keys = i >= 0 ? a.keys.map((k, j) => (j === i ? key : k)) : [...a.keys, key].sort((p, q) => p.t - q.t);
+  return { ...a, keys };
+}
+
+export function removeKey(a: Animation, t: number): Animation {
+  const i = keyAt(a, t);
+  if (i < 0 || a.keys.length <= 1) return a;
+  return { ...a, keys: a.keys.filter((_, j) => j !== i) };
+}
+
+/** Move a key to a new time (keeps at least one frame between keys). */
+export function moveKey(a: Animation, from: number, to: number): Animation {
+  const i = keyAt(a, from);
+  if (i < 0) return a;
+  const time = snapTime(a, to);
+  if (a.keys.some((k, j) => j !== i && Math.abs(k.t - time) < 0.5 / a.fps)) return a;
+  return { ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, t: time } : k)).sort((p, q) => p.t - q.t) };
+}
+
+/** Change the length, scaling key times to fit. */
+export function setDuration(a: Animation, duration: number): Animation {
+  const d = Math.min(60, Math.max(0.2, duration));
+  const s = d / a.duration;
+  return { ...a, duration: d, keys: a.keys.map((k) => ({ ...k, t: snapTime({ fps: a.fps, duration: d }, k.t * s) })) };
+}
+
+/* ---------- sampling ---------- */
+
+/** Cubic Hermite through p1→p2 with Catmull-Rom tangents from the neighbours (non-uniform times). */
+function hermite(p0: number, p1: number, p2: number, p3: number, t0: number, t1: number, t2: number, t3: number, t: number) {
+  const h = t2 - t1;
+  if (h <= 1e-9) return p1;
+  const u = (t - t1) / h;
+  const m1 = t2 - t0 > 1e-9 ? ((p2 - p0) / (t2 - t0)) * h : 0;
+  const m2 = t3 - t1 > 1e-9 ? ((p3 - p1) / (t3 - t1)) * h : 0;
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * p1 + (u3 - 2 * u2 + u) * m1 + (-2 * u3 + 3 * u2) * p2 + (u3 - u2) * m2;
+}
+
+interface Track {
+  t: number;
+  pose: PoseKey;
+}
+
+/**
+ * The keys around time t: k1 → k2 is the segment containing t, k0 and k3 its neighbours
+ * (times shifted by the duration when wrapping a loop; mirrored at the ends otherwise).
+ */
+function segment<T extends { t: number }>(track: T[], t: number, duration: number, loop: boolean) {
+  const n = track.length;
+  if (n === 1) return { k0: track[0], k1: track[0], k2: track[0], k3: track[0], time: t };
+  if (loop) {
+    const at = (i: number): T => {
+      const k = track[((i % n) + n) % n];
+      return { ...k, t: k.t + Math.floor(i / n) * duration };
+    };
+    let time = ((t % duration) + duration) % duration;
+    if (time < track[0].t) time += duration;
+    let i = 0;
+    while (i < n - 1 && at(i + 1).t <= time) i++;
+    return { k0: at(i - 1), k1: at(i), k2: at(i + 1), k3: at(i + 2), time };
+  }
+  const time = Math.min(track[n - 1].t, Math.max(track[0].t, t));
+  let i = 0;
+  while (i < n - 2 && track[i + 1].t <= time) i++;
+  const k1 = track[i];
+  const k2 = track[i + 1];
+  const k0 = i > 0 ? track[i - 1] : { ...k1, t: k1.t - (k2.t - k1.t) };
+  const k3 = i + 2 < n ? track[i + 2] : { ...k2, t: k2.t + (k2.t - k1.t) };
+  return { k0, k1, k2, k3, time };
+}
+
+/** Cubic interpolation helpers for one segment. */
+function interpolator(k0: { t: number }, k1: { t: number }, k2: { t: number }, k3: { t: number }, time: number) {
+  const num = (p0: number, p1: number, p2: number, p3: number) => hermite(p0, p1, p2, p3, k0.t, k1.t, k2.t, k3.t, time);
+  // Angles: unwrap neighbours relative to p1 so a turn from 170° to -170° goes the short way.
+  const ang = (p0: number, p1: number, p2: number, p3: number) => {
+    const q2 = p1 + wrapDeg(p2 - p1);
+    return wrapDeg(num(p1 + wrapDeg(p0 - p1), p1, q2, q2 + wrapDeg(p3 - p2)));
+  };
+  return { num, ang };
+}
+
+/** Interpolated pose of one figure at time t, or null if no key mentions it. */
+export function samplePose(a: Animation, id: string, t: number): PoseKey | null {
+  const track: Track[] = a.keys.filter((k) => k.poses[id]).map((k) => ({ t: k.t, pose: k.poses[id] }));
+  if (!track.length) return null;
+  const { k0, k1, k2, k3, time } = segment(track, t, a.duration, a.loop);
+  if (k2.t - k1.t <= 1e-9) return structuredClone(k1.pose);
+  const { num, ang } = interpolator(k0, k1, k2, k3, time);
+  const ks = [k0, k1, k2, k3];
+  const joints: Figure['joints'] = {};
+  for (const j of JOINTS) {
+    const r = ks.map((k) => k.pose.joints[j] ?? [0, 0, 0]);
+    const v = [0, 1, 2].map((c) => Math.round(ang(r[0][c], r[1][c], r[2][c], r[3][c]) * 10) / 10 || 0) as Vec3;
+    if (v.some((x) => x !== 0)) joints[j] = v;
+  }
+  const p = ks.map((k) => k.pose.position);
+  const position = [0, 1, 2].map((c) => Math.round(num(p[0][c], p[1][c], p[2][c], p[3][c]) * 1000) / 1000 || 0) as Vec3;
+  const hand = (side: 'L' | 'R'): Hand => {
+    const h = ks.map((k) => k.pose.hands[side]);
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+    return {
+      curl: h[1].curl.map((_, i) => clamp(num(h[0].curl[i], h[1].curl[i], h[2].curl[i], h[3].curl[i]))) as Hand['curl'],
+      spread: clamp(num(h[0].spread, h[1].spread, h[2].spread, h[3].spread)),
+    };
+  };
+  return { joints, position, hands: { L: hand('L'), R: hand('R') }, grounded: k1.pose.grounded };
+}
+
+/** Shot camera at time t (the track's keys interpolated), or null without a camera track. */
+export function sampleCamera(a: Animation, t: number): CameraKey | null {
+  const keys = a.camera?.keys;
+  if (!keys?.length) return null;
+  const { k0, k1, k2, k3, time } = segment(keys, t, a.duration, a.loop);
+  const c = [k0, k1, k2, k3];
+  if (k2.t - k1.t <= 1e-9) return { ...k1, t };
+  const { num, ang } = interpolator(k0, k1, k2, k3, time);
+  const n = (f: (k: CameraKey) => number) => num(f(c[0]), f(c[1]), f(c[2]), f(c[3]));
+  return {
+    t,
+    yaw: ang(c[0].yaw, c[1].yaw, c[2].yaw, c[3].yaw),
+    pitch: Math.min(89, Math.max(-89, n((k) => k.pitch))),
+    fov: Math.min(90, Math.max(5, n((k) => k.fov))),
+    zoom: Math.max(0.1, n((k) => k.zoom)),
+    pan: [n((k) => k.pan[0]), n((k) => k.pan[1])],
+  };
+}
+
+/** The scene as it looks at time t. Figures without keys keep their pose. */
+export function sceneAt(scene: Scene, t: number): Scene {
+  const a = scene.animation;
+  if (!a) return scene;
+  return {
+    ...scene,
+    figures: scene.figures.map((f) => {
+      const p = samplePose(a, f.id, t);
+      return p ? { ...f, ...p } : f;
+    }),
+  };
+}
+
+/** Times of evenly spaced frames, for frame sheets and video. */
+export function frameTimes(a: Animation, count?: number) {
+  const total = Math.max(1, Math.round(a.duration * a.fps));
+  const n = count ? Math.max(1, Math.min(count, total)) : total;
+  // A loop's last frame equals its first, so leave it out.
+  const steps = a.loop ? n : Math.max(1, n - 1);
+  return Array.from({ length: n }, (_, i) => Math.round(((i * a.duration) / steps) * 1000) / 1000);
+}
+
+/* ---------- validation of untrusted data ---------- */
+
+export function parseAnimation(
+  v: unknown,
+  figureIds: Set<string>,
+  parsePose: (p: unknown) => PoseKey | null,
+): Animation | undefined {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
+  const o = v as Record<string, unknown>;
+  const num = (x: unknown, fallback: number) => (typeof x === 'number' && Number.isFinite(x) ? x : fallback);
+  const duration = Math.min(60, Math.max(0.2, num(o.duration, 2)));
+  const fps = Math.round(Math.min(60, Math.max(4, num(o.fps, DEFAULT_FPS))));
+  const keys: Keyframe[] = [];
+  for (const k of Array.isArray(o.keys) ? o.keys.slice(0, 600) : []) {
+    if (typeof k !== 'object' || k === null) continue;
+    const kk = k as Record<string, unknown>;
+    const poses: Record<string, PoseKey> = {};
+    if (typeof kk.poses === 'object' && kk.poses !== null) {
+      for (const [id, p] of Object.entries(kk.poses as Record<string, unknown>)) {
+        if (!figureIds.has(id)) continue;
+        const pose = parsePose(p);
+        if (pose) poses[id] = pose;
+      }
+    }
+    if (Object.keys(poses).length) keys.push({ t: Math.min(duration, Math.max(0, num(kk.t, 0))), poses });
+  }
+  if (!keys.length) return undefined;
+  keys.sort((p, q) => p.t - q.t);
+  const anim: Animation = { duration, fps, loop: o.loop !== false, keys };
+  const cam = parseCamera(o.camera, duration);
+  if (cam) anim.camera = cam;
+  return anim;
+}
+
+function parseCamera(v: unknown, duration: number): CameraTrack | undefined {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
+  const o = v as Record<string, unknown>;
+  const num = (x: unknown, fallback: number, min: number, max: number) =>
+    typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback;
+  const keys: CameraKey[] = (Array.isArray(o.keys) ? o.keys.slice(0, 600) : [])
+    .filter((k): k is Record<string, unknown> => typeof k === 'object' && k !== null)
+    .map((k) => ({
+      t: num(k.t, 0, 0, duration),
+      yaw: wrapDeg(num(k.yaw, 0, -1e6, 1e6)),
+      pitch: num(k.pitch, 4, -89, 89),
+      fov: num(k.fov, 24, 5, 90),
+      zoom: num(k.zoom, 1, 0.1, 20),
+      pan: [num(Array.isArray(k.pan) ? k.pan[0] : 0, 0, -5, 5), num(Array.isArray(k.pan) ? k.pan[1] : 0, 0, -5, 5)] as [number, number],
+    }))
+    .sort((p, q) => p.t - q.t);
+  return { keys, follow: o.follow === true, shake: num(o.shake, 0, 0, 1) };
+}
+
+/** Replace figure ids in the keys (after copying a scene with fresh ids). */
+export function remapAnimation(a: Animation, ids: Map<string, string>): Animation {
+  return {
+    ...a,
+    keys: a.keys.map((k) => ({
+      ...k,
+      poses: Object.fromEntries(Object.entries(k.poses).flatMap(([id, p]) => (ids.has(id) ? [[ids.get(id)!, structuredClone(p)]] : []))),
+    })),
+  };
+}
+
+/** Apply a function to every figure pose in every key. */
+export function mapPoses(a: Animation, fn: (p: PoseKey, id: string) => PoseKey): Animation {
+  return { ...a, keys: a.keys.map((k) => ({ ...k, poses: Object.fromEntries(Object.entries(k.poses).map(([id, p]) => [id, fn(p, id)])) })) };
+}

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, PersonStanding, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
+import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, Film, PersonStanding, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
 import {
   addFigure, addProp, addScene, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
   resetLibrary, setFigureHidden,
 } from '@/lib/actions';
 import { PROP_LABELS } from '@/lib/props';
+import { MOTIONS } from '@/lib/motions';
 import { TEMPLATES } from '@/lib/templates';
 import { thumbnail } from '@/lib/thumbnails';
 import { PROP_KINDS } from '@/lib/types';
@@ -91,11 +92,17 @@ function Poses({ onPick, notifyUndo }: { onPick?(): void; notifyUndo(text: strin
             tip="New pose"
             items={[
               { label: 'Blank pose', icon: FilePlus2, onSelect: () => addScene(store) },
-              '-',
+              { group: 'People together' },
               ...TEMPLATES.map((t) => ({
                 label: t.name,
                 icon: t.people > 2 ? Users : UsersRound,
                 onSelect: () => addScene(store, t.build()),
+              })),
+              { group: 'Animations' },
+              ...MOTIONS.map((m) => ({
+                label: m.name,
+                icon: m.people > 1 ? UsersRound : Film,
+                onSelect: () => addScene(store, m.build()),
               })),
             ]}
           >
