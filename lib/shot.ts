@@ -191,3 +191,27 @@ export const CAMERA_MOVES: CameraMove[] = [
     keys: (a, b) => [key(0, b.yaw + 10, b.pitch + 2, 32, 1.35, [0, 0.22]), key(a.duration, b.yaw - 5, b.pitch, 32, 1.45, [0, 0.26])],
   },
 ];
+
+/** World camera pose for every frame of a time range (for camera.json in keyframe packs). */
+export function cameraPath(scene: Scene, start: number, end: number, aspect: number) {
+  const a = scene.animation;
+  const fps = a?.fps ?? 24;
+  const frame = framingFor(scene);
+  const view = new SceneView();
+  const cam = new THREE.PerspectiveCamera(30, aspect);
+  const frames: { frame: number; time: number; position: number[]; target: number[]; fov: number }[] = [];
+  const n = a ? Math.max(1, Math.round((end - start) * fps)) : 1;
+  const r = (v: number) => Math.round(v * 10000) / 10000;
+  for (let i = 0; i < n; i++) {
+    const t = start + i / fps;
+    let follow: THREE.Vector3 | null = null;
+    if (a?.camera?.follow) {
+      view.sync(sceneAt(scene, t));
+      follow = figuresCenter(view);
+    }
+    const target = placeShot(cam, frame, shotAt(scene, t), aspect, { follow, shake: a?.camera?.shake ?? 0, t });
+    frames.push({ frame: Math.round(t * fps), time: r(t), position: cam.position.toArray().map(r), target: target.toArray().map(r), fov: r(cam.fov) });
+  }
+  view.dispose();
+  return { units: 'metres, +Y up, floor at y = 0', aspect: r(aspect), fps, frames };
+}

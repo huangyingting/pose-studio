@@ -1,7 +1,8 @@
 import { sceneAt } from './animation';
-import { framingFor, shotAt } from './shot';
+import { framingFor, shotAt, type Framing } from './shot';
 import { styleDef } from './styles';
 import { sharedRenderer } from './thumbnails';
+import type { Pass } from './render';
 import type { Light, Scene, Style } from './types';
 
 /*
@@ -15,6 +16,41 @@ export function videoSupported() {
   return typeof VideoEncoder !== 'undefined';
 }
 
+/** A video being written: draw on `ctx`, then `add` the frame with its time and duration. */
+export interface Encoder {
+  ctx: CanvasRenderingContext2D;
+  add(time: number, duration: number): Promise<void>;
+  finish(): Promise<{ blob: Blob; ext: string }>;
+  cancel(): Promise<void>;
+}
+
+export async function createEncoder(width: number, height: number, fps: number): Promise<Encoder> {
+  // Loaded on demand: only video export needs it.
+  const mb = await import('mediabunny');
+  const quality = new mb.Quality('high');
+  const size = { width, height, quality };
+  const codec = (await mb.canEncodeVideo('avc', size)) ? 'avc' : await mb.getFirstEncodableVideoCodec(['vp9', 'vp8'], size);
+  if (!codec) throw new Error('This browser cannot encode video');
+  const format = codec === 'avc' ? new mb.Mp4OutputFormat({ fastStart: 'in-memory' }) : new mb.WebMOutputFormat();
+  const output = new mb.Output({ format, target: new mb.BufferTarget() });
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  const source = new mb.CanvasSource(canvas, { codec, quality });
+  output.addVideoTrack(source, { frameRate: fps });
+  await output.start();
+  return {
+    ctx,
+    add: (time, duration) => source.add(time, duration),
+    finish: async () => {
+      await output.finalize();
+      return { blob: new Blob([output.target.buffer!], { type: format.mimeType }), ext: format.fileExtension.replace('.', '') };
+    },
+    cancel: () => output.cancel(),
+  };
+}
+
 export interface VideoOptions {
   width: number;
   height: number;
@@ -23,48 +59,40 @@ export interface VideoOptions {
   loops: number;
   light: Light;
   faces: boolean;
+  pass?: Pass;
+  /** Only this part of the animation (seconds), played once: e.g. one shot. */
+  range?: [number, number];
+}
+
+/** Draw one frame of a scene through its shot camera at time t (`clock` drives hand-held shake). */
+export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>, framing: Framing, clock = t) {
+  const cam = scene.animation?.camera;
+  const src = sharedRenderer().renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
+    style: o.style, light: o.light, faces: o.faces, pass: o.pass,
+    shot: { ...shotAt(scene, t), t: clock }, framing, follow: !!cam?.follow, shake: cam?.shake ?? 0,
+  });
+  ctx.fillStyle = styleDef(o.style).background;
+  ctx.fillRect(0, 0, o.width, o.height);
+  ctx.drawImage(src, 0, 0);
 }
 
 export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
   const a = scene.animation;
   if (!a) throw new Error('This pose has no animation');
-  // Loaded on demand: only video export needs it.
-  const mb = await import('mediabunny');
-  const quality = new mb.Quality('high');
-  const size = { width: o.width, height: o.height, quality };
-  const codec = (await mb.canEncodeVideo('avc', size)) ? 'avc' : await mb.getFirstEncodableVideoCodec(['vp9', 'vp8'], size);
-  if (!codec) throw new Error('This browser cannot encode video');
-  const format = codec === 'avc' ? new mb.Mp4OutputFormat({ fastStart: 'in-memory' }) : new mb.WebMOutputFormat();
-  const output = new mb.Output({ format, target: new mb.BufferTarget() });
-
-  const canvas = document.createElement('canvas');
-  canvas.width = o.width;
-  canvas.height = o.height;
-  const ctx = canvas.getContext('2d')!;
-  const source = new mb.CanvasSource(canvas, { codec, quality });
-  output.addVideoTrack(source, { frameRate: a.fps });
-  await output.start();
-
-  const renderer = sharedRenderer();
-  const frame = framingFor(scene);
-  const cam = a.camera;
+  const enc = await createEncoder(o.width, o.height, a.fps);
+  const framing = framingFor(scene);
   const perLoop = Math.max(1, Math.round(a.duration * a.fps));
-  const total = perLoop * o.loops + (a.loop ? 0 : 1);
+  const [r0, r1] = o.range ?? [0, a.duration];
+  const total = o.range ? Math.max(1, Math.round((r1 - r0) * a.fps)) : perLoop * o.loops + (a.loop ? 0 : 1);
   for (let i = 0; i < total; i++) {
     if (signal?.aborted) {
-      await output.cancel();
+      await enc.cancel();
       throw new Error('Cancelled');
     }
-    const t = a.loop ? (i % perLoop) / a.fps : Math.min(a.duration, (i % (perLoop + 1)) / a.fps);
-    const src = renderer.renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
-      style: o.style, light: o.light, faces: o.faces, shot: { ...shotAt(scene, t), t: i / a.fps }, framing: frame, follow: !!cam?.follow, shake: cam?.shake ?? 0,
-    });
-    ctx.fillStyle = styleDef(o.style).background;
-    ctx.fillRect(0, 0, o.width, o.height);
-    ctx.drawImage(src, 0, 0);
-    await source.add(i / a.fps, 1 / a.fps);
+    const t = o.range ? r0 + i / a.fps : a.loop ? (i % perLoop) / a.fps : Math.min(a.duration, (i % (perLoop + 1)) / a.fps);
+    drawShot(enc.ctx, scene, t, o, framing, o.range ? t : i / a.fps);
+    await enc.add(i / a.fps, 1 / a.fps);
     onProgress?.((i + 1) / total);
   }
-  await output.finalize();
-  return { blob: new Blob([output.target.buffer!], { type: format.mimeType }), ext: format.fileExtension.replace('.', '') };
+  return enc.finish();
 }

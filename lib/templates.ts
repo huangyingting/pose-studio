@@ -76,6 +76,26 @@ function withRig<T>(fn: (rig: Rig) => T): T {
   }
 }
 
+/** Closed waltz hold for a lead `a` and follower `b` facing each other (also used by the waltz turn). */
+export function waltzHold(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
+  // Lead's right hand on the follower's left shoulder blade.
+  const blade = contactPoint(rig.model(b), b, 'back');
+  const [blx, blz] = leftward(b);
+  a = reachTo(rig, a, 'R', blade.add(new THREE.Vector3(blx * 0.09, -0.03, blz * 0.09)));
+  // Follower's left hand on the lead's right shoulder.
+  b = reachTo(rig, b, 'L', contactPoint(rig.model(a), a, 'shoulderR').add(new THREE.Vector3(0, -0.02, 0)));
+  // Joined hands out to the lead's left, at eye level.
+  const joined = local(rig, a, 'shoulderL', [0.3, 0.02, 0.16]);
+  a = reachTo(rig, a, 'L', joined.clone().add(new THREE.Vector3(0, 0, -0.02)));
+  b = reachTo(rig, b, 'R', joined.clone().add(new THREE.Vector3(0, 0, 0.02)));
+  a = withHands(a, hand('Grip'), hand('Flat'));
+  b = withHands(b, hand('Relaxed'), hand('Grip'));
+  // Both look over their partner's right shoulder, heads to the left.
+  a = lookTo(rig, a, local(rig, a, 'head', [0.9, 0.05, 1.2]));
+  b = lookTo(rig, b, local(rig, b, 'head', [0.9, 0.1, 1.2]));
+  return [a, b];
+}
+
 const RELAXED_ARMS: Figure['joints'] = { shoulderL: [0, 0, 8], shoulderR: [0, 0, -8], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0] };
 
 export const TEMPLATES: Template[] = [
@@ -163,24 +183,9 @@ export const TEMPLATES: Template[] = [
     name: 'Waltz hold',
     people: 2,
     build: () => withRig((rig) => {
-      let a = person('Ben', body('Male'), 0.04, -0.2, 0, { ...RELAXED_ARMS, spine: [-3, 0, 0], chest: [-4, 0, 0] });
-      let b = person('Anna', body('Slender'), -0.04, 0.2, 180, { ...RELAXED_ARMS, spine: [-6, 0, 0], chest: [-8, 0, 0], neck: [-6, 0, 0] });
-      // Lead's right hand on the follower's left shoulder blade.
-      const blade = contactPoint(rig.model(b), b, 'back');
-      const [blx, blz] = leftward(b);
-      a = reachTo(rig, a, 'R', blade.add(new THREE.Vector3(blx * 0.09, -0.03, blz * 0.09)));
-      // Follower's left hand on the lead's right shoulder.
-      b = reachTo(rig, b, 'L', contactPoint(rig.model(a), a, 'shoulderR').add(new THREE.Vector3(0, -0.02, 0)));
-      // Joined hands out to the lead's left, at eye level.
-      const joined = local(rig, a, 'shoulderL', [0.3, 0.02, 0.16]);
-      a = reachTo(rig, a, 'L', joined.clone().add(new THREE.Vector3(0, 0, -0.02)));
-      b = reachTo(rig, b, 'R', joined.clone().add(new THREE.Vector3(0, 0, 0.02)));
-      a = withHands(a, hand('Grip'), hand('Flat'));
-      b = withHands(b, hand('Relaxed'), hand('Grip'));
-      // Both look over their partner's right shoulder, heads to the left.
-      a = lookTo(rig, a, local(rig, a, 'head', [0.9, 0.05, 1.2]));
-      b = lookTo(rig, b, local(rig, b, 'head', [0.9, 0.1, 1.2]));
-      return scene('Waltz hold', [a, b], { yaw: 70, pitch: 6, fov: 24 });
+      const a = person('Ben', body('Male'), 0.04, -0.2, 0, { ...RELAXED_ARMS, spine: [-3, 0, 0], chest: [-4, 0, 0] });
+      const b = person('Anna', body('Slender'), -0.04, 0.2, 180, { ...RELAXED_ARMS, spine: [-6, 0, 0], chest: [-8, 0, 0], neck: [-6, 0, 0] });
+      return scene('Waltz hold', waltzHold(rig, a, b), { yaw: 70, pitch: 6, fov: 24 });
     }),
   },
   {

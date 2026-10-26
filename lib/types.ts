@@ -47,7 +47,12 @@ export interface Figure {
   grounded: boolean;
   /** Hidden figures stay in the document but are not drawn or exported. */
   hidden?: boolean;
+  /** A capsule stand-in for blocking (no joints to pose), in the given posture. */
+  proxy?: Posture;
 }
+
+export const POSTURES = ['stand', 'sit', 'lie'] as const;
+export type Posture = (typeof POSTURES)[number];
 
 export const PROP_KINDS = ['box', 'sphere', 'cylinder', 'chair', 'stool', 'step', 'wall'] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
@@ -124,11 +129,38 @@ export interface Animation {
   /** Sorted by time. */
   keys: Keyframe[];
   camera?: CameraTrack;
+  /**
+   * Shots (cuts) along the timeline, sorted by start; each runs until the next one. The camera
+   * does not move smoothly across a cut: every shot is framed by its own camera keys.
+   */
+  shots?: Shot[];
+  /** Video model the shots are cut for (see lib/shots.ts), which limits a shot's length. */
+  target?: string;
+}
+
+export interface Shot {
+  id: string;
+  /** Seconds from the start of the animation. */
+  start: number;
+  name: string;
+  /** What happens in the shot (used in prompts, storyboards and cut lists). */
+  caption?: string;
 }
 
 export interface Library {
   version: 2;
   scenes: Scene[];
+  /** Storyboard: panels in story order, each showing one pose (see lib/board.ts). */
+  board?: Panel[];
+}
+
+export interface Panel {
+  id: string;
+  /** The pose shown in this panel. */
+  sceneId: string;
+  caption?: string;
+  /** Seconds on screen in the animatic. */
+  hold: number;
 }
 
 export type Selection =

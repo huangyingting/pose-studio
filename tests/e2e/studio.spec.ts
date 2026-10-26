@@ -449,3 +449,83 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);
 });
+
+test('cuts shots and exports a keyframe pack with depth and normal passes', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Wave hello' }).click();
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
+  await page.getByRole('button', { name: /^Cut: start a new shot here/ }).click();
+  await expect(page.locator('.tl-shot')).toHaveCount(2);
+  await page.locator('.tl-shot').nth(1).dblclick();
+  await page.getByRole('textbox', { name: 'Shot caption' }).fill('She waves back');
+  await page.getByRole('button', { name: 'Save' }).click();
+
+  await page.keyboard.press('Control+e');
+  await page.getByRole('radio', { name: 'Keyframe pack' }).click();
+  await page.getByRole('switch', { name: 'Greybox clip of each shot' }).uncheck();
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download pack' }).click()]);
+  expect(download.suggestedFilename()).toBe('Wave_hello_keyframes.zip');
+  const zip = readFileSync((await download.path())!);
+  const text = zip.toString('latin1');
+  for (const name of ['cutlist.otio', '01_Shot_1/first_depth.png', '02_Shot_2/last_normal.png', '02_Shot_2/camera.json']) expect(text).toContain(name);
+  expect(text).toContain('she waves back');
+});
+
+test('storyboard: panels with captions, reordering, board sheet export and persistence', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.keyboard.press('b');
+  const board = page.getByRole('dialog', { name: 'Storyboard' });
+  await expect(board.getByText('Tell a story, one panel at a time')).toBeVisible();
+  await board.getByRole('button', { name: /^Add “/ }).first().click();
+  await board.getByRole('button', { name: 'Close storyboard' }).click();
+
+  // A second pose, added from the pose actions menu.
+  await page.locator('.library ol li').nth(3).click();
+  const second = (await state(page)).scene.name;
+  await page.getByRole('button', { name: 'Pose actions' }).click();
+  await page.getByRole('menuitem', { name: 'Add to storyboard' }).click();
+  await page.keyboard.press('b');
+  await expect(board.locator('.panel-card')).toHaveCount(2);
+  await expect(board.getByText('2 panels · 4.0 s')).toBeVisible();
+  await board.getByRole('textbox', { name: 'Panel 2 caption' }).fill('A sudden turn');
+
+  await board.locator('.panel-card').nth(1).dragTo(board.locator('.panel-card').nth(0));
+  await expect(board.locator('.panel-name').first()).toHaveText(second);
+  await expect(board.getByRole('textbox', { name: 'Panel 1 caption' })).toHaveValue('A sudden turn');
+
+  await board.getByRole('button', { name: 'Export storyboard' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Board sheet (PNG)' }).click()]);
+  expect(download.suggestedFilename()).toBe('Storyboard.png');
+  const png = readFileSync((await download.path())!);
+  expect(png.readUInt32BE(16)).toBeGreaterThan(1000);
+
+  await page.keyboard.press('Escape');
+  await expect(board).toBeHidden();
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await page.keyboard.press('b');
+  await expect(board.getByRole('textbox', { name: 'Panel 1 caption' })).toHaveValue('A sudden turn');
+});
+
+test('motion check flags foot sliding and jumps to it', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Walk cycle' }).click();
+  await page.locator('.tl-qa').click();
+  await expect(page.locator('.tl-qa')).toHaveText('No issues', { timeout: 30_000 });
+
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Waltz turn' }).click();
+  await page.locator('.tl-qa').click();
+  const card = page.getByRole('dialog', { name: 'Motion check' });
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.tl-issue').first()).toBeVisible();
+  await card.locator('li button').filter({ hasText: '0.71' }).first().click();
+  const s = await state(page);
+  expect((s as unknown as { time: number }).time).toBeCloseTo(0.71, 1);
+  expect(s.selection).toMatchObject({ kind: 'joint', joint: 'ankleR' });
+  // Editing the animation clears the results.
+  await page.keyboard.press('k');
+  await expect(page.locator('.tl-issue')).toHaveCount(0);
+});

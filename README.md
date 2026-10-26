@@ -26,7 +26,10 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 - **Keyframe animation**: press **Animate** (or start from an animation template), move the playhead and pose: every edit is keyed at that time (auto-key). Keys are joined by smooth curves, loops wrap seamlessly, and a grounded figure bobs naturally as its legs bend. Drag keys along the timeline to retime them; `Space` plays, `,` / `.` step a frame, `K` sets a key. Onion skin shows the previous and next keys as ghosts.
 - **Animation templates**: walk cycle, run cycle, jump, dance groove, waltz turn (two people), boxing exchange (two people), front kick, wave hello and bow. Each comes with a camera move.
 - **Director's camera**: a shot camera with its own keys (orbit angle, height, lens, push-in and pan). Look through it with a 16:9 letterbox, frame a view and press the camera key, or pick a ready-made move: locked-off wide, push in, pull out, arc, 360° orbit, crane up, low-angle hero, tracking shot, dolly zoom and hand-held.
-- **Shot description**: copy a plain-language description of the shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
+- **Shots and cuts**: press `C` (or the scissors) to cut the timeline into shots; each shot has its own camera keys and move, a name and a caption (double-click it). **Cut for** a video model (Veo, Sora, Kling, Runway, Seedance, Hailuo, Luma, Wan) and shots longer than that model's clip limit are flagged.
+- **Motion check**: one click plays the animation through and flags feet sliding while planted, bodies below the floor, figures passing through each other or through props, joints bent past their natural range and pops (a joint snapping in a frame). Issues are marked on the timeline with a hint each; click one to jump to its frame and select the joint.
+- **Shot description**: copy a plain-language description of each shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
+- **Storyboard** (`B`): line poses up as numbered 16:9 panels, each framed by its pose's camera, with a caption and a hold time. Drag to reorder. Export a **board sheet** (PNG) or an **animatic** video in which each panel holds for its time, animated poses play and captions appear as subtitles.
 
 **Output**
 - **Seven render styles**, each with a live preview in the Render panel; press `L` to cycle through them:
@@ -38,7 +41,7 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
   - **Minimal**: flat shapes with a hairline outline.
   - **Silhouette**: solid shapes, for checking gesture and readability.
 - **Key light**: direction, height and presets for the lit styles (Pencil, Ink wash, Anime, Clay), with cast shadows where the style supports them.
-- **Export**: a sheet of all poses, just the current pose, a **turnaround** of the current pose from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), or a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical). Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
+- **Export**: a sheet of all poses, just the current pose, a **turnaround** of the current pose from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and camera keys, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The default layout reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
 - **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
@@ -102,6 +105,7 @@ components/
   BodyMap.tsx           Clickable body schematic for picking joints
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
+  Board.tsx             Storyboard workspace
   Practice.tsx          Gesture-practice slideshow
   Timeline.tsx, clock.ts  Animation timeline and playback clock
 lib/
@@ -123,6 +127,10 @@ lib/
   animation.ts          Keyframes, cubic interpolation, auto-key helpers
   motions.ts            Animation templates
   shot.ts               Shot camera: framing, camera keys, camera moves
+  shots.ts, otio.ts     Cuts and per-model clip limits; OpenTimelineIO cut list
+  qa.ts                 Motion check: foot slide, floor, interpenetration (bone capsules), joint limits, pops
+  pack.ts, zip.ts       Keyframe pack for AI video tools; a small store-only zip writer
+  board.ts, boardExport.ts  Storyboard panels; board sheet and animatic export
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)

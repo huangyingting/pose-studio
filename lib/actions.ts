@@ -2,15 +2,17 @@ import { cloneHand } from './hands';
 import {
   NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid,
 } from './doc';
+import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { moveKey, newAnimation, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
 import { presetScenes } from './presets';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   withFacing, withPosition, type Contact,
 } from './relations';
-import { CAMERA_MOVES } from './shot';
+import { CAMERA_MOVES, shotAt } from './shot';
+import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Prop, PropKind, Scene, Side, Vec3, View } from './types';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, Prop, PropKind, Scene, Side, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -54,8 +56,8 @@ export function resetLibrary(store: Store) {
   store.commit(() => ({ version: 2, scenes: presetScenes() }), '', { sceneIndex: 0, selection: null, activeFigure: null });
 }
 
-export function replaceLibrary(store: Store, scenes: Scene[]) {
-  store.commit(() => ({ version: 2, scenes }), '', { sceneIndex: 0, selection: null, activeFigure: null });
+export function replaceLibrary(store: Store, scenes: Scene[], board?: Panel[]) {
+  store.commit(() => (board ? { version: 2, scenes, board } : { version: 2, scenes }), '', { sceneIndex: 0, selection: null, activeFigure: null });
 }
 
 export function renameScene(store: Store, name: string) {
@@ -332,17 +334,85 @@ export function deleteCameraKey(store: Store) {
   });
 }
 
-/** Replace the camera track with a ready-made move. */
+/** Give the current shot (the whole animation without cuts) a ready-made camera move. */
 export function applyCameraMove(store: Store, id: string) {
   const move = CAMERA_MOVES.find((m) => m.id === id);
   if (!move) return;
+  const t = store.getState().time;
   store.updateScene((s) => {
     const a = s.animation ?? newAnimation(s, 4);
-    const keys = move.keys(a, s.view);
-    return { ...s, animation: { ...a, camera: { keys, follow: move.follow ?? false, shake: move.shake ?? 0 } } };
+    const span = spanAt(a, t);
+    const cuts = (a.shots?.length ?? 0) > 1;
+    const local = { ...a, duration: span.end - span.start, loop: cuts ? false : a.loop };
+    const keys = move.keys(local, s.view).map((k) => ({ ...k, t: Math.round((k.t + span.start) * 1000) / 1000 }));
+    const others = cuts ? keysOutside(a, span) : [];
+    return { ...s, animation: { ...a, camera: { keys: [...others, ...keys].sort((p, q) => p.t - q.t), follow: move.follow ?? false, shake: move.shake ?? 0 } } };
+  });
+}
+
+function keysOutside(a: Animation, span: { start: number; end: number }) {
+  const inside = new Set(keysInShot(a, span));
+  return (a.camera?.keys ?? []).filter((k) => !inside.has(k));
+}
+
+/* Shots */
+
+/** Cut at the playhead: a new shot starts there, holding the current framing until re-keyed. */
+export function cutShot(store: Store) {
+  const t = store.getState().time;
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const time = snapTime(s.animation, t);
+    return { ...s, animation: cutAt(s.animation, time, { ...shotAt(s, time), t: time }) };
+  });
+}
+
+export function removeShotCut(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: removeCut(s.animation, id) } : s));
+}
+
+export function editShot(store: Store, id: string, patch: { name?: string; caption?: string }) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: updateShot(s.animation, id, patch) } : s), `shot:${id}`);
+}
+
+/** Cut the shots for a video model (its clip length becomes each shot's limit), or clear it. */
+export function setTargetModel(store: Store, target: string | null) {
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const { target: _old, ...rest } = s.animation;
+    void _old;
+    return { ...s, animation: target ? { ...rest, target } : rest };
   });
 }
 
 export function setCameraOptions(store: Store, patch: Partial<Pick<CameraTrack, 'follow' | 'shake'>>) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, camera: { ...cameraTrack(s.animation), ...patch } } } : s), 'camera-options');
+}
+
+/* Storyboard */
+
+function updateBoard(store: Store, fn: (board: Panel[]) => Panel[], key = '') {
+  store.commit((lib) => {
+    const board = boardPanels(lib);
+    const next = fn(board);
+    return next === board ? lib : withBoard(lib, next);
+  }, key);
+}
+
+/** Add a pose (the open one by default) to the end of the storyboard. */
+export function addToBoard(store: Store, sceneId = store.scene.id) {
+  const a = store.getState().library.scenes.find((s) => s.id === sceneId)?.animation;
+  updateBoard(store, (b) => insertPanel(b, newPanel(sceneId, a ? Math.round(a.duration * 10) / 10 : DEFAULT_HOLD)));
+}
+
+export function removeFromBoard(store: Store, id: string) {
+  updateBoard(store, (b) => b.filter((p) => p.id !== id));
+}
+
+export function moveOnBoard(store: Store, from: number, to: number) {
+  updateBoard(store, (b) => movePanel(b, from, to));
+}
+
+export function editPanel(store: Store, id: string, patch: { caption?: string; hold?: number }) {
+  updateBoard(store, (b) => b.map((p) => (p.id === id ? { ...p, ...patch } : p)), `panel:${id}:${Object.keys(patch).join()}`);
 }

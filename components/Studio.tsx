@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown, ChevronUp, CircleDot, Film, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, FilePlus2, FileUp, Focus, FolderOpen,
-  Grid3x3, Keyboard, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2, Video,
+  Grid3x3, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2, Video,
 } from 'lucide-react';
 import {
-  addKeyframe, addScene, appendScenes, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addScene, appendScenes, cutShot, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
@@ -17,6 +17,7 @@ import { snapTime } from '@/lib/animation';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type View } from '@/lib/types';
 import { VIEW_PRESETS } from '@/lib/views';
+import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext, type Tab } from './Inspector';
@@ -61,7 +62,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'photo' | 'help' | 'practice';
+type Dialog = null | 'export' | 'photo' | 'help' | 'practice' | 'board';
 type Reference = { url: string | null; opacity: number; visible: boolean };
 
 function App() {
@@ -208,7 +209,7 @@ function App() {
       const lib = parseLibrary(JSON.parse(await file.text()));
       const what = `${lib.scenes.length} pose${lib.scenes.length === 1 ? '' : 's'}`;
       if (mode === 'replace') {
-        replaceLibrary(store, lib.scenes);
+        replaceLibrary(store, lib.scenes, lib.board);
         notifyUndo(`Opened ${what}`);
       } else {
         appendScenes(store, lib.scenes.map((s) => ({ ...s, id: uid('s') })));
@@ -257,7 +258,9 @@ function App() {
           store.setSettings({ style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] });
         });
         case 'p': case 'P': return run(() => setDialog('practice'));
+        case 'b': case 'B': return run(() => { stopPlayback(); setDialog('board'); });
         case ' ': if (store.scene.animation) run(togglePlay); return;
+        case 'c': case 'C': if (store.scene.animation) run(() => { stopPlayback(); cutShot(store); }); return;
         case 'k': case 'K': if (store.scene.animation) run(() => { stopPlayback(); addKeyframe(store); }); return;
         case ',': case '.': {
           const a = store.scene.animation;
@@ -328,6 +331,7 @@ function App() {
               '-',
               { label: 'Pose from photo…', icon: ScanFace, onSelect: () => setDialog('photo') },
               { label: 'Copy share link', icon: Link, onSelect: share },
+              { label: 'Storyboard', icon: LayoutPanelTop, shortcut: 'B', onSelect: () => setDialog('board') },
               { label: 'Gesture practice', icon: Timer, shortcut: 'P', onSelect: () => setDialog('practice') },
               { label: 'Keyboard shortcuts', icon: Keyboard, shortcut: '?', onSelect: () => setDialog('help') },
             ]}
@@ -352,6 +356,7 @@ function App() {
           <IconButton icon={Undo2} label="Undo" shortcut="Ctrl Z" onClick={() => store.undo()} disabled={!canUndo} />
           <IconButton icon={Redo2} label="Redo" shortcut="Ctrl Shift Z" onClick={() => store.redo()} disabled={!canRedo} />
           <span className="tb-sep hide-mobile" />
+          <IconButton icon={LayoutPanelTop} label="Storyboard" shortcut="B" onClick={() => { stopPlayback(); setDialog('board'); }} className="hide-mobile" />
           <IconButton icon={Timer} label="Gesture practice" shortcut="P" onClick={() => setDialog('practice')} className="hide-mobile" />
           <IconButton icon={ScanFace} label="Pose from photo" onClick={() => setDialog('photo')} className="hide-mobile" />
           <IconButton icon={Link} label="Share link" onClick={share} className="hide-mobile" />
@@ -489,6 +494,7 @@ function App() {
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
+      {dialog === 'board' && <Board onClose={() => setDialog(null)} notify={notify} />}
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>
   );

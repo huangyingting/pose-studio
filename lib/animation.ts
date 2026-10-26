@@ -1,5 +1,6 @@
-import { wrapDeg } from './joints';
-import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Hand, type Keyframe, type PoseKey, type Scene, type Vec3 } from './types';
+import { jointLimits, wrapDeg } from './joints';
+import { keysInShot, spanAt } from './shots';
+import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Shot, type Hand, type Keyframe, type PoseKey, type Scene, type Vec3 } from './types';
 
 export type { Animation, Keyframe, PoseKey };
 
@@ -137,7 +138,15 @@ export function samplePose(a: Animation, id: string, t: number): PoseKey | null 
   const joints: Figure['joints'] = {};
   for (const j of JOINTS) {
     const r = ks.map((k) => k.pose.joints[j] ?? [0, 0, 0]);
-    const v = [0, 1, 2].map((c) => Math.round(ang(r[0][c], r[1][c], r[2][c], r[3][c]) * 10) / 10 || 0) as Vec3;
+    const lim = jointLimits(j);
+    const v = [0, 1, 2].map((c) => {
+      const [p0, p1, p2, p3] = r.map((x) => x[c]);
+      const inside = (x: number) => x >= lim[c][0] && x <= lim[c][1];
+      // Within a joint's range the direct path is the anatomical one (an arm swings forward over
+      // the top rather than back through the shoulder); the body turns, and the rest, take the short way.
+      const x = j !== 'root' && inside(p1) && inside(p2) ? num(p0, p1, p2, p3) : ang(p0, p1, p2, p3);
+      return Math.round(x * 10) / 10 || 0;
+    }) as Vec3;
     if (v.some((x) => x !== 0)) joints[j] = v;
   }
   const p = ks.map((k) => k.pose.position);
@@ -155,9 +164,18 @@ export function samplePose(a: Animation, id: string, t: number): PoseKey | null 
 
 /** Shot camera at time t (the track's keys interpolated), or null without a camera track. */
 export function sampleCamera(a: Animation, t: number): CameraKey | null {
-  const keys = a.camera?.keys;
+  let keys = a.camera?.keys;
   if (!keys?.length) return null;
-  const { k0, k1, k2, k3, time } = segment(keys, t, a.duration, a.loop);
+  let loop = a.loop;
+  // With cuts, only the shot's own keys frame it, and it does not wrap around.
+  if (a.shots && a.shots.length > 1) {
+    const span = spanAt(a, t);
+    keys = keysInShot(a, span);
+    if (!keys.length) return null;
+    loop = false;
+    t = Math.min(span.end, Math.max(span.start, t));
+  }
+  const { k0, k1, k2, k3, time } = segment(keys, t, a.duration, loop);
   const c = [k0, k1, k2, k3];
   if (k2.t - k1.t <= 1e-9) return { ...k1, t };
   const { num, ang } = interpolator(k0, k1, k2, k3, time);
@@ -225,7 +243,28 @@ export function parseAnimation(
   const anim: Animation = { duration, fps, loop: o.loop !== false, keys };
   const cam = parseCamera(o.camera, duration);
   if (cam) anim.camera = cam;
+  const shots = parseShots(o.shots, duration);
+  if (shots) anim.shots = shots;
+  if (typeof o.target === 'string' && o.target.length <= 40) anim.target = o.target;
   return anim;
+}
+
+function parseShots(v: unknown, duration: number): Shot[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : '');
+  const shots: Shot[] = v
+    .slice(0, 200)
+    .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
+    .map((x, i) => ({
+      id: str(x.id, 40) || `shot${i}`,
+      start: typeof x.start === 'number' && Number.isFinite(x.start) ? Math.min(duration, Math.max(0, x.start)) : 0,
+      name: str(x.name, 80) || `Shot ${i + 1}`,
+      ...(typeof x.caption === 'string' && x.caption ? { caption: x.caption.slice(0, 500) } : {}),
+    }))
+    .sort((p, q) => p.start - q.start);
+  if (!shots.length) return undefined;
+  shots[0].start = 0;
+  return shots;
 }
 
 function parseCamera(v: unknown, duration: number): CameraTrack | undefined {

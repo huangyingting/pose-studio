@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, Film, PersonStanding, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
+import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, Film, LayoutPanelTop, PersonStanding, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
 import {
-  addFigure, addProp, addScene, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
+  addFigure, addProp, addScene, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
   resetLibrary, setFigureHidden,
 } from '@/lib/actions';
 import { PROP_LABELS } from '@/lib/props';
@@ -115,6 +115,7 @@ function Poses({ onPick, notifyUndo }: { onPick?(): void; notifyUndo(text: strin
             tip="More"
             items={[
               { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
+              { label: 'Add to storyboard', icon: LayoutPanelTop, onSelect: () => { addToBoard(store); notifyUndo('Added to the storyboard (B)'); } },
               { label: 'Delete', icon: Trash2, onSelect: deleteCurrent, disabled: scenes.length <= 1, danger: true },
               '-',
               { label: 'Restore built-in poses', icon: RotateCcw, onSelect: () => { resetLibrary(store); notifyUndo('Restored the 20 built-in poses'); } },

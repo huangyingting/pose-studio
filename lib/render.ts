@@ -76,7 +76,11 @@ export interface ExportOptions {
    * All poses, the current pose, the current pose from several angles, or (animations) a
    * sheet of frames or a video.
    */
-  scope: 'all' | 'current' | 'turnaround' | 'frames' | 'video';
+  scope: 'all' | 'current' | 'turnaround' | 'frames' | 'video' | 'pack';
+  /** The styled picture, or a depth / normal pass (for AI image and video tools). */
+  pass: Pass;
+  /** Keyframe packs: add a clay-shaded clip of each shot. */
+  greybox: boolean;
   /** Number of angles in a turnaround (every 360/n degrees). */
   angles: 4 | 8;
   /** Number of frames in a frame sheet. */
@@ -111,7 +115,7 @@ export const VIDEO_SIZES: Record<VideoSize, { label: string; width: number; heig
 };
 
 export const DEFAULT_EXPORT: ExportOptions = {
-  scope: 'all', angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
+  scope: 'all', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
 
@@ -124,7 +128,9 @@ export function parseExportOptions(raw: unknown): ExportOptions {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   return {
-    scope: o.scope === 'current' || o.scope === 'turnaround' || o.scope === 'frames' || o.scope === 'video' ? o.scope : 'all',
+    scope: ['current', 'turnaround', 'frames', 'video', 'pack'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'all',
+    pass: o.pass === 'depth' || o.pass === 'normal' ? o.pass : 'beauty',
+    greybox: o.greybox !== false,
     angles: o.angles === 8 ? 8 : 4,
     frames: int(o.frames, d.frames, 2, 48),
     videoSize: typeof o.videoSize === 'string' && o.videoSize in VIDEO_SIZES ? (o.videoSize as VideoSize) : d.videoSize,
@@ -161,7 +167,7 @@ export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptio
   if ((o.scope === 'frames' || o.scope === 'video') && current.animation) {
     return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s` }));
   }
-  if (o.scope === 'current' || o.scope === 'frames' || o.scope === 'video') return [{ scene: current, caption: current.name }];
+  if (o.scope !== 'turnaround') return [{ scene: current, caption: current.name }];
   return TURNAROUND_NAMES[o.angles].map((name, i) => ({
     scene: { ...current, view: { ...current.view, yaw: wrapDeg((360 / o.angles) * i) } },
     caption: name,
@@ -185,7 +191,11 @@ export interface RenderOptions {
   minDistance?: number;
   /** Simple face details (default on). */
   faces?: boolean;
+  /** The styled picture, or a depth / normal pass. */
+  pass?: Pass;
 }
+
+export type Pass = 'beauty' | 'depth' | 'normal';
 
 /** Off-screen renderer used for thumbnails and image export. */
 export class SceneRenderer {
@@ -195,6 +205,12 @@ export class SceneRenderer {
   private view = new SceneView();
   private lights = new LightRig();
   private lines = new LineArtPass();
+  private depth = new THREE.ShaderMaterial({
+    uniforms: { near: { value: 1 }, far: { value: 10 } },
+    vertexShader: 'varying float vDepth; void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vDepth = -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform float near; uniform float far; varying float vDepth; void main() { float d = clamp((far - vDepth) / (far - near), 0.0, 1.0); gl_FragColor = vec4(vec3(d), 1.0); }',
+  });
+  private normals = new THREE.MeshNormalMaterial();
   private background = new THREE.Color('#ffffff');
 
   constructor() {
@@ -210,7 +226,8 @@ export class SceneRenderer {
     return fitCamera(this.camera, this.view, doc.view, margin).distance;
   }
 
-  render(doc: Scene, w: number, h: number, line = 2, opts: RenderOptions = {}): HTMLCanvasElement {
+  /** Size the output and pose the view for a frame (everything but the camera). */
+  private setup(doc: Scene, w: number, h: number, line: number, opts: RenderOptions) {
     const style = opts.style ?? 'line';
     this.renderer.setSize(w, h, false);
     this.background.set(styleDef(style).background);
@@ -223,33 +240,67 @@ export class SceneRenderer {
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
     this.view.ink.setLightDirection(this.lights.update(opts.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
+  }
+
+  /** Draw the frame: the styled picture, or a depth / normal pass for AI image and video tools. */
+  private draw(line: number, opts: RenderOptions) {
+    const pass = opts.pass ?? 'beauty';
+    if (pass === 'beauty') {
+      this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
+      this.renderer.render(this.scene, this.camera);
+      this.lines.overlay(this.renderer);
+      return this.renderer.domElement;
+    }
+    // Plain shapes only: no outlines, contour lines, floor or lights.
+    const bg = new THREE.Color(pass === 'depth' ? '#000000' : '#8080ff');
+    this.scene.background = opts.transparent ? null : bg;
+    this.renderer.setClearColor(bg, opts.transparent ? 0 : 1);
+    this.lights.object.visible = false;
+    this.view.setIdMode(true);
+    if (pass === 'depth') {
+      // Near is white and far is black, spread over the subject's depth range.
+      const box = this.view.bounds();
+      const view = this.camera.matrixWorldInverse;
+      let near = Infinity;
+      let far = 0;
+      for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+        const d = -new THREE.Vector3(x, y, z).applyMatrix4(view).z;
+        near = Math.min(near, d);
+        far = Math.max(far, d);
+      }
+      const pad = (far - near) * 0.05 + 0.01;
+      this.depth.uniforms.near.value = Math.max(0.01, near - pad);
+      this.depth.uniforms.far.value = far + pad;
+    }
+    this.scene.overrideMaterial = pass === 'depth' ? this.depth : this.normals;
+    this.renderer.render(this.scene, this.camera);
+    this.scene.overrideMaterial = null;
+    this.view.setIdMode(false);
+    this.lights.object.visible = true;
+    return this.renderer.domElement;
+  }
+
+  render(doc: Scene, w: number, h: number, line = 2, opts: RenderOptions = {}): HTMLCanvasElement {
+    this.setup(doc, w, h, line, opts);
     this.camera.aspect = w / h;
     fitCamera(this.camera, this.view, doc.view, opts.margin ?? 0.07, opts.minDistance ?? 0);
-    this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
-    this.renderer.render(this.scene, this.camera);
-    this.lines.overlay(this.renderer);
-    return this.renderer.domElement;
+    return this.draw(line, opts);
   }
 
   /** One frame of a shot: the scene filmed by the shot camera (see lib/shot.ts). */
   renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { shot: CameraKey; framing: Framing; follow: boolean; shake: number }) {
-    const style = opts.style ?? 'line';
-    this.renderer.setSize(w, h, false);
-    this.background.set(styleDef(style).background);
-    this.scene.background = this.background;
-    this.renderer.setClearColor(this.background, 1);
-    this.view.setFaces(opts.faces ?? true);
-    this.view.sync(doc);
-    this.view.setStyle(style);
-    this.lines.setStyle(style);
-    this.view.ink.setResolution(w, h);
-    this.view.ink.setThickness(line);
-    this.view.ink.setLightDirection(this.lights.update(opts.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
+    this.setup(doc, w, h, line, opts);
     placeShot(this.camera, opts.framing, opts.shot, w / h, { follow: opts.follow ? figuresCenter(this.view) : null, shake: opts.shake, t: opts.shot.t });
-    this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
-    this.renderer.render(this.scene, this.camera);
-    this.lines.overlay(this.renderer);
-    return this.renderer.domElement;
+    return this.draw(line, opts);
+  }
+
+  /** Camera pose of the last rendered frame (for camera.json in keyframe packs). */
+  cameraState() {
+    const c = this.camera;
+    const dir = new THREE.Vector3();
+    c.getWorldDirection(dir);
+    const r = (v: number) => Math.round(v * 10000) / 10000;
+    return { position: c.position.toArray().map(r), direction: dir.toArray().map(r), up: c.up.toArray().map(r), fov: r(c.fov), aspect: r(c.aspect) };
   }
 
   thumbnail(doc: Scene): string {
@@ -266,7 +317,7 @@ export class SceneRenderer {
     out.height = height;
     const ctx = out.getContext('2d')!;
     if (!transparent) {
-      ctx.fillStyle = styleDef(o.style).background;
+      ctx.fillStyle = o.pass === 'depth' ? '#000000' : o.pass === 'normal' ? '#8080ff' : styleDef(o.style).background;
       ctx.fillRect(0, 0, out.width, out.height);
     }
     // Same scale: the apparent size depends on distance × tan(fov / 2), so match that product.
@@ -277,7 +328,7 @@ export class SceneRenderer {
       const x = (i % cols) * o.cellWidth;
       const y = Math.floor(i / cols) * (o.cellHeight + labelH);
       const canvas = this.render(scene, o.cellWidth, o.cellHeight, o.lineWidth, {
-        transparent, margin: o.margin, style: o.style, light, faces, minDistance: size / tan(scene),
+        transparent, margin: o.margin, style: o.style, light, faces, pass: o.pass, minDistance: size / tan(scene),
       });
       ctx.drawImage(canvas, x, y);
       if (o.labels) {
@@ -294,6 +345,8 @@ export class SceneRenderer {
   dispose() {
     this.view.dispose();
     this.lights.dispose();
+    this.depth.dispose();
+    this.normals.dispose();
     this.renderer.dispose();
   }
 }

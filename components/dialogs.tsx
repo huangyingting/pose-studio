@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Film, ImagePlus, Keyboard, LayoutGrid, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { Download, Film, ImagePlus, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/animation';
 import { addFigures, appendScenes } from '@/lib/actions';
 import { newFigure, newScene } from '@/lib/doc';
@@ -9,7 +10,7 @@ import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
-  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, type ExportOptions, type VideoSize,
+  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
 import { framingFor, shotAt } from '@/lib/shot';
 import { recordVideo, videoSupported } from '@/lib/video';
@@ -50,12 +51,16 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
   // Animation outputs fall back to the single pose when the open pose is not animated.
   const scope: ExportOptions['scope'] = !animated && (o.scope === 'frames' || o.scope === 'video') ? 'current' : o.scope;
   const video = scope === 'video';
+  const pack = scope === 'pack';
+  // Video and keyframe packs are framed by the shot camera at a video size.
+  const filmed = video || pack;
   const canRecord = videoSupported();
 
   const cells = useMemo(() => exportCells(scenes, scene, { ...o, scope }), [o, scope, scenes, scene]);
-  const size = video ? VIDEO_SIZES[o.videoSize] : sheetSize(cells.length, o);
+  const size = filmed ? VIDEO_SIZES[o.videoSize] : sheetSize(cells.length, o);
   const { width, height } = size;
-  const tooBig = !video && (width * height > 120_000_000 || width > 16384 || height > 16384);
+  const tooBig = !filmed && (width * height > 120_000_000 || width > 16384 || height > 16384);
+  const pass = pack ? 'beauty' : o.pass;
 
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -69,9 +74,9 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
     const t = setTimeout(() => {
       const scale = Math.min(1, 360 / Math.max(width, height));
       let small: HTMLCanvasElement;
-      if (video) {
+      if (filmed) {
         const r = sharedRenderer().renderShot(sceneAt(scene, 0), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
-          style: o.style, light, faces, shot: shotAt(scene, 0), framing: framingFor(scene), follow: !!scene.animation?.camera?.follow, shake: 0,
+          style: o.style, light, faces, pass, shot: shotAt(scene, 0), framing: framingFor(scene), follow: !!scene.animation?.camera?.follow, shake: 0,
         });
         small = document.createElement('canvas');
         small.width = r.width;
@@ -91,17 +96,28 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, scope, video, cells, width, height, light, faces, scene]);
+  }, [o, scope, filmed, pass, cells, width, height, light, faces, scene]);
 
   const run = async () => {
     setBusy(true);
     setProgress(0);
     await new Promise((r) => setTimeout(r, 30)); // let the button state paint
     try {
+      if (pack) {
+        abort.current = new AbortController();
+        const blob = await keyframePack(scene, {
+          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), light, faces, greybox: o.greybox,
+        }, setProgress, abort.current.signal);
+        const name = `${safeFilename(scene.name)}_keyframes.zip`;
+        downloadBlob(blob, name);
+        notify(`Saved ${name}`);
+        onClose();
+        return;
+      }
       if (video) {
         abort.current = new AbortController();
         const { blob, ext } = await recordVideo(scene, {
-          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), loops: o.videoLoops, light, faces,
+          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), loops: o.videoLoops, light, faces, pass,
         }, setProgress, abort.current.signal);
         const name = `${safeFilename(scene.name)}.${ext}`;
         downloadBlob(blob, name);
@@ -142,15 +158,18 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
     { value: 'current', label: 'This pose', icon: Square },
     { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This pose from evenly spaced angles' },
   ];
-  const motion: SegmentOption<ExportOptions['scope']>[] = [
-    { value: 'frames', label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' },
-    { value: 'video', label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' },
+  const forVideo: SegmentOption<ExportOptions['scope']>[] = [
+    ...(animated ? [
+      { value: 'frames' as const, label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' },
+      { value: 'video' as const, label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' },
+    ] : []),
+    { value: 'pack', label: 'Keyframe pack', icon: Package, title: 'First/last frames, depth, normals, camera, prompt (and greybox clips) per shot, for AI video models' },
   ];
 
   return (
     <Modal
-      title={video ? 'Export video' : 'Export image'}
-      icon={video ? Film : Download}
+      title={pack ? 'Export keyframe pack' : video ? 'Export video' : 'Export image'}
+      icon={pack ? Package : video ? Film : Download}
       onClose={onClose}
       wide
       footer={
@@ -159,11 +178,13 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
             {width} × {height} px{tooBig ? ' — too large for most browsers' : ''}
             {video && scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`}
           </span>
-          {!video && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>}
-          {busy && video && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
+          {!filmed && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>}
+          {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
-            {video ? <Film size={15} aria-hidden /> : <Download size={15} aria-hidden />}
-            {busy ? (video ? `Recording… ${Math.round(progress * 100)}%` : 'Rendering…') : video ? 'Record video' : 'Download'}
+            {video ? <Film size={15} aria-hidden /> : pack ? <Package size={15} aria-hidden /> : <Download size={15} aria-hidden />}
+            {busy
+              ? (filmed ? `${video ? 'Recording' : 'Packing'}… ${Math.round(progress * 100)}%` : 'Rendering…')
+              : video ? 'Record video' : pack ? 'Download pack' : 'Download'}
           </button>
         </>
       }
@@ -172,9 +193,7 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
         <div className="form">
           <Field label="What">
             <Segmented<ExportOptions['scope']> label="What" full value={scope} onChange={(sc) => set({ scope: sc })} options={images} />
-            {animated && (
-              <Segmented<ExportOptions['scope']> label="Animation" full value={scope} onChange={(sc) => set({ scope: sc })} options={motion} />
-            )}
+            <Segmented<ExportOptions['scope']> label="For video" full value={scope} onChange={(sc) => set({ scope: sc })} options={forVideo} />
           </Field>
           {scope === 'turnaround' && (
             <Field label="Angles">
@@ -198,11 +217,25 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
               />
             </Field>
           )}
+          {!pack && (
+            <Field label="Pass">
+              <Segmented<Pass>
+                label="Pass"
+                value={o.pass}
+                onChange={(p) => set({ pass: p })}
+                options={[
+                  { value: 'beauty', label: 'Picture' },
+                  { value: 'depth', label: 'Depth', title: 'Near is white, far is black (e.g. for ControlNet)' },
+                  { value: 'normal', label: 'Normals', title: 'View-space normals' },
+                ]}
+              />
+            </Field>
+          )}
           <div className="row">
             <label>Style
               <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
             </label>
-            {video ? (
+            {filmed ? (
               <label>Size
                 <Select<VideoSize> label="Size" value={o.videoSize} onChange={(videoSize) => set({ videoSize })} options={(Object.keys(VIDEO_SIZES) as VideoSize[]).map((k) => ({ value: k, label: VIDEO_SIZES[k].label }))} />
               </label>
@@ -212,7 +245,15 @@ export function ExportDialog({ onClose, notify, initialScope }: { onClose(): voi
               </label>
             )}
           </div>
-          {video ? (
+          {pack ? (
+            <>
+              {animated && <Toggle label="Greybox clip of each shot" hint="A clay-shaded video of the motion and camera, as a reference for the model" checked={o.greybox} onChange={(greybox) => set({ greybox })} />}
+              <p className="muted small">
+                Per shot: first and last frame with depth and normals, the camera for every frame and a prompt
+                {animated ? ', plus the cut list (OTIO)' : ''}. Give them to an AI video model so it follows your blocking.
+              </p>
+            </>
+          ) : video ? (
             <>
               <Field label="Play the animation">
                 <Segmented<string>
@@ -428,7 +469,11 @@ const SHORTCUTS: [string, string][] = [
   ['Mirror pose', 'M'],
   ['Drag handles', 'H'],
   ['Next render style', 'L'],
+  ['Storyboard', 'B'],
   ['Gesture practice', 'P'],
+  ['Play / pause animation', 'Space'],
+  ['Step a frame', ',  .'],
+  ['Set keyframe · cut shot', 'K · C'],
   ['Previous / next pose', '[  ]'],
   ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
   ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],

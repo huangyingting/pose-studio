@@ -140,8 +140,11 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
   const at = (j: JointName, local: Vec3) => m.joints[j].localToWorld(new THREE.Vector3(...local));
   switch (c) {
     case 'head': return at('head', [0, 0.17 * k, 0]);
-    case 'shoulderL': return at('shoulderL', [0, 0.06 * k, 0]);
-    case 'shoulderR': return at('shoulderR', [0, 0.06 * k, 0]);
+    // On top of the shoulder in the chest's frame, so it stays put when the arm is raised.
+    case 'shoulderL': case 'shoulderR': {
+      const s = m.joints[c].position;
+      return at(m.joints[c].parent!.name as JointName, [s.x, s.y + 0.06 * k, s.z]);
+    }
     case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k]);
     case 'back': return at('chest', [0, 0.13 * k, -0.15 * k]);
     case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);

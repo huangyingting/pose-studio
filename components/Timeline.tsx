@@ -1,17 +1,21 @@
 'use client';
 
-import { useRef, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  Camera, Clapperboard, ClipboardCopy, Diamond, Ellipsis, Film, Ghost, Pause, Play, Repeat, StepBack, StepForward, Trash2, Video,
+  Activity, Camera, Clapperboard, ClipboardCopy, Diamond, ListVideo, Scissors, TriangleAlert, X, Ellipsis, Film, Ghost, Pause, Play, Repeat, StepBack, StepForward, Trash2, Video,
 } from 'lucide-react';
 import {
-  addKeyframe, applyCameraMove, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, setAnimationOptions, setCameraKey,
-  setCameraOptions,
+  addKeyframe, applyCameraMove, cutShot, deleteCameraKey, deleteKeyframe, editShot, moveKeyframe, removeAnimation, removeShotCut,
+  setAnimationOptions, setCameraKey, setCameraOptions, setTargetModel,
 } from '@/lib/actions';
 import { keyAt, snapTime } from '@/lib/animation';
+import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
+import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
+import { downloadBlob, safeFilename } from '@/lib/render';
+import { VIDEO_MODELS, overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { CAMERA_MOVES } from '@/lib/shot';
-import type { CameraKey } from '@/lib/types';
+import type { Animation, CameraKey } from '@/lib/types';
 import type { Clock } from './clock';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField } from './ui';
@@ -45,7 +49,15 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const frame = Math.round(time * a.fps);
   const onKey = keyAt(a, time) >= 0;
   const cam = a.camera;
+  const spans = shotSpans(a);
+  const [editing, setEditing] = useState<string | null>(null);
+  const editingSpan = spans.find((sp) => sp.shot.id === editing) ?? null;
   const onCamKey = !!cam?.keys.some((k) => Math.abs(k.t - time) < 0.5 / a.fps);
+  // Motion check results, valid until the animation changes.
+  const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
+  const [qaOpen, setQaOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const issues = qa?.animation === a ? qa.issues : null;
 
   const pause = () => {
     if (!clock.playing) return;
@@ -107,6 +119,26 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     el.addEventListener('pointerup', up);
   };
 
+  const check = () => {
+    if (issues) { setQaOpen(!qaOpen); return; }
+    pause();
+    setChecking(true);
+    // Let the button show that it is working before the (synchronous) check runs.
+    setTimeout(() => {
+      const scene = store.scene;
+      const found = scene.animation ? checkMotion(scene) : [];
+      setQa(scene.animation ? { animation: scene.animation, issues: found } : null);
+      setChecking(false);
+      setQaOpen(found.length > 0);
+      if (!found.length) notify('Motion check: no problems found');
+    }, 30);
+  };
+  const goTo = (i: Issue) => {
+    seek(i.start);
+    if (i.joint) store.select({ kind: 'joint', figure: i.figure, joint: i.joint });
+    else store.setActiveFigure(i.figure);
+  };
+
   const pct = (t: number) => `${(t / a.duration) * 100}%`;
   const ticks = Array.from({ length: Math.floor(a.duration / 0.5) + 1 }, (_, i) => i * 0.5);
 
@@ -126,12 +158,26 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
         <span className="tl-sep" />
         <IconButton icon={Diamond} label={onKey ? 'Update keyframe' : 'Add keyframe'} shortcut="K" tipSide="top" active={onKey} onClick={() => addKeyframe(store)} />
         <IconButton icon={Trash2} label="Delete keyframe" tipSide="top" disabled={!onKey || a.keys.length <= 1} onClick={() => deleteKeyframe(store)} />
+        <IconButton icon={Scissors} label="Cut: start a new shot here" shortcut="C" tipSide="top" onClick={() => cutShot(store)} />
         <span className="tl-sep" />
         <IconButton icon={Repeat} label="Loop" tipSide="top" active={a.loop} pressed={a.loop} onClick={() => setAnimationOptions(store, { loop: !a.loop })} />
         <IconButton icon={Ghost} label="Onion skin" tipSide="top" active={onion} pressed={onion} onClick={() => setOnion(!onion)} />
         <div className="tl-duration" data-tip="Length (seconds)" data-tip-side="top">
           <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={60} digits={1} onChange={(duration) => setAnimationOptions(store, { duration })} />
         </div>
+        <span className="tl-sep" />
+        <button
+          type="button"
+          className={`btn ghost tl-qa${issues?.length ? ' warn' : ''}`}
+          onClick={check}
+          disabled={checking}
+          aria-expanded={issues?.length ? qaOpen : undefined}
+          data-tip="Check for foot sliding, interpenetration, joint limits and pops"
+          data-tip-side="top"
+        >
+          {issues?.length ? <TriangleAlert size={15} aria-hidden /> : <Activity size={15} aria-hidden />}
+          <span className="hide-sm">{checking ? 'Checking…' : issues ? (issues.length ? `${issues.length} ${issues.length === 1 ? 'issue' : 'issues'}` : 'No issues') : 'Check'}</span>
+        </button>
         <span className="spacer" />
         <IconButton icon={Clapperboard} label="Look through the shot camera" tipSide="top" active={shotMode} pressed={shotMode} onClick={() => setShotMode(!shotMode)} />
         <IconButton
@@ -166,8 +212,21 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             { label: 'Follow the figures', checked: !!cam?.follow, onSelect: () => setCameraOptions(store, { follow: !cam?.follow }) },
             { label: 'Hand-held shake', checked: (cam?.shake ?? 0) > 0, onSelect: () => setCameraOptions(store, { shake: (cam?.shake ?? 0) > 0 ? 0 : 0.5 }) },
             { label: 'Delete camera key', icon: Trash2, disabled: !onCamKey, onSelect: () => deleteCameraKey(store) },
+            { group: 'Cut for' },
+            { label: 'No length limit', checked: !a.target, onSelect: () => setTargetModel(store, null) },
+            ...VIDEO_MODELS.map((m) => ({ label: `${m.name} · ${m.max} s`, checked: a.target === m.id, onSelect: () => setTargetModel(store, m.id) })),
             '-',
             { label: 'Export video…', icon: Film, onSelect: onExportVideo },
+            {
+              label: 'Export cut list (OTIO)',
+              icon: ListVideo,
+              onSelect: () => {
+                const name = safeFilename(store.scene.name);
+                const otio = buildOtio(store.scene, `${name}.mp4`);
+                downloadBlob(new Blob([JSON.stringify(otio, null, 2)], { type: 'application/json' }), `${name}.otio`);
+                notify(`Saved ${name}.otio (${otio.tracks.children[0].children.length} shots)`);
+              },
+            },
             {
               label: 'Copy shot description',
               icon: ClipboardCopy,
@@ -186,16 +245,49 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
       <div className="tl-tracks">
         <div className="tl-labels" aria-hidden>
           <span />
+          <span>Shots</span>
           <span>Pose</span>
           <span>Camera</span>
         </div>
         <div className="tl-lanes" ref={track} onPointerDown={scrub}>
-        <div className="tl-ruler" aria-hidden>
+        <div className="tl-ruler">
           {ticks.map((t) => (
-            <span key={t} className={Number.isInteger(t) ? 'tick major' : 'tick'} style={{ left: pct(t) }}>
+            <span key={t} className={Number.isInteger(t) ? 'tick major' : 'tick'} style={{ left: pct(t) }} aria-hidden>
               {Number.isInteger(t) && <em>{t}s</em>}
             </span>
           ))}
+          {issues?.map((i, n) => (
+            <button
+              key={n}
+              type="button"
+              className="tl-issue"
+              style={{ left: pct(i.start), width: `max(4px, ${pct(i.end - i.start)})` }}
+              title={i.message}
+              aria-label={`${ISSUE_LABELS[i.kind]} at ${i.start.toFixed(2)} s: ${i.message}`}
+              onPointerDown={(e) => { e.stopPropagation(); goTo(i); }}
+            />
+          ))}
+        </div>
+        <div className="tl-row shots" aria-label="Shots">
+          {spans.map((sp) => {
+            const on = time >= sp.start - 1e-6 && (time < sp.end - 1e-6 || sp.index === spans.length - 1);
+            const over = overLimit(a, sp);
+            return (
+              <button
+                key={sp.shot.id}
+                type="button"
+                className={`tl-shot${on ? ' on' : ''}${over ? ' over' : ''}`}
+                style={{ left: pct(sp.start), width: pct(sp.end - sp.start) }}
+                title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (double-click to edit)${over ? `\nLonger than ${videoModel(a.target)!.name} allows (${videoModel(a.target)!.max} s)` : ''}`}
+                onPointerDown={(e) => { e.stopPropagation(); seek(sp.start); }}
+                onDoubleClick={() => setEditing(sp.shot.id)}
+              >
+                {over && <TriangleAlert size={11} aria-hidden />}
+                <span>{sp.shot.name}</span>
+                <em>{(sp.end - sp.start).toFixed(1)}s</em>
+              </button>
+            );
+          })}
         </div>
         <div className="tl-row" aria-label="Pose keyframes">
           {a.keys.map((k) => (
@@ -225,6 +317,66 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
         <div className="tl-playhead" style={{ left: pct(time) }} aria-hidden />
         </div>
       </div>
+      {issues && issues.length > 0 && qaOpen && <MotionIssues issues={issues} goTo={goTo} onClose={() => setQaOpen(false)} />}
+      {editingSpan && <ShotEditor key={editingSpan.shot.id} span={editingSpan} canRemove={editingSpan.index > 0} onClose={() => setEditing(null)} />}
+    </div>
+  );
+}
+
+/** Small card for a shot's name and caption (what happens, used in prompts and cut lists). */
+function ShotEditor({ span, canRemove, onClose }: { span: ShotSpan; canRemove: boolean; onClose(): void }) {
+  const store = useStore();
+  const [name, setName] = useState(span.shot.name);
+  const [caption, setCaption] = useState(span.shot.caption ?? '');
+  const save = () => {
+    editShot(store, span.shot.id, { name: name.trim() || span.shot.name, caption: caption.trim() });
+    onClose();
+  };
+  return (
+    <div
+      className="shot-editor"
+      role="dialog"
+      aria-label="Edit shot"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+        if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') save();
+      }}
+    >
+      <div className="shot-editor-head">
+        <strong>{span.start.toFixed(2)}–{span.end.toFixed(2)} s</strong>
+        <IconButton icon={X} label="Close" onClick={onClose} size={14} />
+      </div>
+      <input type="text" value={name} onChange={(e) => setName(e.target.value)} aria-label="Shot name" autoFocus />
+      <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="What happens in this shot…" aria-label="Shot caption" rows={2} />
+      <div className="row">
+        {canRemove && <button type="button" className="btn ghost danger" onClick={() => { removeShotCut(store, span.shot.id); onClose(); }}>Remove cut</button>}
+        <span className="spacer" />
+        <button type="button" className="btn primary" onClick={save}>Save</button>
+      </div>
+    </div>
+  );
+}
+
+/** What the motion check found, with a hint each; click one to go to it. */
+function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issue): void; onClose(): void }) {
+  return (
+    <div className="qa-card" role="dialog" aria-label="Motion check" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <div className="shot-editor-head">
+        <strong>Motion check · {issues.length} {issues.length === 1 ? 'issue' : 'issues'}</strong>
+        <IconButton icon={X} label="Close" onClick={onClose} size={14} />
+      </div>
+      <ul>
+        {issues.map((i, n) => (
+          <li key={n}>
+            <button type="button" onClick={() => goTo(i)}>
+              <span className={`qa-kind ${i.kind}`}>{ISSUE_LABELS[i.kind]}</span>
+              <em>{i.start.toFixed(2)}{i.end > i.start ? `–${i.end.toFixed(2)}` : ''} s</em>
+              <span className="qa-msg">{i.message}</span>
+              {issues.findIndex((x) => x.kind === i.kind) === n && <span className="qa-hint">{i.hint}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

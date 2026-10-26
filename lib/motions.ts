@@ -6,7 +6,7 @@ import { HAND_PRESETS, cloneHand } from './hands';
 import { wrapDeg } from './joints';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { CAMERA_MOVES } from './shot';
-import { buildTemplate } from './templates';
+import { buildTemplate, waltzHold } from './templates';
 import type { Animation, BodyParams, Figure, Hand, JointName, Scene, Side, Vec3, View } from './types';
 
 /*
@@ -174,9 +174,10 @@ export const MOTIONS: Motion[] = [
     people: 1,
     build: () => withRig((rig) => {
       const f = { ...person('Jumper', body('Athletic'), STAND), grounded: false };
+      // On the ground the figure is grounded (no dipping through the floor between keys); in the air it is placed.
       const at = (joints: Joints, lift = 0): Figure => {
         const g = posed(f, joints);
-        return { ...g, position: [0, Math.round((groundY(rig, g) + lift) * 1000) / 1000, 0] };
+        return { ...g, grounded: lift === 0, position: [0, Math.round((groundY(rig, g) + lift) * 1000) / 1000, 0] };
       };
       const crouch: Joints = {
         root: [28, 0, 0], spine: [10, 0, 0], hipL: [-62, 0, 6], hipR: [-62, 0, -6], kneeL: [105, 0, 0], kneeR: [105, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0],
@@ -231,7 +232,7 @@ export const MOTIONS: Motion[] = [
     id: 'waltz-turn',
     name: 'Waltz turn',
     people: 2,
-    build: () => {
+    build: () => withRig((rig) => {
       const hold = buildTemplate('waltz')!;
       const [a, b] = hold.figures;
       const centre = [(a.position[0] + b.position[0]) / 2, (a.position[2] + b.position[2]) / 2];
@@ -242,9 +243,13 @@ export const MOTIONS: Motion[] = [
         joints: { ...f.joints, kneeL: [bend, 0, 0], kneeR: [bend, 0, 0], hipL: [-bend / 2, 0, 3], hipR: [-bend / 2, 0, -3], ankleL: [-bend / 2, 0, 0], ankleR: [-bend / 2, 0, 0] },
       });
       const base = [centred(a), centred(b)];
-      const keys: Key[] = [0, 1, 2, 3].map((i) => ({ t: i * 0.75, figures: base.map((f) => turnAbout(knees(f, i % 2 ? 4 : 18), -90 * i)) }));
+      // The hold is solved again at each height, so the arms stay in contact as the couple rises and falls.
+      const keys: Key[] = [0, 1, 2, 3].map((i) => {
+        const bend = i % 2 ? 4 : 18;
+        return { t: i * 0.75, figures: waltzHold(rig, knees(base[0], bend), knees(base[1], bend)).map((f) => turnAbout(f, -90 * i)) };
+      });
       return animated('Waltz turn', keys, { duration: 3, loop: true, view: { yaw: 30, pitch: 10, fov: 26 }, camera: 'push' });
-    },
+    }),
   },
   {
     id: 'boxing',
@@ -262,7 +267,12 @@ export const MOTIONS: Motion[] = [
       const lean = { ...b0, joints: { ...b0.joints, spine: [-4, -12, 0], neck: [-12, 0, 0] } } as Figure;
       const crossBody: Figure = { ...a0, joints: { ...a0.joints, chest: [6, 18, 0], spine: [8, 10, 0] } };
       const cross = reachTo(rig, crossBody, 'R', towards(crossBody, b0, 0.14));
-      const slip = { ...b0, joints: { ...b0.joints, spine: [10, -12, -14], kneeL: [40, 0, 0], kneeR: [36, 0, 0] } } as Figure;
+      // Slip: sink by bending the knees, thighs forward and shins back as much, so the feet stay put.
+      const sink = (j: JointName, by: number): Vec3 => { const r = b0.joints[j] ?? [0, 0, 0]; return [r[0] + by, r[1], r[2]]; };
+      const slip: Figure = { ...b0, joints: {
+        ...b0.joints, spine: [10, -12, -14], kneeL: sink('kneeL', 14), kneeR: sink('kneeR', 12),
+        hipL: sink('hipL', -7), hipR: sink('hipR', -6), ankleL: sink('ankleL', -7), ankleR: sink('ankleR', -6),
+      } };
       const counter = reachTo(rig, { ...b0, joints: { ...b0.joints, chest: [4, -16, 0] } }, 'L', towards(b0, a0, 0.12));
       return animated('Boxing exchange', [
         { t: 0, figures: [a0, b0] },
@@ -282,8 +292,10 @@ export const MOTIONS: Motion[] = [
       const f = person('Fighter', body('Athletic'));
       const stance = guard(rig, posed(f, STANCE));
       const g = stance.joints;
-      const chamber = { ...stance, joints: { ...g, root: [-2, g.root![1], 0] as Vec3, hipR: [-95, 0, -6] as Vec3, kneeR: [112, 0, 0] as Vec3, ankleR: [12, 0, 0] as Vec3 } };
-      const extend = { ...stance, joints: { ...g, root: [-12, g.root![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, hipR: [-88, 0, -6] as Vec3, kneeR: [6, 0, 0] as Vec3, ankleR: [-25, 0, 0] as Vec3 } };
+      // Leaning the pelvis back would swing the standing leg forward: counter it at the hip.
+      const support = (pitch: number): Vec3 => [g.hipL![0] - (pitch - g.root![0]), g.hipL![1], g.hipL![2]];
+      const chamber = { ...stance, joints: { ...g, root: [-2, g.root![1], 0] as Vec3, hipL: support(-2), hipR: [-95, 0, -6] as Vec3, kneeR: [112, 0, 0] as Vec3, ankleR: [12, 0, 0] as Vec3 } };
+      const extend = { ...stance, joints: { ...g, root: [-12, g.root![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, hipL: support(-12), hipR: [-88, 0, -6] as Vec3, kneeR: [6, 0, 0] as Vec3, ankleR: [-25, 0, 0] as Vec3 } };
       return animated('Front kick', [
         { t: 0, figures: [stance] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
       ], { duration: 1.5, loop: true, view: { yaw: 70, pitch: 2, fov: 28 }, camera: 'hero' });

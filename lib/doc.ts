@@ -1,17 +1,15 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
 import { mapPoses, parseAnimation, remapAnimation } from './animation';
+import { parseBoard } from './board';
+import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
   FINGERS, JOINTS, PROP_KINDS,
   type Figure, type Hand, type JointName, type Library, type PoseKey, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
 } from './types';
 
-let counter = 0;
-export function uid(prefix: string) {
-  counter = (counter + 1) % 1296;
-  return `${prefix}${Date.now().toString(36).slice(-5)}${Math.random().toString(36).slice(2, 6)}${counter.toString(36)}`;
-}
+export { uid };
 
 export const DEFAULT_VIEW: View = { yaw: 0, pitch: 4, fov: 20 };
 
@@ -219,5 +217,6 @@ export function parseLibrary(data: unknown): Library {
     if (ids.has(s.id)) s.id = uid('s');
     ids.add(s.id);
   }
-  return { version: 2, scenes };
+  const board = isObj(data) ? parseBoard(data.board, ids) : undefined;
+  return board ? { version: 2, scenes, board } : { version: 2, scenes };
 }
