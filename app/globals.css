@@ -860,6 +860,12 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 }
 .tabs button:hover { color: var(--text); }
 .tabs button.on { color: var(--text); background: var(--hover); }
+.tabs .tabs-hide { margin-left: auto; width: 28px; height: 28px; padding: 0; color: var(--text-3); }
+/* Folded away: the canvas takes the room (the header button and I bring it back). */
+@media (min-width: 861px) {
+  .studio.inspector-closed { grid-template-columns: auto minmax(0, 1fr) 0; }
+  .studio.inspector-closed .panel { display: none; }
+}
 .panel-scroll { overflow-y: auto; flex: 1; }
 
 /* ---------- AI assistant ---------- */

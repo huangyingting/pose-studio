@@ -825,6 +825,19 @@ test('each figure has its own key track', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Ben key at 0.83 s/ })).toBeVisible();
 });
 
+test('the inspector folds away for more canvas and remembers it', async ({ page }) => {
+  const before = (await page.locator('.stage').boundingBox())!.width;
+  await page.getByRole('button', { name: 'Hide the inspector' }).first().click();
+  await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeHidden();
+  expect((await page.locator('.stage').boundingBox())!.width).toBeGreaterThan(before + 200);
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeHidden();
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('i');
+  await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible();
+});
+
 test('the side panel switches sections, folds away and remembers it', async ({ page }) => {
   await openSection(page, 'Library');
   await expect(page.getByRole('tabpanel').getByRole('heading', { name: 'Library' })).toBeVisible();

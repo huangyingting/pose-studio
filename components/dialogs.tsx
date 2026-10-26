@@ -498,6 +498,7 @@ const SHORTCUTS: [string, string][] = [
   ['Frame all', 'F'],
   ['Mirror pose', 'M'],
   ['Drag handles', 'H'],
+  ['Show / hide the inspector', 'I'],
   ['Next render style', 'L'],
   ['Storyboard', 'B'],
   ['Gesture practice', 'P'],

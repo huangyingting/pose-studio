@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, Eye, FilePlus2, FileUp, Focus, FolderOpen,
-  Hand, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
+  Hand, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
   addKeyframe, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
@@ -81,6 +81,7 @@ function App() {
   const canRedo = useStudio((s) => s.canRedo);
 
   const [tab, setTab] = useState<Tab>('pose');
+  const toggleInspector = () => store.setSettings({ inspector: !store.getState().settings.inspector });
   // Body is about figures: selecting a shot or prop brings up the Edit tab, where it is edited.
   const [selected, setSelected] = useState(selection);
   if (selection !== selected) {
@@ -264,6 +265,7 @@ function App() {
         case 'f': case 'F': return run(frameCurrent);
         case 'm': case 'M': return run(() => mirrorPose(store));
         case 'h': case 'H': return run(() => store.setSettings({ showHandles: !store.getState().settings.showHandles }));
+        case 'i': case 'I': return run(() => store.setSettings({ inspector: !store.getState().settings.inspector }));
         case 'l': case 'L': return run(() => {
           const style = store.getState().settings.style;
           store.setSettings({ style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] });
@@ -346,7 +348,7 @@ function App() {
 
   return (
     <div
-      className={`studio${drawer ? ` drawer-${drawer}` : ''}`}
+      className={`studio${drawer ? ` drawer-${drawer}` : ''}${settings.inspector ? '' : ' inspector-closed'}`}
       onPointerDownCapture={(e) => { if (!(e.target as HTMLElement).closest('.timeline')) stopPlayback(); }}
     >
       <header className="topbar">
@@ -437,6 +439,14 @@ function App() {
           <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export image  Ctrl E">
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>
+          <IconButton
+            icon={settings.inspector ? PanelRightClose : PanelRightOpen}
+            label={settings.inspector ? 'Hide the inspector' : 'Show the inspector'}
+            shortcut="I"
+            className="hide-mobile"
+            pressed={settings.inspector}
+            onClick={toggleInspector}
+          />
           <IconButton icon={SlidersHorizontal} label="Inspector" className="only-mobile" onClick={() => setDrawer(drawer === 'inspector' ? null : 'inspector')} />
         </div>
         <input
@@ -509,7 +519,7 @@ function App() {
         )}
       </main>
 
-      <Inspector tab={tab} setTab={setTab} ctx={ctx} />
+      <Inspector tab={tab} setTab={setTab} ctx={ctx} onHide={toggleInspector} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
       {dialog === 'export' && (

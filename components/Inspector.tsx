@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowDownToLine, ArrowLeftRight, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Focus, Hand, ImagePlus, Mars, Navigation,
-  PanelLeft, PanelRight, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
+  PanelLeft, PanelRight, PanelRightClose, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
   arrange, copyPose, holdProp, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
@@ -49,7 +49,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 /** Right-hand properties panel. Its content follows the selection, like a design tool's inspector. */
-export default function Inspector({ tab, setTab, ctx }: { tab: Tab; setTab(t: Tab): void; ctx: InspectorContext }) {
+export default function Inspector({ tab, setTab, ctx, onHide }: { tab: Tab; setTab(t: Tab): void; ctx: InspectorContext; onHide(): void }) {
   return (
     <aside className="panel" aria-label="Inspector">
       <nav className="tabs" role="tablist">
@@ -58,6 +58,7 @@ export default function Inspector({ tab, setTab, ctx }: { tab: Tab; setTab(t: Ta
             {t.label}
           </button>
         ))}
+        <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut="I" className="tabs-hide hide-mobile" size={15} onClick={onHide} />
       </nav>
       {tab === 'ai' && Assistant ? <Assistant /> : (
         <div className="panel-scroll">
