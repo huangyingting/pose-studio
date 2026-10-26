@@ -212,6 +212,19 @@ test('things have names and right-click menus; Del, Ctrl+D and F2 act on the sel
   await expect(page.getByLabel('Scene name')).toHaveValue(`${refScenes()[1].name} copy`);
 });
 
+test('tooltips stay inside the window, with the shortcut apart', async ({ page }) => {
+  await page.getByRole('button', { name: 'Export', exact: true }).hover();
+  const tip = page.getByRole('tooltip');
+  await expect(tip).toContainText('Export image');
+  await expect(tip.locator('kbd')).toHaveText('Ctrl E');
+  const box = (await tip.boundingBox())!;
+  const width = page.viewportSize()!.width;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(width);
+  await page.mouse.move(600, 400);
+  await expect(tip).toHaveCount(0);
+});
+
 test('clicking a body part selects it and the sliders edit it', async ({ page }) => {
   const p = await project(page, 'kneeL');
   const hip = await project(page, 'hipL');

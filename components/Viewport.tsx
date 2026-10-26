@@ -176,13 +176,13 @@ export default function Viewport({
           <Grid
             infiniteGrid
             cellSize={0.25}
-            cellThickness={0.6}
-            cellColor="#e4e4e8"
+            cellThickness={0.5}
+            cellColor="#ececf0"
             sectionSize={1}
-            sectionThickness={1}
-            sectionColor="#cdcdd3"
-            fadeDistance={60}
-            fadeStrength={1.5}
+            sectionThickness={0.9}
+            sectionColor="#d9d9e0"
+            fadeDistance={34}
+            fadeStrength={2}
             position={[0, 0.0005, 0]}
           />
         )}

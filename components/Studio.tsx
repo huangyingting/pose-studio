@@ -33,6 +33,7 @@ import Timeline from './Timeline';
 import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './ui';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
+import { TooltipHost } from './Tooltip';
 import { canvasMenu, figureMenu, propMenu, renameInOutline } from './menus';
 
 function webglAvailable() {
@@ -519,6 +520,7 @@ function App() {
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
       {dialog === 'board' && <Board onClose={() => setDialog(null)} notify={notify} />}
       <ContextMenuHost />
+      <TooltipHost />
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>
   );
