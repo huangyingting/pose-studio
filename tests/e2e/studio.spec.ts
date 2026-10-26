@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 type Hook = {
   store: {
     getState(): {
-      library: { scenes: { id: string; name: string; figures: { id: string; joints: Record<string, number[]>; body: { sex: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[] }[] };
+      library: { scenes: { id: string; name: string; figures: { id: string; name: string; joints: Record<string, number[]>; body: { sex: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[] }[] };
       sceneIndex: number;
       activeFigure: string;
       selection: unknown;
@@ -528,4 +528,43 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   // Editing the animation clears the results.
   await page.keyboard.press('k');
   await expect(page.locator('.tl-issue')).toHaveCount(0);
+});
+
+test('stand-ins block a scene in a posture and can become posable figures', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add layer' }).click();
+  await page.getByRole('menuitem', { name: /Stand-in/ }).click();
+  await expect(page.getByRole('button', { name: 'Stand-in 1', exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: 'Sit' }).click();
+  let s = await state(page);
+  const standIn = () => s.scene.figures.find((f) => f.id === s.activeFigure) as unknown as { proxy?: string; joints: Record<string, number[]> };
+  expect(standIn().proxy).toBe('sit');
+  expect(standIn().joints.kneeL[0]).toBeGreaterThan(80);
+  // Not posed joint by joint: no IK handles, no joint panel.
+  await expect(page.getByText('Pick a body part')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Make it a posable figure' }).click();
+  s = await state(page);
+  expect(standIn().proxy).toBeUndefined();
+  await expect(page.getByText('Pick a body part')).toBeVisible();
+});
+
+test('the AI assistant runs tools on the open pose (provider mocked)', async ({ page }) => {
+  const replies = [
+    { id: 'r1', output: [{ type: 'function_call', name: 'add_figure', arguments: JSON.stringify({ kind: 'stand_in', name: 'Extra', body: null, posture: 'sit', x: 1.2, z: 0 }), call_id: 'c1' }] },
+    { id: 'r2', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Added a seated extra.' }] }] },
+  ];
+  await page.route('https://test.openai.azure.com/**', (route) => route.fulfill({ json: replies.shift() }));
+  await page.getByRole('tab', { name: 'AI' }).click();
+  await page.getByRole('radio', { name: 'Azure OpenAI' }).click();
+  await page.getByLabel('Endpoint').fill('https://test.openai.azure.com');
+  await page.getByLabel('API key').fill('test-key');
+  await page.getByLabel('Deployment').fill('dep');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByLabel('Message the assistant').fill('Add a seated extra');
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Added a seated extra.')).toBeVisible();
+  await expect(page.locator('.assistant-tool code')).toHaveText('add_figure');
+  const s = await state(page);
+  expect(s.scene.figures.map((f) => f.name)).toContain('Extra');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect.poll(async () => (await state(page)).scene.figures.length).toBe(1);
 });

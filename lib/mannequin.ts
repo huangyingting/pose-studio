@@ -65,6 +65,8 @@ export function stableEuler(e: THREE.Euler, prev: Vec3): Vec3 {
 
 /* ---------- body proportions ---------- */
 
+const mix = (m: number, f: number, female: number) => m + (f - m) * female;
+
 /*
  * Sex blends the secondary sex characteristics an artist looks for in a figure:
  *   male    broad shoulders and rib cage tapering to narrow hips (V shape), pectorals, trapezius
@@ -205,17 +207,20 @@ export class Mannequin {
   private style: Style = 'line';
   private selected: JointName | null = null;
   private highlight = false;
+  /** Built as a capsule stand-in (same skeleton, simple shapes, no hands or face). */
+  private standIn = false;
 
-  constructor(private ink: Ink, body: BodyParams, readonly id = '') {
+  constructor(private ink: Ink, body: BodyParams, readonly id = '', standIn = false) {
     this.parts = new InkedParts(ink, 'figure');
-    this.setBody(body);
+    this.setBody(body, standIn);
   }
 
-  /** Rebuild the geometry if the proportions changed. Returns true if rebuilt. */
-  setBody(body: BodyParams) {
-    const key = JSON.stringify(body);
+  /** Rebuild the geometry if the proportions (or stand-in-ness) changed. Returns true if rebuilt. */
+  setBody(body: BodyParams, standIn = this.standIn) {
+    const key = JSON.stringify(body) + (standIn ? ':stand-in' : '');
     if (key === this.bodyKey) return false;
     this.bodyKey = key;
+    this.standIn = standIn;
     this.parts.dispose();
     this.object.clear();
     this.joints = {} as Record<JointName, THREE.Group>;
@@ -237,8 +242,10 @@ export class Mannequin {
       this.joints[name] = g;
       return g;
     };
-    const part = (j: JointName, geo: THREE.BufferGeometry, pos?: Vec3, rings: THREE.BufferGeometry[] = []) =>
-      this.parts.add(this.joints[j], geo, { joint: j, figure: this.id }, pos, rings);
+    const part = (j: JointName, geo: THREE.BufferGeometry, pos?: Vec3, rings: THREE.BufferGeometry[] = []) => {
+      if (this.standIn) geo.dispose();
+      else this.parts.add(this.joints[j], geo, { joint: j, figure: this.id }, pos, rings);
+    };
     const ball = (r: number) => new THREE.SphereGeometry(r, 24, 16);
 
     const root = joint('root', this.object, 0, 1);
@@ -284,7 +291,7 @@ export class Mannequin {
     const h = P.head;
     // A smaller taper gives a squarer jaw (male); a larger one a rounder skull and narrower chin.
     const [hx, hy, hz, ht] = [0.085 * h, 0.115 * h, 0.1 * h, P.headTaper];
-    this.buildHead({ rx: hx, ry: hy, rz: hz, taper: ht }, h, P.female);
+    if (!this.standIn) this.buildHead({ rx: hx, ry: hy, rz: hz, taper: ht }, h, P.female);
 
     const R = P.limbR;
     const mus = P.muscle;
@@ -304,7 +311,7 @@ export class Mannequin {
 
       const wrist = joint(n('wrist'), elbow, 0, -0.245 * k);
       part(n('wrist'), ball(0.029 * R));
-      this.hands[side] = this.buildHand(wrist, n('wrist'), s, k * P.extremity);
+      this.hands[side] = this.standIn ? { segments: [], side: s } : this.buildHand(wrist, n('wrist'), s, k * P.extremity);
 
       const hip = joint(n('hip'), root, P.hipX * s, -0.07 * k);
       part(n('hip'), ball(0.08 * R));
@@ -321,6 +328,30 @@ export class Mannequin {
       part(n('ankle'), ball(0.036 * R));
       const fk = k * P.extremity;
       part(n('ankle'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
+    }
+    if (this.standIn) this.buildStandIn(P, { rx: hx, ry: hy, rz: hz, taper: ht });
+  }
+
+  /** Capsules on the same skeleton: a torso, a plain head (its centre line shows where it faces) and limbs. */
+  private buildStandIn(P: ReturnType<typeof proportions>, head: Egg) {
+    const { k } = P;
+    const R = P.limbR;
+    const add = (j: JointName, geo: THREE.BufferGeometry, pos?: Vec3, rings: THREE.BufferGeometry[] = []) =>
+      this.parts.add(this.joints[j], geo, { joint: j, figure: this.id }, pos, rings);
+    const up = (len: number, r1: number, r2: number) => limb(len, r1, r2, 0, 0.35, 24).geometry.rotateZ(Math.PI);
+    const torso = up(0.6 * k, 0.15 * P.torso, mix(0.17, 0.14, P.female) * P.torso).scale(1, 1, 0.68);
+    add('root', torso, [0, -0.12 * k, 0]);
+    add('head', egg(head.rx, head.ry, head.rz, head.taper), [0, 0.1 * P.head, 0.01 * P.head], [meridian(head.ry, head.rz, head.taper)]);
+    for (const side of ['L', 'R'] as const) {
+      add(`shoulder${side}`, limb(0.28 * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
+      add(`elbow${side}`, limb(0.34 * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
+      add(`hip${side}`, limb(0.43 * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
+      add(`knee${side}`, limb(0.4 * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
+      // Round joints keep bent limbs smooth where the capsules meet.
+      add(`elbow${side}`, new THREE.SphereGeometry(0.044 * R, 20, 14));
+      add(`knee${side}`, new THREE.SphereGeometry(0.058 * R, 20, 14));
+      const fk = k * P.extremity;
+      add(`ankle${side}`, ellipsoid(0.045 * R, 0.035 * fk, 0.11 * fk), [0, -0.04 * k, 0.05 * fk]);
     }
   }
 
@@ -431,7 +462,7 @@ export class Mannequin {
 
   /** Pose the figure from document state. */
   apply(fig: Figure) {
-    this.setBody(fig.body);
+    this.setBody(fig.body, !!fig.proxy);
     for (const name of JOINTS) {
       const r = fig.joints[name] ?? [0, 0, 0];
       this.joints[name].rotation.set(r[0] * D2R, r[1] * D2R, r[2] * D2R);

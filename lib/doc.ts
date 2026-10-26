@@ -5,8 +5,8 @@ import { parseBoard } from './board';
 import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
-  FINGERS, JOINTS, PROP_KINDS,
-  type Figure, type Hand, type JointName, type Library, type PoseKey, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
+  FINGERS, JOINTS, POSTURES, PROP_KINDS,
+  type Figure, type Hand, type JointName, type Library, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -28,6 +28,24 @@ export function newFigure(partial: Partial<Figure> = {}): Figure {
     grounded: true,
     ...partial,
   };
+}
+
+/** Joint angles of each stand-in posture (the root's turn is kept). */
+export const POSTURE_JOINTS: Record<Posture, Figure['joints']> = {
+  stand: { shoulderL: [0, 0, 8], shoulderR: [0, 0, -8] },
+  sit: {
+    hipL: [-88, 0, 4], hipR: [-88, 0, -4], kneeL: [88, 0, 0], kneeR: [88, 0, 0],
+    shoulderL: [-22, 0, 8], shoulderR: [-22, 0, -8], elbowL: [-45, 0, 0], elbowR: [-45, 0, 0],
+  },
+  lie: { root: [-90, 0, 0], shoulderL: [0, 0, 8], shoulderR: [0, 0, -8] },
+};
+
+/** A capsule stand-in for blocking, in a posture. */
+export function withPosture(f: Figure, posture: Posture): Figure {
+  const p = POSTURE_JOINTS[posture];
+  const yaw = f.joints.root?.[1] ?? 0;
+  const root = p.root ?? [0, 0, 0];
+  return { ...f, proxy: posture, joints: { ...structuredClone(p), ...(root[0] || yaw ? { root: [root[0], yaw, root[2]] } : {}) } };
 }
 
 export function newScene(name = 'New pose', figures: Figure[] = [newFigure()]): Scene {
@@ -156,6 +174,7 @@ function parseFigure(v: unknown, i: number): Figure {
     position: vec3(o.position, [0, 0, 0]),
     grounded: o.grounded !== false,
     ...(o.hidden === true ? { hidden: true } : {}),
+    ...(POSTURES.includes(o.proxy as Posture) ? { proxy: o.proxy as Posture } : {}),
   };
 }
 

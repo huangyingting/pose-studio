@@ -1,6 +1,6 @@
 import { cloneHand } from './hands';
 import {
-  NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid,
+  NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { moveKey, newAnimation, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
@@ -12,7 +12,7 @@ import {
 import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, Prop, PropKind, Scene, Side, Vec3, View } from './types';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, Posture, Prop, PropKind, Scene, Side, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -85,6 +85,24 @@ export function addFigure(store: Store) {
     ...(base ? { body: { ...base.body } } : {}),
   });
   addFigures(store, [fig]);
+}
+
+/** A capsule stand-in for blocking: placed like a figure, in a posture, not posed joint by joint. */
+export function addStandIn(store: Store) {
+  const scene = store.scene;
+  const xs = scene.figures.map((f) => f.position[0]);
+  const n = scene.figures.filter((f) => f.proxy).length + 1;
+  addFigures(store, [withPosture(newFigure({ name: `Stand-in ${n}`, position: [xs.length ? Math.max(...xs) + 0.8 : 0, 0, 0] }), 'stand')]);
+}
+
+/** Change a stand-in's posture, or (null) turn it into a posable figure. */
+export function setPosture(store: Store, id: string, posture: Posture | null) {
+  store.updateFigure(id, (f) => {
+    if (posture) return withPosture(f, posture);
+    const figure = { ...f };
+    delete figure.proxy;
+    return figure;
+  }, '');
 }
 
 export function addFigures(store: Store, figures: Figure[]) {
@@ -322,6 +340,16 @@ export function setCameraKey(store: Store, shot: Omit<CameraKey, 't'>) {
     const keys = [...track.keys.filter((k) => Math.abs(k.t - time) >= tol), { ...shot, t: time }].sort((p, q) => p.t - q.t);
     return { ...s, animation: { ...a, camera: { ...track, keys } } };
   });
+}
+
+/** Change the camera key at time t (e.g. dragged in the viewport); one undo step per drag. */
+export function editCameraKey(store: Store, t: number, patch: Partial<Omit<CameraKey, 't'>>, key = '') {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a?.camera) return s;
+    const tol = 0.5 / a.fps;
+    return { ...s, animation: { ...a, camera: { ...a.camera, keys: a.camera.keys.map((k) => (Math.abs(k.t - t) < tol ? { ...k, ...patch } : k)) } } };
+  }, key);
 }
 
 export function deleteCameraKey(store: Store) {

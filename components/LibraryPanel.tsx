@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, Film, LayoutPanelTop, PersonStanding, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
+import { Copy, Ellipsis, Eye, EyeOff, FilePlus2, Film, LayoutPanelTop, PersonStanding, UserRound, Plus, RotateCcw, Search, Trash2, Users, UsersRound } from 'lucide-react';
 import {
-  addFigure, addProp, addScene, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
+  addFigure, addProp, addScene, addStandIn, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure, duplicateProp, moveScene,
   resetLibrary, setFigureHidden,
 } from '@/lib/actions';
 import { PROP_LABELS } from '@/lib/props';
@@ -178,9 +178,10 @@ function Layers({ notifyUndo }: { notifyUndo(text: string): void }) {
           className="ibtn"
           align="end"
           side="top"
-          tip="Add figure or prop"
+          tip="Add figure, stand-in or prop"
           items={[
             { label: 'Figure', icon: PersonStanding, onSelect: () => addFigure(store) },
+            { label: 'Stand-in (for blocking)', icon: UserRound, onSelect: () => addStandIn(store) },
             '-',
             ...PROP_KINDS.map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k) })),
           ]}
@@ -194,7 +195,7 @@ function Layers({ notifyUndo }: { notifyUndo(text: string): void }) {
           return (
             <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}`}>
               <button type="button" className="layer-main" onClick={() => store.setActiveFigure(f.id)}>
-                <PersonStanding size={15} strokeWidth={1.75} aria-hidden />
+                {f.proxy ? <UserRound size={15} strokeWidth={1.75} aria-hidden /> : <PersonStanding size={15} strokeWidth={1.75} aria-hidden />}
                 <span>{f.name}</span>
               </button>
               <span className="layer-actions">

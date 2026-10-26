@@ -6,7 +6,7 @@ import {
   PanelLeft, PanelRight, Repeat, RotateCcw, Trash2, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, deleteProp, duplicateProp, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, resetPose, setDistance,
+  arrange, copyPose, deleteProp, setPosture, duplicateProp, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, resetPose, setDistance,
   setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
@@ -17,13 +17,14 @@ import { PROP_LABELS } from '@/lib/props';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import { FINGERS, type Figure, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
+import { FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
+import Assistant from './Assistant';
 import BodyMap from './BodyMap';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
 import { IconButton, NumberField, Section, Segmented, Select, Slider, Toggle, type Notify } from './ui';
 
-export type Tab = 'pose' | 'body' | 'render';
+export type Tab = 'pose' | 'body' | 'render' | 'ai';
 
 export interface InspectorContext {
   frame(view: Partial<View> & Pick<View, 'yaw' | 'pitch'>): void;
@@ -40,6 +41,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'pose', label: 'Pose' },
   { id: 'body', label: 'Body' },
   { id: 'render', label: 'Render' },
+  { id: 'ai', label: 'AI' },
 ];
 
 /** Right-hand properties panel. Its content follows the selection, like a design tool's inspector. */
@@ -53,11 +55,13 @@ export default function Inspector({ tab, setTab, ctx }: { tab: Tab; setTab(t: Ta
           </button>
         ))}
       </nav>
-      <div className="panel-scroll">
-        {tab === 'pose' && <PoseTab ctx={ctx} />}
-        {tab === 'body' && <BodyTab />}
-        {tab === 'render' && <RenderTab ctx={ctx} />}
-      </div>
+      {tab === 'ai' ? <Assistant /> : (
+        <div className="panel-scroll">
+          {tab === 'pose' && <PoseTab ctx={ctx} />}
+          {tab === 'body' && <BodyTab />}
+          {tab === 'render' && <RenderTab ctx={ctx} />}
+        </div>
+      )}
     </aside>
   );
 }
@@ -82,6 +86,8 @@ function FigurePicker() {
 
 /* ---------------- Pose ---------------- */
 
+const POSTURE_LABELS: Record<Posture, string> = { stand: 'Stand', sit: 'Sit', lie: 'Lie' };
+
 function PoseTab({ ctx }: { ctx: InspectorContext }) {
   const store = useStore();
   const selection = useStudio((s) => s.selection);
@@ -97,6 +103,27 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
 
   const joint = selection?.kind === 'joint' && selection.figure === figure.id ? selection.joint : null;
   const rot = joint ? figure.joints[joint] ?? [0, 0, 0] : null;
+
+  if (figure.proxy) {
+    return (
+      <>
+        <FigurePicker />
+        <Section title="Stand-in">
+          <Segmented<Posture>
+            label="Posture"
+            full
+            value={figure.proxy}
+            onChange={(p) => setPosture(store, figure.id, p)}
+            options={POSTURES.map((p) => ({ value: p, label: POSTURE_LABELS[p] }))}
+          />
+          <p className="hint-text">A simple shape for blocking a scene: place it, turn it and key it like a figure.</p>
+          <button type="button" className="btn subtle" onClick={() => setPosture(store, figure.id, null)}>Make it a posable figure</button>
+        </Section>
+        <PlacementSection figure={figure} ctx={ctx} />
+        {scene.figures.length > 1 && <RelationSection figure={figure} ctx={ctx} />}
+      </>
+    );
+  }
 
   return (
     <>

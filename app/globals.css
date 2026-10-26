@@ -730,6 +730,48 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tabs button:hover { color: var(--text); }
 .tabs button.on { color: var(--text); background: var(--hover); }
 .panel-scroll { overflow-y: auto; flex: 1; }
+
+/* ---------- AI assistant ---------- */
+
+.assistant { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.assistant-head { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px 0 14px; color: var(--text-2); border-bottom: 1px solid var(--border); flex: none; }
+.assistant-head > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+.assistant-empty { display: grid; gap: 6px; }
+.assistant-empty .hint-text { margin: 0 0 4px; }
+.assistant-suggestion {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.assistant-suggestion:hover { background: var(--hover); }
+.assistant-msg { margin: 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-msg.user { align-self: flex-end; max-width: 88%; padding: 7px 10px; border-radius: 12px 12px 4px 12px; background: var(--accent); color: #fff; }
+.assistant-msg.error { color: var(--danger); }
+.assistant-msg.thinking { color: var(--text-3); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.4; } }
+.assistant-tool { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-2); font-size: 11px; }
+.assistant-tool svg { flex: none; color: var(--text-3); }
+.assistant-tool code { flex: none; font: 500 11px var(--mono); color: var(--text); }
+.assistant-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-tool.failed, .assistant-tool.failed svg { color: var(--danger); }
+.assistant-input { display: flex; align-items: flex-end; gap: 6px; margin: 0 10px 10px; padding: 6px 6px 6px 10px; border-radius: var(--radius-l); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); flex: none; }
+.assistant-input:focus-within { background: #fff; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-ring); }
+.assistant-input textarea { flex: 1; min-height: 36px; max-height: 160px; padding: 4px 0; border: 0; resize: none; background: transparent; font: inherit; color: var(--text); outline: none; field-sizing: content; }
+.assistant-input .send { background: var(--accent); color: #fff; }
+.assistant-input .send:disabled { background: var(--press); color: var(--text-3); opacity: 1; }
+.assistant-setup { display: grid; gap: 12px; padding: 16px 14px; }
+.assistant-setup h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
+.assistant-setup .hint-text { margin: 0; }
+.assistant-setup .field { display: grid; gap: 4px; color: var(--text-2); }
+.assistant-setup .field input { height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); font: inherit; color: var(--text); }
+.assistant-setup .field input:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-ring); }
+.assistant-setup .row { display: flex; align-items: center; gap: 8px; }
 .panel-row { padding: 12px 14px 0; }
 .panel-title { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
 .panel-title > svg { color: var(--text-2); }
@@ -1154,3 +1196,10 @@ button.psec-title svg { color: var(--text-3); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.assistant-mcp { display: grid; gap: 6px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+.assistant-mcp .hint-text { margin: 0; }
+.assistant-mcp code { font: 11px var(--mono); padding: 1px 4px; border-radius: 4px; background: var(--panel-2); overflow-wrap: anywhere; }
+.bridge-status { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-2); }
+.bridge-status span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+.bridge-status.connected span { background: var(--ok); }
+.bridge-status.offline span { background: #f5a524; }

@@ -8,6 +8,7 @@ import {
 import {
   addKeyframe, addScene, appendScenes, cutShot, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
+import { bridge } from '@/lib/agent/bridge';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
@@ -285,6 +286,12 @@ function App() {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register(withBase('/sw.js'), { scope: withBase('/') }).catch((err) => console.warn('Service worker registration failed', err));
   }, []);
+
+  // Reconnect the local MCP bridge if it was on.
+  useEffect(() => {
+    if (bridge.enabled()) bridge.start(store);
+    return () => bridge.stop(false);
+  }, [store]);
 
   // Read-only hook for automated tests and power users (e.g. `__poseStudio.store.getState()` in the console).
   useEffect(() => {

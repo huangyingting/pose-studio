@@ -166,7 +166,7 @@ const cm = (m: number) => `${Math.round(m * 100)} cm`;
 export function checkMotion(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a) return [];
-  const figures = scene.figures.filter((f) => !f.hidden && !f.proxy);
+  const figures = scene.figures.filter((f) => !f.hidden);
   if (!figures.length) return [];
   const times = frameTimes(a);
   if (!a.loop && times[times.length - 1] < a.duration) times.push(a.duration);
@@ -240,7 +240,8 @@ export function checkMotion(scene: Scene): Issue[] {
     for (const f of visible) {
       const m = rig.model(f);
       // Foot slide: a planted foot (at its floor level and slow) should not drift.
-      for (const k of ['ankleL', 'ankleR'] as const) {
+      // Stand-ins glide from place to place by design: no foot slide or joint limits for them.
+      for (const k of f.proxy ? [] : (['ankleL', 'ankleR'] as const)) {
         const p = m.joints[k].getWorldPosition(new THREE.Vector3());
         const prev = prevAnkle.get(f.id + k);
         const floor = minAnkle.get(f.id + k)!;
@@ -277,7 +278,7 @@ export function checkMotion(scene: Scene): Issue[] {
       }
       // Joint limits.
       for (const j of JOINTS) {
-        if (j === 'root') continue;
+        if (j === 'root' || f.proxy) continue;
         const r = f.joints[j] ?? [0, 0, 0];
         const lim = jointLimits(j);
         const over = Math.max(...r.map((v, k) => {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { frameTimes, sampleCamera, sceneAt } from './animation';
 import { wrapDeg } from './joints';
 import { fitCamera, viewDirection } from './render';
@@ -40,6 +41,28 @@ export function figuresCenter(view: SceneView) {
   return n ? c.divideScalar(n) : c.set(0, 1, 0);
 }
 
+/**
+ * Only the convex hull matters for framing (the extremes of any perspective view lie on it), and
+ * it is a few hundred points instead of tens of thousands: placing a shot gets much cheaper.
+ */
+function hull(points: THREE.Vector3[]) {
+  if (points.length < 50) return points;
+  try {
+    const h = new ConvexHull().setFromPoints(points);
+    const out = new Set<THREE.Vector3>();
+    for (const face of h.faces) {
+      let e = face.edge;
+      do {
+        out.add(e.head().point);
+        e = e.next;
+      } while (e !== face.edge);
+    }
+    return out.size >= 4 ? [...out].map((v) => v.clone()) : points;
+  } catch {
+    return points;
+  }
+}
+
 /** What a shot frames: sampled over the animation (or just the pose). */
 export function framingFor(scene: Scene, samples = 12): Framing {
   const view = new SceneView();
@@ -55,7 +78,7 @@ export function framingFor(scene: Scene, samples = 12): Framing {
   }
   view.dispose();
   if (!points.length) points.push(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.8, 0));
-  return { points, center: center.divideScalar(times.length) };
+  return { points: hull(points), center: center.divideScalar(times.length) };
 }
 
 /** Smooth pseudo-random wobble in [-1, 1] for hand-held shake. */

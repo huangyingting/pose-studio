@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleCamera } from '@/lib/animation';
-import { applyCameraMove, cutShot, editShot, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
+import { applyCameraMove, cutShot, editCameraKey, editShot, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
 import { parseScene } from '@/lib/doc';
 import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
@@ -93,5 +93,18 @@ describe('keyframe pack pieces', () => {
     expect(describeShot(boxing)).toMatch(/two mannequin figures \(two men\)/i);
     const waltz = MOTIONS.find((m) => m.id === 'waltz-turn')!.build();
     expect(describeShot(waltz)).toMatch(/\(a man and a woman\)/);
+  });
+
+  it('edits one camera key (dragged in the viewport) as one undo step', () => {
+    const store = animatedStore();
+    applyCameraMove(store, 'orbit90');
+    const keys = () => store.scene.animation!.camera!.keys;
+    const [first, last] = [keys()[0], keys()[keys().length - 1]];
+    editCameraKey(store, last.t, { yaw: 120, zoom: 1.5 }, 'drag');
+    editCameraKey(store, last.t, { yaw: 130, zoom: 1.8 }, 'drag');
+    expect(keys().at(-1)).toMatchObject({ t: last.t, yaw: 130, zoom: 1.8, pitch: last.pitch });
+    expect(keys()[0]).toEqual(first);
+    store.undo();
+    expect(keys().at(-1)).toEqual(last);
   });
 });

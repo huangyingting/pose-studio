@@ -18,7 +18,8 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
   - **Placement**: exact floor position and facing for each figure; the Move tool (`W`) moves whole figures; floor markers show where everyone stands and faces (click one to pick that figure).
   - **Relations** to another figure: turn to it, face each other, look at it (head, neck and if needed chest turn without tilting), stand beside it or back to back, set the distance, and **reach** a hand to its head, shoulder, chest, back, waist or hand (IK; tells you when it is out of reach).
 - **Sculpted faces**: brow ridge, eyes, nose, cheekbones, lips, chin and ears are modelled into the head as one smooth surface, finished with a few quiet lines (eyelids, brows, lips), and differ between male and female figures. So you can always tell where a figure faces and looks. Turn them off in the Render panel for a plain construction head with centre and eye lines.
-- **Layers**: multiple figures and props per pose, listed in the Layers panel, where you can add, duplicate, hide and delete them. Hidden figures stay in the pose but are not drawn or exported.
+- **Stand-ins**: capsule figures for blocking a scene (extras, a crowd, where people will be), standing, sitting or lying. Place, turn and animate them like figures; turn one into a posable figure when it needs a real pose.
+- **Layers**: multiple figures, stand-ins and props per pose, listed in the Layers panel, where you can add, duplicate, hide and delete them. Hidden figures stay in the pose but are not drawn or exported.
 - **Props**: box, ball, cylinder, chair, stool, step and wall. Move, rotate and scale them with the gizmo or with X/Y/Z fields (drag a field's letter to scrub the value). Turn off "Stand on the floor" to seat a figure on a prop.
 - **Pose library**: 20 built-in poses taken from the reference sheet. You can search, reorder by drag and drop or with Alt+arrow keys, and duplicate or delete poses. Arrow keys move between thumbnails. Thumbnails update live.
 
@@ -26,6 +27,7 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 - **Keyframe animation**: press **Animate** (or start from an animation template), move the playhead and pose: every edit is keyed at that time (auto-key). Keys are joined by smooth curves, loops wrap seamlessly, and a grounded figure bobs naturally as its legs bend. Drag keys along the timeline to retime them; `Space` plays, `,` / `.` step a frame, `K` sets a key. Onion skin shows the previous and next keys as ghosts.
 - **Animation templates**: walk cycle, run cycle, jump, dance groove, waltz turn (two people), boxing exchange (two people), front kick, wave hello and bow. Each comes with a camera move.
 - **Director's camera**: a shot camera with its own keys (orbit angle, height, lens, push-in and pan). Look through it with a 16:9 letterbox, frame a view and press the camera key, or pick a ready-made move: locked-off wide, push in, pull out, arc, 360° orbit, crane up, low-angle hero, tracking shot, dolly zoom and hand-held.
+- **Camera path**: outside the shot camera, the viewport shows each shot's camera path and a camera at every key. Drag a camera around the figures to change that key's angle and distance.
 - **Shots and cuts**: press `C` (or the scissors) to cut the timeline into shots; each shot has its own camera keys and move, a name and a caption (double-click it). **Cut for** a video model (Veo, Sora, Kling, Runway, Seedance, Hailuo, Luma, Wan) and shots longer than that model's clip limit are flagged.
 - **Motion check**: one click plays the animation through and flags feet sliding while planted, bodies below the floor, figures passing through each other or through props, joints bent past their natural range and pops (a joint snapping in a frame). Issues are marked on the timeline with a hint each; click one to jump to its frame and select the joint.
 - **Shot description**: copy a plain-language description of each shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
@@ -47,11 +49,16 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 - **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
 - **Save / import** the whole library as JSON. Files from the earlier MVP format are migrated automatically.
 
+**AI assistant**
+- An **AI** tab in the inspector: describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, adds props and stand-ins, animates, picks camera moves and runs the motion check, using the same tools as you; every change can be undone.
+- Bring your own account: Anthropic (Claude Opus 5.5, Sonnet 5.5 or Haiku 5.5), OpenAI or Azure OpenAI (Responses API). The key is stored in this browser only and sent only to that provider; the site has no server.
+- **MCP**: Claude Code, Claude Desktop or any MCP client can drive an open studio tab through `mcp/server.mjs` (see [MCP server](#mcp-server)).
+
 **App**
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
 - Several open tabs stay in sync: a tab adopts changes saved by another one instead of overwriting them.
 - Works offline once loaded (service worker; production builds only) and can be installed as an app.
-- A design-tool layout: pose library and layers on the left, a contextual inspector (Pose / Body / Render) on the right and a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
+- A design-tool layout: pose library and layers on the left, a contextual inspector (Pose / Body / Render / AI) on the right and a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
 - Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs and menus, and an error screen if something crashes.
 
 ## Getting started
@@ -72,6 +79,16 @@ Requires Node 20.9+ and a browser with WebGL.
 | `npm test` | Unit tests (Vitest) |
 | `npm run test:e2e` | Browser tests (Playwright). Builds and starts the app unless `BASE_URL` is set; set `PW_CHANNEL=chrome` to use an installed Chrome |
 | `npm run setup:mediapipe` | Re-fetch the pose-detection assets (`-- --force` to re-download the model) |
+
+## MCP server
+
+`mcp/server.mjs` (Node 18+, no dependencies) exposes the assistant's tools to MCP clients. It speaks MCP over stdio and relays each tool call to a Pose Studio tab through a bridge on `127.0.0.1:8765`, so the tools act on what you see.
+
+```bash
+claude mcp add pose-studio -- node /path/to/pose-studio/mcp/server.mjs
+```
+
+Then open Pose Studio (locally or on GitHub Pages), go to the **AI** tab, open its settings and turn on **MCP bridge**. Only the studio's own origins may connect to the bridge (localhost and the Pages site; set `POSE_STUDIO_ORIGINS` for another host, `POSE_STUDIO_PORT` for another port).
 
 ## Deployment
 
@@ -106,6 +123,7 @@ components/
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
   Board.tsx             Storyboard workspace
+  Assistant.tsx         AI tab: chat, provider settings and the MCP bridge toggle
   Practice.tsx          Gesture-practice slideshow
   Timeline.tsx, clock.ts  Animation timeline and playback clock
 lib/
@@ -134,6 +152,8 @@ lib/
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
+  agent/                AI assistant: tool registry (shared with MCP), Anthropic SDK and OpenAI/Azure Responses adapters, MCP bridge client
+mcp/server.mjs          MCP server (stdio) relaying tool calls to an open studio tab
 app/api/health          Liveness endpoint
 public/sw.js            Service worker (offline cache)
 tests/unit              Vitest: model, IK, limits, retargeting, store/history, share links, export, practice, relations, templates
