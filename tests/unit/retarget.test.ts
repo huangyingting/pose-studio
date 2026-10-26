@@ -4,7 +4,10 @@ import { DEFAULT_BODY } from '@/lib/body';
 import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
 import { Mannequin, worldPos } from '@/lib/mannequin';
-import { presetScenes } from '@/lib/presets';
+import { builtInPoses, poseScene } from '@/lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { fromMediaPipe, LM, retarget } from '@/lib/retarget';
 import type { JointName } from '@/lib/types';
 
@@ -43,7 +46,7 @@ describe('retarget', () => {
   it('recovers limb directions of every preset from its landmarks', () => {
     const source = new Mannequin(new Ink(), DEFAULT_BODY);
     const target = new Mannequin(new Ink(), DEFAULT_BODY);
-    for (const s of presetScenes()) {
+    for (const s of refScenes()) {
       source.apply(s.figures[0]);
       const { joints, skipped } = retarget(target, fromMediaPipe(landmarksFrom(source)));
       expect(skipped).toEqual([]);
@@ -60,7 +63,7 @@ describe('retarget', () => {
   it('keeps elbows and knees as pure hinges', () => {
     const source = new Mannequin(new Ink(), DEFAULT_BODY);
     const target = new Mannequin(new Ink(), DEFAULT_BODY);
-    source.apply(presetScenes()[12].figures[0]); // deep squat
+    source.apply(refScenes()[12].figures[0]); // deep squat
     const { joints } = retarget(target, fromMediaPipe(landmarksFrom(source)));
     for (const j of ['elbowL', 'elbowR', 'kneeL', 'kneeR'] as const) {
       const r = joints[j] ?? [0, 0, 0];

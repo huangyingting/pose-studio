@@ -8,14 +8,12 @@ import { builtInPoses, poseScene } from '@/lib/poses';
 import { CAMERA_MOVES } from '@/lib/shot';
 import { shotSpans, spanAt } from '@/lib/shots';
 import { thumbnail } from '@/lib/thumbnails';
+import type { LibraryTab } from '@/lib/store';
 import type { PoseAsset } from '@/lib/types';
 import { useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Segmented } from '../ui';
 import type { SectionProps } from './sections';
 
-type Tab = 'poses' | 'motions' | 'camera';
-// Remembered while the app is open (the section remounts when switching).
-let lastTab: Tab = 'poses';
 
 /**
  * Ready-made things to build a scene with. They apply to what is selected: a pose or a motion to
@@ -23,15 +21,16 @@ let lastTab: Tab = 'poses';
  * scene picker's New menu.)
  */
 export default function LibrarySection(props: SectionProps) {
-  const [tab, setTabState] = useState<Tab>(lastTab);
-  const setTab = (t: Tab) => { lastTab = t; setTabState(t); };
+  const store = useStore();
+  const tab = useStudio((s) => s.settings.libraryTab);
+  const setTab = (libraryTab: LibraryTab) => store.setSettings({ libraryTab });
   return (
     <div className="side-section">
       <div className="side-head">
         <h2>Library</h2>
       </div>
       <div className="library-tabs">
-        <Segmented<Tab>
+        <Segmented<LibraryTab>
           label="Library"
           full
           value={tab}

@@ -14,6 +14,8 @@ export interface SectionProps {
   notify(text: string): void;
   /** A pose was picked (closes the drawer on small screens). */
   onPick?(): void;
+  /** Open "figures from a photo". */
+  onPhoto(): void;
 }
 
 export interface SideSectionDef {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { newAnimation, setKey } from '@/lib/animation';
 import { newFigure, newScene } from '@/lib/doc';
-import { presetScenes } from '@/lib/presets';
+import { builtInPoses, poseScene } from '@/lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { canonical, mergeLibraries, sceneHash, syncBase } from '@/lib/sync';
 import type { Library, Scene } from '@/lib/types';
 
@@ -26,16 +29,12 @@ describe('library sync merge', () => {
     expect(named(mergeLibraries(server, local, base))).toEqual(['A edited']);
   });
 
-  it('merges a first sync without duplicating the same poses', () => {
-    // Built-in poses: same ids on every device, whatever order their keys were written in.
-    const server = canonical(JSON.parse(JSON.stringify(lib(presetScenes()))));
-    for (const s of server.scenes) for (const f of s.figures) f.joints = Object.fromEntries(Object.entries(f.joints).reverse());
+  it('a new device\'s untouched project adds nothing to the account', () => {
+    const account = lib(refScenes().slice(0, 3));
+    expect(mergeLibraries(account, lib([newScene('Scene 1')]), null)).toBe(account);
+    // Anything done on the device before the first sync is kept.
     const mine = newScene('Made offline');
-    const sameElsewhere = { ...newScene('Twin'), id: 'other-id' };
-    const twin = { ...sameElsewhere, id: 'twin-here', figures: sameElsewhere.figures.map((f) => ({ ...f, id: 'f-here' })) };
-    const merged = mergeLibraries(lib([...server.scenes, sameElsewhere]), lib([...presetScenes(), mine, twin]), null);
-    expect(merged.scenes).toHaveLength(22);
-    expect(named(merged).slice(-2)).toEqual(['Twin', 'Made offline']);
+    expect(named(mergeLibraries(account, lib([newScene('Scene 1'), mine]), null)).slice(-2)).toEqual(['Scene 1', 'Made offline']);
   });
 
   it('ignores where the playhead is in an animated pose', () => {

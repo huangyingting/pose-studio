@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { addFigure, addProp, deleteFigure, deleteScene, duplicateCurrentScene, moveScene } from '@/lib/actions';
-import { presetScenes } from '@/lib/presets';
+import { builtInPoses, poseScene } from '@/lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { decodeScene, encodeScene, sceneParam } from '@/lib/share';
 import { Store } from '@/lib/store';
 
@@ -16,7 +19,7 @@ class MemoryStorage implements Storage {
 
 describe('share links', () => {
   it('round-trips a scene through the URL fragment encoding', async () => {
-    const scene = presetScenes()[5];
+    const scene = refScenes()[5];
     const encoded = await encodeScene(scene);
     expect(encoded).toMatch(/^[\w-]+$/);
     expect(await decodeScene(encoded)).toEqual(scene);
@@ -31,7 +34,7 @@ describe('share links', () => {
 /** Storage holding a project of the 20 reference scenes (a new project has just one blank scene). */
 function seeded() {
   const storage = new MemoryStorage();
-  storage.setItem(Store.LIBRARY_KEY, JSON.stringify({ version: 2, scenes: presetScenes() }));
+  storage.setItem(Store.LIBRARY_KEY, JSON.stringify({ version: 2, scenes: refScenes() }));
   return storage;
 }
 
@@ -91,17 +94,9 @@ describe('Store', () => {
     expect(b.getState().sceneIndex).toBe(1);
   });
 
-  it('migrates the MVP storage format', () => {
-    const storage = new MemoryStorage();
-    storage.setItem('pose-studio-library-v1', JSON.stringify([{ name: 'Legacy', joints: { kneeL: [30, 0, 0] }, view: { yaw: 0, pitch: 4 } }]));
-    const store = new Store(storage);
-    expect(store.scene.name).toBe('Legacy');
-    expect(store.scene.figures[0].joints.kneeL).toEqual([30, 0, 0]);
-  });
-
   it('never deletes the last pose', () => {
     const storage = seeded();
-    storage.setItem('pose-studio-library-v2', JSON.stringify({ version: 2, scenes: [presetScenes()[0]] }));
+    storage.setItem(Store.LIBRARY_KEY, JSON.stringify({ version: 2, scenes: [refScenes()[0]] }));
     const store = new Store(storage);
     expect(deleteScene(store)).toBe(false);
   });

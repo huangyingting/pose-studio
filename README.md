@@ -34,7 +34,7 @@ On the server edition the AI assistant does any of these from a description ("tw
 - **Joint limits**: optional anatomical ranges keep poses natural (View tab → Joint limits).
 - **Fingers**: five three-segment fingers per hand, with presets (relaxed, fist, point, peace, grip, …) and per-finger curl and spread.
 - **Pose tools**: mirror, symmetrize left→right / right→left, copy/paste pose, reset, undo/redo (200 steps). Undo and redo switch to the pose they change, and deletions show a toast with an **Undo** button.
-- **Pose from photo**: detects up to four people in a photo (MediaPipe, on-device) and poses figures to match. The photo can stay on screen as a reference overlay.
+- **Figures from a photo** (Cast **+** menu): detects up to four people in a photo (MediaPipe, on-device) and poses figures to match, in a new scene or on the selected figure. The photo can stay on screen as a reference overlay.
 
 **Figures and scenes**
 - **Male and female anatomy**: the sex setting blends real secondary sex characteristics, not just scale. Male figures have broad shoulders over narrow hips, sculpted pectorals, a thicker neck, a squarer jaw, more muscular arms and calves and larger hands. Female figures have shoulders narrower than the hips, a defined waist, breasts, fuller glutes and thighs and a slender neck. Height, build, head size, leg length and chest can be adjusted too, or picked from presets (Female, Male, Athletic, Heroic, Slender, Child).
@@ -50,12 +50,12 @@ On the server edition the AI assistant does any of these from a description ("tw
 
 **Animation and camera**
 - **Keyframe animation**: press **Animate** (or start from an animation template), move the playhead and pose: every edit is keyed at that time (auto-key). Keys are joined by smooth curves, loops wrap seamlessly, and a grounded figure bobs naturally as its legs bend. Each figure has its own key track: posing one figure keys only that figure, and its keys can be dragged to retime it while the others keep their timing (the timeline shows a row per figure; click a name to pick the figure). `Space` plays, `,` / `.` step a frame, `K` keys the selected figure. Onion skin shows the previous and next keys as ghosts.
-- **Animation templates**: walk cycle, run cycle, jump, dance groove, waltz turn (two people), boxing exchange (two people), front kick, wave hello and bow. Each comes with a camera move.
+- **Motions** (Library): walk cycle, run cycle, jump, dance groove, front kick, wave hello and bow go on the selected figure's track; waltz turn and boxing exchange (two people) open as scenes with their own camera move.
 - **Director's camera**: a shot camera with its own keys (orbit angle, height, lens, push-in and pan). Look through it with a 16:9 letterbox, frame a view and press the camera key, or pick a ready-made move: locked-off wide, push in, pull out, arc, 360° orbit, crane up, low-angle hero, tracking shot, dolly zoom and hand-held.
 - **Camera path**: outside the shot camera, the viewport shows each shot's camera path and a camera at every key. Drag a camera around the figures to change that key's angle and distance.
-- **Shots and cuts**: press `C` (or the scissors) to cut the timeline into shots; each shot has its own camera keys and move, a name and a caption (double-click it). **Cut for** a video model (Veo, Sora, Kling, Runway, Seedance, Hailuo, Luma, Wan) and shots longer than that model's clip limit are flagged.
+- **Shots and cuts**: press `C` (or the scissors) to cut the timeline into shots; each shot has its own camera keys and move, a name and a caption (select it in the Scene outline or on the timeline to edit it in the inspector, with its camera move, follow and hand-held options). **Cut for** a video model (Veo, Sora, Kling, Runway, Seedance, Hailuo, Luma, Wan) and shots longer than that model's clip limit are flagged.
 - **Motion check**: one click plays the animation through and flags feet sliding while planted, bodies below the floor, figures passing through each other or through props, joints bent past their natural range and pops (a joint snapping in a frame). Issues are marked on the timeline with a hint each; click one to jump to its frame and select the joint.
-- **Shot description**: copy a plain-language description of each shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
+- **Shot description** (shot inspector): copy a plain-language description of each shot (framing, angle, lens, camera move, cast, action and length) for AI video tools.
 - **Storyboard** (`B`): line poses up as numbered 16:9 panels, each framed by its pose's camera, with a caption and a hold time. Drag to reorder. Export a **board sheet** (PNG) or an **animatic** video in which each panel holds for its time, animated poses play and captions appear as subtitles.
 
 **Output**
@@ -71,8 +71,8 @@ On the server edition the AI assistant does any of these from a description ("tw
 - **Export**: the current scene, a sheet of all scenes, the **pose library** as a reference sheet, a **turnaround** of the current scene from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and camera keys, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The pose library sheet reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Per-pose export camera**: set the angle and lens for each pose, or use "Use current view".
-- **Share links**: one pose, compressed into the URL fragment. Nothing is sent to a server.
-- **Save / import** the whole library as JSON. Files from the earlier MVP format are migrated automatically.
+- **Share links** (main menu): one scene, compressed into the URL fragment. Nothing is sent to a server.
+- **Save / import** the whole project (scenes, storyboard, saved poses) as JSON.
 
 **AI assistant** (server edition)
 - An **AI** tab in the inspector: describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, reaches hands to bodies, adds props and stand-ins, animates, picks camera moves and runs the motion check, using the same tools as you; every change can be undone.

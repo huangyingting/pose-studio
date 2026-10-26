@@ -1,10 +1,9 @@
 import { ClipboardCopy, Scissors, TriangleAlert, Video } from 'lucide-react';
-import { applyCameraMove, editShot, removeShotCut, setTargetModel } from '@/lib/actions';
+import { editShot, removeShotCut, setCameraOptions, setTargetModel } from '@/lib/actions';
 import { describeSpan } from '@/lib/prompt';
-import { CAMERA_MOVES } from '@/lib/shot';
 import { VIDEO_MODELS, overLimit, shotSpans, videoModel } from '@/lib/shots';
 import { useScene, useStore } from './store-context';
-import { Section, Select, type Notify } from './ui';
+import { Section, Select, Toggle, type Notify } from './ui';
 
 /** Inspector for a selected shot: what it is called and shows, how long, what it is cut for, its camera. */
 export default function ShotInspector({ id, notify }: { id: string; notify: Notify }) {
@@ -47,21 +46,13 @@ export default function ShotInspector({ id, notify }: { id: string; notify: Noti
           />
         </div>
       </Section>
-      <Section title="Camera move">
-        <div className="side-chips">
-          {CAMERA_MOVES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className="chip"
-              title={m.description}
-              onClick={() => { store.setTime(span.start); applyCameraMove(store, m.id); notify(`${span.shot.name}: ${m.name}`); }}
-            >
-              <Video size={12} aria-hidden /> {m.name}
-            </button>
-          ))}
-        </div>
+      <Section title="Camera">
+        <button type="button" className="btn subtle" onClick={() => { store.setTime(span.start); store.setSettings({ side: 'library', libraryTab: 'camera' }); }}>
+          <Video size={14} aria-hidden /> Choose a camera move…
+        </button>
         <p className="hint-text">Or frame the view and set camera keys from the timeline.</p>
+        <Toggle label="Follow the figures" hint="All shots: the camera keeps the figures in frame as they move" checked={!!a.camera?.follow} onChange={(follow) => setCameraOptions(store, { follow })} />
+        <Toggle label="Hand-held" hint="All shots: a slight shake" checked={(a.camera?.shake ?? 0) > 0} onChange={(on) => setCameraOptions(store, { shake: on ? 0.5 : 0 })} />
       </Section>
       <Section title="Shot">
         <div className="toolrow">

@@ -1,6 +1,6 @@
 import { DEFAULT_VIEW, newFigure, newScene } from './doc';
 import { cloneHand } from './hands';
-import { presetScenes } from './presets';
+import { BUILT_IN_POSES } from './presets';
 import type { Figure, Library, PoseAsset, Scene, View } from './types';
 import { uid } from './uid';
 
@@ -9,12 +9,9 @@ import { uid } from './uid';
  * user saved. A pose applies to a figure's joints and hands, wherever it stands and faces.
  */
 
-let builtIns: PoseAsset[] | null = null;
-
-/** The 20 built-in poses (stable ids, never stored in the library). */
+/** The 20 built-in poses (never stored in the library). */
 export function builtInPoses(): PoseAsset[] {
-  builtIns ??= presetScenes().map((s) => ({ id: s.id, name: s.name, joints: s.figures[0].joints, hands: s.figures[0].hands, view: s.view }));
-  return builtIns;
+  return BUILT_IN_POSES;
 }
 
 export function allPoses(lib: Library): PoseAsset[] {

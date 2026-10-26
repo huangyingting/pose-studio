@@ -89,7 +89,6 @@ function App() {
   const time = useStudio((s) => s.time);
   const [shotMode, setShotMode] = useState(false);
   const [onion, setOnion] = useState(false);
-  const [exportScope, setExportScope] = useState<'video' | null>(null);
   const togglePlay = useCallback(() => {
     if (!store.scene.animation) return;
     if (clock.playing) {
@@ -360,9 +359,6 @@ function App() {
           <IconButton icon={Undo2} label="Undo" shortcut="Ctrl Z" onClick={() => store.undo()} disabled={!canUndo} />
           <IconButton icon={Redo2} label="Redo" shortcut="Ctrl Shift Z" onClick={() => store.redo()} disabled={!canRedo} />
           <span className="tb-sep hide-mobile" />
-          <IconButton icon={Timer} label="Gesture practice" shortcut="P" onClick={() => setDialog('practice')} className="hide-mobile" />
-          <IconButton icon={ScanFace} label="Pose from photo" onClick={() => setDialog('photo')} className="hide-mobile" />
-          <IconButton icon={Link} label="Share link" onClick={share} className="hide-mobile" />
           <IconButton icon={CircleHelp} label="Help" shortcut="?" onClick={() => setDialog('help')} className="hide-mobile" />
           {Account && <Account />}
           <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export image  Ctrl E">
@@ -388,6 +384,7 @@ function App() {
         notify={notify}
         notifyUndo={notifyUndo}
         drawer={drawer === 'library'}
+        onPhoto={() => setDialog('photo')}
         actions={[{ label: 'Storyboard', icon: LayoutPanelTop, shortcut: 'B', onSelect: () => { stopPlayback(); setDialog('board'); } }]}
       />
 
@@ -480,7 +477,6 @@ function App() {
             onion={onion}
             setOnion={setOnion}
             captureShot={() => apiRef.current?.captureShot() ?? null}
-            onExportVideo={() => { setExportScope('video'); setDialog('export'); }}
             notify={notify}
           />
         )}
@@ -493,7 +489,7 @@ function App() {
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
       {dialog === 'export' && (
-        <ExportDialog onClose={() => { setDialog(null); setExportScope(null); }} notify={notify} initialScope={exportScope ?? undefined} />
+        <ExportDialog onClose={() => setDialog(null)} notify={notify} />
       )}
       {dialog === 'photo' && (
         <PhotoDialog

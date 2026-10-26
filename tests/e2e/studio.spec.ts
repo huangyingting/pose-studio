@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { presetScenes } from '../../lib/presets';
+import { builtInPoses, poseScene } from '../../lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 
 type Hook = {
   store: {
@@ -100,7 +103,7 @@ async function motionScene(page: Page, motion: string) {
 }
 
 // The tests work in a project of the 20 reference scenes (a new project has one blank scene).
-const SEEDED = JSON.stringify({ version: 2, scenes: presetScenes() });
+const SEEDED = JSON.stringify({ version: 2, scenes: refScenes() });
 
 const errors: string[] = [];
 
@@ -109,7 +112,7 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/');
-  await page.evaluate((lib) => { localStorage.clear(); localStorage.setItem('pose-studio-library-v2', lib); }, SEEDED);
+  await page.evaluate((lib) => { localStorage.clear(); localStorage.setItem('pose-studio-library', lib); }, SEEDED);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByLabel('Scene name')).toHaveValue('Hand on head');
@@ -131,7 +134,7 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await expect(poses.locator('img')).toHaveCount(20);
   await poses.getByRole('button', { name: /Hand on head/ }).click();
   await expect(page.getByText('Figure: Hand on head')).toBeVisible();
-  expect((await state(page)).scene.figures[0].joints.shoulderR).toEqual(presetScenes()[0].figures[0].joints.shoulderR);
+  expect((await state(page)).scene.figures[0].joints.shoulderR).toEqual(refScenes()[0].figures[0].joints.shoulderR);
 });
 
 test('clicking a body part selects it and the sliders edit it', async ({ page }) => {
@@ -214,7 +217,8 @@ test('exports the pose library as a 2400×3200 Pose.jpg sheet', async ({ page })
 test('share links open as a new scene', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await (await openScenes(page)).locator('.thumbs li').nth(4).locator('button').click();
-  await page.getByRole('button', { name: /Share/ }).click();
+  await page.getByRole('button', { name: 'Main menu' }).click();
+  await page.getByRole('menuitem', { name: 'Copy share link' }).click();
   await expect(page.getByText('Share link copied')).toBeVisible();
   const url = await page.evaluate(() => navigator.clipboard.readText());
   expect(url).toContain('#scene=');
@@ -253,7 +257,9 @@ test('keyboard shortcuts navigate, mirror and undo', async ({ page }) => {
 
 test('poses a figure from a photo', async ({ page }) => {
   test.setTimeout(180_000);
-  await page.getByRole('button', { name: /Pose from photo/ }).click();
+  await openSection(page, 'Scene');
+  await page.getByRole('button', { name: 'Add to cast' }).click();
+  await page.getByRole('menuitem', { name: 'From a photo…' }).click();
   await page.locator('.dropzone input[type=file]').setInputFiles('tests/e2e/fixtures/mannequin-photo.png');
   await expect(page.getByText('Found 1 person.')).toBeVisible({ timeout: 120_000 });
   await page.getByRole('button', { name: 'Apply pose' }).click();
@@ -476,8 +482,11 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
 
   await page.getByRole('button', { name: 'Look through the shot camera' }).click();
   await expect(page.locator('.letterbox')).toBeVisible();
-  await page.getByRole('button', { name: 'Camera move' }).click();
-  await page.getByRole('menuitem', { name: 'Orbit 360°' }).click();
+  // The shot's camera move: from its inspector to the library's camera moves.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
+  await page.getByRole('button', { name: 'Choose a camera move…' }).click();
+  await page.getByRole('list', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
   expect((await anim(page)).animation!.camera!.keys).toHaveLength(4);
 });
 
@@ -680,8 +689,8 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   const [a, b] = await figs(page);
   // The selected (new) figure took the pose where it stands; the first one did not change.
   expect(b.id).toBe(second.id);
-  expect(b.joints).toMatchObject({ root: [presetScenes()[10].figures[0].joints.root![0], 0, presetScenes()[10].figures[0].joints.root![2]] });
-  expect(a.joints).toEqual(presetScenes()[0].figures[0].joints);
+  expect(b.joints).toMatchObject({ root: [refScenes()[10].figures[0].joints.root![0], 0, refScenes()[10].figures[0].joints.root![2]] });
+  expect(a.joints).toEqual(refScenes()[0].figures[0].joints);
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
   await expect(page.getByRole('list', { name: 'Poses' }).locator('li')).toHaveCount(21);

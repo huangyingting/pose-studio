@@ -191,14 +191,9 @@ function parseProp(v: unknown): Prop | null {
 }
 
 export function parseScene(v: unknown, i = 0): Scene {
-  if (!isObj(v)) throw new Error('Invalid pose entry');
-  // Version 1: a single figure stored directly on the pose.
-  if (!Array.isArray(v.figures)) {
-    const offset = Array.isArray(v.offset) ? v.offset : [0, 0];
-    const figure = parseFigure({ joints: v.joints, position: [num(offset[0], 0), 0, num(offset[1], 0)] }, 0);
-    return { id: uid('s'), name: str(v.name, `Pose ${i + 1}`), figures: [figure], props: [], view: parseView(v.view) };
-  }
+  if (!isObj(v) || !Array.isArray(v.figures)) throw new Error('Invalid scene');
   const figures = v.figures.slice(0, 12).map(parseFigure);
+  if (!figures.length) figures.push(newFigure());
   const ids = new Set<string>();
   for (const f of figures) {
     if (ids.has(f.id)) f.id = uid('f');
@@ -206,7 +201,7 @@ export function parseScene(v: unknown, i = 0): Scene {
   }
   const scene: Scene = {
     id: str(v.id, uid('s')),
-    name: str(v.name, `Pose ${i + 1}`),
+    name: str(v.name, `Scene ${i + 1}`),
     figures,
     props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null),
     view: parseView(v.view),
@@ -237,11 +232,8 @@ function parsePoseKey(v: unknown): PoseKey | null {
 
 /** Accepts a v2 library, a v1 array of poses, or a single scene. Throws on unusable input. */
 export function parseLibrary(data: unknown): Library {
-  let entries: unknown[];
-  if (isObj(data) && Array.isArray(data.scenes)) entries = data.scenes;
-  else if (Array.isArray(data)) entries = data;
-  else if (isObj(data) && (Array.isArray(data.figures) || isObj(data.joints))) entries = [data];
-  else throw new Error('Not a Pose Studio library');
+  if (!isObj(data) || !Array.isArray(data.scenes)) throw new Error('Not a Pose Studio library');
+  const entries: unknown[] = data.scenes;
   if (!entries.length) throw new Error('The file contains no scenes');
   const scenes = entries.slice(0, 500).map(parseScene);
   const ids = new Set<string>();
@@ -249,7 +241,7 @@ export function parseLibrary(data: unknown): Library {
     if (ids.has(s.id)) s.id = uid('s');
     ids.add(s.id);
   }
-  const board = isObj(data) ? parseBoard(data.board, ids) : undefined;
-  const poses = isObj(data) ? parsePoses(data.poses) : undefined;
+  const board = parseBoard(data.board, ids);
+  const poses = parsePoses(data.poses);
   return { version: 2, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}) };
 }

@@ -4,7 +4,10 @@ import { DEFAULT_BODY } from '@/lib/body';
 import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
 import { IK_CHAINS, Mannequin, POLE_CHAINS, worldPos } from '@/lib/mannequin';
-import { presetScenes } from '@/lib/presets';
+import { builtInPoses, poseScene } from '@/lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 
 const make = () => new Mannequin(new Ink(), DEFAULT_BODY, 'f1');
 
@@ -17,7 +20,7 @@ function minY(m: Mannequin) {
 describe('Mannequin', () => {
   it('round-trips every preset through apply/read', () => {
     const m = make();
-    for (const s of presetScenes()) {
+    for (const s of refScenes()) {
       const f = s.figures[0];
       m.apply(f);
       expect(m.read().joints, s.name).toEqual(f.joints);
@@ -26,7 +29,7 @@ describe('Mannequin', () => {
 
   it('rests on the floor when grounded', () => {
     const m = make();
-    for (const s of presetScenes()) {
+    for (const s of refScenes()) {
       m.apply(s.figures[0]);
       expect(Math.abs(minY(m)), s.name).toBeLessThan(1e-6);
     }

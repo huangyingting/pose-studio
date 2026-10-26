@@ -1,4 +1,5 @@
 import { sceneAt } from './animation';
+import { newScene } from './doc';
 import type { Library, Panel, Scene } from './types';
 
 /*
@@ -39,20 +40,11 @@ function stable(v: unknown): string {
 export const sceneHash = (s: Scene) => hash(stable(s));
 const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
 
-/** What a pose looks like, regardless of ids (the same pose made on two devices). */
-function contentKey(s: Scene) {
-  const index = new Map(s.figures.map((f, i) => [f.id, i]));
-  const strip = <T extends { id: string }>(x: T) => ({ ...x, id: undefined });
-  return hash(stable({
-    ...s,
-    id: undefined,
-    figures: s.figures.map(strip),
-    props: s.props.map(strip),
-    animation: s.animation && {
-      ...s.animation,
-      keys: s.animation.keys.map((k) => ({ ...k, poses: Object.fromEntries(Object.entries(k.poses).map(([id, p]) => [index.get(id) ?? id, p])) })),
-    },
-  }));
+/** A project nobody has touched yet: the one blank scene a new device starts with. */
+function untouched(lib: Library) {
+  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length) return false;
+  const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })) });
+  return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
 
 /** The library as synced: animated poses at frame 0 (the open pose follows the playhead locally). */
@@ -74,6 +66,8 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
 }
 
 export function mergeLibraries(server: Library, local: Library, base: SyncBase | null): Library {
+  // A new device brings nothing to merge: take the account's library as it is.
+  if (!base && untouched(local)) return server;
   const localById = new Map(local.scenes.map((s) => [s.id, s]));
   const serverIds = new Set(server.scenes.map((s) => s.id));
   const baseHash = (id: string) => base?.scenes[id];
@@ -96,13 +90,11 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     else if (theirs === was) out.push(mine);
     else out.push(s, { ...mine, id: `${mine.id}-${Date.now().toString(36)}`, name: `${mine.name} (this device)` });
   }
-  const serverKeys = new Set(server.scenes.map(contentKey));
   for (const s of local.scenes) {
     if (serverIds.has(s.id)) continue;
     const was = baseHash(s.id);
-    // Deleted on the server and untouched here: let it go. The same pose made elsewhere: skip it.
+    // Deleted on the server and untouched here: let it go.
     if (was && was === sceneHash(s)) continue;
-    if (serverKeys.has(contentKey(s))) continue;
     out.push(s);
   }
 

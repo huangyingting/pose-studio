@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, Eye, EyeOff, Film, PersonStanding, Play, Plus, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
+import { Copy, Eye, EyeOff, Film, PersonStanding, Play, Plus, ScanFace, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, setFigureHidden, startAnimation,
 } from '@/lib/actions';
@@ -17,7 +17,7 @@ import type { SectionProps } from './sections';
  * The open scene in workflow order: its cast (figures and stand-ins), its set (props) and its
  * shots. Selecting an item shows it in the inspector; the library applies to what is selected.
  */
-export default function OutlineSection({ notify, notifyUndo }: SectionProps) {
+export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionProps) {
   const store = useStore();
   const scene = useScene();
   const active = useStudio((s) => s.activeFigure);
@@ -40,10 +40,12 @@ export default function OutlineSection({ notify, notifyUndo }: SectionProps) {
               label="Add to cast"
               className="ibtn"
               align="end"
-              tip="Add a figure or a stand-in"
+              tip="Add a figure, a stand-in, or figures from a photo"
               items={[
                 { label: 'Figure', icon: PersonStanding, onSelect: () => addFigure(store) },
                 { label: 'Stand-in (for blocking)', icon: UserRound, onSelect: () => addStandIn(store) },
+                '-',
+                { label: 'From a photo…', icon: ScanFace, onSelect: onPhoto },
               ]}
             >
               <Plus size={15} strokeWidth={1.75} aria-hidden />

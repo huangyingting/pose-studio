@@ -18,7 +18,12 @@ export interface Settings {
   faces: boolean;
   /** The left side panel's open section, or 'none' when it is collapsed to the rail. */
   side: SideSection;
+  /** The library's open tab. */
+  libraryTab: LibraryTab;
 }
+
+export const LIBRARY_TABS = ['poses', 'motions', 'camera'] as const;
+export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export const SIDE_SECTIONS = ['scene', 'library'] as const;
 export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
@@ -40,10 +45,10 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'scene',
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'scene', libraryTab: 'poses',
 };
 
-const STORAGE = { library: 'pose-studio-library-v2', legacy: 'pose-studio-library-v1', settings: 'pose-studio-settings-v1', index: 'pose-studio-index' };
+const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
 const HISTORY_LIMIT = 200;
 /** Continuous edits with the same key within this window merge into one undo step. */
 const MERGE_MS = 800;
@@ -60,13 +65,11 @@ interface HistoryEntry {
 }
 
 function loadLibrary(storage: Storage | null): Library {
-  for (const key of [STORAGE.library, STORAGE.legacy]) {
-    try {
-      const raw = storage?.getItem(key);
-      if (raw) return parseLibrary(JSON.parse(raw));
-    } catch {
-      // Corrupt entry: fall through to the next source.
-    }
+  try {
+    const raw = storage?.getItem(STORAGE.library);
+    if (raw) return parseLibrary(JSON.parse(raw));
+  } catch {
+    // Corrupt entry: start a new project.
   }
   // A new project: one empty scene (the built-in poses live in the pose library).
   return { version: 2, scenes: [newScene('Scene 1')] };
@@ -87,6 +90,7 @@ function loadSettings(storage: Storage | null): Settings {
         light: clampLight(s.light),
         faces: s.faces !== false,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
+        libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',
       };
     }
   } catch {

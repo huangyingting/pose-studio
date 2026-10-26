@@ -30,7 +30,12 @@ export async function PUT(req: Request) {
   const base = Number(body.baseVersion);
   if (!Number.isInteger(base) || base < 0) return Response.json({ error: 'baseVersion is required' }, { status: 400 });
   // Validated and normalised like any library file.
-  const data = JSON.stringify(parseLibrary(body.library));
+  let data: string;
+  try {
+    data = JSON.stringify(parseLibrary(body.library));
+  } catch (err) {
+    return Response.json({ error: (err as Error).message }, { status: 400 });
+  }
 
   const current = await prisma.library.findUnique({ where: { userId } });
   if ((current?.version ?? 0) !== base) {

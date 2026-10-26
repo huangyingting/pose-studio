@@ -37,14 +37,14 @@ function loadExportOptions(): ExportOptions {
 }
 
 
-export function ExportDialog({ onClose, notify, initialScope }: { onClose(): void; notify: Notify; initialScope?: ExportOptions['scope'] }) {
+export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
   const light = useStudio((s) => s.settings.light);
   const faces = useStudio((s) => s.settings.faces);
   const scene = useScene();
   const animated = !!scene.animation;
-  const [o, setO] = useState<ExportOptions>(() => ({ ...loadExportOptions(), ...(initialScope ? { scope: initialScope } : {}) }));
+  const [o, setO] = useState<ExportOptions>(loadExportOptions);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const abort = useRef<AbortController | null>(null);
@@ -450,7 +450,7 @@ export function PhotoDialog({ onClose, notify, onReference }: {
               full
               value={target}
               onChange={setTarget}
-              options={[{ value: 'new', label: 'A new pose' }, { value: 'current', label: 'The current figure' }]}
+              options={[{ value: 'new', label: 'A new scene' }, { value: 'current', label: 'The selected figure' }]}
             />
           </Field>
           <Toggle label="Show the photo as a reference overlay" checked={asReference} onChange={setAsReference} />

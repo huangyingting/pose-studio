@@ -2,19 +2,14 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  Activity, Camera, Clapperboard, ClipboardCopy, Diamond, ListVideo, Scissors, TriangleAlert, X, Ellipsis, Film, Ghost, Pause, Play, Repeat, StepBack, StepForward, Trash2, Video,
+  Activity, Camera, Clapperboard, Diamond, Scissors, TriangleAlert, X, Ellipsis, Ghost, Pause, Play, Repeat, StepBack, StepForward, Trash2,
 } from 'lucide-react';
 import {
-  addKeyframe, applyCameraMove, cutShot, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation,
-  setAnimationOptions, setCameraKey, setCameraOptions, setTargetModel,
+  addKeyframe, cutShot, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, setAnimationOptions, setCameraKey,
 } from '@/lib/actions';
 import { figureKeyTimes, snapTime } from '@/lib/animation';
-import { buildOtio } from '@/lib/otio';
-import { describeShot } from '@/lib/prompt';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
-import { downloadBlob, safeFilename } from '@/lib/render';
-import { VIDEO_MODELS, overLimit, shotSpans, videoModel } from '@/lib/shots';
-import { CAMERA_MOVES } from '@/lib/shot';
+import { overLimit, shotSpans, videoModel } from '@/lib/shots';
 import type { Animation, CameraKey } from '@/lib/types';
 import type { Clock } from './clock';
 import { useScene, useStore, useStudio } from './store-context';
@@ -31,14 +26,13 @@ export function usePlayhead(clock: Clock) {
  * Keyframe timeline under the canvas: transport, pose keys and the shot camera's keys.
  * Editing a figure at any time records a key there (auto-key).
  */
-export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion, captureShot, onExportVideo, notify }: {
+export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion, captureShot, notify }: {
   clock: Clock;
   shotMode: boolean;
   setShotMode(on: boolean): void;
   onion: boolean;
   setOnion(on: boolean): void;
   captureShot(): Omit<CameraKey, 't'> | null;
-  onExportVideo(): void;
   notify(text: string): void;
 }) {
   const store = useStore();
@@ -224,47 +218,13 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
           }}
         />
         <Menu
-          label="Camera move"
-          side="top"
-          align="end"
-          className="btn ghost"
-          tip="Ready-made camera moves"
-          items={CAMERA_MOVES.map((m) => ({ label: m.name, icon: Video, onSelect: () => { applyCameraMove(store, m.id); setShotMode(true); notify(`${m.name}: ${m.description}`); } }))}
-        >
-          <Video size={15} aria-hidden /> <span className="hide-sm">Camera</span>
-        </Menu>
-        <Menu
           label="Animation options"
           side="top"
           align="end"
           className="ibtn"
           items={[
-            { label: 'Follow the figures', checked: !!cam?.follow, onSelect: () => setCameraOptions(store, { follow: !cam?.follow }) },
-            { label: 'Hand-held shake', checked: (cam?.shake ?? 0) > 0, onSelect: () => setCameraOptions(store, { shake: (cam?.shake ?? 0) > 0 ? 0 : 0.5 }) },
             { label: 'Delete camera key', icon: Trash2, disabled: !onCamKey, onSelect: () => deleteCameraKey(store) },
-            { group: 'Cut for' },
-            { label: 'No length limit', checked: !a.target, onSelect: () => setTargetModel(store, null) },
-            ...VIDEO_MODELS.map((m) => ({ label: `${m.name} · ${m.max} s`, checked: a.target === m.id, onSelect: () => setTargetModel(store, m.id) })),
             '-',
-            { label: 'Export video…', icon: Film, onSelect: onExportVideo },
-            {
-              label: 'Export cut list (OTIO)',
-              icon: ListVideo,
-              onSelect: () => {
-                const name = safeFilename(store.scene.name);
-                const otio = buildOtio(store.scene, `${name}.mp4`);
-                downloadBlob(new Blob([JSON.stringify(otio, null, 2)], { type: 'application/json' }), `${name}.otio`);
-                notify(`Saved ${name}.otio (${otio.tracks.children[0].children.length} shots)`);
-              },
-            },
-            {
-              label: 'Copy shot description',
-              icon: ClipboardCopy,
-              onSelect: () => {
-                const text = describeShot(store.scene);
-                navigator.clipboard?.writeText(text).then(() => notify('Shot description copied (for AI video tools)'), () => notify(text));
-              },
-            },
             { label: 'Remove animation', icon: Trash2, danger: true, onSelect: () => { pause(); removeAnimation(store); } },
           ]}
         >

@@ -7,7 +7,6 @@ import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard 
 import { moveKey, newAnimation, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure } from './poses';
-import { presetScenes } from './presets';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   withFacing, withPosition, type Contact,
@@ -55,9 +54,6 @@ export function moveScene(store: Store, from: number, to: number) {
   store.commit((lib) => ({ ...lib, scenes }), '', { sceneIndex: scenes.findIndex((x) => x.id === current) });
 }
 
-export function resetLibrary(store: Store) {
-  store.commit(() => ({ version: 2, scenes: presetScenes() }), '', { sceneIndex: 0, selection: null, activeFigure: null });
-}
 
 export function replaceLibrary(store: Store, scenes: Scene[], board?: Panel[]) {
   store.commit(() => (board ? { version: 2, scenes, board } : { version: 2, scenes }), '', { sceneIndex: 0, selection: null, activeFigure: null });

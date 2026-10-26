@@ -1,31 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { mirrorFigure, newFigure, newProp, parseLibrary, parseScene, symmetrize } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
-import { presetScenes } from '@/lib/presets';
+import { builtInPoses, poseScene } from '@/lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { JOINTS } from '@/lib/types';
 
 describe('parseLibrary', () => {
-  it('migrates the v1 format (array of single-figure poses)', () => {
-    const lib = parseLibrary([
-      { name: 'Old', joints: { hipL: [-10, 0, 5] }, offset: [0.5, -0.2], view: { yaw: 30, pitch: 10 } },
-    ]);
-    expect(lib.version).toBe(2);
-    const s = lib.scenes[0];
-    expect(s.name).toBe('Old');
-    expect(s.figures).toHaveLength(1);
-    expect(s.figures[0].joints.hipL).toEqual([-10, 0, 5]);
-    expect(s.figures[0].position).toEqual([0.5, 0, -0.2]);
-    expect(s.view).toEqual({ yaw: 30, pitch: 10, fov: 20 });
-  });
-
   it('round-trips the v2 format unchanged', () => {
-    const lib = { version: 2 as const, scenes: presetScenes() };
+    const lib = { version: 2 as const, scenes: refScenes() };
     expect(parseLibrary(JSON.parse(JSON.stringify(lib)))).toEqual(lib);
   });
 
-  it('accepts a single scene', () => {
-    const scene = presetScenes()[3];
-    expect(parseLibrary(scene).scenes[0]).toEqual(scene);
+  it('accepts only library files', () => {
+    expect(() => parseLibrary(refScenes()[3])).toThrow('Not a Pose Studio library');
+    expect(() => parseLibrary({ scenes: [] })).toThrow('no scenes');
   });
 
   it('rejects unusable input', () => {
@@ -51,22 +41,22 @@ describe('parseLibrary', () => {
     expect(f.body.sex).toBe(0);
     expect(f.hands.L.curl.slice(0, 3)).toEqual([1, 0, 0.5]);
     expect(f.hands.L.spread).toBe(1);
-    expect(s.name).toBe('Pose 1');
+    expect(s.name).toBe('Scene 1');
     expect(s.props).toHaveLength(1);
     expect(s.props[0].scale).toEqual([0.02, 2, 20]);
     expect(s.view).toEqual({ yaw: 180, pitch: 89, fov: 5 });
   });
 
   it('gives duplicate ids fresh ones', () => {
-    const scene = presetScenes()[0];
-    const lib = parseLibrary([scene, scene]);
+    const scene = refScenes()[0];
+    const lib = parseLibrary({ scenes: [scene, scene] });
     expect(lib.scenes[0].id).not.toBe(lib.scenes[1].id);
   });
 });
 
 describe('pose operations', () => {
   it('mirroring twice is the identity', () => {
-    const f = presetScenes()[0].figures[0];
+    const f = refScenes()[0].figures[0];
     expect(mirrorFigure(mirrorFigure(f))).toEqual(f);
   });
 
@@ -91,11 +81,11 @@ describe('pose operations', () => {
 
 describe('presets', () => {
   it('has the 20 poses from the reference sheet', () => {
-    expect(presetScenes()).toHaveLength(20);
+    expect(refScenes()).toHaveLength(20);
   });
 
   it('keeps every preset inside the anatomical joint limits', () => {
-    for (const s of presetScenes()) {
+    for (const s of refScenes()) {
       for (const j of JOINTS) {
         const r = s.figures[0].joints[j];
         if (!r) continue;

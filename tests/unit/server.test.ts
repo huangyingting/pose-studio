@@ -59,12 +59,13 @@ describe('library API', () => {
   it('validates what it stores', async () => {
     user = 'u2';
     expect((await put({ library: lib('X'), baseVersion: -1 })).status).toBe(400);
-    const res = await put({ library: { scenes: [{ name: 'Junk', figures: 'nope', evil: '<script>' }] }, baseVersion: 0 });
+    expect((await put({ library: { scenes: [{ name: 'Junk', figures: 'nope' }] }, baseVersion: 0 })).status).toBe(400);
+    const res = await put({ library: { scenes: [{ name: 'Junk', figures: [{ joints: { kneeL: [30, 0, 0], evil: [1, 2, 3] } }], evil: '<script>' }] }, baseVersion: 0 });
     expect(res.status).toBe(200);
     const saved = (await (await routes.library.GET()).json()).library;
     expect(saved.scenes[0].name).toBe('Junk');
     expect(saved.scenes[0].evil).toBeUndefined();
-    expect(Array.isArray(saved.scenes[0].figures)).toBe(true);
+    expect(saved.scenes[0].figures[0].joints).toEqual({ kneeL: [30, 0, 0] });
   });
 });
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { clampLight, DEFAULT_LIGHT } from '@/lib/lighting';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
-import { presetScenes } from '@/lib/presets';
+import { builtInPoses, poseScene } from '@/lib/poses';
+
+/** The 20 reference poses as scenes. */
+const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { DEFAULT_EXPORT, exportCells, parseExportOptions, sheetSize } from '@/lib/render';
 import { Store } from '@/lib/store';
 
@@ -28,12 +31,10 @@ describe('export options', () => {
     expect(o.angles).toBe(8);
     expect(o.labels).toBe(true);
     expect(parseExportOptions(null)).toEqual(DEFAULT_EXPORT);
-    // Options saved by the previous version (no style / angles) still load.
-    expect(parseExportOptions({ scope: 'current', columns: 2 })).toMatchObject({ scope: 'current', columns: 2, style: 'line', angles: 4 });
   });
 
   it('builds a turnaround from evenly spaced angles around the figure', () => {
-    const scenes = presetScenes();
+    const scenes = refScenes();
     const current = { ...scenes[3], view: { yaw: 25, pitch: 10, fov: 24 } };
     const cells = exportCells(scenes, current, { scope: 'turnaround', angles: 8, frames: 8 });
     expect(cells.map((c) => c.scene.view.yaw)).toEqual([0, 45, 90, 135, 180, -135, -90, -45]);
@@ -44,7 +45,7 @@ describe('export options', () => {
   });
 
   it('numbers captions for the whole library', () => {
-    const scenes = presetScenes();
+    const scenes = refScenes();
     const cells = exportCells(scenes, scenes[0], { scope: 'all', angles: 4, frames: 8 });
     expect(cells).toHaveLength(20);
     expect(cells[1].caption).toBe(`2. ${scenes[1].name}`);
@@ -53,7 +54,7 @@ describe('export options', () => {
 });
 
 describe('gesture practice', () => {
-  const scenes = presetScenes();
+  const scenes = refScenes();
 
   it('shuffles without repeating poses', () => {
     const slides = buildSession(scenes, scenes[0], { ...DEFAULT_PRACTICE, count: 0 }, seeded(7));
@@ -118,12 +119,12 @@ describe('lighting settings', () => {
       key: () => null,
       length: 0,
     } as Storage;
-    storage.set('pose-studio-settings-v1', JSON.stringify({ style: 'neon', showGrid: false }));
+    storage.set('pose-studio-settings', JSON.stringify({ style: 'neon', showGrid: false }));
     const s = new Store(fake).getState().settings;
     expect(s.style).toBe('line');
     expect(s.showGrid).toBe(false);
     expect(s.light).toEqual(DEFAULT_LIGHT);
-    storage.set('pose-studio-settings-v1', JSON.stringify({ style: 'silhouette' }));
+    storage.set('pose-studio-settings', JSON.stringify({ style: 'silhouette' }));
     expect(new Store(fake).getState().settings.style).toBe('silhouette');
   });
 });
