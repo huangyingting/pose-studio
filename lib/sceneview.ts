@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Ink, type Ghost } from './ink';
 import { Mannequin } from './mannequin';
 import { PropObject } from './props';
+import { groundOf } from './surfaces';
 import type { JointName, Scene, Selection, Style } from './types';
 
 /** What the pointer would move: (some joints of) a figure, a prop, or a held prop and the arm holding it. */
@@ -47,6 +48,7 @@ export class SceneView {
     let changed = false;
 
     const shown = scene.figures.filter((f) => !f.hidden);
+    const ground = groundOf(scene.props);
     const figureIds = new Set(shown.map((f) => f.id));
     for (const [id, m] of this.figures) {
       if (figureIds.has(id)) continue;
@@ -67,6 +69,7 @@ export class SceneView {
       } else if (m.setBody(f.body, !!f.proxy)) {
         changed = true;
       }
+      m.setGround(ground);
       m.apply(f);
     }
 

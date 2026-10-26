@@ -97,11 +97,22 @@ export interface Scene {
 /* ---------- animation ---------- */
 
 /** One figure's pose in a keyframe. */
+/** How a figure gets to a key from its previous key (without one: it glides, interpolated). */
+export const TRAVELS = ['walk', 'run', 'jump'] as const;
+export type Travel = (typeof TRAVELS)[number];
+
 export interface PoseKey {
   joints: Figure['joints'];
   position: Vec3;
   hands: Figure['hands'];
   grounded: boolean;
+  /** Generated locomotion from the previous key: legs, root and arm swing follow the path. */
+  travel?: Travel;
+  /** Keep the keyed facing on the way (side steps, backing up) instead of facing where it goes. */
+  strafe?: boolean;
+  /** A jump's turns in the air: about the vertical (spin) and head over heels (flip, + forwards). */
+  spin?: number;
+  flip?: number;
 }
 
 export interface Keyframe {

@@ -517,7 +517,17 @@ export class Mannequin {
     this.object.updateMatrixWorld(true);
   }
 
-  /** Move the figure vertically so its lowest point rests on y = 0 (if not grounded: at least above it). */
+  private surface: ((x: number, z: number) => number) | null = null;
+
+  /** What it stands on besides the floor: the height of the props under a floor point. */
+  setGround(surface: ((x: number, z: number) => number) | null) {
+    this.surface = surface;
+  }
+
+  /**
+   * Move the figure vertically so its lowest point rests on the floor, or on the highest prop
+   * top under its feet (if not grounded: at least above the floor).
+   */
   ground() {
     if (this.groundLock || !this.grounded) {
       if (this.groundLock) this.object.updateMatrixWorld(true);
@@ -530,6 +540,14 @@ export class Mannequin {
     let min = Infinity;
     this.parts.forEachPoint((p) => { if (p.y < min) min = p.y; });
     root.position.y -= min;
+    if (this.surface) {
+      // Standing on a box or a step: up onto the highest top under either foot.
+      const on = Math.max(...(['ankleL', 'ankleR'] as const).map((j) => {
+        const p = this.joints[j].getWorldPosition(new THREE.Vector3());
+        return this.surface!(p.x, p.z);
+      }));
+      root.position.y += on;
+    }
     this.object.updateMatrixWorld(true);
   }
 

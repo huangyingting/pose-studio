@@ -5,8 +5,8 @@ import { parseBoard } from './board';
 import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
-  FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS,
-  type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
+  FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -236,7 +236,19 @@ export function parsePoses(v: unknown): PoseAsset[] | undefined {
 function parsePoseKey(v: unknown): PoseKey | null {
   if (!isObj(v)) return null;
   const hands = isObj(v.hands) ? v.hands : {};
-  return { joints: parseJoints(v.joints), position: vec3(v.position, [0, 0, 0]), hands: { L: parseHand(hands.L), R: parseHand(hands.R) }, grounded: v.grounded !== false };
+  const turns = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x !== 0 ? Math.max(-4, Math.min(4, Math.round(x * 4) / 4)) : undefined);
+  const spin = turns(v.spin);
+  const flip = turns(v.flip);
+  return {
+    joints: parseJoints(v.joints),
+    position: vec3(v.position, [0, 0, 0]),
+    hands: { L: parseHand(hands.L), R: parseHand(hands.R) },
+    grounded: v.grounded !== false,
+    ...(TRAVELS.includes(v.travel as Travel) ? { travel: v.travel as Travel } : {}),
+    ...(v.strafe === true ? { strafe: true } : {}),
+    ...(spin ? { spin } : {}),
+    ...(flip ? { flip } : {}),
+  };
 }
 
 /** Accepts a v2 library, a v1 array of poses, or a single scene. Throws on unusable input. */

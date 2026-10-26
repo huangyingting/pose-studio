@@ -1,4 +1,6 @@
 import { jointLimits, wrapDeg } from './joints';
+import { chainAt, locomote } from './locomotion';
+import { groundOf } from './surfaces';
 import { keysInShot, spanAt } from './shots';
 import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Shot, type Hand, type Keyframe, type PoseKey, type Scene, type Vec3 } from './types';
 
@@ -44,15 +46,34 @@ export function keyAt(a: Animation, t: number) {
  * time are one keyframe in the data, so a pose keyed for several figures at once stays in step.
  */
 
-/** Key the given figures at time t with their current poses (other figures' keys are untouched). */
+/**
+ * Key the given figures at time t with their current poses (other figures' keys are untouched).
+ * A key keeps how the figure travels to it; a new key in the middle of a walk (or run, or jump)
+ * becomes part of it: a waypoint, or a pose in the air.
+ */
 export function setKey(a: Animation, t: number, figures: Figure[]): Animation {
   const time = snapTime(a, t);
-  const poses = Object.fromEntries(figures.map((f) => [f.id, poseOf(f)]));
   const i = keyAt(a, time);
+  const poses = Object.fromEntries(figures.map((f) => {
+    const pose = poseOf(f);
+    const old = i >= 0 ? a.keys[i].poses[f.id] : undefined;
+    const travel = old ? pick(old) : (() => { const c = chainAt(a, f.id, time); return c ? { travel: c.kind, ...(c.end.strafe ? { strafe: true } : {}) } : {}; })();
+    return [f.id, { ...pose, ...travel }];
+  }));
   const keys = i >= 0
     ? a.keys.map((k, j) => (j === i ? { t: time, poses: { ...k.poses, ...poses } } : k))
     : [...a.keys, { t: time, poses }].sort((p, q) => p.t - q.t);
   return { ...a, keys };
+}
+
+/** How a key is reached (travel, facing, turns), to carry over when it is re-keyed. */
+function pick(p: PoseKey): Partial<PoseKey> {
+  const out: Partial<PoseKey> = {};
+  if (p.travel) out.travel = p.travel;
+  if (p.strafe) out.strafe = true;
+  if (p.spin) out.spin = p.spin;
+  if (p.flip) out.flip = p.flip;
+  return out;
 }
 
 /** Times of one figure's keys. */
@@ -236,15 +257,21 @@ export function sampleCamera(a: Animation, t: number): CameraKey | null {
   };
 }
 
-/** The scene as it looks at time t. Figures without keys keep their pose. */
+/**
+ * The scene as it looks at time t: keys interpolated, with walks, runs and jumps generated on
+ * top (lib/locomotion.ts). Figures without keys keep their pose.
+ */
 export function sceneAt(scene: Scene, t: number): Scene {
   const a = scene.animation;
   if (!a) return scene;
+  const ground = groundOf(scene.props);
   return {
     ...scene,
     figures: scene.figures.map((f) => {
       const p = samplePose(a, f.id, t);
-      return p ? { ...f, ...p } : f;
+      if (!p) return f;
+      const { joints, position, hands, grounded } = locomote(a, f, t, p, ground);
+      return { ...f, joints, position, hands, grounded };
     }),
   };
 }

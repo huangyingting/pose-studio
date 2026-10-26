@@ -4,19 +4,20 @@ import {
 } from './doc';
 import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
-import { moveKey, newAnimation, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
+import { figureKeyTimes, keyAt, moveKey, newAnimation, poseOf, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
+import { JUMP_PREP, SPEED, flightTime, legsOf } from './locomotion';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure } from './poses';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
-  withFacing, withPosition, type Contact,
+  facing, withFacing, withPosition, type Contact,
 } from './relations';
 import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, Posture, Prop, PropKind, Scene, Side, Vec3, View } from './types';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, PoseKey, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -242,6 +243,11 @@ export function deleteProp(store: Store, id: string) {
   store.updateScene((s) => ({ ...s, props: s.props.filter((p) => p.id !== id) }));
 }
 
+/** Change a prop's place, turn or size. */
+export function moveProp(store: Store, id: string, patch: Partial<Pick<Prop, 'position' | 'rotation' | 'scale'>>, key = '') {
+  store.updateProp(id, (p) => ({ ...p, ...patch }), key);
+}
+
 export function renameProp(store: Store, id: string, name: string) {
   store.updateProp(id, (p) => ({ ...p, name }), `rename:${id}`);
 }
@@ -349,6 +355,119 @@ export function reachFor(store: Store, a: string, side: Side, b: string, contact
 export function startAnimation(store: Store, duration = 2) {
   store.updateScene((s) => (s.animation ? s : { ...s, animation: newAnimation(s, duration) }));
   store.setTime(0);
+}
+
+/* Locomotion: walking, running and jumping from mark to mark (lib/locomotion.ts) */
+
+/** Default jump height (metres the body rises). */
+export const JUMP_HEIGHT = 0.45;
+
+/**
+ * Walk, run or jump a figure from where it is at the playhead to a floor point: a new mark. Its
+ * later keys move on by the time it takes (the other figures are untouched); the playhead goes to
+ * the new mark, so the next "…to here" continues from there. Walking and running face the way
+ * they go unless `strafe` (side steps, backing up); a jump keeps the figure's facing.
+ */
+export function travelTo(store: Store, figureId: string, to: [number, number], kind: Travel, opts: { strafe?: boolean; height?: number } = {}) {
+  const fresh = !store.scene.animation;
+  if (fresh) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  const a = store.scene.animation!;
+  const f = store.scene.figures.find((x) => x.id === figureId);
+  if (!f) return null;
+  const t0 = snapTime(a, store.getState().time);
+  const legs = legsOf(f.body);
+  const scale = (legs.thigh + legs.shin) / 0.85;
+  const d = Math.hypot(to[0] - f.position[0], to[1] - f.position[2]);
+  const duration = kind === 'jump'
+    ? flightTime(opts.height ?? JUMP_HEIGHT) + 2 * JUMP_PREP
+    : Math.max(0.6, d / (SPEED[kind] * scale) + (kind === 'run' ? 0.45 : 0.35));
+  const t1 = Math.round((t0 + duration) * a.fps) / a.fps;
+  const yaw = kind === 'jump' || opts.strafe || d < 0.05 ? facing(f) : Math.atan2(to[0] - f.position[0], to[1] - f.position[2]) * (180 / Math.PI);
+  const end: PoseKey = {
+    ...poseOf(withFacing(f, yaw)),
+    position: [Math.round(to[0] * 1000) / 1000, f.position[1], Math.round(to[1] * 1000) / 1000],
+    travel: kind,
+    ...(opts.strafe ? { strafe: true } : {}),
+  };
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    // Keep the start as a mark, make room after it on this figure's track, then key the arrival.
+    let anim = setKey(s.animation, t0, [f]);
+    anim = shiftTrack(anim, figureId, t0, t1 - t0);
+    const keys = anim.keys.filter((k) => Math.abs(k.t - t1) >= 0.5 / anim.fps || !k.poses[figureId]);
+    const at = keys.findIndex((k) => Math.abs(k.t - t1) < 0.5 / anim.fps);
+    const withEnd = at >= 0
+      ? keys.map((k, i) => (i === at ? { ...k, poses: { ...k.poses, [figureId]: end } } : k))
+      : [...keys, { t: t1, poses: { [figureId]: end } }].sort((p, q) => p.t - q.t);
+    const last = Math.max(...withEnd.map((k) => k.t));
+    return { ...s, animation: { ...anim, keys: withEnd, duration: Math.min(60, Math.max(anim.duration, last)) } };
+  });
+  store.setTime(t1);
+  store.select({ kind: 'figure', figure: figureId });
+  return { from: t0, to: t1 };
+}
+
+/** Move one figure's keys after `after` later by `by` seconds (its other keys stay; others' too). */
+function shiftTrack(a: Animation, id: string, after: number, by: number): Animation {
+  const moved: { t: number; pose: PoseKey }[] = [];
+  const keys = a.keys.map((k) => {
+    if (k.t <= after + 1e-6 || !k.poses[id]) return k;
+    moved.push({ t: Math.min(60, Math.round((k.t + by) * a.fps) / a.fps), pose: k.poses[id] });
+    const { [id]: _, ...rest } = k.poses;
+    void _;
+    return { ...k, poses: rest };
+  }).filter((k) => Object.keys(k.poses).length);
+  for (const m of moved) {
+    const i = keys.findIndex((k) => Math.abs(k.t - m.t) < 0.5 / a.fps);
+    if (i >= 0) keys[i] = { ...keys[i], poses: { ...keys[i].poses, [id]: m.pose } };
+    else keys.push({ t: m.t, poses: { [id]: m.pose } });
+  }
+  const last = Math.max(a.duration, ...keys.map((k) => k.t));
+  return { ...a, keys: keys.sort((p, q) => p.t - q.t), duration: Math.min(60, last) };
+}
+
+/** How a figure gets to its key at time t: walk, run, jump, or (null) glide as keyed. */
+export function setTravel(store: Store, figureId: string, t: number, kind: Travel | null, patch: Partial<Pick<PoseKey, 'strafe' | 'spin' | 'flip'>> = {}) {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a) return s;
+    const i = keyAt(a, t);
+    const pose = i >= 0 ? a.keys[i].poses[figureId] : undefined;
+    if (!pose) return s;
+    const next: PoseKey = { ...pose, ...patch };
+    if (kind) next.travel = kind;
+    else delete next.travel;
+    for (const k of ['strafe', 'spin', 'flip'] as const) if (!next[k]) delete next[k];
+    if (next.travel !== 'jump') { delete next.spin; delete next.flip; }
+    return { ...s, animation: { ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, poses: { ...k.poses, [figureId]: next } } : k)) } };
+  });
+}
+
+/** Set a jump's height: its time in the air changes (gravity), the figure's later keys move with it. */
+export function setJumpHeight(store: Store, figureId: string, t: number, height: number) {
+  const a = store.scene.animation;
+  if (!a) return;
+  const times = figureKeyTimes(a, figureId);
+  const i = times.findIndex((x) => Math.abs(x - t) < 0.5 / a.fps);
+  if (i <= 0) return;
+  const want = flightTime(height) + 2 * JUMP_PREP;
+  const by = Math.round((times[i - 1] + want - times[i]) * a.fps) / a.fps;
+  if (Math.abs(by) < 1e-6) return;
+  store.updateScene((s) => (s.animation ? { ...s, animation: shiftTrack(s.animation, figureId, times[i - 1], by) } : s));
+  store.setTime(times[i] + by);
+}
+
+/** Move a figure's mark (its key at time t) to another floor point. */
+export function moveMark(store: Store, figureId: string, t: number, to: [number, number], key = '') {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a) return s;
+    const i = keyAt(a, t);
+    const pose = i >= 0 ? a.keys[i].poses[figureId] : undefined;
+    if (!pose) return s;
+    const moved: PoseKey = { ...pose, position: [Math.round(to[0] * 1000) / 1000, pose.position[1], Math.round(to[1] * 1000) / 1000] };
+    return { ...s, animation: { ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, poses: { ...k.poses, [figureId]: moved } } : k)) } };
+  }, key);
 }
 
 export function removeAnimation(store: Store) {
