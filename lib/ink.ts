@@ -77,7 +77,7 @@ export class Ink {
   readonly face = new THREE.MeshBasicMaterial({ color: '#4a4a4a' });
   private baseThickness = 1.6;
   private style: Style = 'line';
-  private materials = new Map<Style, StyleMaterials>();
+  private materials = new Map<string, StyleMaterials>();
   private idMats = new Map<number, THREE.ShaderMaterial>();
 
   constructor(readonly ghost: Ghost | null = null) {
@@ -136,16 +136,19 @@ export class Ink {
   }
 
   /** Surface materials for a style, created on first use. */
-  materialsFor(style: Style): StyleMaterials {
-    let m = this.materials.get(style);
+  materialsFor(style: Style, tint?: string): StyleMaterials {
+    const key = tint ? `${style}|${tint}` : style;
+    let m = this.materials.get(key);
     if (!m) {
-      m = this.createMaterials(style);
-      this.materials.set(style, m);
+      m = this.createMaterials(style, tint);
+      this.materials.set(key, m);
     }
     return m;
   }
 
-  private createMaterials(style: Style): StyleMaterials {
+  /** Materials for a style; `tint` mixes a figure's colour into its body (selection looks the same). */
+  private createMaterials(style: Style, tint?: string): StyleMaterials {
+    const body = (c: string) => (tint ? `#${new THREE.Color(c).lerp(new THREE.Color(tint), style === 'silhouette' ? 0.6 : 0.42).getHexString()}` : c);
     if (this.ghost) {
       const m = new THREE.MeshBasicMaterial({ color: this.ghost.color, transparent: true, opacity: this.ghost.opacity, depthWrite: false });
       return { body: m, bodySel: m, hover: m, prop: m, propSel: m };
@@ -155,10 +158,10 @@ export class Ink {
     const shader = (s: 'ink' | 'sketch' | 'anime', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
     switch (style) {
       case 'shaded':
-        return { body: lambert('#f2f0ec'), bodySel: lambert('#a8c6ff'), hover: lambert('#d3e1fb'), prop: lambert('#d9d6cf'), propSel: lambert('#a8c6ff') };
+        return { body: lambert(body('#f2f0ec')), bodySel: lambert('#a8c6ff'), hover: lambert('#d3e1fb'), prop: lambert('#d9d6cf'), propSel: lambert('#a8c6ff') };
       case 'sketch':
         return {
-          body: shader('sketch', '#fbfaf6', '#33312e'),
+          body: shader('sketch', body('#fbfaf6'), '#33312e'),
           bodySel: shader('sketch', '#e3ebff', '#33312e'),
           hover: shader('sketch', '#eff2fb', '#33312e'),
           prop: shader('sketch', '#f3f1eb', '#33312e'),
@@ -166,7 +169,7 @@ export class Ink {
         };
       case 'ink':
         return {
-          body: shader('ink', '#f1ebdd', '#1d1b18'),
+          body: shader('ink', body('#f1ebdd'), '#1d1b18'),
           bodySel: shader('ink', '#dde4f2', '#1d1b18'),
           hover: shader('ink', '#e8e8e8', '#1d1b18'),
           prop: shader('ink', '#e8e1d0', '#1d1b18'),
@@ -174,19 +177,19 @@ export class Ink {
         };
       case 'anime':
         return {
-          body: shader('anime', '#fcf2ec', '#d7bccb'),
+          body: shader('anime', body('#fcf2ec'), '#d7bccb'),
           bodySel: shader('anime', '#dce7ff', '#a6b9e6'),
           hover: shader('anime', '#ecedf8', '#bfc3dc'),
           prop: shader('anime', '#eef1f6', '#c2c9d8'),
           propSel: shader('anime', '#dce7ff', '#a6b9e6'),
         };
       case 'minimal':
-        return { body: basic('#ffffff'), bodySel: basic('#e2e9ff'), hover: basic('#f0f4ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
+        return { body: basic(body('#ffffff')), bodySel: basic('#e2e9ff'), hover: basic('#f0f4ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
       case 'silhouette':
         // Same colour as the outline, so part boundaries disappear.
-        return { body: basic('#111111'), bodySel: basic('#3366ff'), hover: basic('#2b3550'), prop: basic('#b4b4bb'), propSel: basic('#3366ff') };
+        return { body: basic(body('#111111')), bodySel: basic('#3366ff'), hover: basic('#2b3550'), prop: basic('#b4b4bb'), propSel: basic('#3366ff') };
       default:
-        return { body: basic('#ffffff'), bodySel: basic('#d5e5ff'), hover: basic('#ebf2ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
+        return { body: basic(body('#ffffff')), bodySel: basic('#d5e5ff'), hover: basic('#ebf2ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
     }
   }
 
@@ -218,6 +221,9 @@ export class InkedParts {
   private featuresOn = true;
   private style: Style = 'line';
   private geometries = new Set<THREE.BufferGeometry>();
+
+  /** A colour mixed into the body (to tell figures apart). */
+  tint: string | null = null;
 
   constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
 
@@ -289,7 +295,7 @@ export class InkedParts {
   }
 
   refresh(style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
-    const m = this.ink.materialsFor(style);
+    const m = this.ink.materialsFor(style, this.tint ?? undefined);
     const prop = this.kind === 'prop';
     for (const mesh of this.bodies) {
       const state = isSelected(mesh);

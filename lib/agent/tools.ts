@@ -1,6 +1,6 @@
 import {
   addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
-  holdProp, nextName, reachFor, setTravel, throwProp, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  holdProp, nextName, reachFor, setFigureColor, setGaze, setTravel, throwProp, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
@@ -16,7 +16,7 @@ import { CAMERA_MOVES } from '../shot';
 import { shotSpans } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
-import { JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
+import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -282,6 +282,37 @@ export const TOOLS: AgentTool[] = [
       const hand = i.hand === 'L' ? 'L' : 'R';
       holdProp(store, prop.id, { figure: holder.id, hand });
       return `Added ${prop.name} (${prop.id}) in ${holder.name}'s ${hand === 'L' ? 'left' : 'right'} hand.`;
+    },
+  },
+  {
+    name: 'keep_eyes_on',
+    description: 'Make a figure keep its eyes on another figure or a prop all the time (its head and neck turn to follow it, even as things move), or with target null free its head again.',
+    schema: obj({ figure: FIGURE, target: opt(str('Figure or prop (id or name) to look at')) }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      if (!i.target) {
+        setGaze(store, f.id, null);
+        return `${f.name} looks where posed.`;
+      }
+      const ref = String(i.target).toLowerCase();
+      const other = store.scene.figures.find((x) => x.id === i.target || x.name.toLowerCase() === ref);
+      if (other) {
+        setGaze(store, f.id, { figure: other.id });
+        return `${f.name} keeps its eyes on ${other.name}.`;
+      }
+      const p = findProp(store, i.target);
+      setGaze(store, f.id, { prop: p.id });
+      return `${f.name} keeps its eyes on ${p.name}.`;
+    },
+  },
+  {
+    name: 'set_figure_color',
+    description: `Tint a figure to tell it apart (teams, sides): one of ${FIGURE_COLORS.join(', ')}, or null for none.`,
+    schema: obj({ figure: FIGURE, color: opt(str('Colour', FIGURE_COLORS)) }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      setFigureColor(store, f.id, typeof i.color === 'string' ? i.color : null);
+      return `${f.name} ${i.color ? `tinted ${i.color}` : 'untinted'}.`;
     },
   },
   {

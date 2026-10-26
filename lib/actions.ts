@@ -163,6 +163,26 @@ export function renameFigure(store: Store, id: string, name: string) {
   store.updateFigure(id, (f) => ({ ...f, name }), `rename:${id}`);
 }
 
+/** Keep a figure's eyes on another figure or a prop (its head turns to it), or (null) not. */
+export function setGaze(store: Store, id: string, target: Figure['gaze'] | null) {
+  store.updateFigure(id, (f) => {
+    const next = { ...f };
+    if (target) next.gaze = target;
+    else delete next.gaze;
+    return next;
+  });
+}
+
+/** Tint a figure to tell it apart (null: none). */
+export function setFigureColor(store: Store, id: string, color: string | null) {
+  store.updateFigure(id, (f) => {
+    const next = { ...f };
+    if (color) next.color = color;
+    else delete next.color;
+    return next;
+  });
+}
+
 export function resetPose(store: Store) {
   store.updateActiveFigure((f) => ({ ...f, joints: structuredClone(NEUTRAL_JOINTS) }));
 }

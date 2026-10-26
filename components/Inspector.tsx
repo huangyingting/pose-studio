@@ -6,7 +6,7 @@ import {
   PanelLeft, PanelRight, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdProp, setPosture, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
+  arrange, copyPose, holdProp, setFigureColor, setGaze, setPosture, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
   setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
@@ -18,7 +18,7 @@ import { DEFAULT_LIGHT } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import { FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View, PROP_LABELS } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import { Assistant } from '@edition/server';
 import BodyMap from './BodyMap';
 import ShotInspector from './ShotInspector';
@@ -190,6 +190,30 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
   );
 }
 
+/** Where a figure keeps its eyes (another figure or a prop), turning its head to it all the time. */
+function EyesOn({ figure }: { figure: Figure }) {
+  const store = useStore();
+  const scene = useScene();
+  const others = scene.figures.filter((f) => f.id !== figure.id && !f.hidden);
+  if (!others.length && !scene.props.length) return null;
+  const value = !figure.gaze ? 'free' : 'figure' in figure.gaze ? `f:${figure.gaze.figure}` : `p:${figure.gaze.prop}`;
+  return (
+    <div className="relation-target">
+      <span>Eyes on</span>
+      <Select
+        label="Eyes on"
+        value={value}
+        onChange={(v) => setGaze(store, figure.id, v === 'free' ? null : v.startsWith('f:') ? { figure: v.slice(2) } : { prop: v.slice(2) })}
+        options={[
+          { value: 'free', label: 'Free (as posed)' },
+          ...others.map((f) => ({ value: `f:${f.id}`, label: f.name })),
+          ...scene.props.map((p) => ({ value: `p:${p.id}`, label: p.name })),
+        ]}
+      />
+    </div>
+  );
+}
+
 /** Where the figure stands and which way it faces. */
 function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
   const store = useStore();
@@ -200,6 +224,7 @@ function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorConte
   const moving = chain && time > chain.t0 + 1e-6 && time < chain.t1 - 1e-6 ? chain.kind : null;
   return (
     <Section title="Placement">
+      {!figure.proxy && <EyesOn figure={figure} />}
       <div className="prop-row">
         <span className="prop-row-label">Floor</span>
         <NumberField prefix="X" label="Position X" value={figure.position[0]} step={0.05} onChange={(x) => setPlacement(store, figure.id, { x }, `place:${figure.id}:x`)} />
@@ -427,6 +452,21 @@ function BodyTab() {
     <>
       <FigureHeader figure={figure} />
       <Section title="Figure">
+        <div className="swatches" role="radiogroup" aria-label="Colour">
+          <button type="button" role="radio" aria-checked={!figure.color} aria-label="No colour" className={`swatch none${!figure.color ? ' on' : ''}`} onClick={() => setFigureColor(store, figure.id, null)} />
+          {FIGURE_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="radio"
+              aria-checked={figure.color === c}
+              aria-label={`Colour ${c}`}
+              className={`swatch${figure.color === c ? ' on' : ''}`}
+              style={{ background: c }}
+              onClick={() => setFigureColor(store, figure.id, c)}
+            />
+          ))}
+        </div>
         <div className="sex-switch" role="radiogroup" aria-label="Sex">
           <button type="button" role="radio" aria-checked={body.sex < 0.5} className={body.sex < 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 0, bust: 0 })}>
             <Mars size={18} strokeWidth={1.75} aria-hidden /> Male

@@ -3,13 +3,13 @@ import {
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setJumpHeight, setTravel, throwProp, travelTo,
+  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import { HANDHELD, PROP_KINDS, PROP_LABELS, type PoseKey, type Travel, type Vec3 } from '@/lib/types';
+import { HANDHELD, PROP_KINDS, PROP_LABELS, type Figure, type PoseKey, type Travel, type Vec3 } from '@/lib/types';
 import { JUMP_PREP, chainAt, jumpHeight } from '@/lib/locomotion';
 import { PROP_ICONS } from './icons';
 import { startRename } from './rename';
@@ -50,11 +50,25 @@ export function figureMenu(store: Store, id: string, { notifyUndo }: MenuUi): Me
         },
       },
     ]),
+    ...(f.proxy ? [] : gazeItems(store, f)),
     '-',
     {
       label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, disabled: store.scene.figures.length <= 1,
       onSelect: () => { if (deleteFigure(store, id)) notifyUndo(`Deleted ${f.name}`); },
     },
+  ];
+}
+
+/** Where a figure keeps its eyes: nobody, another figure, or a prop. */
+function gazeItems(store: Store, f: Figure): MenuItem[] {
+  const others = store.scene.figures.filter((x) => x.id !== f.id && !x.hidden);
+  if (!others.length && !store.scene.props.length) return [];
+  const on = f.gaze;
+  return [
+    { group: 'Eyes on' },
+    { label: 'Free (as posed)', icon: Eye, checked: !on, onSelect: () => setGaze(store, f.id, null) },
+    ...others.map((x): MenuItem => ({ label: x.name, icon: Eye, checked: !!on && 'figure' in on && on.figure === x.id, onSelect: () => setGaze(store, f.id, { figure: x.id }) })),
+    ...store.scene.props.map((p): MenuItem => ({ label: p.name, icon: Eye, checked: !!on && 'prop' in on && on.prop === p.id, onSelect: () => setGaze(store, f.id, { prop: p.id }) })),
   ];
 }
 

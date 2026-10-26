@@ -49,7 +49,14 @@ export interface Figure {
   hidden?: boolean;
   /** A capsule stand-in for blocking (no joints to pose), in the given posture. */
   proxy?: Posture;
+  /** Keeps its eyes on another figure or a prop: the head and neck turn to it, all the time. */
+  gaze?: { figure: string } | { prop: string };
+  /** A tint to tell figures apart (teams, sides), as a CSS colour. */
+  color?: string;
 }
+
+/** Tints for telling figures apart. */
+export const FIGURE_COLORS = ['#e5484d', '#3b6cff', '#30a46c', '#f59e0b', '#8b5cf6', '#14b8a6'] as const;
 
 export const POSTURES = ['stand', 'sit', 'lie'] as const;
 export type Posture = (typeof POSTURES)[number];

@@ -71,6 +71,7 @@ export class SceneView {
       }
       m.setGround(ground);
       m.apply(f);
+      m.setTint(f.color ?? null);
     }
 
     const propIds = new Set(scene.props.map((p) => p.id));
@@ -103,6 +104,23 @@ export class SceneView {
     }
 
     this.root.updateMatrixWorld(true);
+    // Eyes on someone or something: turn the head to it (after everything is placed).
+    const eyes = new THREE.Vector3();
+    const box = new THREE.Box3();
+    for (const f of shown) {
+      if (!f.gaze || f.proxy) continue;
+      const m = this.figures.get(f.id)!;
+      if ('figure' in f.gaze) {
+        const other = this.figures.get(f.gaze.figure);
+        if (!other || other === m) continue;
+        other.joints.head.getWorldPosition(eyes);
+      } else {
+        const p = this.props.get(f.gaze.prop);
+        if (!p) continue;
+        box.setFromObject(p.object).getCenter(eyes);
+      }
+      m.lookAt(eyes);
+    }
     if (changed && this.ink.ghost) this.root.traverse((o) => { o.raycast = () => {}; });
     if (changed) {
       this.version++;

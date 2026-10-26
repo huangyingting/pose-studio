@@ -649,6 +649,33 @@ export class Mannequin {
     return this.parts.setIdMode(on, firstId, this.style, this.isSelected);
   }
 
+  /** A colour mixed into the body, to tell figures apart (null: none). */
+  setTint(color: string | null) {
+    if (this.parts.tint === color) return;
+    this.parts.tint = color;
+    this.refresh();
+  }
+
+  /**
+   * Turn the neck and head (on top of the pose) to look at a world point, within natural limits:
+   * the neck takes a part of the turn, the head the rest.
+   */
+  lookAt(point: THREE.Vector3) {
+    this.object.updateMatrixWorld(true);
+    const neck = this.joints.neck;
+    const chestQ = this.joints.chest.getWorldQuaternion(new THREE.Quaternion());
+    const eyes = this.joints.head.getWorldPosition(new THREE.Vector3());
+    const d = point.clone().sub(eyes).applyQuaternion(chestQ.invert());
+    if (d.lengthSq() < 1e-6) return;
+    const yaw = Math.max(-80, Math.min(80, Math.atan2(d.x, d.z) * R2D));
+    const pitch = Math.max(-40, Math.min(45, -Math.atan2(d.y, Math.hypot(d.x, d.z)) * R2D));
+    const n = neck.rotation;
+    const h = this.joints.head.rotation;
+    neck.rotation.set(pitch * 0.4 * D2R, yaw * 0.4 * D2R, n.z, n.order);
+    this.joints.head.rotation.set(pitch * 0.6 * D2R, yaw * 0.6 * D2R, h.z, h.order);
+    this.object.updateMatrixWorld(true);
+  }
+
   /** Tint the parts a drag would move: these joints' parts, or the whole figure. */
   setHover(joints: readonly JointName[] | 'all' | null) {
     const next = joints === 'all' || joints === null ? joints : new Set(joints);

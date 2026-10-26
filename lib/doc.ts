@@ -77,7 +77,12 @@ export function duplicateScene(s: Scene): Scene {
     ...structuredClone(s),
     id: uid('s'),
     name: `${s.name} copy`,
-    figures: s.figures.map((f) => ({ ...structuredClone(f), id: ids.get(f.id)! })),
+    // Eyes stay on the copied figures and props.
+    figures: s.figures.map((f) => {
+      const copy = { ...structuredClone(f), id: ids.get(f.id)! };
+      if (f.gaze) copy.gaze = 'figure' in f.gaze ? { figure: ids.get(f.gaze.figure) ?? f.gaze.figure } : { prop: propIds.get(f.gaze.prop) ?? f.gaze.prop };
+      return copy;
+    }),
     // Held props stay in the copied figures' hands.
     props: s.props.map((p) => ({
       ...structuredClone(p),
@@ -185,6 +190,9 @@ function parseFigure(v: unknown, i: number): Figure {
     grounded: o.grounded !== false,
     ...(o.hidden === true ? { hidden: true } : {}),
     ...(POSTURES.includes(o.proxy as Posture) ? { proxy: o.proxy as Posture } : {}),
+    ...(isObj(o.gaze) && typeof o.gaze.figure === 'string' ? { gaze: { figure: o.gaze.figure } }
+      : isObj(o.gaze) && typeof o.gaze.prop === 'string' ? { gaze: { prop: o.gaze.prop } } : {}),
+    ...(typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? { color: o.color.toLowerCase() } : {}),
   };
 }
 
