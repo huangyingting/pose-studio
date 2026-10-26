@@ -50,7 +50,7 @@ export default function Studio() {
     return (
       <div className="fatal" role="alert">
         <h1>WebGL is not available</h1>
-        <p>Pose Studio needs a browser with WebGL enabled (any recent Chrome, Edge, Firefox or Safari).</p>
+        <p>Pose Studio needs a browser with WebGL enabled (any recent Chrome, Edge or Firefox).</p>
       </div>
     );
   }

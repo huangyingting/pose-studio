@@ -20,7 +20,7 @@ import { JOINTS, POSTURES, PROP_KINDS, STYLES, type Figure, type JointName, type
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
  * actions as the UI (so every change can be undone). One registry serves the assistant panel
- * (Anthropic and OpenAI tool formats) and the local MCP bridge.
+ * (OpenAI / Azure tools in the browser, GitHub Copilot and MCP clients through the local companion).
  */
 
 type Schema = Record<string, unknown>;
@@ -178,13 +178,16 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'reach',
-    description: 'Put a figure\'s hand on a part of another figure (arm solved with IK).',
+    description: 'Put a figure\'s hand on a part of another figure, or of itself (other = the same figure: hands on hips, on knees, on the chest…). The arm is solved with IK, so use this rather than guessing arm angles for contacts.',
     schema: obj({ figure: FIGURE, hand: str('Which hand', ['left', 'right']), other: str('The other figure (id or name)'), target: str('Where', CONTACTS) }),
     run: (store, i) => {
       const a = findFigure(store, i.figure);
       const b = findFigure(store, i.other);
       const ok = reachFor(store, a.id, i.hand === 'left' ? 'L' : 'R', b.id, i.target as Contact);
-      return ok ? `${a.name}'s ${i.hand} hand is on ${b.name}'s ${i.target}.` : `${a.name} cannot reach ${b.name}'s ${i.target} from there; the arm stretches towards it. Move them closer.`;
+      if (ok) return `${a.name}'s ${i.hand} hand is on ${a.id === b.id ? 'its own' : `${b.name}'s`} ${i.target}.`;
+      return a.id === b.id
+        ? `${a.name} cannot reach its own ${i.target} in this pose; the arm stretches towards it. Lean or bend the body towards it (root, spine, chest), then reach again.`
+        : `${a.name} cannot reach ${b.name}'s ${i.target} from there; the arm stretches towards it. Move them closer.`;
     },
   },
   {
@@ -353,4 +356,4 @@ Joint angles are degrees, Euler X/Y/Z:
 - elbowL/R: X− bends (to −150). kneeL/R: X+ bends (to 160). ankleL/R: X+ points the toes. wrists: X flex, Z sideways.
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
-Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture, and use relate and reach for interactions between figures. For animation: animate, then set_time and set_joints for each key (a few keys, then let interpolation do the rest), add a camera_move, and run check_motion. Keep replies short: say what you did.`;
+Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. For animation: animate, then set_time and set_joints for each key (a few keys, then let interpolation do the rest), add a camera_move, and run check_motion. Keep replies short: say what you did.`;

@@ -765,7 +765,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .assistant-input textarea { flex: 1; min-height: 36px; max-height: 160px; padding: 4px 0; border: 0; resize: none; background: transparent; font: inherit; color: var(--text); outline: none; field-sizing: content; }
 .assistant-input .send { background: var(--accent); color: #fff; }
 .assistant-input .send:disabled { background: var(--press); color: var(--text-3); opacity: 1; }
-.assistant-setup { display: grid; gap: 12px; padding: 16px 14px; }
+.assistant-setup { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px 14px; }
 .assistant-setup h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
 .assistant-setup .hint-text { margin: 0; }
 .assistant-setup .field { display: grid; gap: 4px; color: var(--text-2); }
@@ -1203,3 +1203,5 @@ button.psec-title svg { color: var(--text-3); }
 .bridge-status span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
 .bridge-status.connected span { background: var(--ok); }
 .bridge-status.offline span { background: #f5a524; }
+.companion-error { margin: 2px 0 0; color: var(--danger); line-height: 1.45; }
+.companion-error .link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }

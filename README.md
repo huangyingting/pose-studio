@@ -51,8 +51,9 @@ A posable 3D art mannequin for drawing reference, in the spirit of Magic Poser /
 
 **AI assistant**
 - An **AI** tab in the inspector: describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, adds props and stand-ins, animates, picks camera moves and runs the motion check, using the same tools as you; every change can be undone.
-- Bring your own account: Anthropic (Claude Opus 5.5, Sonnet 5.5 or Haiku 5.5), OpenAI or Azure OpenAI (Responses API). The key is stored in this browser only and sent only to that provider; the site has no server.
-- **MCP**: Claude Code, Claude Desktop or any MCP client can drive an open studio tab through `mcp/server.mjs` (see [MCP server](#mcp-server)).
+- **GitHub Copilot** (default): uses your Copilot plan through the [local companion](#local-companion), with any model the plan offers; no key in the browser. The Copilot session can only use the studio's tools (no shell, no files).
+- Or your own **OpenAI** or **Azure OpenAI** key (Responses API), stored in this browser only and sent only to that provider; the site has no server.
+- **MCP**: Copilot CLI, VS Code or any MCP client can drive an open studio tab through the same companion.
 
 **App**
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
@@ -80,15 +81,25 @@ Requires Node 20.9+ and a browser with WebGL.
 | `npm run test:e2e` | Browser tests (Playwright). Builds and starts the app unless `BASE_URL` is set; set `PW_CHANNEL=chrome` to use an installed Chrome |
 | `npm run setup:mediapipe` | Re-fetch the pose-detection assets (`-- --force` to re-download the model) |
 
-## MCP server
+## Local companion
 
-`mcp/server.mjs` (Node 18+, no dependencies) exposes the assistant's tools to MCP clients. It speaks MCP over stdio and relays each tool call to a Pose Studio tab through a bridge on `127.0.0.1:8765`, so the tools act on what you see.
+`companion/server.mjs` runs on your machine next to an open Pose Studio tab (local or on GitHub Pages). The tab connects to it from the **AI** tab (settings → **Local companion**; choosing GitHub Copilot connects automatically), and the companion relays tool calls to the tab through a bridge on `127.0.0.1:8765`, so the tools act on what you see. One companion serves both kinds of clients:
 
-```bash
-claude mcp add pose-studio -- node /path/to/pose-studio/mcp/server.mjs
-```
+- **GitHub Copilot** chats from the AI tab: a [GitHub Copilot SDK](https://www.npmjs.com/package/@github/copilot-sdk) session with your Copilot login, limited to the studio's tools.
 
-Then open Pose Studio (locally or on GitHub Pages), go to the **AI** tab, open its settings and turn on **MCP bridge**. Only the studio's own origins may connect to the bridge (localhost and the Pages site; set `POSE_STUDIO_ORIGINS` for another host, `POSE_STUDIO_PORT` for another port).
+  ```bash
+  cd companion && npm install && npm start
+  ```
+
+- **MCP clients** start it themselves as a stdio MCP server, for example in Copilot CLI:
+
+  ```bash
+  copilot mcp add pose-studio -- node /path/to/pose-studio/companion/server.mjs --mcp
+  ```
+
+  (In VS Code, add the same command as a stdio server in `.vscode/mcp.json`.) The MCP side has no dependencies; `npm install` is only needed for Copilot chats.
+
+Only the studio's own origins may connect to the bridge (localhost and the Pages site; set `POSE_STUDIO_ORIGINS` for another host, `POSE_STUDIO_PORT` for another port). Node 20.19+.
 
 ## Deployment
 
@@ -123,7 +134,7 @@ components/
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs
   Board.tsx             Storyboard workspace
-  Assistant.tsx         AI tab: chat, provider settings and the MCP bridge toggle
+  Assistant.tsx         AI tab: chat, provider settings and the local companion toggle
   Practice.tsx          Gesture-practice slideshow
   Timeline.tsx, clock.ts  Animation timeline and playback clock
 lib/
@@ -152,8 +163,8 @@ lib/
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   share.ts              Share-link encoding (deflate + base64url in the URL fragment)
-  agent/                AI assistant: tool registry (shared with MCP), Anthropic SDK and OpenAI/Azure Responses adapters, MCP bridge client
-mcp/server.mjs          MCP server (stdio) relaying tool calls to an open studio tab
+  agent/                AI assistant: tool registry, GitHub Copilot (via the companion) and OpenAI/Azure Responses adapters, companion bridge client
+companion/server.mjs    Local companion: GitHub Copilot sessions (Copilot SDK) and an MCP server, both relaying tool calls to the open tab
 app/api/health          Liveness endpoint
 public/sw.js            Service worker (offline cache)
 tests/unit              Vitest: model, IK, limits, retargeting, store/history, share links, export, practice, relations, templates

@@ -9,8 +9,8 @@ export function contentSecurityPolicy({ dev = false, meta = false } = {}) {
     `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${dev ? " 'unsafe-eval'" : ''} https://cdn.jsdelivr.net`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
-    // AI assistant providers (the user's own key), and the local MCP bridge.
-    "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com https://api.anthropic.com https://api.openai.com https://*.openai.azure.com https://*.cognitiveservices.azure.com http://127.0.0.1:*",
+    // AI assistant providers (the user's own key), and the local companion (GitHub Copilot, MCP).
+    "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com https://api.openai.com https://*.openai.azure.com https://*.cognitiveservices.azure.com http://127.0.0.1:*",
     "worker-src 'self' blob:",
     "font-src 'self'",
     "object-src 'none'",

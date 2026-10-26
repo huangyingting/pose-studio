@@ -67,6 +67,21 @@ describe('assistant tools', () => {
     expect(store.scene.props).toHaveLength(0);
   });
 
+  it('reach the figure\'s own knees and hips', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    // Kneeling on the left knee, the right knee raised in front, leaning in.
+    run(store, 'set_joints', {
+      figure: id,
+      joints: [
+        { joint: 'root', x: 30, y: 0, z: 0 }, { joint: 'spine', x: 15, y: 0, z: 0 }, { joint: 'hipR', x: -100, y: 0, z: 0 }, { joint: 'kneeR', x: 95, y: 0, z: 0 },
+        { joint: 'hipL', x: -10, y: 0, z: 0 }, { joint: 'kneeL', x: 100, y: 0, z: 0 },
+      ],
+    });
+    expect(run(store, 'reach', { figure: id, hand: 'right', other: id, target: 'kneeR' })).toMatch(/hand is on its own kneeR/);
+    expect(run(store, 'reach', { figure: id, hand: 'left', other: id, target: 'hipL' })).toMatch(/hand is on its own hipL/);
+  });
+
   it('animate with keys at the playhead, then check the motion', () => {
     const store = new Store(new MemoryStorage());
     const fig = store.figure!.id;

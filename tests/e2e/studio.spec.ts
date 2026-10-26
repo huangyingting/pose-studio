@@ -60,7 +60,10 @@ const errors: string[] = [];
 test.beforeEach(async ({ page }) => {
   errors.length = 0;
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('console', (m) => {
+    // The local companion is optional: the browser logs a refused connection when it is not running.
+    if (m.type() === 'error' && !m.location().url.startsWith('http://127.0.0.1:8765')) errors.push(m.text());
+  });
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -554,7 +557,8 @@ test('the AI assistant runs tools on the open pose (provider mocked)', async ({ 
   ];
   await page.route('https://test.openai.azure.com/**', (route) => route.fulfill({ json: replies.shift() }));
   await page.getByRole('tab', { name: 'AI' }).click();
-  await page.getByRole('radio', { name: 'Azure OpenAI' }).click();
+  await page.getByRole('button', { name: 'Assistant settings' }).click();
+  await page.getByRole('radio', { name: 'Azure' }).click();
   await page.getByLabel('Endpoint').fill('https://test.openai.azure.com');
   await page.getByLabel('API key').fill('test-key');
   await page.getByLabel('Deployment').fill('dep');
@@ -567,4 +571,44 @@ test('the AI assistant runs tools on the open pose (provider mocked)', async ({ 
   expect(s.scene.figures.map((f) => f.name)).toContain('Extra');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect.poll(async () => (await state(page)).scene.figures.length).toBe(1);
+});
+
+test('the AI assistant chats through GitHub Copilot via the local companion (mocked)', async ({ page }) => {
+  // A stand-in for companion/server.mjs: one Copilot turn that calls a studio tool.
+  let toolResult: (text: string) => void = () => {};
+  const result = new Promise<string>((r) => { toolResult = r; });
+  let served = false;
+  let chatting = false;
+  await page.route('http://127.0.0.1:8765/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/connect') return route.fulfill({ json: { ok: true } });
+    if (url.pathname === '/models') return route.fulfill({ json: { models: [{ id: 'auto' }, { id: 'gpt-6-sol' }] } });
+    if (url.pathname === '/next') {
+      if (chatting && !served) {
+        served = true;
+        return route.fulfill({ json: { id: 1, name: 'set_style', input: { style: 'anime' } } });
+      }
+      await new Promise((r) => setTimeout(r, 300));
+      return route.fulfill({ status: 204 });
+    }
+    if (url.pathname === '/result') {
+      toolResult(JSON.parse(route.request().postData() ?? '{}').text);
+      return route.fulfill({ json: { ok: true } });
+    }
+    if (url.pathname === '/chat') {
+      chatting = true;
+      const body = JSON.parse(route.request().postData() ?? '{}');
+      expect(body).toMatchObject({ model: 'auto', text: 'Anime style please', sessionId: null });
+      expect(await result).toBe('Style: anime.');
+      return route.fulfill({ json: { sessionId: 's1', messages: ['Switched to anime.'] } });
+    }
+    return route.fulfill({ status: 404 });
+  });
+  await page.getByRole('tab', { name: 'AI' }).click();
+  await expect(page.getByText('GitHub Copilot · auto')).toBeVisible();
+  await page.getByLabel('Message the assistant').fill('Anime style please');
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Switched to anime.')).toBeVisible();
+  await expect(page.locator('.assistant-tool code')).toHaveText('set_style');
+  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { settings: { style: string } } } } }).__poseStudio.store.getState().settings.style)).toBe('anime');
 });

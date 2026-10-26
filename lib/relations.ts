@@ -119,8 +119,8 @@ export class Rig {
   }
 }
 
-/** Parts of a figure another figure can reach for. */
-export const CONTACTS = ['head', 'shoulderL', 'shoulderR', 'chest', 'back', 'waist', 'wristL', 'wristR'] as const;
+/** Parts of a figure a hand can reach for (another figure's, or its own: hands on hips or knees). */
+export const CONTACTS = ['head', 'shoulderL', 'shoulderR', 'chest', 'back', 'waist', 'hipL', 'hipR', 'kneeL', 'kneeR', 'wristL', 'wristR'] as const;
 export type Contact = (typeof CONTACTS)[number];
 
 export const CONTACT_LABELS: Record<Contact, string> = {
@@ -130,6 +130,10 @@ export const CONTACT_LABELS: Record<Contact, string> = {
   chest: 'Chest',
   back: 'Upper back',
   waist: 'Waist',
+  hipL: 'Left hip',
+  hipR: 'Right hip',
+  kneeL: 'Left knee',
+  kneeR: 'Right knee',
   wristL: 'Left hand',
   wristR: 'Right hand',
 };
@@ -148,6 +152,18 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
     case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k]);
     case 'back': return at('chest', [0, 0.13 * k, -0.15 * k]);
     case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);
+    case 'hipL': return at('root', [0.17 * k, 0.01 * k, 0]);
+    case 'hipR': return at('root', [-0.17 * k, 0.01 * k, 0]);
+    case 'kneeL': case 'kneeR': {
+      // The kneecap: out along the bend (thigh direction minus shin direction), or the front of a straight leg.
+      const side = c === 'kneeL' ? 'L' : 'R';
+      const hip = m.joints[`hip${side}`].getWorldPosition(new THREE.Vector3());
+      const knee = m.joints[`knee${side}`].getWorldPosition(new THREE.Vector3());
+      const ankle = m.joints[`ankle${side}`].getWorldPosition(new THREE.Vector3());
+      const out = knee.clone().sub(hip).normalize().sub(ankle.clone().sub(knee).normalize());
+      if (out.length() < 0.3) out.copy(at(`knee${side}`, [0, 0, 1]).sub(knee));
+      return knee.addScaledVector(out.normalize(), 0.065 * k);
+    }
     case 'wristL': return at('wristL', [0, -0.06 * k, 0]);
     case 'wristR': return at('wristR', [0, -0.06 * k, 0]);
   }
@@ -162,16 +178,33 @@ export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, li
   const k = f.body.height / 1.8;
   const shoulder = worldPos(m.joints[`shoulder${side}`]);
   const wristTarget = target.clone().add(shoulder.clone().sub(target).normalize().multiplyScalar(0.07 * k));
-  m.setGroundLock(true);
-  m.solveIK(IK_CHAINS[`wrist${side}`], wristTarget, undefined, limits);
-  // Point the hand at the target.
   const wrist = m.joints[`wrist${side}`];
-  const dir = target.clone().sub(worldPos(wrist)).normalize();
-  const parentQ = wrist.parent!.getWorldQuaternion(new THREE.Quaternion());
-  const handDown = new THREE.Vector3(0, -1, 0).applyQuaternion(parentQ);
-  setWorldQuaternion(wrist, new THREE.Quaternion().setFromUnitVectors(handDown, dir).multiply(parentQ));
-  if (limits) m.constrain([`wrist${side}`]);
-  const reached = worldPos(wrist).distanceTo(wristTarget) < 0.04 * k;
+  const solve = () => {
+    m.solveIK(IK_CHAINS[`wrist${side}`], wristTarget, undefined, limits);
+    // Point the hand at the target.
+    const dir = target.clone().sub(worldPos(wrist)).normalize();
+    const parentQ = wrist.parent!.getWorldQuaternion(new THREE.Quaternion());
+    const handDown = new THREE.Vector3(0, -1, 0).applyQuaternion(parentQ);
+    setWorldQuaternion(wrist, new THREE.Quaternion().setFromUnitVectors(handDown, dir).multiply(parentQ));
+    if (limits) m.constrain([`wrist${side}`]);
+    return worldPos(wrist).distanceTo(wristTarget);
+  };
+  m.setGroundLock(true);
+  let miss = solve();
+  if (miss >= 0.04 * k) {
+    // The IK keeps the arm's bend plane: from an awkward start (say, an arm raised overhead) try
+    // again from a relaxed arm hanging at the side, and keep whichever gets closer.
+    const first = m.read().joints;
+    const s = side === 'L' ? 1 : -1;
+    m.joints[`shoulder${side}`].rotation.set(0, 0, s * 10 * THREE.MathUtils.DEG2RAD);
+    m.joints[`elbow${side}`].rotation.set(-8 * THREE.MathUtils.DEG2RAD, 0, 0);
+    wrist.rotation.set(0, 0, 0);
+    m.object.updateMatrixWorld(true);
+    const again = solve();
+    if (again < miss) miss = again;
+    else m.apply({ ...f, joints: first });
+  }
+  const reached = miss < 0.04 * k;
   const joints = m.read().joints;
   m.setGroundLock(false);
   return { joints, reached };
