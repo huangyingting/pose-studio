@@ -54,6 +54,15 @@ export default function ShotInspector({ id, notify }: { id: string; notify: Noti
         </div>
       </Section>
       <Section title="Camera">
+        <div className="field">
+          <span>Frames</span>
+          <Select
+            label="Shot subject"
+            value={span.shot.subject && scene.figures.some((f) => f.id === span.shot.subject) ? span.shot.subject : 'all'}
+            onChange={(v) => editShot(store, id, { subject: v === 'all' ? undefined : v })}
+            options={[{ value: 'all', label: 'Everyone' }, ...scene.figures.filter((f) => !f.hidden).map((f) => ({ value: f.id, label: `${f.name} (follows them with “Follow”)` }))]}
+          />
+        </div>
         <button type="button" className="btn subtle" onClick={() => { store.setTime(span.start); store.setSettings({ side: 'library', libraryTab: 'camera' }); }}>
           <Video size={14} aria-hidden /> Choose a camera move…
         </button>

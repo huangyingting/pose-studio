@@ -119,8 +119,18 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     const el = window;
     let from = t;
     store.setTime(t);
+    // Keys elsewhere to line up with (other figures', props', the camera's, the cuts): a punch
+    // lands as the other flinches.
+    const others = [
+      ...a.keys.filter((k) => !k.poses[figureId] || Object.keys(k.poses).length > 1 || k.props).map((k) => k.t),
+      ...(a.camera?.keys.map((k) => k.t) ?? []),
+      ...(a.shots?.map((x) => x.start) ?? []),
+    ].filter((x) => Math.abs(x - t) > 1e-6);
     const move = (ev: PointerEvent) => {
-      const to = snapTime(a, timeAt(ev.clientX));
+      let to = snapTime(a, timeAt(ev.clientX));
+      const width = track.current?.getBoundingClientRect().width ?? 1;
+      const near = others.find((x) => Math.abs(x - to) < (6 / width) * a.duration);
+      if (near !== undefined) to = near;
       if (Math.abs(to - from) < 1e-6) return;
       moveKeyframe(store, from, to, figureId);
       if (figureKeyTimes(store.scene.animation!, figureId).some((k) => Math.abs(k - to) < 0.5 / a.fps)) {

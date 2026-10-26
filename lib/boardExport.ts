@@ -1,5 +1,5 @@
 import { boardDuration } from './board';
-import { framingFor } from './shot';
+import { framingFor, shotFramer } from './shot';
 import type { Light, Panel, Scene, Style } from './types';
 import { createEncoder, drawShot } from './video';
 
@@ -10,7 +10,6 @@ import { createEncoder, drawShot } from './video';
 
 export interface BoardOptions {
   style: Style;
-  light: Light;
   faces: boolean;
   captions: boolean;
 }
@@ -60,7 +59,7 @@ export function boardSheet(panels: Panel[], resolve: Resolve, o: BoardOptions, c
     const x = pad + (i % columns) * (cellW + gap);
     const y = pad + Math.floor(i / columns) * (cellH + textH + gap);
     if (scene) {
-      drawShot(fctx, scene, 0, { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, light: o.light, faces: o.faces }, framingFor(scene, 6));
+      drawShot(fctx, scene, 0, { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, faces: o.faces }, framingFor(scene, 6));
       ctx.drawImage(frame, x, y);
     }
     ctx.strokeStyle = '#1d1d1f';
@@ -108,8 +107,8 @@ export async function recordAnimatic(panels: Panel[], resolve: Resolve, o: Board
     const scene = resolve(p);
     if (!scene) continue;
     const a = scene.animation;
-    const framing = framingFor(scene, a ? 12 : 1);
-    const opts = { width: o.width, height: o.height, style: o.style, lineWidth: 2.2 * (o.height / 640), light: o.light, faces: o.faces };
+    const framing = shotFramer(scene);
+    const opts = { width: o.width, height: o.height, style: o.style, lineWidth: 2.2 * (o.height / 640), faces: o.faces };
     if (!a) {
       // A still panel is one frame held for the whole duration.
       if (signal?.aborted) break;

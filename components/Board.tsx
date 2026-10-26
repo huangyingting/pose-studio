@@ -24,8 +24,7 @@ function preview(scene: Scene, style: Style) {
     const c = document.createElement('canvas');
     c.width = PREVIEW.width;
     c.height = PREVIEW.height;
-    const light = { azimuth: 40, elevation: 45, shadows: true };
-    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, light, faces: true }, framingFor(scene, 4));
+    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, faces: true }, framingFor(scene, 4));
     url = c.toDataURL('image/png');
     if (previewCache.size > 200) previewCache.delete(previewCache.keys().next().value!);
     previewCache.set(key, url);
@@ -70,7 +69,7 @@ export default function Board({ onClose, notify }: { onClose(): void; notify: No
   }, [onClose]);
 
   const resolve = (p: Panel) => scenes.get(p.sceneId);
-  const opts = { style, light: settings.light, faces: settings.faces, captions };
+  const opts = { style, faces: settings.faces, captions };
 
   const exportSheet = async () => {
     setBusy('sheet');

@@ -2,7 +2,18 @@ import * as THREE from 'three';
 import { styleDef } from './styles';
 import type { Light, Style } from './types';
 
-export const DEFAULT_LIGHT: Light = { azimuth: 40, elevation: 45, shadows: true };
+export const DEFAULT_LIGHT: Light = { azimuth: 40, elevation: 45, shadows: true, intensity: 1, warmth: 0 };
+
+/** Ready-made lighting for a scene. */
+export const LIGHT_PRESETS: { id: string; name: string; light: Light }[] = [
+  { id: 'studio', name: 'Studio', light: DEFAULT_LIGHT },
+  { id: 'soft', name: 'Soft', light: { azimuth: 25, elevation: 65, shadows: false, intensity: 0.8, warmth: 0.05 } },
+  { id: 'side', name: 'Side (drama)', light: { azimuth: 90, elevation: 18, shadows: true, intensity: 1.35, warmth: 0 } },
+  { id: 'back', name: 'Backlit', light: { azimuth: 160, elevation: 35, shadows: true, intensity: 1.2, warmth: 0 } },
+  { id: 'noon', name: 'Noon sun', light: { azimuth: 10, elevation: 82, shadows: true, intensity: 1.45, warmth: 0.15 } },
+  { id: 'dusk', name: 'Dusk', light: { azimuth: -75, elevation: 10, shadows: true, intensity: 0.95, warmth: 0.85 } },
+  { id: 'night', name: 'Night', light: { azimuth: 130, elevation: 50, shadows: true, intensity: 0.6, warmth: -0.75 } },
+];
 
 export function clampLight(l: Partial<Light> | undefined): Light {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
@@ -11,6 +22,8 @@ export function clampLight(l: Partial<Light> | undefined): Light {
     azimuth: num(l?.azimuth, DEFAULT_LIGHT.azimuth, -180, 180),
     elevation: num(l?.elevation, DEFAULT_LIGHT.elevation, 5, 89),
     shadows: l?.shadows !== false,
+    intensity: num(l?.intensity, 1, 0.2, 2),
+    warmth: num(l?.warmth, 0, -1, 1),
   };
 }
 
@@ -61,6 +74,15 @@ export class LightRig {
     const on = light.shadows && styleDef(style).shadows;
     this.key.castShadow = on;
     this.floor.visible = on;
+    // Brightness and colour: warm towards sunset orange, cool towards moonlight blue; the fill
+    // takes on a little of the same colour.
+    const tint = light.warmth >= 0
+      ? new THREE.Color(1, 1 - 0.18 * light.warmth, 1 - 0.42 * light.warmth)
+      : new THREE.Color(1 + 0.32 * light.warmth, 1 + 0.12 * light.warmth, 1);
+    this.key.color.copy(tint);
+    this.key.intensity = 1.9 * light.intensity;
+    this.ambient.color.setRGB(1, 1, 1).lerp(tint, 0.35);
+    this.ambient.intensity = 1.05 * (0.55 + 0.45 * Math.min(1.3, light.intensity));
     return dir;
   }
 

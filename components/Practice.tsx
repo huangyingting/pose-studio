@@ -116,7 +116,6 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
   onExit(): void;
   onRestart(): void;
 }) {
-  const light = useStudio((s) => s.settings.light);
   const faces = useStudio((s) => s.settings.faces);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -146,7 +145,7 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
       const scale = Math.min(1, 2048 / Math.max(el.clientWidth * dpr, el.clientHeight * dpr));
       const w = Math.max(64, Math.round(el.clientWidth * dpr * scale));
       const h = Math.max(64, Math.round(el.clientHeight * dpr * scale));
-      const src = sharedRenderer().render(slide.scene, w, h, 2 * dpr * scale, { style, light, faces, margin: 0.08 });
+      const src = sharedRenderer().render(slide.scene, w, h, 2 * dpr * scale, { style, faces, margin: 0.08 });
       c.width = w;
       c.height = h;
       c.getContext('2d')!.drawImage(src, 0, 0);
@@ -155,7 +154,7 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
     const ro = new ResizeObserver(draw);
     ro.observe(stage.current!);
     return () => ro.disconnect();
-  }, [slide, style, light, faces, done]);
+  }, [slide, style, faces, done]);
 
   // Countdown. Time only runs while the page is visible and not paused.
   useEffect(() => {

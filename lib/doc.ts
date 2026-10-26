@@ -4,9 +4,10 @@ import { mapPoses, parseAnimation, remapAnimation } from './animation';
 import { parseBoard } from './board';
 import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
+import { clampLight } from './lighting';
 import {
   FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
+  type Figure, type Hand, type JointName, type Library, type Light, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -228,6 +229,7 @@ export function parseScene(v: unknown, i = 0): Scene {
     props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null)
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     view: parseView(v.view),
+    ...(isObj(v.light) ? { light: clampLight(v.light as Partial<Light>) } : {}),
   };
   const animation = parseAnimation(v.animation, ids, parsePoseKey, new Set(scene.props.map((p) => p.id)), parsePropKey);
   if (animation) scene.animation = animation;

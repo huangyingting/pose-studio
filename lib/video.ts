@@ -1,5 +1,5 @@
 import { sceneAt } from './animation';
-import { framingFor, shotAt, type Framing } from './shot';
+import { shotAt, shotFramer, subjectAt, type Framing } from './shot';
 import { styleDef } from './styles';
 import { sharedRenderer } from './thumbnails';
 import type { Pass } from './render';
@@ -57,19 +57,22 @@ export interface VideoOptions {
   style: Style;
   lineWidth: number;
   loops: number;
-  light: Light;
   faces: boolean;
   pass?: Pass;
   /** Only this part of the animation (seconds), played once: e.g. one shot. */
   range?: [number, number];
 }
 
-/** Draw one frame of a scene through its shot camera at time t (`clock` drives hand-held shake). */
-export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>, framing: Framing, clock = t) {
+/**
+ * Draw one frame of a scene through its shot camera at time t (`clock` drives hand-held shake).
+ * `framing` is fixed, or per time (a shot about one figure frames just them).
+ */
+export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>, framing: Framing | ((t: number) => Framing), clock = t) {
   const cam = scene.animation?.camera;
   const src = sharedRenderer().renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
-    style: o.style, light: o.light, faces: o.faces, pass: o.pass,
-    shot: { ...shotAt(scene, t), t: clock }, framing, follow: !!cam?.follow, shake: cam?.shake ?? 0,
+    style: o.style, faces: o.faces, pass: o.pass,
+    shot: { ...shotAt(scene, t), t: clock }, framing: typeof framing === 'function' ? framing(t) : framing,
+    follow: !!cam?.follow, shake: cam?.shake ?? 0, subject: subjectAt(scene, t),
   });
   ctx.fillStyle = styleDef(o.style).background;
   ctx.fillRect(0, 0, o.width, o.height);
@@ -80,7 +83,7 @@ export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (f
   const a = scene.animation;
   if (!a) throw new Error('This pose has no animation');
   const enc = await createEncoder(o.width, o.height, a.fps);
-  const framing = framingFor(scene);
+  const framing = shotFramer(scene);
   const perLoop = Math.max(1, Math.round(a.duration * a.fps));
   const [r0, r1] = o.range ?? [0, a.duration];
   const total = o.range ? Math.max(1, Math.round((r1 - r0) * a.fps)) : perLoop * o.loops + (a.loop ? 0 : 1);

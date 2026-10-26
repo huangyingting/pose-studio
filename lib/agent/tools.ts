@@ -1,8 +1,9 @@
 import {
   addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
-  holdProp, nextName, reachFor, setFigureColor, setGaze, setTravel, throwProp, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  editShot, holdProp, nextName, reachFor, setFigureColor, setSceneLight, setGaze, setTravel, throwProp, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
+import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
 import { HAND_PRESETS, cloneHand } from '../hands';
 import { mapPoses } from '../animation';
@@ -13,7 +14,7 @@ import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { CAMERA_MOVES } from '../shot';
-import { shotSpans } from '../shots';
+import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
 import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
@@ -282,6 +283,43 @@ export const TOOLS: AgentTool[] = [
       const hand = i.hand === 'L' ? 'L' : 'R';
       holdProp(store, prop.id, { figure: holder.id, hand });
       return `Added ${prop.name} (${prop.id}) in ${holder.name}'s ${hand === 'L' ? 'left' : 'right'} hand.`;
+    },
+  },
+  {
+    name: 'shot_subject',
+    description: 'Make the shot playing at a time about one figure: the camera frames just them (and with the camera\'s follow on, tracks them), or with figure null everyone again. Cut shots first (cut_shot) to give each its subject.',
+    schema: obj({ time: num('A time inside the shot (s)'), figure: opt(FIGURE) }),
+    run: (store, i) => {
+      const a = store.scene.animation;
+      if (!a) throw new Error('The scene is not animated');
+      const span = spanAt(a, Number(i.time));
+      const f = i.figure ? findFigure(store, i.figure) : null;
+      editShot(store, span.shot.id, { subject: f?.id });
+      return `${span.shot.name} frames ${f ? f.name : 'everyone'}.`;
+    },
+  },
+  {
+    name: 'set_lighting',
+    description: `Light the open scene (saved with it, used by its exports; shows in the shaded style): a preset (${LIGHT_PRESETS.map((p) => p.id).join(', ')}) and/or direction (degrees around, 0 = from the front), height (degrees up), brightness (1 normal) and warmth (-1 cool … 1 warm).`,
+    schema: obj({
+      preset: opt(str('Preset', LIGHT_PRESETS.map((p) => p.id))),
+      direction: opt(num('Degrees around the scene, 0 = from the front')),
+      height: opt(num('Degrees above the floor')),
+      brightness: opt(num('1 is normal')),
+      warmth: opt(num('-1 cool … 1 warm')),
+    }),
+    run: (store, i) => {
+      const base = (typeof i.preset === 'string' ? LIGHT_PRESETS.find((p) => p.id === i.preset)?.light : undefined) ?? store.scene.light ?? DEFAULT_LIGHT;
+      const n = (v: unknown) => (typeof v === 'number' ? v : undefined);
+      const light = clampLight({
+        ...base,
+        ...(n(i.direction) !== undefined ? { azimuth: n(i.direction) } : {}),
+        ...(n(i.height) !== undefined ? { elevation: n(i.height) } : {}),
+        ...(n(i.brightness) !== undefined ? { intensity: n(i.brightness) } : {}),
+        ...(n(i.warmth) !== undefined ? { warmth: n(i.warmth) } : {}),
+      });
+      setSceneLight(store, light);
+      return `Light: from ${r1(light.azimuth)}°, ${r1(light.elevation)}° up, brightness ${r2(light.intensity)}, warmth ${r2(light.warmth)}.`;
     },
   },
   {

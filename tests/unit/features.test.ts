@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { clampLight, DEFAULT_LIGHT } from '@/lib/lighting';
+import { clampLight, DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
+import { newScene, parseScene } from '@/lib/doc';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
 import { builtInPoses, poseScene } from '@/lib/poses';
 
@@ -106,10 +107,10 @@ describe('gesture practice', () => {
 describe('lighting settings', () => {
   it('clamps stored light values', () => {
     expect(clampLight(undefined)).toEqual(DEFAULT_LIGHT);
-    expect(clampLight({ azimuth: 500, elevation: -20, shadows: false })).toEqual({ azimuth: 180, elevation: 5, shadows: false });
+    expect(clampLight({ azimuth: 500, elevation: -20, shadows: false, intensity: 0, warmth: -3 })).toEqual({ azimuth: 180, elevation: 5, shadows: false, intensity: 0.2, warmth: -1 });
   });
 
-  it('loads older settings without a light or with an unknown style', () => {
+  it('loads settings with an unknown style', () => {
     const storage = new Map<string, string>();
     const fake = {
       getItem: (k: string) => storage.get(k) ?? null,
@@ -123,9 +124,17 @@ describe('lighting settings', () => {
     const s = new Store(fake).getState().settings;
     expect(s.style).toBe('line');
     expect(s.showGrid).toBe(false);
-    expect(s.light).toEqual(DEFAULT_LIGHT);
     storage.set('pose-studio-settings', JSON.stringify({ style: 'silhouette' }));
     expect(new Store(fake).getState().settings.style).toBe('silhouette');
+  });
+});
+
+describe('scene lighting', () => {
+  it('belongs to the scene: saved with it, clamped when loaded, studio light by default', () => {
+    const scene = parseScene({ ...newScene('Dusk'), light: { azimuth: 999, elevation: 1, shadows: false, intensity: 9, warmth: 0.8 } });
+    expect(scene.light).toEqual({ azimuth: 180, elevation: 5, shadows: false, intensity: 2, warmth: 0.8 });
+    expect(parseScene(newScene('Plain')).light).toBeUndefined();
+    expect(LIGHT_PRESETS[0].light).toEqual(DEFAULT_LIGHT);
   });
 });
 

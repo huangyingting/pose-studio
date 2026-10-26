@@ -87,7 +87,7 @@ export function removeCut(a: Animation, id: string): Animation {
   return { ...a, shots };
 }
 
-export function updateShot(a: Animation, id: string, patch: Partial<Pick<Shot, 'name' | 'caption'>>): Animation {
+export function updateShot(a: Animation, id: string, patch: Partial<Pick<Shot, 'name' | 'caption' | 'subject'>>): Animation {
   const shots = a.shots?.length ? a.shots : [{ id: 'main', start: 0, name: 'Shot 1' }];
   return { ...a, shots: shots.map((s) => (s.id === id ? { ...s, ...patch } : s)) };
 }

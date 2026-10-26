@@ -97,6 +97,8 @@ export interface Scene {
   figures: Figure[];
   props: Prop[];
   view: View;
+  /** The scene's key light (lib/lighting.ts DEFAULT_LIGHT without one). */
+  light?: Light;
   /** Optional keyframe animation (see lib/animation.ts). */
   animation?: Animation;
 }
@@ -189,6 +191,8 @@ export interface Shot {
   name: string;
   /** What happens in the shot (used in prompts, storyboards and cut lists). */
   caption?: string;
+  /** The figure the shot is about: the camera frames (and follows) just them. */
+  subject?: string;
 }
 
 export interface Library {
@@ -239,4 +243,8 @@ export interface Light {
   azimuth: number;
   elevation: number;
   shadows: boolean;
+  /** Brightness of the key light (1: normal). */
+  intensity: number;
+  /** Colour of the light: −1 cool (moonlight) … 0 white … 1 warm (sunset). */
+  warmth: number;
 }

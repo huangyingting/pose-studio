@@ -1,8 +1,7 @@
 import { keepFigures, keepProps, poseOf, propKeyOf, sceneAt, setKey, setPropKey } from './animation';
 import { newScene, parseLibrary } from './doc';
 import { shotSpans } from './shots';
-import { DEFAULT_LIGHT, clampLight } from './lighting';
-import { STYLES, type Figure, type GizmoMode, type Library, type Light, type Prop, type Scene, type Selection, type Style } from './types';
+import { STYLES, type Figure, type GizmoMode, type Library, type Prop, type Scene, type Selection, type Style } from './types';
 
 export interface Settings {
   style: Style;
@@ -12,8 +11,6 @@ export interface Settings {
   gizmo: GizmoMode;
   /** Outline width in the editor (CSS px). */
   editorLine: number;
-  /** Key light for the shaded style (editor and export). */
-  light: Light;
   /** Simple face details (nose, ears, eyes, brows, mouth). */
   faces: boolean;
   /** The left side panel's open section, or 'none' when it is collapsed to the rail. */
@@ -47,7 +44,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'scene', libraryTab: 'poses', tips: true,
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, faces: true, side: 'scene', libraryTab: 'poses', tips: true,
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -89,7 +86,6 @@ function loadSettings(storage: Storage | null): Settings {
         limits: s.limits !== false,
         gizmo: s.gizmo === 'translate' || s.gizmo === 'scale' ? s.gizmo : 'rotate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
-        light: clampLight(s.light),
         faces: s.faces !== false,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
         libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',

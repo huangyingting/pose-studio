@@ -2,7 +2,7 @@ import { sceneAt } from './animation';
 import { buildOtio } from './otio';
 import { describeShot, describeSpan } from './prompt';
 import { canvasToBlob, safeFilename, type Pass } from './render';
-import { cameraPath, framingFor, shotAt } from './shot';
+import { cameraPath, shotAt, shotFramer, subjectAt } from './shot';
 import { shotSpans, type ShotSpan } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { Light, Scene, Style } from './types';
@@ -20,7 +20,6 @@ export interface PackOptions {
   height: number;
   style: Style;
   lineWidth: number;
-  light: Light;
   faces: boolean;
   /** Add a clay-shaded clip of each shot (animations only; takes longest). */
   greybox: boolean;
@@ -48,13 +47,13 @@ export async function keyframePack(scene: Scene, o: PackOptions, onProgress?: (f
   const entries: ZipEntry[] = [{ name: 'README.txt', data: README }, { name: 'prompt.txt', data: describeShot(scene) + '\n' }];
   if (a) entries.push({ name: 'cutlist.otio', data: JSON.stringify(buildOtio(scene, 'video.mp4'), null, 2) });
   const renderer = sharedRenderer();
-  const frame = framingFor(scene);
+  const frameAt = shotFramer(scene);
   const steps = spans.length * (greybox ? 7 : 6);
   let done = 0;
   const tick = () => onProgress?.(++done / steps);
   const png = async (t: number, pass: Pass) => {
     const c = renderer.renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
-      style: o.style, light: o.light, faces: o.faces, pass, shot: shotAt(scene, t), framing: frame, follow: !!a?.camera?.follow, shake: 0,
+      style: o.style, faces: o.faces, pass, shot: shotAt(scene, t), framing: frameAt(t), follow: !!a?.camera?.follow, shake: 0, subject: subjectAt(scene, t),
     });
     const blob = await canvasToBlob(c, 'png');
     return new Uint8Array(await blob.arrayBuffer());

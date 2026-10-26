@@ -417,6 +417,7 @@ function parseShots(v: unknown, duration: number): Shot[] | undefined {
       start: typeof x.start === 'number' && Number.isFinite(x.start) ? Math.min(duration, Math.max(0, x.start)) : 0,
       name: str(x.name, 80) || `Shot ${i + 1}`,
       ...(typeof x.caption === 'string' && x.caption ? { caption: x.caption.slice(0, 500) } : {}),
+      ...(typeof x.subject === 'string' && x.subject ? { subject: x.subject.slice(0, 40) } : {}),
     }))
     .sort((p, q) => p.start - q.start);
   if (!shots.length) return undefined;

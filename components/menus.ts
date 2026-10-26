@@ -2,7 +2,7 @@ import {
   ArrowDownToLine, ArrowLeftRight, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
-  addFigure, addProp, addStandIn, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
+  addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
   duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
@@ -51,6 +51,13 @@ export function figureMenu(store: Store, id: string, { notifyUndo }: MenuUi): Me
       },
     ]),
     ...(f.proxy ? [] : gazeItems(store, f)),
+    // The same moves for someone else (a crowd, a synchronised routine).
+    ...(store.scene.animation?.keys.some((k) => k.poses[id]) && store.scene.figures.length > 1 ? [
+      { group: 'Copy moves to' } as MenuItem,
+      ...store.scene.figures.filter((x) => x.id !== id).map((x): MenuItem => ({
+        label: x.name, icon: Copy, onSelect: () => { if (copyMotion(store, id, x.id)) notifyUndo(`${x.name} now moves like ${f.name}`); },
+      })),
+    ] : []),
     '-',
     {
       label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, disabled: store.scene.figures.length <= 1,

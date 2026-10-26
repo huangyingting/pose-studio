@@ -187,7 +187,6 @@ export interface RenderOptions {
   transparent?: boolean;
   margin?: number;
   style?: Style;
-  light?: Light;
   /** Minimum camera distance from the subject's centre (see fitCamera). */
   minDistance?: number;
   /** Simple face details (default on). */
@@ -240,7 +239,8 @@ export class SceneRenderer {
     this.lines.setStyle(style);
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
-    this.view.ink.setLightDirection(this.lights.update(opts.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
+    // Each scene is lit by its own light.
+    this.view.ink.setLightDirection(this.lights.update(doc.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
   }
 
   /** Draw the frame: the styled picture, or a depth / normal pass for AI image and video tools. */
@@ -289,9 +289,9 @@ export class SceneRenderer {
   }
 
   /** One frame of a shot: the scene filmed by the shot camera (see lib/shot.ts). */
-  renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { shot: CameraKey; framing: Framing; follow: boolean; shake: number }) {
+  renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { shot: CameraKey; framing: Framing; follow: boolean; shake: number; subject?: string }) {
     this.setup(doc, w, h, line, opts);
-    placeShot(this.camera, opts.framing, opts.shot, w / h, { follow: opts.follow ? figuresCenter(this.view) : null, shake: opts.shake, t: opts.shot.t });
+    placeShot(this.camera, opts.framing, opts.shot, w / h, { follow: opts.follow ? figuresCenter(this.view, opts.subject) : null, shake: opts.shake, t: opts.shot.t });
     return this.draw(line, opts);
   }
 
@@ -309,7 +309,7 @@ export class SceneRenderer {
   }
 
   /** Lay cells out in a grid, optionally captioned. */
-  sheet(cells: Cell[], o: ExportOptions, light?: Light, faces = true): HTMLCanvasElement {
+  sheet(cells: Cell[], o: ExportOptions, faces = true): HTMLCanvasElement {
     const { cols, width, height } = sheetSize(cells.length, o);
     const labelH = o.labels ? LABEL_HEIGHT : 0;
     const transparent = o.transparent && o.format === 'png';
@@ -329,7 +329,7 @@ export class SceneRenderer {
       const x = (i % cols) * o.cellWidth;
       const y = Math.floor(i / cols) * (o.cellHeight + labelH);
       const canvas = this.render(scene, o.cellWidth, o.cellHeight, o.lineWidth, {
-        transparent, margin: o.margin, style: o.style, light, faces, pass: o.pass, minDistance: size / tan(scene),
+        transparent, margin: o.margin, style: o.style, faces, pass: o.pass, minDistance: size / tan(scene),
       });
       ctx.drawImage(canvas, x, y);
       if (o.labels) {

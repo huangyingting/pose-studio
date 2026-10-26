@@ -40,7 +40,6 @@ function loadExportOptions(): ExportOptions {
 export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
-  const light = useStudio((s) => s.settings.light);
   const faces = useStudio((s) => s.settings.faces);
   const scene = useScene();
   const time = useStudio((s) => s.time);
@@ -84,7 +83,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
       let small: HTMLCanvasElement;
       if (filmed) {
         const r = sharedRenderer().renderShot(sceneAt(scene, 0), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
-          style: o.style, light, faces, pass, shot: shotAt(scene, 0), framing: framingFor(scene), follow: !!scene.animation?.camera?.follow, shake: 0,
+          style: o.style, faces, pass, shot: shotAt(scene, 0), framing: framingFor(scene), follow: !!scene.animation?.camera?.follow, shake: 0,
         });
         small = document.createElement('canvas');
         small.width = r.width;
@@ -98,13 +97,13 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
           cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
           lineWidth: Math.max(0.8, o.lineWidth * scale * 1.5),
           labels: false,
-        }, light, faces);
+        }, faces);
       }
       small.className = 'preview-canvas';
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, scope, filmed, pass, cells, width, height, light, faces, scene]);
+  }, [o, scope, filmed, pass, cells, width, height, faces, scene]);
 
   const run = async () => {
     setBusy(true);
@@ -114,7 +113,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
       if (pack) {
         abort.current = new AbortController();
         const blob = await keyframePack(scene, {
-          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), light, faces, greybox: o.greybox,
+          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), faces, greybox: o.greybox,
         }, setProgress, abort.current.signal);
         const name = `${safeFilename(scene.name)}_keyframes.zip`;
         downloadBlob(blob, name);
@@ -125,7 +124,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
       if (video) {
         abort.current = new AbortController();
         const { blob, ext } = await recordVideo(scene, {
-          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), loops: o.videoLoops, light, faces, pass,
+          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), loops: o.videoLoops, faces, pass,
         }, setProgress, abort.current.signal);
         const name = `${safeFilename(scene.name)}.${ext}`;
         downloadBlob(blob, name);
@@ -133,7 +132,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
         onClose();
         return;
       }
-      const canvas = sharedRenderer().sheet(cells, { ...o, scope }, light, faces);
+      const canvas = sharedRenderer().sheet(cells, { ...o, scope }, faces);
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
       const base = scope === 'poses' ? 'Pose' : scope === 'all' ? 'Scenes' : safeFilename(scene.name);
@@ -321,7 +320,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
               </div>
             </>
           )}
-          {styleDef(o.style).lit && <p className="muted small">Uses the light set in the Render tab.</p>}
+          {styleDef(o.style).lit && <p className="muted small">Each scene is lit by its own light (Render tab).</p>}
         </div>
         <div className="preview" ref={preview} aria-label="Preview" />
       </div>

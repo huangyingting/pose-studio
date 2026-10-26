@@ -6,7 +6,7 @@ import {
   PanelLeft, PanelRight, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdProp, setFigureColor, setGaze, setPosture, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
+  arrange, copyPose, holdProp, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
   setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
@@ -14,7 +14,7 @@ import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
 import { chainAt } from '@/lib/locomotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
-import { DEFAULT_LIGHT } from '@/lib/lighting';
+import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
@@ -526,26 +526,18 @@ function BodyTab() {
 
 /* ---------------- Render ---------------- */
 
-const LIGHT_PRESETS: { name: string; light: Pick<Light, 'azimuth' | 'elevation'> }[] = [
-  { name: 'Three-quarter', light: { azimuth: DEFAULT_LIGHT.azimuth, elevation: DEFAULT_LIGHT.elevation } },
-  { name: 'Front', light: { azimuth: 0, elevation: 30 } },
-  { name: 'Side', light: { azimuth: 90, elevation: 20 } },
-  { name: 'Rim', light: { azimuth: 160, elevation: 35 } },
-  { name: 'Top', light: { azimuth: 0, elevation: 85 } },
-];
-
 /** Small previews of the current pose in every style (rendered off-screen, debounced). */
-function useStylePreviews(scene: Scene, light: Light, faces: boolean) {
+function useStylePreviews(scene: Scene, faces: boolean) {
   const [previews, setPreviews] = useState<Partial<Record<Style, string>>>({});
   useEffect(() => {
     const t = setTimeout(() => {
       const r = sharedRenderer();
       const out: Partial<Record<Style, string>> = {};
-      for (const s of STYLE_LIST) out[s.id] = r.render(scene, 96, 120, 1, { style: s.id, light, faces, margin: 0.08 }).toDataURL('image/png');
+      for (const s of STYLE_LIST) out[s.id] = r.render(scene, 96, 120, 1, { style: s.id, faces, margin: 0.08 }).toDataURL('image/png');
       setPreviews(out);
     }, 250);
     return () => clearTimeout(t);
-  }, [scene, light, faces]);
+  }, [scene, faces]);
   return previews;
 }
 
@@ -554,10 +546,13 @@ function RenderTab({ ctx }: { ctx: InspectorContext }) {
   const scene = useScene();
   const settings = useStudio((s) => s.settings);
   const def = styleDef(settings.style);
-  const previews = useStylePreviews(scene, settings.light, settings.faces);
+  const previews = useStylePreviews(scene, settings.faces);
   const v = scene.view;
   const setView = (patch: Partial<View>) => setSceneView(store, { ...v, ...patch });
-  const setLight = (patch: Partial<Light>) => store.setSettings({ light: { ...settings.light, ...patch } });
+  // The scene's own light (saved with it, used by every export of it).
+  const light = scene.light ?? DEFAULT_LIGHT;
+  const setLight = (patch: Partial<Light>, key = 'light') => setSceneLight(store, { ...light, ...patch }, key);
+  const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
 
   return (
     <>
@@ -605,23 +600,29 @@ function RenderTab({ ctx }: { ctx: InspectorContext }) {
 
       {def.lit && (
         <Section title="Light">
-          <div className="stack">
-            <Slider label="Direction" min={-180} max={180} value={settings.light.azimuth} display={`${Math.round(settings.light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
-            <Slider label="Height" min={5} max={89} value={settings.light.elevation} display={`${Math.round(settings.light.elevation)}°`} typeable onChange={(elevation) => setLight({ elevation })} />
-          </div>
-          <div className="chips">
+          <div className="chips" role="group" aria-label="Lighting presets">
             {LIGHT_PRESETS.map((p) => (
-              <button
-                key={p.name}
-                type="button"
-                className={p.light.azimuth === settings.light.azimuth && p.light.elevation === settings.light.elevation ? 'chip on' : 'chip'}
-                onClick={() => setLight(p.light)}
-              >
+              <button key={p.id} type="button" className={same(p.light, light) ? 'chip on' : 'chip'} onClick={() => setLight(p.light, '')}>
                 {p.name}
               </button>
             ))}
           </div>
-          {def.shadows && <Toggle label="Cast shadows" checked={settings.light.shadows} onChange={(shadows) => setLight({ shadows })} />}
+          <div className="stack">
+            <Slider label="Direction" min={-180} max={180} value={light.azimuth} display={`${Math.round(light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
+            <Slider label="Height" min={5} max={89} value={light.elevation} display={`${Math.round(light.elevation)}°`} typeable onChange={(elevation) => setLight({ elevation })} />
+            <Slider label="Brightness" min={0.2} max={2} step={0.05} value={light.intensity} display={`${Math.round(light.intensity * 100)}%`} onChange={(intensity) => setLight({ intensity })} />
+            <Slider
+              label="Warmth"
+              min={-1}
+              max={1}
+              step={0.05}
+              value={light.warmth}
+              display={light.warmth > 0.05 ? 'Warm' : light.warmth < -0.05 ? 'Cool' : 'White'}
+              onChange={(warmth) => setLight({ warmth })}
+            />
+          </div>
+          {def.shadows && <Toggle label="Cast shadows" checked={light.shadows} onChange={(shadows) => setLight({ shadows }, '')} />}
+          <p className="hint-text">This scene&apos;s light: saved with it and used by its exports.</p>
         </Section>
       )}
 

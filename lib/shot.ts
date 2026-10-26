@@ -4,6 +4,7 @@ import { frameTimes, sampleCamera, sceneAt } from './animation';
 import { wrapDeg } from './joints';
 import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';
+import { spanAt } from './shots';
 import type { Animation, CameraKey, Scene } from './types';
 
 /*
@@ -30,9 +31,11 @@ export interface Framing {
   center: THREE.Vector3;
 }
 
-/** Average pelvis position of the figures shown in a view. */
-export function figuresCenter(view: SceneView) {
+/** Average pelvis position of the figures shown in a view (or just `only`'s, if shown). */
+export function figuresCenter(view: SceneView, only?: string) {
   const c = new THREE.Vector3();
+  const one = only ? view.figures.get(only) : undefined;
+  if (one) return one.joints.root.getWorldPosition(c);
   let n = 0;
   for (const m of view.figures.values()) {
     c.add(m.joints.root.getWorldPosition(new THREE.Vector3()));
@@ -63,22 +66,59 @@ function hull(points: THREE.Vector3[]) {
   }
 }
 
-/** What a shot frames: sampled over the animation (or just the pose). */
-export function framingFor(scene: Scene, samples = 12): Framing {
+/**
+ * What a shot frames: everyone, sampled over the animation (or just the pose); or one figure
+ * (`only`) over the shot's own stretch of time.
+ */
+export function framingFor(scene: Scene, samples = 12, only?: { figure: string; from: number; to: number }): Framing {
   const view = new SceneView();
   const points: THREE.Vector3[] = [];
   const center = new THREE.Vector3();
-  const times = scene.animation ? frameTimes(scene.animation, samples) : [0];
+  const times = !scene.animation ? [0] : only
+    ? Array.from({ length: samples }, (_, i) => only.from + ((only.to - only.from) * i) / Math.max(1, samples - 1))
+    : frameTimes(scene.animation, samples);
   for (const t of times) {
     view.sync(sceneAt(scene, t));
     let i = 0;
     // Every 9th vertex is plenty for framing.
-    view.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); }, true);
-    center.add(figuresCenter(view));
+    const subject = only ? view.figures.get(only.figure) : undefined;
+    if (subject) subject.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); });
+    else view.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); }, true);
+    center.add(figuresCenter(view, only?.figure));
   }
   view.dispose();
   if (!points.length) points.push(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.8, 0));
   return { points: hull(points), center: center.divideScalar(times.length) };
+}
+
+/** The figure the shot playing at t is about, if it has one (and the figure is there). */
+export function subjectAt(scene: Scene, t: number): string | undefined {
+  const a = scene.animation;
+  if (!a?.shots?.length) return undefined;
+  const id = spanAt(a, t).shot.subject;
+  return id && scene.figures.some((f) => f.id === id && !f.hidden) ? id : undefined;
+}
+
+/**
+ * The framing for whatever shot plays at a time: its subject over the shot, or everyone over
+ * the animation. Computed when first asked for, once per shot.
+ */
+export function shotFramer(scene: Scene) {
+  let all: Framing | null = null;
+  const bySubject = new Map<string, Framing>();
+  return (t: number): Framing => {
+    const a = scene.animation;
+    const subject = subjectAt(scene, t);
+    if (!a || !subject) return (all ??= framingFor(scene));
+    const span = spanAt(a, t);
+    const key = `${span.shot.id}:${subject}`;
+    let f = bySubject.get(key);
+    if (!f) {
+      f = framingFor(scene, 8, { figure: subject, from: span.start, to: span.end });
+      bySubject.set(key, f);
+    }
+    return f;
+  };
 }
 
 /** Smooth pseudo-random wobble in [-1, 1] for hand-held shake. */
@@ -219,7 +259,7 @@ export const CAMERA_MOVES: CameraMove[] = [
 export function cameraPath(scene: Scene, start: number, end: number, aspect: number) {
   const a = scene.animation;
   const fps = a?.fps ?? 24;
-  const frame = framingFor(scene);
+  const frameAt = shotFramer(scene);
   const view = new SceneView();
   const cam = new THREE.PerspectiveCamera(30, aspect);
   const frames: { frame: number; time: number; position: number[]; target: number[]; fov: number }[] = [];
@@ -230,9 +270,9 @@ export function cameraPath(scene: Scene, start: number, end: number, aspect: num
     let follow: THREE.Vector3 | null = null;
     if (a?.camera?.follow) {
       view.sync(sceneAt(scene, t));
-      follow = figuresCenter(view);
+      follow = figuresCenter(view, subjectAt(scene, t));
     }
-    const target = placeShot(cam, frame, shotAt(scene, t), aspect, { follow, shake: a?.camera?.shake ?? 0, t });
+    const target = placeShot(cam, frameAt(t), shotAt(scene, t), aspect, { follow, shake: a?.camera?.shake ?? 0, t });
     frames.push({ frame: Math.round(t * fps), time: r(t), position: cam.position.toArray().map(r), target: target.toArray().map(r), fov: r(cam.fov) });
   }
   view.dispose();

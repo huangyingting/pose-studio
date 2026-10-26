@@ -19,7 +19,7 @@ import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { grip, held, released } from './hold';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, PoseKey, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Light, Panel, PoseKey, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -80,6 +80,11 @@ export function renameScene(store: Store, name: string) {
   store.updateScene((s) => ({ ...s, name }), 'rename');
 }
 
+/** Light the open scene. */
+export function setSceneLight(store: Store, light: Light, key = '') {
+  store.updateScene((s) => ({ ...s, light }), key);
+}
+
 export function setSceneView(store: Store, view: View) {
   store.updateScene((s) => ({ ...s, view }), 'view');
 }
@@ -137,6 +142,38 @@ export function duplicateFigure(store: Store, id: string) {
   if (!src) return;
   const copy: Figure = { ...structuredClone(src), id: uid('f'), name: nextName(src.name, store.scene.figures.map((f) => f.name)), position: [src.position[0] + 0.8, src.position[1], src.position[2]] };
   addFigures(store, [copy]);
+  // An animated figure's copy moves the same way, alongside.
+  if (store.scene.animation?.keys.some((k) => k.poses[id])) {
+    store.updateScene((s) => (s.animation ? { ...s, animation: copyTrack(s.animation, id, copy.id, [0.8, 0]) } : s));
+  }
+}
+
+/** `to`'s track becomes a copy of `from`'s, moved across the floor by `offset` (x, z). */
+function copyTrack(a: Animation, from: string, to: string, offset: [number, number]): Animation {
+  const keys = a.keys
+    .map((k) => {
+      const { [to]: _, ...poses } = k.poses;
+      void _;
+      const src = k.poses[from];
+      if (src) poses[to] = { ...structuredClone(src), position: [src.position[0] + offset[0], src.position[1], src.position[2] + offset[1]] };
+      return { ...k, poses };
+    })
+    .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
+  return { ...a, keys };
+}
+
+/**
+ * Give figure `to` the same moves as `from` (a crowd, a synchronised routine): `from`'s keys,
+ * moved to start where `to` stands now. `to`'s own keys are replaced.
+ */
+export function copyMotion(store: Store, from: string, to: string) {
+  const a = store.scene.animation;
+  const target = store.scene.figures.find((f) => f.id === to);
+  const first = a?.keys.find((k) => k.poses[from])?.poses[from];
+  if (!a || !target || !first || from === to) return false;
+  const offset: [number, number] = [target.position[0] - first.position[0], target.position[2] - first.position[2]];
+  store.updateScene((s) => (s.animation ? { ...s, animation: copyTrack(s.animation, from, to, offset) } : s));
+  return true;
 }
 
 export function deleteFigure(store: Store, id: string) {
@@ -685,7 +722,7 @@ export function removeShotCut(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: removeCut(s.animation, id) } : s));
 }
 
-export function editShot(store: Store, id: string, patch: { name?: string; caption?: string }) {
+export function editShot(store: Store, id: string, patch: { name?: string; caption?: string; subject?: string }) {
   store.updateScene((s) => (s.animation ? { ...s, animation: updateShot(s.animation, id, patch) } : s), `shot:${id}`);
 }
 

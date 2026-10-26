@@ -6,11 +6,14 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
 import { editCameraKey } from '@/lib/actions';
 import { sceneAt } from '@/lib/animation';
-import { LightRig } from '@/lib/lighting';
+import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { SceneView } from '@/lib/sceneview';
-import { SHOT_ASPECT, captureShot, figuresCenter, framingFor, placeShot, shotAt, type Framing } from '@/lib/shot';
+import { SHOT_ASPECT, captureShot, figuresCenter, placeShot, shotAt, shotFramer, subjectAt, type Framing } from '@/lib/shot';
+
+/** The framing for whatever shot plays at a time (lib/shot.ts shotFramer). */
+type Framer = (t: number) => Framing;
 import { shotSpans } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
@@ -89,14 +92,14 @@ export default function Viewport({
   // Only needed to look through the shot camera or to show its path; computed after edits settle.
   const anim = scene.animation;
   const needFrame = shotMode || (settings.showHandles && !!anim?.camera?.keys.length);
-  const [framed, setFramed] = useState<{ id: string; frame: Framing } | null>(null);
+  const [framed, setFramed] = useState<{ id: string; frame: Framer } | null>(null);
   const frame = framed?.id === scene.id ? framed.frame : null;
   const sceneRef = useRef(scene);
   useLayoutEffect(() => { sceneRef.current = scene; });
   const hasFrame = !!frame;
   useEffect(() => {
     if (!needFrame) return;
-    const id = setTimeout(() => setFramed({ id: sceneRef.current.id, frame: framingFor(sceneRef.current) }), hasFrame ? 250 : 0);
+    const id = setTimeout(() => setFramed({ id: sceneRef.current.id, frame: shotFramer(sceneRef.current) }), hasFrame ? 250 : 0);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anim?.keys, anim?.duration, anim?.loop, scene.figures, scene.id, needFrame]);
@@ -259,12 +262,12 @@ function Lights({ sv, settings, scene }: { sv: SceneView; settings: Settings; sc
   const rig = useMemo(() => new LightRig(), []);
   const stale = useRef(true);
   useEffect(() => () => rig.dispose(), [rig]);
-  useEffect(() => { stale.current = true; }, [scene, settings.light, settings.style]);
+  useEffect(() => { stale.current = true; }, [scene, scene.light, settings.style]);
   // Aim at render time, after the scene has been synced.
   useFrame(() => {
     if (!stale.current) return;
     stale.current = false;
-    sv.ink.setLightDirection(rig.update(settings.light, settings.style, sv.bounds()));
+    sv.ink.setLightDirection(rig.update(scene.light ?? DEFAULT_LIGHT, settings.style, sv.bounds()));
   });
   return <primitive object={rig.object} />;
 }
@@ -319,7 +322,7 @@ function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: 
 function ShotDriver({ sv, scene, frame, clock, time, enabled, captureRef }: {
   sv: SceneView;
   scene: Scene;
-  frame: Framing | null;
+  frame: Framer | null;
   clock: Clock;
   time: number;
   enabled: boolean;
@@ -343,8 +346,8 @@ function ShotDriver({ sv, scene, frame, clock, time, enabled, captureRef }: {
       if (enabled && stageAspect < SHOT_ASPECT) {
         cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (stageAspect / SHOT_ASPECT)));
       }
-      const follow = scene.animation?.camera?.follow ? figuresCenter(sv) : null;
-      return captureShot(cam, controls.target, frame ?? framingFor(scene), SHOT_ASPECT, follow);
+      const follow = scene.animation?.camera?.follow ? figuresCenter(sv, subjectAt(scene, time)) : null;
+      return captureShot(cam, controls.target, (frame ?? shotFramer(scene))(time), SHOT_ASPECT, follow);
     };
   });
 
@@ -357,7 +360,7 @@ function ShotDriver({ sv, scene, frame, clock, time, enabled, captureRef }: {
     const t = clock.playing ? clock.time : time;
     const shot = shotAt(scene, t);
     const track = scene.animation?.camera;
-    const target = placeShot(camera, frame, shot, SHOT_ASPECT, { follow: track?.follow ? figuresCenter(sv) : null, shake: track?.shake, t });
+    const target = placeShot(camera, frame(t), shot, SHOT_ASPECT, { follow: track?.follow ? figuresCenter(sv, subjectAt(scene, t)) : null, shake: track?.shake, t });
     camera.aspect = stageAspect;
     camera.fov = displayFov(shot.fov);
     camera.updateProjectionMatrix();
@@ -483,7 +486,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
  * The shot camera's path through the set (one line per shot) and a camera at each key. Drag a
  * camera around the figures to change that key: its direction sets the angle, its distance the zoom.
  */
-function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: Scene; frame: Framing; clock: Clock; time: number }) {
+function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: Scene; frame: Framer; clock: Clock; time: number }) {
   const a = scene.animation!;
   const keys = a.camera!.keys;
   const get = useThree((s) => s.get);
@@ -496,7 +499,8 @@ function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: 
     return shotSpans(a).map((span) => {
       const n = Math.max(2, Math.ceil((span.end - span.start) * 10));
       return Array.from({ length: n + 1 }, (_, i) => {
-        placeShot(cam, frame, shotAt(s, Math.min(span.end - 1e-3, span.start + ((span.end - span.start) * i) / n)), SHOT_ASPECT);
+        const at = Math.min(span.end - 1e-3, span.start + ((span.end - span.start) * i) / n);
+        placeShot(cam, frame(at), shotAt(s, at), SHOT_ASPECT);
         return cam.position.clone();
       });
     });
@@ -505,7 +509,7 @@ function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: 
   const lastDot = useRef(NaN);
   useEffect(() => { lastDot.current = NaN; }, [paths]);
   const markers = useMemo(() => keys.map((k) => {
-    const target = placeShot(cam, frame, k, SHOT_ASPECT);
+    const target = placeShot(cam, frame(k.t), k, SHOT_ASPECT);
     return { key: k, position: cam.position.clone(), quaternion: cam.quaternion.clone(), target };
   }), [keys, frame, cam]);
 
@@ -524,7 +528,7 @@ function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: 
     const t = clock.playing ? clock.time : time;
     if (t !== lastDot.current) {
       lastDot.current = t;
-      placeShot(cam, frame, shotAt(scene, t), SHOT_ASPECT);
+      placeShot(cam, frame(t), shotAt(scene, t), SHOT_ASPECT);
       dot.current.position.copy(cam.position);
     }
     scale(dot.current);
@@ -553,7 +557,7 @@ function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: 
       if (flat < 0.2) return;
       const yaw = Math.round(THREE.MathUtils.radToDeg(Math.atan2(d.x, d.z)) * 10) / 10;
       // Distance at zoom 1 for this angle, then the zoom that puts the camera under the pointer.
-      const t1 = placeShot(cam, frame, { ...m.key, yaw, zoom: 1 }, SHOT_ASPECT);
+      const t1 = placeShot(cam, frame(m.key.t), { ...m.key, yaw, zoom: 1 }, SHOT_ASPECT);
       const fit = cam.position.distanceTo(t1);
       const zoom = Math.round(THREE.MathUtils.clamp(fit / (flat / Math.max(0.2, Math.cos(pitch))), 0.2, 6) * 100) / 100;
       editCameraKey(store, m.key.t, { yaw, zoom }, id);
