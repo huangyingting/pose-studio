@@ -1,6 +1,6 @@
 import { boardDuration } from './board';
 import { framingFor, shotFramer } from './shot';
-import type { Light, Panel, Scene, Style } from './types';
+import type { Panel, Scene, Style } from './types';
 import { createEncoder, drawShot } from './video';
 
 /*

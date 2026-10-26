@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { BookmarkPlus, Film, Search, Trash2, UsersRound, Video } from 'lucide-react';
-import { addScene, applyCameraMove, applyMotion, applyPose, deletePose, savePose, startAnimation } from '@/lib/actions';
+import { useEffect, useRef, useState } from 'react';
+import { BookmarkPlus, Film, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
+import { addScene, applyCameraMove, applyMotion, applyPose, deleteMotion, deletePose, saveMotion, savePose, startAnimation } from '@/lib/actions';
 import { MOTIONS } from '@/lib/motions';
 import { builtInPoses, poseScene } from '@/lib/poses';
 import { CAMERA_MOVES } from '@/lib/shot';
@@ -131,15 +131,72 @@ function motionLength(id: string) {
   return lengths.get(id)!;
 }
 
-function Motions({ notifyUndo }: SectionProps) {
+function Motions({ notify, notifyUndo }: SectionProps) {
   const store = useStore();
   const figure = useActiveFigure();
+  const mine = useStudio((s) => s.library.motions) ?? [];
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
   const usable = figure && !figure.proxy;
+  const give = (id: string, name: string) => { if (figure && applyMotion(store, figure.id, id)) notifyUndo(`${figure.name}: ${name}`); };
+
+  const read = async (file: File) => {
+    setReading(true);
+    try {
+      // The loaders are only fetched when a motion is imported.
+      const { importMotion } = await import('@/lib/importmotion');
+      const motion = await importMotion(file.name, await file.arrayBuffer());
+      saveMotion(store, motion);
+      notifyUndo(`Imported “${motion.name}” (${motion.scene.animation!.duration.toFixed(1)} s) to My motions`);
+    } catch (e) {
+      notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setReading(false);
+    }
+  };
+
   return (
     <div className="side-scroll">
       <Target>
         {usable ? <>One-person motions go on <strong>{figure.name}</strong>&apos;s track at the playhead.</> : 'Select a figure to give it a motion.'}
       </Target>
+      <div className="library-row">
+        <button
+          type="button"
+          className="btn subtle library-import"
+          disabled={reading}
+          onClick={() => fileRef.current?.click()}
+          data-tip="A BVH, FBX or glTF/GLB animation (motion capture, Mixamo…), fitted to the mannequin"
+        >
+          <Upload size={14} aria-hidden /> {reading ? 'Importing…' : 'Import motion…'}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".bvh,.fbx,.glb,.gltf"
+          hidden
+          aria-label="Motion file"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void read(f);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      {mine.length > 0 && (
+        <ul className="side-list library-list" aria-label="My motions">
+          {mine.map((m) => (
+            <li key={m.id}>
+              <button type="button" disabled={!usable} onClick={() => give(m.id, m.name)}>
+                <Film size={14} aria-hidden />
+                <span className="side-list-name">{m.name}</span>
+                <em>{(m.scene.animation?.duration ?? 0).toFixed(1)} s</em>
+              </button>
+              <IconButton icon={Trash2} label={`Delete my motion ${m.name}`} className="row-delete" size={13} onClick={() => { deleteMotion(store, m.id); notifyUndo(`Deleted “${m.name}”`); }} />
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="side-list library-list" aria-label="Motions">
         {MOTIONS.map((m) => {
           const solo = m.people === 1;
@@ -150,7 +207,7 @@ function Motions({ notifyUndo }: SectionProps) {
                 disabled={solo && !usable}
                 onClick={() => {
                   if (!solo) { addScene(store, m.build()); return; }
-                  if (figure && applyMotion(store, figure.id, m.id)) notifyUndo(`${figure.name}: ${m.name}`);
+                  give(m.id, m.name);
                 }}
               >
                 {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}

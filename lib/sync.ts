@@ -14,6 +14,8 @@ export interface SyncBase {
   board: string;
   /** Saved poses both sides had. */
   poses?: string[];
+  /** Imported motions both sides had. */
+  motions?: string[];
 }
 
 function hash(text: string) {
@@ -42,7 +44,7 @@ const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
 
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
-  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length) return false;
+  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.motions?.length) return false;
   const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
@@ -53,7 +55,10 @@ export function canonical(lib: Library): Library {
 }
 
 export function syncBase(lib: Library): SyncBase {
-  return { scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board), poses: (lib.poses ?? []).map((p) => p.id) };
+  return {
+    scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board),
+    poses: (lib.poses ?? []).map((p) => p.id), motions: (lib.motions ?? []).map((m) => m.id),
+  };
 }
 
 /** Whether a library is exactly what both sides last agreed on (nothing to push). */
@@ -62,7 +67,8 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
   return lib.scenes.length === Object.keys(base.scenes).length
     && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s))
     && boardHash(lib.board) === base.board
-    && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join();
+    && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join()
+    && (lib.motions ?? []).map((m) => m.id).join() === (base.motions ?? []).join();
 }
 
 export function mergeLibraries(server: Library, local: Library, base: SyncBase | null): Library {
@@ -106,18 +112,26 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     board = [...(server.board ?? []), ...(local.board ?? []).filter((p) => !known.has(p.id))];
   }
   board = board?.filter((p) => ids.has(p.sceneId));
-  // Saved poses: everything from both sides, except those one side deleted since they last agreed.
-  const had = new Set(base?.poses ?? []);
-  const serverPoses = new Set((server.poses ?? []).map((p) => p.id));
-  const localPoses = new Set((local.poses ?? []).map((p) => p.id));
-  const poses = [
-    ...(server.poses ?? []).filter((p) => localPoses.has(p.id) || !had.has(p.id)),
-    ...(local.poses ?? []).filter((p) => !serverPoses.has(p.id) && !had.has(p.id)),
-  ];
+  // Saved poses and imported motions: everything from both sides, except those one side deleted
+  // since they last agreed.
+  const poses = assets(server.poses, local.poses, base?.poses);
+  const motions = assets(server.motions, local.motions, base?.motions);
   return {
     ...server,
     scenes: out.length ? out : server.scenes,
     ...(board?.length ? { board } : { board: undefined }),
     ...(poses.length ? { poses } : { poses: undefined }),
+    ...(motions.length ? { motions } : { motions: undefined }),
   };
+}
+
+/** Both sides' assets, minus those one side deleted since they last agreed (`had`). */
+function assets<T extends { id: string }>(server: T[] | undefined, local: T[] | undefined, had: string[] | undefined): T[] {
+  const before = new Set(had ?? []);
+  const onServer = new Set((server ?? []).map((x) => x.id));
+  const onLocal = new Set((local ?? []).map((x) => x.id));
+  return [
+    ...(server ?? []).filter((x) => onLocal.has(x.id) || !before.has(x.id)),
+    ...(local ?? []).filter((x) => !onServer.has(x.id) && !before.has(x.id)),
+  ];
 }

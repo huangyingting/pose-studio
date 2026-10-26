@@ -7,7 +7,7 @@ import { mirrorJointName, wrapDeg } from './joints';
 import { clampLight } from './lighting';
 import {
   FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Figure, type Hand, type JointName, type Library, type Light, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
+  type Figure, type Hand, type JointName, type Library, type Light, type MotionAsset, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -294,5 +294,21 @@ export function parseLibrary(data: unknown): Library {
   }
   const board = parseBoard(data.board, ids);
   const poses = parsePoses(data.poses);
-  return { version: 2, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}) };
+  const motions = parseMotions(data.motions);
+  return { version: 2, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(motions ? { motions } : {}) };
+}
+
+/** Imported motions: each a one-figure animated scene (anything unusable is dropped). */
+export function parseMotions(v: unknown): MotionAsset[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const motions = v.slice(0, 100).filter(isObj).flatMap((o, i) => {
+    try {
+      const scene = parseScene(o.scene, i);
+      if (!scene.animation || !scene.figures.length) return [];
+      return [{ id: str(o.id, uid('motion')), name: str(o.name, `Motion ${i + 1}`).slice(0, 80), scene: { ...scene, figures: scene.figures.slice(0, 1), props: [] } }];
+    } catch {
+      return [];
+    }
+  });
+  return motions.length ? motions : undefined;
 }

@@ -418,14 +418,18 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a one-person motion from the library, on its own track from the playhead (the scene is animated if needed), starting where it stands and facing its way: ${MOTIONS.filter((m) => m.people === 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
-    schema: obj({ figure: FIGURE, motion: str('Motion', MOTIONS.filter((m) => m.people === 1).map((m) => m.id)) }),
+    description: `Give a figure a one-person motion from the library, on its own track from the playhead (the scene is animated if needed), starting where it stands and facing its way: ${MOTIONS.filter((m) => m.people === 1).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name.`,
+    schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
+      const q = String(i.motion).trim().toLowerCase();
+      const mine = store.getState().library.motions ?? [];
+      const motion = MOTIONS.find((m) => m.people === 1 && m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
+      if (!motion) throw new Error(`No one-person motion "${i.motion}"`);
       const from = store.scene.animation ? store.getState().time : 0;
-      if (!applyMotion(store, f.id, String(i.motion))) throw new Error(`"${i.motion}" is not a one-person motion`);
+      applyMotion(store, f.id, motion.id);
       const a = store.scene.animation!;
-      return `${f.name}: ${MOTIONS.find((m) => m.id === i.motion)?.name} from ${r2(from)} s (animation ${a.duration} s).`;
+      return `${f.name}: ${motion.name} from ${r2(from)} s (animation ${a.duration} s).`;
     },
   },
   {

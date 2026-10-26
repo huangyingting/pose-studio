@@ -5,7 +5,7 @@ import { canvasToBlob, safeFilename, type Pass } from './render';
 import { cameraPath, shotAt, shotFramer, subjectAt } from './shot';
 import { shotSpans, type ShotSpan } from './shots';
 import { sharedRenderer } from './thumbnails';
-import type { Light, Scene, Style } from './types';
+import type { Scene, Style } from './types';
 import { recordVideo, videoSupported } from './video';
 import { zip, type ZipEntry } from './zip';
 

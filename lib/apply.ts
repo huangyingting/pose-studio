@@ -1,6 +1,7 @@
 import { newAnimation, snapTime } from './animation';
 import { cloneHand } from './hands';
 import { wrapDeg } from './joints';
+import { legsOf } from './locomotion';
 import { facing } from './relations';
 import type { Animation, Figure, PoseAsset, PoseKey, Scene, Vec3 } from './types';
 
@@ -45,15 +46,22 @@ export function insertMotion(scene: Scene, figureId: string, motion: Scene, star
   const t1 = snapTime(a, end);
 
   const turnBy = facing(target) - facing(src);
+  // Heights are of the hips; a grounded figure's are those of standing.
+  const hipsOf = (f: Figure) => (f.grounded ? legsOf(f.body).rootY : f.position[1]);
+  const rise = hipsOf(target) - hipsOf(src);
   const retarget = (p: PoseKey): PoseKey => {
     const [dx, dz] = turn(p.position[0] - src.position[0], p.position[2] - src.position[2], turnBy);
     const root = p.joints.root ?? [0, 0, 0];
-    const y = p.grounded ? target.position[1] : r3(target.position[1] + p.position[1] - src.position[1]);
+    const y = p.grounded ? target.position[1] : r3(p.position[1] + rise);
     return {
       joints: { ...structuredClone(p.joints), root: [root[0], r3(wrapDeg(root[1] + turnBy)), root[2]] },
       position: [r3(target.position[0] + dx), y, r3(target.position[2] + dz)] as Vec3,
       hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) },
       grounded: p.grounded,
+      ...(p.travel && { travel: p.travel }),
+      ...(p.strafe && { strafe: p.strafe }),
+      ...(p.spin && { spin: p.spin }),
+      ...(p.flip && { flip: p.flip }),
     };
   };
 

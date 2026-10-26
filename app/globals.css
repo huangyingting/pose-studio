@@ -1419,6 +1419,11 @@ button.psec-title svg { color: var(--text-3); }
 .thumb-delete { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
 .thumbs li:hover .thumb-delete, .thumb-delete:focus-visible { opacity: 1; }
 .library-list { margin: 0 6px; }
+.library-list + .library-list { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+.library-list li { position: relative; }
+.library-list .row-delete { position: absolute; top: 50%; right: 4px; width: 24px; height: 24px; transform: translateY(-50%); background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
+.library-list li:hover .row-delete, .library-list .row-delete:focus-visible { opacity: 1; }
+.library-import { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .library-list button:disabled { color: var(--text-3); cursor: default; }
 .library-list button:disabled:hover { background: none; }
 

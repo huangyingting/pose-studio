@@ -3,7 +3,7 @@ import { shotAt, shotFramer, subjectAt, type Framing } from './shot';
 import { styleDef } from './styles';
 import { sharedRenderer } from './thumbnails';
 import type { Pass } from './render';
-import type { Light, Scene, Style } from './types';
+import type { Scene, Style } from './types';
 
 /*
  * Video export: film the animation through its shot camera and encode it frame by frame with

@@ -19,7 +19,7 @@ import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { grip, held, released } from './hold';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Light, Panel, PoseKey, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Light, MotionAsset, Panel, PoseKey, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -796,11 +796,32 @@ export function deletePose(store: Store, id: string) {
   });
 }
 
+/** Keep an imported motion in the library (My motions). */
+export function saveMotion(store: Store, motion: MotionAsset) {
+  store.commit((lib) => ({ ...lib, motions: [...(lib.motions ?? []), motion] }));
+}
+
+export function deleteMotion(store: Store, id: string) {
+  store.commit((lib) => {
+    const motions = (lib.motions ?? []).filter((m) => m.id !== id);
+    const { motions: _old, ...rest } = lib;
+    void _old;
+    return motions.length ? { ...rest, motions } : rest;
+  });
+}
+
 /**
- * Give a figure a one-person motion from the library, starting at the playhead (the scene is
+ * Give a figure a one-person motion from the library (built in, or one of mine), starting at the playhead (the scene is
  * animated if it is not yet). Returns false for motions with several people.
  */
 export function applyMotion(store: Store, figureId: string, motionId: string) {
+  const mine = store.getState().library.motions?.find((m) => m.id === motionId);
+  if (mine) {
+    const start = store.scene.animation ? store.getState().time : 0;
+    store.updateScene((s) => insertMotion(s, figureId, mine.scene, start));
+    store.setTime(start);
+    return true;
+  }
   const motion = MOTIONS.find((m) => m.id === motionId);
   if (!motion || motion.people !== 1) return false;
   if (motion.travel) {

@@ -6,7 +6,7 @@ import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
 import { figuresCenter, placeShot, type Framing } from './shot';
-import { STYLES, type CameraKey, type Light, type Scene, type Style, type View } from './types';
+import { STYLES, type CameraKey, type Scene, type Style, type View } from './types';
 
 const D2R = Math.PI / 180;
 

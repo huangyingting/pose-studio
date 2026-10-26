@@ -203,6 +203,15 @@ export interface Library {
   board?: Panel[];
   /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
   poses?: PoseAsset[];
+  /** Motions the user imported (BVH, FBX, glTF), to apply to any figure like the built-in ones. */
+  motions?: MotionAsset[];
+}
+
+/** An imported motion: one figure's animation (retargeted to the mannequin). */
+export interface MotionAsset {
+  id: string;
+  name: string;
+  scene: Scene;
 }
 
 /** A pose in the library: joint angles and hands, applied to a figure without moving it. */
