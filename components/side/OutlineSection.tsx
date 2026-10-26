@@ -59,7 +59,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
           </div>
           <ul className="layers" aria-label="Cast">
             {scene.figures.map((f) => {
-              const on = f.id === active && selection?.kind !== 'prop' && selection?.kind !== 'shot';
+              const on = f.id === active && (!selection || selection.kind === 'figure' || selection.kind === 'joint');
               const moving = !!a && figureKeyTimes(a, f.id).length > 1;
               return (
                 <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}`}>

@@ -1,29 +1,32 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { BookmarkPlus, Film, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { BookmarkPlus, Film, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import { addScene, applyCameraMove, applyMotion, applyPose, deleteMotion, deletePose, saveMotion, savePose, startAnimation } from '@/lib/actions';
-import { MOTIONS } from '@/lib/motions';
-import { builtInPoses, poseScene } from '@/lib/poses';
-import { CAMERA_MOVES } from '@/lib/shot';
+import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
+import { POSE_GROUPS } from '@/lib/presets';
+import { builtInPoses } from '@/lib/poses';
+import { PREVIEW_SIZE, cameraPreview, motionPreview, posePreview, runPreview, type PreviewJob } from '@/lib/previews';
+import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/shot';
 import { shotSpans, spanAt } from '@/lib/shots';
-import { thumbnail } from '@/lib/thumbnails';
+import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
-import type { PoseAsset } from '@/lib/types';
 import { useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Segmented } from '../ui';
 import type { SectionProps } from './sections';
 
-
 /**
- * Ready-made things to build a scene with. They apply to what is selected: a pose or a motion to
- * the selected figure, a camera move to the selected (or current) shot. (Scene set-ups are in the
- * scene picker's New menu.)
+ * Ready-made things to build a scene with, in groups. They apply to what is selected: a pose or a
+ * motion to the selected figure, a camera move to the selected (or current) shot. Resting the
+ * pointer on one shows what it does: the pose, the motion playing, the move filming this scene.
+ * (Scene set-ups are in the scene picker's New menu.)
  */
 export default function LibrarySection(props: SectionProps) {
   const store = useStore();
   const tab = useStudio((s) => s.settings.libraryTab);
   const setTab = (libraryTab: LibraryTab) => store.setSettings({ libraryTab });
+  const preview = usePreview();
   return (
     <div className="side-section">
       <div className="side-head">
@@ -34,20 +37,112 @@ export default function LibrarySection(props: SectionProps) {
           label="Library"
           full
           value={tab}
-          onChange={setTab}
+          onChange={(t) => { preview.hide(); setTab(t); }}
           options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'camera', label: 'Camera' }]}
         />
       </div>
-      {tab === 'poses' && <Poses {...props} />}
-      {tab === 'motions' && <Motions {...props} />}
-      {tab === 'camera' && <CameraMoves {...props} />}
+      {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
+      {tab === 'motions' && <Motions {...props} preview={preview.bind} />}
+      {tab === 'camera' && <CameraMoves {...props} preview={preview.bind} />}
+      {preview.card}
     </div>
   );
 }
 
+/* ---------------- preview on hover ---------------- */
+
+interface Shown { title: string; note?: string; frames: string[]; top: number; left: number }
+type Bind = (title: string, note: string | undefined, job: () => PreviewJob) => {
+  onPointerEnter(e: PointerEvent<HTMLElement>): void;
+  onPointerLeave(): void;
+  onFocus(e: FocusEvent<HTMLElement>): void;
+  onBlur(): void;
+  onPointerDown(): void;
+  onKeyDown(e: KeyboardEvent<HTMLElement>): void;
+};
+
+/**
+ * A card beside the panel showing what the item under the mouse (or keyboard focus) does. Not for
+ * touch: a tap uses the item.
+ */
+function usePreview() {
+  const style = useStudio((s) => s.settings.style);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const timer = useRef(0);
+  const stop = useRef<() => void>(() => {});
+  const hide = () => {
+    window.clearTimeout(timer.current);
+    stop.current();
+    setShown(null);
+  };
+  const show = (el: HTMLElement, title: string, note: string | undefined, job: () => PreviewJob) => {
+    window.clearTimeout(timer.current);
+    stop.current();
+    // A short wait, so passing over the list does not start every item on the way.
+    timer.current = window.setTimeout(() => {
+      const row = el.getBoundingClientRect();
+      const panel = el.closest('.side-panel')?.getBoundingClientRect() ?? row;
+      const height = PREVIEW_SIZE.height + 64;
+      setShown({ title, note, frames: [], left: panel.right + 8, top: Math.max(56, Math.min(window.innerHeight - height - 8, row.top - 40)) });
+      // Frames arrive one by one: the card shows the first at once and plays as more come.
+      stop.current = runPreview(job(), (frames) => setShown((s) => (s && s.title === title ? { ...s, frames } : s)));
+    }, 160);
+  };
+  useEffect(() => () => {
+    window.clearTimeout(timer.current);
+    stop.current();
+  }, []);
+  const bind: Bind = (title, note, job) => ({
+    onPointerEnter: (e) => { if (e.pointerType === 'mouse') show(e.currentTarget, title, note, job); },
+    onPointerLeave: hide,
+    onFocus: (e) => { if (e.currentTarget.matches(':focus-visible')) show(e.currentTarget, title, note, job); },
+    onBlur: hide,
+    // Used: the preview has done its job (and stops rendering).
+    onPointerDown: hide,
+    onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') hide(); },
+  });
+  const card = shown && createPortal(<PreviewCard shown={shown} background={styleDef(style).background} />, document.body);
+  return { bind, hide, card };
+}
+
+function PreviewCard({ shown, background }: { shown: Shown; background: string }) {
+  const [tick, setTick] = useState(0);
+  const playing = shown.frames.length > 1;
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => setTick((f) => f + 1), 1000 / 8);
+    return () => window.clearInterval(id);
+  }, [playing]);
+  const src = shown.frames.length ? shown.frames[tick % shown.frames.length] : null;
+  return (
+    <div className="lib-preview" role="tooltip" style={{ left: shown.left, top: shown.top }}>
+      {src ? (
+        // Generated data: URLs, so next/image does not apply.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" width={PREVIEW_SIZE.width} height={PREVIEW_SIZE.height} style={{ background }} />
+      ) : (
+        <div className="lib-preview-wait" style={{ width: PREVIEW_SIZE.width, height: PREVIEW_SIZE.height, background }} />
+      )}
+      <strong>{shown.title}</strong>
+      {shown.note && <span>{shown.note}</span>}
+    </div>
+  );
+}
+
+/* ---------------- lists ---------------- */
+
 /** Who the library applies to, or what to select first. */
-function Target({ children }: { children: React.ReactNode }) {
+function Target({ children }: { children: ReactNode }) {
   return <p className="library-target">{children}</p>;
+}
+
+function Group({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+  return (
+    <div className="lib-group">
+      <h3 className="lib-group-head">{title}{count !== undefined && <span className="count">{count}</span>}</h3>
+      <ul className="side-list library-list" aria-label={title}>{children}</ul>
+    </div>
+  );
 }
 
 function useActiveFigure() {
@@ -56,27 +151,22 @@ function useActiveFigure() {
   return scene.figures.find((f) => f.id === id) ?? null;
 }
 
-function Poses({ notifyUndo }: SectionProps) {
+type Listed = SectionProps & { preview: Bind };
+
+function Poses({ notifyUndo, onPick, preview }: Listed) {
   const store = useStore();
   const figure = useActiveFigure();
-  const mine = useStudio((s) => s.library.poses);
+  const mine = useStudio((s) => s.library.poses) ?? [];
+  const style = useStudio((s) => s.settings.style);
   const [query, setQuery] = useState('');
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const poses: (PoseAsset & { mine?: boolean })[] = [...builtInPoses(), ...(mine ?? []).map((p) => ({ ...p, mine: true }))];
   const q = query.trim().toLowerCase();
-  const shown = poses.filter((p) => !q || p.name.toLowerCase().includes(q));
+  const match = (name: string) => !q || name.toLowerCase().includes(q);
+  const usable = !!figure && !figure.proxy;
+  const groups = [
+    ...POSE_GROUPS.map((g) => ({ title: g as string, poses: builtInPoses().filter((p) => p.group === g && match(p.name)), mine: false })),
+    { title: 'My poses', poses: mine.filter((p) => match(p.name)), mine: true },
+  ].filter((g) => g.poses.length);
 
-  // Thumbnails are cached by content: only new or changed poses render.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const next: Record<string, string> = {};
-      for (const p of [...builtInPoses(), ...(mine ?? [])]) next[p.id] = thumbnail(poseScene(p));
-      setThumbs(next);
-    }, 120);
-    return () => clearTimeout(t);
-  }, [mine]);
-
-  const usable = figure && !figure.proxy;
   return (
     <div className="side-scroll">
       <Target>
@@ -98,28 +188,27 @@ function Poses({ notifyUndo }: SectionProps) {
           }}
         />
       </div>
-      <ol className="thumbs" aria-label="Poses">
-        {shown.map((p) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              className="thumb"
-              disabled={!usable}
-              onClick={() => { if (figure && applyPose(store, figure.id, p.id)) notifyUndo(`${figure.name}: ${p.name}`); }}
-              title={usable ? `Put “${p.name}” on ${figure.name}` : p.name}
-            >
-              {thumbs[p.id] ? (
-                // Generated data: URLs, so next/image does not apply.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumbs[p.id]} alt="" draggable={false} />
-              ) : <div className="ph" />}
-              <span>{p.name}</span>
-            </button>
-            {p.mine && <IconButton icon={Trash2} label={`Delete my pose ${p.name}`} className="thumb-delete" size={13} onClick={() => { deletePose(store, p.id); notifyUndo(`Deleted “${p.name}”`); }} />}
-          </li>
+      <section aria-label="Poses">
+        {groups.map((g) => (
+          <Group key={g.title} title={g.title} count={g.poses.length}>
+            {g.poses.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  aria-disabled={!usable}
+                  onClick={() => { if (usable && applyPose(store, figure.id, p.id)) { notifyUndo(`${figure.name}: ${p.name}`); onPick?.(); } }}
+                  {...preview(p.name, usable ? `Click to put it on ${figure.name}` : undefined, () => posePreview(p, style))}
+                >
+                  <PersonStanding size={14} aria-hidden />
+                  <span className="side-list-name">{p.name}</span>
+                </button>
+                {g.mine && <IconButton icon={Trash2} label={`Delete my pose ${p.name}`} className="row-delete" size={13} onClick={() => { deletePose(store, p.id); notifyUndo(`Deleted “${p.name}”`); }} />}
+              </li>
+            ))}
+          </Group>
         ))}
-        {!shown.length && <li className="empty">No poses match “{query}”.</li>}
-      </ol>
+        {!groups.length && <p className="empty-note">No poses match “{query}”.</p>}
+      </section>
     </div>
   );
 }
@@ -131,14 +220,15 @@ function motionLength(id: string) {
   return lengths.get(id)!;
 }
 
-function Motions({ notify, notifyUndo }: SectionProps) {
+function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   const store = useStore();
   const figure = useActiveFigure();
   const mine = useStudio((s) => s.library.motions) ?? [];
+  const style = useStudio((s) => s.settings.style);
   const fileRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
-  const usable = figure && !figure.proxy;
-  const give = (id: string, name: string) => { if (figure && applyMotion(store, figure.id, id)) notifyUndo(`${figure.name}: ${name}`); };
+  const usable = !!figure && !figure.proxy;
+  const give = (id: string, name: string) => { if (usable && applyMotion(store, figure.id, id)) { notifyUndo(`${figure.name}: ${name}`); onPick?.(); } };
 
   const read = async (file: File) => {
     setReading(true);
@@ -183,48 +273,59 @@ function Motions({ notify, notifyUndo }: SectionProps) {
           }}
         />
       </div>
-      {mine.length > 0 && (
-        <ul className="side-list library-list" aria-label="My motions">
-          {mine.map((m) => (
-            <li key={m.id}>
-              <button type="button" disabled={!usable} onClick={() => give(m.id, m.name)}>
-                <Film size={14} aria-hidden />
-                <span className="side-list-name">{m.name}</span>
-                <em>{(m.scene.animation?.duration ?? 0).toFixed(1)} s</em>
-              </button>
-              <IconButton icon={Trash2} label={`Delete my motion ${m.name}`} className="row-delete" size={13} onClick={() => { deleteMotion(store, m.id); notifyUndo(`Deleted “${m.name}”`); }} />
-            </li>
-          ))}
-        </ul>
-      )}
-      <ul className="side-list library-list" aria-label="Motions">
-        {MOTIONS.map((m) => {
-          const solo = m.people === 1;
+      <section aria-label="Motions">
+        {MOTION_GROUPS.map((g) => {
+          const motions = MOTIONS.filter((m) => m.group === g);
           return (
-            <li key={m.id}>
-              <button
-                type="button"
-                disabled={solo && !usable}
-                onClick={() => {
-                  if (!solo) { addScene(store, m.build()); return; }
-                  give(m.id, m.name);
-                }}
-              >
-                {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}
-                <span className="side-list-name">{m.name}</span>
-                <em title={solo ? undefined : 'Opens as a new scene'}>{solo ? `${motionLength(m.id).toFixed(1)} s` : `${m.people} people`}</em>
-              </button>
-            </li>
+            <Group key={g} title={g} count={motions.length}>
+              {motions.map((m) => {
+                const solo = m.people === 1;
+                return (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      aria-disabled={solo && !usable}
+                      onClick={() => { if (solo) give(m.id, m.name); else { addScene(store, m.build()); onPick?.(); } }}
+                      {...preview(m.name, solo ? (usable ? `Click to give it to ${figure.name}` : undefined) : 'Opens as a new scene', () => motionPreview(m.id, m.build, style))}
+                    >
+                      {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}
+                      <span className="side-list-name">{m.name}</span>
+                      <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : `${m.people} people`}</em>
+                    </button>
+                  </li>
+                );
+              })}
+            </Group>
           );
         })}
-      </ul>
+        {mine.length > 0 && (
+          <Group title="My motions" count={mine.length}>
+            {mine.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  aria-disabled={!usable}
+                  onClick={() => give(m.id, m.name)}
+                  {...preview(m.name, usable ? `Click to give it to ${figure.name}` : undefined, () => motionPreview(m.id, () => m.scene, style))}
+                >
+                  <Film size={14} aria-hidden />
+                  <span className="side-list-name">{m.name}</span>
+                  <em>{(m.scene.animation?.duration ?? 0).toFixed(1)} s</em>
+                </button>
+                <IconButton icon={Trash2} label={`Delete my motion ${m.name}`} className="row-delete" size={13} onClick={() => { deleteMotion(store, m.id); notifyUndo(`Deleted “${m.name}”`); }} />
+              </li>
+            ))}
+          </Group>
+        )}
+      </section>
     </div>
   );
 }
 
-function CameraMoves({ notify }: SectionProps) {
+function CameraMoves({ notify, onPick, preview }: Listed) {
   const store = useStore();
   const scene = useScene();
+  const style = useStudio((s) => s.settings.style);
   const selection = useStudio((s) => s.selection);
   const time = useStudio((s) => s.time);
   const a = scene.animation;
@@ -235,25 +336,30 @@ function CameraMoves({ notify }: SectionProps) {
       <Target>
         {span ? <>Moves apply to <strong>{span.shot.name}</strong>{a && shotSpans(a).length > 1 ? ' (select another shot in the Scene outline)' : ''}.</> : 'A move animates this still scene and films it.'}
       </Target>
-      <ul className="side-list library-list" aria-label="Camera moves">
-        {CAMERA_MOVES.map((m) => (
-          <li key={m.id}>
-            <button
-              type="button"
-              title={m.description}
-              onClick={() => {
-                if (!store.scene.animation) startAnimation(store);
-                if (span) store.setTime(span.start);
-                applyCameraMove(store, m.id);
-                notify(`${m.name}: ${m.description}`);
-              }}
-            >
-              <Video size={14} aria-hidden />
-              <span className="side-list-name">{m.name}</span>
-            </button>
-          </li>
+      <section aria-label="Camera moves">
+        {CAMERA_GROUPS.map((g) => (
+          <Group key={g} title={g}>
+            {CAMERA_MOVES.filter((m) => m.group === g).map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!store.scene.animation) startAnimation(store);
+                    if (span) store.setTime(span.start);
+                    applyCameraMove(store, m.id);
+                    notify(`${m.name}: ${m.description}`);
+                    onPick?.();
+                  }}
+                  {...preview(m.name, m.description, () => cameraPreview(m, scene, style))}
+                >
+                  <Video size={14} aria-hidden />
+                  <span className="side-list-name">{m.name}</span>
+                </button>
+              </li>
+            ))}
+          </Group>
         ))}
-      </ul>
+      </section>
     </div>
   );
 }

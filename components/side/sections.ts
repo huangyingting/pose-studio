@@ -14,7 +14,7 @@ import OutlineSection from './OutlineSection';
 export interface SectionProps {
   notifyUndo(text: string): void;
   notify(text: string): void;
-  /** A pose was picked (closes the drawer on small screens). */
+  /** Something from the library was used (closes the drawer on small screens, to show it). */
   onPick?(): void;
   /** Open "figures from a photo". */
   onPhoto(): void;

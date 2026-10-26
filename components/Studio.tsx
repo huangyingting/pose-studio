@@ -27,7 +27,7 @@ import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
-import { Clock } from './clock';
+import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
 import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './ui';
@@ -99,11 +99,7 @@ function App() {
       store.setTime(clock.time);
       return;
     }
-    clock.set(store.getState().time);
-    clock.play(() => {
-      const a = store.scene.animation;
-      return a ? { duration: a.duration, loop: a.loop } : null;
-    }, (t) => store.setTime(t));
+    startPlayback(clock, store);
   }, [clock, store]);
   /** Stop playback before any edit, so changes are keyed at the frame on screen. */
   const stopPlayback = useCallback(() => {

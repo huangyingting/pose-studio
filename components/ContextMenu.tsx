@@ -37,11 +37,10 @@ export function ContextMenuHost() {
   useEffect(() => {
     if (!menu) return;
     const el = ref.current;
-    // Keep it on screen.
+    // Keep it on screen (its own size: the opening animation scales it).
     if (el) {
-      const r = el.getBoundingClientRect();
-      el.style.left = `${Math.max(4, Math.min(menu.x, window.innerWidth - r.width - 4))}px`;
-      el.style.top = `${Math.max(4, Math.min(menu.y, window.innerHeight - r.height - 4))}px`;
+      el.style.left = `${Math.max(4, Math.min(menu.x, window.innerWidth - el.offsetWidth - 4))}px`;
+      el.style.top = `${Math.max(4, Math.min(menu.y, window.innerHeight - el.offsetHeight - 4))}px`;
       el.querySelector<HTMLElement>('[role^=menuitem]:not(:disabled)')?.focus();
     }
     const onDown = (e: PointerEvent) => { if (!el?.contains(e.target as Node)) closeContextMenu(); };

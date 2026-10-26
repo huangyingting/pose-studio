@@ -18,9 +18,13 @@ import type { Animation, BodyParams, Figure, Hand, JointName, PoseKey, Scene, Si
  * comes with a camera move, so it plays like a short shot.
  */
 
+/** Groups of the motion library (several-people motions are listed on their own). */
+export const MOTION_GROUPS = ['Getting around', 'Fighting', 'Sport & gymnastics', 'Dance', 'Everyday', 'Two people'] as const;
+
 export interface Motion {
   id: string;
   name: string;
+  group: (typeof MOTION_GROUPS)[number];
   people: number;
   build(): Scene;
   /** Moving from mark to mark (generated steps): applied, the figure goes this far ahead. */
@@ -192,6 +196,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'walk',
     name: 'Walk ahead',
+    group: 'Getting around',
     people: 1,
     travel: { kind: 'walk', distance: 3 },
     build: () => travelled(person('Walker', { ...DEFAULT_BODY }, STAND), 'walk', 3, { view: { yaw: 70, pitch: 6, fov: 30 }, camera: 'static' }),
@@ -199,6 +204,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'run',
     name: 'Run ahead',
+    group: 'Getting around',
     people: 1,
     travel: { kind: 'run', distance: 6 },
     build: () => travelled({ ...person('Runner', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } }, 'run', 6, { view: { yaw: 90, pitch: 4, fov: 34 }, camera: 'static' }),
@@ -206,6 +212,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'jump',
     name: 'Jump ahead',
+    group: 'Getting around',
     people: 1,
     travel: { kind: 'jump', distance: 1 },
     build: () => travelled(person('Jumper', { ...DEFAULT_BODY }, STAND), 'jump', 1, { view: { yaw: 70, pitch: 4, fov: 30 }, camera: 'static' }),
@@ -213,6 +220,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'dance',
     name: 'Dance groove',
+    group: 'Dance',
     people: 1,
     build: () => {
       const f = { ...person('Dancer', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
@@ -235,6 +243,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'waltz-turn',
     name: 'Waltz turn',
+    group: 'Two people',
     people: 2,
     build: () => withRig((rig) => {
       const hold = buildTemplate('waltz')!;
@@ -260,6 +269,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'boxing',
     name: 'Boxing exchange',
+    group: 'Two people',
     people: 2,
     build: () => withRig((rig) => {
       const [a0, b0] = buildTemplate('sparring')!.figures;
@@ -293,6 +303,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'kick',
     name: 'Front kick',
+    group: 'Fighting',
     people: 1,
     build: () => withRig((rig) => {
       const f = person('Fighter', { ...DEFAULT_BODY });
@@ -310,6 +321,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'jab-cross',
     name: 'Jab & cross',
+    group: 'Fighting',
     people: 1,
     build: () => withRig((rig) => {
       const stance = guard(rig, posed(person('Boxer', { ...DEFAULT_BODY }), STANCE));
@@ -326,6 +338,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'block-duck',
     name: 'Block & duck',
+    group: 'Fighting',
     people: 1,
     build: () => withRig((rig) => {
       const stance = guard(rig, posed(person('Boxer', { ...DEFAULT_BODY }), STANCE));
@@ -342,6 +355,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'hit',
     name: 'Take a hit',
+    group: 'Fighting',
     people: 1,
     build: () => withRig((rig) => {
       const stance = guard(rig, posed(person('Boxer', { ...DEFAULT_BODY }), STANCE));
@@ -359,6 +373,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'throw',
     name: 'Throw overhand',
+    group: 'Sport & gymnastics',
     people: 1,
     build: () => withRig((rig) => {
       // Left foot forward. The shoulders wind up side-on (the left one to the target) with the arm
@@ -382,6 +397,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'pirouette',
     name: 'Pirouette',
+    group: 'Dance',
     people: 1,
     build: () => withRig((rig) => {
       const f = { ...person('Dancer', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
@@ -404,6 +420,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'cartwheel',
     name: 'Cartwheel',
+    group: 'Sport & gymnastics',
     people: 1,
     build: () => withRig((rig) => {
       const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
@@ -444,6 +461,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'fall',
     name: 'Fall & get up',
+    group: 'Everyday',
     people: 1,
     build: () => withRig((rig) => {
       const f = person('Faller', { ...DEFAULT_BODY }, STAND);
@@ -480,6 +498,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'wave',
     name: 'Wave hello',
+    group: 'Everyday',
     people: 1,
     build: () => {
       const f = { ...person('Mia', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Open') } };
@@ -495,6 +514,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'bow',
     name: 'Bow',
+    group: 'Everyday',
     people: 1,
     build: () => {
       const f = person('Ken', { ...DEFAULT_BODY }, STAND);

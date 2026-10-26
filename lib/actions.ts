@@ -542,6 +542,22 @@ export function travelTo(store: Store, figureId: string, to: [number, number], k
   return { from: t0, to: t1 };
 }
 
+/**
+ * Move a figure's key at `from` and all its later keys by `by` seconds: a pause put in or taken
+ * out of its action (the other figures keep their timing). It cannot move back past its key before.
+ */
+export function rippleKeys(store: Store, figureId: string, from: number, by: number, key = '') {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a) return s;
+    const times = figureKeyTimes(a, figureId);
+    const before = [...times].reverse().find((t) => t < from - 1e-6);
+    const step = before === undefined ? Math.max(by, -from) : Math.max(by, before + 1 / a.fps - from);
+    // From the key at `from` on (keys sit on frames, so half a frame before it is safe).
+    return Math.abs(step) < 1e-6 ? s : { ...s, animation: shiftTrack(a, figureId, from - 0.5 / a.fps, step) };
+  }, key);
+}
+
 /** Move one figure's keys after `after` later by `by` seconds (its other keys stay; others' too). */
 function shiftTrack(a: Animation, id: string, after: number, by: number): Animation {
   const moved: { t: number; pose: PoseKey }[] = [];

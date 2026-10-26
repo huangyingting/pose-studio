@@ -418,8 +418,8 @@ function HandsSection({ hands }: { hands: Record<Side, HandPose> }) {
       title="Hands"
       collapsible
       defaultOpen={false}
-      actions={<Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left' }, { value: 'R', label: 'Right' }]} />}
     >
+      <Segmented<Side> label="Hand" full value={side} onChange={setSide} options={[{ value: 'L', label: 'Left hand' }, { value: 'R', label: 'Right hand' }]} />
       <div className="chips">
         {HAND_PRESETS.map((p) => (
           <button key={p.name} type="button" className={p.name === preset ? 'chip on' : 'chip'} onClick={() => setHand(store, side, p.hand)}>{p.name}</button>

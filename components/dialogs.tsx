@@ -203,7 +203,7 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
           >
             <Box size={15} aria-hidden /> 3D model (.glb)
           </button>
-          {!filmed && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>}
+          {!filmed && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })} data-tip="4 columns of 600 × 640 cells, as the original Pose.jpg sheet">Default layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
             {video ? <Film size={15} aria-hidden /> : pack ? <Package size={15} aria-hidden /> : <Download size={15} aria-hidden />}
@@ -216,8 +216,10 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
     >
       <div className="export-grid">
         <div className="form">
-          <Field label="What">
-            <Segmented<ExportOptions['scope']> label="What" full value={scope} onChange={(sc) => set({ scope: sc })} options={images} />
+          <Field label="Image">
+            <Segmented<ExportOptions['scope']> label="Image" full value={scope} onChange={(sc) => set({ scope: sc })} options={images} />
+          </Field>
+          <Field label="For video">
             <Segmented<ExportOptions['scope']> label="For video" full value={scope} onChange={(sc) => set({ scope: sc })} options={forVideo} />
           </Field>
           {scope === 'turnaround' && (
@@ -308,9 +310,10 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
           ) : (
             <>
               <div className="row">
-                <label>Columns {num('columns', 1, 12)}</label>
-                <label>Cell width {num('cellWidth', 100, 4000)}</label>
-                <label>Cell height {num('cellHeight', 100, 4000)}</label>
+                {/* One scene is one cell: its size is the picture's. */}
+                {scope !== 'current' && <label>Columns {num('columns', 1, 12)}</label>}
+                <label>{scope === 'current' ? 'Width' : 'Cell width'} {num('cellWidth', 100, 4000)}</label>
+                <label>{scope === 'current' ? 'Height' : 'Cell height'} {num('cellHeight', 100, 4000)}</label>
               </div>
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
               <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
@@ -517,6 +520,8 @@ const SHORTCUTS: [string, string][] = [
   ['Play / pause animation', 'Space'],
   ['Step a frame', ',  .'],
   ['Key the selected figure · cut shot', 'K · C'],
+  ['Zoom · scroll the timeline', 'Ctrl wheel · Shift wheel'],
+  ['Move a key and the keys after it', 'Shift drag the key'],
   ['Previous / next scene', '[  ]'],
   ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
   ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],

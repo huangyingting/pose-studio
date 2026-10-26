@@ -16,7 +16,7 @@ import { IconButton, Menu, NumberField, Select, Toggle, type Notify } from './ui
 const PREVIEW = { width: 320, height: 180 };
 const previewCache = new Map<string, string>();
 
-/** A small 16:9 frame of a pose through its shot camera (cached by content). */
+/** A small 16:9 frame of a scene through its shot camera (cached by content). */
 function preview(scene: Scene, style: Style) {
   const key = JSON.stringify([style, scene.figures, scene.props, scene.view, scene.animation?.keys[0], scene.animation?.camera?.keys[0]]);
   let url = previewCache.get(key);
@@ -33,7 +33,7 @@ function preview(scene: Scene, style: Style) {
 }
 
 /**
- * Storyboard: the story as a row of panels, each a pose from the library with a caption and
+ * Storyboard: the story as a row of panels, each a scene of the project with a caption and
  * how long it stays on screen. Export a board sheet or an animatic.
  */
 export default function Board({ onClose, notify }: { onClose(): void; notify: Notify }) {
@@ -174,7 +174,7 @@ export default function Board({ onClose, notify }: { onClose(): void; notify: No
           <li className="panel-add">
             <button type="button" onClick={() => addToBoard(store)}>
               <Plus size={20} aria-hidden />
-              <span>Add the open pose</span>
+              <span>Add the open scene</span>
             </button>
           </li>
         </ol>
@@ -182,7 +182,7 @@ export default function Board({ onClose, notify }: { onClose(): void; notify: No
         <div className="board-empty">
           <LayoutPanelTop size={28} strokeWidth={1.5} aria-hidden />
           <h3>Tell a story, one panel at a time</h3>
-          <p className="muted">Each panel is a pose from your library, framed by its camera, with a caption and how long it stays on screen.</p>
+          <p className="muted">Each panel is one of your scenes, framed by its camera, with a caption and how long it stays on screen.</p>
           <button type="button" className="btn primary" onClick={() => addToBoard(store)}><Plus size={15} aria-hidden /> Add “{store.scene.name}”</button>
         </div>
       )}

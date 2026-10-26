@@ -81,7 +81,8 @@ button { font: inherit; color: inherit; }
 .btn:disabled, .ibtn:disabled { opacity: 0.35; cursor: default; }
 .ibtn { width: 30px; height: 30px; padding: 0; border-radius: var(--radius-s); color: var(--text-2); flex: none; }
 .ibtn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
-.ibtn.on { background: var(--accent-soft); color: var(--accent); }
+/* Stays marked on while hovered. */
+.ibtn.on, .ibtn.on:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .ibtn.text { width: auto; padding: 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
 .file-button { position: relative; }
 .file-button input { display: none; }
@@ -230,8 +231,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .switch input:checked::after { transform: translateX(12px); }
 
 .segmented { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius); background: #efeff3; }
-.segmented.full { display: flex; }
-.segmented.full button { flex: 1; }
+.segmented.full { display: flex; flex-wrap: wrap; }
+/* Choices share the width, and go onto another line rather than being cut off. */
+.segmented.full button { flex: 1 1 auto; white-space: nowrap; }
 .segmented button {
   display: inline-flex;
   align-items: center;
@@ -630,7 +632,22 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   backdrop-filter: blur(6px);
   user-select: none;
 }
+/* An open menu of the timeline goes over the floating canvas tools (phones). */
+.timeline:has(.menu-list) { z-index: 21; }
 .tl-bar { display: flex; align-items: center; gap: 2px; padding: 0 8px; min-width: 0; }
+.tl-zoom { display: contents; }
+.timeline.folded { grid-template-rows: 44px; }
+/* The top edge drags to make the tracks taller or shorter. */
+.tl-resize { position: absolute; top: -4px; left: 0; right: 0; height: 8px; cursor: ns-resize; z-index: 1; }
+.tl-resize:hover { background: linear-gradient(transparent 3px, var(--accent-ring) 3px 5px, transparent 5px); }
+.tl-btn { height: 30px; padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; }
+.tl-btn.on { color: var(--accent); }
+.tl-speed { height: 26px; min-width: 40px; padding: 0 6px; margin-left: 2px; font: 600 11px var(--mono); color: var(--text-2); }
+.tl-dot { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+/* Where the zoomed-in stretch is in the whole animation. */
+.tl-scroll { grid-column: 2; position: relative; height: 6px; margin-top: 4px; border-radius: 3px; background: var(--panel-2); }
+.tl-scroll-thumb { position: absolute; top: 0; bottom: 0; min-width: 16px; border-radius: 3px; background: var(--border-strong); cursor: grab; }
+.tl-scroll-thumb:hover { background: var(--text-3); }
 .tl-transport { display: flex; align-items: center; gap: 2px; }
 .tl-play {
   width: 34px;
@@ -650,11 +667,19 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-time span { color: var(--text-3); font-weight: 500; font-size: 11px; }
 .tl-time em { font-style: normal; color: var(--text-2); font-weight: 500; font-size: 11px; margin-left: 4px; }
 .tl-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; flex: none; }
-.tl-duration { width: 74px; margin-left: 4px; }
+.tl-duration { width: 74px; margin-left: 4px; flex: none; }
+/* The toolbar fits the room it has: labels, then the zoom buttons, then the time's details give way
+   (nothing is squeezed). */
+.tl-bar > :not(.spacer) { flex: none; }
+.timeline { container-type: inline-size; }
+@container (max-width: 980px) { .tl-label { display: none; } .tl-btn { padding: 0 6px; } }
+@container (max-width: 800px) { .tl-zoom { display: none; } }
+@container (max-width: 680px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
+@container (max-width: 460px) { .tl-step, .tl-speed { display: none; } .tl-time { margin-left: 4px; } }
 .tl-tracks { display: grid; grid-template-columns: 76px minmax(0, 1fr); padding: 0 12px 10px 0; max-height: min(40vh, 300px); overflow-y: auto; }
 .tl-labels { display: grid; grid-template-rows: 18px 24px 26px 26px; color: var(--text-2); font-size: 11px; font-weight: 500; padding-left: 12px; }
 .tl-labels span { display: flex; align-items: center; }
-.tl-lanes { position: relative; display: grid; grid-template-rows: 18px 24px 26px 26px; cursor: ew-resize; touch-action: none; }
+.tl-lanes { position: relative; display: grid; grid-template-rows: 18px 24px 26px 26px; cursor: ew-resize; touch-action: none; overflow-x: clip; }
 .tl-ruler { position: relative; border-bottom: 1px solid var(--border); }
 .tl-ruler .tick { position: absolute; bottom: 0; width: 1px; height: 4px; background: var(--border-strong); }
 .tl-ruler .tick.major { height: 8px; background: var(--text-3); }
@@ -694,6 +719,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   pointer-events: none;
 }
 .tl-travel span { overflow: hidden; text-overflow: ellipsis; }
+/* A figure's walk, run or jump: drag it to move the whole move (and what follows); click to go to it. */
+.tl-travel.grab { pointer-events: auto; cursor: grab; }
+.tl-travel.grab:hover { filter: brightness(0.96); }
 .tl-travel.walk { background: rgba(48, 164, 108, 0.14); color: #23784f; }
 .tl-travel.run { background: rgba(245, 158, 11, 0.16); color: #a35e00; }
 .tl-travel.jump { background: rgba(139, 92, 246, 0.15); color: #6b44d6; }
@@ -718,6 +746,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-key:hover { background: var(--accent); }
 .tl-key.on { background: var(--accent); box-shadow: 0 0 0 1.5px #fff, 0 0 0 4px var(--accent-ring); }
 .tl-key.cam { background: #f59e0b; border-radius: 50%; transform: none; cursor: pointer; }
+/* Keys closer together than a key is wide (a motion keyed every frame): small and light. */
+.tl-key.dense { width: 5px; height: 5px; margin: -3px 0 0 -3px; background: #9a9ba4; box-shadow: none; }
 .tl-key.cam.on { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3); }
 .tl-empty { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 11px; pointer-events: none; white-space: nowrap; overflow: hidden; max-width: calc(100% - 16px); text-overflow: ellipsis; }
 .tl-row.shots { background: none; }
@@ -1045,6 +1075,8 @@ button.psec-title svg { color: var(--text-3); }
 .form .row { display: flex; gap: 8px; }
 .form .row label { flex: 1; min-width: 0; }
 .export-grid, .photo-grid { display: grid; grid-template-columns: minmax(270px, 1fr) minmax(0, 1.25fr); gap: 20px; }
+/* Four kinds of image (with several scenes) make two even rows. */
+.export-grid .segmented.full:has(> :nth-child(4):last-child) { display: grid; grid-template-columns: 1fr 1fr; }
 .preview {
   display: grid;
   place-items: center;
@@ -1406,13 +1438,33 @@ button.psec-title svg { color: var(--text-3); }
 .thumb-delete { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
 .thumbs li:hover .thumb-delete, .thumb-delete:focus-visible { opacity: 1; }
 .library-list { margin: 0 6px; }
-.library-list + .library-list { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
 .library-list li { position: relative; }
 .library-list .row-delete { position: absolute; top: 50%; right: 4px; width: 24px; height: 24px; transform: translateY(-50%); background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
 .library-list li:hover .row-delete, .library-list .row-delete:focus-visible { opacity: 1; }
 .library-import { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.library-list button:disabled { color: var(--text-3); cursor: default; }
-.library-list button:disabled:hover { background: none; }
+.library-list button:disabled, .library-list button[aria-disabled='true'] { color: var(--text-3); cursor: default; }
+.library-list button:disabled:hover, .library-list button[aria-disabled='true']:hover { background: none; }
+/* Groups of the library, headed like the Scene outline's. */
+.lib-group { padding: 2px 0 8px; }
+.lib-group + .lib-group { border-top: 1px solid var(--border); padding-top: 6px; }
+.lib-group-head { display: flex; align-items: center; height: 26px; margin: 0; padding: 0 14px; font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+/* What a library item does, beside the panel while the pointer rests on it. */
+.lib-preview {
+  position: fixed;
+  z-index: 70;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-float), 0 0 0 1px var(--border);
+  pointer-events: none;
+  animation: rise 0.12s ease-out;
+}
+.lib-preview img { display: block; border-radius: var(--radius-s); }
+.lib-preview-wait { border-radius: var(--radius-s); }
+.lib-preview strong { font-size: 12px; font-weight: 600; padding: 2px 2px 0; }
+.lib-preview span { max-width: 200px; font-size: 11px; color: var(--text-2); padding: 0 2px 2px; line-height: 1.4; }
 
 .scene-picker { position: relative; display: flex; }
 .scene-switch { width: 26px; height: 26px; }

@@ -196,9 +196,13 @@ export function captureShot(
 
 /* ---------- camera moves ---------- */
 
+/** Groups of the camera moves: where the camera goes. */
+export const CAMERA_GROUPS = ['Fixed', 'Towards & away', 'Around & up', 'Following'] as const;
+
 export interface CameraMove {
   id: string;
   name: string;
+  group: (typeof CAMERA_GROUPS)[number];
   description: string;
   follow?: boolean;
   shake?: number;
@@ -210,23 +214,23 @@ const key = (t: number, yaw: number, pitch: number, fov: number, zoom = 1, pan: 
 /** Ready-made shots, applied over the whole animation. */
 export const CAMERA_MOVES: CameraMove[] = [
   {
-    id: 'static', name: 'Locked-off wide', description: 'A fixed camera that shows everything',
+    id: 'static', group: 'Fixed', name: 'Locked-off wide', description: 'A fixed camera that shows everything',
     keys: (_, b) => [key(0, b.yaw, b.pitch, b.fov)],
   },
   {
-    id: 'push', name: 'Push in', description: 'Slowly dolly towards the figures',
+    id: 'push', group: 'Towards & away', name: 'Push in', description: 'Slowly dolly towards the figures',
     keys: (a, b) => [key(0, b.yaw, b.pitch, b.fov, 1), key(a.duration, b.yaw, b.pitch, b.fov, 1.8, [0, 0.25])],
   },
   {
-    id: 'pull', name: 'Pull out', description: 'Start close and reveal the whole scene',
+    id: 'pull', group: 'Towards & away', name: 'Pull out', description: 'Start close and reveal the whole scene',
     keys: (a, b) => [key(0, b.yaw, b.pitch, b.fov, 1.9, [0, 0.3]), key(a.duration, b.yaw, b.pitch, b.fov, 1)],
   },
   {
-    id: 'orbit90', name: 'Arc 90°', description: 'Circle a quarter of the way around',
+    id: 'orbit90', group: 'Around & up', name: 'Arc 90°', description: 'Circle a quarter of the way around',
     keys: (a, b) => [key(0, b.yaw - 45, b.pitch + 4, b.fov, 1.1), key(a.duration, b.yaw + 45, b.pitch + 4, b.fov, 1.1)],
   },
   {
-    id: 'orbit360', name: 'Orbit 360°', description: 'A full turntable around the figures',
+    id: 'orbit360', group: 'Around & up', name: 'Orbit 360°', description: 'A full turntable around the figures',
     keys: (a, b) => {
       const n = 4;
       const keys = Array.from({ length: n }, (_, i) => key((a.duration * i) / n, b.yaw + (360 * i) / n, b.pitch + 6, b.fov));
@@ -234,23 +238,23 @@ export const CAMERA_MOVES: CameraMove[] = [
     },
   },
   {
-    id: 'crane', name: 'Crane up', description: 'Rise from eye level to a high angle',
+    id: 'crane', group: 'Around & up', name: 'Crane up', description: 'Rise from eye level to a high angle',
     keys: (a, b) => [key(0, b.yaw, -2, b.fov, 1.15), key(a.duration, b.yaw + 15, 48, b.fov, 0.95)],
   },
   {
-    id: 'hero', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens',
+    id: 'hero', group: 'Fixed', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens',
     keys: (a, b) => [key(0, b.yaw - 15, -14, 38, 1.25, [0, 0.12]), key(a.duration, b.yaw + 10, -8, 34, 1.4, [0, 0.18])],
   },
   {
-    id: 'tracking', name: 'Tracking shot', description: 'Follow alongside, keeping the figures in frame', follow: true,
+    id: 'tracking', group: 'Following', name: 'Tracking shot', description: 'Follow alongside, keeping the figures in frame', follow: true,
     keys: (_, b) => [key(0, b.yaw + 90, 3, 30, 1.35, [0, 0.15])],
   },
   {
-    id: 'vertigo', name: 'Dolly zoom', description: 'The “Vertigo” effect: the lens widens while the figures keep their size',
+    id: 'vertigo', group: 'Towards & away', name: 'Dolly zoom', description: 'The “Vertigo” effect: the lens widens while the figures keep their size',
     keys: (a, b) => [key(0, b.yaw, b.pitch, 14, 1.05), key(a.duration, b.yaw, b.pitch, 62, 1.05)],
   },
   {
-    id: 'handheld', name: 'Hand-held', description: 'A close, slightly shaky documentary feel', shake: 0.6,
+    id: 'handheld', group: 'Following', name: 'Hand-held', description: 'A close, slightly shaky documentary feel', shake: 0.6,
     keys: (a, b) => [key(0, b.yaw + 10, b.pitch + 2, 32, 1.35, [0, 0.22]), key(a.duration, b.yaw - 5, b.pitch, 32, 1.45, [0, 0.26])],
   },
 ];

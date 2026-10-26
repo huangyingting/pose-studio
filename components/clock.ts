@@ -1,3 +1,6 @@
+import { spanAt } from '@/lib/shots';
+import type { Store } from '@/lib/store';
+
 /**
  * Animation playback clock. Kept outside React state so playing an animation does not
  * re-render the whole studio every frame: the viewport and the timeline subscribe to it.
@@ -27,12 +30,27 @@ export class Clock {
     this.emit();
   }
 
-  /** Play from the current time; `range` gives the length and looping (read every frame). */
-  play(range: () => { duration: number; loop: boolean } | null, onEnd?: (time: number) => void) {
+  /** Playback speed (1 = real time; slower to study fast action). */
+  speed = 1;
+  /** Play the shot under the playhead over and over, instead of the whole animation. */
+  repeatShot = false;
+
+  setSpeed(speed: number) {
+    this.speed = speed;
+    this.emit();
+  }
+
+  setRepeatShot(on: boolean) {
+    this.repeatShot = on;
+    this.emit();
+  }
+
+  /** Play from the current time over `range` (read every frame), at `speed`. */
+  play(range: () => { start: number; end: number; loop: boolean } | null, onEnd?: (time: number) => void) {
     if (this.playing) return;
     const r = range();
     if (!r) return;
-    if (!r.loop && this.time >= r.duration - 1e-3) this.time = 0;
+    if (this.time < r.start - 1e-3 || (!r.loop && this.time >= r.end - 1e-3) || this.time > r.end) this.time = r.start;
     this.playing = true;
     this.last = performance.now();
     const tick = (now: number) => {
@@ -42,12 +60,12 @@ export class Clock {
         this.pause();
         return;
       }
-      this.time += Math.min(0.1, (now - this.last) / 1000);
+      this.time += Math.min(0.1, (now - this.last) / 1000) * this.speed;
       this.last = now;
-      if (this.time >= cur.duration) {
-        if (cur.loop) this.time %= cur.duration;
+      if (this.time >= cur.end) {
+        if (cur.loop) this.time = cur.start + ((this.time - cur.start) % Math.max(1e-3, cur.end - cur.start));
         else {
-          this.time = cur.duration;
+          this.time = cur.end;
           this.pause();
           onEnd?.(this.time);
           return;
@@ -66,4 +84,23 @@ export class Clock {
     cancelAnimationFrame(this.raf);
     this.emit();
   }
+}
+
+/**
+ * Start playing the open scene from the playhead: the whole animation (looping if it loops), or
+ * with "repeat this shot" just the shot under the playhead, over and over.
+ */
+export function startPlayback(clock: Clock, store: Store) {
+  clock.set(store.getState().time);
+  let shot: { start: number; end: number } | null = null;
+  clock.play(() => {
+    const a = store.scene.animation;
+    if (!a) return null;
+    if (clock.repeatShot) {
+      shot ??= spanAt(a, clock.time);
+      return { start: shot.start, end: shot.end, loop: true };
+    }
+    shot = null;
+    return { start: 0, end: a.duration, loop: a.loop };
+  }, (t) => store.setTime(t));
 }

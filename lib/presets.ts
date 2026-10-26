@@ -174,8 +174,22 @@ const hand = (name: string): Hand => {
   return { curl: [...h.curl] as Hand['curl'], spread: h.spread };
 };
 
+/** Groups of the pose library, by what the body rests on. */
+export const POSE_GROUPS = ['Standing', 'Sitting & squatting', 'Kneeling & all fours', 'Lying'] as const;
+export type PoseGroup = (typeof POSE_GROUPS)[number];
+
+const GROUP: Record<string, PoseGroup> = {
+  'Hand on head': 'Standing', 'Hands behind head': 'Standing', 'Back view, hand on hip': 'Standing', 'Leaning, hands on knees': 'Standing',
+  'Standing, hugging knee': 'Standing', 'Lunge, pushing': 'Standing',
+  'Side sit, leaning on arm': 'Sitting & squatting', 'Crouch, hands on floor': 'Sitting & squatting', 'Sitting, knees up': 'Sitting & squatting',
+  'Deep squat': 'Sitting & squatting', 'Sitting, legs wide': 'Sitting & squatting', 'Sitting, holding leg up': 'Sitting & squatting',
+  'Kneeling, hands on knees': 'Kneeling & all fours', 'Kneeling, hands behind head': 'Kneeling & all fours', 'Table-top': 'Kneeling & all fours',
+  'Kneeling wide, sitting back': 'Kneeling & all fours',
+  'Lying, head propped': 'Lying', 'Prone, chin in hands': 'Lying', 'Cobra': 'Lying', 'Lying, leg raised': 'Lying',
+};
+
 /** The built-in poses (from the drawing reference sheet), with stable ids. */
-export const BUILT_IN_POSES: PoseAsset[] = RAW.map((p, i) => {
+export const BUILT_IN_POSES: (PoseAsset & { group: PoseGroup })[] = RAW.map((p, i) => {
   const [l, r] = HAND_HINTS[p.name] ?? ['Relaxed', 'Relaxed'];
-  return { id: `preset${i + 1}`, name: p.name, joints: p.joints, hands: { L: hand(l), R: hand(r) }, view: p.view };
+  return { id: `preset${i + 1}`, name: p.name, joints: p.joints, hands: { L: hand(l), R: hand(r) }, view: p.view, group: GROUP[p.name] };
 });

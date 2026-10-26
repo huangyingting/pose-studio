@@ -9,8 +9,8 @@ import { uid } from './uid';
  * user saved. A pose applies to a figure's joints and hands, wherever it stands and faces.
  */
 
-/** The 20 built-in poses (never stored in the library). */
-export function builtInPoses(): PoseAsset[] {
+/** The 20 built-in poses (never stored in the library), each in a group (standing, sitting, …). */
+export function builtInPoses() {
   return BUILT_IN_POSES;
 }
 

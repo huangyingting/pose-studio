@@ -103,7 +103,7 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await page.getByLabel('Scene name').fill(name);
   await openSection(page, 'Library');
   await page.getByRole('radio', { name: 'Motions' }).click();
-  await page.getByRole('list', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -111,7 +111,7 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
 async function motionScene(page: Page, motion: string) {
   await openSection(page, 'Library');
   await page.getByRole('radio', { name: 'Motions' }).click();
-  await page.getByRole('list', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -155,8 +155,11 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await page.locator('.stage canvas').waitFor();
   await expect(tips).toHaveCount(0);
   await openSection(page, 'Library');
-  const poses = page.getByRole('list', { name: 'Poses' });
-  await expect(poses.locator('img')).toHaveCount(20);
+  const poses = page.getByRole('region', { name: 'Poses' });
+  // In groups (standing, sitting, kneeling, lying); resting on one shows it.
+  await expect(poses.getByRole('button')).toHaveCount(20);
+  await poses.getByRole('button', { name: 'Cobra', exact: true }).hover();
+  await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
   await expect(page.getByText('Figure: Hand on head')).toBeVisible();
   expect((await state(page)).scene.figures[0].joints.shoulderR).toEqual(refScenes()[0].figures[0].joints.shoulderR);
@@ -442,6 +445,17 @@ test('mobile layout uses drawers', async ({ page }) => {
   // Scenes switch from the top bar.
   await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
   expect((await state(page)).sceneIndex).toBe(2);
+  // A narrow timeline keeps the transport and the key; the rest is in its menu.
+  await page.getByRole('button', { name: 'Side panel', exact: true }).click();
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  await expect(timeline.getByRole('button', { name: 'Play', exact: true })).toBeInViewport();
+  await expect(timeline.getByRole('button', { name: /^Cut/ })).toHaveCount(0);
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
+  await timeline.getByRole('button', { name: 'Animation options' }).click();
+  await page.getByRole('menuitem', { name: /^Cut: start a new shot here/ }).click();
+  await expect(page.locator('.tl-shot')).toHaveCount(2);
 });
 
 test('exports a turnaround of the current pose', async ({ page }) => {
@@ -629,9 +643,9 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   // Four keys of the loop, and the first again to close it.
   expect((await anim(page)).animation!.keys).toHaveLength(5);
 
-  await page.getByRole('button', { name: 'Play' }).click();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await page.waitForTimeout(500);
-  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
   expect((await anim(page)).time).toBeGreaterThan(0);
 
   // Step to a frame between keys and add a key there.
@@ -647,7 +661,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await openSection(page, 'Scene');
   await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
-  await page.getByRole('list', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
+  await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
   expect((await anim(page)).animation!.camera!.keys).toHaveLength(4);
 });
 
@@ -866,7 +880,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   await addLayer(page, 'Figure');
   const [, second] = await figs(page);
   await openSection(page, 'Library');
-  await page.getByRole('list', { name: 'Poses' }).getByRole('button', { name: /Cobra/ }).click();
+  await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: /Cobra/ }).click();
   const [a, b] = await figs(page);
   // The selected (new) figure took the pose where it stands; the first one did not change.
   expect(b.id).toBe(second.id);
@@ -874,9 +888,9 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   expect(a.joints).toEqual(refScenes()[0].figures[0].joints);
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
-  await expect(page.getByRole('list', { name: 'Poses' }).locator('li')).toHaveCount(21);
+  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(21);
   await page.getByRole('radio', { name: 'Motions' }).click();
-  await page.getByRole('list', { name: 'Motions' }).getByRole('button', { name: /^Jump/ }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump/ }).click();
   const tracks = await page.evaluate(() => {
     const st = (window as unknown as { __poseStudio: { store: { getState(): { sceneIndex: number; library: { scenes: { figures: { id: string }[]; animation?: { keys: { poses: Record<string, unknown> }[] } }[] } } } } }).__poseStudio.store.getState();
     const sc = st.library.scenes[st.sceneIndex];
@@ -1002,4 +1016,53 @@ test('a motion file is imported into My motions and given to the figure', async 
   // Deleting it takes it out of the library (the figure keeps its keys).
   await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
+});
+
+test('the timeline zooms, retimes a stretch, plays slower and folds away', async ({ page }) => {
+  await motionScene(page, 'Boxing exchange');
+  const keys = () => page.evaluate(() => {
+    const store = (window as unknown as { __poseStudio: { store: LiveStore } }).__poseStudio.store;
+    const id = store.scene.figures[0].id;
+    return store.scene.animation!.keys.filter((k) => k.poses[id]).map((k) => Math.round(k.t * 1000) / 1000);
+  });
+  // Zoom in about the playhead, then back to the whole animation.
+  await page.getByRole('button', { name: /^Zoom in/ }).click();
+  await expect(page.getByRole('button', { name: 'Fit the whole animation' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Fit the whole animation' }).click();
+  await expect(page.getByRole('button', { name: 'Fit the whole animation' })).toBeDisabled();
+
+  // Shift-drag a key: it and the keys after it move together; the earlier ones stay.
+  const before = await keys();
+  const key = page.getByRole('button', { name: new RegExp(`^Ben key at ${before[2].toFixed(2)} s`) });
+  const box = (await key.boundingBox())!;
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const duration = (await anim(page)).animation!.duration;
+  const dx = (0.25 / duration) * lanes.width;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down('Shift');
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(box.x + box.width / 2 + (dx * i) / 6, box.y + box.height / 2);
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  const after = await keys();
+  expect(after.slice(0, 2)).toEqual(before.slice(0, 2));
+  const moved = after[2] - before[2];
+  expect(moved).toBeGreaterThan(0.1);
+  expect(after.at(-1)! - before.at(-1)!).toBeCloseTo(moved, 2);
+
+  // Slower playback, and repeating the shot.
+  await page.getByRole('button', { name: 'Playback speed' }).click();
+  await page.getByRole('menuitemradio', { name: /^0\.5×/ }).click();
+  await expect(page.getByRole('button', { name: 'Playback speed' })).toHaveText('0.5×');
+  await page.getByRole('button', { name: 'Repeat this shot' }).click();
+  await expect(page.getByRole('button', { name: 'Repeat this shot' })).toHaveAttribute('aria-pressed', 'true');
+
+  // Folded down to its toolbar (remembered).
+  await page.getByRole('button', { name: 'Fold the timeline' }).click();
+  await expect(page.locator('.tl-lanes')).toHaveCount(0);
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await expect(page.getByRole('button', { name: 'Show the tracks' })).toBeVisible();
+  await page.getByRole('button', { name: 'Show the tracks' }).click();
+  await expect(page.locator('.tl-lanes')).toBeVisible();
 });
