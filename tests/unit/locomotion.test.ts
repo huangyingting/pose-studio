@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { addProp, moveProp, setTravel, travelTo } from '@/lib/actions';
 import { frameTimes, sceneAt } from '@/lib/animation';
 import { legsOf } from '@/lib/locomotion';
+import { buildMotion } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -119,6 +120,24 @@ describe('walking, running and jumping from mark to mark', () => {
     const half = (keys[0] + keys.at(-1)!) / 2;
     const yaw = sceneAt(store.scene, half).figures[0].joints.root?.[1] ?? 0;
     expect(Math.abs(yaw)).toBeGreaterThan(120);
+  });
+
+  it('generates smooth motion: no joint snaps, even sampled ten times finer than the frame rate', () => {
+    const legs = ['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'root'] as const;
+    for (const id of ['walk', 'run', 'jump']) {
+      const scene = buildMotion(id)!;
+      let worst = 0;
+      let prev: number[] | null = null;
+      for (let t = 0; t <= scene.animation!.duration; t += 1 / 240) {
+        const f = sceneAt(scene, t).figures[0];
+        const cur = legs.flatMap((j) => f.joints[j] ?? [0, 0, 0]);
+        if (prev) cur.forEach((v, k) => { const d = Math.abs(v - prev![k]); worst = Math.max(worst, Math.min(d, 360 - d)); });
+        prev = cur;
+      }
+      expect(worst, id).toBeLessThan(10);
+      // And the motion check finds nothing wrong with them.
+      expect(checkMotion(scene), id).toEqual([]);
+    }
   });
 
   it('stands, walks and lands on top of props', () => {

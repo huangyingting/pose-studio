@@ -292,9 +292,10 @@ export const TOOLS: AgentTool[] = [
     schema: obj({ figure: FIGURE, motion: str('Motion', MOTIONS.filter((m) => m.people === 1).map((m) => m.id)) }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
+      const from = store.scene.animation ? store.getState().time : 0;
       if (!applyMotion(store, f.id, String(i.motion))) throw new Error(`"${i.motion}" is not a one-person motion`);
       const a = store.scene.animation!;
-      return `${f.name}: ${MOTIONS.find((m) => m.id === i.motion)?.name} from ${r2(store.getState().time)} s (animation ${a.duration} s).`;
+      return `${f.name}: ${MOTIONS.find((m) => m.id === i.motion)?.name} from ${r2(from)} s (animation ${a.duration} s).`;
     },
   },
   {

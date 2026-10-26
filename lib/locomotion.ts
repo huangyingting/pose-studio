@@ -30,6 +30,16 @@ export const flightTime = (h: number) => Math.sqrt((8 * Math.max(0.02, h)) / GRA
 export const jumpHeight = (t: number) => (GRAVITY * t * t) / 8;
 /** Crouch before and absorb after a jump, at most (s). */
 export const JUMP_PREP = 0.3;
+/** Default jump height (metres the body rises). */
+export const JUMP_HEIGHT = 0.45;
+
+/** How long a figure takes to walk or run `distance` metres, or to jump `height` high. */
+export function travelTime(kind: Travel, distance: number, body: BodyParams, height = JUMP_HEIGHT) {
+  if (kind === 'jump') return flightTime(height) + 2 * JUMP_PREP;
+  const legs = legsOf(body);
+  const scale = (legs.thigh + legs.shin) / 0.85;
+  return Math.max(0.6, distance / (SPEED[kind] * scale) + (kind === 'run' ? 0.45 : 0.35));
+}
 
 /** Height of what stands under a floor point (0: the floor). */
 export type Ground = (x: number, z: number) => number;
@@ -46,6 +56,8 @@ export interface Legs {
   /** Hip joint below the pelvis, and out to the side. */
   hipDrop: number;
   hipX: number;
+  /** Ankle to the ball of the foot. */
+  foot: number;
 }
 
 const legsCache = new Map<string, Legs>();
@@ -72,6 +84,7 @@ export function legsOf(body: BodyParams): Legs {
       ankleY: ankle.y,
       hipDrop: root.y - hip.y,
       hipX: Math.abs(hip.x - root.x),
+      foot: 0.13 * (root.y / 0.93),
     };
   } finally {
     rig.dispose();
@@ -177,7 +190,7 @@ const leftOf = (yaw: number): [number, number] => [Math.cos(yaw * D2R), -Math.si
  */
 function legAngles(legs: Legs, t: [number, number, number], pitch: number) {
   const { thigh: l1, shin: l2 } = legs;
-  const len = clamp(Math.hypot(...t), Math.abs(l1 - l2) + 1e-3, (l1 + l2) * 0.9995);
+  const len = clamp(Math.hypot(...t), Math.abs(l1 - l2) + 1e-3, (l1 + l2) * 0.99995);
   const knee = Math.acos(clamp((len * len - l1 * l1 - l2 * l2) / (2 * l1 * l2), -1, 1));
   // The leg in its own plane, straight down with the shin bent back by the knee.
   const yc = -l1 - l2 * Math.cos(knee);
@@ -208,41 +221,79 @@ export function locomote(a: Animation, f: Figure, t: number, pose: PoseKey, grou
   return chain.kind === 'jump' ? jump(chain, legs, t, pose, ground) : gait(chain, legs, t, pose, ground);
 }
 
+/** Where a foot goes: on the floor (`world`, level when planted, hanging as it swings), or in the air relative to its hip in the body's frame (`body`, toes pointed). */
+type FootGoal =
+  | { world: [number, number, number]; swing: number }
+  | { body: [number, number, number]; point: number };
+
 interface Generated {
   position: Vec3;
   yaw: number;
   pitch: number;
   roll: number;
-  feet: Record<'L' | 'R', [number, number, number] | null>;
-  /** Added to the keyed pose (degrees). */
-  shoulders: number;
+  /** null: the keyed leg as it is. */
+  feet: Record<'L' | 'R', FootGoal | null>;
+  /** Added to the keyed arms (degrees): swing against the legs (L +, R −), raise both, bend. */
+  swing: number;
+  raise: number;
   elbows: number;
-  ankleKick: Record<'L' | 'R', number>;
 }
 
 /** Write a generated root and legs (and arm swing) into a pose. */
 function compose(pose: PoseKey, legs: Legs, g: Generated): PoseKey {
   const joints: Record<string, Vec3> = { ...(structuredClone(pose.joints) as Record<string, Vec3>) };
-  joints.root = [r1(g.pitch), r1(wrapDeg(g.yaw)), r1(g.roll)];
+  joints.root = [r1(wrapDeg(g.pitch)), r1(wrapDeg(g.yaw)), r1(g.roll)];
   for (const side of ['L', 'R'] as const) {
     const s = side === 'L' ? 1 : -1;
     const foot = g.feet[side];
     if (foot) {
-      const off = toPelvis([foot[0] - g.position[0], foot[1] - g.position[1], foot[2] - g.position[2]], g.yaw, g.pitch);
-      const ik = legAngles(legs, [off[0] - s * legs.hipX, off[1] + legs.hipDrop, off[2]], g.pitch);
+      let target: [number, number, number];
+      if ('world' in foot) {
+        const off = toPelvis([foot.world[0] - g.position[0], foot.world[1] - g.position[1], foot.world[2] - g.position[2]], g.yaw, g.pitch);
+        target = [off[0] - s * legs.hipX, off[1] + legs.hipDrop, off[2]];
+      } else target = foot.body;
+      // A planted foot behind the hip and out of reach rolls onto its toes: the heel lifts.
+      let heel = 0;
+      if ('world' in foot && target[2] < 0) {
+        const reach = (legs.thigh + legs.shin) * 0.985;
+        const flat = Math.hypot(target[0], target[2]);
+        const need = -Math.sqrt(Math.max(0, reach * reach - flat * flat)) - target[1];
+        // Only for a foot well behind (standing feet stay flat), easing in with the distance.
+        if (need > 0) {
+          heel = Math.min(need, 0.6 * legs.foot) * smooth(-target[2] / (0.25 * (legs.thigh + legs.shin)));
+          target = [target[0], target[1] + heel, target[2] + heel * 0.35];
+        }
+      }
+      const ik = legAngles(legs, target, 'world' in foot ? g.pitch : 0);
       joints[`hip${side}`] = ik.hip.map(r1) as Vec3;
       joints[`knee${side}`] = [r1(ik.knee), 0, 0];
-      joints[`ankle${side}`] = [r1(ik.ankle[0] + g.ankleKick[side]), 0, r1(ik.ankle[2])];
+      // Planted: level with the floor (or up on its toes). Swinging or in the air: the foot follows
+      // the shin, toes down a little.
+      const tiptoe = heel > 0 ? Math.asin(clamp(heel / legs.foot, 0, 1)) * R2D : 0;
+      const ankle = 'world' in foot ? lerp(ik.ankle[0] + tiptoe, 12, foot.swing) : foot.point;
+      joints[`ankle${side}`] = [r1(clamp(ankle, -40, 60)), 0, r1('world' in foot ? ik.ankle[2] * (1 - foot.swing) : 0)];
     }
-    // Arms swing against the legs (and lift in a jump), on top of the keyed arms.
     const sh = joints[`shoulder${side}`] ?? [0, 0, 0];
-    joints[`shoulder${side}`] = [r1(sh[0] + s * g.shoulders), sh[1], sh[2]];
+    joints[`shoulder${side}`] = [r1(sh[0] + s * g.swing + g.raise), sh[1], sh[2]];
     const el = joints[`elbow${side}`] ?? [0, 0, 0];
     joints[`elbow${side}`] = [r1(el[0] + g.elbows), el[1], el[2]];
   }
   const clean = Object.fromEntries(Object.entries(joints).filter(([, v]) => v.some((x) => x !== 0))) as Figure['joints'];
   return { ...pose, joints: clean, position: g.position.map((v) => Math.round(v * 1000) / 1000) as Vec3, grounded: false };
 }
+
+/** Smooth 0→1 with zero speed and acceleration at both ends. */
+const smoother = (u: number) => { const x = clamp(u, 0, 1); return x * x * x * (x * (6 * x - 15) + 10); };
+/** 0→1→0 with zero speed at both ends. */
+const bump = (u: number) => (1 - Math.cos(2 * Math.PI * clamp(u, 0, 1))) / 2;
+/** A soft minimum (no corner where one limit takes over from the other). */
+const softMin = (a: number, b: number, k = 0.015) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
+/** Cubic Hermite from (y0, slope m0) to (y1, slope m1) over u in [0, 1]. */
+const hermite01 = (y0: number, m0: number, y1: number, m1: number, u: number) => {
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * y1 + (u3 - u2) * m1;
+};
 
 /** Walking or running along the chain's path. */
 function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): PoseKey {
@@ -256,16 +307,16 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
   const ramp = Math.min(run ? 0.45 : 0.35, dur / 3);
   const v = D / Math.max(1e-3, dur - ramp);
   const s = tau < ramp ? (v * tau * tau) / (2 * ramp) : tau > dur - ramp ? D - (v * (dur - tau) ** 2) / (2 * ramp) : v * (tau - ramp / 2);
-  // Into and out of the gait from the standing keys.
+  // Arm swing and lean come in and out with the speed.
   const w = D < 0.05 ? 0 : Math.min(smooth(tau / ramp), smooth((dur - tau) / ramp));
   // Longer steps at higher speed, as people do.
   const scale = leg / 0.85;
   const step = run
-    ? clamp(1.25 * leg * Math.sqrt(v / (SPEED.run * scale)), 0.6 * leg, 2.2 * leg)
-    : clamp(0.82 * leg * Math.sqrt(v / (SPEED.walk * scale)), 0.25 * leg, 1.05 * leg);
+    ? clamp(1.15 * leg * Math.sqrt(v / (SPEED.run * scale)), 0.6 * leg, 2 * leg)
+    : clamp(0.72 * leg * Math.sqrt(v / (SPEED.walk * scale)), 0.25 * leg, 1 * leg);
   const stride = 2 * step;
-  const stance = run ? 0.36 : 0.62;
-  const lift = (run ? 0.16 : 0.07) * scale;
+  const stance = run ? 0.38 : 0.62;
+  const lift = (run ? 0.2 : 0.07) * scale;
   const phase = s / stride;
 
   // Facing: where it goes (turning from the start key, and to the end key's facing at the end),
@@ -286,71 +337,105 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
   const pitch = (pose.joints.root?.[0] ?? 0) + lean * Math.cos((heading - yaw) * D2R);
   const roll = (pose.joints.root?.[2] ?? 0) - lean * 0.6 * Math.sin((heading - yaw) * D2R);
 
-  // Each foot: planted at a fixed point of the path while in stance, swinging to the next one.
-  // Footfalls within half a step of the start or the end are the standing spots there, so the
-  // first step leaves from where the figure stands and the last one closes the feet together.
+  // The footsteps (as 3ds Max's Biped plans them): whole steps of equal length along the path,
+  // feet alternating, the first leaving from the standing spot and the last closing the feet
+  // together at the end. Each step swings while the body covers a fixed stretch of the path,
+  // centred on the other foot: in a walk the stretches never overlap (one foot is always down),
+  // in a run they do (both feet in the air). Planted feet are fixed points: nothing slides.
+  const n = Math.max(1, Math.round(D / step));
+  const len = D / n;
+  const half = (1 - stance) * len;
   const width = legs.hipX * (run ? 0.6 : 0.9);
-  const feet = {} as Generated['feet'];
-  const ankleKick = { L: 0, R: 0 };
-  for (const side of ['L', 'R'] as const) {
+  const lead: 'L' | 'R' = 'R';
+  type Step = { side: 'L' | 'R'; from: number; to: number; s0: number; s1: number };
+  const steps: Step[] = [];
+  const last: Record<'L' | 'R', number> = { L: 0, R: 0 };
+  for (let k = 1; k <= n + 1; k++) {
+    const side = (k % 2 === 1) === (lead === 'R') ? 'R' : 'L';
+    const to = Math.min(D, k * len);
+    const centre = (k - 1) * len;
+    const s0 = k === 1 ? 0 : Math.max(steps[steps.length - 1].s0 + 1e-3, centre - half);
+    // The first step lands with the body `half` along, as every later one does past its centre.
+    const s1 = k === 1 ? Math.max(1e-3, half) : k === n + 1 ? D : centre + half;
+    steps.push({ side, from: last[side], to, s0, s1: Math.max(s0 + 1e-3, s1) });
+    last[side] = to;
+  }
+  const spot = (arc: number, side: 'L' | 'R'): [number, number, number] => {
+    const standing = arc <= 1e-6 || arc >= D - 1e-6;
+    const [px, pz] = line.point(arc);
+    const l = leftOf(arc <= 1e-6 ? (strafe ? keyedYaw : startYaw) : arc >= D - 1e-6 ? (strafe ? keyedYaw : endYaw) : yawAt(arc));
     const sgn = side === 'L' ? 1 : -1;
-    const off = side === 'L' ? 0 : 0.5;
-    const u = phase + off;
-    const n = Math.floor(u);
-    const frac = u - n;
-    const plant = (k: number) => (k - off) * stride + (stance * stride) / 2;
-    const spot = (k: number): [number, number, number] => {
-      const raw = plant(k);
-      const arc = raw < 0.5 * step ? 0 : raw > D - 0.5 * step ? D : raw;
-      const standing = arc === 0 || arc === D;
-      const [px, pz] = line.point(arc);
-      const l = leftOf(arc === 0 ? (strafe ? keyedYaw : startYaw) : arc === D ? (strafe ? keyedYaw : endYaw) : yawAt(arc));
-      const half = standing ? legs.hipX : width;
-      const fx = px + l[0] * sgn * half;
-      const fz = pz + l[1] * sgn * half;
-      return [fx, ground(fx, fz) + legs.ankleY, fz];
-    };
-    if (frac < stance) feet[side] = spot(n);
-    else {
-      const q = (frac - stance) / (1 - stance);
-      const a = spot(n);
-      const b = spot(n + 1);
-      const moves = Math.hypot(b[0] - a[0], b[2] - a[2]) > 1e-3;
-      const k = smooth(q);
-      // Up over the swing (and over a step up), unless the foot has nowhere to go.
-      const up = moves ? lift * Math.sin(Math.PI * q) + Math.max(0, b[1] - a[1]) * Math.sin(Math.PI * q) : 0;
-      feet[side] = [lerp(a[0], b[0], k), lerp(a[1], b[1], k) + up, lerp(a[2], b[2], k)];
-      // Toe-off: the foot points down a little as it leaves the floor.
-      if (moves) ankleKick[side] = (run ? 25 : 12) * Math.sin(Math.PI * q);
+    const lat = standing ? legs.hipX : width;
+    const fx = px + l[0] * sgn * lat;
+    const fz = pz + l[1] * sgn * lat;
+    return [fx, ground(fx, fz) + legs.ankleY, fz];
+  };
+  const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
+  for (const side of ['L', 'R'] as const) {
+    const mine = steps.filter((st) => st.side === side);
+    const now = mine.find((st) => s > st.s0 && s < st.s1);
+    if (!now) {
+      const done = mine.filter((st) => s >= st.s1);
+      feet[side] = { world: spot(done.length ? done[done.length - 1].to : 0, side), swing: 0 };
+      continue;
     }
+    const q = (s - now.s0) / (now.s1 - now.s0);
+    const a = spot(now.from, side);
+    const b = spot(now.to, side);
+    const k = run ? smoother(q) : smooth(q);
+    // Up over the swing (and over a step up).
+    const up = (lift * Math.min(1, (now.to - now.from) / (2 * len) + 0.35) + Math.max(0, b[1] - a[1])) * bump(q);
+    feet[side] = { world: [lerp(a[0], b[0], k), lerp(a[1], b[1], k) + up, lerp(a[2], b[2], k)], swing: bump(q) };
   }
 
-  // Pelvis: a gentle bob over the ground, never higher than the planted legs can reach.
-  const floor = Math.max(ground(x, z), Math.min(feet.L![1], feet.R![1]) - legs.ankleY);
-  const bob = run ? 0.035 * scale * Math.cos(4 * Math.PI * phase) : -0.012 * scale * Math.cos(4 * Math.PI * phase);
-  let y = floor + legs.rootY * (run ? 0.94 : 0.985) + bob * w;
+  // Pelvis: the height of a walking body follows a smooth wave (the "compass gait"): lowest as
+  // the front heel lands, highest passing over the planted foot; a runner is lowest mid-stance and
+  // highest in the air. The walk's dip is just deep enough for the landing leg to reach the floor.
+  const floor = Math.max(ground(x, z), Math.min(feet.L.world[1], feet.R.world[1]) - legs.ankleY);
+  const reach = (legs.thigh + legs.shin) * 0.985;
+  const hipUp = legs.hipDrop * Math.cos(pitch * D2R);
+  let y: number;
+  // Height at which a leg reaches a foot `ahead` of the hip (knees a little bent when running).
+  const strikeAt = (ahead: number, give: number) => legs.ankleY + Math.sqrt(Math.max(0, (reach * give) ** 2 - ahead * ahead - (legs.hipX - width) ** 2)) + hipUp;
+  if (run) {
+    // Lowest mid-stance (over the planted foot), highest in the air; the landing foot, ahead of
+    // the body, is just within reach of a slightly bent leg.
+    const dip = 0.05 * scale;
+    const ahead = len - half;
+    const top = Math.min(legs.rootY * 0.97, strikeAt(ahead, 0.97) + dip * (1 + Math.cos((2 * Math.PI * ahead) / len)) / 2);
+    y = floor + top - dip * (1 + Math.cos((2 * Math.PI * s) / len)) / 2;
+  } else {
+    const base = legs.rootY * 0.975;
+    const ahead = len - half;
+    const strike = strikeAt(ahead, 1);
+    const dip = clamp(base - strike + 0.005, 0.008 * scale, 0.07 * scale);
+    // Heels land when the body is `half` past each footfall.
+    y = floor + base - dip * (1 + Math.cos((2 * Math.PI * (s - half)) / len)) / 2;
+  }
+  // Safety: never higher than a planted foot ahead can reach (steps onto props).
   for (const side of ['L', 'R'] as const) {
-    const f = feet[side]!;
+    const { world: f, swing } = feet[side];
     const off = toPelvis([f[0] - x, 0, f[2] - z], yaw, 0);
     const lateral = off[0] - (side === 'L' ? 1 : -1) * legs.hipX;
-    const reach = (legs.thigh + legs.shin) * 0.985;
-    const horizontal = Math.hypot(off[2] + legs.hipDrop * Math.sin(pitch * D2R), lateral);
-    y = Math.min(y, f[1] + Math.sqrt(Math.max(0, reach * reach - horizontal * horizontal)) + legs.hipDrop * Math.cos(pitch * D2R));
+    const fwd = off[2] + legs.hipDrop * Math.sin(pitch * D2R);
+    const horizontal = Math.min(reach * 0.9, Math.hypot(fwd, lateral));
+    const limit = f[1] + Math.sqrt(reach * reach - horizontal * horizontal) + hipUp;
+    y = lerp(y, softMin(y, limit + 0.01, 0.03), (1 - swing) * smooth(fwd / (0.15 * len)));
   }
   const keyedY = pose.grounded ? floor + legs.rootY : pose.position[1];
   y = lerp(keyedY, y, w);
 
-  const swing = (run ? 34 : 17) * w * Math.cos(2 * Math.PI * phase);
   return compose(pose, legs, {
-    position: [x, y, z], yaw, pitch, roll, feet, ankleKick,
-    shoulders: swing, elbows: (run ? -75 : -8) * w,
+    position: [x, y, z], yaw, pitch, roll, feet,
+    swing: (run ? 34 : 17) * w * Math.cos(2 * Math.PI * phase), raise: 0, elbows: (run ? -75 : -8) * w,
   });
 }
 
 /**
  * A jump from the chain's first key to its last: crouch, fly under gravity, land. It can take off
  * from and land on a raised surface; keys in between pose the body in the air; `spin` and `flip`
- * (whole turns, on the landing key) rotate it on the way.
+ * (whole turns, on the landing key) rotate it on the way. Every phase hands over to the next at
+ * the same height and speed, so nothing snaps.
  */
 function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): PoseKey {
   const dur = c.t1 - c.t0;
@@ -363,16 +448,22 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
   const ga = ground(ax, az);
   const gb = ground(bx, bz);
   // Under gravity from the take-off height to the landing height in `flight` seconds.
-  const y0 = ga + legs.rootY;
-  const y1 = gb + legs.rootY;
+  // Leave and meet the floor with the knees a little bent (a straight leg reacts too sharply).
+  const soft = 0.035 * (legs.thigh + legs.shin) / 0.85;
+  const y0 = ga + legs.rootY - soft;
+  const y1 = gb + legs.rootY - soft;
   const vy = (y1 - y0) / flight + (GRAVITY * flight) / 2;
+  const vLand = vy - GRAVITY * flight;
   const startYaw = c.start.joints.root?.[1] ?? 0;
   const endYaw = c.end.joints.root?.[1] ?? 0;
   const startPitch = c.start.joints.root?.[0] ?? 0;
+  const endPitch = c.end.joints.root?.[0] ?? 0;
   const leg = legs.thigh + legs.shin;
   const apex = Math.max(0, (vy * vy) / (2 * GRAVITY));
-  const crouch = Math.min(0.32 * leg, 0.12 + apex * 0.25);
+  const crouch = Math.min(0.3 * leg, 0.1 + apex * 0.25);
   const posed = c.inner > 0;
+  const spin = c.end.spin ?? 0;
+  const flip = c.end.flip ?? 0;
 
   let x: number;
   let z: number;
@@ -380,15 +471,25 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
   let yaw: number;
   let pitch: number;
   let roll = pose.joints.root?.[2] ?? 0;
-  let tuck = 0;
-  let arms = 0;
-  let planted: 'start' | 'end' | null;
+  let raise = 0;
+  const feet: Generated['feet'] = { L: null, R: null };
+  const planted = (px: number, pz: number, py: number, facingYaw: number) => {
+    for (const side of ['L', 'R'] as const) {
+      const l = leftOf(facingYaw);
+      const sgn = side === 'L' ? 1 : -1;
+      feet[side] = { world: [px + l[0] * sgn * legs.hipX, py + legs.ankleY, pz + l[1] * sgn * legs.hipX], swing: 0 };
+    }
+  };
   if (tau < prep) {
+    // Crouch, then drive up: leaving the floor at the speed the flight starts with.
     const u = tau / prep;
-    [x, z, yaw, planted] = [ax, az, startYaw, 'start'];
-    y = y0 - crouch * Math.sin(Math.PI * u);
-    pitch = startPitch + 14 * Math.sin(Math.PI * u);
-    arms = 50 * Math.sin((Math.PI / 2) * u);
+    [x, z, yaw] = [ax, az, startYaw];
+    y = u < 0.55
+      ? hermite01(y0 + soft, 0, y0 - crouch, 0, u / 0.55)
+      : hermite01(y0 - crouch, 0, y0, vy * prep * 0.45, (u - 0.55) / 0.45);
+    pitch = startPitch + 16 * bump(u * 0.5) * (1 - smooth((u - 0.6) / 0.4));
+    raise = 40 * smoother(u / 0.5) * (1 - smoother((u - 0.35) / 0.65)) - 60 * smoother((u - 0.35) / 0.65);
+    planted(ax, az, ga, startYaw);
   } else if (tau <= prep + flight) {
     const u = (tau - prep) / flight;
     const ft = tau - prep;
@@ -396,57 +497,42 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
     z = lerp(az, bz, u);
     y = y0 + vy * ft - (GRAVITY * ft * ft) / 2;
     // Turns in the air: the keyed facing plus whole spins and flips, eased in and out.
-    const turnU = smooth(u);
-    yaw = posed ? (pose.joints.root?.[1] ?? 0) : lerpAngle(startYaw, endYaw, turnU);
-    yaw += 360 * (c.end.spin ?? 0) * turnU;
-    pitch = (posed ? (pose.joints.root?.[0] ?? 0) : lerp(startPitch, c.end.joints.root?.[0] ?? 0, turnU)) + 360 * (c.end.flip ?? 0) * turnU;
+    const turnU = smoother(u);
+    yaw = (posed ? (pose.joints.root?.[1] ?? 0) : lerpAngle(startYaw, endYaw, turnU)) + 360 * spin * turnU;
+    pitch = (posed ? (pose.joints.root?.[0] ?? 0) : lerp(startPitch, endPitch, turnU)) + 360 * flip * turnU;
     if (!posed) {
-      tuck = Math.sin(Math.PI * u) * clamp(apex / 0.35, 0.3, 1) * (c.end.flip ? 1.3 : 1);
-      arms = lerp(50, -150, smooth(u * 2.5)) * (1 - smooth((u - 0.6) / 0.4)) + -40 * smooth((u - 0.6) / 0.4);
-    }
-    planted = null;
+      // Knees up at the top (tighter in a flip), legs reaching down again for the landing.
+      const tuck = bump(u) * clamp(apex / 0.35, 0.35, 1) * (flip ? 1.25 : 1);
+      raise = -60 + (-90 * smoother(u / 0.45)) * (1 - smoother((u - 0.55) / 0.45)) + 40 * smoother((u - 0.55) / 0.45);
+      // The legs keep extending at the speed they left the floor with, and compress at the speed
+      // the body comes down with when they meet it again.
+      const full = leg * 0.995;
+      const lenOff = clamp(y0 - legs.hipDrop - ga - legs.ankleY, 0.5 * leg, full);
+      const lenOn = clamp(y1 - legs.hipDrop - gb - legs.ankleY, 0.5 * leg, full);
+      const ext = Math.min(full, u < 0.25
+        ? hermite01(lenOff, vy * flight * 0.25, full, 0, u / 0.25)
+        : u > 0.75 ? hermite01(full, 0, lenOn, vLand * flight * 0.25, (u - 0.75) / 0.25) : full);
+      // Toes: from the angle they left the floor with, pointed in the air, ready to land.
+      const offAnkle = legAngles(legs, [0, -lenOff, 0], startPitch).ankle[0];
+      const onAnkle = legAngles(legs, [0, -lenOn, 0], endPitch).ankle[0];
+      const point = lerp(lerp(offAnkle, 35, smooth(u / 0.3)), onAnkle, smooth((u - 0.7) / 0.3));
+      for (const side of ['L', 'R'] as const) {
+        const len = ext - 0.5 * leg * clamp(tuck, 0, 1);
+        const ahead = 0.32 * leg * clamp(tuck, 0, 1);
+        feet[side] = { body: [0, -Math.sqrt(Math.max(1e-4, len * len - ahead * ahead)), ahead], point };
+      }
+    } else raise = -60 * (1 - smooth(u / 0.3));
   } else {
+    // Land at the speed the flight ends with, absorb, stand up.
     const u = (tau - prep - flight) / land;
-    [x, z, yaw, planted] = [bx, bz, endYaw, 'end'];
-    y = y1 - crouch * 0.9 * Math.sin(Math.PI * Math.min(1, u * 1.15));
-    pitch = (c.end.joints.root?.[0] ?? 0) + 14 * Math.sin(Math.PI * Math.min(1, u * 1.15));
-    arms = posed ? 0 : -40 * (1 - smooth(u));
+    [x, z, yaw] = [bx, bz, endYaw + 360 * spin];
+    pitch = endPitch + 360 * flip + 12 * bump(Math.min(1, u / 0.8) * 0.5) * (1 - smooth((u - 0.4) / 0.6));
+    y = u < 0.4
+      ? hermite01(y1, vLand * land * 0.4, y1 - crouch * 0.9, 0, u / 0.4)
+      : hermite01(y1 - crouch * 0.9, 0, y1 + soft, 0, (u - 0.4) / 0.6);
+    raise = posed ? 0 : -20 * (1 - smoother(u));
     roll = c.end.joints.root?.[2] ?? 0;
+    planted(bx, bz, gb, endYaw);
   }
-
-  const feet = {} as Generated['feet'];
-  for (const side of ['L', 'R'] as const) {
-    const sgn = side === 'L' ? 1 : -1;
-    if (planted) {
-      const [px, pz, py] = planted === 'start' ? [ax, az, ga] : [bx, bz, gb];
-      const l = leftOf(planted === 'start' ? startYaw : endYaw);
-      feet[side] = [px + l[0] * sgn * legs.hipX, py + legs.ankleY, pz + l[1] * sgn * legs.hipX];
-    } else if (posed) {
-      // Posed in the air: the keyed legs as they are.
-      feet[side] = null;
-    } else {
-      // In the air: knees come up, the feet trail below the hips (in the body's own frame).
-      feet[side] = null;
-    }
-  }
-  const out = compose(pose, legs, {
-    position: [x, y, z], yaw, pitch, roll, feet, ankleKick: { L: 0, R: 0 },
-    shoulders: 0, elbows: arms ? -15 * Math.abs(arms) / 150 : 0,
-  });
-  // The tuck and the arm swing of an unposed jump.
-  const joints = { ...out.joints };
-  if (!planted && !posed) {
-    for (const side of ['L', 'R'] as const) {
-      joints[`hip${side}`] = [r1(-60 * tuck), 0, side === 'L' ? 4 : -4];
-      joints[`knee${side}`] = [r1(110 * tuck), 0, 0];
-      joints[`ankle${side}`] = [r1(25 * (1 - tuck)), 0, 0];
-    }
-  }
-  if (arms) {
-    for (const side of ['L', 'R'] as const) {
-      const sh = joints[`shoulder${side}`] ?? [0, 0, 0];
-      joints[`shoulder${side}`] = [r1(sh[0] + arms), sh[1], sh[2]];
-    }
-  }
-  return { ...out, joints };
+  return compose(pose, legs, { position: [x, y, z], yaw, pitch, roll, feet, swing: 0, raise, elbows: raise < 0 ? 0.12 * raise : 0 });
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { frameTimes, sceneAt } from './animation';
+import { chainAt } from './locomotion';
 import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
@@ -45,6 +46,7 @@ const CONTACT_SPEED = 0.4;
 const LIMIT_SLACK = 4;
 /** A pop is a sudden change of speed from one frame to the next (fast but smooth is fine). */
 const POP_STEP = 25;
+const LEGS = new Set<string>(['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR']);
 const POP_ROOT = 0.12;
 /** Capsules closer than this fraction of their radii overlap clearly (resting on each other is fine). */
 const OVERLAP = 0.5;
@@ -230,6 +232,7 @@ export function checkMotion(scene: Scene): Issue[] {
 
   // A loop also checks the wrap from its last frame back to the first (as a frame at the end).
   const order = a.loop ? [...frames.keys(), 0] : [...frames.keys()];
+  const generatedBefore = new Set<string>();
   order.forEach((i, step) => {
     const s = frames[i];
     const wrap = step === frames.length;
@@ -249,8 +252,17 @@ export function checkMotion(scene: Scene): Issue[] {
         }
         prevAnkle.set(f.id + k, p);
       }
-      // Pops: a large rotation, or the body jumping, in a single frame.
+      // Pops: a large rotation, or the body jumping, in a single frame. Walks, runs and jumps are
+      // generated smooth (tests sample them finely), and legs really move that fast when running
+      // or taking off: their legs and body are not checked for pops.
+      const generated = !!chainAt(a, f.id, times[i]) || generatedBefore.has(f.id);
+      if (chainAt(a, f.id, times[i])) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
       for (const j of JOINTS) {
+        if (generated && (LEGS.has(j) || j === 'root')) {
+          prevStep.delete(f.id + j);
+          prevQ.delete(f.id + j);
+          continue;
+        }
         const r = f.joints[j] ?? [0, 0, 0];
         euler.set(r[0] * THREE.MathUtils.DEG2RAD, r[1] * THREE.MathUtils.DEG2RAD, r[2] * THREE.MathUtils.DEG2RAD, j === 'root' ? 'YXZ' : 'XZY');
         const q = new THREE.Quaternion().setFromEuler(euler);
@@ -262,7 +274,8 @@ export function checkMotion(scene: Scene): Issue[] {
         prevQ.set(f.id + j, q);
       }
       const root = m.joints.root.getWorldPosition(new THREE.Vector3());
-      const pr = prevRoot.get(f.id);
+      const pr = generated ? undefined : prevRoot.get(f.id);
+      if (generated) prevStep.delete(`${f.id}:move`);
       const jump = pr ? pop(`${f.id}:move`, root.distanceTo(pr), POP_ROOT) : 0;
       if (jump) ranges.hit(`pop:${f.id}:root:move`, step, jump, { kind: 'pop', figure: f.id, joint: 'root' });
       prevRoot.set(f.id, root);

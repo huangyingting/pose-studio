@@ -5,12 +5,12 @@ import {
 import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { figureKeyTimes, keyAt, moveKey, newAnimation, poseOf, removeKey, setDuration as setAnimDuration, setKey, snapTime } from './animation';
-import { JUMP_PREP, SPEED, flightTime, legsOf } from './locomotion';
+import { JUMP_PREP, flightTime, travelTime } from './locomotion';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure } from './poses';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
-  facing, withFacing, withPosition, type Contact,
+  facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
 import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
@@ -359,9 +359,6 @@ export function startAnimation(store: Store, duration = 2) {
 
 /* Locomotion: walking, running and jumping from mark to mark (lib/locomotion.ts) */
 
-/** Default jump height (metres the body rises). */
-export const JUMP_HEIGHT = 0.45;
-
 /**
  * Walk, run or jump a figure from where it is at the playhead to a floor point: a new mark. Its
  * later keys move on by the time it takes (the other figures are untouched); the playhead goes to
@@ -375,12 +372,8 @@ export function travelTo(store: Store, figureId: string, to: [number, number], k
   const f = store.scene.figures.find((x) => x.id === figureId);
   if (!f) return null;
   const t0 = snapTime(a, store.getState().time);
-  const legs = legsOf(f.body);
-  const scale = (legs.thigh + legs.shin) / 0.85;
   const d = Math.hypot(to[0] - f.position[0], to[1] - f.position[2]);
-  const duration = kind === 'jump'
-    ? flightTime(opts.height ?? JUMP_HEIGHT) + 2 * JUMP_PREP
-    : Math.max(0.6, d / (SPEED[kind] * scale) + (kind === 'run' ? 0.45 : 0.35));
+  const duration = travelTime(kind, d, f.body, opts.height);
   const t1 = Math.round((t0 + duration) * a.fps) / a.fps;
   const yaw = kind === 'jump' || opts.strafe || d < 0.05 ? facing(f) : Math.atan2(to[0] - f.position[0], to[1] - f.position[2]) * (180 / Math.PI);
   const end: PoseKey = {
@@ -670,6 +663,15 @@ export function deletePose(store: Store, id: string) {
 export function applyMotion(store: Store, figureId: string, motionId: string) {
   const motion = MOTIONS.find((m) => m.id === motionId);
   if (!motion || motion.people !== 1) return false;
+  if (motion.travel) {
+    // Walk, run or jump ahead from where the figure stands, facing its way.
+    const f = store.scene.figures.find((x) => x.id === figureId);
+    if (!f) return false;
+    const [fx, fz] = forward(f);
+    const d = motion.travel.distance;
+    travelTo(store, figureId, [f.position[0] + fx * d, f.position[2] + fz * d], motion.travel.kind);
+    return true;
+  }
   const start = store.scene.animation ? store.getState().time : 0;
   store.updateScene((s) => insertMotion(s, figureId, motion.build(), start));
   store.setTime(start);

@@ -7,10 +7,12 @@ import { wrapDeg } from './joints';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { CAMERA_MOVES } from './shot';
 import { buildTemplate, waltzHold } from './templates';
-import type { Animation, BodyParams, Figure, Hand, JointName, Scene, Side, Vec3, View } from './types';
+import { travelTime } from './locomotion';
+import type { Animation, BodyParams, Figure, Hand, JointName, PoseKey, Scene, Side, Travel, Vec3, View } from './types';
 
 /*
- * Animated templates: walk and run cycles, a jump, dances, a boxing exchange and more.
+ * Animated templates: walking, running and jumping ahead (generated, lib/locomotion.ts), dances,
+ * a boxing exchange and more.
  * Keys are authored as joint angles (with IK for contacts and punches) and each animation
  * comes with a camera move, so it plays like a short shot.
  */
@@ -20,6 +22,8 @@ export interface Motion {
   name: string;
   people: number;
   build(): Scene;
+  /** Moving from mark to mark (generated steps): applied, the figure goes this far ahead. */
+  travel?: { kind: Travel; distance: number };
 }
 
 type Joints = Figure['joints'];
@@ -63,6 +67,21 @@ function animated(name: string, keys: Key[], o: { duration: number; loop: boolea
   return { ...scene, animation };
 }
 
+/** A figure walking, running or jumping `distance` metres ahead, its steps generated. */
+function travelled(f: Figure, kind: Travel, distance: number, o: { view: View; camera?: string }): Scene {
+  const t = Math.round(travelTime(kind, distance, f.body) * 24) / 24;
+  const there: PoseKey = { ...poseOf(f), position: [f.position[0], f.position[1], f.position[2] + distance], travel: kind };
+  const scene = animated(f.name, [{ t: 0, figures: [f] }], { duration: t, loop: false, ...o });
+  const a = scene.animation!;
+  const keys = [...a.keys, { t, poses: { [f.id]: there } }];
+  const animation = { ...a, keys };
+  if (a.camera) {
+    const move = CAMERA_MOVES.find((m) => m.id === (o.camera ?? 'static'))!;
+    animation.camera = { ...a.camera, keys: move.keys(animation, o.view), follow: true };
+  }
+  return { ...scene, animation };
+}
+
 function withRig<T>(fn: (rig: Rig) => T): T {
   const rig = new Rig();
   try {
@@ -70,11 +89,6 @@ function withRig<T>(fn: (rig: Rig) => T): T {
   } finally {
     rig.dispose();
   }
-}
-
-/** Pelvis height that puts the lowest point of the pose on the floor (for airborne keys). */
-function groundY(rig: Rig, f: Figure) {
-  return rig.model({ ...f, grounded: true }).joints.root.position.y;
 }
 
 /** A point in a figure's own frame relative to one of its joints: [left, up, forward]. */
@@ -103,30 +117,6 @@ function turnAbout(f: Figure, deg: number): Figure {
 
 /* ---------- poses ---------- */
 
-const WALK_CONTACT: Joints = {
-  root: [4, 0, 0], spine: [2, -3, 0], chest: [0, -5, 0], head: [0, 6, 0],
-  hipL: [-24, 0, 2], kneeL: [4, 0, 0], ankleL: [-10, 0, 0],
-  hipR: [14, 0, -2], kneeR: [14, 0, 0], ankleR: [18, 0, 0],
-  shoulderL: [18, 0, 8], elbowL: [-12, 0, 0], shoulderR: [-20, 0, -8], elbowR: [-28, 0, 0],
-};
-const WALK_PASSING: Joints = {
-  root: [3, 0, 0], spine: [2, 0, 0],
-  hipL: [2, 0, 2], kneeL: [6, 0, 0], ankleL: [2, 0, 0],
-  hipR: [-14, 0, -2], kneeR: [50, 0, 0], ankleR: [-6, 0, 0],
-  shoulderL: [4, 0, 8], elbowL: [-14, 0, 0], shoulderR: [-4, 0, -8], elbowR: [-18, 0, 0],
-};
-const RUN_CONTACT: Joints = {
-  root: [12, 0, 0], spine: [4, -6, 0], chest: [2, -8, 0], head: [-8, 10, 0],
-  hipL: [-40, 0, 3], kneeL: [22, 0, 0], ankleL: [-6, 0, 0],
-  hipR: [22, 0, -3], kneeR: [72, 0, 0], ankleR: [30, 0, 0],
-  shoulderL: [42, 0, 12], elbowL: [-95, 0, 0], shoulderR: [-52, 0, -12], elbowR: [-95, 0, 0],
-};
-const RUN_FLIGHT: Joints = {
-  root: [12, 0, 0], spine: [4, 0, 0], head: [-8, 0, 0],
-  hipL: [12, 0, 3], kneeL: [45, 0, 0], ankleL: [22, 0, 0],
-  hipR: [-58, 0, -3], kneeR: [108, 0, 0], ankleR: [-4, 0, 0],
-  shoulderL: [-5, 0, 12], elbowL: [-95, 0, 0], shoulderR: [5, 0, -12], elbowR: [-95, 0, 0],
-};
 const STAND: Joints = { shoulderL: [0, 0, 8], shoulderR: [0, 0, -8], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0], hipL: [0, 0, 3], hipR: [0, 0, -3] };
 const STANCE: Joints = {
   root: [6, 25, 0], spine: [6, -12, 0], chest: [4, -10, 0],
@@ -144,68 +134,24 @@ function guard(rig: Rig, f: Figure): Figure {
 export const MOTIONS: Motion[] = [
   {
     id: 'walk',
-    name: 'Walk cycle',
+    name: 'Walk ahead',
     people: 1,
-    build: () => {
-      const f = person('Walker', body('Female'), WALK_CONTACT);
-      const a = posed(f, WALK_CONTACT);
-      const b = posed(f, WALK_PASSING);
-      return animated('Walk cycle', [
-        { t: 0, figures: [a] }, { t: 0.25, figures: [b] }, { t: 0.5, figures: [mirrored(a)] }, { t: 0.75, figures: [mirrored(b)] },
-      ], { duration: 1, loop: true, view: { yaw: 70, pitch: 6, fov: 24 }, camera: 'orbit90' });
-    },
+    travel: { kind: 'walk', distance: 3 },
+    build: () => travelled(person('Walker', body('Female'), STAND), 'walk', 3, { view: { yaw: 70, pitch: 6, fov: 30 }, camera: 'static' }),
   },
   {
     id: 'run',
-    name: 'Run cycle',
+    name: 'Run ahead',
     people: 1,
-    build: () => {
-      const f = { ...person('Runner', body('Athletic'), RUN_CONTACT), hands: { L: hand('Grip'), R: hand('Grip') } };
-      const a = posed(f, RUN_CONTACT);
-      const b = posed(f, RUN_FLIGHT);
-      return animated('Run cycle', [
-        { t: 0, figures: [a] }, { t: 0.18, figures: [b] }, { t: 0.36, figures: [mirrored(a)] }, { t: 0.54, figures: [mirrored(b)] },
-      ], { duration: 0.72, loop: true, view: { yaw: 90, pitch: 4, fov: 26 }, camera: 'static' });
-    },
+    travel: { kind: 'run', distance: 6 },
+    build: () => travelled({ ...person('Runner', body('Athletic'), STAND), hands: { L: hand('Grip'), R: hand('Grip') } }, 'run', 6, { view: { yaw: 90, pitch: 4, fov: 34 }, camera: 'static' }),
   },
   {
     id: 'jump',
-    name: 'Jump',
+    name: 'Jump ahead',
     people: 1,
-    build: () => withRig((rig) => {
-      const f = { ...person('Jumper', body('Athletic'), STAND), grounded: false };
-      // On the ground the figure is grounded (no dipping through the floor between keys); in the air it is placed.
-      const at = (joints: Joints, lift = 0): Figure => {
-        const g = posed(f, joints);
-        return { ...g, grounded: lift === 0, position: [0, Math.round((groundY(rig, g) + lift) * 1000) / 1000, 0] };
-      };
-      const crouch: Joints = {
-        root: [28, 0, 0], spine: [10, 0, 0], hipL: [-62, 0, 6], hipR: [-62, 0, -6], kneeL: [105, 0, 0], kneeR: [105, 0, 0], ankleL: [-32, 0, 0], ankleR: [-32, 0, 0],
-        shoulderL: [50, 0, 12], shoulderR: [50, 0, -12], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0],
-      };
-      const takeoff: Joints = {
-        root: [4, 0, 0], hipL: [6, 0, 3], hipR: [6, 0, -3], kneeL: [2, 0, 0], kneeR: [2, 0, 0], ankleL: [42, 0, 0], ankleR: [42, 0, 0],
-        shoulderL: [-160, 0, 14], shoulderR: [-160, 0, -14], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0],
-      };
-      const tuck: Joints = {
-        root: [10, 0, 0], spine: [8, 0, 0], hipL: [-55, 0, 6], hipR: [-55, 0, -6], kneeL: [80, 0, 0], kneeR: [80, 0, 0], ankleL: [22, 0, 0], ankleR: [22, 0, 0],
-        shoulderL: [-120, 0, 30], shoulderR: [-120, 0, -30], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0],
-      };
-      const land: Joints = {
-        root: [12, 0, 0], hipL: [-24, 0, 5], hipR: [-24, 0, -5], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [-8, 0, 0], ankleR: [-8, 0, 0],
-        shoulderL: [-70, 0, 30], shoulderR: [-70, 0, -30], elbowL: [-15, 0, 0], elbowR: [-15, 0, 0],
-      };
-      const absorb: Joints = { ...crouch, root: [22, 0, 0], shoulderL: [-40, 0, 25], shoulderR: [-40, 0, -25] };
-      return animated('Jump', [
-        { t: 0, figures: [at(STAND)] },
-        { t: 0.4, figures: [at(crouch)] },
-        { t: 0.62, figures: [at(takeoff, 0.06)] },
-        { t: 0.9, figures: [at(tuck, 0.5)] },
-        { t: 1.18, figures: [at(land)] },
-        { t: 1.4, figures: [at(absorb)] },
-        { t: 1.9, figures: [at(STAND)] },
-      ], { duration: 1.9, loop: false, view: { yaw: 60, pitch: 4, fov: 26 }, camera: 'hero' });
-    }),
+    travel: { kind: 'jump', distance: 1 },
+    build: () => travelled(person('Jumper', body('Athletic'), STAND), 'jump', 1, { view: { yaw: 70, pitch: 4, fov: 30 }, camera: 'static' }),
   },
   {
     id: 'dance',

@@ -106,8 +106,11 @@ describe('assistant tools', () => {
     const store = new Store(new MemoryStorage());
     const id = store.figure!.id;
     expect(run(store, 'apply_pose', { figure: id, pose: 'hand on head' })).toBe('Figure: Hand on head.');
-    expect(run(store, 'apply_motion', { figure: id, motion: 'walk' })).toMatch(/Walk cycle from 0 s/);
-    expect(store.scene.animation!.keys.length).toBeGreaterThan(2);
+    expect(run(store, 'apply_motion', { figure: id, motion: 'walk' })).toMatch(/Walk ahead from 0 s/);
+    // Two marks, the steps between them generated: it arrives 3 m ahead, walking.
+    const keys = store.scene.animation!.keys;
+    expect(keys.map((k) => k.poses[id].travel)).toEqual([undefined, 'walk']);
+    expect(keys[1].poses[id].position[2]).toBeCloseTo(3, 2);
     expect(runTool(store, 'apply_pose', { figure: id, pose: 'moonwalk' }).ok).toBe(false);
   });
 
