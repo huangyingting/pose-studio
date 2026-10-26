@@ -1,6 +1,6 @@
 import {
   addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
-  nextName, reachFor, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  holdProp, nextName, reachFor, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
@@ -70,7 +70,7 @@ function sceneSummary(store: Store) {
       ...(f.hidden ? { hidden: true } : {}),
       joints: Object.fromEntries(Object.entries(f.joints).filter(([, v]) => v.some((x) => x !== 0)).map(([k, v]) => [k, v.map(r1)])),
     })),
-    props: s.props.map((p) => ({ id: p.id, name: p.name, kind: p.kind, position: { x: r2(p.position[0]), z: r2(p.position[2]) }, facing: r1(p.rotation[1]), scale: p.scale.map(r2) })),
+    props: s.props.map((p) => ({ id: p.id, name: p.name, kind: p.kind, ...(p.hold ? { held_by: p.hold.figure, hand: p.hold.hand } : {}), position: { x: r2(p.position[0]), z: r2(p.position[2]) }, facing: r1(p.rotation[1]), scale: p.scale.map(r2) })),
     animation: a ? {
       duration: a.duration,
       loop: a.loop,
@@ -229,14 +229,26 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'add_prop',
-    description: 'Add a prop (box, ball, cylinder, chair, stool, step, wall) on the floor, optionally named (e.g. "Desk"). Returns its id.',
-    schema: obj({ kind: str('Prop', PROP_KINDS), x: num('Floor X (metres)'), z: num('Floor Z (metres)'), facing: opt(num('Facing (degrees)')), name: opt(str('Name shown in the scene outline')) }),
+    description: 'Add a prop, optionally named (e.g. "Desk"): on the floor (box, ball, cylinder, chair, stool, step, wall), or in a figure\'s hand (stick, phone, cup, book, ball, box: give held_by and hand; it follows the hand). Returns its id.',
+    schema: obj({
+      kind: str('Prop', PROP_KINDS),
+      x: num('Floor X (metres; ignored when held)'),
+      z: num('Floor Z (metres; ignored when held)'),
+      facing: opt(num('Facing (degrees)')),
+      name: opt(str('Name shown in the scene outline')),
+      held_by: opt(str('Figure id or name whose hand holds it')),
+      hand: opt(str('Which hand holds it', ['L', 'R'])),
+    }),
     run: (store, i) => {
       const kind = i.kind as PropKind;
       const name = nextName(typeof i.name === 'string' && i.name.trim() ? i.name.trim().slice(0, 60) : PROP_LABELS[kind], store.scene.props.map((p) => p.name));
       const prop = { ...newProp(kind, [Number(i.x), 0, Number(i.z)], name), rotation: [0, Number(i.facing ?? 0), 0] as Vec3 };
+      const holder = i.held_by ? findFigure(store, i.held_by) : null;
       store.updateScene((s) => ({ ...s, props: [...s.props, prop] }));
-      return `Added ${prop.name} (${prop.id}).`;
+      if (!holder) return `Added ${prop.name} (${prop.id}).`;
+      const hand = i.hand === 'L' ? 'L' : 'R';
+      holdProp(store, prop.id, { figure: holder.id, hand });
+      return `Added ${prop.name} (${prop.id}) in ${holder.name}'s ${hand === 'L' ? 'left' : 'right'} hand.`;
     },
   },
   {

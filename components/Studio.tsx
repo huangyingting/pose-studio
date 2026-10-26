@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, Eye, FilePlus2, FileUp, Focus, FolderOpen,
-  Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
+  Hand, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
   addKeyframe, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
@@ -375,7 +375,7 @@ function App() {
               onChange={setGizmo}
               iconOnly
               options={[
-                { value: 'rotate', label: 'Rotate', icon: Rotate3d, title: 'Rotate  E' },
+                { value: 'rotate', label: 'Pose', icon: Hand, title: 'Pose: drag parts (Shift twists), floor rings turn  E' },
                 { value: 'translate', label: 'Move', icon: Move3d, title: 'Move figure or prop  W' },
                 { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
               ]}
@@ -470,6 +470,17 @@ function App() {
           onMenu={openCanvasMenu}
         />
         {shotMode && <div className="letterbox" aria-hidden><div /></div>}
+        {settings.tips && (
+          <section className="tips" aria-label="Tips">
+            <ul>
+              <li><b>Drag</b> an arm, a leg or the head to pose it</li>
+              <li><b>Drag</b> the body to move a figure, the <b>ring</b> under it to turn it</li>
+              <li><kbd>Shift</kbd>-drag to twist a part or turn a figure</li>
+              <li><b>Right-click</b> anything for what you can do with it</li>
+            </ul>
+            <button type="button" className="btn subtle" onClick={() => store.setSettings({ tips: false })}>Got it</button>
+          </section>
+        )}
         {reference.url && reference.visible && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={reference.url} alt="" style={{ opacity: reference.opacity }} />

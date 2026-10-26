@@ -55,6 +55,8 @@ const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }'
 interface StyleMaterials {
   body: THREE.Material;
   bodySel: THREE.Material;
+  /** Under the pointer: what a drag would move (lighter than the selection). */
+  hover: THREE.Material;
   prop: THREE.Material;
   propSel: THREE.Material;
 }
@@ -146,18 +148,19 @@ export class Ink {
   private createMaterials(style: Style): StyleMaterials {
     if (this.ghost) {
       const m = new THREE.MeshBasicMaterial({ color: this.ghost.color, transparent: true, opacity: this.ghost.opacity, depthWrite: false });
-      return { body: m, bodySel: m, prop: m, propSel: m };
+      return { body: m, bodySel: m, hover: m, prop: m, propSel: m };
     }
     const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
     const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
     const shader = (s: 'ink' | 'sketch' | 'anime', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
     switch (style) {
       case 'shaded':
-        return { body: lambert('#f2f0ec'), bodySel: lambert('#a8c6ff'), prop: lambert('#d9d6cf'), propSel: lambert('#a8c6ff') };
+        return { body: lambert('#f2f0ec'), bodySel: lambert('#a8c6ff'), hover: lambert('#d3e1fb'), prop: lambert('#d9d6cf'), propSel: lambert('#a8c6ff') };
       case 'sketch':
         return {
           body: shader('sketch', '#fbfaf6', '#33312e'),
           bodySel: shader('sketch', '#e3ebff', '#33312e'),
+          hover: shader('sketch', '#eff2fb', '#33312e'),
           prop: shader('sketch', '#f3f1eb', '#33312e'),
           propSel: shader('sketch', '#e3ebff', '#33312e'),
         };
@@ -165,6 +168,7 @@ export class Ink {
         return {
           body: shader('ink', '#f1ebdd', '#1d1b18'),
           bodySel: shader('ink', '#dde4f2', '#1d1b18'),
+          hover: shader('ink', '#e8e8e8', '#1d1b18'),
           prop: shader('ink', '#e8e1d0', '#1d1b18'),
           propSel: shader('ink', '#dde4f2', '#1d1b18'),
         };
@@ -172,16 +176,17 @@ export class Ink {
         return {
           body: shader('anime', '#fcf2ec', '#d7bccb'),
           bodySel: shader('anime', '#dce7ff', '#a6b9e6'),
+          hover: shader('anime', '#ecedf8', '#bfc3dc'),
           prop: shader('anime', '#eef1f6', '#c2c9d8'),
           propSel: shader('anime', '#dce7ff', '#a6b9e6'),
         };
       case 'minimal':
-        return { body: basic('#ffffff'), bodySel: basic('#e2e9ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
+        return { body: basic('#ffffff'), bodySel: basic('#e2e9ff'), hover: basic('#f0f4ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
       case 'silhouette':
         // Same colour as the outline, so part boundaries disappear.
-        return { body: basic('#111111'), bodySel: basic('#3366ff'), prop: basic('#b4b4bb'), propSel: basic('#3366ff') };
+        return { body: basic('#111111'), bodySel: basic('#3366ff'), hover: basic('#2b3550'), prop: basic('#b4b4bb'), propSel: basic('#3366ff') };
       default:
-        return { body: basic('#ffffff'), bodySel: basic('#d5e5ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
+        return { body: basic('#ffffff'), bodySel: basic('#d5e5ff'), hover: basic('#ebf2ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
     }
   }
 
@@ -195,6 +200,9 @@ export class Ink {
     this.face.dispose();
   }
 }
+
+/** How a part is drawn: selected, under the pointer, or plain. */
+export type Highlight = boolean | 'hover';
 
 /** Something drawn in the ink styles: solid parts with outline hulls and contour rings. */
 export class InkedParts {
@@ -270,7 +278,7 @@ export class InkedParts {
   }
 
   /** Swap to flat per-part colours for the ID pass; returns the next free id. */
-  setIdMode(on: boolean, firstId: number, style: Style, isSelected: (m: THREE.Mesh) => boolean) {
+  setIdMode(on: boolean, firstId: number, style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
     if (on) {
       for (const d of this.decorations) d.visible = false;
       this.bodies.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
@@ -280,12 +288,12 @@ export class InkedParts {
     return firstId + this.bodies.length;
   }
 
-  refresh(style: Style, isSelected: (m: THREE.Mesh) => boolean) {
+  refresh(style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
     const m = this.ink.materialsFor(style);
     const prop = this.kind === 'prop';
     for (const mesh of this.bodies) {
-      const sel = isSelected(mesh);
-      mesh.material = prop ? (sel ? m.propSel : m.prop) : sel ? m.bodySel : m.body;
+      const state = isSelected(mesh);
+      mesh.material = state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body;
     }
     const def = styleDef(style);
     this.style = style;

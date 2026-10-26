@@ -1,14 +1,15 @@
 import {
-  BookmarkPlus, ClipboardCopy, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, BookmarkPlus, ClipboardCopy, Hand, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  duplicateProp, removeShotCut, savePose, setFigureHidden,
+  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden,
 } from '@/lib/actions';
+import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import { PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
+import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { PROP_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
@@ -59,9 +60,23 @@ export function figureMenu(store: Store, id: string, { notifyUndo }: MenuUi): Me
 export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): MenuItem[] {
   const p = store.scene.props.find((x) => x.id === id);
   if (!p) return [];
+  // Hold it in the active figure's hand (or the holder's other hand), or let it go.
+  const figure = store.scene.figures.find((f) => f.id === p.hold?.figure) ?? store.figure;
+  const hands: MenuItem[] = HOLDABLE.includes(p.kind) && figure
+    ? (['R', 'L'] as const)
+      .filter((hand) => !(p.hold?.figure === figure.id && p.hold.hand === hand))
+      .map((hand) => ({
+        label: `In ${figure.name}'s ${hand === 'L' ? 'left' : 'right'} hand`,
+        icon: Hand,
+        onSelect: () => holdProp(store, id, { figure: figure.id, hand }),
+      }))
+    : [];
   return [
     { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
     { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateProp(store, id) },
+    ...(hands.length || p.hold ? ['-' as const] : []),
+    ...hands,
+    ...(p.hold ? [{ label: 'Let go', icon: ArrowDownToLine, onSelect: () => holdProp(store, id, null) }] : []),
     '-',
     { label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },
   ];
@@ -124,7 +139,7 @@ export function canvasMenu(store: Store, at: Vec3 | undefined, frameAll: () => v
     { label: 'Add figure', icon: PersonStanding, onSelect: () => addFigure(store, spot) },
     { label: 'Add stand-in', icon: UserRound, onSelect: () => addStandIn(store, spot) },
     { group: 'Add a prop' },
-    ...PROP_KINDS.map((k): MenuItem => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k, spot) })),
+    ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k): MenuItem => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k, spot) })),
     '-',
     { label: 'Frame all', icon: Scan, shortcut: 'F', onSelect: frameAll },
   ];

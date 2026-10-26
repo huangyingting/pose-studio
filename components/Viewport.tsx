@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Line, OrbitControls, TransformControls } from '@react-three/drei';
+import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
 import { editCameraKey } from '@/lib/actions';
 import { sceneAt } from '@/lib/animation';
 import { LightRig } from '@/lib/lighting';
@@ -60,13 +60,10 @@ interface Props {
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
 
-/**
- * Rotation rings without the free-rotation ball: the ball covers everything inside the rings, so
- * a press there would turn the joint instead of reaching the body part under the pointer.
- */
-function ringsOnly(gizmo: unknown) {
-  const picker = (gizmo as { gizmo?: { picker?: Record<string, THREE.Object3D> } } | null)?.gizmo?.picker?.rotate;
-  for (const handle of picker?.children ?? []) if (handle.name === 'XYZE') handle.raycast = () => {};
+/** The floor is solid: the view can look up from near it, never from under it. */
+function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
+  const camera = e?.target.object;
+  if (camera && camera.position.y < 0.03) camera.position.setY(0.03);
 }
 
 export default function Viewport({
@@ -117,30 +114,25 @@ export default function Viewport({
     } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
   };
 
-  // Gizmo target for the current selection.
+  // The gizmo is for the explicit tools: Move (W: a whole figure or a prop, also up and down) and
+  // Scale (R: props). Joints are posed by dragging the body (Shift-drag twists) and the inspector's
+  // sliders; figures and props turn by their floor ring. (Rotation rings around a joint crossed
+  // the parts next to it and caught the drags meant for them.)
   let target: THREE.Object3D | null = null;
-  let mode: 'rotate' | 'translate' | 'scale' = 'rotate';
+  let mode: 'translate' | 'scale' = 'translate';
   let showY = true;
   let onGizmoChange = () => {};
-  // The Move tool always moves a whole figure: the selected one, or the active one. Otherwise a
-  // selected joint gets rotation rings; a whole figure none (drag its torso, turn it by its ring).
   const moving = settings.gizmo === 'translate';
-  const gizmoFigure = selection?.kind === 'joint' ? selection.figure : (selection?.kind === 'figure' || !selection) && moving ? (selection?.figure ?? activeFigure) : null;
+  const gizmoFigure = moving && selection?.kind !== 'prop' && selection?.kind !== 'shot' ? (selection?.figure ?? activeFigure) : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
     if (m && doc) {
-      const joint: JointName = moving ? 'root' : selection?.kind === 'joint' ? selection.joint : 'root';
-      target = m.joints[joint];
-      mode = moving ? 'translate' : 'rotate';
-      showY = !(mode === 'translate' && doc.grounded);
-      onGizmoChange = () => {
-        if (settings.limits && mode === 'rotate') m.constrain([joint]);
-        store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}:${joint}`);
-      };
+      target = m.joints.root;
+      showY = !doc.grounded;
+      onGizmoChange = () => store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}`);
     }
   } else if (selection?.kind === 'prop' && settings.gizmo !== 'rotate') {
-    // Props turn by their floor ring (exact angles in the inspector); Move and Scale use the gizmo.
     const p = sv.props.get(selection.prop);
     if (p) {
       target = p.object;
@@ -179,7 +171,21 @@ export default function Viewport({
       >
         <color attach="background" args={[styleDef(settings.style).background]} />
         <Lights sv={sv} settings={settings} scene={scene} />
-        {settings.showGrid && <gridHelper args={[10, 40, '#d4d4d8', '#ededf0']} />}
+        {settings.showGrid && (
+          // The floor goes on forever; the grid covers all of it, fading toward the horizon.
+          <Grid
+            infiniteGrid
+            cellSize={0.25}
+            cellThickness={0.6}
+            cellColor="#e4e4e8"
+            sectionSize={1}
+            sectionThickness={1}
+            sectionColor="#cdcdd3"
+            fadeDistance={60}
+            fadeStrength={1.5}
+            position={[0, 0.0005, 0]}
+          />
+        )}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
         {target && (
           <TransformControls
@@ -187,7 +193,6 @@ export default function Viewport({
             mode={mode}
             space={mode === 'translate' ? 'world' : 'local'}
             size={0.8}
-            ref={ringsOnly}
             showY={showY}
             onMouseDown={() => { gizmoBusy.current = Infinity; }}
             onMouseUp={() => { gizmoBusy.current = performance.now(); }}
@@ -213,7 +218,7 @@ export default function Viewport({
             onTurn={(id, read) => { store.select({ kind: 'figure', figure: id }); store.updateFigure(id, (f) => ({ ...f, ...read })); }}
           />
         )}
-        {settings.showHandles && selection?.kind === 'prop' && (
+        {settings.showHandles && selection?.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold && (
           <PropRing
             sv={sv}
             id={selection.prop}
@@ -224,7 +229,7 @@ export default function Viewport({
             }}
           />
         )}
-        <OrbitControls makeDefault />
+        <OrbitControls makeDefault onChange={keepCameraAboveFloor} />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         <ShotDriver sv={sv} scene={scene} frame={needFrame ? frame : null} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />

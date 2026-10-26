@@ -22,7 +22,7 @@ export class LightRig {
   readonly object = new THREE.Group();
   private ambient = new THREE.AmbientLight(0xffffff, 1.05);
   private key = new THREE.DirectionalLight(0xffffff, 1.9);
-  private floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.16, depthWrite: false }));
+  private floor = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.ShadowMaterial({ opacity: 0.16, depthWrite: false }));
 
   constructor() {
     const s = this.key.shadow;

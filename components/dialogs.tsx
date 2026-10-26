@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/animation';
 import { addFigures, appendScenes } from '@/lib/actions';
@@ -43,6 +43,7 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
   const light = useStudio((s) => s.settings.light);
   const faces = useStudio((s) => s.settings.faces);
   const scene = useScene();
+  const time = useStudio((s) => s.time);
   const animated = !!scene.animation;
   const [o, setO] = useState<ExportOptions>(loadExportOptions);
   const [busy, setBusy] = useState(false);
@@ -186,6 +187,22 @@ export function ExportDialog({ onClose, notify }: { onClose(): void; notify: Not
             {width} × {height} px{tooBig ? ' — too large for most browsers' : ''}
             {video && scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`}
           </span>
+          <button
+            type="button"
+            className="btn ghost"
+            data-tip="The open scene, posed as shown, for Blender and other 3D tools"
+            onClick={async () => {
+              try {
+                const { sceneToGlb } = await import('@/lib/model3d');
+                downloadBlob(await sceneToGlb(sceneAt(scene, time)), `${safeFilename(scene.name)}.glb`);
+                notify('3D model saved (.glb)');
+              } catch (err) {
+                notify(`Could not export the 3D model: ${(err as Error).message}`, 'error');
+              }
+            }}
+          >
+            <Box size={15} aria-hidden /> 3D model (.glb)
+          </button>
           {!filmed && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })}>Reset to Pose.jpg layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
@@ -471,10 +488,11 @@ const SHORTCUTS: [string, string][] = [
   ['Select a body part', 'Click'],
   ['Menu for a figure, prop, shot or scene', 'Right click'],
   ['Pose a limb · move a hand or foot', 'Drag it'],
+  ['Twist a part · turn a figure or prop', 'Shift drag'],
   ['Move a figure or prop on the floor', 'Drag its torso / it'],
   ['Turn a figure or prop', 'Drag its floor ring (Shift: 15°)'],
   ['Orbit · pan · zoom', 'Drag empty space or Alt drag · Right drag · Wheel'],
-  ['Gizmo: rotate joint / move with height / scale prop', 'E  W  R'],
+  ['Tools: pose · move (with height) · scale props', 'E  W  R'],
   ['Camera views', '1 – 6'],
   ['Frame all', 'F'],
   ['Mirror pose', 'M'],

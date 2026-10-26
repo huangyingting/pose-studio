@@ -20,6 +20,8 @@ export interface Settings {
   side: SideSection;
   /** The library's open tab. */
   libraryTab: LibraryTab;
+  /** Show the first-run tips on the canvas (until dismissed). */
+  tips: boolean;
 }
 
 export const LIBRARY_TABS = ['poses', 'motions', 'camera'] as const;
@@ -45,7 +47,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'scene', libraryTab: 'poses',
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'scene', libraryTab: 'poses', tips: true,
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -91,6 +93,7 @@ function loadSettings(storage: Storage | null): Settings {
         faces: s.faces !== false,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
         libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',
+        tips: s.tips !== false,
       };
     }
   } catch {

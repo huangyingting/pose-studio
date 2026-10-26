@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { Ink, type Ghost } from './ink';
 import { Mannequin } from './mannequin';
 import { PropObject } from './props';
-import type { Scene, Selection, Style } from './types';
+import type { JointName, Scene, Selection, Style } from './types';
+
+/** What the pointer would move: (some joints of) a figure, a prop, or a held prop and the arm holding it. */
+export type Hover = { figure?: string; joints?: JointName[]; prop?: string } | null;
 
 /**
  * Keeps three.js objects in sync with a document Scene. Used by both the interactive
@@ -18,6 +21,7 @@ export class SceneView {
   private style: Style = 'line';
   private faces = true;
   private selection: Selection = null;
+  private hover: Hover = null;
   private listeners = new Set<() => void>();
 
   /** React can subscribe to object replacement (useSyncExternalStore). */
@@ -70,7 +74,7 @@ export class SceneView {
     for (const [id, p] of this.props) {
       const doc = scene.props.find((x) => x.id === id);
       if (propIds.has(id) && doc?.kind === p.kind) continue;
-      this.root.remove(p.object);
+      p.object.removeFromParent();
       p.dispose();
       this.props.delete(id);
       changed = true;
@@ -81,10 +85,18 @@ export class SceneView {
         o = new PropObject(this.ink, p.kind, p.id);
         o.setStyle(this.style);
         this.props.set(p.id, o);
-        this.root.add(o.object);
         changed = true;
       }
+      // A held prop rides on its holder's wrist (re-attached when the figure is rebuilt), hidden with it.
+      const holder = p.hold ? this.figures.get(p.hold.figure) : undefined;
+      const parent = holder && p.hold ? holder.joints[p.hold.hand === 'L' ? 'wristL' : 'wristR'] : this.root;
+      if (o.object.parent !== parent) {
+        parent.add(o.object);
+        changed = true;
+      }
+      o.object.visible = !p.hold || !!holder;
       o.apply(p);
+      if (!p.hold) o.liftAboveFloor();
     }
 
     this.root.updateMatrixWorld(true);
@@ -92,6 +104,7 @@ export class SceneView {
     if (changed) {
       this.version++;
       this.applySelection();
+      this.applyHover();
       for (const l of this.listeners) l();
     }
     return changed;
@@ -119,6 +132,18 @@ export class SceneView {
     const sel = this.selection;
     for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, sel?.kind === 'figure' && sel.figure === id);
     for (const [id, p] of this.props) p.setSelected(sel?.kind === 'prop' && sel.prop === id);
+  }
+
+  /** Tint what a drag would move (the editor shows it under the pointer). */
+  setHover(hover: Hover) {
+    this.hover = hover;
+    this.applyHover();
+  }
+
+  private applyHover() {
+    const h = this.hover;
+    for (const [id, m] of this.figures) m.setHover(h?.figure === id ? h.joints ?? 'all' : null);
+    for (const [id, p] of this.props) p.setHover(h?.prop === id);
   }
 
   /** Give every part a unique flat colour for the line-art ID pass. */

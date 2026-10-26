@@ -47,6 +47,18 @@ function pieces(kind: PropKind): Piece[] {
       });
       return [[cylinder(0.18, 0.04, 0.012), [0, 0.49, 0]], ...legs];
     }
+    // Handheld: drawn upright from their base, like the rest, so they also stand on the floor.
+    case 'stick':
+      return [[cylinder(0.016, 1, 0.006), [0, 0.5, 0]]];
+    case 'phone':
+      return [[box(0.072, 0.148, 0.009, 0.006), [0, 0.074, 0]]];
+    case 'cup':
+      return [
+        [cylinder(0.04, 0.1, 0.008), [0, 0.05, 0]],
+        [new THREE.TorusGeometry(0.024, 0.006, 10, 24, Math.PI).rotateZ(-Math.PI / 2), [0.04, 0.052, 0]],
+      ];
+    case 'book':
+      return [[box(0.15, 0.22, 0.03, 0.004), [0, 0.11, 0]]];
     case 'chair': {
       const legs: Piece[] = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => [cylinder(0.02, 0.44, 0.006), [x * 0.19, 0.22, z * 0.19]]);
       return [
@@ -64,6 +76,7 @@ export class PropObject {
   readonly parts: InkedParts;
   private style: Style = 'line';
   private selected = false;
+  private hovered = false;
 
   constructor(ink: Ink, readonly kind: PropKind, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
@@ -76,6 +89,16 @@ export class PropObject {
     this.object.position.set(...p.position);
     this.object.rotation.set(p.rotation[0] * D2R, p.rotation[1] * D2R, p.rotation[2] * D2R);
     this.object.scale.set(...p.scale);
+    this.object.updateMatrixWorld(true);
+  }
+
+  /** Raise it if any part is below the floor (for props standing in the scene, not held ones). */
+  liftAboveFloor() {
+    this.object.updateMatrixWorld(true);
+    let min = Infinity;
+    this.parts.forEachPoint((p) => { if (p.y < min) min = p.y; });
+    if (min >= 0 || !Number.isFinite(min)) return;
+    this.object.position.y -= min;
     this.object.updateMatrixWorld(true);
   }
 
@@ -101,6 +124,13 @@ export class PropObject {
     this.refresh();
   }
 
+  /** Tint it: a drag would move it. */
+  setHover(on: boolean) {
+    if (on === this.hovered) return;
+    this.hovered = on;
+    this.refresh();
+  }
+
   setIdMode(on: boolean, firstId: number) {
     return this.parts.setIdMode(on, firstId, this.style, () => this.selected);
   }
@@ -110,7 +140,7 @@ export class PropObject {
   }
 
   private refresh() {
-    this.parts.refresh(this.style, () => this.selected);
+    this.parts.refresh(this.style, () => this.selected || (this.hovered ? 'hover' : false));
   }
 
   dispose() {

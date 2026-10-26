@@ -14,7 +14,8 @@ import {
 import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
-import { PROP_LABELS } from './types';
+import { HANDHELD, PROP_LABELS } from './types';
+import { held, released } from './hold';
 import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, Posture, Prop, PropKind, Scene, Side, Vec3, View } from './types';
 
 /* Scenes (library entries) */
@@ -137,7 +138,12 @@ export function duplicateFigure(store: Store, id: string) {
 
 export function deleteFigure(store: Store, id: string) {
   if (store.scene.figures.length <= 1) return false;
-  store.updateScene((s) => ({ ...s, figures: s.figures.filter((f) => f.id !== id) }));
+  // What it held falls to the floor.
+  store.updateScene((s) => ({
+    ...s,
+    figures: s.figures.filter((f) => f.id !== id),
+    props: s.props.map((p) => (p.hold?.figure === id ? released(p, s) : p)),
+  }));
   return true;
 }
 
@@ -194,10 +200,34 @@ export function pastePose(store: Store) {
 
 /* Props */
 
+/** Add a prop. Handheld kinds go into the active figure's free hand (the right one first). */
 export function addProp(store: Store, kind: PropKind, at = besideFigures(store, 0.9)) {
   const prop = newProp(kind, at, nextName(PROP_LABELS[kind], store.scene.props.map((p) => p.name)));
-  store.updateScene((s) => ({ ...s, props: [...s.props, prop] }));
+  const figure = HANDHELD.includes(kind) ? store.figure : null;
+  const busy = (hand: Side) => store.scene.props.some((p) => p.hold?.figure === figure?.id && p.hold?.hand === hand);
+  const hand: Side | null = figure ? (!busy('R') ? 'R' : !busy('L') ? 'L' : null) : null;
+  if (figure && hand) {
+    const h = held(prop, figure, hand);
+    store.updateScene((s) => ({ ...s, props: [...s.props, h.prop], figures: s.figures.map((f) => (f.id === figure.id ? h.figure : f)) }));
+  } else {
+    store.updateScene((s) => ({ ...s, props: [...s.props, prop] }));
+  }
   store.select({ kind: 'prop', prop: prop.id });
+}
+
+/** Put a prop in a figure's hand (it closes into a grip), or (null) let it go onto the floor. */
+export function holdProp(store: Store, id: string, to: { figure: string; hand: Side } | null) {
+  store.updateScene((s) => {
+    const prop = s.props.find((p) => p.id === id);
+    if (!prop) return s;
+    const free = prop.hold ? released(prop, s) : prop;
+    const figure = to && s.figures.find((f) => f.id === to.figure);
+    if (!to || !figure) return { ...s, props: s.props.map((p) => (p.id === id ? free : p)) };
+    // One prop per hand: whatever was in it is let go.
+    const props = s.props.map((p) => (p.hold?.figure === to.figure && p.hold.hand === to.hand && p.id !== id ? released(p, s) : p));
+    const h = held(free, figure, to.hand);
+    return { ...s, props: props.map((p) => (p.id === id ? h.prop : p)), figures: s.figures.map((f) => (f.id === figure.id ? h.figure : f)) };
+  });
 }
 
 export function duplicateProp(store: Store, id: string) {

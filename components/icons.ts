@@ -1,5 +1,5 @@
 import {
-  Armchair, Box, BrickWall, Brush, Circle, Contrast, Cylinder, Disc, Minus, PenTool, PencilLine, Rows3, Sparkles, Sun,
+  Armchair, BookOpen, Box, BrickWall, Brush, Circle, Coffee, Contrast, Cylinder, Disc, Minus, PenTool, PencilLine, Rows3, Smartphone, Sparkles, Sun, Wand,
   type LucideIcon,
 } from 'lucide-react';
 import type { PropKind, Style } from '@/lib/types';
@@ -13,6 +13,10 @@ export const PROP_ICONS: Record<PropKind, LucideIcon> = {
   stool: Disc,
   step: Rows3,
   wall: BrickWall,
+  stick: Wand,
+  phone: Smartphone,
+  cup: Coffee,
+  book: BookOpen,
 };
 
 /** Icon per render style (toolbar menu, export / practice pickers). */

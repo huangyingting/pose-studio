@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals } from './ink';
+import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals, type Highlight } from './ink';
 import { clampRotation, jointLimits, wrapDeg } from './joints';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
@@ -501,10 +501,27 @@ export class Mannequin {
     this.object.updateMatrixWorld(true);
   }
 
-  /** Move the figure vertically so its lowest point rests on y = 0. */
+  /** The height of the figure's lowest point (below 0: it goes through the floor). */
+  lowest() {
+    this.object.updateMatrixWorld(true);
+    let min = Infinity;
+    this.parts.forEachPoint((p) => { if (p.y < min) min = p.y; });
+    return min;
+  }
+
+  /** Raise the figure if any part is below the floor (it never goes through it). */
+  liftAboveFloor() {
+    const min = this.lowest();
+    if (min >= 0) return;
+    this.joints.root.position.y -= min;
+    this.object.updateMatrixWorld(true);
+  }
+
+  /** Move the figure vertically so its lowest point rests on y = 0 (if not grounded: at least above it). */
   ground() {
     if (this.groundLock || !this.grounded) {
-      this.object.updateMatrixWorld(true);
+      if (this.groundLock) this.object.updateMatrixWorld(true);
+      else this.liftAboveFloor();
       return;
     }
     const root = this.joints.root;
@@ -614,7 +631,27 @@ export class Mannequin {
     return this.parts.setIdMode(on, firstId, this.style, this.isSelected);
   }
 
-  private isSelected = (mesh: THREE.Mesh) => this.highlight || (this.selected !== null && mesh.userData.joint === this.selected);
+  /** Tint the parts a drag would move: these joints' parts, or the whole figure. */
+  setHover(joints: readonly JointName[] | 'all' | null) {
+    const next = joints === 'all' || joints === null ? joints : new Set(joints);
+    if (next === this.hover || (next instanceof Set && this.hover instanceof Set && next.size === this.hover.size && [...next].every((j) => (this.hover as Set<JointName>).has(j)))) return;
+    this.hover = next;
+    this.refresh();
+  }
+
+  /** A joint and every joint below it: what moves when it turns. */
+  jointsUnder(joint: JointName): JointName[] {
+    const out: JointName[] = [];
+    this.joints[joint].traverse((o) => { if ((JOINTS as readonly string[]).includes(o.name)) out.push(o.name as JointName); });
+    return out;
+  }
+
+  private hover: Set<JointName> | 'all' | null = null;
+
+  private isSelected = (mesh: THREE.Mesh): Highlight => {
+    if (this.highlight || (this.selected !== null && mesh.userData.joint === this.selected)) return true;
+    return this.hover === 'all' || !!this.hover?.has(mesh.userData.joint as JointName) ? 'hover' : false;
+  };
 
   private refresh() {
     this.parts.refresh(this.style, this.isSelected);

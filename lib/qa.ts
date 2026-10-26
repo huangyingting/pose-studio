@@ -8,12 +8,12 @@ import { JOINTS, type Figure, type JointName, type Scene } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
- * feet sliding while planted, bodies below the floor, figures passing through each other or
+ * feet sliding while planted, figures passing through each other or
  * through props, joints bent past their natural range, and pops (a joint snapping in a frame).
  * Bodies are approximated by capsules around the bones, so only clear overlaps are reported.
  */
 
-export type IssueKind = 'slide' | 'floor' | 'overlap' | 'limit' | 'pop';
+export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop';
 
 export interface Issue {
   kind: IssueKind;
@@ -27,12 +27,11 @@ export interface Issue {
 }
 
 export const ISSUE_LABELS: Record<IssueKind, string> = {
-  slide: 'Foot slide', floor: 'Below the floor', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop',
+  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop',
 };
 
 const HINTS: Record<IssueKind, string> = {
   slide: 'Keep the foot still while it is on the floor: match its position at both keys, or lift it.',
-  floor: 'Raise the figure at these keys, or turn on “Stand on the floor”.',
   overlap: 'Move the figures apart or adjust the pose at these keys.',
   limit: 'Re-pose this key with “Natural joint limits” on.',
   pop: 'Add an in-between key, or move the keys further apart.',
@@ -43,7 +42,6 @@ const SLIDE_MIN = 0.06;
 const PLANTED = 0.025;
 /** Faster than this (m/s) a foot near the floor is swinging, not planted. */
 const CONTACT_SPEED = 0.4;
-const FLOOR_MIN = 0.02;
 const LIMIT_SLACK = 4;
 /** A pop is a sudden change of speed from one frame to the next (fast but smooth is fine). */
 const POP_STEP = 25;
@@ -175,7 +173,8 @@ export function checkMotion(scene: Scene): Issue[] {
 
   const rig = new Rig();
   const ink = new Ink();
-  const props = scene.props.map((p) => {
+  // Held props move with the hand that holds them: they are part of the pose, not obstacles.
+  const props = scene.props.filter((p) => !p.hold).map((p) => {
     const o = new PropObject(ink, p.kind, p.id);
     o.apply(p);
     return o;
@@ -189,7 +188,6 @@ export function checkMotion(scene: Scene): Issue[] {
   const ranges = new Ranges(stamps, (key, worst, d) => {
     switch (d.kind) {
       case 'slide': return worst >= SLIDE_MIN ? `${who(d.figure)}${d.joint === 'ankleL' ? 'Left' : 'Right'} foot slides ${cm(worst)} while planted` : null;
-      case 'floor': return `${who(d.figure)}Body goes ${cm(worst)} below the floor`;
       case 'limit': return `${who(d.figure)}${JOINT_LABELS[d.joint!]} bends ${Math.round(worst)}° past its natural range`;
       case 'pop': return d.joint === 'root' && key.endsWith(':move')
         ? `${who(d.figure)}Body jerks (${cm(worst)} more in one frame)`
@@ -270,12 +268,6 @@ export function checkMotion(scene: Scene): Issue[] {
       prevRoot.set(f.id, root);
       if (wrap) continue;
 
-      // Below the floor (grounded figures always rest on it).
-      if (!f.grounded) {
-        let min = Infinity;
-        m.forEachPoint((p) => { if (p.y < min) min = p.y; });
-        if (min < -FLOOR_MIN) ranges.hit(`floor:${f.id}`, step, -min, { kind: 'floor', figure: f.id });
-      }
       // Joint limits.
       for (const j of JOINTS) {
         if (j === 'root' || f.proxy) continue;
@@ -316,6 +308,6 @@ export function checkMotion(scene: Scene): Issue[] {
   rig.dispose();
   for (const p of props) p.dispose();
   ink.dispose();
-  const order2: IssueKind[] = ['overlap', 'floor', 'slide', 'pop', 'limit'];
+  const order2: IssueKind[] = ['overlap', 'slide', 'pop', 'limit'];
   return ranges.finish().sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }

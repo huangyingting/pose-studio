@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Mannequin } from '@/lib/mannequin';
-import type { SceneView } from '@/lib/sceneview';
+import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
+import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import type { Figure, JointName, Scene } from '@/lib/types';
 
@@ -52,6 +52,25 @@ function usePointer() {
   }, [get]);
 }
 
+/** Move an IK chain's end toward `target`, but no part of the figure below the floor. */
+function reachAboveFloor(m: Mannequin, chain: Chain, target: THREE.Vector3, endQ: THREE.Quaternion, limits: boolean) {
+  m.solveIK(chain, target, endQ, limits);
+  const below = m.lowest();
+  if (below < 0) m.solveIK(chain, target.setY(target.y - below), endQ, limits);
+}
+
+/** Apply a rotation unless it would put part of the figure through the floor (then the step is undone). */
+function keepAboveFloor(m: Mannequin, obj: THREE.Object3D, rotate: () => void, chain?: Chain) {
+  const joints = (chain ?? []).map((j) => m.joints[j]);
+  const before = [obj, ...joints].map((o) => o.quaternion.clone());
+  const was = m.lowest();
+  rotate();
+  // Already below (e.g. a figure placed that way) allows any move that does not make it worse.
+  if (m.lowest() >= Math.min(0, was) - 0.002) return;
+  [obj, ...joints].forEach((o, i) => o.quaternion.copy(before[i]));
+  m.object.updateMatrixWorld(true);
+}
+
 /** Follow the pointer until it is released (window listeners: the pointer may leave the object). */
 function follow(onMove: (e: PointerEvent) => void, onUp: (e: PointerEvent) => void) {
   const up = (e: PointerEvent) => {
@@ -70,11 +89,22 @@ const tagged = (o: THREE.Object3D | null) => {
   return o;
 };
 
-type Plan = { begin(): void; move(ray: THREE.Ray): void; end(): void; cursor: string };
+type Plan = { begin(): void; move(ray: THREE.Ray, dx: number): void; end(): void; cursor: string };
+
+/** What a press on a part would move. */
+type Target =
+  | { kind: 'prop'; prop: string }
+  | { kind: 'held'; prop: string; figure: string; wrist: 'wristL' | 'wristR' }
+  | { kind: 'body'; figure: string }
+  | { kind: 'end' | 'swing'; figure: string; joint: JointName };
+
+/** Degrees per pixel when Shift-dragging to twist or turn. */
+const TWIST = 0.5;
 
 /**
- * The scene's figures and props, draggable. Pressing on one starts nothing until the pointer
- * moves a few pixels, so a click still selects (and the gizmo keeps its own drags).
+ * The scene's figures and props, draggable (Shift-drag twists a part around itself, or turns a
+ * figure or prop). What a drag would move is tinted under the pointer. Pressing starts nothing
+ * until the pointer moves a few pixels, so a click still selects and the gizmo keeps its drags.
  */
 export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }: {
   sv: SceneView;
@@ -87,89 +117,138 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
 }) {
   const pointer = usePointer();
 
-  const plan = (o: THREE.Object3D, point: THREE.Vector3): Plan | null => {
+  const target = (o: THREE.Object3D): Target | null => {
+    if (o.userData.prop) {
+      const prop = o.userData.prop as string;
+      const hold = scene.props.find((p) => p.id === prop)?.hold;
+      return hold && sv.figures.has(hold.figure)
+        ? { kind: 'held', prop, figure: hold.figure, wrist: hold.hand === 'L' ? 'wristL' : 'wristR' }
+        : { kind: 'prop', prop };
+    }
+    const figure = o.userData.figure as string;
+    const joint = o.userData.joint as JointName;
+    if (scene.figures.find((f) => f.id === figure)?.proxy || TORSO.includes(joint)) return { kind: 'body', figure };
+    return { kind: ENDS[joint] ? 'end' : 'swing', figure, joint };
+  };
+
+  /** The parts a drag would move, for the hover tint. */
+  const hover = (t: Target, twist: boolean): Hover => {
+    if (t.kind === 'prop') return { prop: t.prop };
+    const m = sv.figures.get(t.figure);
+    if (!m) return null;
+    if (t.kind === 'held') return { prop: t.prop, figure: t.figure, joints: m.jointsUnder(twist ? t.wrist : IK_CHAINS[t.wrist][0]) };
+    if (t.kind === 'body') return { figure: t.figure };
+    return { figure: t.figure, joints: m.jointsUnder(t.kind === 'end' && !twist ? IK_CHAINS[ENDS[t.joint]!][0] : t.joint) };
+  };
+
+  const plan = (t: Target, point: THREE.Vector3, twist: boolean): Plan | null => {
     const camera = pointer.camera();
-    const facingPlane = () => new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), point);
+    const facingPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), point);
     const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -point.y);
     const hit = (ray: THREE.Ray, plane: THREE.Plane) => ray.intersectPlane(plane, new THREE.Vector3());
 
-    if (o.userData.prop) {
-      const id = o.userData.prop as string;
-      const p = sv.props.get(id);
+    if (t.kind === 'prop') {
+      const p = sv.props.get(t.prop);
       if (!p) return null;
       const start = p.object.position.clone();
+      const yaw = p.object.rotation.y;
       return {
-        cursor: 'move',
-        begin: () => store.select({ kind: 'prop', prop: id }),
-        move: (ray) => {
-          const h = hit(ray, floorPlane);
-          if (!h) return;
-          p.object.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+        cursor: twist ? 'ew-resize' : 'move',
+        begin: () => store.select({ kind: 'prop', prop: t.prop }),
+        move: (ray, dx) => {
+          if (twist) p.object.rotation.y = yaw + dx * TWIST * D2R;
+          else {
+            const h = hit(ray, floorPlane);
+            if (!h) return;
+            p.object.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+          }
           p.object.updateMatrixWorld(true);
         },
-        end: () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() })),
+        end: () => store.updateProp(t.prop, (doc) => ({ ...doc, ...p.read() })),
       };
     }
 
-    const id = o.userData.figure as string;
-    const joint = o.userData.joint as JointName;
-    const m = sv.figures.get(id);
-    const doc = scene.figures.find((f) => f.id === id);
-    if (!m || !doc) return null;
+    const m = sv.figures.get(t.figure);
+    if (!m) return null;
     const commit = () => {
       m.setGroundLock(false);
-      store.updateFigure(id, (f) => ({ ...f, ...m.read() }));
+      store.updateFigure(t.figure, (f) => ({ ...f, ...m.read() }));
     };
 
-    if (doc.proxy || TORSO.includes(joint)) {
+    if (t.kind === 'body') {
       const root = m.joints.root;
       const start = root.position.clone();
+      const yaw = root.rotation.y;
       return {
-        cursor: 'move',
-        begin: () => store.select({ kind: 'figure', figure: id }),
-        move: (ray) => {
-          const h = hit(ray, floorPlane);
-          if (!h) return;
-          root.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+        cursor: twist ? 'ew-resize' : 'move',
+        begin: () => store.select({ kind: 'figure', figure: t.figure }),
+        move: (ray, dx) => {
+          if (twist) root.rotation.y = yaw + dx * TWIST * D2R;
+          else {
+            const h = hit(ray, floorPlane);
+            if (!h) return;
+            root.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+          }
           m.object.updateMatrixWorld(true);
         },
         end: commit,
       };
     }
 
-    const plane = facingPlane();
-    const end = ENDS[joint];
-    if (end) {
-      // A hand or a foot: it follows the pointer and keeps its orientation; the limb bends.
-      const grab = m.joints[joint].getWorldPosition(new THREE.Vector3()).sub(point);
-      const endQ = m.joints[joint].getWorldQuaternion(new THREE.Quaternion());
+    const joint = t.kind === 'held' ? t.wrist : t.joint;
+    const select = () => store.select(t.kind === 'held' ? { kind: 'prop', prop: t.prop } : { kind: 'joint', figure: t.figure, joint });
+    const obj = m.joints[joint];
+    const startQ = obj.getWorldQuaternion(new THREE.Quaternion());
+    const q = new THREE.Quaternion();
+
+    if (twist) {
+      // Around the part's own length: towards its child joint, or along the hand / foot / head.
+      const pivot = obj.getWorldPosition(new THREE.Vector3());
+      const child = m.jointsUnder(joint)[1];
+      const axis = child
+        ? m.joints[child].getWorldPosition(new THREE.Vector3()).sub(pivot).normalize()
+        : new THREE.Vector3(0, joint === 'head' ? 1 : -1, 0).applyQuaternion(startQ);
+      return {
+        cursor: 'ew-resize',
+        begin: () => { m.setGroundLock(true); select(); },
+        move: (_, dx) => keepAboveFloor(m, obj, () => {
+          setWorldQuaternion(obj, q.setFromAxisAngle(axis, dx * TWIST * D2R).multiply(startQ));
+          if (limits) m.constrain([joint]);
+        }),
+        end: commit,
+      };
+    }
+
+    if (t.kind === 'held' || t.kind === 'end') {
+      // A hand or a foot (or what a hand holds): it follows the pointer and keeps its orientation.
+      const chain = IK_CHAINS[t.kind === 'held' ? t.wrist : ENDS[t.joint]!];
+      const grab = obj.getWorldPosition(new THREE.Vector3()).sub(point);
       return {
         cursor: 'grab',
-        begin: () => { m.setGroundLock(true); store.select({ kind: 'joint', figure: id, joint }); },
+        begin: () => { m.setGroundLock(true); select(); },
         move: (ray) => {
-          const h = hit(ray, plane);
-          if (h) m.solveIK(IK_CHAINS[end], h.add(grab), endQ, limits);
+          const h = hit(ray, facingPlane);
+          if (h) reachAboveFloor(m, chain, h.add(grab), startQ, limits);
         },
         end: commit,
       };
     }
 
     // Any other part swings from its joint so that the grabbed point follows the pointer.
-    const obj = m.joints[joint];
     const pivot = obj.getWorldPosition(new THREE.Vector3());
     const from = point.clone().sub(pivot).normalize();
-    const startQ = obj.getWorldQuaternion(new THREE.Quaternion());
-    const swing = new THREE.Quaternion();
     return {
       cursor: 'grab',
-      begin: () => { m.setGroundLock(true); store.select({ kind: 'joint', figure: id, joint }); },
+      begin: () => { m.setGroundLock(true); select(); },
       move: (ray) => {
-        const h = hit(ray, plane);
+        const h = hit(ray, facingPlane);
         if (!h) return;
         const to = h.sub(pivot);
         if (to.lengthSq() < 1e-8) return;
-        setWorldQuaternion(obj, swing.setFromUnitVectors(from, to.normalize()).multiply(startQ));
-        if (limits) m.constrain([joint]);
+        keepAboveFloor(m, obj, () => {
+          setWorldQuaternion(obj, q.setFromUnitVectors(from, to.normalize()).multiply(startQ));
+          if (limits) m.constrain([joint]);
+        });
       },
       end: commit,
     };
@@ -180,9 +259,11 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     // Handles drawn over the body (the IK dots) take precedence.
     if (e.intersections.some((i) => i.object.userData.handle)) return;
     const o = tagged(e.object);
-    if (!o) return;
+    const t = o && target(o);
+    if (!t) return;
     e.stopPropagation();
-    const p = plan(o, e.point.clone());
+    const twist = e.shiftKey;
+    const p = plan(t, e.point.clone(), twist);
     if (!p) return;
     const [x0, y0] = [e.nativeEvent.clientX, e.nativeEvent.clientY];
     let started = false;
@@ -197,27 +278,31 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
           if (gizmoActive()) { cancelled = true; return; }
           started = true;
           document.body.style.cursor = p.cursor === 'grab' ? 'grabbing' : p.cursor;
+          sv.setHover(hover(t, twist));
           p.begin();
         }
-        p.move(pointer.ray(ev.clientX, ev.clientY));
+        p.move(pointer.ray(ev.clientX, ev.clientY), ev.clientX - x0);
       },
       () => {
         if (!cancelled) pointer.orbit(true);
         if (started) {
           document.body.style.cursor = '';
+          sv.setHover(null);
           p.end();
         }
       },
     );
   };
 
-  /** Show what a drag would do. */
+  /** Show what a drag would move (and how): tint it, set the cursor. */
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (e.buttons) return;
+    if (e.intersections.some((i) => i.object.userData.handle)) { sv.setHover(null); return; }
     const o = tagged(e.object);
-    if (!o) return;
-    const proxy = scene.figures.find((f) => f.id === o.userData.figure)?.proxy;
-    document.body.style.cursor = o.userData.prop || proxy || TORSO.includes(o.userData.joint) ? 'move' : 'grab';
+    const t = o && target(o);
+    if (!t) return;
+    sv.setHover(hover(t, e.shiftKey));
+    document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };
 
   return (
@@ -226,7 +311,11 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerOut={() => { document.body.style.cursor = ''; }}
+      onPointerOut={(e: ThreeEvent<PointerEvent>) => {
+        if (e.buttons) return;
+        sv.setHover(null);
+        document.body.style.cursor = '';
+      }}
     />
   );
 }
@@ -477,13 +566,24 @@ export function IKHandles({ m, figure, limits, onCommit }: {
     if (!hit) return;
     const target = hit.add(d.grab);
     if (d.id === 'root') {
-      m.joints.root.position.copy(d.rootStart).add(target.sub(d.start));
-      m.object.updateMatrixWorld(true);
-      for (const f of d.feet) m.solveIK(IK_CHAINS[f.id], f.pos, f.q, limits);
+      const root = m.joints.root;
+      const plant = () => {
+        m.object.updateMatrixWorld(true);
+        for (const f of d.feet) m.solveIK(IK_CHAINS[f.id], f.pos, f.q, limits);
+      };
+      root.position.copy(d.rootStart).add(target.sub(d.start));
+      plant();
+      // The hips can go down only until the body meets the floor.
+      const below = m.lowest();
+      if (below < 0) {
+        root.position.setY(root.position.y - below);
+        plant();
+      }
     } else if (isPole(d.id)) {
-      m.swivel(POLE_CHAINS[d.id], target, d.endQ, limits);
+      const obj = m.joints[POLE_CHAINS[d.id][0]];
+      keepAboveFloor(m, obj, () => m.swivel(POLE_CHAINS[d.id as keyof typeof POLE_CHAINS], target, d.endQ, limits), POLE_CHAINS[d.id]);
     } else {
-      m.solveIK(IK_CHAINS[d.id], target, d.endQ, limits);
+      reachAboveFloor(m, IK_CHAINS[d.id as keyof typeof IK_CHAINS], target, d.endQ, limits);
     }
   };
 

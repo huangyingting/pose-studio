@@ -6,11 +6,12 @@ import {
   PanelLeft, PanelRight, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, setPosture, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
+  arrange, copyPose, holdProp, setPosture, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
   setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
+import { HOLDABLE } from '@/lib/hold';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { DEFAULT_LIGHT } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
@@ -351,7 +352,7 @@ function PropEditor({ id }: { id: string }) {
           value={prop[key][a]}
           step={step}
           digits={key === 'rotation' ? 1 : 2}
-          min={key === 'scale' ? 0.02 : -Infinity}
+          min={key === 'scale' ? 0.02 : key === 'position' && a === 1 && !prop.hold ? 0 : -Infinity}
           onChange={(v) => set(key, a, v)}
         />
       ))}
@@ -365,13 +366,37 @@ function PropEditor({ id }: { id: string }) {
         label={`${PROP_LABELS[prop.kind]} name`}
         onRename={(name) => renameProp(store, id, name)}
       >
-        <IconButton icon={ArrowDownToLine} label="Drop to floor" onClick={() => store.updateProp(id, (p) => ({ ...p, position: [p.position[0], 0, p.position[2]] }))} />
+        <IconButton
+          icon={ArrowDownToLine}
+          label={prop.hold ? 'Let go' : 'Drop to floor'}
+          onClick={() => (prop.hold ? holdProp(store, id, null) : store.updateProp(id, (p) => ({ ...p, position: [p.position[0], 0, p.position[2]] })))}
+        />
       </NameHeader>
+      {(HOLDABLE.includes(prop.kind) || prop.hold) && (
+        <Section title="Held by">
+          <Select
+            label="Held by"
+            value={prop.hold ? `${prop.hold.figure}:${prop.hold.hand}` : 'none'}
+            onChange={(v) => {
+              const [figure, hand] = v.split(':');
+              holdProp(store, id, v === 'none' ? null : { figure, hand: hand as Side });
+            }}
+            options={[
+              { value: 'none', label: 'Nobody: it stands on the floor' },
+              ...scene.figures.flatMap((f) => (['R', 'L'] as const).map((hand) => ({ value: `${f.id}:${hand}`, label: `${f.name}: ${hand === 'L' ? 'left' : 'right'} hand` }))),
+            ]}
+          />
+        </Section>
+      )}
       <Section title="Transform">
         {row('position', 'Position', 0.05)}
         {row('rotation', 'Rotation', 5)}
         {row('scale', 'Size', 0.05)}
-        <p className="hint-text">Drag a letter to scrub. On the canvas: drag the prop to move it, its ring to turn it; <kbd>W</kbd> also moves it up and down, <kbd>R</kbd> scales it.</p>
+        <p className="hint-text">
+          {prop.hold
+            ? <>Relative to the hand: it follows the pose and the animation. Drag it on the canvas to move the hand; <kbd>W</kbd> adjusts the grip.</>
+            : <>Drag a letter to scrub. On the canvas: drag the prop to move it, its ring to turn it; <kbd>W</kbd> also moves it up and down, <kbd>R</kbd> scales it.</>}
+        </p>
       </Section>
     </>
   );

@@ -54,12 +54,16 @@ export interface Figure {
 export const POSTURES = ['stand', 'sit', 'lie'] as const;
 export type Posture = (typeof POSTURES)[number];
 
-export const PROP_KINDS = ['box', 'sphere', 'cylinder', 'chair', 'stool', 'step', 'wall'] as const;
+export const PROP_KINDS = ['box', 'sphere', 'cylinder', 'chair', 'stool', 'step', 'wall', 'stick', 'phone', 'cup', 'book'] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 
 export const PROP_LABELS: Record<PropKind, string> = {
   box: 'Box', sphere: 'Ball', cylinder: 'Cylinder', chair: 'Chair', stool: 'Stool', step: 'Step', wall: 'Wall',
+  stick: 'Stick', phone: 'Phone', cup: 'Cup', book: 'Book',
 };
+
+/** Props made to be held: added to the selected figure's hand. */
+export const HANDHELD: readonly PropKind[] = ['stick', 'phone', 'cup', 'book'];
 
 export interface Prop {
   id: string;
@@ -69,6 +73,8 @@ export interface Prop {
   /** Degrees, XYZ order. */
   rotation: Vec3;
   scale: Vec3;
+  /** Held in a figure's hand: then position and rotation are relative to that hand. */
+  hold?: { figure: string; hand: Side };
 }
 
 /** Camera for thumbnails and export. yaw 0 = front, pitch > 0 = from above. */

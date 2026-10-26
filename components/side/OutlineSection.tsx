@@ -1,14 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Copy, Eye, EyeOff, Film, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
+import { Copy, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, editShot, renameFigure, renameProp,
   setFigureHidden, startAnimation,
 } from '@/lib/actions';
 import { figureKeyTimes } from '@/lib/animation';
 import { overLimit, shotSpans } from '@/lib/shots';
-import { PROP_KINDS, PROP_LABELS } from '@/lib/types';
+import { HANDHELD, PROP_KINDS, PROP_LABELS } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
 import { figureMenu, propMenu, shotMenu } from '../menus';
@@ -105,8 +105,12 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
               label="Add to set"
               className="ibtn"
               align="end"
-              tip="Add a prop"
-              items={PROP_KINDS.map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k) }))}
+              tip="Add a prop: on the floor, or in the selected figure's hand"
+              items={[
+                ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k) })),
+                { group: 'In the hand' },
+                ...HANDHELD.map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k) })),
+              ]}
             >
               <Plus size={15} strokeWidth={1.75} aria-hidden />
             </Menu>
@@ -124,7 +128,9 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
                     onRename={(name) => renameProp(store, p.id, name)}
                     onClick={() => store.select({ kind: 'prop', prop: p.id })}
                     onMenu={(e) => { store.select({ kind: 'prop', prop: p.id }); openContextMenu(e, propMenu(store, p.id, ui), p.name); }}
-                  />
+                  >
+                    {p.hold && <Hand size={12} className="layer-tag" aria-label={`In ${scene.figures.find((f) => f.id === p.hold!.figure)?.name}'s ${p.hold.hand === 'L' ? 'left' : 'right'} hand`} />}
+                  </Row>
                   <span className="layer-actions">
                     <IconButton icon={Copy} label={`Duplicate ${p.name}`} onClick={() => duplicateProp(store, p.id)} size={14} />
                     <IconButton icon={Trash2} label={`Delete ${p.name}`} onClick={() => { deleteProp(store, p.id); notifyUndo(`Deleted ${p.name}`); }} size={14} />

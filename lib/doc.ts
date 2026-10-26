@@ -60,6 +60,10 @@ const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
   stool: [1, 1, 1],
   step: [1, 1, 1],
   wall: [2, 2.4, 1],
+  stick: [1, 0.9, 1],
+  phone: [1, 1, 1],
+  cup: [1, 1, 1],
+  book: [1, 1, 1],
 };
 
 export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0], name: string = PROP_LABELS[kind]): Prop {
@@ -188,6 +192,9 @@ function parseProp(v: unknown): Prop | null {
     position: vec3(v.position, base.position),
     rotation: vec3(v.rotation, base.rotation),
     scale: vec3(v.scale, base.scale).map((s) => Math.min(20, Math.max(0.02, Math.abs(s)))) as Vec3,
+    ...(isObj(v.hold) && typeof v.hold.figure === 'string' && (v.hold.hand === 'L' || v.hold.hand === 'R')
+      ? { hold: { figure: v.hold.figure, hand: v.hold.hand } }
+      : {}),
   };
 }
 
@@ -204,7 +211,8 @@ export function parseScene(v: unknown, i = 0): Scene {
     id: str(v.id, uid('s')),
     name: str(v.name, `Scene ${i + 1}`),
     figures,
-    props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null),
+    props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null)
+      .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     view: parseView(v.view),
   };
   const animation = parseAnimation(v.animation, ids, parsePoseKey);

@@ -124,7 +124,11 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/');
-  await page.evaluate((lib) => { localStorage.clear(); localStorage.setItem('pose-studio-library', lib); }, SEEDED);
+  await page.evaluate((lib) => {
+    localStorage.clear();
+    localStorage.setItem('pose-studio-library', lib);
+    localStorage.setItem('pose-studio-settings', JSON.stringify({ tips: false }));
+  }, SEEDED);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByLabel('Scene name')).toHaveValue('Hand on head');
@@ -141,6 +145,14 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByLabel('Scene name')).toHaveValue('Scene 1');
   await expect(page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure', exact: true })).toBeVisible();
+  // A new user sees the core gestures once.
+  const tips = page.getByRole('region', { name: 'Tips' });
+  await expect(tips).toBeVisible();
+  await tips.getByRole('button', { name: 'Got it' }).click();
+  await expect(tips).toHaveCount(0);
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await expect(tips).toHaveCount(0);
   await openSection(page, 'Library');
   const poses = page.getByRole('list', { name: 'Poses' });
   await expect(poses.locator('img')).toHaveCount(20);
@@ -274,6 +286,38 @@ test('figures and props move by dragging them and turn by their floor ring', asy
   expect((await prop()).position[0]).toBeLessThan(p0.position[0] - 0.1);
   await page.keyboard.press('Control+z');
   expect((await prop()).position).toEqual(p0.position);
+});
+
+test('Shift-drag twists a part; handheld props go in the hand; the scene exports as a 3D model', async ({ page }) => {
+  await page.keyboard.press('1');
+  await page.waitForTimeout(400);
+  type Posed = { joints: Record<string, number[] | undefined>; hands: Record<string, { curl: number[] }> };
+  const figure = async () => (await state(page)).scene.figures[0] as unknown as Posed;
+  const before = await figure();
+
+  // Shift-drag the head sideways: it turns on its neck, the neck stays.
+  const head = await project(page, 'head');
+  await drag(page, { x: head.x, y: head.y - 20 }, { x: head.x + 80, y: head.y - 20 }, 'Shift');
+  const after = await figure();
+  expect(after.joints.head).not.toEqual(before.joints.head);
+  expect(after.joints.neck).toEqual(before.joints.neck);
+
+  // A phone goes into the selected figure's hand, which grips it.
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  await addLayer(page, 'Phone');
+  const prop = (await state(page)).scene.props[0] as unknown as { hold?: { hand: string } };
+  expect(prop.hold?.hand).toBe('R');
+  expect((await figure()).hands.R.curl[1]).toBeGreaterThan(0.4);
+  await expect(page.getByRole('combobox', { name: 'Held by' })).toContainText('right hand');
+  // Let go: it lands on the floor.
+  await page.getByRole('button', { name: 'Let go' }).click();
+  expect(((await state(page)).scene.props[0] as unknown as { hold?: unknown; position: number[] }).hold).toBeUndefined();
+
+  // The posed scene as a binary glTF file.
+  await page.keyboard.press('Control+e');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '3D model (.glb)' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/\.glb$/);
+  expect(readFileSync((await download.path())!).subarray(0, 4).toString()).toBe('glTF');
 });
 
 test('figures, props, body and hand presets', async ({ page }) => {
