@@ -23,7 +23,7 @@ import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 import { Account, ServerRoot } from '@edition/server';
 import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext, type Tab } from './Inspector';
-import LibraryPanel from './LibraryPanel';
+import SidePanel from './side/SidePanel';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
 import { Clock } from './clock';
@@ -358,7 +358,6 @@ function App() {
           <IconButton icon={Undo2} label="Undo" shortcut="Ctrl Z" onClick={() => store.undo()} disabled={!canUndo} />
           <IconButton icon={Redo2} label="Redo" shortcut="Ctrl Shift Z" onClick={() => store.redo()} disabled={!canRedo} />
           <span className="tb-sep hide-mobile" />
-          <IconButton icon={LayoutPanelTop} label="Storyboard" shortcut="B" onClick={() => { stopPlayback(); setDialog('board'); }} className="hide-mobile" />
           <IconButton icon={Timer} label="Gesture practice" shortcut="P" onClick={() => setDialog('practice')} className="hide-mobile" />
           <IconButton icon={ScanFace} label="Pose from photo" onClick={() => setDialog('photo')} className="hide-mobile" />
           <IconButton icon={Link} label="Share link" onClick={share} className="hide-mobile" />
@@ -382,7 +381,13 @@ function App() {
         />
       </header>
 
-      <LibraryPanel onPick={() => setDrawer(null)} notifyUndo={notifyUndo} />
+      <SidePanel
+        onPick={() => setDrawer(null)}
+        notify={notify}
+        notifyUndo={notifyUndo}
+        drawer={drawer === 'library'}
+        actions={[{ label: 'Storyboard', icon: LayoutPanelTop, shortcut: 'B', onSelect: () => { stopPlayback(); setDialog('board'); } }]}
+      />
 
       <main className={`stage${scene.animation ? ' animated' : ''}`} style={{ background: style.background }}>
         <Viewport

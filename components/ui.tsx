@@ -84,7 +84,7 @@ export function IconButton({ icon: Icon, label, shortcut, onClick, active, disab
   onClick?(): void;
   active?: boolean;
   disabled?: boolean;
-  tipSide?: 'top' | 'bottom' | 'left';
+  tipSide?: 'top' | 'bottom' | 'left' | 'right';
   className?: string;
   size?: number;
   /** Render as a toggle (aria-pressed). */

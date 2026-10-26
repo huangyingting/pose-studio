@@ -73,7 +73,7 @@ The static build leaves the account, sync and AI code out entirely.
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
 - Several open tabs stay in sync: a tab adopts changes saved by another one instead of overwriting them.
 - Works offline once loaded (service worker; production builds only) and can be installed as an app.
-- A design-tool layout: pose library and layers on the left, a contextual inspector (Pose / Body / Render / AI) on the right and a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
+- A design-tool layout: on the left a rail of sections (Poses, Layers, Animate) with the open one's panel, and the Storyboard workspace; click the open section to fold the panel away for more canvas. A contextual inspector (Pose / Body / Render, and AI on the server edition) on the right and a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
 - Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs and menus, and an error screen if something crashes.
 
 ## Getting started
@@ -140,7 +140,7 @@ components/
   Studio.tsx            Layout, top bar, canvas toolbar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
   Viewport.tsx          React Three Fiber canvas: selection, gizmo, IK handles, line-art render loop
   Inspector.tsx         Contextual Pose / Body / Render panel (joint, prop and style editors)
-  LibraryPanel.tsx      Pose library with thumbnails, and the layers list
+  side/                 Left side panel: the section rail and registry (sections.ts: add a section there), Poses, Layers and Animate
   BodyMap.tsx           Clickable body schematic for picking joints
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
   dialogs.tsx           Export, pose-from-photo and help dialogs

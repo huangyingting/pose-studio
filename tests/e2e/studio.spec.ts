@@ -45,12 +45,20 @@ function jpegSize(buf: Buffer) {
   throw new Error('No SOF marker');
 }
 
+/** Open a section of the left side panel (clicking the open one would fold it away). */
+async function openSection(page: Page, name: 'Poses' | 'Layers' | 'Animate') {
+  const tab = page.getByRole('tab', { name, exact: true });
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+}
+
 async function addLayer(page: Page, what: string) {
+  await openSection(page, 'Layers');
   await page.getByRole('button', { name: 'Add layer' }).click();
   await page.getByRole('menuitem', { name: what, exact: true }).click();
 }
 
 async function deleteCurrentPose(page: Page) {
+  await openSection(page, 'Poses');
   await page.getByRole('button', { name: 'Pose actions' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
 }
@@ -132,7 +140,7 @@ test('figures, props, body and hand presets', async ({ page }) => {
   expect(s.figures[1].body.sex).toBe(0);
   expect(s.figures[0].body.sex).toBe(1);
 
-  await page.getByRole('tab', { name: 'Pose' }).click();
+  await page.getByRole('tab', { name: 'Pose', exact: true }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Hands', exact: true }).click();
   await page.getByRole('button', { name: 'Fist' }).click();
@@ -213,11 +221,11 @@ test('poses a figure from a photo', async ({ page }) => {
 
 test('mobile layout uses drawers', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
-  await expect(page.locator('.library')).not.toBeInViewport();
+  await expect(page.locator('.side')).not.toBeInViewport();
   await page.getByRole('button', { name: 'Poses', exact: true }).click();
-  await expect(page.locator('.library')).toBeInViewport();
+  await expect(page.locator('.side')).toBeInViewport();
   await page.locator('.thumbs li').nth(2).locator('button').click();
-  await expect(page.locator('.library')).not.toBeInViewport();
+  await expect(page.locator('.side')).not.toBeInViewport();
   expect((await state(page)).sceneIndex).toBe(2);
 });
 
@@ -483,7 +491,7 @@ test('storyboard: panels with captions, reordering, board sheet export and persi
   await board.getByRole('button', { name: 'Close storyboard' }).click();
 
   // A second pose, added from the pose actions menu.
-  await page.locator('.library ol li').nth(3).click();
+  await page.locator('.thumbs li').nth(3).click();
   const second = (await state(page)).scene.name;
   await page.getByRole('button', { name: 'Pose actions' }).click();
   await page.getByRole('menuitem', { name: 'Add to storyboard' }).click();
@@ -533,6 +541,7 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
 });
 
 test('stand-ins block a scene in a posture and can become posable figures', async ({ page }) => {
+  await openSection(page, 'Layers');
   await page.getByRole('button', { name: 'Add layer' }).click();
   await page.getByRole('menuitem', { name: /Stand-in/ }).click();
   await expect(page.getByRole('button', { name: 'Stand-in 1', exact: true })).toBeVisible();
@@ -592,4 +601,22 @@ test('each figure has its own key track', async ({ page }) => {
   await page.getByRole('button', { name: 'Delete keyframe (Kai)' }).click();
   await expect(page.getByRole('button', { name: /^Kai key at 0.82 s/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Ben key at 0.82 s/ })).toBeVisible();
+});
+
+test('the side panel switches sections, folds away and remembers it', async ({ page }) => {
+  await openSection(page, 'Layers');
+  await expect(page.getByRole('tabpanel').getByRole('heading', { name: /Layers/ })).toBeVisible();
+  await openSection(page, 'Animate');
+  await page.getByRole('button', { name: 'Animate this pose' }).click();
+  await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
+  // Clicking the open section folds the panel; the canvas gets the room.
+  const before = (await page.locator('.stage').boundingBox())!.width;
+  await page.getByRole('tab', { name: 'Animate', exact: true }).click();
+  await expect(page.getByRole('tabpanel')).toHaveCount(0);
+  expect((await page.locator('.stage').boundingBox())!.width).toBeGreaterThan(before + 200);
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await expect(page.getByRole('tabpanel')).toHaveCount(0);
+  await openSection(page, 'Poses');
+  await expect(page.locator('.thumbs img')).toHaveCount(20);
 });

@@ -16,7 +16,12 @@ export interface Settings {
   light: Light;
   /** Simple face details (nose, ears, eyes, brows, mouth). */
   faces: boolean;
+  /** The left side panel's open section, or 'none' when it is collapsed to the rail. */
+  side: SideSection;
 }
+
+export const SIDE_SECTIONS = ['poses', 'layers', 'animate'] as const;
+export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
 
 export type SaveStatus = 'saved' | 'pending' | 'error';
 
@@ -35,7 +40,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true,
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, light: DEFAULT_LIGHT, faces: true, side: 'poses',
 };
 
 const STORAGE = { library: 'pose-studio-library-v2', legacy: 'pose-studio-library-v1', settings: 'pose-studio-settings-v1', index: 'pose-studio-index' };
@@ -80,6 +85,7 @@ function loadSettings(storage: Storage | null): Settings {
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
         light: clampLight(s.light),
         faces: s.faces !== false,
+        side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'poses',
       };
     }
   } catch {
