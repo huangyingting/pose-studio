@@ -676,6 +676,26 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 }
 .tl-figure:hover { color: var(--text); }
 .tl-figure.on { color: var(--accent); font-weight: 600; }
+/* Walk / run / jump stretches of a figure's track (generated steps), behind its keys. */
+.tl-travel {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tl-travel span { overflow: hidden; text-overflow: ellipsis; }
+.tl-travel.walk { background: rgba(48, 164, 108, 0.14); color: #23784f; }
+.tl-travel.run { background: rgba(245, 158, 11, 0.16); color: #a35e00; }
+.tl-travel.jump { background: rgba(139, 92, 246, 0.15); color: #6b44d6; }
 .tl-key {
   position: absolute;
   top: 50%;

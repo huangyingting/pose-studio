@@ -12,6 +12,7 @@ import {
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
+import { chainAt } from '@/lib/locomotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { DEFAULT_LIGHT } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
@@ -192,6 +193,11 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
 /** Where the figure stands and which way it faces. */
 function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
   const store = useStore();
+  const animation = useScene().animation;
+  const time = useStudio((s) => s.time);
+  // Between two marks of a walk, run or jump the generated steps place the figure.
+  const chain = animation ? chainAt(animation, figure.id, time) : null;
+  const moving = chain && time > chain.t0 + 1e-6 && time < chain.t1 - 1e-6 ? chain.kind : null;
   return (
     <Section title="Placement">
       <div className="prop-row">
@@ -200,12 +206,18 @@ function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorConte
         <NumberField prefix="Z" label="Position Z" value={figure.position[2]} step={0.05} onChange={(z) => setPlacement(store, figure.id, { z }, `place:${figure.id}:z`)} />
         <NumberField prefix="↻" label="Facing" value={facing(figure)} step={5} digits={0} onChange={(yaw) => setPlacement(store, figure.id, { yaw }, `place:${figure.id}:yaw`)} />
       </div>
-      <Toggle
-        label="Stand on the floor"
-        checked={figure.grounded}
-        hint="Turn off to keep the figure's height, e.g. to sit on a chair"
-        onChange={(on) => setGrounded(store, figure.id, on, ctx.rootPosition(figure.id) ?? undefined)}
-      />
+      {moving ? (
+        <p className="hint-text">
+          {moving === 'jump' ? 'Jumping' : moving === 'run' ? 'Running' : 'Walking'} from mark to mark: its steps are generated. Drag its marks on the floor, or right-click its track on the timeline to change how it gets there.
+        </p>
+      ) : (
+        <Toggle
+          label="Stand on the floor"
+          checked={figure.grounded}
+          hint="Turn off to keep the figure's height, e.g. to sit on a chair"
+          onChange={(on) => setGrounded(store, figure.id, on, ctx.rootPosition(figure.id) ?? undefined)}
+        />
+      )}
     </Section>
   );
 }

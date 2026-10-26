@@ -1,6 +1,6 @@
 import {
   addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
-  holdProp, nextName, reachFor, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  holdProp, nextName, reachFor, setTravel, travelTo, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
@@ -16,7 +16,7 @@ import { CAMERA_MOVES } from '../shot';
 import { shotSpans } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
-import { JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
+import { JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -40,6 +40,7 @@ const obj = (properties: Record<string, Schema>): Schema => ({
 const num = (description: string): Schema => ({ type: 'number', description });
 const opt = (s: Schema): Schema => ({ ...s, type: [s.type as string, 'null'] });
 const str = (description: string, values?: readonly string[]): Schema => ({ type: 'string', description, ...(values ? { enum: [...values] } : {}) });
+const bool = (description: string): Schema => ({ type: 'boolean', description });
 const FIGURE = str('Figure id or name');
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -131,6 +132,31 @@ export const TOOLS: AgentTool[] = [
       const sides = i.side === 'both' ? (['L', 'R'] as const) : i.side === 'left' ? (['L'] as const) : (['R'] as const);
       store.updateFigure(f.id, (x) => ({ ...x, hands: { ...x.hands, ...Object.fromEntries(sides.map((s) => [s, cloneHand(p.hand)])) } }));
       return `${f.name}: ${i.side} hand ${p.name.toLowerCase()}.`;
+    },
+  },
+  {
+    name: 'move_to',
+    description: 'Walk, run or jump a figure from where it is at the playhead to a floor point, as part of the animation (it is animated if needed). The steps are generated (no sliding), the time is set from the distance, the figure\'s later keys move on, and the playhead goes to the arrival, so calls chain into a route. Walking and running face the way they go unless keep_facing (side steps, backing up). A jump keeps the facing; give its height (m) and turns in the air: spin (turns about the vertical, e.g. 1) and flip (1 front flip, -1 back flip). Jumps can land on top of props.',
+    schema: obj({
+      figure: FIGURE,
+      x: num('Floor X (metres)'),
+      z: num('Floor Z (metres)'),
+      how: str('How it gets there', ['walk', 'run', 'jump']),
+      keep_facing: opt(bool('Keep its facing (side step or back up) instead of facing the way it goes')),
+      height: opt(num('Jump height in metres (default 0.45)')),
+      spin: opt(num('Jump: turns about the vertical (0.5, 1, 2)')),
+      flip: opt(num('Jump: 1 front flip, -1 back flip')),
+    }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      const how = i.how as Travel;
+      const span = travelTo(store, f.id, [Number(i.x), Number(i.z)], how, {
+        strafe: i.keep_facing === true,
+        height: typeof i.height === 'number' ? Math.min(1.6, Math.max(0.1, i.height)) : undefined,
+      });
+      if (!span) throw new Error(`No figure "${i.figure}"`);
+      if (how === 'jump' && (i.spin || i.flip)) setTravel(store, f.id, span.to, 'jump', { spin: Number(i.spin) || 0, flip: Number(i.flip) || 0 });
+      return `${f.name} ${how === 'walk' ? 'walks' : how === 'run' ? 'runs' : 'jumps'} to (${r2(Number(i.x))}, ${r2(Number(i.z))}) from ${r2(span.from)} s to ${r2(span.to)} s.`;
     },
   },
   {
@@ -395,5 +421,5 @@ Joint angles are degrees, Euler X/Y/Z:
 - elbowL/R: X− bends (to −150). kneeL/R: X+ bends (to 160). ankleL/R: X+ points the toes. wrists: X flex, Z sideways.
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
-Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (apply_pose or apply_motion from the library as a start, then refine), then shoot (camera_move, check_motion).
+Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures around with move_to: walk, run or jump from mark to mark; apply_pose or apply_motion from the library for actions on the spot; then refine), then shoot (camera_move, check_motion).
 Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. To put a figure beside, in front of or facing another, use relate rather than working out coordinates. For animation: animate, then set_time and set_joints for each key (a few keys, then let interpolation do the rest), add a camera_move, and run check_motion. Keep replies short: say what you did.`;

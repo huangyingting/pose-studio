@@ -1,6 +1,11 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Line } from '@react-three/drei';
+import { moveMark } from '@/lib/actions';
+import { figureKeyTimes, sceneAt } from '@/lib/animation';
+import { footprints, legsOf } from '@/lib/locomotion';
+import { groundOf } from '@/lib/surfaces';
 import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
 import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
@@ -619,5 +624,92 @@ export function IKHandles({ m, figure, limits, onCommit }: {
         </group>
       ))}
     </>
+  );
+}
+
+/**
+ * A figure's route while animating: its marks (where its keys put it; drag one to move it, click
+ * to go to that moment), the path its body takes (in the air for a jump) and the footprints of
+ * its walks and runs.
+ */
+export function RouteOverlay({ store, scene, figureId, time }: { store: Store; scene: Scene; figureId: string; time: number }) {
+  const pointer = usePointer();
+  const a = scene.animation!;
+  const figure = scene.figures.find((f) => f.id === figureId)!;
+  const ground = useMemo(() => groundOf(scene.props), [scene.props]);
+  const route = useMemo(() => {
+    const legs = legsOf(figure.body);
+    const points: [number, number, number][] = [];
+    const steps = Math.max(2, Math.ceil(a.duration * 15));
+    for (let i = 0; i <= steps; i++) {
+      const f = sceneAt(scene, (a.duration * i) / steps).figures.find((x) => x.id === figureId)!;
+      const lift = Math.max(0, f.position[1] - ground(f.position[0], f.position[2]) - legs.rootY);
+      points.push([f.position[0], ground(f.position[0], f.position[2]) + 0.012 + lift, f.position[2]]);
+    }
+    const marks = figureKeyTimes(a, figureId).map((t) => {
+      const k = a.keys.find((x) => x.t === t)!.poses[figureId];
+      return { t, x: k.position[0], z: k.position[2] };
+    });
+    return { points, marks, prints: footprints(a, figure, ground) };
+  }, [a, figure, figureId, scene, ground]);
+
+  const drag = (t: number) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0 || e.altKey) return;
+    e.stopPropagation();
+    const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const [x0, y0] = [e.nativeEvent.clientX, e.nativeEvent.clientY];
+    let moved = false;
+    pointer.orbit(false);
+    follow(
+      (ev) => {
+        if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_PX) return;
+        moved = true;
+        document.body.style.cursor = 'grabbing';
+        const h = pointer.ray(ev.clientX, ev.clientY).intersectPlane(floor, new THREE.Vector3());
+        if (h) moveMark(store, figureId, t, [h.x, h.z], `mark:${figureId}:${t}`);
+      },
+      () => {
+        pointer.orbit(true);
+        document.body.style.cursor = '';
+        if (!moved) store.setTime(t);
+      },
+    );
+  };
+
+  return (
+    <group>
+      {route.points.length > 1 && <Line points={route.points} color="#3b6cff" lineWidth={1.5} transparent opacity={0.55} />}
+      {route.prints.map((p, i) => (
+        <mesh key={i} position={[p.x, ground(p.x, p.z) + 0.006, p.z]} rotation={[-Math.PI / 2, 0, p.yaw * (Math.PI / 180)]} renderOrder={4}>
+          <circleGeometry args={[0.045, 16]} />
+          <meshBasicMaterial color={p.side === 'L' ? '#30a46c' : '#f59e0b'} transparent opacity={0.5} depthWrite={false} />
+        </mesh>
+      ))}
+      {route.marks.map((m) => {
+        const on = Math.abs(m.t - time) < 0.5 / a.fps;
+        const y = ground(m.x, m.z) + 0.008;
+        return (
+          <group key={m.t} position={[m.x, y, m.z]}>
+            <mesh rotation-x={-Math.PI / 2} renderOrder={6}>
+              <ringGeometry args={[0.07, 0.1, 32]} />
+              <meshBasicMaterial color={on ? '#3b6cff' : '#60616a'} transparent opacity={0.9} depthWrite={false} />
+            </mesh>
+            <mesh rotation-x={-Math.PI / 2} renderOrder={6}>
+              <circleGeometry args={[0.07, 32]} />
+              <meshBasicMaterial color="#ffffff" transparent opacity={on ? 0.9 : 0.6} depthWrite={false} />
+            </mesh>
+            <mesh
+              rotation-x={-Math.PI / 2}
+              visible={false}
+              onPointerDown={drag(m.t)}
+              onPointerOver={() => { document.body.style.cursor = 'grab'; }}
+              onPointerOut={() => { document.body.style.cursor = ''; }}
+            >
+              <circleGeometry args={[0.16, 16]} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
   );
 }

@@ -93,6 +93,27 @@ export function legsOf(body: BodyParams): Legs {
   return legs;
 }
 
+/** Where a keyed pose puts the ankles (world), cached per key: walks start and end on them. */
+const feetCache = new WeakMap<PoseKey, Record<'L' | 'R', [number, number, number]>>();
+
+function keyedFeet(body: BodyParams, pose: PoseKey) {
+  let feet = feetCache.get(pose);
+  if (feet) return feet;
+  const rig = new Rig();
+  try {
+    const m = rig.model({ id: 'feet', name: '', body, joints: pose.joints, position: pose.position, hands: pose.hands, grounded: pose.grounded });
+    const at = (j: 'ankleL' | 'ankleR') => {
+      const p = m.joints[j].getWorldPosition(m.joints[j].position.clone());
+      return [p.x, p.y, p.z] as [number, number, number];
+    };
+    feet = { L: at('ankleL'), R: at('ankleR') };
+  } finally {
+    rig.dispose();
+  }
+  feetCache.set(pose, feet);
+  return feet;
+}
+
 /* ---------- the chain of keys a time falls in ---------- */
 
 export interface Chain {
@@ -217,8 +238,10 @@ function toPelvis(d: [number, number, number], yaw: number, pitch: number): [num
 export function locomote(a: Animation, f: Figure, t: number, pose: PoseKey, ground: Ground = FLOOR): PoseKey {
   const chain = chainAt(a, f.id, t);
   if (!chain || chain.t1 - chain.t0 < 1e-3) return pose;
+  // At the marks it starts and ends at, the figure is as keyed (standing on the floor).
+  if (Math.abs(t - chain.t0) < 1e-6 || Math.abs(t - chain.t1) < 1e-6) return pose;
   const legs = legsOf(f.body);
-  return chain.kind === 'jump' ? jump(chain, legs, t, pose, ground) : gait(chain, legs, t, pose, ground);
+  return chain.kind === 'jump' ? jump(chain, legs, t, pose, ground, f.body) : gait(chain, legs, t, pose, ground, f.body);
 }
 
 /** Where a foot goes: on the floor (`world`, level when planted, hanging as it swings), or in the air relative to its hip in the body's frame (`body`, toes pointed). */
@@ -295,39 +318,101 @@ const hermite01 = (y0: number, m0: number, y1: number, m1: number, u: number) =>
   return (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * y1 + (u3 - u2) * m1;
 };
 
-/** Walking or running along the chain's path. */
-function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): PoseKey {
+/**
+ * The plan of a walk or run along a chain: its speed profile, step length and footsteps (as
+ * 3ds Max's Biped plans them): whole steps of equal length along the path, feet alternating, the
+ * first leaving from the standing spot and the last closing the feet together at the end. Each
+ * step swings while the body covers a fixed stretch of the path, centred on the other foot: in a
+ * walk the stretches never overlap (one foot is always down), in a run they do (both feet in the
+ * air). Footfalls are fixed points on the floor: nothing slides.
+ */
+function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const line = polyline(c.path);
   const D = line.length;
   const dur = c.t1 - c.t0;
-  const tau = clamp(t - c.t0, 0, dur);
   const run = c.kind === 'run';
   const leg = legs.thigh + legs.shin;
   // Speed: a ramp up at the start, a ramp down at the end, steady in between.
   const ramp = Math.min(run ? 0.45 : 0.35, dur / 3);
   const v = D / Math.max(1e-3, dur - ramp);
-  const s = tau < ramp ? (v * tau * tau) / (2 * ramp) : tau > dur - ramp ? D - (v * (dur - tau) ** 2) / (2 * ramp) : v * (tau - ramp / 2);
-  // Arm swing and lean come in and out with the speed.
-  const w = D < 0.05 ? 0 : Math.min(smooth(tau / ramp), smooth((dur - tau) / ramp));
+  const distance = (tau: number) => (tau < ramp ? (v * tau * tau) / (2 * ramp) : tau > dur - ramp ? D - (v * (dur - tau) ** 2) / (2 * ramp) : v * (tau - ramp / 2));
   // Longer steps at higher speed, as people do.
   const scale = leg / 0.85;
   const step = run
     ? clamp(1.15 * leg * Math.sqrt(v / (SPEED.run * scale)), 0.6 * leg, 2 * leg)
     : clamp(0.72 * leg * Math.sqrt(v / (SPEED.walk * scale)), 0.25 * leg, 1 * leg);
-  const stride = 2 * step;
   const stance = run ? 0.38 : 0.62;
+  const startYaw = c.start.joints.root?.[1] ?? 0;
+  const endYaw = c.end.joints.root?.[1] ?? 0;
+  const strafe = !!c.end.strafe;
+  // Which way the body faces at a point of the path: along it, or (strafing) turning from the
+  // start facing to the end facing over the distance.
+  const yawAt = (arc: number) => (strafe || D < 0.05 ? lerpAngle(startYaw, endYaw, D > 1e-3 ? arc / D : 1) : yawOf(line.direction(arc)));
+  const n = Math.max(1, Math.round(D / step));
+  const len = D / n;
+  const half = (1 - stance) * len;
+  const width = legs.hipX * (run ? 0.6 : 0.9);
+  type Step = { side: 'L' | 'R'; from: number; to: number; s0: number; s1: number };
+  const steps: Step[] = [];
+  const last: Record<'L' | 'R', number> = { L: 0, R: 0 };
+  for (let k = 1; k <= n + 1; k++) {
+    const side = k % 2 === 1 ? 'R' : 'L';
+    const to = Math.min(D, k * len);
+    const centre = (k - 1) * len;
+    const s0 = k === 1 ? 0 : Math.max(steps[steps.length - 1].s0 + 1e-3, centre - half);
+    // The first step lands with the body `half` along, as every later one does past its centre.
+    const s1 = k === 1 ? Math.max(1e-3, half) : k === n + 1 ? D : centre + half;
+    steps.push({ side, from: last[side], to, s0, s1: Math.max(s0 + 1e-3, s1) });
+    last[side] = to;
+  }
+  // Standing at either end: exactly where the keyed pose has its feet.
+  const startFeet = keyedFeet(body, c.start);
+  const endFeet = keyedFeet(body, c.end);
+  const spot = (arc: number, side: 'L' | 'R'): [number, number, number] => {
+    if (arc <= 1e-6) return startFeet[side];
+    if (arc >= D - 1e-6) return endFeet[side];
+    const [px, pz] = line.point(arc);
+    const l = leftOf(yawAt(arc));
+    const sgn = side === 'L' ? 1 : -1;
+    const fx = px + l[0] * sgn * width;
+    const fz = pz + l[1] * sgn * width;
+    return [fx, ground(fx, fz) + legs.ankleY, fz];
+  };
+  return { line, D, dur, run, ramp, distance, scale, step, stance, len, half, width, steps, spot, yawAt, startYaw, endYaw, strafe };
+}
+
+/** Where a figure's feet will land on its walks and runs (drawn on the floor while editing). */
+export function footprints(a: Animation, f: Figure, ground: Ground = FLOOR) {
+  const legs = legsOf(f.body);
+  const out: { x: number; z: number; yaw: number; side: 'L' | 'R' }[] = [];
+  for (const c of chainsOf(a, f.id)) {
+    if (c.kind === 'jump') continue;
+    const p = planGait(c, legs, ground, f.body);
+    for (const st of p.steps) {
+      const [x, , z] = p.spot(st.to, st.side);
+      out.push({ x, z, yaw: st.to >= p.D - 1e-6 ? p.endYaw : p.yawAt(st.to), side: st.side });
+    }
+  }
+  return out;
+}
+
+/** Walking or running along the chain's path. */
+function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, body: BodyParams): PoseKey {
+  const plan = planGait(c, legs, ground, body);
+  const { line, D, dur, run, ramp, scale, step, len, half, width, steps, spot, yawAt, startYaw, endYaw } = plan;
+  const tau = clamp(t - c.t0, 0, dur);
+  const s = plan.distance(tau);
+  // Arm swing and lean come in and out with the speed.
+  const w = D < 0.05 ? 0 : Math.min(smooth(tau / ramp), smooth((dur - tau) / ramp));
+  const stride = 2 * step;
   const lift = (run ? 0.2 : 0.07) * scale;
   const phase = s / stride;
 
   // Facing: where it goes (turning from the start key, and to the end key's facing at the end),
   // or, strafing, the keyed facing all the way.
   const turn = Math.min(0.35, dur / 3);
-  const startYaw = c.start.joints.root?.[1] ?? 0;
-  const endYaw = c.end.joints.root?.[1] ?? 0;
   const keyedYaw = pose.joints.root?.[1] ?? 0;
-  const strafe = !!c.end.strafe;
-  const yawAt = (arc: number) => (strafe || D < 0.05 ? keyedYaw : yawOf(line.direction(arc)));
-  const yaw = strafe || D < 0.05
+  const yaw = plan.strafe || D < 0.05
     ? keyedYaw
     : lerpAngle(lerpAngle(startYaw, yawAt(s), smooth(tau / turn)), endYaw, smooth(1 - (dur - tau) / turn));
   const [x, z] = line.point(s);
@@ -337,39 +422,6 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
   const pitch = (pose.joints.root?.[0] ?? 0) + lean * Math.cos((heading - yaw) * D2R);
   const roll = (pose.joints.root?.[2] ?? 0) - lean * 0.6 * Math.sin((heading - yaw) * D2R);
 
-  // The footsteps (as 3ds Max's Biped plans them): whole steps of equal length along the path,
-  // feet alternating, the first leaving from the standing spot and the last closing the feet
-  // together at the end. Each step swings while the body covers a fixed stretch of the path,
-  // centred on the other foot: in a walk the stretches never overlap (one foot is always down),
-  // in a run they do (both feet in the air). Planted feet are fixed points: nothing slides.
-  const n = Math.max(1, Math.round(D / step));
-  const len = D / n;
-  const half = (1 - stance) * len;
-  const width = legs.hipX * (run ? 0.6 : 0.9);
-  const lead: 'L' | 'R' = 'R';
-  type Step = { side: 'L' | 'R'; from: number; to: number; s0: number; s1: number };
-  const steps: Step[] = [];
-  const last: Record<'L' | 'R', number> = { L: 0, R: 0 };
-  for (let k = 1; k <= n + 1; k++) {
-    const side = (k % 2 === 1) === (lead === 'R') ? 'R' : 'L';
-    const to = Math.min(D, k * len);
-    const centre = (k - 1) * len;
-    const s0 = k === 1 ? 0 : Math.max(steps[steps.length - 1].s0 + 1e-3, centre - half);
-    // The first step lands with the body `half` along, as every later one does past its centre.
-    const s1 = k === 1 ? Math.max(1e-3, half) : k === n + 1 ? D : centre + half;
-    steps.push({ side, from: last[side], to, s0, s1: Math.max(s0 + 1e-3, s1) });
-    last[side] = to;
-  }
-  const spot = (arc: number, side: 'L' | 'R'): [number, number, number] => {
-    const standing = arc <= 1e-6 || arc >= D - 1e-6;
-    const [px, pz] = line.point(arc);
-    const l = leftOf(arc <= 1e-6 ? (strafe ? keyedYaw : startYaw) : arc >= D - 1e-6 ? (strafe ? keyedYaw : endYaw) : yawAt(arc));
-    const sgn = side === 'L' ? 1 : -1;
-    const lat = standing ? legs.hipX : width;
-    const fx = px + l[0] * sgn * lat;
-    const fz = pz + l[1] * sgn * lat;
-    return [fx, ground(fx, fz) + legs.ankleY, fz];
-  };
   const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
   for (const side of ['L', 'R'] as const) {
     const mine = steps.filter((st) => st.side === side);
@@ -437,7 +489,7 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
  * (whole turns, on the landing key) rotate it on the way. Every phase hands over to the next at
  * the same height and speed, so nothing snaps.
  */
-function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): PoseKey {
+function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, body: BodyParams): PoseKey {
   const dur = c.t1 - c.t0;
   const tau = clamp(t - c.t0, 0, dur);
   const prep = Math.min(JUMP_PREP, dur * 0.28);
@@ -473,11 +525,13 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
   let roll = pose.joints.root?.[2] ?? 0;
   let raise = 0;
   const feet: Generated['feet'] = { L: null, R: null };
-  const planted = (px: number, pz: number, py: number, facingYaw: number) => {
+  // Taking off from and landing on the keyed feet (raised onto a prop if the key stands on one).
+  const startFeet = keyedFeet(body, c.start);
+  const endFeet = keyedFeet(body, c.end);
+  const planted = (at: 'start' | 'end', py: number) => {
     for (const side of ['L', 'R'] as const) {
-      const l = leftOf(facingYaw);
-      const sgn = side === 'L' ? 1 : -1;
-      feet[side] = { world: [px + l[0] * sgn * legs.hipX, py + legs.ankleY, pz + l[1] * sgn * legs.hipX], swing: 0 };
+      const k = (at === 'start' ? startFeet : endFeet)[side];
+      feet[side] = { world: [k[0], k[1] + py, k[2]], swing: 0 };
     }
   };
   if (tau < prep) {
@@ -489,7 +543,7 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
       : hermite01(y0 - crouch, 0, y0, vy * prep * 0.45, (u - 0.55) / 0.45);
     pitch = startPitch + 16 * bump(u * 0.5) * (1 - smooth((u - 0.6) / 0.4));
     raise = 40 * smoother(u / 0.5) * (1 - smoother((u - 0.35) / 0.65)) - 60 * smoother((u - 0.35) / 0.65);
-    planted(ax, az, ga, startYaw);
+    planted('start', ga);
   } else if (tau <= prep + flight) {
     const u = (tau - prep) / flight;
     const ft = tau - prep;
@@ -532,7 +586,7 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground): P
       : hermite01(y1 - crouch * 0.9, 0, y1 + soft, 0, (u - 0.4) / 0.6);
     raise = posed ? 0 : -20 * (1 - smoother(u));
     roll = c.end.joints.root?.[2] ?? 0;
-    planted(bx, bz, gb, endYaw);
+    planted('end', gb);
   }
   return compose(pose, legs, { position: [x, y, z], yaw, pitch, roll, feet, swing: 0, raise, elbows: raise < 0 ? 0.12 * raise : 0 });
 }

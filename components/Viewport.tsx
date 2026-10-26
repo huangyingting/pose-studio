@@ -16,7 +16,7 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
 import type { CameraKey, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, IKHandles, PropRing, SceneObjects } from './Manipulators';
+import { FigureMarkers, IKHandles, PropRing, RouteOverlay, SceneObjects } from './Manipulators';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -217,6 +217,9 @@ export default function Viewport({
             onPick={(id) => store.select({ kind: 'figure', figure: id })}
             onTurn={(id, read) => { store.select({ kind: 'figure', figure: id }); store.updateFigure(id, (f) => ({ ...f, ...read })); }}
           />
+        )}
+        {settings.showHandles && !shotMode && scene.animation && activeFigure && scene.figures.some((f) => f.id === activeFigure && !f.hidden) && (
+          <RouteOverlay store={store} scene={scene} figureId={activeFigure} time={time} />
         )}
         {settings.showHandles && selection?.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold && (
           <PropRing

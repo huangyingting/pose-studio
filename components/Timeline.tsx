@@ -8,12 +8,13 @@ import {
   addKeyframe, cutShot, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, setAnimationOptions, setCameraKey,
 } from '@/lib/actions';
 import { figureKeyTimes, snapTime } from '@/lib/animation';
+import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
 import type { Animation, CameraKey } from '@/lib/types';
 import type { Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
-import { figureMenu, shotMenu } from './menus';
+import { figureMenu, shotMenu, travelMenu } from './menus';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
@@ -297,8 +298,31 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
           })}
         </div>
         {figures.map((f) => (
-          <div key={f.id} className={`tl-row${multi && f.id === active?.id ? ' active' : ''}`} aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}>
-            {figureKeyTimes(a, f.id).map((t) => (
+          <div
+            key={f.id}
+            className={`tl-row${multi && f.id === active?.id ? ' active' : ''}`}
+            aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}
+            onContextMenu={(e) => {
+              // How the figure gets from one key to the next, for the stretch under the pointer.
+              const times = figureKeyTimes(a, f.id);
+              const at = timeAt(e.clientX);
+              const next = times.find((k) => k > at + 1e-6);
+              if (next === undefined || next === times[0]) { e.preventDefault(); return; }
+              store.setActiveFigure(f.id);
+              openContextMenu(e, travelMenu(store, f.id, next), `${f.name} · to ${next.toFixed(2)} s`);
+            }}
+          >
+            {travelBars(a, f.id).map((b) => (
+              <span
+                key={b.t0}
+                className={`tl-travel ${b.kind}`}
+                style={{ left: pct(b.t0), width: pct(b.t1 - b.t0) }}
+                title={`${b.label}: right-click to change how ${f.name} gets there`}
+              >
+                <span>{b.label}</span>
+              </span>
+            ))}
+            {figureKeyTimes(a, f.id).map((t, n) => (
               <button
                 key={t}
                 type="button"
@@ -307,12 +331,16 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
                 onPointerDown={dragKey(t, f.id)}
                 onContextMenu={(e) => {
+                  e.stopPropagation();
                   seek(t);
                   store.setActiveFigure(f.id);
-                  openContextMenu(e, [{
-                    label: 'Delete key', icon: Trash2, danger: true, disabled: figureKeyTimes(a, f.id).length <= 1,
-                    onSelect: () => deleteKeyframe(store, f.id),
-                  }], `${f.name} · ${t.toFixed(2)} s`);
+                  openContextMenu(e, [
+                    ...(n > 0 ? [...travelMenu(store, f.id, t), '-' as const] : []),
+                    {
+                      label: 'Delete key', icon: Trash2, danger: true, disabled: figureKeyTimes(a, f.id).length <= 1,
+                      onSelect: () => deleteKeyframe(store, f.id),
+                    },
+                  ], `${f.name} · ${t.toFixed(2)} s`);
                 }}
               />
             ))}
@@ -367,3 +395,23 @@ function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issu
   );
 }
 
+
+/** The walk, run and jump stretches of a figure's track, labelled for the timeline. */
+function travelBars(a: Animation, id: string) {
+  const track = a.keys.filter((k) => k.poses[id]);
+  const bars: { t0: number; t1: number; kind: string; label: string }[] = [];
+  for (let i = 1; i < track.length; i++) {
+    const p = track[i].poses[id];
+    if (!p.travel) continue;
+    const t0 = track[i - 1].t;
+    const t1 = track[i].t;
+    let label = p.travel === 'walk' ? 'Walk' : p.travel === 'run' ? 'Run' : 'Jump';
+    if (p.travel === 'jump') {
+      label += ` ${jumpHeight(Math.max(0, t1 - t0 - 2 * JUMP_PREP)).toFixed(1)} m`;
+      if (p.spin) label += ` · ${p.spin === 0.5 ? '½' : p.spin} turn${Math.abs(p.spin) > 1 ? 's' : ''}`;
+      if (p.flip) label += p.flip > 0 ? ' · front flip' : ' · back flip';
+    } else if (p.strafe) label += ' · keep facing';
+    bars.push({ t0, t1, kind: p.travel, label });
+  }
+  return bars;
+}

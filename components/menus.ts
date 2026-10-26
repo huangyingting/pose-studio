@@ -1,15 +1,16 @@
 import {
-  ArrowDownToLine, BookmarkPlus, ClipboardCopy, Hand, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden,
+  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setJumpHeight, setTravel, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
+import { HANDHELD, PROP_KINDS, PROP_LABELS, type PoseKey, type Travel, type Vec3 } from '@/lib/types';
+import { JUMP_PREP, chainAt, jumpHeight } from '@/lib/locomotion';
 import { PROP_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
@@ -132,10 +133,65 @@ export function sceneMenu(store: Store, index: number, { notifyUndo }: Pick<Menu
   ];
 }
 
-/** Empty space on the canvas: add things where it was clicked. */
+/**
+ * How a figure gets to its key at time t (from its previous key): glide as keyed, walk, run or
+ * jump; facing; and for a jump its height and turns in the air.
+ */
+export function travelMenu(store: Store, figureId: string, t: number): MenuItem[] {
+  const a = store.scene.animation;
+  const pose = a?.keys.find((k) => Math.abs(k.t - t) < 0.5 / a.fps)?.poses[figureId];
+  if (!a || !pose) return [];
+  const kind = pose.travel ?? null;
+  const keep = { strafe: pose.strafe, spin: pose.spin, flip: pose.flip };
+  const set = (k: Travel | null, patch: Partial<PoseKey> = {}) => setTravel(store, figureId, t, k, { ...keep, ...patch });
+  const items: MenuItem[] = [
+    { group: 'Getting here' },
+    { label: 'Glide (as keyed)', icon: Spline, checked: !kind, onSelect: () => set(null) },
+    { label: 'Walk', icon: Footprints, checked: kind === 'walk', onSelect: () => set('walk') },
+    { label: 'Run', icon: Wind, checked: kind === 'run', onSelect: () => set('run') },
+    { label: 'Jump', icon: MoveUpRight, checked: kind === 'jump', onSelect: () => set('jump') },
+  ];
+  if (kind === 'walk' || kind === 'run') {
+    items.push('-', {
+      label: 'Keep facing (side steps, backing up)', icon: ArrowLeftRight, checked: !!pose.strafe,
+      onSelect: () => set(kind, { strafe: !pose.strafe }),
+    });
+  }
+  if (kind === 'jump') {
+    const c = chainAt(a, figureId, t - 1e-3);
+    const flight = c ? Math.max(0, c.t1 - c.t0 - 2 * JUMP_PREP) : 0;
+    const now = jumpHeight(flight);
+    const near = (h: number) => Math.abs(now - h) < 0.06;
+    items.push({ group: `Height · ${now.toFixed(2)} m` });
+    for (const [label, h] of [['Low (0.3 m)', 0.3], ['Medium (0.5 m)', 0.5], ['High (0.8 m)', 0.8], ['Very high (1.2 m)', 1.2]] as const) {
+      items.push({ label, checked: near(h), onSelect: () => setJumpHeight(store, figureId, t, h) });
+    }
+    items.push({ group: 'In the air' });
+    for (const [label, spin] of [['No turn', 0], ['Half turn', 0.5], ['Full turn', 1], ['Two turns', 2]] as const) {
+      items.push({ label, icon: RotateCw, checked: (pose.spin ?? 0) === spin, onSelect: () => set('jump', { spin }) });
+    }
+    for (const [label, flip] of [['No flip', 0], ['Front flip', 1], ['Back flip', -1]] as const) {
+      items.push({ label, icon: RefreshCw, checked: (pose.flip ?? 0) === flip, onSelect: () => set('jump', { flip }) });
+    }
+  }
+  return items;
+}
+
+/** Empty space on the canvas: move the selected figure there, or add things there. */
 export function canvasMenu(store: Store, at: Vec3 | undefined, frameAll: () => void): MenuItem[] {
   const spot = at && ([Math.round(at[0] * 100) / 100, 0, Math.round(at[2] * 100) / 100] as Vec3);
+  const f = store.figure;
+  const go = (kind: Travel, opts: { strafe?: boolean } = {}) => () => { if (f && spot) travelTo(store, f.id, [spot[0], spot[2]], kind, opts); };
+  const moves: MenuItem[] = f && spot ? [
+    { group: `Move ${f.name} here` },
+    { label: 'Walk here', icon: Footprints, onSelect: go('walk') },
+    { label: 'Run here', icon: Wind, onSelect: go('run') },
+    { label: 'Jump here', icon: MoveUpRight, onSelect: go('jump') },
+    { label: 'Step here, keeping facing', icon: ArrowLeftRight, onSelect: go('walk', { strafe: true }) },
+    '-',
+  ] : [];
   return [
+    ...moves,
     { label: 'Add figure', icon: PersonStanding, onSelect: () => addFigure(store, spot) },
     { label: 'Add stand-in', icon: UserRound, onSelect: () => addStandIn(store, spot) },
     { group: 'Add a prop' },
