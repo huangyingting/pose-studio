@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GRAVITY } from './locomotion';
+import { RIM } from './props';
 import { Rig } from './relations';
 import { groundOf } from './surfaces';
 import type { Animation, Figure, Prop, PropKey, Scene, Side, Vec3 } from './types';
@@ -133,11 +134,18 @@ function lerpPlace(a: { position: Vec3; rotation: Vec3 }, b: { position: Vec3; r
   };
 }
 
-/** How long a throw from `from` to `to` takes, rising a little over the higher end (s). */
-export function throwTime(from: Vec3, to: Vec3) {
+/** How long a throw from `from` to `to` takes, rising a little over the higher end, or by `rise` metres (s). */
+export function throwTime(from: Vec3, to: Vec3, rise?: number) {
   const d = Math.hypot(to[0] - from[0], to[2] - from[2]);
-  const top = Math.max(from[1], to[1]) + 0.25 + 0.12 * d;
+  const top = Math.max(from[1], to[1]) + (rise ?? 0.25 + 0.12 * d);
   return Math.sqrt((2 * (top - from[1])) / GRAVITY) + Math.sqrt((2 * (top - to[1])) / GRAVITY);
+}
+
+/** Where a basketball hoop's rim centre is, in the world. */
+export function rimOf(hoop: Prop): Vec3 {
+  const m = compose(hoop.position, hoop.rotation).scale(new THREE.Vector3(...hoop.scale));
+  const p = new THREE.Vector3(...RIM.at).applyMatrix4(m);
+  return [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000, Math.round(p.z * 1000) / 1000];
 }
 
 /** Where a figure's hand (wrist) is, in the world (standing on the tops of `props`, if given). */

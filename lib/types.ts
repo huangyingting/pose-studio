@@ -61,16 +61,16 @@ export const FIGURE_COLORS = ['#e5484d', '#3b6cff', '#30a46c', '#f59e0b', '#8b5c
 export const POSTURES = ['stand', 'sit', 'lie'] as const;
 export type Posture = (typeof POSTURES)[number];
 
-export const PROP_KINDS = ['box', 'sphere', 'cylinder', 'chair', 'stool', 'step', 'wall', 'stick', 'phone', 'cup', 'book'] as const;
+export const PROP_KINDS = ['box', 'sphere', 'cylinder', 'chair', 'stool', 'step', 'wall', 'mat', 'hoop', 'bar', 'stick', 'ring', 'phone', 'cup', 'book'] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 
 export const PROP_LABELS: Record<PropKind, string> = {
   box: 'Box', sphere: 'Ball', cylinder: 'Cylinder', chair: 'Chair', stool: 'Stool', step: 'Step', wall: 'Wall',
-  stick: 'Stick', phone: 'Phone', cup: 'Cup', book: 'Book',
+  mat: 'Mat', hoop: 'Basketball hoop', bar: 'High-jump bar', stick: 'Stick', ring: 'Gym hoop', phone: 'Phone', cup: 'Cup', book: 'Book',
 };
 
 /** Props made to be held: added to the selected figure's hand. */
-export const HANDHELD: readonly PropKind[] = ['stick', 'phone', 'cup', 'book'];
+export const HANDHELD: readonly PropKind[] = ['stick', 'ring', 'phone', 'cup', 'book'];
 
 export interface Prop {
   id: string;

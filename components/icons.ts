@@ -1,5 +1,6 @@
 import {
-  Armchair, BookOpen, Box, BrickWall, Brush, Circle, Coffee, Contrast, Cylinder, Disc, Minus, PenTool, PencilLine, Rows3, Smartphone, Sparkles, Sun, Wand,
+  Armchair, BookOpen, Box, BrickWall, Brush, Circle, CircleDashed, Coffee, Contrast, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
+  Smartphone, Sparkles, SeparatorHorizontal, Sun, Wand,
   type LucideIcon,
 } from 'lucide-react';
 import type { PropKind, Style } from '@/lib/types';
@@ -13,6 +14,10 @@ export const PROP_ICONS: Record<PropKind, LucideIcon> = {
   stool: Disc,
   step: Rows3,
   wall: BrickWall,
+  mat: RectangleHorizontal,
+  hoop: Goal,
+  bar: SeparatorHorizontal,
+  ring: CircleDashed,
   stick: Wand,
   phone: Smartphone,
   cup: Coffee,

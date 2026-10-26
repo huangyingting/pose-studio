@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, applyMotion, arrange, cutShot, editShot, holdProp, moveProp, saveMotion, setGaze, setSceneLight, throwProp, travelTo,
+  addFigure, addProp, addScene, applyMotion, arrange, cutShot, dribbleProp, editShot, holdProp, moveProp, saveMotion, setGaze, setSceneLight, throwProp,
+  travelTo,
 } from '@/lib/actions';
 import { frameTimes, sceneAt } from '@/lib/animation';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { LIGHT_PRESETS } from '@/lib/lighting';
-import { handPosition, worldOfProp } from '@/lib/propmotion';
+import { handPosition, rimOf, worldOfProp } from '@/lib/propmotion';
+import { buildMotion } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -199,6 +201,81 @@ describe('scenes from the use case', () => {
     expect(r.issues.some((m) => /goes through a prop/.test(m))).toBe(true);
     // Not by climbing a metre in a stride.
     expect(r.issues.filter((m) => /past its natural range/.test(m))).toEqual([]);
+  }, 60_000);
+
+  it('basketball: dribbling up court on the run, then a shot that drops through the hoop', () => {
+    const { store, a } = fresh();
+    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 40 } }));
+    addProp(store, 'sphere', [0.5, 0, 0.5]);
+    const ball = store.scene.props[0].id;
+    moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
+    holdProp(store, ball, { figure: a, hand: 'R' });
+    addProp(store, 'hoop', [0, 0, 7.5]);
+    const hoop = store.scene.props[1].id;
+    moveProp(store, hoop, { rotation: [0, 180, 0] });
+    store.setTime(0);
+    const run = travelTo(store, a, [0, 4], 'run')!;
+    store.setTime(0);
+    const dribble = dribbleProp(store, ball, 3)!;
+    expect(dribble.to).toBeLessThan(run.to);
+    store.setTime(run.to);
+    const shot = throwProp(store, ball, { hoop })!;
+    expectClean(store.scene);
+    const at = figureAt(store.scene);
+    // Bouncing off the floor halfway through each dribble, back in the hand between.
+    expect(worldOfProp(store.scene, ball, at, 0.25)!.position[1]).toBeCloseTo(0, 2);
+    expect(sceneAt(store.scene, 0.45).props[0].hold?.figure).toBe(a);
+    // Through the rim (its centre there), then down on the floor.
+    const rim = rimOf(store.scene.props[1]);
+    const through = worldOfProp(store.scene, ball, at, shot.to)!.position;
+    expect(Math.hypot(through[0] - rim[0], through[2] - rim[2])).toBeLessThan(0.05);
+    expect(rim[1] - through[1]).toBeCloseTo(store.scene.props[0].scale[1] / 2, 2);
+    const end = sceneAt(store.scene, store.scene.animation!.duration).props[0];
+    expect(end.hold).toBeUndefined();
+    expect(end.position[1]).toBeCloseTo(0, 2);
+  }, 60_000);
+
+  it('high jump: the set-up clears its bar onto the mat; a jump too low is caught going through the bar', () => {
+    const { store } = fresh();
+    addScene(store, buildMotion('high-jump')!);
+    expectClean(store.scene);
+    const jumper = store.scene.figures[0].id;
+    const sv = new SceneView();
+    sv.sync(sceneAt(store.scene, store.scene.animation!.duration));
+    // Standing on the mat at the end.
+    expect(sv.figures.get(jumper)!.lowest()).toBeCloseTo(0.4, 1);
+    sv.dispose();
+
+    const low = fresh();
+    addProp(low.store, 'bar', [0, 0, 3]);
+    moveProp(low.store, low.store.scene.props[0].id, { scale: [1, 1.3, 1] });
+    travelTo(low.store, low.a, [0, 2.2], 'run');
+    travelTo(low.store, low.a, [0, 3.8], 'jump', { height: 0.3 });
+    expect(audit(low.store.scene).issues.some((m) => /goes through a prop/.test(m))).toBe(true);
+  }, 60_000);
+
+  it('wrestling: a clinch and a takedown, then a boxing exchange in the next scene', () => {
+    const { store } = fresh();
+    addScene(store, buildMotion('takedown')!);
+    expectClean(store.scene);
+    addScene(store, buildMotion('boxing')!);
+    expectClean(store.scene);
+  }, 60_000);
+
+  it('rhythmic gymnastics: a split leap, the hoop tossed up and caught, a cartwheel', () => {
+    const { store, a } = fresh();
+    addProp(store, 'ring');
+    const ring = store.scene.props[0].id;
+    expect(store.scene.props[0].hold).toEqual({ figure: a, hand: 'R' });
+    applyMotion(store, a, 'leap');
+    store.setTime(store.scene.animation!.duration);
+    const toss = throwProp(store, ring, { figure: a, hand: 'R' })!;
+    // Up two metres over the hand, about 1.3 s in the air.
+    expect(toss.to - toss.from).toBeGreaterThan(1.1);
+    store.setTime(toss.to);
+    applyMotion(store, a, 'cartwheel');
+    expectClean(store.scene);
+    expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold?.figure).toBe(a);
   }, 60_000);
 
   it('a figure walking behind a wall is reported hidden from the shot camera', () => {

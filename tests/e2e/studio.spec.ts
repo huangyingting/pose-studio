@@ -904,12 +904,12 @@ test('library assets apply to the selection: poses to a figure, motions to its t
 /** The live scene, as the tests below need it. */
 type LiveScene = {
   figures: { id: string; name: string; color?: string; gaze?: { figure?: string } }[];
-  props: { id: string; name: string; hold?: unknown }[];
+  props: { id: string; name: string; kind: string; hold?: unknown }[];
   light?: { warmth: number; azimuth: number };
   animation?: {
     duration: number;
     shots?: { subject?: string }[];
-    keys: { t: number; poses: Record<string, { travel?: string; spin?: number; position: number[] }>; props?: Record<string, { throw?: boolean; hold?: unknown }> }[];
+    keys: { t: number; poses: Record<string, { travel?: string; spin?: number; position: number[] }>; props?: Record<string, { throw?: boolean; release?: boolean; hold?: unknown }> }[];
   };
 };
 type LiveStore = { scene: LiveScene; getState(): { activeFigure: string; time: number; library: { motions?: { name: string }[] } } };
@@ -969,6 +969,42 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
   const keys = s.scene.animation!.keys.filter((k) => k.props?.[s.scene.props[0].id]);
   expect(keys.some((k) => k.props![s.scene.props[0].id].throw)).toBe(true);
   await expect(page.locator('.tl-key.prop').first()).toBeVisible();
+});
+
+test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop; the high jump set-up', async ({ page }) => {
+  await addLayer(page, 'Basketball hoop');
+  await addLayer(page, 'Ball');
+  const set = page.getByRole('list', { name: 'Set' });
+  const propMenu = async (name: string, item: string | RegExp) => {
+    // A held prop's row also says whose hand it is in.
+    await set.getByRole('button', { name: new RegExp(`^${name}( In|$)`) }).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: item }).click();
+  };
+  await propMenu('Ball', /right hand$/);
+  await propMenu('Ball', 'Dribble (2 s)');
+  let s = await live(page);
+  const ball = s.scene.props.find((p) => p.kind === 'sphere')!.id;
+  const track = () => s.scene.animation!.keys.filter((k) => k.props?.[ball]).map((k) => k.props![ball]);
+  expect(track().filter((k) => k.release)).toHaveLength(4);
+  expect(s.time).toBeCloseTo(2, 2);
+  await propMenu('Ball', 'Shoot at Basketball hoop');
+  s = await live(page);
+  expect(track().at(-1)).toMatchObject({ throw: true, release: true });
+  // The animation runs on while the ball drops from the rim to the floor.
+  expect(s.scene.animation!.duration).toBeGreaterThan(s.time + 0.5);
+
+  await addLayer(page, 'Gym hoop');
+  await propMenu('Gym hoop', 'Toss up and catch');
+  s = await live(page);
+  const ring = s.scene.props.find((p) => p.kind === 'ring')!.id;
+  expect(s.scene.animation!.keys.filter((k) => k.props?.[ring]).at(-1)!.props![ring].hold).toBeTruthy();
+
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^High jump/ }).click();
+  s = await live(page);
+  expect(s.scene.props.map((p) => p.kind).sort()).toEqual(['bar', 'mat']);
+  expect(s.scene.animation!.keys.some((k) => Object.values(k.poses).some((p) => p.travel === 'jump'))).toBe(true);
 });
 
 test('eyes on another figure, figure colours, a shot subject and the scene light', async ({ page }) => {

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { PropObject } from './props';
-import { HANDHELD, type Prop } from './types';
+import { HANDHELD, type Prop, type PropKind } from './types';
+
+const NOT_STOOD_ON: PropKind[] = ['sphere', 'hoop', 'bar'];
 
 /*
  * What a figure can stand on: the top of every part of every prop standing in the scene (not
@@ -21,8 +23,8 @@ function topsOf(props: Prop[]): Top[] {
   const box = new THREE.Box3();
   tops = [];
   for (const p of props) {
-    // Not stood on: held props, balls and things that fit in a hand.
-    if (p.hold || p.kind === 'sphere' || HANDHELD.includes(p.kind)) continue;
+    // Not stood on: held props, balls, things that fit in a hand, and a hoop's rim or a bar (a ball drops through, a jumper clears it).
+    if (p.hold || NOT_STOOD_ON.includes(p.kind) || HANDHELD.includes(p.kind)) continue;
     const o = new PropObject(ink, p.kind, p.id);
     o.apply(p);
     o.liftAboveFloor();
@@ -40,7 +42,7 @@ function topsOf(props: Prop[]): Top[] {
 
 /** Height of what stands under a floor point: the highest prop top there (but `except`), or the floor (0). */
 export function groundOf(props: Prop[], except?: string) {
-  if (!props.some((p) => !p.hold && p.kind !== 'sphere' && !HANDHELD.includes(p.kind))) return () => 0;
+  if (!props.some((p) => !p.hold && !NOT_STOOD_ON.includes(p.kind) && !HANDHELD.includes(p.kind))) return () => 0;
   const tops = topsOf(props);
   return (x: number, z: number) => {
     let y = 0;

@@ -168,7 +168,7 @@ describe('animation templates', () => {
 
   it('keeps one-person motions clean on figures of every build (feet locked, travel scaled)', () => {
     for (const preset of BODY_PRESETS) {
-      for (const m of MOTIONS.filter((x) => x.people === 1)) {
+      for (const m of MOTIONS.filter((x) => x.people === 1 && !x.setUp)) {
         const store = new Store(new MemoryStorage());
         const id = store.figure!.id;
         store.updateScene((s) => ({ ...s, figures: s.figures.map((f) => ({ ...f, body: { ...preset.body } })) }));

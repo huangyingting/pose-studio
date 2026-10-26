@@ -28,6 +28,9 @@ function cylinder(radius: number, height: number, bevel = 0.012) {
 
 type Piece = [THREE.BufferGeometry, Vec3];
 
+/** A basketball hoop's rim, in the prop's own frame: its centre and radius. */
+export const RIM = { at: [0, 3.05, 0.87] as Vec3, radius: 0.23 };
+
 function pieces(kind: PropKind): Piece[] {
   switch (kind) {
     case 'box':
@@ -47,7 +50,23 @@ function pieces(kind: PropKind): Piece[] {
       });
       return [[cylinder(0.18, 0.04, 0.012), [0, 0.49, 0]], ...legs];
     }
+    case 'mat': // a landing mat
+      return [[box(3, 0.4, 2, 0.08), [0, 0.2, 0]]];
+    case 'hoop': // a basketball hoop on its post: the rim at 3.05 m, in front of the board (see RIM)
+      return [
+        [box(0.6, 0.08, 0.9, 0.02), [0, 0.04, -0.1]],
+        [cylinder(0.06, 3.3, 0.01), [0, 1.65, 0]],
+        [box(0.08, 0.08, 0.6), [0, 3.25, 0.3]],
+        [box(1.8, 1.05, 0.04, 0.01), [0, 3.4, 0.62]],
+        [new THREE.TorusGeometry(RIM.radius, 0.012, 8, 40).rotateX(Math.PI / 2), RIM.at],
+      ];
+    case 'bar': { // high-jump uprights 4 m apart with the bar across their tops: its height is the prop's height
+      const post = (x: number): Piece => [cylinder(0.025, 1, 0.006), [x, 0.5, 0]];
+      return [post(-2), post(2), [cylinder(0.015, 4, 0.004).rotateZ(Math.PI / 2), [0, 1, 0]]];
+    }
     // Handheld: drawn upright from their base, like the rest, so they also stand on the floor.
+    case 'ring': // a rhythmic gymnastics hoop, hanging from its top
+      return [[new THREE.TorusGeometry(0.4, 0.01, 8, 48), [0, -0.4, 0]]];
     case 'stick':
       return [[cylinder(0.016, 1, 0.006), [0, 0.5, 0]]];
     case 'phone':

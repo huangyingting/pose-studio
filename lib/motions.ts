@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { poseOf } from './animation';
 import { DEFAULT_BODY } from './body';
-import { mirrorFigure, newFigure, newScene } from './doc';
+import { mirrorFigure, newFigure, newProp, newScene } from './doc';
 import { HAND_PRESETS, cloneHand } from './hands';
 import { wrapDeg } from './joints';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { CAMERA_MOVES } from './shot';
 import { buildTemplate, waltzHold } from './templates';
-import { plantFeet, travelTime } from './locomotion';
+import { feetOf, plantFeet, travelTime } from './locomotion';
 import type { Animation, BodyParams, Figure, Hand, JointName, PoseKey, Scene, Side, Travel, Vec3, View } from './types';
 
 /*
@@ -29,6 +29,8 @@ export interface Motion {
   build(): Scene;
   /** Moving from mark to mark (generated steps): applied, the figure goes this far ahead. */
   travel?: { kind: Travel; distance: number };
+  /** A whole set-up with its props (a bar and a mat): it opens as a new scene. */
+  setUp?: boolean;
 }
 
 type Joints = Figure['joints'];
@@ -115,7 +117,7 @@ function turnAbout(f: Figure, deg: number): Figure {
   const r = f.joints.root ?? [0, 0, 0];
   return {
     ...f,
-    position: [Math.round((x * Math.cos(a) + z * Math.sin(a)) * 1000) / 1000, y, Math.round((-x * Math.sin(a) + z * Math.cos(a)) * 1000) / 1000],
+    position: [Math.round((x * Math.cos(a) + z * Math.sin(a)) * 1000) / 1000 || 0, y, Math.round((-x * Math.sin(a) + z * Math.cos(a)) * 1000) / 1000 || 0],
     joints: { ...f.joints, root: [r[0], wrapDeg(r[1] + deg), r[2]] },
   };
 }
@@ -185,6 +187,41 @@ function inBetween(rig: Rig, a: Figure, b: Figure, count: number, ref: Figure, s
   });
 }
 
+
+/**
+ * Every key at the height it stands at (keyed, not left to the floor), so the hips' height blends
+ * evenly from steps into flight or a wheel and out again, on figures of any build. It starts and
+ * ends standing on the floor, so it joins whatever comes before and after.
+ */
+function atHeights(rig: Rig, keys: Key[]): Key[] {
+  return keys.map((k, i) => (i === 0 || i >= keys.length - 2 ? k : {
+    ...k,
+    figures: k.figures.map((p) => (p.grounded ? { ...p, grounded: false, position: [p.position[0], Math.round(rig.model(p).joints.root.position.y * 1000) / 1000, p.position[2]] as Vec3 } : p)),
+  }));
+}
+
+/**
+ * Falling backwards from standing (facing +Z): off balance, down to a crouch, rolled onto the
+ * back. The feet stay where they stand until the body is down; the big changes have in-between
+ * poses every other frame to keep them planted. `falling` is timed in frames from the start.
+ */
+function fallBack(rig: Rig, f: Figure) {
+  const stand = posed(f, STAND);
+  const totter = posed(f, { root: [-14, 0, 0], hipL: [-10, 0, 6], hipR: [5, 0, -6], kneeL: [20, 0, 0], kneeR: [70, 0, 0], shoulderL: [-90, 0, 30], shoulderR: [-100, 0, -30], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], neck: [20, 0, 0] });
+  const crouch = posed(f, { root: [-10, 0, 0], hipL: [-115, 0, 12], hipR: [-115, 0, -12], kneeL: [140, 0, 0], kneeR: [140, 0, 0], ankleL: [-25, 0, 0], ankleR: [-25, 0, 0], shoulderL: [-70, 0, 25], shoulderR: [-70, 0, -25], spine: [20, 0, 0], neck: [25, 0, 0] });
+  const down = { ...posed(f, { root: [-88, 0, 0], hipL: [-70, 0, 10], hipR: [-55, 0, -10], kneeL: [100, 0, 0], kneeR: [80, 0, 0], shoulderL: [0, 0, 50], shoulderR: [0, 0, -50], neck: [8, 0, 0] }), position: [f.position[0], 0, f.position[2] - 0.55] as Vec3 };
+  const tottering = plantFeet(rig, totter, stand, ['L']);
+  const crouched = plantFeet(rig, { ...crouch, position: [f.position[0], 0, f.position[2] - 0.15] }, stand);
+  const lying = plantFeet(rig, down, crouched);
+  const falling = [
+    { frame: 7, pose: tottering },
+    ...inBetween(rig, tottering, crouched, 3, stand, ['L']).map((pose, i) => ({ frame: 9 + 2 * i, pose })),
+    { frame: 15, pose: crouched },
+    ...inBetween(rig, crouched, lying, 4, crouched).map((pose, i) => ({ frame: 17 + 2 * i, pose })),
+    { frame: 25, pose: lying },
+  ];
+  return { stand, lying, falling };
+}
 
 /** Turn a figure about a vertical axis through a floor point (a pirouette turns on the standing foot). */
 function turnOn(f: Figure, deg: number, pivot: [number, number]): Figure {
@@ -298,6 +335,59 @@ export const MOTIONS: Motion[] = [
         { t: 1.15, figures: [a0, counter] },
         { t: 1.42, figures: [a0, b0] },
       ], { duration: 1.7, loop: true, view: { yaw: 15, pitch: 6, fov: 28 }, camera: 'handheld' });
+    }),
+  },
+  {
+    id: 'takedown',
+    name: 'Clinch & takedown',
+    group: 'Two people',
+    people: 2,
+    build: () => withRig((rig) => {
+      // Built facing each other along Z (B at the origin facing +Z, A in front facing back), then
+      // turned side-on to the camera. They tie up (A gripping B's collar and sleeve, B's hands on A's shoulders),
+      // A steps in behind B's heel and drives B back over it: B goes down onto the back as a fall
+      // does, and A steps back out, bent over B in guard.
+      let a0 = person('Ben', { ...DEFAULT_BODY }, STAND, 180, [0, 0, 0.72]);
+      const b0 = person('Kai', { ...DEFAULT_BODY }, STAND);
+      a0 = posed(a0, STAND);
+      const at = (frame: number) => frame / 24;
+      const { stand: bStand, falling } = fallBack(rig, b0);
+      const tie = (f: Figure, other: Figure, right: THREE.Vector3, left: THREE.Vector3) => reachTo(rig, reachTo(rig, f, 'R', right), 'L', left);
+      const grips = (f: Figure) => tie(f, bStand, local(rig, bStand, 'shoulderL', [0.04, -0.06, 0.15]), local(rig, bStand, 'shoulderR', [0, -0.04, 0.14]));
+      const aClinch = { ...grips(adjusted(a0, { spine: [10, 0, 0] })), hands: { L: hand('Grip'), R: hand('Grip') } };
+      const bClinch = { ...tie(adjusted(bStand, { spine: [10, 0, 0] }), a0, local(rig, a0, 'shoulderL', [0, 0.04, 0]), local(rig, a0, 'shoulderR', [0, 0.04, 0])), hands: { L: hand('Grip'), R: hand('Grip') } };
+      // A's right foot: up, then down behind B's left heel (a little outside it), then back.
+      const aFeet = feetOf(rig, aClinch);
+      const bLeft = feetOf(rig, bStand, ['L'])[0];
+      const behind = [{ ...aFeet.find((w) => w.side === 'R')!, p: new THREE.Vector3(bLeft.p.x + 0.2, aFeet[0].p.y, bLeft.p.z - 0.12) }];
+      const aLift = plantFeet(rig, adjusted(aClinch, { hipR: [-45, 0, -10], kneeR: [70, 0, 0], ankleR: [15, 0, 0] }), aClinch, ['L']);
+      const stepped = plantFeet(rig, plantFeet(rig, { ...aClinch, position: [aClinch.position[0] + 0.08, 0, aClinch.position[2] - 0.22] }, aClinch, ['L']), behind);
+      // Closer in, the arms bend to keep the same grips.
+      const aIn = grips(stepped);
+      // Driving B back: A's chest over, hands on B's chest as B topples.
+      const bTotter = falling[0].pose;
+      const push = (b: Figure) => reachTo(rig, reachTo(rig, adjusted(aIn, { spine: [25, 0, 0], chest: [10, 0, 0] }, { hands: { L: hand('Open'), R: hand('Open') } }), 'R', local(rig, b, 'chest', [-0.1, 0.05, 0.16])), 'L', local(rig, b, 'chest', [0.1, 0.05, 0.16]));
+      const aPush = plantFeet(rig, push(bTotter), aIn);
+      const aOut = plantFeet(rig, adjusted(aPush, { hipR: [-40, 0, -8], kneeR: [65, 0, 0], ankleR: [15, 0, 0] }), aIn, ['L']);
+      const guarded = guard(rig, adjusted(a0, { spine: [22, 0, 0], neck: [20, 0, 0] }));
+      const aOver = plantFeet(rig, sink(guarded, 20), aClinch);
+      const keys: Key[] = [
+        { t: 0, figures: [a0, bStand] },
+        { t: at(8), figures: [aClinch, bClinch] },
+        { t: at(14), figures: [aClinch, bClinch] },
+        { t: at(18), figures: [aLift, bClinch] },
+        { t: at(22), figures: [aIn, bClinch] },
+      ];
+      // B falls (its fall's frame 7, the totter, at A's push); A's foot is out before B comes down on it.
+      for (const { frame, pose } of falling) {
+        const aPose = frame <= 9 ? aPush : frame === 13 ? aOut : frame >= 21 ? aOver : null;
+        keys.push({ t: at(22 + frame), figures: aPose ? [aPose, pose] : [pose] });
+      }
+      const lying = falling[falling.length - 1].pose;
+      keys.push({ t: at(56), figures: [aOver, lying] }, { t: at(64), figures: [aOver, lying] });
+      // Side-on to the camera.
+      const turned = keys.map((k) => ({ ...k, figures: k.figures.map((f) => turnAbout(f, 90)) }));
+      return animated('Clinch & takedown', turned, { duration: 2.8, loop: false, view: { yaw: 0, pitch: 8, fov: 30 }, camera: 'static' });
     }),
   },
   {
@@ -418,6 +508,35 @@ export const MOTIONS: Motion[] = [
     }),
   },
   {
+    id: 'high-jump',
+    name: 'High jump',
+    group: 'Sport & gymnastics',
+    people: 1,
+    setUp: true,
+    build: () => {
+      // A run-up to the bar (1.2 m), a jump over it with the legs tucked up, landing on the mat.
+      const f = { ...person('Jumper', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } };
+      const [take, bar, land] = [3.4, 4.3, 5.3];
+      const frame = (t: number) => Math.round(t * 24) / 24;
+      const t1 = frame(travelTime('run', take, f.body));
+      const t2 = frame(t1 + travelTime('jump', land - take, f.body, 0.9));
+      const scene = animated('High jump', [{ t: 0, figures: [f] }], { duration: frame(t2 + 0.7), loop: false, view: { yaw: 90, pitch: 4, fov: 40 } });
+      const a = scene.animation!;
+      const to = (z: number, travel: Travel): Record<string, PoseKey> => ({ [f.id]: { ...poseOf(f), position: [0, 0, z], travel } });
+      const animation: Animation = { ...a, keys: [...a.keys, { t: t1, poses: to(take, 'run') }, { t: t2, poses: to(land, 'jump') }] };
+      const move = CAMERA_MOVES.find((m) => m.id === 'static')!;
+      animation.camera = { keys: move.keys(animation, scene.view), follow: true, shake: 0 };
+      return {
+        ...scene,
+        props: [
+          { ...newProp('bar', [0, 0, bar], 'Bar'), scale: [1, 1.2, 1] },
+          { ...newProp('mat', [0, 0, land + 0.3], 'Mat') },
+        ],
+        animation,
+      };
+    },
+  },
+  {
     id: 'cartwheel',
     name: 'Cartwheel',
     group: 'Sport & gymnastics',
@@ -451,11 +570,65 @@ export const MOTIONS: Motion[] = [
       const settle = plantFeet(rig, inBetween(rig, last, landing, 3, last, ['R'])[0], last);
       keys.push({ t: 51 / 24, figures: [settle] }, ...inBetween(rig, settle, landing, 2, last, ['R']).map((p, i) => ({ t: (52 + i) / 24, figures: [p] })));
       keys.push({ t: 54 / 24, figures: [landing] }, { t: 2.4, figures: [close] }, { t: 2.65, figures: [together] }, { t: 2.95, figures: [{ ...stand, position: together.position }] });
-      // Every key at the height it stands at (keyed, not left to the floor), so the hips' height
-      // blends evenly from the steps into the wheel and out again.
-      // It starts and ends standing on the floor, so it joins whatever comes before and after.
-      const held = keys.map((k, i) => (i === 0 || i >= keys.length - 2 ? k : { ...k, figures: k.figures.map((p) => (p.grounded ? { ...p, grounded: false, position: [p.position[0], Math.round(rig.model(p).joints.root.position.y * 1000) / 1000, p.position[2]] as Vec3 } : p)) }));
-      return animated('Cartwheel', held, { duration: 3.1, loop: false, view: { yaw: 0, pitch: 4, fov: 36 }, camera: 'static' });
+      return animated('Cartwheel', atHeights(rig, keys), { duration: 3.1, loop: false, view: { yaw: 0, pitch: 4, fov: 36 }, camera: 'static' });
+    }),
+  },
+  {
+    id: 'leap',
+    name: 'Split leap',
+    group: 'Sport & gymnastics',
+    people: 1,
+    build: () => withRig((rig) => {
+      const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
+      const stand = posed(f, STAND);
+      const at = (frame: number) => frame / 24;
+      /** Where `side`'s foot is with the figure moved `dz` ahead. */
+      const spot = (pose: Figure, side: Side, dz: number) => feetOf(rig, { ...pose, position: [pose.position[0], pose.position[1], pose.position[2] + dz] }, [side]);
+      const ahead = (pose: Figure, z: number): Figure => ({ ...pose, position: [0, 0, z] });
+      const prepArms: Joints = { shoulderL: [30, 0, 30], shoulderR: [30, 0, -30], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0] };
+      const risingArms: Joints = { shoulderL: [-15, 0, 60], shoulderR: [-15, 0, -60], elbowL: [-15, 0, 0], elbowR: [-15, 0, 0] };
+      const openArms: Joints = { shoulderL: [-40, 0, 95], shoulderR: [-40, 0, -95], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0] };
+      // A step onto the right foot, a plié on it, and a push off it as the left leg swings up
+      // ahead: legs split in the air, the arms open; landing on the left foot, the right comes down.
+      const lift = plantFeet(rig, ahead(posed(f, { ...STAND, hipR: [-40, 0, -3], kneeR: [60, 0, 0], ankleR: [15, 0, 0] }), 0.08), stand, ['L']);
+      const reachOut = spot(stand, 'R', 0.5).map((w) => ({ ...w, p: w.p.clone().add(new THREE.Vector3(0, 0.06, 0)) }));
+      const reaching = plantFeet(rig, plantFeet(rig, ahead(posed(f, { ...STAND, ...prepArms }), 0.18), stand, ['L']), reachOut);
+      /** Lower by `dy` (held there, not left to the floor): planted legs then bend to reach. */
+      const lowered = (p: Figure, dy: number): Figure => ({ ...p, grounded: false, position: [p.position[0], Math.round((rig.model(p).joints.root.position.y - dy) * 1000) / 1000, p.position[2]] });
+      const step = plantFeet(rig, lowered(plantFeet(rig, ahead(sink(posed(f, { ...STAND, ...prepArms }), 30), 0.3), stand, ['L']), 0.04), [...feetOf(rig, stand, ['L']), ...spot(stand, 'R', 0.6)]);
+      const plie = plantFeet(rig, ahead(sink(posed(f, { ...prepArms, root: [10, 0, 0], spine: [6, 0, 0], hipL: [25, 0, 4], kneeL: [60, 0, 0], ankleL: [20, 0, 0] }), 30), 0.52), step, ['R']);
+      const push = plantFeet(rig, ahead(posed(f, { ...risingArms, root: [6, 0, 0], hipL: [-60, 0, 4], kneeL: [40, 0, 0], ankleL: [30, 0, 0], ankleR: [30, 0, 0] }), 0.8), step, ['R']);
+      const split = posed(f, { ...openArms, root: [8, 0, 0], spine: [-6, 0, 0], neck: [-8, 0, 0], hipL: [-88, 0, 4], kneeL: [0, 0, 0], ankleL: [35, 0, 0], hipR: [45, 0, -4], kneeR: [8, 0, 0], ankleR: [35, 0, 0] });
+      const land = plantFeet(rig, ahead(posed(f, { ...risingArms, root: [6, 0, 0], hipL: [-30, 0, 4], kneeL: [40, 0, 0], hipR: [35, 0, -4], kneeR: [40, 0, 0], ankleR: [30, 0, 0] }), 1.8), spot(stand, 'L', 1.95), ['L']);
+      const absorb = plantFeet(rig, ahead(sink(posed(f, { ...prepArms, root: [8, 0, 0], hipL: [-30, 0, 4], kneeL: [40, 0, 0], hipR: [30, 0, -4], kneeR: [50, 0, 0], ankleR: [25, 0, 0] }), 35), 2.05), land, ['L']);
+      const end = footAt(rig, stand, land, 'L');
+      const lower = plantFeet(rig, { ...posed(f, { ...STAND, hipR: [10, 0, -3], kneeR: [40, 0, 0], ankleR: [20, 0, 0] }), position: [end.position[0], 0, (end.position[2] + absorb.position[2]) / 2] }, land, ['L']);
+      // In the air a frame at a time: the pelvis flies a parabola under gravity from the push to
+      // the landing, the limbs blending into the split and out of it.
+      const pelvis = (p: Figure) => rig.model(p).joints.root.getWorldPosition(new THREE.Vector3());
+      const [from, to] = [pelvis(push), pelvis(land)];
+      const [UP, AIR, DOWN] = [19, 10, 29];
+      const T = at(AIR);
+      const v = (to.y - from.y + (9.81 * T * T) / 2) / T;
+      const r3 = (x: number) => Math.round(x * 1000) / 1000;
+      const flight: Key[] = [];
+      for (let i = 1; i < AIR; i++) {
+        const u = i / AIR;
+        const half = AIR / 2;
+        const joints = (i < half ? inBetween(rig, push, { ...split, position: push.position }, half - 1, push, [])[i - 1] : i === half ? split : inBetween(rig, split, { ...land, position: split.position }, half - 1, split, [])[i - half - 1]).joints;
+        const time = at(i);
+        const y = from.y + v * time - (9.81 * time * time) / 2;
+        flight.push({ t: at(UP + i), figures: [{ ...posed(f, joints), joints, grounded: false, position: [r3(from.x + (to.x - from.x) * u), r3(y), r3(from.z + (to.z - from.z) * u)] }] });
+      }
+      return animated('Split leap', atHeights(rig, [
+        { t: 0, figures: [stand] }, { t: at(5), figures: [lift] }, { t: at(8), figures: [reaching] }, { t: at(10), figures: [step] },
+        ...inBetween(rig, step, plie, 5, step, ['R']).map((p, i) => ({ t: at(11 + i), figures: [p] })),
+        { t: at(16), figures: [plie] },
+        ...inBetween(rig, plie, push, 2, step, ['R']).map((p, i) => ({ t: at(17 + i), figures: [p] })),
+        { t: at(UP), figures: [push] }, ...flight, { t: at(DOWN), figures: [land] },
+        ...inBetween(rig, land, absorb, 5, land, ['L']).map((p, i) => ({ t: at(DOWN + 1 + i), figures: [p] })),
+        { t: at(DOWN + 6), figures: [absorb] }, { t: at(DOWN + 12), figures: [lower] }, { t: at(DOWN + 18), figures: [end] },
+      ]), { duration: 2.25, loop: false, view: { yaw: 90, pitch: 4, fov: 34 }, camera: 'static' });
     }),
   },
   {
@@ -465,29 +638,17 @@ export const MOTIONS: Motion[] = [
     people: 1,
     build: () => withRig((rig) => {
       const f = person('Faller', { ...DEFAULT_BODY }, STAND);
-      const stand = posed(f, STAND);
-      // Off balance backwards, down to a crouch, rolled onto the back; then sitting up, onto a knee and up.
-      const totter = posed(f, { root: [-14, 0, 0], hipL: [-10, 0, 6], hipR: [5, 0, -6], kneeL: [20, 0, 0], kneeR: [70, 0, 0], shoulderL: [-90, 0, 30], shoulderR: [-100, 0, -30], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], neck: [20, 0, 0] });
-      const crouch = posed(f, { root: [-10, 0, 0], hipL: [-115, 0, 12], hipR: [-115, 0, -12], kneeL: [140, 0, 0], kneeR: [140, 0, 0], ankleL: [-25, 0, 0], ankleR: [-25, 0, 0], shoulderL: [-70, 0, 25], shoulderR: [-70, 0, -25], spine: [20, 0, 0], neck: [25, 0, 0] });
-      const down = { ...posed(f, { root: [-88, 0, 0], hipL: [-70, 0, 10], hipR: [-55, 0, -10], kneeL: [100, 0, 0], kneeR: [80, 0, 0], shoulderL: [0, 0, 50], shoulderR: [0, 0, -50], neck: [8, 0, 0] }), position: [0, 0, -0.55] as Vec3 };
+      const { stand, lying, falling } = fallBack(rig, f);
       const sitUp = { ...posed(f, { root: [-20, 0, 0], spine: [15, 0, 0], hipL: [-60, 0, 8], hipR: [-75, 0, -8], kneeL: [40, 0, 0], kneeR: [110, 0, 0], shoulderL: [30, 0, 25], shoulderR: [30, 0, -25], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0] }), position: [0, 0, -0.35] as Vec3 };
       const kneel = { ...posed(f, { root: [20, 0, 0], hipL: [-80, 0, 6], kneeL: [90, 0, 0], hipR: [10, 0, -6], kneeR: [100, 0, 0], ankleR: [40, 0, 0], shoulderL: [-30, 0, 15], shoulderR: [-30, 0, -15], spine: [10, 0, 0] }), position: [0, 0, -0.2] as Vec3 };
-      // The feet stay where they stand until the body is down, and where they land while it sits
-      // up; it rises over the left foot while the right comes through.
-      const tottering = plantFeet(rig, totter, stand, ['L']);
-      const crouched = plantFeet(rig, { ...crouch, position: [0, 0, -0.15] }, stand);
-      const lying = plantFeet(rig, down, crouched);
+      // It rises over the left foot while the right comes through.
       const sitting = plantFeet(rig, sitUp, lying);
       const kneeling = plantFeet(rig, kneel, sitting, ['L']);
       const up = plantFeet(rig, footAt(rig, stand, kneeling, 'L'), kneeling, ['L']);
       // Times in frames (24 a second). Going down, rolling back and sitting up are big changes:
       // in-between poses every other frame keep the feet planted.
       const at = (frame: number) => frame / 24;
-      const keys: Key[] = [{ t: 0, figures: [stand] }, { t: at(7), figures: [tottering] }];
-      inBetween(rig, tottering, crouched, 3, stand, ['L']).forEach((p, i) => keys.push({ t: at(9 + 2 * i), figures: [p] }));
-      keys.push({ t: at(15), figures: [crouched] });
-      inBetween(rig, crouched, lying, 4, crouched).forEach((p, i) => keys.push({ t: at(17 + 2 * i), figures: [p] }));
-      keys.push({ t: at(25), figures: [lying] }, { t: at(43), figures: [lying] });
+      const keys: Key[] = [{ t: 0, figures: [stand] }, ...falling.map((p) => ({ t: at(p.frame), figures: [p.pose] })), { t: at(43), figures: [lying] }];
       inBetween(rig, lying, sitting, 2, lying).forEach((p, i) => keys.push({ t: at(47 + 4 * i), figures: [p] }));
       // Rising over the left foot, the right comes through off the floor and lands beside it.
       const rising = plantFeet(rig, { ...up, joints: { ...up.joints, hipR: [-40, 0, -6], kneeR: [80, 0, 0], ankleR: [20, 0, 0] }, position: [(kneeling.position[0] + up.position[0]) / 2, 0, (kneeling.position[2] + up.position[2]) / 2] }, kneeling, ['L']);

@@ -279,7 +279,8 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
           return (
             <Group key={g} title={g} count={motions.length}>
               {motions.map((m) => {
-                const solo = m.people === 1;
+                // One person's motion goes on the selected figure; people together, or a set-up with props, open as a scene.
+                const solo = m.people === 1 && !m.setUp;
                 return (
                   <li key={m.id}>
                     <button
@@ -290,7 +291,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
                     >
                       {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}
                       <span className="side-list-name">{m.name}</span>
-                      <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : `${m.people} people`}</em>
+                      <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : m.people > 1 ? `${m.people} people` : 'scene'}</em>
                     </button>
                   </li>
                 );

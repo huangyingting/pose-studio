@@ -185,18 +185,25 @@ export function checkMotion(scene: Scene): Issue[] {
   // Props are obstacles where they are at each frame. Held props move with the hand that holds
   // them (part of the pose), and ones on the move (thrown, falling) only touch in passing.
   const props = new Map(scene.props.map((p) => [p.id, new PropObject(ink, p.kind, p.id)]));
-  const placed = new Map<string, string>();
-  const piecesAt = (now: Prop[]) => now.flatMap((p) => {
-    const where = JSON.stringify([p.position, p.rotation, p.scale]);
-    const still = placed.get(p.id) === undefined || placed.get(p.id) === where;
-    placed.set(p.id, where);
+  const placeOf = (props: Prop[] | undefined, id: string) => {
+    const p = props?.find((x) => x.id === id);
+    return p && JSON.stringify([p.position, p.rotation, p.scale]);
+  };
+  /** The props standing still at a frame (where they are the frame before and after). */
+  const piecesAt = (now: Prop[], before?: Prop[], after?: Prop[]) => now.flatMap((p) => {
+    const where = placeOf(now, p.id);
+    const still = [placeOf(before, p.id), placeOf(after, p.id)].every((w) => w === undefined || w === where);
     if (p.hold || !still) return [];
     const o = props.get(p.id)!;
     o.apply(p);
     o.object.updateMatrixWorld(true);
     return o.parts.bodies.map((mesh) => {
       mesh.geometry.computeBoundingBox();
-      return { box: mesh.geometry.boundingBox!.clone().expandByScalar(-0.01), inverse: mesh.matrixWorld.clone().invert() };
+      // A little in from its surface (touching is fine), but no thinner than half of a thin part (a bar).
+      const box = mesh.geometry.boundingBox!.clone();
+      const size = box.getSize(new THREE.Vector3());
+      const inset = new THREE.Vector3(Math.min(0.01, size.x / 4), Math.min(0.01, size.y / 4), Math.min(0.01, size.z / 4));
+      return { box: new THREE.Box3(box.min.add(inset), box.max.sub(inset)), inverse: mesh.matrixWorld.clone().invert() };
     });
   });
 
@@ -221,6 +228,7 @@ export function checkMotion(scene: Scene): Issue[] {
   const prevAnkle = new Map<string, THREE.Vector3>();
   const prevQ = new Map<string, THREE.Quaternion>();
   const prevRoot = new Map<string, THREE.Vector3>();
+  const prevCaps = new Map<string, Capsule[]>();
   const prevStep = new Map<string, number>();
   /** Report a pop when the per-frame change jumps (or drops) by more than `limit`. */
   const pop = (key: string, change: number, limit: number) => {
@@ -231,6 +239,8 @@ export function checkMotion(scene: Scene): Issue[] {
   const minAnkle = new Map<string, number>();
   const euler = new THREE.Euler();
   const point = new THREE.Vector3();
+  const ray = new THREE.Ray();
+  const tri = new THREE.Triangle();
 
   // Floor level of each foot: its lowest point over the clip.
   const frames = times.map((t) => sceneAt(scene, t));
@@ -254,7 +264,7 @@ export function checkMotion(scene: Scene): Issue[] {
     const wrap = step === frames.length;
     const visible = s.figures.filter((f) => figures.some((x) => x.id === f.id));
     const caps = new Map<string, Capsule[]>();
-    const pieces = wrap ? [] : piecesAt(s.props);
+    const pieces = wrap ? [] : piecesAt(s.props, frames[i - 1]?.props, frames[i + 1]?.props);
     rig.ground = groundOf(s.props);
     for (const f of visible) {
       const m = rig.model(f);
@@ -315,9 +325,24 @@ export function checkMotion(scene: Scene): Issue[] {
       }
       const c = capsules(rig, f);
       caps.set(f.id, c);
-      // Through a prop: a bone's axis inside a prop piece.
-      for (const cap of c) {
-        const hit = pieces.some((pc) => [0, 0.25, 0.5, 0.75, 1].some((u) => pc.box.containsPoint(point.lerpVectors(cap.p, cap.q, u).applyMatrix4(pc.inverse))));
+      const before = prevCaps.get(f.id);
+      prevCaps.set(f.id, c);
+      // Through a prop: a bone's axis passing through a prop piece, now or on its way here since
+      // the frame before (a leg swung through a thin bar between two frames).
+      for (const [n, cap] of c.entries()) {
+        const was = before?.[n];
+        const hit = pieces.some((pc) => {
+          const p = cap.p.clone().applyMatrix4(pc.inverse);
+          const q = cap.q.clone().applyMatrix4(pc.inverse);
+          if (pc.box.containsPoint(p)) return true;
+          const len = p.distanceTo(q);
+          const at = len > 1e-6 && ray.set(p, q.clone().sub(p).divideScalar(len)).intersectBox(pc.box, point);
+          if (at && at.distanceTo(p) <= len) return true;
+          if (!was) return false;
+          const p0 = was.p.clone().applyMatrix4(pc.inverse);
+          const q0 = was.q.clone().applyMatrix4(pc.inverse);
+          return pc.box.intersectsTriangle(tri.set(p0, q0, q)) || pc.box.intersectsTriangle(tri.set(p0, q, p));
+        });
         if (hit) ranges.hit(`overlap:${f.id}:${cap.bone}:prop`, step, 1, { kind: 'overlap', figure: f.id, joint: cap.bone });
       }
     }

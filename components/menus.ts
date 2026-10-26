@@ -1,9 +1,9 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, ArrowUpFromDot, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
+  dribbleProp, duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
@@ -99,10 +99,15 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
     ...(hands.length || p.hold ? ['-' as const] : []),
     ...hands,
     ...(p.hold ? [{ label: store.scene.animation ? 'Let go (it falls)' : 'Let go', icon: ArrowDownToLine, onSelect: () => holdProp(store, id, null) }] : []),
-    // Thrown to someone else, caught in a hand.
+    // Thrown to someone else, caught in a hand; tossed up and caught; a ball dribbled or shot.
     ...(p.hold ? store.scene.figures.filter((x) => x.id !== p.hold!.figure).flatMap((x) => (['R', 'L'] as const).map((hand): MenuItem => ({
       label: `Throw to ${x.name}'s ${hand === 'L' ? 'left' : 'right'} hand`, icon: Send, onSelect: () => throwProp(store, id, { figure: x.id, hand }),
     }))) : []),
+    ...(p.hold ? [{ label: 'Toss up and catch', icon: ArrowUpFromDot, onSelect: () => throwProp(store, id, { figure: p.hold!.figure, hand: p.hold!.hand }) }] : []),
+    ...(p.hold && p.kind === 'sphere' ? [
+      { label: 'Dribble (2 s)', icon: ChevronsDown, onSelect: () => dribbleProp(store, id) },
+      ...store.scene.props.filter((x) => x.kind === 'hoop').map((x): MenuItem => ({ label: `Shoot at ${x.name}`, icon: Goal, onSelect: () => throwProp(store, id, { hoop: x.id }) })),
+    ] : []),
     '-',
     { label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },
   ];
