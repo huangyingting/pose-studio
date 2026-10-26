@@ -672,9 +672,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
    (nothing is squeezed). */
 .tl-bar > :not(.spacer) { flex: none; }
 .timeline { container-type: inline-size; }
-@container (max-width: 980px) { .tl-label { display: none; } .tl-btn { padding: 0 6px; } }
-@container (max-width: 800px) { .tl-zoom { display: none; } }
-@container (max-width: 680px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
+@container (max-width: 940px) { .tl-label { display: none; } .tl-btn { padding: 0 6px; } }
+@container (max-width: 840px) { .tl-zoom { display: none; } }
+@container (max-width: 720px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
 @container (max-width: 460px) { .tl-step, .tl-speed { display: none; } .tl-time { margin-left: 4px; } }
 .tl-tracks { display: grid; grid-template-columns: 76px minmax(0, 1fr); padding: 0 12px 10px 0; max-height: min(40vh, 300px); overflow-y: auto; }
 .tl-labels { display: grid; grid-template-rows: 18px 24px 26px 26px; color: var(--text-2); font-size: 11px; font-weight: 500; padding-left: 12px; }

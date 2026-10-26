@@ -24,7 +24,7 @@ The app follows how a scene is made, and the layout follows the app:
 4. **Shoot**: cut the timeline into shots; select a shot in the outline to name it, caption it and give it a camera move.
 5. **Output**: storyboard (the rail), export (sheets, video, keyframe pack).
 
-The inspector on the right shows what is selected: a figure (pose, place, others, movement, hands, body), a prop or a shot; the **Scene** crumb in its header shows the scene itself (light, look, reference image).
+The inspector on the right shows what is selected: a figure (pose, place, others, movement, hands, body), a prop or a shot; the **Scene** crumb in its header (or the sun button at the top of the Scene outline) shows the scene itself (light, look, reference image).
 
 Everything has a name and a menu: double-click (or F2) renames a figure, prop or shot in the outline or in the inspector's title; right-click a figure or prop on the canvas, any outline row, a scene in the picker or a timeline key for what you can do with it (right-click empty floor to add something there). `Del` and `Ctrl D` delete and duplicate the selection. Both side panels fold away for more canvas (click the open section in the left rail; the panel button at the right of the top bar, or `I`, for the inspector).
 

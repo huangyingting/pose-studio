@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Copy, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
+import { Copy, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, SunMedium, Trash2, TriangleAlert, UserRound } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, editShot, renameFigure, renameProp,
   setFigureHidden, startAnimation,
@@ -37,6 +37,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
     <div className="side-section outline">
       <div className="side-head">
         <h2>Scene</h2>
+        <IconButton icon={SunMedium} label="Light and look of the scene" size={15} active={selection?.kind === 'scene'} onClick={() => store.select({ kind: 'scene' })} />
       </div>
       <div className="side-scroll">
         <div className="outline-group">
