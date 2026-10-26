@@ -524,9 +524,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* ---------- timeline (animation) ---------- */
 
 /* The canvas sits above the timeline, so the shot letterbox matches what is visible. */
-.stage.animated .canvas-wrap, .stage.animated .letterbox { bottom: 150px; }
-.stage.animated .reference { height: calc(100% - 150px); }
-.stage.animated .toolbar { bottom: 162px; }
+.stage.animated .canvas-wrap, .stage.animated .letterbox { bottom: var(--tl-h, 150px); }
+.stage.animated .reference { height: calc(100% - var(--tl-h, 150px)); }
+.stage.animated .toolbar { bottom: calc(var(--tl-h, 150px) + 12px); }
 .timeline {
   position: absolute;
   left: 0;
@@ -560,7 +560,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-time em { font-style: normal; color: var(--text-2); font-weight: 500; font-size: 11px; margin-left: 4px; }
 .tl-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; flex: none; }
 .tl-duration { width: 74px; margin-left: 4px; }
-.tl-tracks { display: grid; grid-template-columns: 64px minmax(0, 1fr); padding: 0 12px 10px 0; }
+.tl-tracks { display: grid; grid-template-columns: 76px minmax(0, 1fr); padding: 0 12px 10px 0; max-height: min(40vh, 300px); overflow-y: auto; }
 .tl-labels { display: grid; grid-template-rows: 18px 24px 26px 26px; color: var(--text-2); font-size: 11px; font-weight: 500; padding-left: 12px; }
 .tl-labels span { display: flex; align-items: center; }
 .tl-lanes { position: relative; display: grid; grid-template-rows: 18px 24px 26px 26px; cursor: ew-resize; touch-action: none; }
@@ -570,6 +570,22 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-ruler .tick em { position: absolute; bottom: 7px; left: 4px; font: 500 10px var(--mono); font-style: normal; color: var(--text-3); white-space: nowrap; }
 .tl-row { position: relative; border-bottom: 1px solid var(--border); background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 8 - 1px), rgba(0, 0, 0, 0.025) 0 calc(100% / 8)); }
 .tl-row.camera { border-bottom: 0; }
+.tl-row.active { background-color: var(--accent-soft); }
+.tl-figure {
+  min-width: 0;
+  padding: 0 6px 0 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tl-figure:hover { color: var(--text); }
+.tl-figure.on { color: var(--accent); font-weight: 600; }
 .tl-key {
   position: absolute;
   top: 50%;

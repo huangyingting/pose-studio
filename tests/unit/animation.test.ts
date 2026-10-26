@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { keyAt, moveKey, newAnimation, removeKey, sampleCamera, samplePose, sceneAt, setDuration, setKey, frameTimes } from '@/lib/animation';
-import { addKeyframe, applyCameraMove, startAnimation } from '@/lib/actions';
+import { addFigure, addKeyframe, applyCameraMove, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
 import { duplicateScene, mirrorScene, newFigure, newScene, parseScene } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
@@ -181,5 +181,75 @@ describe('animation templates', () => {
         }
       }
     }
+  });
+});
+
+describe('per-figure tracks', () => {
+  function duo() {
+    const store = new Store(new MemoryStorage());
+    const [a, b] = [newFigure({ name: 'A' }), newFigure({ name: 'B', position: [1, 0, 0] })];
+    store.updateScene((s) => ({ ...s, figures: [a, b] }));
+    startAnimation(store, 2);
+    return { store, a: a.id, b: b.id };
+  }
+  const keys = (store: Store, id: string) => store.scene.animation!.keys.filter((k) => k.poses[id]).map((k) => k.t);
+  const knee = (store: Store, id: string, t: number) => samplePose(store.scene.animation!, id, t)!.joints.kneeL?.[0] ?? 0;
+  const bend = (store: Store, id: string, deg: number) => store.updateFigure(id, (f) => withKnee(f, deg));
+
+  it('keys only the figure that was posed', () => {
+    const { store, a, b } = duo();
+    store.setTime(1);
+    bend(store, a, 60);
+    expect(keys(store, a)).toEqual([0, 1]);
+    expect(keys(store, b)).toEqual([0]);
+    // B did not move.
+    expect(knee(store, b, 1)).toBe(knee(store, b, 0));
+  });
+
+  it('retimes and deletes one figure\'s keys without touching the other\'s', () => {
+    const { store, a, b } = duo();
+    store.setTime(1);
+    bend(store, a, 60);
+    bend(store, b, 40);
+    expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
+    // A's punch later; B's reaction stays at 1 s.
+    moveKeyframe(store, 1, 1.5, a);
+    expect(keys(store, a)).toEqual([0, 1.5]);
+    expect(keys(store, b)).toEqual([0, 1]);
+    expect(knee(store, b, 1)).toBe(40);
+    // Moving onto a time where the figure already has a key is refused.
+    moveKeyframe(store, 1.5, 0, a);
+    expect(keys(store, a)).toEqual([0, 1.5]);
+    store.setTime(1.5);
+    store.setActiveFigure(a);
+    deleteKeyframe(store);
+    expect(keys(store, a)).toEqual([0]);
+    expect(keys(store, b)).toEqual([0, 1]);
+    // A figure keeps its last key.
+    store.setTime(0);
+    deleteKeyframe(store, a);
+    expect(keys(store, a)).toEqual([0]);
+  });
+
+  it('K keys the active figure; deleting a figure drops its track', () => {
+    const { store, a, b } = duo();
+    store.setTime(0.5);
+    store.setActiveFigure(b);
+    addKeyframe(store);
+    expect(keys(store, b)).toEqual([0, 0.5]);
+    expect(keys(store, a)).toEqual([0]);
+    addKeyframe(store, [a, b]);
+    expect(keys(store, a)).toEqual([0, 0.5]);
+    deleteFigure(store, b);
+    expect(store.scene.animation!.keys.every((k) => !k.poses[b])).toBe(true);
+  });
+
+  it('a figure added later stays put until it is keyed', () => {
+    const { store } = duo();
+    store.setTime(1);
+    addFigure(store);
+    const c = store.getState().activeFigure!;
+    expect(keys(store, c)).toEqual([1]);
+    expect(knee(store, c, 0)).toBe(knee(store, c, 2));
   });
 });

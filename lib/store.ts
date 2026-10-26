@@ -1,4 +1,4 @@
-import { sceneAt, setKey } from './animation';
+import { keepFigures, poseOf, sceneAt, setKey } from './animation';
 import { parseLibrary } from './doc';
 import { DEFAULT_LIGHT, clampLight } from './lighting';
 import { presetScenes } from './presets';
@@ -208,15 +208,20 @@ export class Store {
   }
 
   /**
-   * Auto-key: in an animated pose, any change to the figures is recorded as a keyframe at the
-   * current time (creating one, or updating the key already there).
+   * Auto-key: in an animated pose, a change to a figure's pose is recorded as a key at the current
+   * time on that figure's own track (other figures' tracks are untouched). Deleted figures lose
+   * their tracks.
    */
   private autoKey(prev: Library, next: Library): Library {
     const i = this.state.sceneIndex;
     const before = prev.scenes[i];
     const after = next.scenes[i];
     if (!after?.animation || !before || before.id !== after.id || before.figures === after.figures) return next;
-    const animation = setKey(after.animation, this.state.time, after.figures);
+    const was = new Map(before.figures.map((f) => [f.id, JSON.stringify(poseOf(f))]));
+    const changed = after.figures.filter((f) => was.get(f.id) !== JSON.stringify(poseOf(f)));
+    let animation = changed.length ? setKey(after.animation, this.state.time, changed) : after.animation;
+    animation = keepFigures(animation, new Set(after.figures.map((f) => f.id)));
+    if (animation === after.animation) return next;
     return { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
   }
 

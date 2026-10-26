@@ -38,28 +38,74 @@ export function keyAt(a: Animation, t: number) {
   return a.keys.findIndex((k) => Math.abs(k.t - t) < tol);
 }
 
-/** Insert or replace the key at time t with the figures' current poses. */
+/*
+ * Each figure has its own track: a keyframe holds the poses of the figures keyed at that time,
+ * not necessarily all of them, and a figure moves between its own keys only. Keys at the same
+ * time are one keyframe in the data, so a pose keyed for several figures at once stays in step.
+ */
+
+/** Key the given figures at time t with their current poses (other figures' keys are untouched). */
 export function setKey(a: Animation, t: number, figures: Figure[]): Animation {
   const time = snapTime(a, t);
-  const key: Keyframe = { t: time, poses: Object.fromEntries(figures.map((f) => [f.id, poseOf(f)])) };
+  const poses = Object.fromEntries(figures.map((f) => [f.id, poseOf(f)]));
   const i = keyAt(a, time);
-  const keys = i >= 0 ? a.keys.map((k, j) => (j === i ? key : k)) : [...a.keys, key].sort((p, q) => p.t - q.t);
+  const keys = i >= 0
+    ? a.keys.map((k, j) => (j === i ? { t: time, poses: { ...k.poses, ...poses } } : k))
+    : [...a.keys, { t: time, poses }].sort((p, q) => p.t - q.t);
   return { ...a, keys };
 }
 
-export function removeKey(a: Animation, t: number): Animation {
-  const i = keyAt(a, t);
-  if (i < 0 || a.keys.length <= 1) return a;
-  return { ...a, keys: a.keys.filter((_, j) => j !== i) };
+/** Times of one figure's keys. */
+export function figureKeyTimes(a: Animation, id: string) {
+  return a.keys.filter((k) => k.poses[id]).map((k) => k.t);
 }
 
-/** Move a key to a new time (keeps at least one frame between keys). */
-export function moveKey(a: Animation, from: number, to: number): Animation {
+const withoutEmpty = (a: Animation): Animation => ({ ...a, keys: a.keys.filter((k) => Object.keys(k.poses).length) });
+
+/**
+ * Remove the key at time t: one figure's (`id`), or the whole keyframe. A figure keeps at least
+ * one key, and the animation at least one keyframe.
+ */
+export function removeKey(a: Animation, t: number, id?: string): Animation {
+  const i = keyAt(a, t);
+  if (i < 0) return a;
+  if (id === undefined) return a.keys.length <= 1 ? a : { ...a, keys: a.keys.filter((_, j) => j !== i) };
+  if (!a.keys[i].poses[id] || figureKeyTimes(a, id).length <= 1) return a;
+  return withoutEmpty({ ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, poses: omit(k.poses, id) } : k)) });
+}
+
+/**
+ * Move a key to a new time: one figure's (`id`), or the whole keyframe. Refused when the target
+ * time already has a key for it.
+ */
+export function moveKey(a: Animation, from: number, to: number, id?: string): Animation {
   const i = keyAt(a, from);
   if (i < 0) return a;
   const time = snapTime(a, to);
-  if (a.keys.some((k, j) => j !== i && Math.abs(k.t - time) < 0.5 / a.fps)) return a;
-  return { ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, t: time } : k)).sort((p, q) => p.t - q.t) };
+  const j = keyAt(a, time);
+  if (id === undefined) {
+    if (j >= 0 && j !== i) return a;
+    return { ...a, keys: a.keys.map((k, n) => (n === i ? { ...k, t: time } : k)).sort((p, q) => p.t - q.t) };
+  }
+  const pose = a.keys[i].poses[id];
+  if (!pose || j === i) return a;
+  if (j >= 0 && a.keys[j].poses[id]) return a;
+  const keys = a.keys.map((k, n) => (n === i ? { ...k, poses: omit(k.poses, id) } : n === j ? { ...k, poses: { ...k.poses, [id]: pose } } : k));
+  if (j < 0) keys.push({ t: time, poses: { [id]: pose } });
+  return withoutEmpty({ ...a, keys: keys.sort((p, q) => p.t - q.t) });
+}
+
+/** Only the tracks of these figures (after figures are deleted). */
+export function keepFigures(a: Animation, ids: Set<string>): Animation {
+  if (a.keys.every((k) => Object.keys(k.poses).every((id) => ids.has(id)))) return a;
+  const keys = a.keys.map((k) => ({ ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => ids.has(id))) })).filter((k) => Object.keys(k.poses).length);
+  return { ...a, keys: keys.length ? keys : a.keys.slice(0, 1) };
+}
+
+function omit<T>(o: Record<string, T>, id: string) {
+  const { [id]: _drop, ...rest } = o;
+  void _drop;
+  return rest;
 }
 
 /** Change the length, scaling key times to fit. */

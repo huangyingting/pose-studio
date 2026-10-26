@@ -473,7 +473,7 @@ const SHORTCUTS: [string, string][] = [
   ['Gesture practice', 'P'],
   ['Play / pause animation', 'Space'],
   ['Step a frame', ',  .'],
-  ['Set keyframe · cut shot', 'K · C'],
+  ['Key the selected figure · cut shot', 'K · C'],
   ['Previous / next pose', '[  ]'],
   ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
   ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],

@@ -580,3 +580,16 @@ test('the AI assistant runs on the server and its tools on the open pose', async
   expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { settings: { style: string } } } } }).__poseStudio.store.getState().settings.style)).toBe('anime');
   await expect(page.locator('.assistant-usage')).toContainText('/ 1000');
 });
+
+test('each figure has its own key track', async ({ page }) => {
+  await page.getByRole('button', { name: 'New pose', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Boxing exchange' }).click();
+  await expect(page.getByRole('button', { name: /^Kai key at 0.82 s/ })).toBeVisible();
+  await page.locator('.tl-figure', { hasText: 'Kai' }).click();
+  await expect(page.locator('.tl-figure.on')).toHaveText('Kai');
+  // Delete Kai's key at 0.82 s: Ben's stays.
+  await page.getByRole('button', { name: /^Kai key at 0.82 s/ }).click();
+  await page.getByRole('button', { name: 'Delete keyframe (Kai)' }).click();
+  await expect(page.getByRole('button', { name: /^Kai key at 0.82 s/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Ben key at 0.82 s/ })).toBeVisible();
+});

@@ -294,19 +294,23 @@ export function removeAnimation(store: Store) {
 }
 
 /** Record the current pose as a keyframe at the playhead. */
-export function addKeyframe(store: Store) {
+/** Key the active figure's pose at the playhead (or `figureIds`, or every figure with `all`). */
+export function addKeyframe(store: Store, figureIds?: string[]) {
   const t = store.getState().time;
-  store.updateScene((s) => (s.animation ? { ...s, animation: setKey(s.animation, t, s.figures) } : s));
+  const ids = figureIds ?? (store.getState().activeFigure ? [store.getState().activeFigure!] : store.scene.figures.map((f) => f.id));
+  store.updateScene((s) => (s.animation ? { ...s, animation: setKey(s.animation, t, s.figures.filter((f) => ids.includes(f.id))) } : s));
 }
 
-export function deleteKeyframe(store: Store) {
+/** Delete the active figure's key at the playhead (it keeps at least one key). */
+export function deleteKeyframe(store: Store, figureId = store.getState().activeFigure ?? undefined) {
   const t = store.getState().time;
-  store.updateScene((s) => (s.animation ? { ...s, animation: removeKey(s.animation, t) } : s));
+  store.updateScene((s) => (s.animation ? { ...s, animation: removeKey(s.animation, t, figureId) } : s));
   store.setTime(t);
 }
 
-export function moveKeyframe(store: Store, from: number, to: number) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: moveKey(s.animation, from, to) } : s), 'move-key');
+/** Retime one figure's key (or, without `figureId`, the whole keyframe). */
+export function moveKeyframe(store: Store, from: number, to: number, figureId?: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: moveKey(s.animation, from, to, figureId) } : s), `move-key:${figureId ?? ''}`);
   store.setTime(store.getState().time);
 }
 

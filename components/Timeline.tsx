@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   Activity, Camera, Clapperboard, ClipboardCopy, Diamond, ListVideo, Scissors, TriangleAlert, X, Ellipsis, Film, Ghost, Pause, Play, Repeat, StepBack, StepForward, Trash2, Video,
 } from 'lucide-react';
@@ -8,7 +8,7 @@ import {
   addKeyframe, applyCameraMove, cutShot, deleteCameraKey, deleteKeyframe, editShot, moveKeyframe, removeAnimation, removeShotCut,
   setAnimationOptions, setCameraKey, setCameraOptions, setTargetModel,
 } from '@/lib/actions';
-import { keyAt, snapTime } from '@/lib/animation';
+import { figureKeyTimes, snapTime } from '@/lib/animation';
 import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
@@ -46,8 +46,25 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const a = scene.animation!;
   const time = usePlayhead(clock);
   const track = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  // The canvas and toolbar sit above the timeline, whose height grows with the number of figures.
+  useEffect(() => {
+    const el = root.current;
+    const stage = el?.parentElement;
+    if (!el || !stage) return;
+    const ro = new ResizeObserver(() => stage.style.setProperty('--tl-h', `${Math.ceil(el.getBoundingClientRect().height)}px`));
+    ro.observe(el);
+    return () => { ro.disconnect(); stage.style.removeProperty('--tl-h'); };
+  }, []);
   const frame = Math.round(time * a.fps);
-  const onKey = keyAt(a, time) >= 0;
+  // Each figure has its own key track; the key buttons work on the active figure's.
+  const activeId = useStudio((st) => st.activeFigure);
+  const figures = scene.figures;
+  const multi = figures.length > 1;
+  const active = figures.find((f) => f.id === activeId) ?? figures[0];
+  const activeKeys = active ? figureKeyTimes(a, active.id) : a.keys.map((k) => k.t);
+  const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
+  const onKey = activeKeys.some(near);
   const cam = a.camera;
   const spans = shotSpans(a);
   const [editing, setEditing] = useState<string | null>(null);
@@ -78,9 +95,8 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     pause();
     store.setTime(snapTime(a, t));
   };
-  const keyTimes = a.keys.map((k) => k.t);
-  const prevKey = [...keyTimes].reverse().find((t) => t < time - 1e-3);
-  const nextKey = keyTimes.find((t) => t > time + 1e-3);
+  const prevKey = [...activeKeys].reverse().find((t) => t < time - 1e-3);
+  const nextKey = activeKeys.find((t) => t > time + 1e-3);
 
   const timeAt = (clientX: number) => {
     const r = track.current!.getBoundingClientRect();
@@ -96,20 +112,21 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
   };
-  /** Drag a pose key along the track to retime it. */
-  const dragKey = (t: number) => (e: ReactPointerEvent) => {
+  /** Drag one figure's key along its track to retime it (the other figures keep their timing). */
+  const dragKey = (t: number, figureId: string) => (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     pause();
-    const el = e.currentTarget as HTMLElement;
-    el.setPointerCapture(e.pointerId);
+    if (figureId !== store.getState().activeFigure) store.setActiveFigure(figureId);
+    // On the window: the key's button is re-created as its time changes during the drag.
+    const el = window;
     let from = t;
     store.setTime(t);
     const move = (ev: PointerEvent) => {
       const to = snapTime(a, timeAt(ev.clientX));
       if (Math.abs(to - from) < 1e-6) return;
-      moveKeyframe(store, from, to);
-      if (keyAt(store.scene.animation!, to) >= 0) {
+      moveKeyframe(store, from, to, figureId);
+      if (figureKeyTimes(store.scene.animation!, figureId).some((k) => Math.abs(k - to) < 0.5 / a.fps)) {
         from = to;
         store.setTime(to);
       }
@@ -140,10 +157,12 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   };
 
   const pct = (t: number) => `${(t / a.duration) * 100}%`;
+  // Ruler, shots, one row per figure (taller when there is just one), camera.
+  const rows = `18px 24px ${multi ? figures.map(() => '24px').join(' ') : '26px'} 26px`;
   const ticks = Array.from({ length: Math.floor(a.duration / 0.5) + 1 }, (_, i) => i * 0.5);
 
   return (
-    <div className="timeline" role="region" aria-label="Timeline">
+    <div className="timeline" role="region" aria-label="Timeline" ref={root}>
       <div className="tl-bar">
         <div className="tl-transport">
           <IconButton icon={StepBack} label="Previous keyframe" tipSide="top" disabled={prevKey === undefined} onClick={() => prevKey !== undefined && seek(prevKey)} />
@@ -156,8 +175,21 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
           </span>
         </div>
         <span className="tl-sep" />
-        <IconButton icon={Diamond} label={onKey ? 'Update keyframe' : 'Add keyframe'} shortcut="K" tipSide="top" active={onKey} onClick={() => addKeyframe(store)} />
-        <IconButton icon={Trash2} label="Delete keyframe" tipSide="top" disabled={!onKey || a.keys.length <= 1} onClick={() => deleteKeyframe(store)} />
+        <IconButton
+          icon={Diamond}
+          label={`${onKey ? 'Update' : 'Add'} keyframe${multi && active ? ` (${active.name})` : ''}`}
+          shortcut="K"
+          tipSide="top"
+          active={onKey}
+          onClick={() => addKeyframe(store)}
+        />
+        <IconButton
+          icon={Trash2}
+          label={`Delete keyframe${multi && active ? ` (${active.name})` : ''}`}
+          tipSide="top"
+          disabled={!onKey || activeKeys.length <= 1}
+          onClick={() => deleteKeyframe(store)}
+        />
         <IconButton icon={Scissors} label="Cut: start a new shot here" shortcut="C" tipSide="top" onClick={() => cutShot(store)} />
         <span className="tl-sep" />
         <IconButton icon={Repeat} label="Loop" tipSide="top" active={a.loop} pressed={a.loop} onClick={() => setAnimationOptions(store, { loop: !a.loop })} />
@@ -243,13 +275,23 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
       </div>
 
       <div className="tl-tracks">
-        <div className="tl-labels" aria-hidden>
-          <span />
-          <span>Shots</span>
-          <span>Pose</span>
-          <span>Camera</span>
+        <div className="tl-labels" style={{ gridTemplateRows: rows }}>
+          <span aria-hidden />
+          <span aria-hidden>Shots</span>
+          {multi ? figures.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={`tl-figure${f.id === active?.id ? ' on' : ''}`}
+              onClick={() => store.setActiveFigure(f.id)}
+              title={`${f.name}: keys and retiming apply to this figure`}
+            >
+              {f.name}
+            </button>
+          )) : <span aria-hidden>Pose</span>}
+          <span aria-hidden>Camera</span>
         </div>
-        <div className="tl-lanes" ref={track} onPointerDown={scrub}>
+        <div className="tl-lanes" ref={track} onPointerDown={scrub} style={{ gridTemplateRows: rows }}>
         <div className="tl-ruler">
           {ticks.map((t) => (
             <span key={t} className={Number.isInteger(t) ? 'tick major' : 'tick'} style={{ left: pct(t) }} aria-hidden>
@@ -289,18 +331,20 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             );
           })}
         </div>
-        <div className="tl-row" aria-label="Pose keyframes">
-          {a.keys.map((k) => (
-            <button
-              key={k.t}
-              type="button"
-              className={`tl-key${Math.abs(k.t - time) < 0.5 / a.fps ? ' on' : ''}`}
-              style={{ left: pct(k.t) }}
-              aria-label={`Keyframe at ${k.t.toFixed(2)} s`}
-              onPointerDown={dragKey(k.t)}
-            />
-          ))}
-        </div>
+        {figures.map((f) => (
+          <div key={f.id} className={`tl-row${multi && f.id === active?.id ? ' active' : ''}`} aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}>
+            {figureKeyTimes(a, f.id).map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`tl-key${near(t) ? ' on' : ''}`}
+                style={{ left: pct(t) }}
+                aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
+                onPointerDown={dragKey(t, f.id)}
+              />
+            ))}
+          </div>
+        ))}
         <div className="tl-row camera" aria-label="Camera keyframes">
           {cam?.keys.map((k) => (
             <button

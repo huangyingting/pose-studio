@@ -620,9 +620,9 @@ function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: 
     // Keep the cameras a constant size on screen, however far they are.
     const scale = (o: THREE.Object3D) => {
       const d = state.camera.position.distanceTo(o.position);
-      // Hidden when the view is right at that camera (it would fill the screen).
-      o.visible = d > 1;
-      o.scale.setScalar(Math.max(1, d * 0.1));
+      // Proportional to the distance: the same size on screen however near or far.
+      o.visible = d > 0.3;
+      o.scale.setScalar(d * 0.12);
     };
     for (const g of glyphs.current) if (g) scale(g);
     // The playhead's camera position (placed again only when the time changes).
