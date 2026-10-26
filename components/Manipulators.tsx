@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
@@ -125,6 +125,8 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
   const target = (o: THREE.Object3D): Target | null => {
     if (o.userData.prop) {
       const prop = o.userData.prop as string;
+      // See-through (it blocks the view of the figure being edited): reach past it.
+      if (sv.props.get(prop)?.parts.faded) return null;
       const hold = scene.props.find((p) => p.id === prop)?.hold;
       return hold && sv.figures.has(hold.figure)
         ? { kind: 'held', prop, figure: hold.figure, wrist: hold.hand === 'L' ? 'wristL' : 'wristR' }
@@ -712,4 +714,35 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
       })}
     </group>
   );
+}
+
+/**
+ * Props standing between the camera and the figure being edited go see-through (without lines),
+ * and let clicks through to it. Checked a few times a second.
+ */
+export function SeeThrough({ sv, figureId }: { sv: SceneView; figureId: string | null }) {
+  const camera = useThree((s) => s.camera);
+  const tick = useRef(0);
+  useFrame(() => {
+    if (tick.current++ % 6) return;
+    const ray = new THREE.Raycaster();
+    const m = figureId ? sv.figures.get(figureId) : undefined;
+    const blocking = new Set<string>();
+    if (m) {
+      // Props standing in the scene (not ones carried in a hand).
+      const standing = [...sv.props.entries()].filter(([, p]) => p.object.parent === sv.root);
+      const meshes = standing.flatMap(([id, p]) => p.parts.bodies.map((mesh) => ({ mesh, id })));
+      for (const j of ['head', 'chest', 'root'] as const) {
+        const point = m.joints[j].getWorldPosition(new THREE.Vector3());
+        const d = point.sub(camera.position);
+        const dist = d.length();
+        ray.set(camera.position, d.normalize());
+        ray.far = dist - 0.05;
+        for (const hit of ray.intersectObjects(meshes.map((x) => x.mesh), false)) blocking.add(meshes.find((x) => x.mesh === hit.object)!.id);
+      }
+    }
+    for (const [id, p] of sv.props) p.setFade(blocking.has(id));
+  });
+  useEffect(() => () => { for (const p of sv.props.values()) p.setFade(false); }, [sv]);
+  return null;
 }

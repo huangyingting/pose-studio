@@ -19,7 +19,7 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
 import type { CameraKey, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, IKHandles, PropRing, RouteOverlay, SceneObjects } from './Manipulators';
+import { FigureMarkers, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -106,10 +106,12 @@ export default function Viewport({
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
-    e.stopPropagation();
     let o: THREE.Object3D | null = e.object;
     while (o && !o.userData.joint && !o.userData.prop) o = o.parent;
     if (!o) return;
+    // A see-through prop (in front of the figure being edited) lets the click through.
+    if (o.userData.prop && sv.props.get(o.userData.prop as string)?.parts.faded) return;
+    e.stopPropagation();
     if (o.userData.prop) store.select({ kind: 'prop', prop: o.userData.prop as string });
     else if (figureDoc(o.userData.figure as string)?.proxy) {
       // Stand-ins are placed, not posed: a click picks the whole figure.
@@ -221,6 +223,7 @@ export default function Viewport({
             onTurn={(id, read) => { store.select({ kind: 'figure', figure: id }); store.updateFigure(id, (f) => ({ ...f, ...read })); }}
           />
         )}
+        {!shotMode && <SeeThrough sv={sv} figureId={selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure} />}
         {settings.showHandles && !shotMode && scene.animation && activeFigure && scene.figures.some((f) => f.id === activeFigure && !f.hidden) && (
           <RouteOverlay store={store} scene={scene} figureId={activeFigure} time={time} />
         )}
@@ -433,6 +436,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           for (let p: THREE.Object3D | null = o; p; p = p.parent) shown &&= p.visible;
           if (!shown) continue;
           while (o && !o.userData.figure && !o.userData.prop) o = o.parent;
+          if (o?.userData.prop && sv.props.get(o.userData.prop as string)?.parts.faded) continue;
           if (o?.userData.prop) return { ...hit, prop: o.userData.prop as string };
           if (o?.userData.figure) return { ...hit, figure: o.userData.figure as string };
         }

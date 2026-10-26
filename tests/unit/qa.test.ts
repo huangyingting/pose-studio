@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { poseOf, samplePose } from '@/lib/animation';
-import { newFigure, newScene } from '@/lib/doc';
+import { newFigure, newProp, newScene } from '@/lib/doc';
 import { buildMotion } from '@/lib/motions';
 import { checkMotion, segmentDistance } from '@/lib/qa';
 import { buildTemplate } from '@/lib/templates';
@@ -71,5 +71,15 @@ describe('motion QA', () => {
     expect(segmentDistance(v(0, 0, 0), v(1, 0, 0), v(0.5, 1, 0), v(0.5, 2, 0))).toBeCloseTo(1);
     expect(segmentDistance(v(0, 0, 0), v(1, 0, 0), v(0.5, -1, 0), v(0.5, 1, 0))).toBeCloseTo(0);
     expect(segmentDistance(v(0, 0, 0), v(0, 0, 0), v(3, 4, 0), v(3, 4, 0))).toBeCloseTo(5);
+  });
+  it('finds a figure hidden from the shot camera behind a prop', () => {
+    const f = newFigure();
+    const blocked = { ...animate([[0, [f]], [1, [f]]]), props: [{ ...newProp('wall', [0, 0, 1.2]) }] };
+    const hidden = checkMotion(blocked).filter((i) => i.kind === 'hidden');
+    expect(hidden).toHaveLength(1);
+    expect(hidden[0].message).toMatch(/hidden behind Wall in Shot 1/);
+    // Out from behind it: nothing to report.
+    const clear = { ...blocked, props: [{ ...newProp('wall', [3, 0, 1.2]) }] };
+    expect(checkMotion(clear).filter((i) => i.kind === 'hidden')).toEqual([]);
   });
 });

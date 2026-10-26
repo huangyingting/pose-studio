@@ -132,7 +132,25 @@ export class PropObject {
   }
 
   setIdMode(on: boolean, firstId: number) {
+    // A see-through prop draws no lines over what is behind it: hidden for the line pass.
+    if (this.parts.faded && on) {
+      this.shown = this.object.visible;
+      this.object.visible = false;
+    } else if (!on && this.shown !== null) {
+      this.object.visible = this.shown;
+      this.shown = null;
+    }
     return this.parts.setIdMode(on, firstId, this.style, () => this.selected);
+  }
+
+  /** Whether it was shown before the line pass hid it (null: not hidden by it). */
+  private shown: boolean | null = null;
+
+  /** See-through while it blocks the view of the figure being edited (editor only). */
+  setFade(on: boolean) {
+    if (on === this.parts.faded) return;
+    this.parts.faded = on;
+    this.refresh();
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void) {

@@ -5,6 +5,9 @@ import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
 import { Rig } from './relations';
+import { SceneView } from './sceneview';
+import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
+import { shotSpans } from './shots';
 import { JOINTS, type Figure, type JointName, type Scene } from './types';
 
 /*
@@ -14,7 +17,7 @@ import { JOINTS, type Figure, type JointName, type Scene } from './types';
  * Bodies are approximated by capsules around the bones, so only clear overlaps are reported.
  */
 
-export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop';
+export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop' | 'hidden';
 
 export interface Issue {
   kind: IssueKind;
@@ -28,7 +31,7 @@ export interface Issue {
 }
 
 export const ISSUE_LABELS: Record<IssueKind, string> = {
-  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop',
+  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop', hidden: 'Hidden from the camera',
 };
 
 const HINTS: Record<IssueKind, string> = {
@@ -36,6 +39,7 @@ const HINTS: Record<IssueKind, string> = {
   overlap: 'Move the figures apart or adjust the pose at these keys.',
   limit: 'Re-pose this key with “Natural joint limits” on.',
   pop: 'Add an in-between key, or move the keys further apart.',
+  hidden: 'Move the camera, the prop, or the figure out from behind it.',
 };
 
 /** Thresholds (metres, degrees). */
@@ -189,6 +193,7 @@ export function checkMotion(scene: Scene): Issue[] {
   const stamps = a.loop ? [...times, a.duration] : times;
   const ranges = new Ranges(stamps, (key, worst, d) => {
     switch (d.kind) {
+      case 'hidden': return null; // found shot by shot (hiddenInShots)
       case 'slide': return worst >= SLIDE_MIN ? `${who(d.figure)}${d.joint === 'ankleL' ? 'Left' : 'Right'} foot slides ${cm(worst)} while planted` : null;
       case 'limit': return `${who(d.figure)}${JOINT_LABELS[d.joint!]} bends ${Math.round(worst)}° past its natural range`;
       case 'pop': return d.joint === 'root' && key.endsWith(':move')
@@ -321,6 +326,63 @@ export function checkMotion(scene: Scene): Issue[] {
   rig.dispose();
   for (const p of props) p.dispose();
   ink.dispose();
-  const order2: IssueKind[] = ['overlap', 'slide', 'pop', 'limit'];
-  return ranges.finish().sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+  const order2: IssueKind[] = ['hidden', 'overlap', 'slide', 'pop', 'limit'];
+  return [...ranges.finish(), ...hiddenInShots(scene)].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+}
+
+/**
+ * Who a shot cannot see: seen through each shot's own camera, a figure (the shot's subject, or
+ * everyone) is hidden when a prop blocks the line of sight to at least two of its head, chest and
+ * hips.
+ */
+function hiddenInShots(scene: Scene): Issue[] {
+  const a = scene.animation;
+  if (!a || !scene.props.some((p) => !p.hold)) return [];
+  const view = new SceneView();
+  const cam = new THREE.PerspectiveCamera(30, SHOT_ASPECT);
+  const frameAt = shotFramer(scene);
+  const ray = new THREE.Raycaster();
+  const issues: Issue[] = [];
+  for (const span of shotSpans(a)) {
+    const runs = new Map<string, { start: number; end: number; behind: string }>();
+    const samples = 5;
+    for (let i = 0; i < samples; i++) {
+      const t = span.start + ((span.end - span.start) * i) / samples;
+      const now = sceneAt(scene, t);
+      view.sync(now);
+      const subject = subjectAt(scene, t);
+      placeShot(cam, frameAt(t), shotAt(scene, t), SHOT_ASPECT, { follow: a.camera?.follow ? figuresCenter(view, subject) : null, t });
+      cam.updateMatrixWorld();
+      const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.parts.bodies ?? []).map((mesh) => ({ mesh, name: p.name })));
+      if (!blockers.length) continue;
+      for (const f of now.figures.filter((x) => !x.hidden && (!subject || x.id === subject))) {
+        const m = view.figures.get(f.id);
+        if (!m) continue;
+        let blocked = 0;
+        let behind = '';
+        for (const j of ['head', 'chest', 'root'] as const) {
+          const p = m.joints[j].getWorldPosition(new THREE.Vector3());
+          const d = p.clone().sub(cam.position);
+          const dist = d.length();
+          ray.set(cam.position, d.normalize());
+          ray.far = dist - 0.05;
+          const hit = ray.intersectObjects(blockers.map((b) => b.mesh), false)[0];
+          if (hit) {
+            blocked++;
+            behind = blockers.find((b) => b.mesh === hit.object)?.name ?? 'a prop';
+          }
+        }
+        if (blocked < 2) continue;
+        const run = runs.get(f.id);
+        if (run) run.end = t;
+        else runs.set(f.id, { start: t, end: t, behind });
+      }
+    }
+    for (const [id, run] of runs) {
+      const name = scene.figures.find((f) => f.id === id)?.name ?? 'A figure';
+      issues.push({ kind: 'hidden', figure: id, start: run.start, end: Math.max(run.end, run.start + 1 / a.fps), message: `${name} is hidden behind ${run.behind} in ${span.shot.name}`, hint: HINTS.hidden });
+    }
+  }
+  view.dispose();
+  return issues;
 }

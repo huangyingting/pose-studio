@@ -73,6 +73,8 @@ export class Ink {
     lightDir: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
+  /** See-through, for props that block the view of the figure being edited. */
+  readonly faded = new THREE.MeshBasicMaterial({ color: '#c9ccd6', transparent: true, opacity: 0.2, depthWrite: false });
   readonly ring = new THREE.MeshBasicMaterial({ color: '#8f8f8f' });
   readonly face = new THREE.MeshBasicMaterial({ color: '#4a4a4a' });
   private baseThickness = 1.6;
@@ -196,6 +198,7 @@ export class Ink {
   dispose() {
     for (const m of this.materials.values()) for (const mat of Object.values(m)) mat.dispose();
     this.materials.clear();
+    this.faded.dispose();
     for (const m of this.idMats.values()) m.dispose();
     this.idMats.clear();
     this.outline.dispose();
@@ -224,6 +227,8 @@ export class InkedParts {
 
   /** A colour mixed into the body (to tell figures apart). */
   tint: string | null = null;
+  /** Drawn see-through, without lines (it stands between the camera and what is edited). */
+  faded = false;
 
   constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
 
@@ -299,11 +304,12 @@ export class InkedParts {
     const prop = this.kind === 'prop';
     for (const mesh of this.bodies) {
       const state = isSelected(mesh);
-      mesh.material = state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body;
+      mesh.material = this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body;
     }
     const def = styleDef(style);
     this.style = style;
-    for (const d of this.decorations) d.visible = true;
+    for (const d of this.decorations) d.visible = !this.faded;
+    if (this.faded) return;
     for (const r of this.rings) r.visible = def.rings !== null;
     if (!def.outline) for (const d of this.decorations) if (!this.rings.includes(d)) d.visible = false;
     this.setFeatures(this.featuresOn);
