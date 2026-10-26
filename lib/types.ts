@@ -57,8 +57,13 @@ export type Posture = (typeof POSTURES)[number];
 export const PROP_KINDS = ['box', 'sphere', 'cylinder', 'chair', 'stool', 'step', 'wall'] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 
+export const PROP_LABELS: Record<PropKind, string> = {
+  box: 'Box', sphere: 'Ball', cylinder: 'Cylinder', chair: 'Chair', stool: 'Stool', step: 'Step', wall: 'Wall',
+};
+
 export interface Prop {
   id: string;
+  name: string;
   kind: PropKind;
   position: Vec3;
   /** Degrees, XYZ order. */
@@ -178,6 +183,8 @@ export interface Panel {
 
 export type Selection =
   | { kind: 'joint'; figure: string; joint: JointName }
+  /** A whole figure (picked in the outline): delete, duplicate, rename, move it. */
+  | { kind: 'figure'; figure: string }
   | { kind: 'prop'; prop: string }
   /** A shot of the animation (see lib/shots.ts; 'main' when it is not cut). */
   | { kind: 'shot'; shot: string }

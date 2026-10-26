@@ -117,7 +117,7 @@ export class SceneView {
 
   private applySelection() {
     const sel = this.selection;
-    for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null);
+    for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, sel?.kind === 'figure' && sel.figure === id);
     for (const [id, p] of this.props) p.setSelected(sel?.kind === 'prop' && sel.prop === id);
   }
 

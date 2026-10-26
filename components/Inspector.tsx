@@ -3,27 +3,26 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowDownToLine, ArrowLeftRight, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Focus, Hand, ImagePlus, Mars, Navigation,
-  PanelLeft, PanelRight, Repeat, RotateCcw, Trash2, Venus, X, type LucideIcon,
+  PanelLeft, PanelRight, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, deleteProp, setPosture, duplicateProp, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, resetPose, setDistance,
+  arrange, copyPose, setPosture, lookAtFigure, mirrorPose, pastePose, reachFor, renameFigure, renameProp, resetPose, setDistance,
   setGrounded, setHand, setJoint, setPlacement, setSceneView, symmetrizePose,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { DEFAULT_LIGHT } from '@/lib/lighting';
-import { PROP_LABELS } from '@/lib/props';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import { FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View } from '@/lib/types';
+import { FINGERS, POSTURES, type Figure, type Posture, type Hand as HandPose, type Light, type Scene, type Side, type Style, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import { Assistant } from '@edition/server';
 import BodyMap from './BodyMap';
 import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
-import { IconButton, NumberField, Section, Segmented, Select, Slider, Toggle, type Notify } from './ui';
+import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type Notify } from './ui';
 
 export type Tab = 'pose' | 'body' | 'render' | 'ai';
 
@@ -69,21 +68,19 @@ export default function Inspector({ tab, setTab, ctx }: { tab: Tab; setTab(t: Ta
   );
 }
 
-/** Which figure the panel edits, when the pose has several. */
-function FigurePicker() {
+/** Which figure the panel edits (pick another in the Scene outline or on the canvas), and its name. */
+function FigureHeader({ figure }: { figure: Figure }) {
   const store = useStore();
-  const scene = useScene();
-  const active = useStudio((s) => s.activeFigure);
-  if (scene.figures.length < 2 || !active) return null;
+  const Icon = figure.proxy ? UserRound : PersonStanding;
   return (
-    <div className="panel-row">
-      <Select
-        label="Figure"
-        value={active}
-        onChange={(id) => store.setActiveFigure(id)}
-        options={scene.figures.map((f) => ({ value: f.id, label: f.hidden ? `${f.name} (hidden)` : f.name }))}
-      />
-    </div>
+    <NameHeader
+      lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
+      name={figure.name}
+      label="Figure name"
+      onRename={(name) => renameFigure(store, figure.id, name)}
+    >
+      {figure.hidden && <span className="title-note">Hidden</span>}
+    </NameHeader>
   );
 }
 
@@ -100,7 +97,7 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
 
   if (selection?.kind === 'prop') {
     const prop = scene.props.find((p) => p.id === selection.prop);
-    if (prop) return <PropEditor id={prop.id} ctx={ctx} />;
+    if (prop) return <PropEditor id={prop.id} />;
   }
   if (selection?.kind === 'shot') return <ShotInspector id={selection.shot} notify={ctx.notify} />;
   if (!figure) return <p className="empty-note">This scene has no figures. Add one to the cast in the Scene outline.</p>;
@@ -111,7 +108,7 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
   if (figure.proxy) {
     return (
       <>
-        <FigurePicker />
+        <FigureHeader figure={figure} />
         <Section title="Stand-in">
           <Segmented<Posture>
             label="Posture"
@@ -131,7 +128,7 @@ function PoseTab({ ctx }: { ctx: InspectorContext }) {
 
   return (
     <>
-      <FigurePicker />
+      <FigureHeader figure={figure} />
       <Section
         title={joint ? JOINT_LABELS[joint] : 'Joints'}
         actions={joint && (
@@ -333,12 +330,11 @@ function HandsSection({ hands }: { hands: Record<Side, HandPose> }) {
   );
 }
 
-function PropEditor({ id, ctx }: { id: string; ctx: InspectorContext }) {
+function PropEditor({ id }: { id: string }) {
   const store = useStore();
   const scene = useScene();
   const prop = scene.props.find((p) => p.id === id)!;
   const Icon = PROP_ICONS[prop.kind];
-  const index = scene.props.filter((p) => p.kind === prop.kind).indexOf(prop) + 1;
   const set = (key: 'position' | 'rotation' | 'scale', axis: number, v: number) => {
     const next: Vec3 = [...prop[key]];
     next[axis] = key === 'scale' ? Math.max(0.02, v) : v;
@@ -363,14 +359,14 @@ function PropEditor({ id, ctx }: { id: string; ctx: InspectorContext }) {
   );
   return (
     <>
-      <div className="panel-title">
-        <Icon size={16} strokeWidth={1.75} aria-hidden />
-        <span>{PROP_LABELS[prop.kind]} {index}</span>
-        <span className="spacer" />
+      <NameHeader
+        lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
+        name={prop.name}
+        label={`${PROP_LABELS[prop.kind]} name`}
+        onRename={(name) => renameProp(store, id, name)}
+      >
         <IconButton icon={ArrowDownToLine} label="Drop to floor" onClick={() => store.updateProp(id, (p) => ({ ...p, position: [p.position[0], 0, p.position[2]] }))} />
-        <IconButton icon={Copy} label="Duplicate" onClick={() => duplicateProp(store, id)} />
-        <IconButton icon={Trash2} label="Delete" shortcut="Del" onClick={() => { deleteProp(store, id); ctx.notifyUndo('Prop deleted'); }} />
-      </div>
+      </NameHeader>
       <Section title="Transform">
         {row('position', 'Position', 0.05)}
         {row('rotation', 'Rotation', 5)}
@@ -392,15 +388,8 @@ function BodyTab() {
   const sexField = BODY_FIELDS.find((f) => f.key === 'sex')!;
   return (
     <>
-      <FigurePicker />
+      <FigureHeader figure={figure} />
       <Section title="Figure">
-        <input
-          type="text"
-          className="text-input"
-          value={figure.name}
-          onChange={(e) => renameFigure(store, figure.id, e.target.value)}
-          aria-label="Figure name"
-        />
         <div className="sex-switch" role="radiogroup" aria-label="Sex">
           <button type="button" role="radio" aria-checked={body.sex < 0.5} className={body.sex < 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 0, bust: 0 })}>
             <Mars size={18} strokeWidth={1.75} aria-hidden /> Male

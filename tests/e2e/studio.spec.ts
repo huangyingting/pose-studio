@@ -49,6 +49,12 @@ function jpegSize(buf: Buffer) {
   throw new Error('No SOF marker');
 }
 
+/** Pick an option in one of the app's drop-downs. */
+async function choose(page: Page, select: string, option: string | RegExp) {
+  await page.getByRole('combobox', { name: select }).click();
+  await page.getByRole('listbox', { name: select }).getByRole('option', { name: option }).click();
+}
+
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 async function openSection(page: Page, name: 'Scene' | 'Library') {
   const tab = page.getByRole('tab', { name, exact: true });
@@ -135,6 +141,57 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await poses.getByRole('button', { name: /Hand on head/ }).click();
   await expect(page.getByText('Figure: Hand on head')).toBeVisible();
   expect((await state(page)).scene.figures[0].joints.shoulderR).toEqual(refScenes()[0].figures[0].joints.shoulderR);
+});
+
+test('things have names and right-click menus; Del, Ctrl+D and F2 act on the selection', async ({ page }) => {
+  // Right-click empty floor: add a prop there.
+  const canvas = (await page.locator('.stage canvas').boundingBox())!;
+  await page.mouse.click(canvas.x + canvas.width * 0.85, canvas.y + canvas.height * 0.85, { button: 'right' });
+  await page.getByRole('menu', { name: 'Context menu' }).getByRole('menuitem', { name: 'Chair', exact: true }).click();
+  await openSection(page, 'Scene');
+  const set = page.getByRole('list', { name: 'Set' });
+
+  // Double-click renames in place; the inspector's title shows the name.
+  await set.getByRole('button', { name: 'Chair', exact: true }).dblclick();
+  await page.getByRole('textbox', { name: 'Rename Chair' }).fill('Bar stool');
+  await page.keyboard.press('Enter');
+  await expect(set.getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Chair name' })).toHaveValue('Bar stool');
+  // Escape cancels a rename.
+  await set.getByRole('button', { name: 'Bar stool', exact: true }).dblclick();
+  await page.getByRole('textbox', { name: 'Rename Bar stool' }).fill('Oops');
+  await page.keyboard.press('Escape');
+  await expect(set.getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
+
+  // Right-click the figure on the canvas: its menu.
+  const name = (await state(page)).scene.figures[0].name;
+  const chest = await project(page, 'chest');
+  await page.mouse.click(chest.x, chest.y, { button: 'right' });
+  await page.getByRole('menu', { name }).getByRole('menuitem', { name: 'Duplicate' }).click();
+  expect((await state(page)).scene.figures).toHaveLength(2);
+
+  // The copy is selected: F2 renames it, Del deletes it (with Undo).
+  await page.keyboard.press('F2');
+  await page.getByRole('textbox', { name: /^Rename / }).fill('Ben');
+  await page.keyboard.press('Enter');
+  expect((await state(page)).scene.figures.map((f) => f.name)).toEqual([name, 'Ben']);
+  await page.keyboard.press('Delete');
+  await expect(page.getByText('Deleted Ben')).toBeVisible();
+  expect((await state(page)).scene.figures).toHaveLength(1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).last().click();
+  expect((await state(page)).scene.figures).toHaveLength(2);
+
+  // Ctrl+D duplicates the selected prop.
+  await set.getByRole('button', { name: 'Bar stool', exact: true }).click();
+  await page.keyboard.press('Control+d');
+  await expect(set.getByRole('button', { name: 'Bar stool 2', exact: true })).toBeVisible();
+
+  // Right-click a scene in the picker.
+  const scenes = await openScenes(page);
+  await scenes.locator('button.thumb').nth(1).click({ button: 'right' });
+  await page.getByRole('menu', { name: refScenes()[1].name }).getByRole('menuitem', { name: 'Duplicate' }).click();
+  expect((await state(page)).library.scenes).toHaveLength(21);
+  await expect(page.getByLabel('Scene name')).toHaveValue(`${refScenes()[1].name} copy`);
 });
 
 test('clicking a body part selects it and the sliders edit it', async ({ page }) => {
@@ -277,7 +334,7 @@ test('poses a figure from a photo', async ({ page }) => {
 test('mobile layout uses drawers', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await expect(page.locator('.side')).not.toBeInViewport();
-  await page.getByRole('button', { name: 'Poses', exact: true }).click();
+  await page.getByRole('button', { name: 'Side panel', exact: true }).click();
   await expect(page.locator('.side')).toBeInViewport();
   await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
   await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
@@ -290,7 +347,7 @@ test('mobile layout uses drawers', async ({ page }) => {
 test('exports a turnaround of the current pose', async ({ page }) => {
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Turnaround', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Style' }).selectOption('silhouette');
+  await choose(page, 'Style', 'Silhouette');
   await expect(page.getByText('2400 × 640 px')).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toBe('Hand_on_head_turnaround.jpg');
@@ -429,7 +486,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   expect(Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2])).toBeCloseTo(1.5, 1);
 
   // Too far apart to touch: the app says so.
-  await page.getByRole('combobox', { name: 'Touch' }).selectOption('shoulderL');
+  await choose(page, 'Touch', /Left shoulder$/);
   await page.getByRole('button', { name: 'Reach' }).click();
   await expect(page.getByText('Out of reach')).toBeVisible();
   await page.getByRole('slider', { name: 'Distance' }).fill('0.6');
@@ -515,7 +572,7 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
-  await page.getByRole('combobox', { name: 'Size' }).selectOption('square');
+  await choose(page, 'Size', '1080 × 1080 (1:1)');
   [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Record video' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);
@@ -605,7 +662,7 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
 
 test('stand-ins block a scene in a posture and can become posable figures', async ({ page }) => {
   await addLayer(page, 'Stand-in');
-  await expect(page.getByRole('button', { name: 'Stand-in 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stand-in', exact: true })).toBeVisible();
   await page.getByRole('radio', { name: 'Sit' }).click();
   let s = await state(page);
   const standIn = () => s.scene.figures.find((f) => f.id === s.activeFigure) as unknown as { proxy?: string; joints: Record<string, number[]> };

@@ -12,8 +12,10 @@ import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
 import type { Animation, CameraKey } from '@/lib/types';
 import type { Clock } from './clock';
+import { openContextMenu } from './ContextMenu';
+import { figureMenu, shotMenu } from './menus';
 import { useScene, useStore, useStudio } from './store-context';
-import { IconButton, Menu, NumberField } from './ui';
+import { IconButton, Menu, NumberField, type Notify } from './ui';
 
 /** Current playhead: the clock while playing, the document time otherwise. */
 export function usePlayhead(clock: Clock) {
@@ -26,14 +28,15 @@ export function usePlayhead(clock: Clock) {
  * Keyframe timeline under the canvas: transport, pose keys and the shot camera's keys.
  * Editing a figure at any time records a key there (auto-key).
  */
-export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion, captureShot, notify }: {
+export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion, captureShot, notify, notifyUndo }: {
   clock: Clock;
   shotMode: boolean;
   setShotMode(on: boolean): void;
   onion: boolean;
   setOnion(on: boolean): void;
   captureShot(): Omit<CameraKey, 't'> | null;
-  notify(text: string): void;
+  notify: Notify;
+  notifyUndo(text: string): void;
 }) {
   const store = useStore();
   const scene = useScene();
@@ -242,6 +245,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               type="button"
               className={`tl-figure${f.id === active?.id ? ' on' : ''}`}
               onClick={() => store.setActiveFigure(f.id)}
+              onContextMenu={(e) => openContextMenu(e, figureMenu(store, f.id, { notify, notifyUndo }), f.name)}
               title={`${f.name}: keys and retiming apply to this figure`}
             >
               {f.name}
@@ -279,7 +283,11 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 className={`tl-shot${on ? ' on' : ''}${over ? ' over' : ''}`}
                 style={{ left: pct(sp.start), width: pct(sp.end - sp.start) }}
                 title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${videoModel(a.target)!.name} allows (${videoModel(a.target)!.max} s)` : ''}`}
-                onPointerDown={(e) => { e.stopPropagation(); seek(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
+                onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
+                onContextMenu={(e) => {
+                  store.select({ kind: 'shot', shot: sp.shot.id });
+                  openContextMenu(e, shotMenu(store, sp.shot.id, { notify, notifyUndo }), sp.shot.name);
+                }}
               >
                 {over && <TriangleAlert size={11} aria-hidden />}
                 <span>{sp.shot.name}</span>
@@ -298,6 +306,14 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 style={{ left: pct(t) }}
                 aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
                 onPointerDown={dragKey(t, f.id)}
+                onContextMenu={(e) => {
+                  seek(t);
+                  store.setActiveFigure(f.id);
+                  openContextMenu(e, [{
+                    label: 'Delete key', icon: Trash2, danger: true, disabled: figureKeyTimes(a, f.id).length <= 1,
+                    onSelect: () => deleteKeyframe(store, f.id),
+                  }], `${f.name} · ${t.toFixed(2)} s`);
+                }}
               />
             ))}
           </div>
@@ -311,6 +327,10 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               style={{ left: pct(k.t) }}
               aria-label={`Camera key at ${k.t.toFixed(2)} s`}
               onPointerDown={(e) => { e.stopPropagation(); seek(k.t); }}
+              onContextMenu={(e) => {
+                seek(k.t);
+                openContextMenu(e, [{ label: 'Delete camera key', icon: Trash2, danger: true, onSelect: () => deleteCameraKey(store) }], `Camera · ${k.t.toFixed(2)} s`);
+              }}
             />
           ))}
           {!cam?.keys.length && <span className="tl-empty">No camera moves yet: frame a view and press the camera key, or pick a move</span>}

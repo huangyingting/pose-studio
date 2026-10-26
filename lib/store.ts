@@ -145,7 +145,7 @@ export class Store {
     const sceneIndex = Math.min(Math.max(0, s.sceneIndex), s.library.scenes.length - 1);
     const scene = s.library.scenes[sceneIndex];
     let selection = s.selection;
-    if (selection?.kind === 'joint') {
+    if (selection?.kind === 'joint' || selection?.kind === 'figure') {
       const fig = selection.figure;
       if (!scene.figures.some((f) => f.id === fig)) selection = null;
     } else if (selection?.kind === 'prop') {
@@ -155,7 +155,7 @@ export class Store {
       const shot = selection.shot;
       if (!scene.animation || !shotSpans(scene.animation).some((sp) => sp.shot.id === shot)) selection = null;
     }
-    let activeFigure = selection?.kind === 'joint' ? selection.figure : s.activeFigure;
+    let activeFigure = selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : s.activeFigure;
     if (!scene.figures.some((f) => f.id === activeFigure)) activeFigure = scene.figures[0]?.id ?? null;
     return { ...s, sceneIndex, selection, activeFigure, canUndo: this.past.length > 0, canRedo: this.future.length > 0 };
   }

@@ -27,7 +27,11 @@ export interface ViewportApi {
   project(figure: string, joint: JointName): { x: number; y: number } | null;
   /** The shot (camera key) that reproduces the current view. */
   captureShot(): Omit<CameraKey, 't'> | null;
+  /** What is under a screen point: a figure or prop, and the floor point there. */
+  pick(x: number, y: number): CanvasHit;
 }
+
+export type CanvasHit = { figure?: string; prop?: string; floor?: Vec3 };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -48,12 +52,14 @@ interface Props {
   time: number;
   shotMode: boolean;
   onion: boolean;
+  /** Right-click on the canvas (not after a drag). */
+  onMenu(e: { clientX: number; clientY: number }, hit: CanvasHit): void;
 }
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
 
 export default function Viewport({
-  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, shotMode, onion,
+  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, shotMode, onion, onMenu,
 }: Props) {
   const captureRef = useRef<(() => Omit<CameraKey, 't'> | null) | null>(null);
   const sv = useMemo(() => new SceneView(), []);
@@ -96,8 +102,7 @@ export default function Viewport({
     if (o.userData.prop) store.select({ kind: 'prop', prop: o.userData.prop as string });
     else if (figureDoc(o.userData.figure as string)?.proxy) {
       // Stand-ins are placed, not posed: a click picks the whole figure.
-      store.select(null);
-      store.setActiveFigure(o.userData.figure as string);
+      store.select({ kind: 'figure', figure: o.userData.figure as string });
     } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
   };
 
@@ -108,7 +113,7 @@ export default function Viewport({
   let onGizmoChange = () => {};
   // The Move tool always moves a whole figure: the selected one, or the active one.
   const moving = settings.gizmo === 'translate';
-  const gizmoFigure = selection?.kind === 'joint' ? selection.figure : !selection && moving ? activeFigure : null;
+  const gizmoFigure = selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : !selection && moving ? activeFigure : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
@@ -136,7 +141,17 @@ export default function Viewport({
   const activeDoc = activeFigure ? figureDoc(activeFigure) : undefined;
 
   return (
-    <div className="canvas-wrap" onPointerDown={(e) => { downAt.current = [e.clientX, e.clientY]; }}>
+    <div
+      className="canvas-wrap"
+      onPointerDown={(e) => { downAt.current = [e.clientX, e.clientY]; }}
+      onPointerUp={(e) => {
+        // Open on release so a right-drag (pan) does not open it; the browser's own menu is off.
+        const [x, y] = downAt.current;
+        if (e.button !== 2 || Math.hypot(e.clientX - x, e.clientY - y) > 4 || !(e.target instanceof HTMLCanvasElement)) return;
+        onMenu(e, apiRef.current?.pick(e.clientX, e.clientY) ?? {});
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <Canvas
         flat
         shadows="percentage"
@@ -541,6 +556,24 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
       },
       captureShot: () => captureRef.current(),
+      pick: (x, y) => {
+        const r = gl.domElement.getBoundingClientRect();
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), camera);
+        const hit: CanvasHit = {};
+        const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+        if (floor) hit.floor = [floor.x, 0, floor.z];
+        for (const { object } of ray.intersectObject(sv.root, true)) {
+          let o: THREE.Object3D | null = object;
+          let shown = true;
+          for (let p: THREE.Object3D | null = o; p; p = p.parent) shown &&= p.visible;
+          if (!shown) continue;
+          while (o && !o.userData.figure && !o.userData.prop) o = o.parent;
+          if (o?.userData.prop) return { ...hit, prop: o.userData.prop as string };
+          if (o?.userData.figure) return { ...hit, figure: o.userData.figure as string };
+        }
+        return hit;
+      },
     };
   }, [apiRef, camera, controls, sv, gl]);
 

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, Copy, Ellipsis, FilePlus2, LayoutPanelTop, Search, Trash2, Users, UsersRound } from 'lucide-react';
-import { addScene, addToBoard, deleteScene, duplicateCurrentScene, moveScene } from '@/lib/actions';
+import { ChevronDown, Ellipsis, FilePlus2, Search, Users, UsersRound } from 'lucide-react';
+import { addScene, moveScene } from '@/lib/actions';
 import { TEMPLATES } from '@/lib/templates';
 import { thumbnail } from '@/lib/thumbnails';
+import { openContextMenu } from './ContextMenu';
+import { sceneMenu } from './menus';
 import { useStore, useStudio } from './store-context';
 import { Menu } from './ui';
 
@@ -12,7 +14,7 @@ const COLUMNS = 3;
 
 /**
  * The project's scenes, from the top bar: switch scene (search, thumbnails; drag or Alt+arrows
- * to reorder), start a new one, duplicate, delete or put it on the storyboard.
+ * to reorder), start a new one; rename, duplicate, delete or storyboard one (its menu, or right-click).
  */
 export default function ScenePicker({ notifyUndo }: { notifyUndo(text: string): void }) {
   const [open, setOpen] = useState(false);
@@ -22,8 +24,8 @@ export default function ScenePicker({ notifyUndo }: { notifyUndo(text: string): 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      // Menus render inside; anything else outside closes the picker.
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
+      // Menus render inside (or are a scene's right-click menu); anything else outside closes the picker.
+      if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.context-menu')) setOpen(false);
     };
     const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
     window.addEventListener('pointerdown', onDown);
@@ -100,11 +102,6 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
     }
   };
 
-  const deleteCurrent = () => {
-    const name = store.scene.name;
-    if (deleteScene(store)) notifyUndo(`Deleted “${name}”`);
-  };
-
   return (
     <>
       <div className="side-head">
@@ -132,11 +129,7 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
             className="ibtn"
             align="end"
             tip="More"
-            items={[
-              { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
-              { label: 'Add to storyboard', icon: LayoutPanelTop, onSelect: () => { addToBoard(store); notifyUndo('Added to the storyboard (B)'); } },
-              { label: 'Delete', icon: Trash2, onSelect: deleteCurrent, disabled: scenes.length <= 1, danger: true },
-            ]}
+            items={sceneMenu(store, index, { notifyUndo })}
           >
             <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
           </Menu>
@@ -161,6 +154,7 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
               className="thumb"
               onClick={() => { store.setSceneIndex(i); onPick(); }}
               onKeyDown={(e) => onThumbKey(e, pos, i)}
+              onContextMenu={(e) => openContextMenu(e, sceneMenu(store, i, { notifyUndo }), s.name)}
               aria-current={i === index}
               title={`${s.name} — Alt+arrow keys to reorder`}
             >

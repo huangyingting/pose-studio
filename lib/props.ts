@@ -5,9 +5,6 @@ import type { Prop, PropKind, Style, Vec3 } from './types';
 
 const D2R = Math.PI / 180;
 
-export const PROP_LABELS: Record<PropKind, string> = {
-  box: 'Box', sphere: 'Ball', cylinder: 'Cylinder', chair: 'Chair', stool: 'Stool', step: 'Step', wall: 'Wall',
-};
 
 function box(w: number, h: number, d: number, r = 0.015) {
   return new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2));

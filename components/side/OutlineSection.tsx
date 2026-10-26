@@ -1,14 +1,18 @@
 'use client';
 
-import { Copy, Eye, EyeOff, Film, PersonStanding, Play, Plus, ScanFace, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Copy, Eye, EyeOff, Film, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, Trash2, TriangleAlert, UserRound } from 'lucide-react';
 import {
-  addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, setFigureHidden, startAnimation,
+  addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, editShot, renameFigure, renameProp,
+  setFigureHidden, startAnimation,
 } from '@/lib/actions';
 import { figureKeyTimes } from '@/lib/animation';
-import { PROP_LABELS } from '@/lib/props';
 import { overLimit, shotSpans } from '@/lib/shots';
-import { PROP_KINDS } from '@/lib/types';
+import { PROP_KINDS, PROP_LABELS } from '@/lib/types';
+import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
+import { figureMenu, propMenu, shotMenu } from '../menus';
+import { startRename, useRenaming } from '../rename';
 import { useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Menu } from '../ui';
 import type { SectionProps } from './sections';
@@ -16,6 +20,7 @@ import type { SectionProps } from './sections';
 /**
  * The open scene in workflow order: its cast (figures and stand-ins), its set (props) and its
  * shots. Selecting an item shows it in the inspector; the library applies to what is selected.
+ * Double-click (or F2) renames; right-click opens the item's menu.
  */
 export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionProps) {
   const store = useStore();
@@ -25,7 +30,8 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
   const time = useStudio((s) => s.time);
   const a = scene.animation;
   const spans = a ? shotSpans(a) : [];
-  const counts: Record<string, number> = {};
+  const renaming = useRenaming();
+  const ui = { notify, notifyUndo };
 
   return (
     <div className="side-section outline">
@@ -57,11 +63,17 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
               const moving = !!a && figureKeyTimes(a, f.id).length > 1;
               return (
                 <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}`}>
-                  <button type="button" className="layer-main" onClick={() => { store.select(null); store.setActiveFigure(f.id); }}>
-                    {f.proxy ? <UserRound size={15} strokeWidth={1.75} aria-hidden /> : <PersonStanding size={15} strokeWidth={1.75} aria-hidden />}
-                    <span>{f.name}</span>
+                  <Row
+                    id={f.id}
+                    icon={f.proxy ? UserRound : PersonStanding}
+                    name={f.name}
+                    renaming={renaming === f.id}
+                    onRename={(name) => renameFigure(store, f.id, name)}
+                    onClick={() => store.select({ kind: 'figure', figure: f.id })}
+                    onMenu={(e) => { store.select({ kind: 'figure', figure: f.id }); openContextMenu(e, figureMenu(store, f.id, ui), f.name); }}
+                  >
                     {moving && <Film size={12} className="layer-tag" aria-label="animated" />}
-                  </button>
+                  </Row>
                   <span className="layer-actions">
                     <IconButton icon={Copy} label={`Duplicate ${f.name}`} onClick={() => duplicateFigure(store, f.id)} size={14} />
                     <IconButton
@@ -101,19 +113,21 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
           </div>
           <ul className="layers" aria-label="Set">
             {scene.props.map((p) => {
-              counts[p.kind] = (counts[p.kind] ?? 0) + 1;
-              const name = `${PROP_LABELS[p.kind]} ${counts[p.kind]}`;
-              const Icon = PROP_ICONS[p.kind];
               const on = selection?.kind === 'prop' && selection.prop === p.id;
               return (
                 <li key={p.id} className={on ? 'on' : ''}>
-                  <button type="button" className="layer-main" onClick={() => store.select({ kind: 'prop', prop: p.id })}>
-                    <Icon size={15} strokeWidth={1.75} aria-hidden />
-                    <span>{name}</span>
-                  </button>
+                  <Row
+                    id={p.id}
+                    icon={PROP_ICONS[p.kind]}
+                    name={p.name}
+                    renaming={renaming === p.id}
+                    onRename={(name) => renameProp(store, p.id, name)}
+                    onClick={() => store.select({ kind: 'prop', prop: p.id })}
+                    onMenu={(e) => { store.select({ kind: 'prop', prop: p.id }); openContextMenu(e, propMenu(store, p.id, ui), p.name); }}
+                  />
                   <span className="layer-actions">
-                    <IconButton icon={Copy} label={`Duplicate ${name}`} onClick={() => duplicateProp(store, p.id)} size={14} />
-                    <IconButton icon={Trash2} label={`Delete ${name}`} onClick={() => { deleteProp(store, p.id); notifyUndo('Prop deleted'); }} size={14} />
+                    <IconButton icon={Copy} label={`Duplicate ${p.name}`} onClick={() => duplicateProp(store, p.id)} size={14} />
+                    <IconButton icon={Trash2} label={`Delete ${p.name}`} onClick={() => { deleteProp(store, p.id); notifyUndo(`Deleted ${p.name}`); }} size={14} />
                   </span>
                 </li>
               );
@@ -134,17 +148,19 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
                 const here = time >= sp.start - 1e-6 && (time < sp.end - 1e-6 || sp.index === spans.length - 1);
                 return (
                   <li key={sp.shot.id} className={on ? 'on' : here ? 'here' : ''}>
-                    <button
-                      type="button"
-                      className="layer-main"
-                      onClick={() => { store.setTime(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
+                    <Row
+                      id={sp.shot.id}
+                      lead={<span className="shot-no">{sp.index + 1}</span>}
+                      name={sp.shot.name}
                       title={sp.shot.caption || undefined}
+                      renaming={renaming === sp.shot.id}
+                      onRename={(name) => editShot(store, sp.shot.id, { name })}
+                      onClick={() => { store.setTime(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
+                      onMenu={(e) => { store.select({ kind: 'shot', shot: sp.shot.id }); openContextMenu(e, shotMenu(store, sp.shot.id, ui), sp.shot.name); }}
                     >
-                      <span className="shot-no">{sp.index + 1}</span>
-                      <span>{sp.shot.name}</span>
                       {overLimit(a, sp) && <TriangleAlert size={12} className="layer-tag warn" aria-label="Longer than the model allows" />}
                       <em>{(sp.end - sp.start).toFixed(1)} s</em>
-                    </button>
+                    </Row>
                   </li>
                 );
               })}
@@ -160,5 +176,72 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
         </div>
       </div>
     </div>
+  );
+}
+
+/** An outline row: click selects, double-click renames in place, right-click opens its menu. */
+function Row({ id, icon: Icon, lead, name, title, renaming, onRename, onClick, onMenu, children }: {
+  id: string;
+  icon?: LucideIcon;
+  lead?: React.ReactNode;
+  name: string;
+  title?: string;
+  renaming: boolean;
+  onRename(name: string): void;
+  onClick(): void;
+  onMenu(e: React.MouseEvent): void;
+  children?: React.ReactNode;
+}) {
+  const head = Icon ? <Icon size={15} strokeWidth={1.75} aria-hidden /> : lead;
+  if (renaming) {
+    return (
+      <div className="layer-main">
+        {head}
+        <NameField name={name} onDone={(next) => { startRename(null); if (next) onRename(next); }} />
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="layer-main"
+      title={title}
+      onClick={onClick}
+      onDoubleClick={() => startRename(id)}
+      onContextMenu={onMenu}
+    >
+      {head}
+      <span>{name}</span>
+      {children}
+    </button>
+  );
+}
+
+/** The in-place name editor: Enter or leaving it keeps the name, Escape cancels. */
+function NameField({ name, onDone }: { name: string; onDone(next: string | null): void }) {
+  const [text, setText] = useState(name);
+  const done = useRef(false);
+  const finish = (keep: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const next = text.trim();
+    onDone(keep && next && next !== name ? next.slice(0, 60) : null);
+  };
+  return (
+    <input
+      className="layer-rename"
+      type="text"
+      value={text}
+      aria-label={`Rename ${name}`}
+      autoFocus
+      spellCheck={false}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+      }}
+    />
   );
 }

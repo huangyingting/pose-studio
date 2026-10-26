@@ -53,7 +53,7 @@ describe('motion QA', () => {
     expect(issues.some((i) => i.kind === 'overlap' && /A’s body passes \d+ cm into B’s body/.test(i.message))).toBe(true);
 
     const scene = animate([[0, [a]]]);
-    scene.props = [{ id: 'p', kind: 'box', position: [0, 0, 0], rotation: [0, 0, 0], scale: [0.6, 1.2, 0.6] }];
+    scene.props = [{ id: 'p', name: 'Box', kind: 'box', position: [0, 0, 0], rotation: [0, 0, 0], scale: [0.6, 1.2, 0.6] }];
     expect(kinds(scene)).toContain('overlap');
   });
 

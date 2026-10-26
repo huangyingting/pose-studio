@@ -5,7 +5,7 @@ import { parseBoard } from './board';
 import { uid } from './uid';
 import { mirrorJointName, wrapDeg } from './joints';
 import {
-  FINGERS, JOINTS, POSTURES, PROP_KINDS,
+  FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS,
   type Figure, type Hand, type JointName, type Library, type PoseAsset, type PoseKey, type Posture, type Prop, type PropKind, type Scene, type Side, type Vec3, type View,
 } from './types';
 
@@ -62,8 +62,8 @@ const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
   wall: [2, 2.4, 1],
 };
 
-export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0]): Prop {
-  return { id: uid('p'), kind, position, rotation: [0, 0, 0], scale: [...PROP_DEFAULT_SCALE[kind]] };
+export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0], name: string = PROP_LABELS[kind]): Prop {
+  return { id: uid('p'), name, kind, position, rotation: [0, 0, 0], scale: [...PROP_DEFAULT_SCALE[kind]] };
 }
 
 export function duplicateScene(s: Scene): Scene {
@@ -183,6 +183,7 @@ function parseProp(v: unknown): Prop | null {
   const base = newProp(v.kind as PropKind);
   return {
     id: str(v.id, base.id),
+    name: str(v.name, base.name).slice(0, 60),
     kind: base.kind,
     position: vec3(v.position, base.position),
     rotation: vec3(v.rotation, base.rotation),

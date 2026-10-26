@@ -1,6 +1,6 @@
 import {
   addScene, addFigures, applyMotion, applyPose, applyCameraMove, arrange, deleteFigure, deleteProp, lookAtFigure,
-  reachFor, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  nextName, reachFor, setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
@@ -16,7 +16,7 @@ import { CAMERA_MOVES } from '../shot';
 import { shotSpans } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
-import { JOINTS, POSTURES, PROP_KINDS, STYLES, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
+import { JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -70,7 +70,7 @@ function sceneSummary(store: Store) {
       ...(f.hidden ? { hidden: true } : {}),
       joints: Object.fromEntries(Object.entries(f.joints).filter(([, v]) => v.some((x) => x !== 0)).map(([k, v]) => [k, v.map(r1)])),
     })),
-    props: s.props.map((p) => ({ id: p.id, kind: p.kind, position: { x: r2(p.position[0]), z: r2(p.position[2]) }, facing: r1(p.rotation[1]), scale: p.scale.map(r2) })),
+    props: s.props.map((p) => ({ id: p.id, name: p.name, kind: p.kind, position: { x: r2(p.position[0]), z: r2(p.position[2]) }, facing: r1(p.rotation[1]), scale: p.scale.map(r2) })),
     animation: a ? {
       duration: a.duration,
       loop: a.loop,
@@ -229,12 +229,14 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'add_prop',
-    description: 'Add a prop (box, ball, cylinder, chair, stool, step, wall) on the floor. Returns its id.',
-    schema: obj({ kind: str('Prop', PROP_KINDS), x: num('Floor X (metres)'), z: num('Floor Z (metres)'), facing: opt(num('Facing (degrees)')) }),
+    description: 'Add a prop (box, ball, cylinder, chair, stool, step, wall) on the floor, optionally named (e.g. "Desk"). Returns its id.',
+    schema: obj({ kind: str('Prop', PROP_KINDS), x: num('Floor X (metres)'), z: num('Floor Z (metres)'), facing: opt(num('Facing (degrees)')), name: opt(str('Name shown in the scene outline')) }),
     run: (store, i) => {
-      const prop = { ...newProp(i.kind as PropKind, [Number(i.x), 0, Number(i.z)]), rotation: [0, Number(i.facing ?? 0), 0] as Vec3 };
+      const kind = i.kind as PropKind;
+      const name = nextName(typeof i.name === 'string' && i.name.trim() ? i.name.trim().slice(0, 60) : PROP_LABELS[kind], store.scene.props.map((p) => p.name));
+      const prop = { ...newProp(kind, [Number(i.x), 0, Number(i.z)], name), rotation: [0, Number(i.facing ?? 0), 0] as Vec3 };
       store.updateScene((s) => ({ ...s, props: [...s.props, prop] }));
-      return `Added ${i.kind} (${prop.id}).`;
+      return `Added ${prop.name} (${prop.id}).`;
     },
   },
   {

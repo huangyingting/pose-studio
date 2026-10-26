@@ -24,6 +24,8 @@ The app follows how a scene is made, and the layout follows the app:
 4. **Shoot**: cut the timeline into shots; select a shot in the outline to name it, caption it and give it a camera move.
 5. **Output**: storyboard (the rail), export (sheets, video, keyframe pack).
 
+Everything has a name and a menu: double-click (or F2) renames a figure, prop or shot in the outline or in the inspector's title; right-click a figure or prop on the canvas, any outline row, a scene in the picker or a timeline key for what you can do with it (right-click empty floor to add something there). `Del` and `Ctrl D` delete and duplicate the selection.
+
 On the server edition the AI assistant does any of these from a description ("two people at a café table; she gets up and walks to him; film it in three shots").
 
 ## Features
@@ -87,7 +89,7 @@ On the server edition the AI assistant does any of these from a description ("tw
 - Several open tabs stay in sync: a tab adopts changes saved by another one instead of overwriting them.
 - Works offline once loaded (service worker; production builds only) and can be installed as an app.
 - A design-tool layout: on the left a rail with the Scene outline, the Library and the Storyboard workspace (click the open section to fold the panel away); the scene picker in the top bar; an inspector on the right that edits the selection (a figure's pose, a prop, a shot) with Body / Render (and AI on the server edition) tabs; a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
-- Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs and menus, and an error screen if something crashes.
+- Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs, menus and drop-downs (the app's own, not the system's), and an error screen if something crashes.
 
 ## Getting started
 
@@ -155,6 +157,7 @@ components/
   Inspector.tsx         Contextual Pose / Body / Render panel (joint, prop and style editors)
   side/                 Left side panel: the section rail and registry (sections.ts: add a section there), the Scene outline and the Library
   ScenePicker.tsx       The project's scenes, from the top bar
+  menus.ts, ContextMenu.tsx  Right-click menus (one definition per kind of thing) and the host that shows them
   ShotInspector.tsx     Inspector for a selected shot
   BodyMap.tsx           Clickable body schematic for picking joints
   ui.tsx, icons.ts      Design-system components (icon buttons, menus, sections, fields) and icon mapping
@@ -167,7 +170,7 @@ lib/
   types.ts              Document model: Library → Scene → Figure / Prop
   store.ts              App state, undo/redo history, persistence
   actions.ts            All document operations used by the UI and shortcuts
-  doc.ts                Factories, mirror/symmetrize, validation and migration of untrusted JSON
+  doc.ts                Factories, mirror/symmetrize, validation of untrusted JSON
   mannequin.ts          Procedural figure: male/female anatomy, fingers, IK, swivel, joint limits, grounding
   props.ts              Prop geometry
   sceneview.ts          Keeps three.js objects in sync with a Scene (shared by editor and exporter)

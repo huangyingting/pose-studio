@@ -6,7 +6,7 @@ import {
   Grid3x3, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2, Video,
 } from 'lucide-react';
 import {
-  addKeyframe, addScene, appendScenes, cutShot, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addScene, appendScenes, cutShot, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
@@ -31,7 +31,9 @@ import { Clock } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
 import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './ui';
-import Viewport, { type FrameRequest, type ViewportApi } from './Viewport';
+import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
+import { ContextMenuHost, openContextMenu } from './ContextMenu';
+import { canvasMenu, figureMenu, propMenu, renameInOutline } from './menus';
 
 function webglAvailable() {
   try {
@@ -240,7 +242,7 @@ function App() {
         else if (k === 'y') run(() => store.redo());
         else if (k === 'c' && !window.getSelection()?.toString()) run(() => copyPose(store) && notify('Pose copied'));
         else if (k === 'v') run(() => pastePose(store) || notify('Copy a pose first (Ctrl+C)', 'error'));
-        else if (k === 'd') run(() => duplicateCurrentScene(store));
+        else if (k === 'd') run(() => duplicateSelection(store));
         else if (k === 'e') run(() => setDialog('export'));
         else if (k === 's') run(saveFile);
         return;
@@ -271,9 +273,17 @@ function App() {
         }
         case '[': return run(() => store.setSceneIndex(Math.max(0, store.getState().sceneIndex - 1)));
         case ']': return run(() => store.setSceneIndex(Math.min(store.getState().library.scenes.length - 1, store.getState().sceneIndex + 1)));
-        case 'Delete': case 'Backspace':
-          if (deleteSelection(store)) { e.preventDefault(); notifyUndo('Prop deleted'); }
+        case 'Delete': case 'Backspace': {
+          const name = deleteSelection(store);
+          if (name) run(() => notifyUndo(`Deleted ${name}`));
           return;
+        }
+        case 'F2': {
+          const sel = store.getState().selection;
+          const id = sel?.kind === 'prop' ? sel.prop : sel?.kind === 'shot' ? sel.shot : sel ? sel.figure : store.getState().activeFigure;
+          if (id) run(() => renameInOutline(store, id));
+          return;
+        }
         case 'Escape': return run(() => store.select(null));
         case '?': return run(() => setDialog('help'));
       }
@@ -292,6 +302,21 @@ function App() {
   useEffect(() => {
     (window as unknown as { __poseStudio?: unknown }).__poseStudio = { store, viewport: apiRef };
   }, [store]);
+
+  // Right-click on the canvas: the menu of what is under the pointer, or of the empty floor.
+  const openCanvasMenu = (e: { clientX: number; clientY: number }, hit: CanvasHit) => {
+    const ui = { notify, notifyUndo };
+    const sel = store.getState().selection;
+    if (hit.prop) {
+      store.select({ kind: 'prop', prop: hit.prop });
+      openContextMenu(e, propMenu(store, hit.prop, ui), store.scene.props.find((p) => p.id === hit.prop)?.name);
+    } else if (hit.figure) {
+      if (!(sel?.kind === 'joint' && sel.figure === hit.figure)) store.select({ kind: 'figure', figure: hit.figure });
+      openContextMenu(e, figureMenu(store, hit.figure, ui), store.scene.figures.find((f) => f.id === hit.figure)?.name);
+    } else {
+      openContextMenu(e, canvasMenu(store, hit.floor, frameCurrent));
+    }
+  };
 
   const ctx: InspectorContext = {
     frame,
@@ -319,13 +344,13 @@ function App() {
     >
       <header className="topbar">
         <div className="tb-left">
-          <IconButton icon={PanelLeft} label="Poses" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
+          <IconButton icon={PanelLeft} label="Side panel" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
           <Menu
             label="Main menu"
             className="brand"
             items={[
               { label: 'New scene', icon: FilePlus2, onSelect: () => addScene(store) },
-              { label: 'Duplicate scene', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCurrentScene(store) },
+              { label: 'Duplicate scene', icon: Copy, onSelect: () => duplicateCurrentScene(store) },
               '-',
               { label: 'Save library (.json)', icon: Save, shortcut: 'Ctrl S', onSelect: saveFile },
               { label: 'Import scenes…', icon: FileUp, onSelect: () => openFilePicker('append') },
@@ -401,6 +426,7 @@ function App() {
           time={time}
           shotMode={shotMode}
           onion={onion}
+          onMenu={openCanvasMenu}
         />
         {shotMode && <div className="letterbox" aria-hidden><div /></div>}
         {reference.url && reference.visible && (
@@ -478,6 +504,7 @@ function App() {
             setOnion={setOnion}
             captureShot={() => apiRef.current?.captureShot() ?? null}
             notify={notify}
+            notifyUndo={notifyUndo}
           />
         )}
         {settings.gizmo !== 'rotate' && !gizmoForSelection && (
@@ -501,6 +528,7 @@ function App() {
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
       {dialog === 'board' && <Board onClose={() => setDialog(null)} notify={notify} />}
+      <ContextMenuHost />
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>
   );

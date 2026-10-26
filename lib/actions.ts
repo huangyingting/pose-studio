@@ -14,6 +14,7 @@ import {
 import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
+import { PROP_LABELS } from './types';
 import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Panel, Posture, Prop, PropKind, Scene, Side, Vec3, View } from './types';
 
 /* Scenes (library entries) */
@@ -30,8 +31,20 @@ export function appendScenes(store: Store, scenes: Scene[]) {
   store.commit((lib) => ({ ...lib, scenes: [...lib.scenes, ...scenes] }), '', { sceneIndex: at, selection: null, activeFigure: null });
 }
 
-export function duplicateCurrentScene(store: Store) {
-  addScene(store, duplicateScene(store.scene));
+/** Duplicate a scene (the open one by default); the copy opens next to it. */
+export function duplicateCurrentScene(store: Store, index = store.getState().sceneIndex) {
+  const src = store.getState().library.scenes[index];
+  if (!src) return;
+  if (index !== store.getState().sceneIndex) store.setSceneIndex(index);
+  addScene(store, duplicateScene(src));
+}
+
+/** A name not used yet: "Chair", then "Chair 2", "Chair 3", … */
+export function nextName(base: string, taken: string[]) {
+  const stem = base.replace(/\s+\d+$/, '').trim() || base;
+  const used = new Set(taken);
+  if (!used.has(stem)) return stem;
+  for (let n = 2; ; n++) if (!used.has(`${stem} ${n}`)) return `${stem} ${n}`;
 }
 
 export function deleteScene(store: Store, index = store.getState().sceneIndex) {
@@ -73,25 +86,27 @@ export function mirrorCurrentScene(store: Store) {
 
 /* Figures */
 
-export function addFigure(store: Store) {
+/** Where a new figure goes unless told: beside the existing ones. */
+function besideFigures(store: Store, gap: number): Vec3 {
+  const xs = store.scene.figures.map((f) => f.position[0]);
+  return [xs.length ? Math.max(...xs) + gap : 0, 0, 0];
+}
+
+export function addFigure(store: Store, at = besideFigures(store, 0.8)) {
   const scene = store.scene;
   const base = store.figure;
-  // Place the new figure beside the existing ones, with the same proportions as the active one.
-  const xs = scene.figures.map((f) => f.position[0]);
+  // Same proportions as the active figure.
   const fig = newFigure({
-    name: `Figure ${scene.figures.length + 1}`,
-    position: [xs.length ? Math.max(...xs) + 0.8 : 0, 0, 0],
+    name: nextName('Figure', scene.figures.map((f) => f.name)),
+    position: at,
     ...(base ? { body: { ...base.body } } : {}),
   });
   addFigures(store, [fig]);
 }
 
 /** A capsule stand-in for blocking: placed like a figure, in a posture, not posed joint by joint. */
-export function addStandIn(store: Store) {
-  const scene = store.scene;
-  const xs = scene.figures.map((f) => f.position[0]);
-  const n = scene.figures.filter((f) => f.proxy).length + 1;
-  addFigures(store, [withPosture(newFigure({ name: `Stand-in ${n}`, position: [xs.length ? Math.max(...xs) + 0.8 : 0, 0, 0] }), 'stand')]);
+export function addStandIn(store: Store, at = besideFigures(store, 0.8)) {
+  addFigures(store, [withPosture(newFigure({ name: nextName('Stand-in', store.scene.figures.map((f) => f.name)), position: at }), 'stand')]);
 }
 
 /** Change a stand-in's posture, or (null) turn it into a posable figure. */
@@ -109,14 +124,14 @@ export function addFigures(store: Store, figures: Figure[]) {
   store.commit(
     (lib) => ({ ...lib, scenes: lib.scenes.map((s, j) => (j === i ? { ...s, figures: [...s.figures, ...figures] } : s)) }),
     '',
-    { activeFigure: figures[0].id, selection: null },
+    { activeFigure: figures[0].id, selection: { kind: 'figure', figure: figures[0].id } },
   );
 }
 
 export function duplicateFigure(store: Store, id: string) {
   const src = store.scene.figures.find((f) => f.id === id);
   if (!src) return;
-  const copy: Figure = { ...structuredClone(src), id: uid('f'), name: `${src.name} copy`, position: [src.position[0] + 0.8, src.position[1], src.position[2]] };
+  const copy: Figure = { ...structuredClone(src), id: uid('f'), name: nextName(src.name, store.scene.figures.map((f) => f.name)), position: [src.position[0] + 0.8, src.position[1], src.position[2]] };
   addFigures(store, [copy]);
 }
 
@@ -179,10 +194,8 @@ export function pastePose(store: Store) {
 
 /* Props */
 
-export function addProp(store: Store, kind: PropKind) {
-  const scene = store.scene;
-  const xs = scene.figures.map((f) => f.position[0]);
-  const prop = newProp(kind, [(xs.length ? Math.max(...xs) : 0) + 0.9, 0, 0]);
+export function addProp(store: Store, kind: PropKind, at = besideFigures(store, 0.9)) {
+  const prop = newProp(kind, at, nextName(PROP_LABELS[kind], store.scene.props.map((p) => p.name)));
   store.updateScene((s) => ({ ...s, props: [...s.props, prop] }));
   store.select({ kind: 'prop', prop: prop.id });
 }
@@ -190,7 +203,7 @@ export function addProp(store: Store, kind: PropKind) {
 export function duplicateProp(store: Store, id: string) {
   const src = store.scene.props.find((p) => p.id === id);
   if (!src) return;
-  const copy: Prop = { ...structuredClone(src), id: uid('p'), position: [src.position[0] + 0.3, src.position[1], src.position[2] + 0.3] };
+  const copy: Prop = { ...structuredClone(src), id: uid('p'), name: nextName(src.name, store.scene.props.map((p) => p.name)), position: [src.position[0] + 0.3, src.position[1], src.position[2] + 0.3] };
   store.updateScene((s) => ({ ...s, props: [...s.props, copy] }));
   store.select({ kind: 'prop', prop: copy.id });
 }
@@ -199,13 +212,38 @@ export function deleteProp(store: Store, id: string) {
   store.updateScene((s) => ({ ...s, props: s.props.filter((p) => p.id !== id) }));
 }
 
-export function deleteSelection(store: Store) {
+export function renameProp(store: Store, id: string, name: string) {
+  store.updateProp(id, (p) => ({ ...p, name }), `rename:${id}`);
+}
+
+/** Delete what is selected (a figure, a prop or a shot's cut). Returns its name for the toast, or null. */
+export function deleteSelection(store: Store): string | null {
   const sel = store.getState().selection;
+  const scene = store.scene;
   if (sel?.kind === 'prop') {
+    const p = scene.props.find((x) => x.id === sel.prop);
     deleteProp(store, sel.prop);
-    return true;
+    return p?.name ?? 'Prop';
   }
-  return false;
+  if (sel?.kind === 'figure') {
+    const f = scene.figures.find((x) => x.id === sel.figure);
+    return f && deleteFigure(store, f.id) ? f.name : null;
+  }
+  if (sel?.kind === 'shot' && scene.animation?.shots?.[0]?.id !== sel.shot && scene.animation?.shots?.some((x) => x.id === sel.shot)) {
+    const name = scene.animation.shots.find((x) => x.id === sel.shot)!.name;
+    removeShotCut(store, sel.shot);
+    return `the cut before ${name}`;
+  }
+  return null;
+}
+
+/** Duplicate the selected prop or figure (also when one of its joints is selected). False when there is none. */
+export function duplicateSelection(store: Store) {
+  const sel = store.getState().selection;
+  if (sel?.kind === 'prop') duplicateProp(store, sel.prop);
+  else if (sel?.kind === 'figure' || sel?.kind === 'joint') duplicateFigure(store, sel.figure);
+  else return false;
+  return true;
 }
 
 /* Placement and relationships between figures */

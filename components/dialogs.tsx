@@ -469,6 +469,7 @@ export function PhotoDialog({ onClose, notify, onReference }: {
 
 const SHORTCUTS: [string, string][] = [
   ['Select a body part', 'Click'],
+  ['Menu for a figure, prop, shot or scene', 'Right click'],
   ['Move hands / feet (IK)', 'Drag dots'],
   ['Orbit · pan · zoom', 'Drag · Right drag · Wheel'],
   ['Move / rotate / scale', 'W  E  R'],
@@ -485,11 +486,12 @@ const SHORTCUTS: [string, string][] = [
   ['Previous / next scene', '[  ]'],
   ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
   ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],
-  ['Duplicate scene', 'Ctrl D'],
+  ['Duplicate the selection', 'Ctrl D'],
+  ['Rename the selection', 'F2 · Double-click'],
   ['Export image', 'Ctrl E'],
   ['Save library', 'Ctrl S'],
   ['Reorder scenes (scene picker)', 'Alt + arrows'],
-  ['Delete prop', 'Del'],
+  ['Delete the selection', 'Del'],
   ['Deselect', 'Esc'],
   ['This help', '?'],
 ];

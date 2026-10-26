@@ -3,7 +3,7 @@ import { editShot, removeShotCut, setCameraOptions, setTargetModel } from '@/lib
 import { describeSpan } from '@/lib/prompt';
 import { VIDEO_MODELS, overLimit, shotSpans, videoModel } from '@/lib/shots';
 import { useScene, useStore } from './store-context';
-import { Section, Select, Toggle, type Notify } from './ui';
+import { IconButton, NameHeader, Section, Select, Toggle, type Notify } from './ui';
 
 /** Inspector for a selected shot: what it is called and shows, how long, what it is cut for, its camera. */
 export default function ShotInspector({ id, notify }: { id: string; notify: Notify }) {
@@ -17,11 +17,18 @@ export default function ShotInspector({ id, notify }: { id: string; notify: Noti
 
   return (
     <>
-      <Section title={`Shot ${span.index + 1}`}>
-        <label className="field">
-          <span>Name</span>
-          <input type="text" value={span.shot.name} aria-label="Shot name" onChange={(e) => editShot(store, id, { name: e.target.value })} />
-        </label>
+      <NameHeader lead={<span className="shot-no">{span.index + 1}</span>} name={span.shot.name} label="Shot name" onRename={(name) => editShot(store, id, { name })}>
+        <IconButton
+          icon={ClipboardCopy}
+          label="Copy description (for AI video tools)"
+          onClick={() => {
+            const text = describeSpan(scene, span);
+            navigator.clipboard?.writeText(text).then(() => notify('Shot description copied (for AI video tools)'), () => notify(text));
+          }}
+        />
+        {span.index > 0 && <IconButton icon={Scissors} label="Remove cut" shortcut="Del" onClick={() => { removeShotCut(store, id); store.select(null); }} />}
+      </NameHeader>
+      <Section title="Shot">
         <label className="field">
           <span>What happens</span>
           <textarea
@@ -53,25 +60,6 @@ export default function ShotInspector({ id, notify }: { id: string; notify: Noti
         <p className="hint-text">Or frame the view and set camera keys from the timeline.</p>
         <Toggle label="Follow the figures" hint="All shots: the camera keeps the figures in frame as they move" checked={!!a.camera?.follow} onChange={(follow) => setCameraOptions(store, { follow })} />
         <Toggle label="Hand-held" hint="All shots: a slight shake" checked={(a.camera?.shake ?? 0) > 0} onChange={(on) => setCameraOptions(store, { shake: on ? 0.5 : 0 })} />
-      </Section>
-      <Section title="Shot">
-        <div className="toolrow">
-          <button
-            type="button"
-            className="btn subtle"
-            onClick={() => {
-              const text = describeSpan(scene, span);
-              navigator.clipboard?.writeText(text).then(() => notify('Shot description copied (for AI video tools)'), () => notify(text));
-            }}
-          >
-            <ClipboardCopy size={14} aria-hidden /> Copy description
-          </button>
-          {span.index > 0 && (
-            <button type="button" className="btn ghost danger" onClick={() => { removeShotCut(store, id); store.select(null); }}>
-              <Scissors size={14} aria-hidden /> Remove cut
-            </button>
-          )}
-        </div>
       </Section>
     </>
   );
