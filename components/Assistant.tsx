@@ -223,7 +223,7 @@ function CopilotModel({ value, onChange }: { value: string; onChange(m: string):
   );
 }
 
-const COMPANION_TEXT = { off: '', connecting: 'Connecting…', connected: 'Connected', offline: `Waiting for the companion on port ${BRIDGE_PORT}` };
+const COMPANION_TEXT = { off: '', connecting: 'Connecting…', connected: 'Connected', offline: `Waiting for the companion on port ${BRIDGE_PORT} (allow access to this device if the browser asks)` };
 
 /** The local companion: GitHub Copilot chats, and MCP clients (Copilot CLI, VS Code) driving this tab. */
 function LocalCompanion() {

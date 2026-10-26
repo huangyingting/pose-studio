@@ -83,7 +83,7 @@ Requires Node 20.9+ and a browser with WebGL.
 
 ## Local companion
 
-`companion/server.mjs` runs on your machine next to an open Pose Studio tab (local or on GitHub Pages). The tab connects to it from the **AI** tab (settings → **Local companion**; choosing GitHub Copilot connects automatically), and the companion relays tool calls to the tab through a bridge on `127.0.0.1:8765`, so the tools act on what you see. One companion serves both kinds of clients:
+`companion/server.mjs` runs on your machine next to an open Pose Studio tab (local or on GitHub Pages). The tab connects to it from the **AI** tab (settings → **Local companion**; choosing GitHub Copilot connects automatically; from the Pages site, Chrome asks once to let the site access apps on your device: allow it), and the companion relays tool calls to the tab through a bridge on `127.0.0.1:8765`, so the tools act on what you see. One companion serves both kinds of clients:
 
 - **GitHub Copilot** chats from the AI tab: a [GitHub Copilot SDK](https://www.npmjs.com/package/@github/copilot-sdk) session with your Copilot login, limited to the studio's tools.
 

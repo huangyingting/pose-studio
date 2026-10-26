@@ -9,7 +9,7 @@ import type { TurnEvents } from './agent';
  * through the companion's bridge, so they run here, on the open pose.
  */
 
-export const COMPANION_HELP = 'Start the local companion: run `npm install` and `npm start` in the companion folder of Pose Studio.';
+export const COMPANION_HELP = 'Start it with `npm install` and `npm start` in the companion folder of Pose Studio, and if the browser asks to let this site access apps on your device, allow it.';
 
 async function companion<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
