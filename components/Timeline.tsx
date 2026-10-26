@@ -44,14 +44,14 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const time = usePlayhead(clock);
   const track = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
-  // The canvas and toolbar sit above the timeline, whose height grows with the number of figures.
+  // The canvas (and, on phones, the canvas tools) sit above the timeline, whose height grows with the number of figures.
   useEffect(() => {
     const el = root.current;
-    const stage = el?.parentElement;
-    if (!el || !stage) return;
-    const ro = new ResizeObserver(() => stage.style.setProperty('--tl-h', `${Math.ceil(el.getBoundingClientRect().height)}px`));
+    const studio = el?.closest<HTMLElement>('.studio');
+    if (!el || !studio) return;
+    const ro = new ResizeObserver(() => studio.style.setProperty('--tl-h', `${Math.ceil(el.getBoundingClientRect().height)}px`));
     ro.observe(el);
-    return () => { ro.disconnect(); stage.style.removeProperty('--tl-h'); };
+    return () => { ro.disconnect(); studio.style.removeProperty('--tl-h'); };
   }, []);
   const frame = Math.round(time * a.fps);
   // Each figure has its own key track; the key buttons work on the active figure's.

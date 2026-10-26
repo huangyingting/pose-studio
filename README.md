@@ -88,7 +88,7 @@ On the server edition the AI assistant does any of these from a description ("tw
 - Autosaves to browser storage (with a save-status indicator), flushes when the tab is hidden or closed, and warns you if storage is full.
 - Several open tabs stay in sync: a tab adopts changes saved by another one instead of overwriting them.
 - Works offline once loaded (service worker; production builds only) and can be installed as an app.
-- A design-tool layout: on the left a rail with the Scene outline, the Library and the Storyboard workspace (click the open section to fold the panel away); the scene picker in the top bar; an inspector on the right that edits the selection (a figure's pose, a prop, a shot) with Body / Render (and AI on the server edition) tabs; a floating canvas toolbar. Icon buttons have tooltips with their shortcuts.
+- A design-tool layout: on the left a rail with the Scene outline, the Library and the Storyboard workspace (click the open section to fold the panel away); the canvas tools (gizmo, View: camera angles, handles and grid, Frame all, render style) and the scene picker in the top bar, leaving the canvas clear (on phones the tools float at its bottom); an inspector on the right that edits the selection (a figure's pose, a prop, a shot) with Body / Render (and AI on the server edition) tabs. Icon buttons have tooltips with their shortcuts.
 - Keyboard shortcuts (press `?`), a responsive layout with drawers on phones and tablets, touch-friendly dragging, accessible dialogs, menus and drop-downs (the app's own, not the system's), and an error screen if something crashes.
 
 ## Getting started

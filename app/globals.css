@@ -577,20 +577,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   pointer-events: none;
   mix-blend-mode: multiply;
 }
-.toolbar {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  max-width: calc(100% - 24px);
-  padding: 4px;
-  background: var(--panel);
-  border-radius: 12px;
-  box-shadow: var(--shadow-float);
-}
+.toolbar { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .toolbar .segmented { background: transparent; padding: 0; }
 .toolbar .segmented button { width: 32px; height: 32px; padding: 0; border-radius: var(--radius); }
 .toolbar .segmented button.on { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
@@ -617,7 +604,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* The canvas sits above the timeline, so the shot letterbox matches what is visible. */
 .stage.animated .canvas-wrap, .stage.animated .letterbox { bottom: var(--tl-h, 150px); }
 .stage.animated .reference { height: calc(100% - var(--tl-h, 150px)); }
-.stage.animated .toolbar { bottom: calc(var(--tl-h, 150px) + 12px); }
 .timeline {
   position: absolute;
   left: 0;
@@ -1269,6 +1255,10 @@ button.psec-title svg { color: var(--text-3); }
 
 /* ---------- small screens: side panels become drawers ---------- */
 
+@media (max-width: 1040px) {
+  .brand-name { display: none; }
+}
+
 @media (max-width: 1180px) {
   .studio { grid-template-columns: auto minmax(0, 1fr) 272px; }
   .side-panel { width: 208px; }
@@ -1298,7 +1288,20 @@ button.psec-title svg { color: var(--text-3); }
   .panel { right: 0; transform: translateX(105%); }
   .drawer-library .side, .drawer-inspector .panel { transform: none; }
   .scrim { position: fixed; inset: 48px 0 0; z-index: 25; background: rgba(0, 0, 0, 0.2); }
-  .toolbar { bottom: 10px; }
+  /* No room in the top bar: the canvas tools float at the bottom of the canvas. */
+  .toolbar {
+    position: fixed;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    z-index: 20;
+    padding: 4px;
+    background: var(--panel);
+    border-radius: 12px;
+    box-shadow: var(--shadow-float);
+  }
+  .studio:has(.stage.animated) .toolbar { bottom: calc(var(--tl-h, 150px) + 10px); }
+  .toolbar .menu-list.bottom { top: auto; bottom: calc(100% + 8px); }
   .export-grid, .photo-grid { grid-template-columns: 1fr; }
   .shortcuts { grid-template-columns: 1fr; }
   .practice-session header, .practice-session footer { padding: 8px; gap: 6px; }

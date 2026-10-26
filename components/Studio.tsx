@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ChevronDown, ChevronUp, CircleDot, Film, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, FilePlus2, FileUp, Focus, FolderOpen,
-  Grid3x3, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2, Video,
+  ChevronDown, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, Eye, FilePlus2, FileUp, Focus, FolderOpen,
+  Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, Redo2, Rotate3d, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
-  addKeyframe, addScene, appendScenes, cutShot, startAnimation, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
 import { parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
@@ -367,6 +367,47 @@ function App() {
             <span className="brand-name">Pose Studio</span>
             <ChevronDown size={14} className="brand-chevron" aria-hidden />
           </Menu>
+          <span className="tb-sep hide-mobile" />
+          <div className="toolbar" role="toolbar" aria-label="Canvas tools">
+            <Segmented<GizmoMode>
+              label="Gizmo"
+              value={settings.gizmo}
+              onChange={setGizmo}
+              iconOnly
+              options={[
+                { value: 'rotate', label: 'Rotate', icon: Rotate3d, title: 'Rotate  E' },
+                { value: 'translate', label: 'Move', icon: Move3d, title: 'Move figure or prop  W' },
+                { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
+              ]}
+            />
+            <span className="tb-sep" />
+            <Menu
+              label="View"
+              className="btn ghost"
+              tip="Camera angle and what the canvas shows"
+              items={[
+                { group: 'Camera' },
+                ...VIEW_PRESETS.map((v) => ({ label: v.label, shortcut: v.key, onSelect: () => frame(v) })),
+                { group: 'Show' },
+                { label: 'Drag handles', shortcut: 'H', checked: settings.showHandles, onSelect: () => store.setSettings({ showHandles: !settings.showHandles }) },
+                { label: 'Floor grid', checked: settings.showGrid, onSelect: () => store.setSettings({ showGrid: !settings.showGrid }) },
+              ]}
+            >
+              <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
+            </Menu>
+            <IconButton icon={Focus} label="Frame all" shortcut="F" onClick={frameCurrent} />
+            <span className="tb-sep" />
+            <Menu
+              label="Render style"
+              className="btn ghost"
+              tip="Render style  L"
+              items={STYLE_LIST.map((s) => ({
+                label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === settings.style, onSelect: () => store.setSettings({ style: s.id }),
+              }))}
+            >
+              <StyleIcon size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={13} aria-hidden />
+            </Menu>
+          </div>
         </div>
         <div className="tb-center">
           <input
@@ -433,68 +474,6 @@ function App() {
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={reference.url} alt="" style={{ opacity: reference.opacity }} />
         )}
-        <div className="toolbar" role="toolbar" aria-label="Canvas tools">
-          <Segmented<GizmoMode>
-            label="Gizmo"
-            value={settings.gizmo}
-            onChange={setGizmo}
-            iconOnly
-            options={[
-              { value: 'rotate', label: 'Rotate', icon: Rotate3d, title: 'Rotate  E' },
-              { value: 'translate', label: 'Move', icon: Move3d, title: 'Move figure or prop  W' },
-              { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
-            ]}
-          />
-          <span className="tb-sep" />
-          <Menu
-            label="Camera view"
-            side="top"
-            className="btn ghost"
-            tip="Camera view  1–6"
-            items={VIEW_PRESETS.map((v) => ({ label: v.label, shortcut: v.key, onSelect: () => frame(v) }))}
-          >
-            <Video size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronUp size={13} aria-hidden />
-          </Menu>
-          <IconButton icon={Focus} label="Frame all" shortcut="F" onClick={frameCurrent} tipSide="top" />
-          <span className="tb-sep" />
-          <Menu
-            label="Render style"
-            side="top"
-            className="btn ghost"
-            tip="Render style  L"
-            items={STYLE_LIST.map((s) => ({
-              label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === settings.style, onSelect: () => store.setSettings({ style: s.id }),
-            }))}
-          >
-            <StyleIcon size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronUp size={13} aria-hidden />
-          </Menu>
-          <span className="tb-sep" />
-          <IconButton
-            icon={CircleDot}
-            label="Drag handles"
-            shortcut="H"
-            tipSide="top"
-            active={settings.showHandles}
-            pressed={settings.showHandles}
-            onClick={() => store.setSettings({ showHandles: !settings.showHandles })}
-          />
-          <IconButton
-            icon={Grid3x3}
-            label="Floor grid"
-            tipSide="top"
-            active={settings.showGrid}
-            pressed={settings.showGrid}
-            onClick={() => store.setSettings({ showGrid: !settings.showGrid })}
-          />
-          {!scene.animation && (
-            <>
-              <span className="tb-sep" />
-              <button type="button" className="btn ghost" onClick={() => { startAnimation(store); notify('Animation started: pose the figures at other times on the timeline'); }} data-tip="Animate this scene" data-tip-side="top">
-                <Film size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">Animate</span>
-              </button>
-            </>
-          )}
-        </div>
         {scene.animation && (
           <Timeline
             clock={clock}
