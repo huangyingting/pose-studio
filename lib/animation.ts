@@ -107,14 +107,20 @@ export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: 
     return [{ ...structuredClone(c), id: uid('hold'), figure: ids.get(c.figure)!, target }];
   });
   const cameras = a.cameras?.map((c) => {
-    const { subject, rig, ...rest } = structuredClone(c);
+    const { subject, also, rig, ...rest } = structuredClone(c);
     const { toward, ...r } = rig ?? ({} as CameraRig);
+    const others = also?.filter((f) => ids.has(f)).map((f) => ids.get(f)!);
     return {
-      ...rest, ...(subject && ids.has(subject) ? { subject: ids.get(subject)! } : {}),
+      ...rest, ...(subject && ids.has(subject) ? { subject: ids.get(subject)! } : {}), ...(others?.length ? { also: others } : {}),
       ...(rig ? { rig: toward && ids.has(toward) ? { ...r, toward: ids.get(toward)! } : r } : {}),
     };
   });
-  return { ...a, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}), ...(cameras ? { cameras } : {}) };
+  const { coverage, ...rest } = a;
+  const roles = coverage && Object.entries(coverage.roles).filter(([, f]) => ids.has(f)).map(([r, f]) => [r, ids.get(f)!]);
+  return {
+    ...rest, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}), ...(cameras ? { cameras } : {}),
+    ...(coverage && roles!.length === Object.keys(coverage.roles).length ? { coverage: { id: coverage.id, roles: Object.fromEntries(roles!) } } : {}),
+  };
 }
 
 /** An animation mirrored left ↔ right (across the plane x = 0). */
@@ -166,6 +172,8 @@ export function parseShots(rawShots: unknown, rawCameras: unknown, duration: num
   const camera = (x: Record<string, unknown>, id: string, name: string, from = 0): Camera => ({
     id, name,
     ...(typeof x.subject === 'string' && x.subject ? { subject: x.subject.slice(0, 40) } : {}),
+    ...(Array.isArray(x.also) && x.also.length ? { also: x.also.filter((f): f is string => typeof f === 'string').slice(0, 8).map((f) => f.slice(0, 40)) } : {}),
+    ...(typeof x.made === 'string' && x.made ? { made: x.made.slice(0, 40) } : {}),
     anchor: x.anchor === 'subject' ? 'subject' : 'world',
     aim: x.aim === 'point' || x.aim === 'path' ? x.aim : 'subject',
     points: objects(x.points, 500)

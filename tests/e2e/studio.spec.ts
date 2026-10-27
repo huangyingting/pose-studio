@@ -1170,6 +1170,14 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   s = await live(page);
   const a = s.scene.animation!;
   expect(a.cameras!.find((c) => c.id === a.shots![0].camera)!.subject).toBe(second.id);
+  // Or filmed with a coverage of the two: a master, over-the-shoulder shots and singles.
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Camera');
+  await page.getByRole('region', { name: 'Coverage' }).getByRole('button', { name: /Two-person dialogue/ }).click();
+  s = await live(page);
+  const covered = s.scene.animation!;
+  expect(covered.cameras!.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
+  expect(covered.cameras!.find((c) => c.id === covered.shots![0].camera)!.name).toBe('Master');
 
   // Dusk light, kept with the scene.
   await page.getByRole('button', { name: 'Render style' }).click();

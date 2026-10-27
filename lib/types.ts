@@ -296,6 +296,8 @@ export interface Animation {
   props?: Record<string, PropKey[]>;
   /** The scene's cameras (lib/shot.ts). */
   cameras?: Camera[];
+  /** The coverage its cameras and cuts were made with, and the figures playing its roles (lib/coverage.ts). */
+  coverage?: { id: string; roles: Record<string, string> };
   /**
    * The camera track: shots sorted by start; each runs until the next one starts (a cut) or the
    * animation ends, filmed by one of the cameras. None: one shot, the still camera's.
@@ -334,6 +336,10 @@ export interface Camera {
   name: string;
   /** The figure it films (none: everyone). */
   subject?: string;
+  /** Figures it frames with its subject (a two-shot). */
+  also?: string[];
+  /** Made by the scene's coverage, as its camera with this key (lib/coverage.ts). */
+  made?: string;
   /** Where its path is: fixed in the world, or riding along with its subject. */
   anchor: 'world' | 'subject';
   /** Where it looks: at its subject, at a point, or along its path. */

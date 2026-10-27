@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookmarkPlus, FilePlus2, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
+import { BookmarkPlus, Clapperboard, FilePlus2, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import {
-  addModel, addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, deleteModel, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
+  addModel, addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
 } from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
+import { COVERAGES, castCoverage } from '@/lib/coverage';
 import { newScene } from '@/lib/doc';
 import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
@@ -441,8 +442,37 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
   const a = scene.animation;
   const selected = a && selection?.kind === 'shot' ? shotSpans(a).find((sp) => sp.shot.id === selection.shot) : undefined;
   const span = selected ?? (a ? spanAt(a, time) : undefined);
+  const active = useStudio((s) => s.activeFigure);
+  const name = (id: string | undefined) => scene.figures.find((f) => f.id === id)?.name ?? '?';
   return (
     <div className="side-scroll">
+      <section aria-label="Coverage">
+        <Group title="Coverage of the whole animation">
+          {COVERAGES.map((c) => {
+            const cast = a?.coverage?.id === c.id ? a.coverage.roles : castCoverage(scene, c, active ?? undefined);
+            const who = cast ? c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ') : `needs ${c.roles.length} people`;
+            return (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  disabled={!cast}
+                  data-tip={`${c.description} (${who})`}
+                  onClick={() => {
+                    if (!coverScene(store, c.id)) return;
+                    const n = store.scene.animation!;
+                    notify(`${c.name}: ${n.cameras!.filter((x) => x.made?.startsWith(`${c.id}:`)).length} cameras, ${shotSpans(n).length} shots`);
+                    onPick?.();
+                  }}
+                >
+                  <Clapperboard size={14} aria-hidden />
+                  <span className="side-list-name">{c.name}</span>
+                  <em>{a?.coverage?.id === c.id ? 'again' : who}</em>
+                </button>
+              </li>
+            );
+          })}
+        </Group>
+      </section>
       <Target>
         {span ? <>Moves apply to <strong>{span.shot.name}</strong>{a && shotSpans(a).length > 1 ? ' (select another shot in the Scene outline)' : ''}.</> : 'A move animates this still scene and films it.'}
       </Target>

@@ -7,6 +7,7 @@ import {
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
+import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { clipInfo, keysClip, partKeys } from './clip';
 import { saveClips } from './assetstore';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
@@ -1064,6 +1065,22 @@ export function setShotSubject(store: Store, shotId: string, figure: string) {
 export function deleteCamera(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: removeCamera(s.animation, id) } : s));
   if (store.getState().selection?.kind === 'camera') store.select(null);
+}
+
+/**
+ * Film the animation with a coverage (lib/coverage.ts): its cameras on the figures in its roles
+ * (given, or as cast before, or A the active figure and B the one nearest it), cut on what they
+ * do. The figures cast, or null if there are too few people for it.
+ */
+export function coverScene(store: Store, id: string, roles?: Record<string, string>): Record<string, string> | null {
+  const c = coverageById(id);
+  if (!c) return null;
+  if (!store.scene.animation) startAnimation(store, 4);
+  const a = store.scene.animation!;
+  const cast = roles ?? (a.coverage?.id === id ? a.coverage.roles : castCoverage(store.scene, c, store.getState().activeFigure ?? undefined));
+  if (!cast || c.roles.some((r) => !store.scene.figures.some((f) => f.id === cast[r])) || new Set(c.roles.map((r) => cast[r])).size < c.roles.length) return null;
+  store.updateScene((s) => applyCoverage(s, id, cast as Record<'A', string>));
+  return cast;
 }
 
 /** The frame shape the scene's shots are filmed in (16:9, 9:16, 1:1, 2.39:1). */

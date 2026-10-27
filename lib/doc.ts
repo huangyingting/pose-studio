@@ -453,6 +453,10 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   const holds = (Array.isArray(v.constraints) ? v.constraints.slice(0, 500) : []).map((c) => parseConstraint(c, figures, propIds, duration)).filter((c): c is Constraint => c !== null);
   const anim: Animation = { duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}) };
   Object.assign(anim, parseShots(v.shots, v.cameras, duration));
+  if (isObj(v.coverage) && typeof v.coverage.id === 'string' && isObj(v.coverage.roles)) {
+    const roles = Object.entries(v.coverage.roles).filter((e): e is [string, string] => typeof e[1] === 'string' && figures.has(e[1])).slice(0, 8);
+    anim.coverage = { id: v.coverage.id.slice(0, 40), roles: Object.fromEntries(roles) };
+  }
   if (typeof v.target === 'string' && v.target.length <= 40) anim.target = v.target;
   if (FRAME_SHAPES.includes(v.frame as FrameShape) && v.frame !== '16:9') anim.frame = v.frame as FrameShape;
   return anim;

@@ -1,5 +1,5 @@
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, editCamera, editRig, editShot, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
   setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
@@ -12,6 +12,7 @@ import { actionLabel, restage } from '../track';
 import { clampRotation } from '../joints';
 import { MOTIONS, buildMotion } from '../motions';
 import { allPoses, builtInPoses } from '../poses';
+import { COVERAGES, castCoverage } from '../coverage';
 import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
@@ -671,6 +672,22 @@ export const TOOLS: AgentTool[] = [
     },
   },
   {
+    name: 'film_coverage',
+    description: `Film the whole animation with a coverage: cameras on the people in its roles (A, and B for two-person ones), all on one side of the line between them, cut on what they do (setting off, a motion, a prop let go) or on a beat: ${COVERAGES.map((c) => `${c.id} (${c.description.toLowerCase()}; roles ${c.roles.join(', ')})`).join('; ')}. Applied again it recuts, keeping cameras edited since. Do the blocking and acting first.`,
+    schema: obj({ coverage: str('Coverage', COVERAGES.map((c) => c.id)), a: opt(FIGURE), b: opt(FIGURE) }),
+    run: (store, i) => {
+      const c = COVERAGES.find((x) => x.id === i.coverage)!;
+      const fa = i.a ? findFigure(store, i.a) : null;
+      const fb = i.b ? findFigure(store, i.b) : null;
+      const given = fa && (c.roles.length < 2 || fb) ? { A: fa.id, ...(fb ? { B: fb.id } : {}) } : undefined;
+      const cast = coverScene(store, c.id, given ?? (fa ? castCoverage(store.scene, c, fa.id) ?? undefined : undefined));
+      if (!cast) throw new Error(`${c.name} needs ${c.roles.length} people`);
+      const a = store.scene.animation!;
+      const name = (id: string) => store.scene.figures.find((f) => f.id === id)?.name;
+      return `${c.name} (${c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ')}): ${shotSpans(a).map((s) => `${r2(s.start)} s ${a.cameras?.find((x) => x.id === s.shot.camera)?.name ?? 'still'}`).join(', ')}.`;
+    },
+  },
+  {
     name: 'check_motion',
     description: 'Check the animation for foot sliding, bodies below the floor, interpenetration, joints past their range and pops.',
     schema: obj({}),
@@ -719,5 +736,5 @@ Joint angles are degrees, Euler X/Y/Z:
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
 Animation is made of actions on each person's track: a walk, run or jump to a mark (move_to), a motion from the library (apply_motion; several people's motions put the others in place), poses keyed by hand (set_time, then set_joints), an upper-body motion over another (upper_body), a prop thrown, passed, shot or dribbled (throw_prop), contacts held over time (hold). get_scene lists the actions with their ids; edit_action moves, retimes, blends, speeds up or removes one, move_mark changes where it ends. Changing one action moves only what that person does after it.
-Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures from mark to mark with move_to, apply_pose or apply_motion for actions on the spot, then refine), then shoot (camera_move, check_motion).
+Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures from mark to mark with move_to, apply_pose or apply_motion for actions on the spot, then refine), then shoot (film_coverage for the whole scene, or cut_shot and camera_move shot by shot; then check_motion).
 Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. To put a figure beside, in front of or facing another, use relate rather than working out coordinates. For animation: chain actions at the playhead, fix timing with edit_action, add a camera_move, and run check_motion. Keep replies short: say what you did.`;
