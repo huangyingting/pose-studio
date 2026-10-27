@@ -279,10 +279,7 @@ export interface PropKey {
   release?: boolean;
 }
 
-/**
- * A shot camera key: an orbit around the (auto-framed) subject.
- * zoom 1 frames everything; > 1 moves closer. pan shifts the frame (fractions of half the frame).
- */
+/** A scene's timing: what everyone does, props' keys, contacts, and the cameras and shots filming it. */
 export interface Animation {
   /** Length in seconds. */
   duration: number;

@@ -137,7 +137,7 @@ const RELATIONS = ['turn_to', 'face_each_other', 'look_at', 'beside_left', 'besi
 export const TOOLS: AgentTool[] = [
   {
     name: 'get_scene',
-    description: 'The open scene: figures (id, name, body, floor position, facing, non-zero joint angles), props, and when animated each person\'s actions (id, what, start and end, where it leaves them: its mark), holds, camera keys and shots; and the render style. Call this first and after big changes.',
+    description: 'The open scene: figures (id, name, body, floor position, facing, non-zero joint angles), props, and when animated each person\'s actions (id, what, start and end, where it leaves them: its mark), holds, cameras (their paths or rigs) and the shots cutting between them; and the render style. Call this first and after big changes.',
     schema: obj({}),
     run: (store) => JSON.stringify(sceneSummary(store)),
   },

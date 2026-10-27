@@ -30,9 +30,9 @@ export interface SideSectionDef {
 }
 
 export const SECTIONS: SideSectionDef[] = [
-  // The open scene in workflow order: cast, set, shots.
+  // The open scene in workflow order: cast, set, cameras, shots.
   { id: 'scene', label: 'Scene', icon: ListTree, Panel: OutlineSection },
-  // Ready-made poses, motions, camera moves and scene set-ups, applied to the selection.
+  // Ready-made poses, motions, models, scene templates, coverage and camera moves, applied to the selection.
   { id: 'library', label: 'Library', icon: Library, Panel: LibrarySection },
   // Describe what you want (server edition only).
   ...(Assistant ? [{ id: 'ai' as const, label: 'AI assistant', icon: Sparkles, Panel: AssistantSection, wide: true }] : []),

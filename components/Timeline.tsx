@@ -682,7 +682,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                   className={`tl-key cam${near(t) ? ' on' : ''}`}
                   style={{ left: pct(t) }}
                   aria-label={`Camera point at ${t.toFixed(2)} s`}
-                  title="A point of the shot's camera path: drag to retime it"
+                  title="A point of the path of the camera filming then: drag to retime it"
                   onPointerDown={dragPoint(t)}
                   onContextMenu={(e) => {
                     seek(t);
@@ -690,7 +690,11 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                   }}
                 />
               ))}
-              {!camTimes.length && <span className="tl-empty">No camera moves yet: frame a view and press the camera button, or pick a move</span>}
+              {!camTimes.length && (
+                <span className="tl-empty">
+                  {a.cameras?.some((c) => c.rig) ? 'Cameras placing themselves from their subjects (no points to key)' : 'No camera moves yet: frame a view and press the camera button, or pick a move'}
+                </span>
+              )}
             </div>
             {flights.length > 0 && (
               <svg className="tl-flights" aria-hidden>

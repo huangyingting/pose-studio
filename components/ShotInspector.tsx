@@ -187,7 +187,7 @@ function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotSpan }) 
   return (
     <Section title={cam?.name ?? 'Still camera'}>
       <div className="field">
-        <span>Frames</span>
+        <span>Frames{cam?.also?.length ? ` (with ${cam.also.map((id) => scene.figures.find((f) => f.id === id)?.name).filter(Boolean).join(', ')})` : ''}</span>
         <Select
           label="Camera subject"
           value={cam?.subject && scene.figures.some((f) => f.id === cam.subject) ? cam.subject : 'all'}
