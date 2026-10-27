@@ -28,13 +28,6 @@ export const JOINT_LABELS: Record<JointName, string> = {
   rightUpperLeg: 'Right thigh', rightLowerLeg: 'Right shin', rightFoot: 'Right foot',
 };
 
-export const SHORT_LABELS: Record<JointName, string> = {
-  hips: 'Pelvis', spine: 'Waist', chest: 'Chest', neck: 'Neck', head: 'Head',
-  leftUpperArm: 'L arm', leftLowerArm: 'L forearm', leftHand: 'L hand',
-  rightUpperArm: 'R arm', rightLowerArm: 'R forearm', rightHand: 'R hand',
-  leftUpperLeg: 'L thigh', leftLowerLeg: 'L shin', leftFoot: 'L foot',
-  rightUpperLeg: 'R thigh', rightLowerLeg: 'R shin', rightFoot: 'R foot',
-};
 
 export function axisLabels(j: JointName): [string, string, string] {
   if (j === 'hips') return ['Pitch (+ forward)', 'Turn (+ left)', 'Roll (+ right)'];

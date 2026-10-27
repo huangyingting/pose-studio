@@ -1,8 +1,8 @@
 import { normalize, propKeyOf } from './animation';
 import { clipIdsOf } from './assets';
-import { loadClips, saveClips } from './assetstore';
+import { loadClips } from './assetstore';
 import { setModels } from './model';
-import { clipsIn, newScene, parseLibrary } from './doc';
+import { newScene, parseLibrary } from './doc';
 import { sceneAt } from './evaluate';
 import { keepProps, setPropKey } from './propmotion';
 import { setPoseAt } from './track';
@@ -81,11 +81,7 @@ function loadLibrary(storage: Storage | null): Library {
   try {
     const raw = storage?.getItem(STORAGE.library);
     if (raw) {
-      const data = JSON.parse(raw);
-      // A library from before imported clips were kept apart: their frames move to the asset store.
-      const frames = clipsIn(data);
-      if (frames.length) void saveClips(frames);
-      return parseLibrary(data);
+      return parseLibrary(JSON.parse(raw));
     }
   } catch {
     // Corrupt entry: start a new project.

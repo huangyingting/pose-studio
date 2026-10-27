@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import {
-  NEUTRAL_ANGLES, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
+  NEUTRAL_ANGLES, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
@@ -98,10 +98,6 @@ export function setSceneLight(store: Store, light: Light, key = '') {
 
 export function setSceneView(store: Store, view: View) {
   store.updateScene((s) => ({ ...s, view }), 'view');
-}
-
-export function mirrorCurrentScene(store: Store) {
-  store.updateScene(mirrorScene);
 }
 
 /* Figures */

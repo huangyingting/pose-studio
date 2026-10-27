@@ -124,7 +124,7 @@ export const DEFAULT_EXPORT: ExportOptions = {
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
 
-/** Validate export options from storage (older versions or hand-edited values). */
+/** Validate export options from storage (they may be hand-edited). */
 export function parseExportOptions(raw: unknown): ExportOptions {
   const o = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_EXPORT;

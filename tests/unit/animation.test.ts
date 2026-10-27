@@ -4,7 +4,7 @@ import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { addFigure, addKeyframe, applyCameraMove, applyMotion, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
 import { BODY_PRESETS } from '@/lib/body';
-import { duplicateScene, mirrorScene, newFigure, newScene, parseScene } from '@/lib/doc';
+import { duplicateScene, newFigure, newScene, parseScene } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
 import { describeShot } from '@/lib/prompt';
@@ -84,8 +84,6 @@ describe('keyframe sampling', () => {
     expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
     const copy = duplicateScene(s);
     expect(copy.animation!.actions.map((x) => x.roles[0].figure)).toEqual([copy.figures[0].id]);
-    const m = mirrorScene(s);
-    expect(angle(figurePoseAt(m, s.figures[0].id, 1)!.bones, 'rightLowerLeg')[0]).toBe(60);
   });
 });
 

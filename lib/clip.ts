@@ -1,4 +1,4 @@
-import { jointLimits, mirrorJointName, wrapDeg } from './joints';
+import { jointLimits, wrapDeg } from './joints';
 import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat, turnBones } from './pose';
 import { uid } from './uid';
 import { EXTRA_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
@@ -221,20 +221,6 @@ export function setPartKey(part: ClipPart, t: number, pose: Pose, tolerance: num
 /** The pose mirrored left ↔ right (across the plane x = 0). */
 export function mirrorPose(p: Pose): Pose {
   return { ...p, bones: mirrorBones(p.bones), position: [-p.position[0] || 0, p.position[1], p.position[2]], hands: { L: { ...p.hands.R, curl: [...p.hands.R.curl] }, R: { ...p.hands.L, curl: [...p.hands.L.curl] } } };
-}
-
-/** A clip mirrored left ↔ right. */
-export function mirrorClip(c: Clip): Clip {
-  return {
-    ...c,
-    parts: c.parts.map((part) => {
-      const keys = partKeys(part).map((k) => ({ t: k.t, pose: mirrorPose(k.pose) }));
-      const interp = trackOf(part, ROOT)?.interpolation === 'linear' ? 'linear' : 'smooth';
-      return partFromPoses(part.name, keys, interp, part.body);
-    }),
-    events: c.events.map((e) => (e.hand ? { ...e, hand: e.hand === 'L' ? 'R' : 'L' } : e)),
-    contacts: c.contacts.map((x) => ({ ...x, bone: mirrorJointName(x.bone) })),
-  };
 }
 
 /** A clip of keys in the world turned by `deg` about the vertical, its floor points moved by `place`. */

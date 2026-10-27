@@ -14,37 +14,7 @@ describe('parseLibrary', () => {
     expect(parseLibrary(JSON.parse(JSON.stringify(lib)))).toEqual(lib);
   });
 
-  it('reads animations saved as keyframes: keys, walks and props (one-time converter)', () => {
-    const pose = (x: number, z: number, extra = {}) => ({ joints: { leftLowerLeg: [20, 0, 0] }, position: [x, 0, z], hands: {}, grounded: true, ...extra });
-    const lib = parseLibrary({
-      version: 2,
-      scenes: [{
-        id: 's', figures: [{ id: 'a' }, { id: 'b' }], props: [{ id: 'ball', kind: 'sphere' }],
-        animation: {
-          duration: 3, fps: 24, loop: false,
-          keys: [
-            { t: 0, poses: { a: pose(0, 0), b: pose(2, 0) }, props: { ball: { position: [0, 0, 1], rotation: [0, 0, 0] } } },
-            { t: 1, poses: { a: pose(0, 0) } },
-            { t: 2, poses: { a: pose(0, 2, { travel: 'walk' }) }, props: { ball: { position: [0, 0, 2], rotation: [0, 0, 0], release: true } } },
-          ],
-        },
-      }],
-      motions: [{ id: 'm', name: 'Mine', scene: { figures: [{ id: 'x' }], animation: { duration: 1, keys: [{ t: 0, poses: { x: pose(0, 0) } }, { t: 1, poses: { x: pose(0, 1) } }] } } }],
-    });
-    const a = lib.scenes[0].animation!;
-    const of = (id: string) => a.actions.filter((x) => x.roles[0].figure === id).map((x) => [x.source.kind, x.start, x.duration]);
-    expect(of('a')).toEqual([['keys', 0, 1], ['travel', 1, 1], ['keys', 2, 0]]);
-    expect(of('b')).toEqual([['keys', 0, 0]]);
-    expect(a.actions.find((x) => x.source.kind === 'travel')!.roles[0].end).toEqual({ at: [0, 2], facing: 0 });
-    expect(a.props!.ball.map((k) => [k.t, !!k.release])).toEqual([[0, false], [2, true]]);
-    expect(lib.version).toBe(3);
-    expect(lib.clips!.map((c) => [c.id, c.name, c.duration, c.people.length])).toEqual([['m', 'Mine', 1, 1]]);
-  });
 
-  it('reads documents saved with the old joint names (one-time converter)', () => {
-    const s = parseScene({ figures: [{ joints: { root: [10, 20, 0], shoulderL: [0, 0, 30], kneeR: [45, 0, 0] } }] });
-    expect(anglesOf(s.figures[0].bones)).toEqual({ hips: [10, 20, 0], leftUpperArm: [0, 0, 30], rightLowerLeg: [45, 0, 0] });
-  });
 
   it('accepts only library files', () => {
     expect(() => parseLibrary(refScenes()[3])).toThrow('Not a Pose Studio library');
@@ -61,7 +31,7 @@ describe('parseLibrary', () => {
     const s = parseScene({
       name: 'x'.repeat(500),
       figures: [{
-        joints: { leftUpperLeg: [Number.NaN, 400, 'a'], bogus: [1, 2, 3] },
+        bones: { leftUpperLeg: [Number.NaN, 0, 0, 1], leftLowerLeg: [0, 0, 0, 2], bogus: [0, 0, 0, 1] },
         body: { height: 99, sex: -3 },
         hands: { L: { curl: [2, -1, 0.5], spread: 7 } },
       }],
@@ -69,7 +39,9 @@ describe('parseLibrary', () => {
       view: { yaw: 900, pitch: 200, fov: 0 },
     });
     const f = s.figures[0];
-    expect(anglesOf(f.bones)).toEqual({ leftUpperLeg: [0, 40, 0] });
+    // A broken rotation goes, one not of unit length is made so.
+    expect(Object.keys(f.bones)).toEqual(['leftLowerLeg']);
+    expect(Math.hypot(...f.bones.leftLowerLeg!)).toBeCloseTo(1, 9);
     expect(f.body.height).toBe(2.2);
     expect(f.body.sex).toBe(0);
     expect(f.hands.L.curl.slice(0, 3)).toEqual([1, 0, 0.5]);

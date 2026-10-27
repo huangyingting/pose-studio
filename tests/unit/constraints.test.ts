@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { addFigure, applyMotion, arrange, holdOn, letGo, setDistance, startAnimation, travelTo } from '@/lib/actions';
 import { clipById, BUILT_IN } from '@/lib/assets';
-import { duplicateScene, mirrorScene, parseScene } from '@/lib/doc';
+import { duplicateScene, parseScene } from '@/lib/doc';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { checkMotion } from '@/lib/qa';
 import { Rig, contactPoint } from '@/lib/relations';
@@ -45,7 +45,6 @@ describe('constraints: contacts held on the actual bodies', () => {
     expect(parseScene(JSON.parse(JSON.stringify(store.scene))).animation!.constraints).toEqual(store.scene.animation!.constraints);
     const copy = duplicateScene(store.scene);
     expect(copy.animation!.constraints![0].figure).toBe(copy.figures[0].id);
-    expect(mirrorScene(store.scene).animation!.constraints![0].bone).toBe('leftHand');
   }, 60_000);
 
   it('finds the holds of a motion of two people, and keeps them on other builds', () => {

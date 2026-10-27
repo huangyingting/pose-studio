@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { newScene } from '@/lib/doc';
-import { anglesOf } from '@/lib/pose';
+import { anglesOf, bonesOf } from '@/lib/pose';
 
 // A fresh SQLite database with the app's migrations, and a signed-in user we control.
 const dir = mkdtempSync(join(tmpdir(), 'pose-studio-'));
@@ -61,7 +61,7 @@ describe('library API', () => {
     user = 'u2';
     expect((await put({ library: lib('X'), baseVersion: -1 })).status).toBe(400);
     expect((await put({ library: { scenes: [{ name: 'Junk', figures: 'nope' }] }, baseVersion: 0 })).status).toBe(400);
-    const res = await put({ library: { scenes: [{ name: 'Junk', figures: [{ joints: { leftLowerLeg: [30, 0, 0], evil: [1, 2, 3] } }], evil: '<script>' }] }, baseVersion: 0 });
+    const res = await put({ library: { scenes: [{ name: 'Junk', figures: [{ bones: { ...bonesOf({ leftLowerLeg: [30, 0, 0] }), evil: [0, 0, 0, 1] } }], evil: '<script>' }] }, baseVersion: 0 });
     expect(res.status).toBe(200);
     const saved = (await (await routes.library.GET()).json()).library;
     expect(saved.scenes[0].name).toBe('Junk');

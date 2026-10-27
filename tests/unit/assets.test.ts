@@ -129,16 +129,11 @@ describe('library assets applied to the scene', () => {
     expect(clipById(clips[3].id)?.parts[0].tracks.length).toBeGreaterThan(0);
   }, 60_000);
 
-  it('moves the frames of clips saved inside an old library out to the asset store (one-time converter)', () => {
+  it('reads a saved library file with its clips\' frames: listed in the library, the frames apart', () => {
     const f = newFigure();
-    const clip = { ...keysClip([{ t: 0, pose: f }, { t: 1, pose: { ...f, position: [1, f.position[1], 0] as [number, number, number] } }]), id: 'old-clip', name: 'Old' };
+    const clip = { ...keysClip([{ t: 0, pose: f }, { t: 1, pose: { ...f, position: [1, f.position[1], 0] as [number, number, number] } }]), id: 'a-clip', name: 'Mine' };
     const data = { version: 3, scenes: [newScene('A')], clips: [clip] };
-    expect(parseLibrary(data).clips).toEqual([{ id: 'old-clip', name: 'Old', duration: 1, loop: false, people: ['Keys'] }]);
-    expect(clipsIn(data).map((c) => c.id)).toEqual(['old-clip']);
-    const storage = new MemoryStorage();
-    storage.setItem(Store.LIBRARY_KEY, JSON.stringify(data));
-    const store = new Store(storage);
-    expect(store.getState().library.clips![0]).not.toHaveProperty('parts');
-    expect(clipById('old-clip')?.duration).toBe(1);
+    expect(parseLibrary(data).clips).toEqual([{ id: 'a-clip', name: 'Mine', duration: 1, loop: false, people: ['Keys'] }]);
+    expect(clipsIn(data).map((c) => c.id)).toEqual(['a-clip']);
   });
 });

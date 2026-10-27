@@ -19,8 +19,6 @@ export function allPoses(lib: Library): PoseAsset[] {
   return [...builtInPoses(), ...(lib.poses ?? [])];
 }
 
-export const isBuiltIn = (id: string) => builtInPoses().some((p) => p.id === id);
-
 /** A pose as a one-figure scene: for thumbnails, sheets and gesture practice. */
 export function poseScene(p: PoseAsset, body?: Figure['body']): Scene {
   const figure = newFigure({ id: `${p.id}-f`, name: 'Figure', bones: { ...p.bones }, hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) }, ...(body ? { body: { ...body } } : {}) });

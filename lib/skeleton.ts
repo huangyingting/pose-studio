@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { fromQuat, toQuat, type Bones } from './pose';
-import { BONES, EXTRA_BONES, type Bone, type ExtraBone, type Hand, type Side } from './types';
+import { BONES, type Bone, type ExtraBone, type Hand, type Side } from './types';
 
 /*
  * The standard skeleton: the VRM 1.0 humanoid's bones, each rotation local to its parent and
@@ -78,6 +78,3 @@ export function fingerBones(hands: Record<Side, Hand>): Bones {
   }
   return out;
 }
-
-/** Whether a bone is one of the extras (not the mannequin's own). */
-export const isExtra = (b: Bone): b is ExtraBone => (EXTRA_BONES as readonly string[]).includes(b);

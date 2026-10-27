@@ -1,8 +1,7 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
-import { DEFAULT_FPS, mirrorAnimation, normalize, parseOldCamera, parseShots, remapAnimation } from './animation';
-import { camerasFromKeys } from './shot';
-import { clipInfo, keysClip } from './clip';
+import { DEFAULT_FPS, normalize, parseShots, remapAnimation } from './animation';
+import { clipInfo } from './clip';
 import { parseBoard } from './board';
 import { uid } from './uid';
 import * as THREE from 'three';
@@ -11,7 +10,7 @@ import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bon
 import { clampLight } from './lighting';
 import {
   BONES, FINGERS, FRAME_SHAPES, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type FrameShape, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type Pose, type PoseAsset,
+  type Action, type Animation, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type FrameShape, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -117,17 +116,6 @@ export function mirrorFigure(f: Figure): Figure {
   };
 }
 
-export function mirrorScene(s: Scene): Scene {
-  const mirrored: Scene = {
-    ...s,
-    figures: s.figures.map(mirrorFigure),
-    props: s.props.map((p) => ({ ...p, position: [-p.position[0], p.position[1], p.position[2]], rotation: mirrorVec(p.rotation), ...(p.hold ? { hold: { ...p.hold, hand: p.hold.hand === 'L' ? 'R' as const : 'L' as const } } : {}) })),
-    view: { ...s.view, yaw: -s.view.yaw },
-  };
-  if (s.animation) mirrored.animation = mirrorAnimation(s.animation);
-  return mirrored;
-}
-
 /** Copy one side of the body onto the other. */
 export function symmetrize(f: Figure, from: Side): Figure {
   const was = anglesOf(f.bones);
@@ -160,26 +148,9 @@ const vec3 = (v: unknown, fallback: Vec3): Vec3 =>
 const str = (v: unknown, fallback: string) => (typeof v === 'string' && v.length <= 200 ? v : fallback);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/**
- * One-time converter (remove in a later release): documents saved before the VRM bone names
- * used the mannequin's own joint names.
- */
-const OLD_JOINT_NAMES: Record<string, JointName> = {
-  root: 'hips', shoulderL: 'leftUpperArm', elbowL: 'leftLowerArm', wristL: 'leftHand', shoulderR: 'rightUpperArm', elbowR: 'rightLowerArm', wristR: 'rightHand',
-  hipL: 'leftUpperLeg', kneeL: 'leftLowerLeg', ankleL: 'leftFoot', hipR: 'rightUpperLeg', kneeR: 'rightLowerLeg', ankleR: 'rightFoot',
-};
-
-function parseJoints(v: unknown): Angles {
-  if (isObj(v)) v = Object.fromEntries(Object.entries(v).map(([k, r]) => [OLD_JOINT_NAMES[k] ?? k, r]));
-  const out: Angles = {};
-  if (!isObj(v)) return out;
-  for (const j of JOINTS) if (v[j] !== undefined) out[j] = vec3(v[j], [0, 0, 0]).map(wrapDeg) as Vec3;
-  return out;
-}
-
-/** Bone rotations: unit quaternions (documents saved before them have joint angles: converted once). */
+/** Bone rotations: unit quaternions. */
 function parseBones(o: Record<string, unknown>): Bones {
-  if (!isObj(o.bones)) return bonesOf(parseJoints(o.joints));
+  if (!isObj(o.bones)) return {};
   const out: Bones = {};
   for (const j of BONES) {
     const q = o.bones[j];
@@ -265,9 +236,6 @@ export function parseScene(v: unknown, i = 0): Scene {
   };
   const animation = parseAnimation(v.animation, ids, new Set(scene.props.map((p) => p.id)));
   if (animation) scene.animation = normalize(animation, figures);
-  // One-time converter: a camera key track from before shots had paths.
-  const old = scene.animation && isObj(v.animation) ? parseOldCamera(v.animation.camera, scene.animation.duration) : undefined;
-  if (old) scene.animation = { ...scene.animation!, ...camerasFromKeys(scene, old.keys, old.follow, old.shake) };
   return scene;
 }
 
@@ -428,20 +396,9 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   const duration = Math.min(60, Math.max(0.2, num(v.duration, 2)));
   const fps = Math.round(Math.min(60, Math.max(4, num(v.fps, DEFAULT_FPS))));
   const loop = v.loop !== false;
-  const old = !Array.isArray(v.actions) && Array.isArray(v.keys);
-  const actions = old
-    ? fromKeyframes(v.keys as unknown[], figures, duration, loop)
-    : (Array.isArray(v.actions) ? v.actions.slice(0, 2000) : []).map((x) => parseAction(x, figures, duration, propIds)).filter((x): x is Action => x !== null);
+  const actions = (Array.isArray(v.actions) ? v.actions.slice(0, 2000) : []).map((x) => parseAction(x, figures, duration, propIds)).filter((x): x is Action => x !== null);
   const props: Record<string, PropKey[]> = {};
-  if (old) {
-    for (const k of (v.keys as unknown[]).filter(isObj)) {
-      const t = Math.min(duration, Math.max(0, num(k.t, 0)));
-      for (const [id, p] of Object.entries(isObj(k.props) ? k.props : {})) {
-        const key = propIds.has(id) ? parsePropKey(p, t) : null;
-        if (key) (props[id] ??= []).push(key);
-      }
-    }
-  } else if (isObj(v.props)) {
+  if (isObj(v.props)) {
     for (const [id, keys] of Object.entries(v.props)) {
       if (!propIds.has(id) || !Array.isArray(keys)) continue;
       const list = keys.slice(0, 2000).filter(isObj).map((k) => parsePropKey(k, Math.min(duration, Math.max(0, num(k.t, 0))))).filter((k): k is PropKey => k !== null);
@@ -462,88 +419,8 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   return anim;
 }
 
-/* One-time converter (remove in a later release): documents saved before actions kept keyframes
- * holding every keyed figure's pose (joint angles, and how it got there: walking, running or
- * jumping), and imported motions as animated scenes. Each figure's keys become keys actions, its
- * walks, runs and jumps travel actions. */
 
-interface OldPose { t: number; pose: Pose; travel?: Travel; strafe?: boolean; spin?: number; flip?: number }
-
-function fromKeyframes(keys: unknown[], figures: Set<string>, duration: number, loop: boolean): Action[] {
-  const tracks = new Map<string, OldPose[]>();
-  for (const k of keys.slice(0, 600).filter(isObj)) {
-    const t = Math.min(duration, Math.max(0, num(k.t, 0)));
-    for (const [id, p] of Object.entries(isObj(k.poses) ? k.poses : {})) {
-      if (!figures.has(id) || !isObj(p)) continue;
-      const hands = isObj(p.hands) ? p.hands : {};
-      const [spin, flip] = [turns(p.spin), turns(p.flip)];
-      (tracks.get(id) ?? tracks.set(id, []).get(id)!).push({
-        t,
-        pose: { bones: bonesOf(parseJoints(p.joints)), position: vec3(p.position, [0, 0, 0]), hands: { L: parseHand(hands.L), R: parseHand(hands.R) }, grounded: p.grounded !== false },
-        ...(TRAVELS.includes(p.travel as Travel) ? { travel: p.travel as Travel } : {}),
-        ...(p.strafe === true ? { strafe: true } : {}),
-        ...(spin ? { spin } : {}),
-        ...(flip ? { flip } : {}),
-      });
-    }
-  }
-  const actions: Action[] = [];
-  const keysAction = (figure: string, run: OldPose[], cycle = false): Action => {
-    const start = cycle ? 0 : run[0].t;
-    const clip = keysClip(run.map((k) => ({ t: k.t - start, pose: k.pose })), cycle, cycle ? duration : run[run.length - 1].t - start);
-    return { id: uid('act'), start, duration: clip.duration, roles: [{ figure }], source: { kind: 'keys', clip } };
-  };
-  const mark = (p: Pose): Mark => ({ at: [p.position[0], p.position[2]], facing: Math.round(facingOf(p.bones) * 10) / 10 || 0 });
-  for (const [figure, track] of tracks) {
-    track.sort((p, q) => p.t - q.t);
-    // A looping figure without walks, runs or jumps keeps its keys going round.
-    if (loop && !track.some((k, i) => i > 0 && k.travel)) {
-      actions.push(keysAction(figure, track, true));
-      continue;
-    }
-    let run = [track[0]];
-    for (let i = 1; i < track.length; i++) {
-      const kind = track[i].travel;
-      if (!kind) { run.push(track[i]); continue; }
-      let e = i;
-      while (e + 1 < track.length && track[e + 1].travel === kind) e++;
-      actions.push(keysAction(figure, run));
-      const last = track[e];
-      actions.push({
-        id: uid('act'), start: track[i - 1].t, duration: last.t - track[i - 1].t, roles: [{ figure, end: mark(last.pose) }],
-        source: {
-          kind: 'travel', mode: kind,
-          ...(last.strafe ? { strafe: true } : {}),
-          ...(kind === 'jump' && last.spin ? { spin: last.spin } : {}),
-          ...(kind === 'jump' && last.flip ? { flip: last.flip } : {}),
-          ...(kind !== 'jump' && e > i ? { via: track.slice(i, e).map((k) => mark(k.pose)) } : {}),
-        },
-      });
-      run = [last];
-      i = e;
-    }
-    actions.push(keysAction(figure, run));
-  }
-  return actions;
-}
-
-/** Imported motions, kept as animated scenes before clips. */
-function clipsFromMotions(v: unknown): Clip[] {
-  if (!Array.isArray(v)) return [];
-  return v.slice(0, 100).filter(isObj).flatMap((o, i) => {
-    try {
-      const scene = parseScene(o.scene, i);
-      const act = scene.animation?.actions.find((x) => x.source.kind === 'keys' && x.roles[0].figure === scene.figures[0].id);
-      if (!act || act.source.kind !== 'keys') return [];
-      const part = { ...act.source.clip.parts[0], name: scene.figures[0].name, body: { ...scene.figures[0].body } };
-      return [{ ...act.source.clip, id: str(o.id, uid('clip')), name: str(o.name, `Motion ${i + 1}`).slice(0, 80), loop: scene.animation!.loop, parts: [part] }];
-    } catch {
-      return [];
-    }
-  });
-}
-
-/** Accepts a library (any version), or throws on unusable input. */
+/** Accepts a library, or throws on unusable input. */
 export function parseLibrary(data: unknown): Library {
   if (!isObj(data) || !Array.isArray(data.scenes)) throw new Error('Not a Pose Studio library');
   const entries: unknown[] = data.scenes;
@@ -556,8 +433,8 @@ export function parseLibrary(data: unknown): Library {
   }
   const board = parseBoard(data.board, ids);
   const poses = parsePoses(data.poses);
-  // What the imported clips are (a file, or a library from before they were kept apart, has their frames too: clipsIn).
-  const clips = [...(Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []), ...clipsFromMotions(data.motions).map(clipInfo)];
+  // What the imported clips are (a file has their frames too: clipsIn).
+  const clips = (Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []);
   const models = (Array.isArray(data.models) ? data.models : []).slice(0, 200).flatMap((m) => parseModelInfo(m) ?? []);
   const templates = (Array.isArray(data.templates) ? data.templates : []).slice(0, 200).filter(isObj).map((t, i) => ({
     id: typeof t.id === 'string' && t.id ? t.id.slice(0, 40) : uid('tpl'),
@@ -588,8 +465,8 @@ function parseClipInfo(v: unknown): ClipInfo | null {
   return { id: v.id.slice(0, 80), name: str(v.name, 'Motion').slice(0, 80), duration: Math.min(600, Math.max(0, num(v.duration, 0))), loop: v.loop === true, people: people.length ? people : ['Part 1'] };
 }
 
-/** The imported clips whose frames a file carries (a saved library, or one from before clips were kept apart). */
+/** The imported clips whose frames a saved library file carries. */
 export function clipsIn(data: unknown): Clip[] {
   if (!isObj(data)) return [];
-  return [...(Array.isArray(data.clips) ? data.clips.slice(0, 500).map(parseClip).filter((c): c is Clip => c !== null) : []), ...clipsFromMotions(data.motions)];
+  return Array.isArray(data.clips) ? data.clips.slice(0, 500).map(parseClip).filter((c): c is Clip => c !== null) : [];
 }

@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, addFigure, applyCameraMove, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, applyCameraMove, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
-import { mirrorAnimation } from '@/lib/animation';
 import { parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
 import { Rig } from '@/lib/relations';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
-import { fitCamera, videoSize, viewDirection } from '@/lib/render';
-import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, framingFor, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/shot';
+import { videoSize } from '@/lib/render';
+import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/shot';
 import { shotSpans } from '@/lib/shots';
 import type { Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
@@ -112,39 +111,6 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     expect(describeShot(store.scene)).toMatch(/tracking shot/);
   });
 
-  it('converts camera keys saved before shots had paths, the camera where it was (one-time converter)', () => {
-    const { store } = fresh();
-    addFigure(store, [1, 0, 0]);
-    startAnimation(store, 4);
-    const scene = store.scene;
-    const keys = [
-      { t: 0, yaw: 20, pitch: 8, fov: 30, zoom: 1, pan: [0, 0] },
-      { t: 2, yaw: 80, pitch: 15, fov: 26, zoom: 1.4, pan: [0.05, 0.1] },
-      { t: 4, yaw: 120, pitch: 5, fov: 40, zoom: 1.2, pan: [0, 0] },
-    ];
-    const old = JSON.parse(JSON.stringify(scene));
-    old.animation.camera = { keys, follow: false, shake: 0 };
-    const converted = parseScene(old);
-    // Where the old camera was at each key: an orbit around everyone in frame, a zoom and a pan.
-    const f = framingFor(converted, 12);
-    for (const k of keys) {
-      const cam = new THREE.PerspectiveCamera(k.fov, SHOT_ASPECT);
-      const view = { yaw: k.yaw, pitch: k.pitch, fov: k.fov };
-      const target = fitCamera(cam, { forEachPoint: (cb) => f.points.forEach(cb) }, view, 0.1);
-      const dist = target.distance / k.zoom;
-      const dir = viewDirection(view);
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-      const up = new THREE.Vector3().crossVectors(dir, right);
-      const tanV = Math.tan((k.fov * Math.PI) / 360);
-      const look = target.clone().addScaledVector(right, k.pan[0] * dist * tanV * SHOT_ASPECT).addScaledVector(up, k.pan[1] * dist * tanV);
-      const was = look.clone().addScaledVector(dir, dist);
-      const now = cameraAt(converted, Math.min(k.t, 4 - 1e-3));
-      expect(now.position.distanceTo(was), String(k.t)).toBeLessThan(0.01);
-      expect(now.fov).toBeCloseTo(k.fov, 1);
-    }
-    // Kept as converted.
-    expect(parseScene(JSON.parse(JSON.stringify(converted)))).toEqual(converted);
-  });
 
   it('films in the scene\'s frame shape: the lens sees as on that frame, videos come out that shape', () => {
     const { store } = fresh();
@@ -213,26 +179,6 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     expect(walk.to).toBeGreaterThan(1.5);
   });
 
-  it('converts shots saved with camera paths of their own into cameras, the camera where it was (one-time converter)', () => {
-    const { store } = fresh();
-    startAnimation(store, 3);
-    store.setTime(0);
-    applyCameraMove(store, 'orbit90');
-    store.setTime(1.5);
-    cutShot(store);
-    applyCameraMove(store, 'push');
-    const scene = store.scene;
-    // As saved then: each shot with its path, the points' times from the shot's start.
-    const old = JSON.parse(JSON.stringify(scene));
-    old.animation.shots = shotSpans(scene.animation!).map(({ shot, start }) => {
-      const cam = scene.animation!.cameras!.find((c) => c.id === shot.camera)!;
-      return { id: shot.id, start, name: shot.name, anchor: cam.anchor, aim: cam.aim, points: cam.points.map((p) => ({ ...p, t: p.t - start })) };
-    });
-    delete old.animation.cameras;
-    const converted = parseScene(old);
-    expect(converted.animation!.cameras).toHaveLength(2);
-    for (const t of [0, 0.7, 1.4, 1.5, 2.2, 2.9]) expect(cameraAt(converted, t).position.distanceTo(cameraAt(scene, t).position), String(t)).toBeLessThan(0.01);
-  });
 
   it('keeps a rule-based camera\'s shot size when the blocking or a body changes', () => {
     const { store, a } = fresh();
@@ -262,8 +208,6 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     const side = cameraAt(store.scene, walk.to / 2).position.sub(new THREE.Vector3(...figurePoseAt(store.scene, a, walk.to / 2)!.position));
     const facing = facingOf(figurePoseAt(store.scene, a, walk.to / 2)!.bones) * Math.PI / 180;
     expect(side.x * Math.cos(facing) - side.z * Math.sin(facing)).toBeGreaterThan(0.5);
-    // Mirrored with the scene: from its right.
-    expect(mirrorAnimation(store.scene.animation!).cameras![0].rig!.yaw).toBe(-90);
   });
 
   it('follows behind a subject as it turns, smoothly and the same however a moment is reached', () => {
