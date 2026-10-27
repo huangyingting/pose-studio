@@ -63,6 +63,9 @@ export function setPoseAt(scene: Scene, figure: string, time: number, pose: Pose
   const tol = 0.5 / a.fps;
   const t = snapTime(a, time);
   const acts = actionsOf(a, figure);
+  // Over an upper-body action, what is seen is that action: an edit there corrects it.
+  const upper = actionsOf(a, figure, 'upper').find((x) => x.start < t && t < end(x));
+  if (upper) return correct(scene, figure, upper, t, pose);
   const keyed = acts.find((x) => isKeys(x) && x.start - tol <= t && t <= end(x) + tol);
   if (keyed) {
     const clip = clipOfKeys(keyed);
@@ -170,6 +173,34 @@ function splitAt(scene: Scene, figure: string, t: number): { a: Animation; after
   const later = keys.filter((k) => k.t > t + EPS);
   const after = later.length ? keysAction(figure, later) : null;
   return { a: sorted(replace(a, act, [{ ...keysAction(figure, before), id: act.id }, ...(after ? [after] : [])])), after };
+}
+
+/** Play a clip from the waist up over what a figure is doing (waving while walking), from `start`. */
+export function addUpper(scene: Scene, figure: string, clipId: string, start: number): Animation | null {
+  const clip = clipById(clipId);
+  if (!clip || !scene.animation) return null;
+  const a = scene.animation;
+  const t0 = snapTime(a, start);
+  const act: Action = { id: uid('act'), start: t0, duration: Math.min(60 - t0, clip.duration), layer: 'upper', roles: [{ figure }], source: { kind: 'clip', clip: clipId } };
+  return longer(sorted({ ...a, actions: [...a.actions, act] }), t0 + act.duration);
+}
+
+/** Times of a figure's correction keys (not the no-change keys a correction starts and ends with). */
+export function correctionTimesOf(a: Animation, figure: string): number[] {
+  return actionsOf(a, figure, 'correction').flatMap((x) => keysOf(x).slice(1, -1).map((k) => k.t));
+}
+
+/** Remove a figure's correction key at t (a correction left without changes goes). */
+export function removeCorrectionAt(a: Animation, figure: string, t: number): Animation {
+  const tol = 0.5 / a.fps;
+  for (const x of actionsOf(a, figure, 'correction')) {
+    const keys = keysOf(x);
+    const i = keys.findIndex((k, n) => Math.abs(k.t - t) < tol && n > 0 && n < keys.length - 1);
+    if (i < 0) continue;
+    const rest = keys.filter((_, n) => n !== i);
+    return rest.length > 2 ? replace(a, x, [{ ...keysAction(figure, rest, 'correction'), id: x.id }]) : replace(a, x, []);
+  }
+  return a;
 }
 
 /* ---------- travel ---------- */

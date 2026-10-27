@@ -388,7 +388,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number): Action
     start,
     duration: Math.min(60 - start, Math.max(0, num(v.duration, 0))),
     ...(blendIn > 0 ? { blendIn: Math.min(10, blendIn) } : {}),
-    ...(v.layer === 'correction' ? { layer: 'correction' as const } : {}),
+    ...(v.layer === 'correction' || v.layer === 'upper' ? { layer: v.layer } : {}),
     roles,
     source,
   };

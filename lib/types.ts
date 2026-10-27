@@ -188,9 +188,13 @@ export interface Role {
   end?: Mark;
 }
 
+/** The upper body: what an upper-body action plays over the base (waving while walking). */
+export const UPPER_BODY: readonly JointName[] = ['spine', 'chest', 'neck', 'head', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand'];
+
 /**
  * Something done over a span of time by one or more figures. Actions on the base layer follow
- * one another; a correction action adds hand edits on top of what is under it.
+ * one another; an upper-body action plays over them from the waist up, and a correction action
+ * adds hand edits on top of both.
  */
 export interface Action {
   id: string;
@@ -198,7 +202,7 @@ export interface Action {
   duration: number;
   /** Seconds before it starts over which the figure eases from what it is doing into its first pose (it then plays as made). */
   blendIn?: number;
-  layer?: 'correction';
+  layer?: 'upper' | 'correction';
   roles: Role[];
   source: ActionSource;
 }

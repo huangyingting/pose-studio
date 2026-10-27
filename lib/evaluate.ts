@@ -4,13 +4,13 @@ import { clipById } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
-import { anglesOf, bonesOf, facingOf, fromQuat, toQuat, turnBones } from './pose';
+import { angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones } from './pose';
 import { propsAt, ribbonTrail, worldOfProp } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
 import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
-import type { Action, Animation, Clip, ClipPart, ConstraintTarget, Figure, Holder, JointName, Mark, Pose, Scene, Vec3 } from './types';
+import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Scene, type Vec3 } from './types';
 
 /*
  * Evaluation: where everything is at a time. For each figure, its actions on the base layer give
@@ -28,6 +28,8 @@ const EPS = 1e-6;
 const RELEASE = 0.12;
 /** How long a hold asked for takes to take hold and let go (s). */
 const EASE = 0.25;
+/** How long an upper-body action takes to take over and to hand back (s). */
+const UPPER_EASE = 0.25;
 const D2R = Math.PI / 180;
 
 const end = (a: Action) => a.start + a.duration;
@@ -111,10 +113,41 @@ class Evaluator {
     const key = `free:${f.id}@${t}`;
     let p = this.poses.get(key);
     if (!p) {
-      p = this.corrected(f, t, this.base(f, t));
+      p = this.corrected(f, t, this.layered(f, t));
       this.poses.set(key, p);
     }
     return p;
+  }
+
+  /** The base layer with upper-body actions over it (what corrections are made on). */
+  layered(f: Figure, t: number): Pose {
+    return this.upper(f, t, this.base(f, t));
+  }
+
+  /** Upper-body actions over the base: their spine, arms and head (and hands), eased in and out. */
+  private upper(f: Figure, t: number, pose: Pose): Pose {
+    for (const x of actionsOf(this.a, f.id, 'upper')) {
+      if (t < x.start - EPS || t > end(x) + EPS) continue;
+      const clip = clipOf(x);
+      if (!clip) continue;
+      const src = x.source as { speed?: number; mirror?: boolean };
+      let u = (t - x.start) * (src.speed ?? 1);
+      if (clip.loop && clip.duration > EPS) u %= clip.duration;
+      const raw = samplePart(clip.parts[0], Math.min(clip.duration, u), clip.duration, clip.loop);
+      const over = src.mirror ? mirrorPose(raw) : raw;
+      const ease = Math.min(1, x.duration > EPS ? Math.min(t - x.start, end(x) - t) / Math.min(UPPER_EASE, x.duration / 2) : 1);
+      const w = smooth(ease);
+      // Eased in joint angles, so an arm swings within its range on the way.
+      const bones = { ...pose.bones };
+      for (const j of UPPER_BODY) {
+        if (w >= 1) { bones[j] = over.bones[j]; continue; }
+        const from = quatToAngle(j, pose.bones[j]);
+        const to = quatToAngle(j, over.bones[j], from);
+        bones[j] = angleToQuat(j, from.map((v, i) => v + wrapDeg(to[i] - v) * w) as Vec3);
+      }
+      pose = { ...pose, bones, hands: blend(pose, over, w).hands };
+    }
+    return pose;
   }
 
   /** Where one of a figure's bones is at t (before holds), with a point in its frame. */
@@ -473,10 +506,10 @@ export function figurePoseAt(scene: Scene, id: string, t: number): Figure | null
   return { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded };
 }
 
-/** The base layer's pose of a figure at t (under its corrections). */
+/** A figure's pose at t under its corrections (its base actions, with upper-body ones over them). */
 export function basePoseAt(scene: Scene, id: string, t: number): Pose | null {
   const f = scene.figures.find((x) => x.id === id);
-  return f && scene.animation ? evaluator(scene).base(f, t) : null;
+  return f && scene.animation ? evaluator(scene).layered(f, t) : null;
 }
 
 /** An action's pose for one of its figures at t. */

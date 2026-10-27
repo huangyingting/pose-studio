@@ -10,7 +10,7 @@ import { BUILT_IN } from './assets';
 import { keysClip, partKeys } from './clip';
 import { actionsOf, figurePoseAt, sceneAt } from './evaluate';
 import { handPosition, propKeyTimes, putPropKey, rimOf, setPropKey, shiftPropTrack, throwTime, worldOfProp } from './propmotion';
-import { addTravel, insertClip, keyAtTime, keyTimesOf, moments, moveKeyTo, moveMarkTo, removeKeyAt, ripple, setPoseAt, setTravelMode, travelInto } from './track';
+import { addTravel, addUpper, insertClip, removeCorrectionAt, keyAtTime, keyTimesOf, moments, moveKeyTo, moveMarkTo, removeKeyAt, ripple, setPoseAt, setTravelMode, travelInto } from './track';
 import { RIM } from './props';
 import { groundOf } from './surfaces';
 import { JUMP_PREP, flightTime } from './locomotion';
@@ -992,6 +992,27 @@ export function nearestPartners(store: Store, figureId: string, count: number) {
     .sort((p, q) => Math.hypot(p.position[0] - f.position[0], p.position[2] - f.position[2]) - Math.hypot(q.position[0] - f.position[0], q.position[2] - f.position[2]))
     .slice(0, count)
     .map((x) => x.id);
+}
+
+/**
+ * Play a one-person motion from the waist up over what a figure is doing at the playhead (waving
+ * while walking): an upper-body action. False if it cannot (a motion of several people, or a walk).
+ */
+export function applyUpperBody(store: Store, figureId: string, motionId: string) {
+  const mine = store.getState().library.clips?.some((c) => c.id === motionId);
+  const motion = MOTIONS.find((m) => m.id === motionId);
+  if (!mine && (!motion || motion.people > 1 || motion.setUp || motion.travel)) return false;
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  const animation = addUpper(store.scene, figureId, mine ? motionId : BUILT_IN + motionId, store.getState().time);
+  if (!animation) return false;
+  store.updateScene((s) => ({ ...s, animation }));
+  return true;
+}
+
+/** Remove a correction key of a figure at the playhead. */
+export function deleteCorrection(store: Store, figureId: string, t: number) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: removeCorrectionAt(s.animation, figureId, t) } : s));
+  store.setTime(store.getState().time);
 }
 
 /**

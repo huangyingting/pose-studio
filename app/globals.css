@@ -726,9 +726,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.run { background: rgba(245, 158, 11, 0.16); color: #a35e00; }
 .tl-travel.jump { background: rgba(139, 92, 246, 0.15); color: #6b44d6; }
 .tl-travel.clip { background: rgba(59, 108, 255, 0.13); color: #2c55d6; }
+.tl-travel.upper { top: auto; bottom: 1px; height: 9px; font-size: 8px; line-height: 9px; background: rgba(20, 184, 166, 0.2); color: #0d7d70; }
 .tl-travel.held { background: rgba(96, 97, 106, 0.1); color: var(--text-2); }
 .tl-travel.throw { background: rgba(229, 72, 77, 0.12); color: #b4383c; }
 .tl-key.prop { width: 9px; height: 9px; margin: -5px 0 0 -5px; background: #8a8b95; }
+.tl-key.fix { width: 7px; height: 7px; margin: -4px 0 0 -4px; background: #14b8a6; border-radius: 50%; transform: none; }
 .tl-figure.tl-prop { color: var(--text-3); }
 .tl-key {
   position: absolute;
@@ -1533,3 +1535,20 @@ button.psec-title svg { color: var(--text-3); }
 .tips b { color: var(--text); font-weight: 600; }
 .tips .btn { width: 100%; justify-content: center; }
 @media (max-width: 860px) { .tips { top: 8px; left: 8px; width: min(270px, calc(100% - 16px)); } }
+
+/* Over a motion or a walk, posing corrects it. */
+.correcting {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.14);
+  color: #0d7d70;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 3;
+}

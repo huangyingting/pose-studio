@@ -14,8 +14,10 @@ import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam, shareUrl } from '@/lib/share';
 import { Store, type SaveStatus } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
+import { clipById } from '@/lib/assets';
+import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { STYLES, type GizmoMode, type View } from '@/lib/types';
+import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';
 import { VIEW_PRESETS } from '@/lib/views';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
@@ -475,6 +477,7 @@ function App() {
           onMenu={openCanvasMenu}
         />
         {shotMode && <div className="letterbox" aria-hidden><div /></div>}
+        {scene.animation && !shotMode && <CorrectionBadge scene={scene} figureId={activeFigure} time={time} />}
         {settings.tips && (
           <section className="tips" aria-label="Tips">
             <ul>
@@ -552,4 +555,16 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
       <span className="hide-sm">{text}</span>
     </span>
   );
+}
+
+/** Over a motion or a walk, edits to the figure correct it: this says which (and that it is a correction). */
+function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: string | null; time: number }) {
+  const a = scene.animation!;
+  const f = scene.figures.find((x) => x.id === figureId);
+  if (!f || f.proxy) return null;
+  const over = (['upper', undefined] as const).flatMap((layer) => actionsOf(a, f.id, layer)).find((x) => x.source.kind !== 'keys' && x.start < time - 1e-6 && time < x.start + x.duration - 1e-6);
+  if (!over) return null;
+  const src = over.source;
+  const what = src.kind === 'travel' ? `${f.name}'s ${src.mode}` : `${f.name}'s ${clipById(src.kind === 'clip' ? src.clip : '')?.name ?? 'motion'}${over.layer === 'upper' ? ' (upper body)' : ''}`;
+  return <div className="correcting" role="status">Posing here corrects {what}</div>;
 }

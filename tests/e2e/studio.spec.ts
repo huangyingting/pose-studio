@@ -1118,3 +1118,20 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
   await page.getByRole('button', { name: 'Show the tracks' }).click();
   await expect(page.locator('.tl-lanes')).toBeVisible();
 });
+
+test('a wave over a walk, from the waist up; posing over a motion corrects it', async ({ page }) => {
+  await floorMenu(page, [0, 0, -3], 'Walk here');
+  // Back to the middle of the walk.
+  await page.getByRole('button', { name: 'Previous keyframe' }).click();
+  for (let i = 0; i < 12; i++) await page.keyboard.press('.');
+  await expect(page.getByRole('status').filter({ hasText: /^Posing here corrects Figure's walk$/ })).toBeVisible();
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByRole('button', { name: /^Wave hello: upper body only/ }).click();
+  await expect(page.locator('.tl-travel.upper')).toHaveText(/Wave hello · upper body/);
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('.');
+  await expect(page.getByRole('status').filter({ hasText: /Wave hello \(upper body\)$/ })).toBeVisible();
+  const s = await live(page);
+  expect(actionsOf(s.scene.animation!, s.active, 'upper')).toHaveLength(1);
+});

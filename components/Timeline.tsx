@@ -6,17 +6,17 @@ import {
   StepBack, StepForward, Trash2, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import {
-  addKeyframe, cutShot, deleteAction, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, rippleKeys, setAnimationOptions, setCameraKey,
+  addKeyframe, cutShot, deleteAction, deleteCameraKey, deleteCorrection, deleteKeyframe, moveKeyframe, removeAnimation, rippleKeys, setAnimationOptions, setCameraKey,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { clipById } from '@/lib/assets';
 import { actionsOf } from '@/lib/evaluate';
 import { propKeyTimes, propTrack, removePropKey } from '@/lib/propmotion';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
-import { keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
-import type { Animation, CameraKey, Figure } from '@/lib/types';
+import type { Action, Animation, CameraKey, Figure } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { figureMenu, shotMenu, travelMenu } from './menus';
@@ -503,6 +503,37 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                       <span style={inSight(b.t0, b.t1)}>{b.label}</span>
                     </span>
                   ))}
+                  {actionsOf(a, f.id, 'upper').map((x) => (
+                    <span
+                      key={x.id}
+                      className="tl-travel upper grab"
+                      style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
+                      title={`${clipName(x)} (upper body, over what ${f.name} is doing): drag to move it (and what follows), right-click to remove it`}
+                      onPointerDown={dragKey(x.start, f.id, true)}
+                      onContextMenu={(e) => {
+                        e.stopPropagation();
+                        openContextMenu(e, [{ label: `Remove ${clipName(x)}`, icon: Trash2, danger: true, onSelect: () => deleteAction(store, x.id) }], `${f.name} · upper body`);
+                      }}
+                    >
+                      <span style={inSight(x.start, x.start + x.duration)}>{clipName(x)} · upper body</span>
+                    </span>
+                  ))}
+                  {correctionTimesOf(a, f.id).map((t) => (
+                    <button
+                      key={`fix${t}`}
+                      type="button"
+                      className={`tl-key fix${near(t) ? ' on' : ''}`}
+                      style={{ left: pct(t) }}
+                      aria-label={`${multi ? `${f.name} correction` : 'Correction'} at ${t.toFixed(2)} s`}
+                      title="A correction made over a motion or a walk: click to go to it"
+                      onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(t); store.setActiveFigure(f.id); }}
+                      onContextMenu={(e) => {
+                        e.stopPropagation();
+                        seek(t);
+                        openContextMenu(e, [{ label: 'Delete correction', icon: Trash2, danger: true, onSelect: () => deleteCorrection(store, f.id, t) }], `${f.name} · ${t.toFixed(2)} s`);
+                      }}
+                    />
+                  ))}
                   {times.map((t, n) => (
                     <button
                       key={t}
@@ -639,12 +670,14 @@ function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issu
 }
 
 
+const clipName = (x: Action) => (x.source.kind === 'clip' ? clipById(x.source.clip)?.name ?? 'Motion' : 'Motion');
+
 /** A figure's walks, runs, jumps and motions, labelled for the timeline. */
 function actionBars(a: Animation, id: string) {
   return actionsOf(a, id).flatMap((x) => {
     const src = x.source;
     const [t0, t1] = [x.start, x.start + x.duration];
-    if (src.kind === 'clip') return [{ id: x.id, t0, t1, kind: 'clip', label: clipById(src.clip)?.name ?? 'Motion' }];
+    if (src.kind === 'clip') return [{ id: x.id, t0, t1, kind: 'clip', label: clipName(x) }];
     if (src.kind !== 'travel') return [];
     let label = src.mode === 'walk' ? 'Walk' : src.mode === 'run' ? 'Run' : 'Jump';
     if (src.mode === 'jump') {

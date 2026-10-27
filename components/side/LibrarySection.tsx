@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookmarkPlus, FilePlus2, Film, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
-import { addScene, applyCameraMove, applyMotion, applyPose, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, startAnimation } from '@/lib/actions';
+import { BookmarkPlus, FilePlus2, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
+import { addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, startAnimation } from '@/lib/actions';
 import { clipScene } from '@/lib/assets';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
@@ -230,6 +230,8 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   const [reading, setReading] = useState(false);
   const usable = !!figure && !figure.proxy;
   const give = (id: string, name: string) => { if (usable && applyMotion(store, figure.id, id)) { notifyUndo(`${figure.name}: ${name}`); onPick?.(); } };
+  /** From the waist up, over what the figure is doing (waving while walking). */
+  const over = (id: string, name: string) => { if (usable && applyUpperBody(store, figure.id, id)) { notifyUndo(`${figure.name}: ${name} (upper body)`); onPick?.(); } };
   const scene = useScene();
   const nameOf = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? '';
   /** Who joins the selected figure in a motion of several people (the nearest), or null if too few. */
@@ -316,6 +318,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
                       <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : m.people > 1 ? `${m.people} people` : 'scene'}</em>
                     </button>
                     {partners && <IconButton icon={FilePlus2} label={`Open ${m.name} as a new scene`} className="row-action" size={13} onClick={open} />}
+                    {solo && !m.travel && usable && <IconButton icon={Layers} label={`${m.name}: upper body only, over what ${figure.name} is doing`} className="row-action" size={13} onClick={() => over(m.id, m.name)} />}
                   </li>
                 );
               })}
