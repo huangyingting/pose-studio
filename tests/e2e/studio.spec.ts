@@ -68,6 +68,12 @@ async function choose(page: Page, select: string, option: string | RegExp) {
 }
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
+/** Pick what the Library lists (the drop-down beside its title). */
+async function libraryShows(page: Page, what: 'Poses' | 'Motions' | 'Models' | 'Camera') {
+  await page.getByRole('combobox', { name: 'Library section' }).click();
+  await page.getByRole('option', { name: what, exact: true }).click();
+}
+
 async function openSection(page: Page, name: 'Scene' | 'Library') {
   const tab = page.getByRole('tab', { name, exact: true });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
@@ -107,7 +113,7 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await page.getByRole('menuitem', { name: 'Blank scene' }).click();
   await page.getByLabel('Scene name').fill(name);
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion} [\\d.]+ s$`) }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
@@ -115,7 +121,7 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
 /** A scene from a several-people motion in the library (opens as a new scene). */
 async function motionScene(page: Page, motion: string) {
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   const region = page.getByRole('region', { name: 'Motions' });
   // With figures to put it on, a several-people motion has its own "open as a scene" button.
   const open = region.getByRole('button', { name: `Open ${motion} as a new scene` });
@@ -835,7 +841,7 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   await expect(page.getByText('Sign in to pose, stage and animate')).toBeVisible();
   // An imported motion's frames go up apart from the library, as a file of its own.
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   await expect(page.getByRole('list', { name: 'My motions' })).toBeVisible();
   const motion = (await live(page)).motions[0].id;
@@ -919,7 +925,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
   await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(21);
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump/ }).click();
   const sc = (await live(page)).scene;
   const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => (x.source.kind === 'travel' ? x.source.mode : x.source.kind)));
@@ -1028,7 +1034,7 @@ test('a two-person motion goes on the selected figure and the one next to it', a
   const [first, second] = s.scene.figures;
   const scenes = (await state(page)).library.scenes.length;
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Boxing exchange/ }).click();
   s = await live(page);
   // In this scene (no new one), both figures keyed: the selected one leads.
@@ -1074,7 +1080,7 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ri
   expect(s.scene.props.some((p) => 'trail' in p)).toBe(false);
 
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^High jump/ }).click();
   s = await live(page);
   expect(s.scene.props.map((p) => p.kind).sort()).toEqual(['bar', 'mat']);
@@ -1115,7 +1121,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
 
 test('a motion file is imported into My motions and given to the figure', async ({ page }) => {
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   const mine = page.getByRole('list', { name: 'My motions' });
   await expect(mine.getByRole('button', { name: /^Step forward/ })).toBeVisible();
@@ -1135,7 +1141,7 @@ test('a motion file is imported into My motions and given to the figure', async 
   const clip = actionsOf(s.scene.animation!, s.active)[1];
   await expect.poll(async () => Math.abs((await at(clip.start + clip.duration)) - (await at(clip.start))), { timeout: 15_000 }).toBeGreaterThan(0.1);
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   // Deleting it takes it out of the library (the figure keeps its keys).
   await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
@@ -1143,7 +1149,7 @@ test('a motion file is imported into My motions and given to the figure', async 
 
 test('a character is imported and the figure drawn as it; bones it cannot name are matched by hand', async ({ page }) => {
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Models' }).click();
+  await libraryShows(page, 'Models');
   // Its left hand has a name nobody uses: matched by hand in the dialog.
   const odd = characterGltf(true).replaceAll('mixamorig:LeftHand"', 'mixamorig:Paw"');
   await page.getByLabel('Character file').setInputFiles({ name: 'Hero.gltf', mimeType: 'model/gltf+json', buffer: Buffer.from(odd) });
@@ -1228,7 +1234,7 @@ test('a wave over a walk, from the waist up; posing over a motion corrects it', 
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
   await expect(page.getByRole('status').filter({ hasText: /^Posing here corrects Figure's walk$/ })).toBeVisible();
   await openSection(page, 'Library');
-  await page.getByRole('radio', { name: 'Motions' }).click();
+  await libraryShows(page, 'Motions');
   await page.getByRole('button', { name: /^Wave hello: upper body only/ }).click();
   await expect(page.locator('.tl-travel.upper')).toHaveText(/Wave hello · upper body/);
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });

@@ -19,7 +19,7 @@ import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
 import { useScene, useStore, useStudio } from '../store-context';
 import BoneMapDialog from '../BoneMapDialog';
-import { IconButton, Segmented } from '../ui';
+import { IconButton, Select } from '../ui';
 import type { SectionProps } from './sections';
 
 /**
@@ -37,15 +37,14 @@ export default function LibrarySection(props: SectionProps) {
     <div className="side-section">
       <div className="side-head">
         <h2>Library</h2>
-      </div>
-      <div className="library-tabs">
-        <Segmented<LibraryTab>
-          label="Library"
-          full
-          value={tab}
-          onChange={(t) => { preview.hide(); setTab(t); }}
-          options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'models', label: 'Models' }, { value: 'camera', label: 'Camera' }]}
-        />
+        <div className="library-pick">
+          <Select<LibraryTab>
+            label="Library section"
+            value={tab}
+            onChange={(t) => { preview.hide(); setTab(t); }}
+            options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'models', label: 'Models' }, { value: 'camera', label: 'Camera' }]}
+          />
+        </div>
       </div>
       {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
       {tab === 'motions' && <Motions {...props} preview={preview.bind} />}

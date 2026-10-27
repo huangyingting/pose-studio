@@ -1460,7 +1460,7 @@ button.psec-title svg { color: var(--text-3); }
 .layers li.here .shot-no { background: var(--text-2); color: #fff; }
 .layers li.on .shot-no { background: var(--accent); color: #fff; }
 
-.library-tabs { padding: 0 10px 8px; flex: none; }
+.library-pick { flex: 1; min-width: 0; max-width: 150px; }
 .library-target { margin: 0 14px 8px; color: var(--text-2); font-size: 11px; line-height: 1.45; }
 .library-target strong { color: var(--text); font-weight: 600; }
 .library-row { display: flex; gap: 4px; align-items: center; margin: 0 10px 8px; }
