@@ -42,7 +42,7 @@ function cast(scene: Scene) {
 function movement(scene: Scene, span: ShotSpan) {
   const cam = cameraById(scene.animation, span.shot.camera);
   const moves: string[] = [];
-  if (scene.animation && (cam?.points.length ?? 0) > 1) {
+  if (scene.animation && (cam?.rig || (cam?.points.length ?? 0) > 1)) {
     // The camera over the shot, a few times: how near it is, its lens, angle and height.
     const n = 8;
     const views = Array.from({ length: n + 1 }, (_, i) => cameraAt(scene, span.start + ((span.end - 1e-3 - span.start) * i) / n));
@@ -61,7 +61,8 @@ function movement(scene: Scene, span: ShotSpan) {
     if (rise > 20) moves.push('crane up');
     else if (rise < -20) moves.push('crane down');
   }
-  if (scene.animation && cam?.anchor === 'subject') moves.push('tracking shot that follows the subject');
+  if (scene.animation && cam?.rig?.body === 'follow') moves.push(cam.rig.turn && Math.abs(cam.rig.yaw) > 135 ? 'following shot from behind the subject' : 'tracking shot that follows the subject');
+  else if (scene.animation && !cam?.rig && cam?.anchor === 'subject') moves.push('tracking shot that follows the subject');
   if ((cam?.shake ?? 0) > 0) moves.push('hand-held camera');
   return moves.length ? moves.join(', ') : 'static camera';
 }

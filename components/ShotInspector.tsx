@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Camera as CameraIcon, ClipboardCopy, Copy, Scissors, Trash2, TriangleAlert, Video } from 'lucide-react';
-import { addCamera, deleteCamera, deleteCameraPoint, editCamera, editShot, frameShot, ownCamera, removeShotCut, setFrameShape, setLens, setShotSubject, setTargetModel } from '@/lib/actions';
-import { LENSES, SHOT_SIZES, cameraAt, cameraById, liveCamera, sizeOf, type Placement } from '@/lib/shot';
+import { addCamera, deleteCamera, deleteCameraPoint, editCamera, editRig, editShot, frameShot, ownCamera, removeShotCut, setCameraBody, setFrameShape, setLens, setShotSubject, setTargetModel } from '@/lib/actions';
+import { LENSES, SHOT_SIZES, cameraAt, cameraById, liveCamera, sizeOf } from '@/lib/shot';
 import { describeSpan } from '@/lib/prompt';
 import { VIDEO_MODELS, overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
-import { FRAME_SHAPES, type Camera, type FrameShape } from '@/lib/types';
+import { FRAME_SHAPES, type Camera, type CameraRig, type FrameShape, type Placement, type ShotSize } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome, type Notify } from './ui';
 
@@ -166,21 +166,24 @@ export function CameraInspector({ id, chrome }: { id: string; chrome?: HeaderChr
 
 /**
  * A camera's settings (`span`: as the camera of that shot; none: the still camera, which framing
- * turns into a camera of the shot's own): what it films; at the playhead (while it is filming),
- * the shot size, where the subject sits and the lens; for the whole camera, where its path is,
- * what it looks at, how it moves, its points.
+ * turns into a camera of the shot's own): what it films; its shot size, where the subject sits
+ * and its lens (a rig's always; a path's at the playhead, while it is filming); how it moves.
  */
 function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotSpan }) {
   const store = useStore();
   const scene = useScene();
   const time = useStudio((s) => s.time);
-  const [place, setPlace] = useState<Placement>('center');
+  const [placed, setPlaced] = useState<Placement>('center');
   const [zoom, setZoom] = useState(false);
+  const rig = cam?.rig;
   const live = span ? time >= span.start - 1e-6 && (time < span.end - 1e-6 || span.end >= scene.animation!.duration - 1e-6) : liveCamera(scene, time)?.id === cam?.id;
-  const view = live ? cameraAt(scene, time) : null;
-  const size = view ? sizeOf(scene, cam, time, view) : null;
-  const lens = view ? Math.round(view.lens) : null;
+  const view = live && !rig ? cameraAt(scene, time) : null;
+  const size = rig ? rig.size : view ? sizeOf(scene, cam, time, view) : null;
+  const lens = rig ? Math.round(rig.lens) : view ? Math.round(view.lens) : null;
+  const place = rig ? rig.place ?? 'center' : placed;
   const set = (patch: Parameters<typeof editCamera>[2]) => { if (cam) editCamera(store, cam.id, patch); };
+  const frame = (to: ShotSize, at: Placement) => (rig ? editRig(store, cam!.id, { size: to, place: at }) : frameShot(store, to, { place: at }));
+  const setLensTo = (mm: number, key?: string) => (rig ? editRig(store, cam!.id, { lens: mm }) : setLens(store, mm, zoom ? 'place' : 'size', key));
   return (
     <Section title={cam?.name ?? 'Still camera'}>
       <div className="field">
@@ -192,20 +195,20 @@ function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotSpan }) 
           options={[{ value: 'all', label: 'Everyone' }, ...scene.figures.filter((f) => !f.hidden).map((f) => ({ value: f.id, label: f.name }))]}
         />
       </div>
-      {view ? (
+      {size && lens ? (
         <>
           <div className="field">
-            <span>Shot size at {time.toFixed(2)} s</span>
+            <span>{rig ? 'Shot size (kept as the subject moves)' : `Shot size at ${time.toFixed(2)} s`}</span>
             <div className="shot-sizes" role="group" aria-label="Shot size">
               {SHOT_SIZES.map((x) => (
-                <button key={x.id} type="button" className={`btn subtle${size === x.id ? ' on' : ''}`} aria-pressed={size === x.id} data-tip={x.name} onClick={() => frameShot(store, x.id, { place })}>{x.short}</button>
+                <button key={x.id} type="button" className={`btn subtle${size === x.id ? ' on' : ''}`} aria-pressed={size === x.id} data-tip={x.name} onClick={() => frame(x.id, place)}>{x.short}</button>
               ))}
             </div>
             <Segmented<Placement>
               label="Subject in the frame"
               full
               value={place}
-              onChange={(p) => { setPlace(p); if (size) frameShot(store, size, { place: p }); }}
+              onChange={(p) => { setPlaced(p); frame(size, p); }}
               options={[{ value: 'left', label: 'Left third' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right third' }]}
             />
           </div>
@@ -214,20 +217,75 @@ function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotSpan }) 
             <div className="lens-row">
               <Select<string>
                 label="Lens"
-                value={LENSES.includes(lens!) ? String(lens) : 'other'}
-                onChange={(v) => { if (v !== 'other') setLens(store, Number(v), zoom ? 'place' : 'size'); }}
-                options={[...LENSES.map((mm) => ({ value: String(mm), label: `${mm} mm` })), ...(LENSES.includes(lens!) ? [] : [{ value: 'other', label: `${lens} mm` }])]}
+                value={LENSES.includes(lens) ? String(lens) : 'other'}
+                onChange={(v) => { if (v !== 'other') setLensTo(Number(v)); }}
+                options={[...LENSES.map((mm) => ({ value: String(mm), label: `${mm} mm` })), ...(LENSES.includes(lens) ? [] : [{ value: 'other', label: `${lens} mm` }])]}
               />
-              <NumberField prefix="mm" label="Focal length" value={lens!} step={1} min={8} max={400} digits={0} onChange={(v) => setLens(store, v, zoom ? 'place' : 'size', `lens:${cam?.id ?? span?.shot.id}`)} />
+              <NumberField prefix="mm" label="Focal length" value={lens} step={1} min={8} max={400} digits={0} onChange={(v) => setLensTo(v, `lens:${cam?.id ?? span?.shot.id}`)} />
             </div>
-            <Toggle label="Zoom (the camera stays put)" hint="Off: the camera moves to keep the subject's size, as with a dolly zoom" checked={zoom} onChange={setZoom} />
+            {!rig && <Toggle label="Zoom (the camera stays put)" hint="Off: the camera moves to keep the subject's size, as with a dolly zoom" checked={zoom} onChange={setZoom} />}
           </div>
         </>
       ) : (
         <p className="hint-text">Move the playhead into {span ? 'this shot' : 'a shot it films'} to frame it there.</p>
       )}
-      {cam ? <PathSettings cam={cam} set={set} /> : <p className="hint-text">Framing the shot gives it a camera of its own.</p>}
+      {cam ? (
+        <>
+          <div className="field">
+            <span>Moves</span>
+            <Segmented<'path' | 'follow' | 'orbit'>
+              label="Camera moves"
+              full
+              value={rig?.body ?? 'path'}
+              onChange={(body) => setCameraBody(store, cam.id, body)}
+              options={[{ value: 'path', label: 'Along a path' }, { value: 'follow', label: 'Follows' }, { value: 'orbit', label: 'Circles' }]}
+            />
+          </div>
+          {rig ? <RigSettings cam={cam} rig={rig} set={set} /> : <PathSettings cam={cam} set={set} />}
+        </>
+      ) : <p className="hint-text">Framing the shot gives it a camera of its own.</p>}
     </Section>
+  );
+}
+
+/** How a camera that places itself from its subject does it: its angle, how it turns, its smoothing. */
+function RigSettings({ cam, rig, set }: { cam: Camera; rig: CameraRig; set(patch: Parameters<typeof editCamera>[2]): void }) {
+  const store = useStore();
+  const scene = useScene();
+  const edit = (patch: Parameters<typeof editRig>[2], key?: string) => editRig(store, cam.id, patch, key);
+  const others = scene.figures.filter((f) => !f.hidden && f.id !== cam.subject);
+  return (
+    <>
+      <div className="field">
+        <span>Angle (from the subject&apos;s front; + from its left)</span>
+        <div className="lens-row">
+          <NumberField prefix="°" label="Angle around" value={rig.yaw} step={5} min={-180} max={180} digits={0} onChange={(v) => edit({ yaw: v }, `rig-yaw:${cam.id}`)} />
+          <NumberField prefix="↑" label="Angle above" value={rig.pitch} step={2} min={-60} max={80} digits={0} onChange={(v) => edit({ pitch: v }, `rig-pitch:${cam.id}`)} />
+        </div>
+        {cam.subject && others.length > 0 && (
+          <Select<string>
+            label="Angle measured from"
+            value={rig.toward ?? ''}
+            onChange={(v) => edit({ toward: v || undefined })}
+            options={[{ value: '', label: 'Its facing' }, ...others.map((f) => ({ value: f.id, label: `The line towards ${f.name}` }))]}
+          />
+        )}
+      </div>
+      {rig.body === 'follow'
+        ? <Toggle label="Turns with the subject" hint="Off: keeps the angle the subject faced at the camera's first shot" checked={!!rig.turn} onChange={(on) => edit({ turn: on })} />
+        : (
+          <div className="field">
+            <span>Circling speed</span>
+            <NumberField prefix="°/s" label="Circling speed" value={rig.spin ?? 0} step={5} min={-360} max={360} digits={0} onChange={(v) => edit({ spin: v }, `rig-spin:${cam.id}`)} />
+          </div>
+        )}
+      <div className="field">
+        <span>Smoothing</span>
+        <NumberField prefix="s" label="Smoothing" value={rig.smooth ?? 0} step={0.1} min={0} max={5} digits={1} onChange={(v) => edit({ smooth: v }, `rig-smooth:${cam.id}`)} />
+      </div>
+      <Toggle label="Hand-held" hint="A slight shake" checked={(cam.shake ?? 0) > 0} onChange={(on) => set({ shake: on ? 0.5 : 0 })} />
+      <p className="hint-text">The camera works out where it is every frame from its subject&apos;s body, so the shot holds when the blocking or a body changes.</p>
+    </>
   );
 }
 

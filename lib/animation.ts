@@ -2,7 +2,7 @@ import { keysClip, mirrorClip } from './clip';
 import { mirrorJointName, wrapDeg } from './joints';
 import { uid } from './uid';
 import type { OldCameraKey } from './shot';
-import type { Action, Animation, Camera, Constraint, Figure, Mark, Prop, PropKey, PropTarget, Scene, Shot, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Constraint, Figure, Mark, Placement, Prop, PropKey, PropTarget, Scene, Shot, ShotSize, Vec3 } from './types';
 
 export type { Animation };
 
@@ -107,8 +107,12 @@ export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: 
     return [{ ...structuredClone(c), id: uid('hold'), figure: ids.get(c.figure)!, target }];
   });
   const cameras = a.cameras?.map((c) => {
-    const { subject, ...rest } = structuredClone(c);
-    return subject && ids.has(subject) ? { ...rest, subject: ids.get(subject)! } : rest;
+    const { subject, rig, ...rest } = structuredClone(c);
+    const { toward, ...r } = rig ?? ({} as CameraRig);
+    return {
+      ...rest, ...(subject && ids.has(subject) ? { subject: ids.get(subject)! } : {}),
+      ...(rig ? { rig: toward && ids.has(toward) ? { ...r, toward: ids.get(toward)! } : r } : {}),
+    };
   });
   return { ...a, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}), ...(cameras ? { cameras } : {}) };
 }
@@ -132,7 +136,12 @@ export function mirrorAnimation(a: Animation): Animation {
     ...(k.hold ? { hold: { ...k.hold, hand: k.hold.hand === 'L' ? 'R' as const : 'L' as const } } : {}),
   }))]));
   const flipped = (v: Vec3): Vec3 => [-v[0] || 0, v[1], v[2]];
-  const cameras = a.cameras?.map((c) => ({ ...c, points: c.points.map((p) => ({ ...p, position: flipped(p.position), look: flipped(p.look), ...(p.roll ? { roll: -p.roll } : {}) })) }));
+  const side = (p: Placement | undefined): Placement | undefined => (p === 'left' ? 'right' : p === 'right' ? 'left' : p);
+  const cameras = a.cameras?.map((c) => ({
+    ...c,
+    points: c.points.map((p) => ({ ...p, position: flipped(p.position), look: flipped(p.look), ...(p.roll ? { roll: -p.roll } : {}) })),
+    ...(c.rig ? { rig: { ...c.rig, yaw: -c.rig.yaw || 0, ...(c.rig.spin ? { spin: -c.rig.spin } : {}), ...(c.rig.place ? { place: side(c.rig.place) } : {}) } } : {}),
+  }));
   const constraints = a.constraints?.map((c) => ({
     ...c,
     bone: mirrorJointName(c.bone) as Constraint['bone'],
@@ -142,6 +151,8 @@ export function mirrorAnimation(a: Animation): Animation {
 }
 
 /* ---------- validation of untrusted data ---------- */
+
+const SIZES: ShotSize[] = ['ews', 'ws', 'fs', 'mws', 'ms', 'mcu', 'cu', 'ecu'];
 
 /**
  * An animation's shots and cameras. (One-time converter, remove in a later release: shots saved
@@ -165,6 +176,19 @@ export function parseShots(rawShots: unknown, rawCameras: unknown, duration: num
       .sort((p, q) => p.t - q.t),
     ...(x.ease === 'linear' ? { ease: 'linear' as const } : {}),
     ...(typeof x.shake === 'number' && x.shake > 0 ? { shake: num(x.shake, 0, 0, 1) } : {}),
+    ...(typeof x.rig === 'object' && x.rig !== null ? { rig: rigOf(x.rig as Record<string, unknown>) } : {}),
+  });
+  const rigOf = (r: Record<string, unknown>): CameraRig => ({
+    body: r.body === 'orbit' ? 'orbit' : 'follow',
+    yaw: wrapDeg(num(r.yaw, 0, -1e4, 1e4)),
+    pitch: num(r.pitch, 0, -89, 89),
+    ...(r.turn === true ? { turn: true } : {}),
+    ...(typeof r.spin === 'number' && r.spin ? { spin: num(r.spin, 0, -360, 360) } : {}),
+    ...(typeof r.toward === 'string' && r.toward ? { toward: r.toward.slice(0, 40) } : {}),
+    size: SIZES.includes(r.size as ShotSize) ? r.size as ShotSize : 'fs',
+    ...(r.place === 'left' || r.place === 'right' ? { place: r.place } : {}),
+    lens: num(r.lens, 35, 4, 1200),
+    ...(typeof r.smooth === 'number' && r.smooth > 0 ? { smooth: num(r.smooth, 0, 0, 10) } : {}),
   });
   const cameras = objects(rawCameras, 100).map((x, i) => camera(x, str(x.id, 40) || `cam${i}`, str(x.name, 80) || `Camera ${i + 1}`));
   const ids = new Set(cameras.map((c) => c.id));

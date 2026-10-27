@@ -231,7 +231,7 @@ export default function Viewport({
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
-        {settings.showHandles && !shotMode && !!scene.animation?.cameras?.some((c) => c.points.length) && (
+        {settings.showHandles && !shotMode && !!scene.animation?.cameras?.some((c) => c.points.length || c.rig) && (
           <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} />
         )}
         <Bridge
@@ -485,7 +485,8 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
  * The cameras' paths through the set (one line each), a camera at each point of them and, for a
  * camera looking at a point, that point. Drag a camera to move it across the floor (Shift: up and
  * down), a look point to aim the camera; double-click a path to add a point there; right-click a
- * camera to delete the point. The red dot is the camera filming at the playhead.
+ * camera to delete the point. A camera placing itself from its subject (a rig) shows where it goes,
+ * dashed. The red dot is the camera filming at the playhead.
  */
 /** Each drag of a camera is one undo step. */
 let drags = 0;
@@ -496,7 +497,7 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   const dot = useRef<THREE.Mesh>(null);
   const [three] = useState(() => new THREE.PerspectiveCamera(30, frameAspect(scene)));
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
-  const cameras = useMemo(() => (a.cameras ?? []).filter((c) => c.points.length), [a]);
+  const cameras = useMemo(() => (a.cameras ?? []).filter((c) => c.points.length || c.rig), [a]);
   // (Worked out again when the animation changes, not as the playhead moves the figures.)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const trails = useMemo(() => cameras.map((c) => cameraTrail(scene, c)), [cameras]);
@@ -579,7 +580,7 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   return (
     <group>
       {trails.map((trail, i) => trail.points.length > 1 && (
-        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked ? 3 : 1.5} transparent opacity={0.7} onDoubleClick={addPoint(cameras[i].id, trail.times)} />
+        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked ? 3 : 1.5} transparent opacity={0.7} dashed={!!cameras[i].rig} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].rig ? undefined : addPoint(cameras[i].id, trail.times)} />
       ))}
       {markers.map((m) => {
         const on = Math.abs(m.t - now) < 0.5 / a.fps && liveCamera(scene, now)?.id === m.cam.id;

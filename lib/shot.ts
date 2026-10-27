@@ -5,10 +5,11 @@ import { hermite } from './clip';
 import { figurePoseAt, sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
 import { Rig } from './relations';
+import { facingOf } from './pose';
 import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';
 import { newCamera, shotSpans, spanAt, type ShotSpan } from './shots';
-import type { Animation, Camera, CameraPoint, FrameShape, Scene, Vec3, View } from './types';
+import type { Animation, Camera, CameraPoint, CameraRig, Figure, FrameShape, Placement, Scene, ShotSize, Vec3, View } from './types';
 
 /*
  * The cameras: how a "director" films the figures. An animation has cameras, each an object in
@@ -225,6 +226,10 @@ export function samplePath(points: CameraPoint[], t: number, ease: Camera['ease'
  * camera, on its subject over `still` (or the animation), or everyone.
  */
 export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect(scene), still?: { from: number; to: number }): CameraView {
+  if (cam.rig) {
+    const v = rigView(scene, cam, cam.rig, t, aspect);
+    return shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: 0 });
+  }
   if (!cam.points.length) {
     const subject = cameraSubject(scene, cam);
     const range = still ?? { from: 0, to: scene.animation?.duration ?? 0 };
@@ -238,16 +243,18 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
   if (cam.aim === 'subject') target = new THREE.Vector3(...p.look).add(place!);
   else if (cam.aim === 'point') target = new THREE.Vector3(...p.look).add(cam.anchor === 'subject' ? place! : new THREE.Vector3());
   else target = p.velocity.lengthSq() > 1e-10 ? position.clone().add(p.velocity.clone().normalize()) : new THREE.Vector3(...p.look);
+  return shaken(cam, t, { position, target, fov: lensFov(p.lens, aspect), lens: p.lens, roll: p.roll ?? 0 });
+}
+
+/** A hand-held camera wanders about where it looks. */
+function shaken(cam: Camera, t: number, view: CameraView): CameraView {
   const shake = cam.shake ?? 0;
-  if (shake > 0) {
-    // A hand-held camera wanders about where it looks.
-    const d = target.clone().sub(position);
-    d.applyAxisAngle(new THREE.Vector3(0, 1, 0), shake * 1.6 * D2R * wobble(t, 1));
-    const side = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 1, 0)).normalize();
-    if (side.lengthSq() > 0) d.applyAxisAngle(side, shake * 1.1 * D2R * wobble(t, 4));
-    target = position.clone().add(d);
-  }
-  return { position, target, fov: lensFov(p.lens, aspect), lens: p.lens, roll: p.roll ?? 0 };
+  if (shake <= 0) return view;
+  const d = view.target.clone().sub(view.position);
+  d.applyAxisAngle(new THREE.Vector3(0, 1, 0), shake * 1.6 * D2R * wobble(t, 1));
+  const side = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 1, 0)).normalize();
+  if (side.lengthSq() > 0) d.applyAxisAngle(side, shake * 1.1 * D2R * wobble(t, 4));
+  return { ...view, target: view.position.clone().add(d) };
 }
 
 /** What the shot of this span films at t: its camera, or the still camera. */
@@ -304,7 +311,7 @@ export const SHOT_SIZES = [
   { id: 'cu', name: 'Close-up', short: 'CU' },
   { id: 'ecu', name: 'Extreme close-up', short: 'ECU' },
 ] as const;
-export type ShotSize = (typeof SHOT_SIZES)[number]['id'];
+export type { Placement, ShotSize };
 
 /** How much of the body each shot size holds: from and to, as shares of the body's height down from the top of the head. */
 const SPAN: Record<ShotSize, [number, number]> = {
@@ -312,23 +319,117 @@ const SPAN: Record<ShotSize, [number, number]> = {
   ms: [-0.06, 0.55], mcu: [-0.06, 0.4], cu: [-0.05, 0.27], ecu: [0.02, 0.14],
 };
 
-let rig: Rig | null = null;
+/** A body as a camera frames it: the middle of it on the floor, the top of the head, the height, and which way it faces (degrees). */
+interface Body { x: number; z: number; top: number; height: number; facing: number }
 
-/** A camera's subject's body at t: the middle of it on the floor, the top of the head, the height (everyone: all of them). */
-function bodyAt(scene: Scene, cam: Camera | null, t: number) {
+let rig: Rig | null = null;
+// Bodies are measured once per animation (or still cast), figure and time.
+const bodies = new WeakMap<object, Map<string, Body>>();
+
+/** A figure's body at t (no figure: everyone, facing the front). */
+function measure(scene: Scene, id: string | undefined, t: number): Body {
+  const owner: object = scene.animation ?? scene.figures;
+  let cache = bodies.get(owner);
+  if (!cache) bodies.set(owner, (cache = new Map()));
+  const key = `${id ?? ''}@${t}`;
+  const known = cache.get(key);
+  if (known) return known;
   rig ??= new Rig();
-  const id = cameraSubject(scene, cam);
-  const now = scene.animation ? sceneAt(scene, t) : scene;
-  const figures = now.figures.filter((f) => !f.hidden && (!id || f.id === id));
+  const figures = (id ? [id] : scene.figures.filter((f) => !f.hidden).map((f) => f.id)).map((f) => figurePoseAt(scene, f, t)).filter((f): f is Figure => !!f);
   const box = new THREE.Box3();
   for (const f of figures) rig.model(f).forEachPoint((p) => box.expandByPoint(p));
   if (box.isEmpty()) box.set(new THREE.Vector3(-0.3, 0, -0.3), new THREE.Vector3(0.3, 1.8, 0.3));
   const middle = box.getCenter(new THREE.Vector3());
-  return { x: middle.x, z: middle.z, top: box.max.y, height: Math.max(0.3, box.max.y - Math.max(0, box.min.y)) };
+  const body = { x: middle.x, z: middle.z, top: box.max.y, height: Math.max(0.3, box.max.y - Math.max(0, box.min.y)), facing: id && figures[0] ? facingOf(figures[0].bones) : 0 };
+  if (cache.size > 20000) cache.clear();
+  cache.set(key, body);
+  return body;
 }
 
-/** Where the subject sits in the frame: in the middle, or on the left or right third. */
-export type Placement = 'center' | 'left' | 'right';
+/** A camera's subject's body at t (everyone: all of them). */
+const bodyAt = (scene: Scene, cam: Camera | null, t: number) => measure(scene, cameraSubject(scene, cam), t);
+
+/**
+ * A figure's body at t smoothed over `window` seconds: the frames around t weighed by how near
+ * they are, so it is the same however t is reached (playing, scrubbing or exporting).
+ */
+function smoothBody(scene: Scene, id: string | undefined, t: number, window: number): Body {
+  const a = scene.animation;
+  if (!a || window <= 0) return measure(scene, id, t);
+  const half = window / 2;
+  const sum = { x: 0, z: 0, top: 0, height: 0, sin: 0, cos: 0, w: 0 };
+  for (let i = Math.ceil((t - half) * a.fps); i <= Math.floor((t + half) * a.fps); i++) {
+    const at = Math.min(a.duration, Math.max(0, i / a.fps));
+    const w = 1 - Math.abs(i / a.fps - t) / half;
+    if (w <= 0) continue;
+    const b = measure(scene, id, at);
+    sum.x += b.x * w;
+    sum.z += b.z * w;
+    sum.top += b.top * w;
+    sum.height += b.height * w;
+    sum.sin += Math.sin(b.facing * D2R) * w;
+    sum.cos += Math.cos(b.facing * D2R) * w;
+    sum.w += w;
+  }
+  if (!sum.w) return measure(scene, id, t);
+  return { x: sum.x / sum.w, z: sum.z / sum.w, top: sum.top / sum.w, height: sum.height / sum.w, facing: Math.atan2(sum.sin, sum.cos) * R2D };
+}
+
+/** Where a camera looks from and at to hold a body at a shot size from an angle (world yaw, pitch) through a lens. */
+function compose(body: Body, size: ShotSize, yaw: number, pitch: number, lens: number, place: Placement | undefined, aspect: number) {
+  const [a, b] = SPAN[size];
+  const top = body.top - a * body.height;
+  const bottom = body.top - b * body.height;
+  const tanV = Math.tan((lensFov(lens, aspect) * D2R) / 2);
+  const dist = (top - bottom) / 2 / tanV;
+  const dir = viewDirection({ yaw, pitch });
+  const look = new THREE.Vector3(body.x, (top + bottom) / 2, body.z);
+  if (place && place !== 'center') {
+    // On a third: the subject a sixth of the frame's width off the middle.
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+    look.addScaledVector(right, (place === 'left' ? 1 : -1) * (dist * tanV * aspect) / 3);
+  }
+  return { position: look.clone().addScaledVector(dir, dist), look };
+}
+
+/* ---------- cameras placing themselves (rigs) ---------- */
+
+/** When a camera's angle is measured from: the start of the first shot it films (else the start). */
+function firstFilmed(scene: Scene, cam: Camera) {
+  const a = scene.animation;
+  return a ? shotSpans(a).find((s) => s.shot.camera === cam.id)?.start ?? 0 : 0;
+}
+
+/**
+ * Which way a rig's angles are measured from at t (world degrees): the subject's facing, or the
+ * direction from it towards another figure, then (turning) or at the camera's first shot.
+ */
+function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body): number {
+  const subject = cameraSubject(scene, cam);
+  const at = r.body === 'follow' && r.turn ? t : firstFilmed(scene, cam);
+  const from = at === t ? body : smoothBody(scene, subject, at, r.smooth ?? 0);
+  const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, r.toward, at, r.smooth ?? 0) : null;
+  return other ? Math.atan2(other.x - from.x, other.z - from.z) * R2D : from.facing;
+}
+
+/** Where a rig camera is at t, worked out from its subject's body. */
+function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: number) {
+  const body = smoothBody(scene, cameraSubject(scene, cam), t, r.smooth ?? 0);
+  const spin = r.body === 'orbit' ? (r.spin ?? 0) * (t - firstFilmed(scene, cam)) : 0;
+  const yaw = rigHeading(scene, cam, r, t, body) + r.yaw + spin;
+  const { position, look } = compose(body, r.size, yaw, r.pitch, r.lens, r.place, aspect);
+  return { position, target: look, lens: r.lens };
+}
+
+/** The rig that films as a camera view does at t (its angle from the subject, its size and lens). */
+export function rigFrom(scene: Scene, cam: Camera, view: CameraView, t: number, body: CameraRig['body'], o: Partial<CameraRig> = {}): CameraRig {
+  const r: CameraRig = { body, yaw: 0, pitch: 0, size: 'fs', lens: Math.round(view.lens), smooth: 0.5, ...(body === 'orbit' ? { spin: 20 } : {}), ...cam.rig, ...o };
+  const b = smoothBody(scene, cameraSubject(scene, cam), t, r.smooth ?? 0);
+  const { yaw, pitch } = angleOf(view);
+  const spin = r.body === 'orbit' ? (r.spin ?? 0) * (t - firstFilmed(scene, cam)) : 0;
+  const round = (v: number) => Math.round(v * 10) / 10;
+  return { ...r, yaw: round(wrapDeg(yaw - rigHeading(scene, { ...cam, rig: r }, r, t, b) - spin)), pitch: round(pitch), size: o.size ?? sizeOf(scene, cam, t, view) };
+}
 
 /**
  * A point of a camera's path framing its subject at t at a shot size: the camera looking from
@@ -336,21 +437,8 @@ export type Placement = 'center' | 'left' | 'right';
  * `lens`, as far away as that size takes. In the camera's own terms (anchor and aim).
  */
 export function framePoint(scene: Scene, cam: Camera, t: number, size: ShotSize, o: { yaw: number; pitch: number; lens: number; place?: Placement; aspect?: number }): CameraPoint {
-  const aspect = o.aspect ?? frameAspect(scene);
-  const body = bodyAt(scene, cam, t);
-  const [a, b] = SPAN[size];
-  const top = body.top - a * body.height;
-  const bottom = body.top - b * body.height;
-  const tanV = Math.tan((lensFov(o.lens, aspect) * D2R) / 2);
-  const dist = (top - bottom) / 2 / tanV;
-  const dir = viewDirection({ yaw: o.yaw, pitch: o.pitch });
-  const look = new THREE.Vector3(body.x, (top + bottom) / 2, body.z);
-  if (o.place && o.place !== 'center') {
-    // On a third: the subject a sixth of the frame's width off the middle.
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-    look.addScaledVector(right, (o.place === 'left' ? 1 : -1) * (dist * tanV * aspect) / 3);
-  }
-  return pointIn(scene, cam, t, look.clone().addScaledVector(dir, dist), look, o.lens);
+  const { position, look } = compose(bodyAt(scene, cam, t), size, o.yaw, o.pitch, o.lens, o.place, o.aspect ?? frameAspect(scene));
+  return pointIn(scene, cam, t, position, look, o.lens);
 }
 
 /** A camera position and look point in the world at t → a path point in a camera's own terms. */
@@ -406,8 +494,8 @@ export interface CameraMove {
   name: string;
   group: (typeof CAMERA_GROUPS)[number];
   description: string;
-  /** The camera for this move: where its path is, what it looks at, its points. */
-  apply(c: MoveContext): Pick<Camera, 'anchor' | 'aim' | 'points' | 'shake'>;
+  /** The camera for this move: where its path is, what it looks at, its points; or the rig placing it. */
+  apply(c: MoveContext): Pick<Camera, 'anchor' | 'aim' | 'points' | 'shake' | 'rig'>;
 }
 
 /** Everyone the camera frames over the move's time in view from an angle, `zoom` times closer: a point. */
@@ -457,11 +545,20 @@ export const CAMERA_MOVES: CameraMove[] = [
     apply: (c) => ({ anchor: 'world', aim: 'point', points: [fitPoint(c, world(c), c.start, c.base.yaw - 15, -14, 38, 1.25, 0.15), fitPoint(c, world(c), c.end, c.base.yaw + 10, -8, 34, 1.4, 0.2)] }),
   },
   {
-    id: 'tracking', group: 'Following', name: 'Tracking shot', description: 'Follow alongside, keeping the figures in frame',
-    apply: (c) => {
-      const cam: Camera = { ...c.camera, anchor: 'subject', aim: 'subject' };
-      return { anchor: 'subject', aim: 'subject', points: [framePoint(c.scene, cam, c.start, 'mws', { yaw: c.base.yaw + 90, pitch: 3, lens: 50 })] };
-    },
+    id: 'tracking', group: 'Following', name: 'Tracking shot', description: 'Move alongside, from the left, keeping a medium wide shot',
+    apply: () => ({ anchor: 'world', aim: 'subject', points: [], rig: { body: 'follow', yaw: 90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 } }),
+  },
+  {
+    id: 'follow', group: 'Following', name: 'Follow behind', description: 'Behind the subject, turning as it turns',
+    apply: () => ({ anchor: 'world', aim: 'subject', points: [], rig: { body: 'follow', yaw: 180, pitch: 10, turn: true, size: 'fs', lens: 35, smooth: 0.8 } }),
+  },
+  {
+    id: 'lead', group: 'Following', name: 'Leading shot', description: 'Ahead of the subject, looking back at it as it comes',
+    apply: () => ({ anchor: 'world', aim: 'subject', points: [], rig: { body: 'follow', yaw: 10, pitch: 2, turn: true, size: 'ms', lens: 50, smooth: 0.8 } }),
+  },
+  {
+    id: 'circle', group: 'Around & up', name: 'Circle the subject', description: 'Half way around the subject, holding a medium shot',
+    apply: (c) => ({ anchor: 'world', aim: 'subject', points: [], rig: { body: 'orbit', yaw: -90, pitch: 6, spin: Math.round(180 / Math.max(0.5, c.end - c.start)), size: 'ms', lens: 40, smooth: 0.5 } }),
   },
   {
     id: 'vertigo', group: 'Towards & away', name: 'Dolly zoom', description: 'The “Vertigo” effect: the lens widens while the figures keep their size',
@@ -488,6 +585,8 @@ export const CAMERA_MOVES: CameraMove[] = [
  */
 export function restate(scene: Scene, cam: Camera, patch: Partial<Pick<Camera, 'anchor' | 'aim' | 'subject'>>): Camera {
   const next: Camera = { ...cam, ...patch };
+  // A rig frames whatever it is about, wherever it is.
+  if (cam.rig) return next;
   const points = cam.points.map((p) => {
     const v = viewOf(scene, cam, p.t);
     return pointIn(scene, next, p.t, v.position, v.target, p.lens, p.roll);
@@ -519,9 +618,10 @@ export function filmWith(scene: Scene, moveId: string, o: { index?: number; foll
   const made = move.apply({ scene, camera: cam, start: span.start, end: span.end, base: scene.view });
   cam = { ...cam, ...made };
   if (!made.shake) delete cam.shake;
+  if (!made.rig) delete cam.rig;
   const shots = spans.map((s) => (s === span ? { ...s.shot, camera: cam.id } : s.shot));
   const filmed = withCamera({ ...scene, animation: { ...a, shots } }, cam);
-  return o.follow ? withCamera(filmed, restate(filmed, cam, { anchor: 'subject', aim: 'subject' })) : filmed;
+  return o.follow && !cam.rig ? withCamera(filmed, restate(filmed, cam, { anchor: 'subject', aim: 'subject' })) : filmed;
 }
 
 /* ---------- capture and export ---------- */
@@ -554,7 +654,7 @@ export function cameraTrail(scene: Scene, cam: Camera, aspect = frameAspect(scen
   const a = scene.animation!;
   const spans = shotSpans(a).filter((s) => s.shot.camera === cam.id);
   const ends = [...cam.points.map((p) => p.t), ...spans.flatMap((s) => [s.start, s.end])];
-  if (!cam.points.length) return { times: [], points: [] };
+  if (!cam.points.length && !(cam.rig && spans.length)) return { times: [], points: [] };
   const from = Math.max(0, Math.min(...ends));
   const to = Math.min(a.duration, Math.max(...ends));
   const n = Math.max(2, Math.ceil((to - from) * 10));

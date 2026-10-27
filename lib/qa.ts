@@ -441,7 +441,8 @@ function cameraInside(scene: Scene): Issue[] {
   const issues: Issue[] = [];
   const step = 0.1;
   for (const span of shotSpans(a)) {
-    if (!cameraById(a, span.shot.camera)?.points.length) continue;
+    const cam = cameraById(a, span.shot.camera);
+    if (!cam?.rig && !cam?.points.length) continue;
     const runs = new Map<string, { start: number; end: number; name: string; figure: string }>();
     for (let t = span.start; t < span.end - 1e-6; t += step) {
       const now = sceneAt(scene, t);

@@ -59,7 +59,8 @@ function expectFilm(store: Store, lightId: string, people: number) {
   const spans = shotSpans(a);
   expect(spans.length).toBeGreaterThan(1);
   for (const span of spans) {
-    expect(liveCamera(scene, span.start)?.points.length, `${span.shot.name} ${span.start}-${span.end}`).toBeGreaterThan(0);
+    const cam = liveCamera(scene, span.start);
+    expect(!!cam?.rig || (cam?.points.length ?? 0) > 0, `${span.shot.name} ${span.start}-${span.end}`).toBe(true);
     const text = describeSpan(scene, span);
     expect(text, span.shot.name).toMatch(new RegExp(`${['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'][people - 1]} mannequin figure`, 'i'));
   }

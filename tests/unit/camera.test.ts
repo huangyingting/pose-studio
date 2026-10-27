@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, addFigure, applyCameraMove, cutShot, deleteCamera, editCamera, editShot, frameShot, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, addFigure, applyCameraMove, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
+import { mirrorAnimation } from '@/lib/animation';
 import { parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
 import { Rig } from '@/lib/relations';
+import { figurePoseAt, sceneAt } from '@/lib/evaluate';
+import { facingOf } from '@/lib/pose';
 import { fitCamera, videoSize, viewDirection } from '@/lib/render';
-import { ASPECTS, SHOT_ASPECT, cameraAt, fovLens, frameAspect, framingFor, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/shot';
+import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, framingFor, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/shot';
 import { shotSpans } from '@/lib/shots';
 import type { Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
@@ -96,14 +99,15 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
       last = p;
     }
     expect(Math.max(...steps)).toBeLessThan((2.5 * steps.reduce((x, y) => x + y, 0)) / steps.length);
-    // Riding along: the camera keeps its place beside the walker as it goes; it stays where it was when restated.
+    // Riding along: the camera keeps its place beside the walker as it goes (as a rig, from its
+    // body's middle); a path stays where it was when restated.
     const at = cameraAt(store.scene, 0).position;
     editCamera(store, liveCamera(store.scene, 0)!.id, { subject: a, anchor: 'subject', aim: 'subject' });
     expect(cameraAt(store.scene, 0).position.distanceTo(at)).toBeLessThan(0.01);
     applyCameraMove(store, 'tracking');
     const cam = liveCamera(store.scene, 0);
     const beside = (t: number) => cameraAt(store.scene, t).position.sub(subjectPlace(store.scene, cam, t));
-    expect(beside(0).distanceTo(beside(walk.to))).toBeLessThan(0.01);
+    expect(beside(0).distanceTo(beside(walk.to))).toBeLessThan(0.1);
     expect(cameraAt(store.scene, walk.to).position.z - cameraAt(store.scene, 0).position.z).toBeGreaterThan(3);
     expect(describeShot(store.scene)).toMatch(/tracking shot/);
   });
@@ -228,5 +232,85 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     const converted = parseScene(old);
     expect(converted.animation!.cameras).toHaveLength(2);
     for (const t of [0, 0.7, 1.4, 1.5, 2.2, 2.9]) expect(cameraAt(converted, t).position.distanceTo(cameraAt(scene, t).position), String(t)).toBeLessThan(0.01);
+  });
+
+  it('keeps a rule-based camera\'s shot size when the blocking or a body changes', () => {
+    const { store, a } = fresh();
+    store.setTime(0);
+    const walk = travelTo(store, a, [0, 3], 'walk')!;
+    store.setTime(0);
+    applyCameraMove(store, 'tracking');
+    const cam = () => liveCamera(store.scene, 0)!;
+    expect(cam().rig).toMatchObject({ body: 'follow', size: 'mws' });
+    editCamera(store, cam().id, { subject: a });
+    frameShot(store, 'ms');
+    const held = (t: number) => {
+      const b = body(sceneAt(store.scene, t), a);
+      // A medium shot: the head just under the top of the frame, the hips near the bottom.
+      expect(onScreen(store.scene, t, b.head).y, `head at ${t}`).toBeGreaterThan(0.6);
+      expect(onScreen(store.scene, t, b.head).y, `head at ${t}`).toBeLessThan(1);
+      expect(onScreen(store.scene, t, b.hips).y, `hips at ${t}`).toBeLessThan(-0.2);
+      expect(Math.abs(onScreen(store.scene, t, b.chest).x), `centred at ${t}`).toBeLessThan(0.15);
+      expect(sizeOf(store.scene, cam(), t, cameraAt(store.scene, t))).toBe('ms');
+    };
+    for (const t of [0, walk.to / 2, walk.to]) held(t);
+    // Other blocking (the walk ends elsewhere) and another body (a child): the shot holds.
+    moveMark(store, a, walk.to, [2, 4]);
+    store.updateFigure(a, (f) => ({ ...f, body: { ...f.body, height: 1.25, head: 1.3 } }));
+    for (const t of [0, walk.to / 2, walk.to]) held(t);
+    // From the walker's left all the way (it faces where it goes).
+    const side = cameraAt(store.scene, walk.to / 2).position.sub(new THREE.Vector3(...figurePoseAt(store.scene, a, walk.to / 2)!.position));
+    const facing = facingOf(figurePoseAt(store.scene, a, walk.to / 2)!.bones) * Math.PI / 180;
+    expect(side.x * Math.cos(facing) - side.z * Math.sin(facing)).toBeGreaterThan(0.5);
+    // Mirrored with the scene: from its right.
+    expect(mirrorAnimation(store.scene.animation!).cameras![0].rig!.yaw).toBe(-90);
+  });
+
+  it('follows behind a subject as it turns, smoothly and the same however a moment is reached', () => {
+    const { store, a } = fresh();
+    store.setTime(0);
+    travelTo(store, a, [0, 2], 'walk');
+    const walk = travelTo(store, a, [3, 2], 'walk')!;
+    store.setTime(0);
+    applyCameraMove(store, 'follow');
+    editCamera(store, liveCamera(store.scene, 0)!.id, { subject: a });
+    // Behind it: walking +Z, then turned to +X.
+    const behind = (t: number) => {
+      const p = cameraAt(store.scene, t).position.sub(new THREE.Vector3(...figurePoseAt(store.scene, a, t)!.position));
+      const f = facingOf(figurePoseAt(store.scene, a, t)!.bones) * Math.PI / 180;
+      return -(p.x * Math.sin(f) + p.z * Math.cos(f));
+    };
+    expect(behind(0.5)).toBeGreaterThan(1);
+    expect(behind(walk.to)).toBeGreaterThan(1);
+    // Smoothed: it swings round as the subject turns, without a jump from one frame to the next.
+    const steps: number[] = [];
+    for (let t = 1 / 24; t <= walk.to; t += 1 / 24) steps.push(cameraAt(store.scene, t).position.distanceTo(cameraAt(store.scene, t - 1 / 24).position));
+    for (let i = 1; i < steps.length - 1; i++) expect(steps[i], `frame ${i}`).toBeLessThan(2 * Math.max(steps[i - 1], steps[i + 1]) + 0.01);
+    // Reproducible: a moment worked out on its own (no other frames before it) is the same.
+    const copy = parseScene(JSON.parse(JSON.stringify(store.scene)));
+    expect(cameraAt(copy, 1.3).position.distanceTo(cameraAt(store.scene, 1.3).position)).toBeLessThan(1e-9);
+    // Kept as saved.
+    expect(copy).toEqual(store.scene);
+  });
+
+  it('circles its subject at its speed, and turns into a path or back again from where it is', () => {
+    const { store } = fresh();
+    startAnimation(store, 4);
+    store.setTime(0);
+    applyCameraMove(store, 'circle');
+    const cam = liveCamera(store.scene, 0)!;
+    expect(cam.rig).toMatchObject({ body: 'orbit', spin: 45 });
+    const around = (t: number) => angleOf(cameraAt(store.scene, t)).yaw;
+    expect(((around(2) - around(0) + 540) % 360) - 180).toBeCloseTo(90, 0);
+    // As a path: the camera goes where it went.
+    const before = [0.5, 1.7, 3.2].map((t) => cameraAt(store.scene, t).position);
+    setCameraBody(store, cam.id, 'path');
+    expect(liveCamera(store.scene, 0)!.rig).toBeUndefined();
+    [0.5, 1.7, 3.2].forEach((t, i) => expect(cameraAt(store.scene, t).position.distanceTo(before[i])).toBeLessThan(0.15));
+    // Following again, from where it is at the playhead.
+    store.setTime(1.7);
+    const at = cameraAt(store.scene, 1.7);
+    setCameraBody(store, cam.id, 'follow');
+    expect(cameraAt(store.scene, 1.7).position.distanceTo(at.position)).toBeLessThan(0.3);
   });
 });

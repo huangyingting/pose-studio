@@ -22,13 +22,13 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleOf, cameraAt, cameraById, capturePoint, filmWith, frameAspect, framePoint, lensFov, liveCamera, restate, viewOf, withCamera, type Placement, type ShotSize } from './shot';
+import { angleOf, cameraAt, cameraById, capturePoint, filmWith, fovLens, frameAspect, framePoint, lensFov, liveCamera, restate, rigFrom, viewOf, withCamera, type Placement, type ShotSize } from './shot';
 import { bonesOf, withAngles } from './pose';
 import { cutAt, movePoint, newCamera, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Camera, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -853,6 +853,11 @@ export function setCameraPoint(store: Store, position: THREE.Vector3, look: THRE
   if (!here) return;
   store.updateScene((x) => {
     const { s, cam } = filming(x, here.t);
+    if (cam.rig) {
+      // A rig takes the view's angle (from its subject) and lens; it keeps its shot size.
+      const view = { position, target: look, fov, lens: fovLens(fov, frameAspect(s)), roll: 0 };
+      return withCamera(s, { ...cam, rig: rigFrom(s, cam, view, here.t, cam.rig.body, { size: cam.rig.size, lens: Math.round(view.lens) }) });
+    }
     return { ...s, animation: setPointAt(s.animation!, cam, here.t, capturePoint(s, cam, here.t, position, look, fov)) };
   }, key);
 }
@@ -918,6 +923,7 @@ export function frameShot(store: Store, size: ShotSize, o: { lens?: number; plac
   if (!here) return;
   store.updateScene((x) => {
     const { s, cam } = filming(x, here.t);
+    if (cam.rig) return withCamera(s, { ...cam, rig: { ...cam.rig, size, ...(o.lens ? { lens: o.lens } : {}), ...(o.place && o.place !== 'center' ? { place: o.place } : {}), ...(o.place === 'center' ? { place: undefined } : {}) } });
     const view = seenBy(s, cam, here.t);
     const { yaw, pitch } = angleOf(view);
     const point = framePoint(s, cam, here.t, size, { yaw, pitch, lens: o.lens ?? view.lens, place: o.place });
@@ -936,6 +942,8 @@ export function setLens(store: Store, mm: number, keep: 'size' | 'place' = 'size
   const lens = Math.min(1200, Math.max(4, mm));
   store.updateScene((x) => {
     const { s, cam } = filming(x, here.t);
+    // A rig keeps its shot size whatever the lens (it moves nearer or further).
+    if (cam.rig) return withCamera(s, { ...cam, rig: { ...cam.rig, lens } });
     const view = seenBy(s, cam, here.t);
     const position = keep === 'size'
       ? view.target.clone().add(view.position.clone().sub(view.target).multiplyScalar(lens / view.lens))
@@ -964,6 +972,55 @@ export function editCamera(store: Store, id: string, patch: Partial<Pick<Camera,
     if (cam.ease !== 'linear') delete cam.ease;
     return withCamera(s, cam);
   }, `camera:${id}`);
+}
+
+/**
+ * How a camera moves: by its path, or placing itself every frame from its subject, following it
+ * or circling it (from where it is at the playhead). A rig turned into a path leaves points where
+ * it went over the shots it films, every half second.
+ */
+export function setCameraBody(store: Store, id: string, body: 'path' | CameraRig['body']) {
+  const t = store.getState().time;
+  store.updateScene((s) => {
+    const a = s.animation;
+    const cam = cameraById(a, id);
+    if (!a || !cam || (body === 'path' ? !cam.rig : cam.rig?.body === body)) return s;
+    if (body !== 'path') {
+      const view = cam.rig || cam.points.length ? viewOf(s, cam, t) : cameraAt(s, t);
+      const { rig: _rig, ...rest } = cam;
+      void _rig;
+      return withCamera(s, { ...cam, points: [], rig: rigFrom(s, rest, view, t, body, cam.rig ? { size: cam.rig.size, lens: cam.rig.lens, smooth: cam.rig.smooth } : {}) });
+    }
+    const spans = shotSpans(a).filter((x) => x.shot.camera === id);
+    const times = new Set<number>();
+    for (const sp of spans.length ? spans : [{ start: 0, end: a.duration }]) {
+      const n = Math.max(1, Math.round((sp.end - sp.start) / 0.5));
+      for (let i = 0; i <= n; i++) times.add(snapTime(a, sp.start + ((sp.end - sp.start) * i) / n));
+    }
+    const { rig: _rig, ...path } = { ...cam, anchor: 'world' as const, aim: 'point' as const };
+    void _rig;
+    const points = [...times].sort((p, q) => p - q).map((u) => {
+      const v = viewOf(s, cam, u);
+      return capturePoint(s, path, u, v.position, v.target, v.fov);
+    });
+    return withCamera(s, { ...path, points });
+  }, `camera:${id}`);
+}
+
+/** A rig's shot size, where the subject sits, its lens, its angle, how it turns, its smoothing, what its angle is measured from. */
+export function editRig(store: Store, id: string, patch: Partial<Omit<CameraRig, 'body'>>, key = `rig:${id}`) {
+  store.updateScene((s) => {
+    const cam = cameraById(s.animation, id);
+    if (!cam?.rig) return s;
+    const rig: CameraRig = { ...cam.rig, ...patch };
+    if (patch.yaw !== undefined) rig.yaw = wrapDeg(patch.yaw);
+    if (patch.pitch !== undefined) rig.pitch = Math.min(89, Math.max(-89, patch.pitch));
+    if (patch.smooth !== undefined) rig.smooth = Math.min(10, Math.max(0, patch.smooth));
+    if (patch.lens !== undefined) rig.lens = Math.min(1200, Math.max(4, patch.lens));
+    if (rig.place === 'center') delete rig.place;
+    for (const k of ['turn', 'spin', 'toward', 'smooth'] as const) if (!rig[k]) delete rig[k];
+    return withCamera(s, { ...cam, rig });
+  }, key);
 }
 
 /** A new camera for the shot at the playhead, where the camera filming there is now (its id). */

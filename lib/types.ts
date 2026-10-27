@@ -344,6 +344,40 @@ export interface Camera {
   ease?: 'smooth' | 'linear';
   /** Hand-held shake, 0–1. */
   shake?: number;
+  /** Placing itself every frame from its subject's body, rather than by its path (see CameraRig). */
+  rig?: CameraRig;
+}
+
+/** How much of the body a shot holds: extreme wide … extreme close-up (lib/shot.ts SHOT_SIZES). */
+export type ShotSize = 'ews' | 'ws' | 'fs' | 'mws' | 'ms' | 'mcu' | 'cu' | 'ecu';
+
+/** Where the subject sits in the frame: in the middle, or on the left or right third. */
+export type Placement = 'center' | 'left' | 'right';
+
+/**
+ * A camera that works out where it is every frame from its subject's body, so its shot holds
+ * when the blocking or a body changes: it keeps an angle and a shot size on the subject,
+ * following it (moving with it, and turning with it too if `turn`) or circling it. Angles are
+ * the subject's own (from its front, + from its left; or from the direction towards another
+ * figure, the line of action), so a camera set-up works in any scene.
+ */
+export interface CameraRig {
+  body: 'follow' | 'orbit';
+  /** Degrees around the subject from its front (+ from its left), and above it. */
+  yaw: number;
+  pitch: number;
+  /** Following: the angle turns as the subject turns (else it is kept from how the subject faced at the camera's first shot). */
+  turn?: boolean;
+  /** Orbiting: degrees a second around the subject (+ round to its left). */
+  spin?: number;
+  /** Angles from the direction towards this figure, rather than from the subject's facing. */
+  toward?: string;
+  size: ShotSize;
+  place?: Placement;
+  /** Focal length (mm, full frame). */
+  lens: number;
+  /** Seconds the subject's motion is smoothed over (a window centred on each moment). */
+  smooth?: number;
 }
 
 /** A point of a camera's path. */

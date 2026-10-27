@@ -1,5 +1,5 @@
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, editCamera, editShot, ownCamera, addCamera, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, editCamera, editRig, editShot, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
   setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
@@ -106,8 +106,11 @@ function sceneSummary(store: Store) {
       // The cameras: what each films, its path's points (time, place, look point, lens in mm); the shots cutting between them.
       cameras: (a.cameras ?? []).map((c) => ({
         name: c.name, subject: c.subject ? s.figures.find((f) => f.id === c.subject)?.name : 'everyone',
-        anchor: c.anchor, aim: c.aim, ...(c.shake ? { shake: c.shake } : {}),
-        points: c.points.map((p) => ({ t: r2(p.t), position: p.position.map(r2), look: p.look.map(r2), lens: p.lens })),
+        ...(c.rig ? { rig: { ...c.rig, toward: c.rig.toward && s.figures.find((f) => f.id === c.rig!.toward)?.name } } : {
+          anchor: c.anchor, aim: c.aim,
+          points: c.points.map((p) => ({ t: r2(p.t), position: p.position.map(r2), look: p.look.map(r2), lens: p.lens })),
+        }),
+        ...(c.shake ? { shake: c.shake } : {}),
       })),
       shots: shotSpans(a).map((sp) => ({
         name: sp.shot.name, start: r2(sp.start), end: r2(sp.end),
@@ -319,7 +322,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'shot_camera',
-    description: `The camera of the shot playing at a time. Which camera films the shot: one of the scene's cameras by name, "new" (a new camera where the view is now) or "still"; and how long the shot blends in from the one before (s; 0 cuts). At that time: frame its subject at a shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}) and/or change the lens (mm, full frame: 14 wide … 50 normal … 200 telephoto; keeping the subject's size unless a size is given), with the subject in the centre or on the left/right third. For the shot's camera (its own, if another shot shares it): anchor (world: a fixed camera path; subject: the path rides along with the subject, a tracking shot), aim (subject, point or path) and hand-held shake (0–1). Null leaves a setting as it is.`,
+    description: `The camera of the shot playing at a time. Which camera films the shot: one of the scene's cameras by name, "new" (a new camera where the view is now) or "still"; and how long the shot blends in from the one before (s; 0 cuts). At that time: frame its subject at a shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}) and/or change the lens (mm, full frame: 14 wide … 50 normal … 200 telephoto; keeping the subject's size unless a size is given), with the subject in the centre or on the left/right third. For the shot's camera (its own, if another shot shares it): how it moves (path: through keyed points; follow: keeps its angle and shot size on the subject every frame as it moves, turning with it if turn; orbit: circles the subject), for follow and orbit the angle (degrees from the subject's front, + from its left) and height (degrees above); for a path, anchor (world: a fixed path; subject: the path rides along with the subject) and aim (subject, point or path); hand-held shake (0–1). Null leaves a setting as it is.`,
     schema: obj({
       time: num('A time inside the shot (s)'),
       camera: opt(str('The camera filming the shot: a camera\'s name, "new" or "still"')),
@@ -330,6 +333,10 @@ export const TOOLS: AgentTool[] = [
       anchor: opt(str('Where the path is', ['world', 'subject'])),
       aim: opt(str('What the camera looks at', ['subject', 'point', 'path'])),
       shake: opt(num('Hand-held shake, 0–1')),
+      moves: opt(str('How the camera moves', ['path', 'follow', 'orbit'])),
+      angle: opt(num('Follow/orbit: degrees around from the subject\'s front, + from its left')),
+      height: opt(num('Follow/orbit: degrees above the subject')),
+      turn: opt(bool('Follow: turn as the subject turns')),
     }),
     run: (store, i) => {
       const a = store.scene.animation;
@@ -343,6 +350,12 @@ export const TOOLS: AgentTool[] = [
         else throw new Error(`No camera called ${i.camera}`);
       }
       if (typeof i.blend === 'number') editShot(store, span.shot.id, { blend: i.blend });
+      if (i.moves) setCameraBody(store, ownCamera(store, span.shot.id)!, i.moves as 'path' | 'follow' | 'orbit');
+      if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean') {
+        const cam = liveCamera(store.scene, store.getState().time);
+        if (!cam?.rig) throw new Error('Angles are for a camera that follows or circles its subject (moves: follow or orbit)');
+        editRig(store, cam.id, { ...(typeof i.angle === 'number' ? { yaw: i.angle } : {}), ...(typeof i.height === 'number' ? { pitch: i.height } : {}), ...(typeof i.turn === 'boolean' ? { turn: i.turn } : {}) });
+      }
       if (i.anchor || i.aim || typeof i.shake === 'number') {
         editCamera(store, ownCamera(store, span.shot.id)!, { ...(i.anchor ? { anchor: i.anchor as Camera['anchor'] } : {}), ...(i.aim ? { aim: i.aim as Camera['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
       }

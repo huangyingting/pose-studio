@@ -739,6 +739,10 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await page.getByRole('list', { name: 'Cameras' }).getByRole('button', { name: /^Camera 1/ }).click();
   await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
+  // Following its subject instead: the shot size is a rule, kept every frame.
+  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Follows' }).click();
+  await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MCU', exact: true }).click();
+  expect((await shot()).rig).toMatchObject({ body: 'follow', size: 'mcu' });
 });
 
 test('a still scene can be animated with auto-keys', async ({ page }) => {
