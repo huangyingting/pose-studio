@@ -4,6 +4,7 @@ import { frameTimes } from '@/lib/animation';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { BODY_PRESETS } from '@/lib/body';
 import { handPosition } from '@/lib/propmotion';
+import { handlesOf } from '@/lib/props';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -54,7 +55,10 @@ export function audit(scene: Scene) {
     }
     for (const p of s.props) {
       if (!p.hold) continue;
-      const w = propWorldAt(scene, p.id, t)!.position;
+      // Where it is held: its handle, if it has one (a stretcher's end), or its middle.
+      const place = propWorldAt(scene, p.id, t)!;
+      const handle = handlesOf(p)[0] ?? [0, 0, 0];
+      const w = new THREE.Vector3(...handle).applyEuler(new THREE.Euler(...place.rotation.map((v) => v * (Math.PI / 180)) as [number, number, number])).add(new THREE.Vector3(...place.position)).toArray();
       const h = handPosition(at(p.hold.figure, t)!, p.hold.hand, s.props);
       handGap = Math.max(handGap, Math.hypot(w[0] - h[0], w[1] - h[1], w[2] - h[2]));
     }

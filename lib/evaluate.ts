@@ -5,7 +5,7 @@ import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
 import { angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones } from './pose';
-import { PropTimeline, animated, placeInWorld, propOn, ribbonTrail } from './propmotion';
+import { PropTimeline, animated, inHand, placeInWorld, propOn, ribbonTrail } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
@@ -30,9 +30,9 @@ const RELEASE = 0.12;
 /** How long a hold asked for takes to take hold and let go (s). */
 const EASE = 0.25;
 /** How long a hand reaches out for a pass before it arrives (s). */
-const CATCH_LEAD = 0.3;
+export const CATCH_LEAD = 0.3;
 /** How long an upper-body action takes to take over and to hand back (s). */
-const UPPER_EASE = 0.25;
+export const UPPER_EASE = 0.25;
 const D2R = Math.PI / 180;
 
 const end = (a: Action) => a.start + a.duration;
@@ -174,7 +174,7 @@ class Evaluator {
       const bone = c.hand === 'L' ? 'leftHand' : 'rightHand';
       const w = smooth(1 - Math.abs(c.t - t) / CATCH_LEAD);
       const wrist = this.rig.model({ ...f, ...free }).joints[bone].getWorldPosition(new THREE.Vector3());
-      out.push({ bone, at: wrist.addScaledVector(new THREE.Vector3(...c.reach), w), weight: 1, relative: true });
+      out.push({ bone, at: wrist.add(new THREE.Vector3(...c.reach)), weight: w, relative: true });
     }
     for (const c of this.a.constraints ?? []) {
       if (c.figure !== f.id || t < c.start - EASE || t > c.end + EASE) continue;
@@ -266,7 +266,7 @@ class Evaluator {
     const p = this.scene.props.find((x) => x.id === id);
     if (!p) return null;
     const tl = this.timeline(id);
-    return tl ? propOn(tl, this.scene, p, t) : p;
+    return inHand(tl ? propOn(tl, this.scene, p, t) : p, this.figureAt, t);
   }
 
   /** Where a prop is in the world at t (in a hand: where `figureAt` has the hand). */

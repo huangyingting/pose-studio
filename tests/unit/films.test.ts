@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, addScene, applyCameraMove, applyMotion, arrange, cutShot, dribbleProp, editShot, holdProp, moveProp, setGaze, setSceneLight,
-  throwProp, travelTo,
+  addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, editShot, holdHandle, holdProp, lieOn, moveProp,
+  setAnimationOptions, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
 } from '@/lib/actions';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { LIGHT_PRESETS } from '@/lib/lighting';
@@ -56,7 +56,7 @@ function expectFilm(store: Store, lightId: string, people: number) {
   for (const span of spans) {
     expect(a.camera!.keys.some((k) => k.t >= span.start - 1e-6 && k.t <= span.end + 1e-6), `${span.shot.name} ${span.start}-${span.end}: ${a.camera!.keys.map((k) => k.t).join(',')}`).toBe(true);
     const text = describeSpan(scene, span);
-    expect(text, span.shot.name).toMatch(new RegExp(`${['One', 'Two', 'Three', 'Four'][people - 1]} mannequin figure`, 'i'));
+    expect(text, span.shot.name).toMatch(new RegExp(`${['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'][people - 1]} mannequin figure`, 'i'));
   }
 }
 
@@ -105,6 +105,61 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].position[1]).toBeCloseTo(0, 2);
   }, 120_000);
 
+  it('a passing drill: two pass on the run, the third steps in to cut a pass off and shoots', () => {
+    const { store, a } = fresh();
+    name(store, a, 'Mia');
+    addFigure(store, [3, 0, 1]);
+    const b = store.getState().activeFigure!;
+    name(store, b, 'Leo');
+    addFigure(store, [1.6, 0, 3.6]);
+    const c = store.getState().activeFigure!;
+    name(store, c, 'Sam');
+    store.updateFigure(c, (f) => ({ ...f, body: body('Heroic') }));
+    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 8, fov: 44 } }));
+    addProp(store, 'sphere', [0.5, 0, 0.5]);
+    const ball = store.scene.props[0].id;
+    moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
+    holdProp(store, ball, { figure: a, hand: 'R' });
+    addProp(store, 'hoop', [1.5, 0, 9]);
+    const hoop = store.scene.props[1];
+
+    // Mia and Leo run up court passing; Sam waits between them, his arm up.
+    store.setTime(0);
+    const run = travelTo(store, a, [0, 3], 'run')!;
+    store.setTime(0);
+    travelTo(store, b, [3, 4.2], 'run');
+    store.setTime(0);
+    setJoint(store, c, 'rightUpperArm', [-165, 0, -15], '');
+    store.setTime(run.to);
+    const p1 = throwProp(store, ball, { figure: b, hand: 'R' })!;
+    store.setTime(p1.to + 0.6);
+    const p2 = throwProp(store, ball, { figure: a, hand: 'R' })!;
+    // Scrubbing through Leo's pass back: where it comes nearest Sam's hand, he takes it out of the air.
+    const sv = new SceneView();
+    let cut = { t: 0, d: Infinity };
+    for (let t = p2.from; t < p2.to; t += 1 / 24) {
+      sv.sync(sceneAt(store.scene, t));
+      const hand = sv.figures.get(c)!.joints.rightHand.getWorldPosition(new THREE.Vector3());
+      const d = hand.distanceTo(new THREE.Vector3(...propWorldAt(store.scene, ball, t)!.position));
+      if (d < cut.d) cut = { t, d };
+    }
+    sv.dispose();
+    store.setTime(cut.t);
+    holdProp(store, ball, { figure: c, hand: 'R' });
+    const shot = throwProp(store, ball, { hoop: hoop.id })!;
+    setGaze(store, c, { prop: ball });
+    light(store, 'noon');
+    shoot(store, [p2.from], ['tracking', 'push'], [a, c]);
+
+    expectFilm(store, 'noon', 3);
+    // Sam has it; Mia never gets it back; it goes through the rim.
+    expect(sceneAt(store.scene, shot.from - 0.1).props[0].hold?.figure).toBe(c);
+    expect(sceneAt(store.scene, p2.to + 0.1).props[0].hold?.figure).toBe(c);
+    const rim = rimOf(hoop);
+    const through = propWorldAt(store.scene, ball, shot.to)!.position;
+    expect(Math.hypot(through[0] - rim[0], through[2] - rim[2])).toBeLessThan(0.05);
+  }, 120_000);
+
   it('running: three runners down their lanes, one over a hurdle, filmed alongside', () => {
     const { store, a } = fresh();
     addFigure(store, [1.2, 0, 0]);
@@ -131,6 +186,110 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     // All three finish at the line.
     const end = sceneAt(store.scene, store.scene.animation!.duration);
     for (const f of end.figures) expect(f.position[2]).toBeCloseTo(10, 1);
+  }, 120_000);
+
+  it('a relay: four runners, the baton handed on three times, each taking it as the last arrives', () => {
+    const { store, a } = fresh();
+    const runners = [a];
+    // Each waits at the end of the leg before, a step to the side; they take it in the other hand.
+    for (let i = 1; i < 4; i++) {
+      addFigure(store, [-0.35 * (i % 2), 0, i * 8]);
+      runners.push(store.getState().activeFigure!);
+    }
+    runners.forEach((id, i) => name(store, id, ['Ana', 'Ben', 'Cleo', 'Dev'][i]));
+    store.updateFigure(runners[2], (f) => ({ ...f, body: body('Athletic') }));
+    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 50 } }));
+    addProp(store, 'stick');
+    const baton = store.scene.props[0].id;
+    holdProp(store, baton, { figure: a, hand: 'R' });
+    store.setTime(0);
+    let leg = travelTo(store, a, [0, 7.6], 'run')!;
+    const handoffs: number[] = [];
+    for (let i = 1; i < 4; i++) {
+      const hand = i % 2 ? 'L' : 'R';
+      // The next one reaches back as the runner comes in, takes the baton, and is off.
+      store.setTime(leg.to - 0.4);
+      setJoint(store, runners[i], hand === 'L' ? 'leftUpperArm' : 'rightUpperArm', [30, 0, hand === 'L' ? 10 : -10], '');
+      store.setTime(leg.to);
+      handoffs.push(leg.to);
+      holdProp(store, baton, { figure: runners[i], hand });
+      store.setTime(leg.to);
+      leg = travelTo(store, runners[i], [-0.35 * (i % 2), i * 8 + 7.9], 'run')!;
+    }
+    light(store, 'dusk');
+    shoot(store, handoffs, ['tracking', 'tracking', 'tracking', 'hero'], runners);
+
+    expectFilm(store, 'dusk', 4);
+    // Each has the baton after taking it, and the last brings it home.
+    handoffs.forEach((t, i) => expect(sceneAt(store.scene, t + 0.2).props[0].hold?.figure).toBe(runners[i + 1]));
+    const end = sceneAt(store.scene, store.scene.animation!.duration);
+    expect(end.props[0].hold?.figure).toBe(runners[3]);
+    expect(end.figures.find((f) => f.id === runners[3])!.position[2]).toBeCloseTo(31.9, 1);
+  }, 120_000);
+
+  it('a stretcher carried off past a group dance: two carry, one lies on it, four dance', () => {
+    const { store, a } = fresh();
+    name(store, a, 'Medic');
+    addFigure(store, [3, 0, -2.75]);
+    const b = store.getState().activeFigure!;
+    name(store, b, 'Aide');
+    store.updateFigure(a, (f) => ({ ...withFacing(f, 0), position: [3, f.position[1], 0] }));
+    addFigure(store, [4.5, 0, -1]);
+    const c = store.getState().activeFigure!;
+    name(store, c, 'Hurt');
+    store.updateFigure(c, (f) => ({ ...f, body: body('Slender') }));
+    addProp(store, 'box', [3, 0, -1]);
+    const stretcher = store.scene.props[0].id;
+    moveProp(store, stretcher, { scale: [2.6, 0.06, 0.55] });
+    // The dancers, off to the side.
+    const dancers: string[] = [];
+    for (const x of [-2, -3, -1, -2]) {
+      addFigure(store, [x, 0, dancers.length]);
+      dancers.push(store.getState().activeFigure!);
+    }
+    store.updateScene((s) => ({ ...s, view: { yaw: 20, pitch: 12, fov: 55 } }));
+    store.setTime(0);
+    expect(applyMotion(store, dancers[0], 'group-dance', dancers.slice(1))).toBe(true);
+    store.setTime(2);
+    expect(applyMotion(store, dancers[0], 'group-dance', dancers.slice(1))).toBe(true);
+    setAnimationOptions(store, { loop: false });
+
+    // The medic takes the stretcher's front handle, the aide the back; the hurt one lies on it, and off they go.
+    store.setTime(0);
+    holdProp(store, stretcher, { figure: a, hand: 'R' });
+    store.setTime(0);
+    setJoint(store, c, 'hips', [-90, 180, 0], '');
+    setGrounded(store, c, false);
+    store.setTime(0);
+    const walk = travelTo(store, a, [3, 3], 'walk')!;
+    store.setTime(0);
+    travelTo(store, b, [3, 0.25], 'walk');
+    for (const id of [a, b]) {
+      store.setTime(0);
+      expect(applyUpperBody(store, id, 'carry')).toBe(true);
+    }
+    store.setTime(0);
+    expect(holdHandle(store, b, stretcher, 'R')).not.toBeNull();
+    store.setTime(0);
+    expect(lieOn(store, c, stretcher)).not.toBeNull();
+    store.select({ kind: 'figure', figure: a });
+    light(store, 'studio');
+    shoot(store, [1.2], ['static', 'tracking'], [undefined, a]);
+
+    expectFilm(store, 'studio', 7);
+    // Carried level all the way, the aide's hand on the back handle and the hurt one on top.
+    const sv = new SceneView();
+    for (const t of [0.5, 1.5, walk.to - 0.2]) {
+      const s = sceneAt(store.scene, t);
+      sv.sync(s);
+      const place = propWorldAt(store.scene, stretcher, t)!;
+      expect(place.rotation[0]).toBeCloseTo(0, 0);
+      expect(place.rotation[2]).toBeCloseTo(0, 0);
+      const back = new THREE.Vector3(-1.3, 0.03, 0).applyEuler(new THREE.Euler(0, place.rotation[1] * (Math.PI / 180), 0)).add(new THREE.Vector3(...place.position));
+      expect(sv.figures.get(b)!.joints.rightHand.getWorldPosition(new THREE.Vector3()).distanceTo(back), String(t)).toBeLessThan(0.2);
+      expect(sv.figures.get(c)!.joints.hips.getWorldPosition(new THREE.Vector3()).y).toBeGreaterThan(place.position[1]);
+    }
+    sv.dispose();
   }, 120_000);
 
   it('high jump: the flop over the bar onto the mat, a coach watching from the side', () => {

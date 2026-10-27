@@ -4,7 +4,8 @@ import { clipById } from './assets';
 import { grip } from './hold';
 import { Ink } from './ink';
 import { FLOOR_BOUNCE, GRAVITY, aim, aimBounce, flightAt, fly, type Body, type Flight, type Solid } from './physics';
-import { PropObject, RIBBON, RIM } from './props';
+import { facingOf } from './pose';
+import { PropObject, RIBBON, RIM, handlesOf, localBounds } from './props';
 import { Rig, capsules } from './relations';
 import { groundOf } from './surfaces';
 import type { Action, Animation, Figure, Prop, PropKey, Scene, Side, Vec3 } from './types';
@@ -137,26 +138,11 @@ function bodyOf(p: Prop): { body: Body; centre: THREE.Vector3 } {
     const r = p.scale[0] / 2;
     return { body: { shape: 'ball', size: [r, r, r], bounce, friction }, centre: new THREE.Vector3(0, r, 0) };
   }
-  const box = localBox(p.kind).clone();
+  const box = localBounds(p.kind).clone();
   box.min.multiply(new THREE.Vector3(...p.scale));
   box.max.multiply(new THREE.Vector3(...p.scale));
   const half = box.getSize(new THREE.Vector3()).multiplyScalar(0.5).max(new THREE.Vector3(0.01, 0.01, 0.01));
   return { body: { shape: 'box', size: [half.x, half.y, half.z], bounce, friction }, centre: box.getCenter(new THREE.Vector3()) };
-}
-
-const boxes = new Map<string, THREE.Box3>();
-/** A kind's extent in its own frame (at scale 1). */
-function localBox(kind: Prop['kind']) {
-  let b = boxes.get(kind);
-  if (!b) {
-    const o = new PropObject(ink ??= new Ink(), kind, 'box');
-    o.apply({ id: 'box', name: '', kind, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
-    b = new THREE.Box3();
-    for (const m of o.solids) b.expandByObject(m);
-    o.dispose();
-    boxes.set(kind, b);
-  }
-  return b;
 }
 
 let ink: Ink | null = null;
@@ -268,7 +254,21 @@ export class PropTimeline {
       const now = this.stretches[this.stretches.length - 1];
       if (next.kind === 'key') {
         const k = next.key;
-        if (k.hold) this.stretches.push({ t: k.t, kind: 'held', figure: k.hold.figure, hand: k.hold.hand, local: { position: k.position, rotation: k.rotation } });
+        if (k.hold) {
+          // Taken from someone else's hand (a handoff), or out of the air (an intercept): only if
+          // the hand can reach it then; it reaches out for it.
+          const other = (now.kind === 'held' && (now.figure !== k.hold.figure || now.hand !== k.hold.hand)) || now.kind === 'free';
+          if (other && k.t > 1e-6) {
+            const at = this.placeAt(k.t, now, this.freeAt);
+            const palm = this.palmAt(k.hold.figure, k.hold.hand, k.t);
+            if (!at || !palm || palm.distanceTo(at.centre) > CATCH_REACH) {
+              this.misses.push({ t: k.t, figure: k.hold.figure });
+              continue;
+            }
+            this.catches.push({ t: k.t, figure: k.hold.figure, hand: k.hold.hand, reach: at.centre.clone().sub(palm).toArray() as Vec3 });
+          }
+          this.stretches.push({ t: k.t, kind: 'held', figure: k.hold.figure, hand: k.hold.hand, local: { position: k.position, rotation: k.rotation } });
+        }
         else if (k.release) this.stretches.push({ t: k.t, kind: 'free', flight: this.flight(shape, k.t, [0, 0, 0], end) });
         else if (k.t > 1e-6 || !first) this.stretches.push({ t: k.t, kind: 'rest', position: k.position, rotation: k.rotation, glide: now.kind === 'rest' });
         continue;
@@ -290,11 +290,13 @@ export class PropTimeline {
       }
       // A grab, or a catch: the hand takes hold of it if it is free and within reach.
       if (now.kind === 'held' && now.figure === next.figure && now.hand === next.hand) continue;
+      // A pass someone else has taken out of the air (intercepted) is not caught.
+      if (next.kind === 'catch' && now.kind !== 'free') continue;
       const at = this.placeAt(next.t, now, this.freeAt);
       const palm = this.palmAt(next.figure, next.hand, next.t);
       const catcher = this.scene.figures.find((f) => f.id === next.figure);
       if (!at || !palm || !catcher) continue;
-      const g = grip(prop.kind, next.hand, catcher.body.height);
+      const g = grip(prop, next.hand, catcher.body.height);
       if (now.kind === 'free' && palm.distanceTo(at.centre) > CATCH_REACH) {
         this.misses.push({ t: next.t, figure: next.figure });
         continue;
@@ -361,7 +363,7 @@ export class PropTimeline {
     const w = wristAt(this.freeAt, figure, hand, t);
     const f = this.scene.figures.find((x) => x.id === figure);
     if (!w || !f) return null;
-    const g = grip(this.prop.kind, hand, f.body.height);
+    const g = grip(this.prop, hand, f.body.height);
     const centre = bodyOf(this.prop).centre;
     return centre.applyMatrix4(compose(g.position, g.rotation)).applyMatrix4(w);
   }
@@ -381,9 +383,9 @@ export class PropTimeline {
     const shape = bodyOf(this.prop);
     let matrix: THREE.Matrix4;
     if (s.kind === 'held') {
-      const w = wristAt(figureAt, s.figure, s.hand, t);
-      if (!w) return null;
-      matrix = w.multiply(compose(s.local.position, s.local.rotation));
+      const m = heldMatrix(this.prop, figureAt, s, s.local, t);
+      if (!m) return null;
+      matrix = m;
     } else if (s.kind === 'free') {
       const f = flightAt(s.flight, t);
       // A ball rolls as it likes; it is drawn upright (its place right under its centre).
@@ -418,8 +420,31 @@ export function propOn(tl: PropTimeline, scene: Scene, p: Prop, t: number): Prop
 /** Where a prop is in the world (in a hand: where the hand has it). */
 export function placeInWorld(p: Prop, figureAt: FigureAt, t: number): { position: Vec3; rotation: Vec3 } | null {
   if (!p.hold) return { position: p.position, rotation: p.rotation };
+  const m = heldMatrix(p, figureAt, p.hold, p, t);
+  return m ? decompose(m) : null;
+}
+
+/**
+ * Where a prop in a hand is in the world: as the hand has it or, carried by a handle (a stretcher,
+ * a bench), level from the hand along the way the carrier faces.
+ */
+function heldMatrix(p: Prop, figureAt: FigureAt, hold: { figure: string; hand: Side }, local: { position: Vec3; rotation: Vec3 }, t: number): THREE.Matrix4 | null {
+  const w = wristAt(figureAt, hold.figure, hold.hand, t);
+  if (!w) return null;
+  const m = w.multiply(compose(local.position, local.rotation));
+  const handles = handlesOf(p);
+  if (handles.length < 2) return m;
+  const handle = new THREE.Vector3(...handles[0]);
+  const turn = new THREE.Matrix4().makeRotationY((facingOf(figureAt(hold.figure, t)!.bones) - 90) * D2R);
+  return new THREE.Matrix4().makeTranslation(handle.clone().applyMatrix4(m)).multiply(turn).multiply(new THREE.Matrix4().makeTranslation(handle.negate()));
+}
+
+/** A prop in a hand, placed in it as it is in the world (a carried one kept level). */
+export function inHand(p: Prop, figureAt: FigureAt, t: number): Prop {
+  if (!p.hold || handlesOf(p).length < 2) return p;
+  const m = heldMatrix(p, figureAt, p.hold, p, t);
   const w = wristAt(figureAt, p.hold.figure, p.hold.hand, t);
-  return w ? decompose(w.multiply(compose(p.position, p.rotation))) : null;
+  return m && w ? { ...p, ...decompose(w.invert().multiply(m)) } : p;
 }
 
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };

@@ -181,7 +181,10 @@ export function addUpper(scene: Scene, figure: string, clipId: string, start: nu
   if (!clip || !scene.animation) return null;
   const a = scene.animation;
   const t0 = snapTime(a, start);
-  const act: Action = { id: uid('act'), start: t0, duration: Math.min(60 - t0, clip.duration), layer: 'upper', roles: [{ figure }], source: { kind: 'clip', clip: clipId } };
+  // A motion that loops goes on as long as what the figure does under it (a lap at least).
+  const under = clip.loop ? actionsOf(a, figure).filter((x) => x.start <= t0 + 1e-6 && end(x) > t0).at(-1) : undefined;
+  const length = Math.max(clip.duration, under ? end(under) - t0 : 0);
+  const act: Action = { id: uid('act'), start: t0, duration: Math.min(60 - t0, length), layer: 'upper', roles: [{ figure }], source: { kind: 'clip', clip: clipId } };
   return longer(sorted({ ...a, actions: [...a.actions, act] }), t0 + act.duration);
 }
 

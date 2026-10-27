@@ -418,7 +418,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. One person: ${MOTIONS.filter((m) => m.people === 1 && !m.setUp).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. Two people (the figure leads, the partner takes its place opposite, walking there if there is time): ${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
+    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. One person: ${MOTIONS.filter((m) => m.people === 1 && !m.setUp).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. Several people (the figure leads, the others take their places around it, walking there if there is time: the partner given, or the nearest figures): ${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
     schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion'), partner: opt(str('For a two-person motion: the other figure (id or name); default the nearest')) }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);

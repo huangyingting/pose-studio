@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HAND_PRESETS } from './hands';
 import { Rig } from './relations';
+import { handlesOf } from './props';
 import type { Figure, Prop, PropKind, Scene, Side, Vec3 } from './types';
 
 /*
@@ -14,12 +15,23 @@ const D2R = Math.PI / 180;
 /** Kinds that make sense in a hand (the handheld ones, a ball, a small box). */
 export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'sphere', 'box'];
 
-/** Where a kind sits in the hand of a figure `height` tall. */
-export function grip(kind: PropKind, hand: Side, height: number): Pick<Prop, 'position' | 'rotation'> & { scale?: Vec3 } {
+/**
+ * Where a prop sits in the hand of a figure `height` tall: by its first handle (in the fist, its
+ * length along the way the figure faces, behind the hand), or as its kind is held.
+ */
+export function grip(prop: Pick<Prop, 'kind' | 'scale' | 'handles'>, hand: Side, height: number): Pick<Prop, 'position' | 'rotation'> & { scale?: Vec3 } {
   const s = hand === 'L' ? 1 : -1;
   const k = height / 1.8;
   const at = (x: number, y: number, z: number): Vec3 => [round(-s * x * k), round(y * k), round(z * k)];
-  switch (kind) {
+  const handle = handlesOf(prop)[0];
+  if (handle) {
+    // Turned a quarter about the arm, so the prop's x runs along the hand's z (forward, the arm hanging).
+    const fist = new THREE.Vector3(...at(0.02, -0.085, 0));
+    const turn = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0));
+    const p = fist.sub(new THREE.Vector3(...handle).applyQuaternion(turn));
+    return { position: [round(p.x), round(p.y), round(p.z)], rotation: [0, -90, 0] };
+  }
+  switch (prop.kind) {
     case 'stick': // through the fist, pointing forward
       return { position: at(0.02, -0.085, -0.12), rotation: [90, 0, 0] };
     case 'ribbon': // the stick held at its end, pointing on from the hand
@@ -43,7 +55,7 @@ const round = (v: number) => Math.round(v * 1000) / 1000;
 
 /** The prop put in `figure`'s hand, which closes into a grip. */
 export function held(prop: Prop, figure: Figure, hand: Side): { prop: Prop; figure: Figure } {
-  const g = grip(prop.kind, hand, figure.body.height);
+  const g = grip(prop, hand, figure.body.height);
   const grab = HAND_PRESETS.find((p) => p.name === 'Grip')!.hand;
   return {
     prop: { ...prop, position: g.position, rotation: g.rotation, scale: g.scale ?? prop.scale, hold: { figure: figure.id, hand } },

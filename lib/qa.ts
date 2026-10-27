@@ -256,8 +256,10 @@ export function checkMotion(scene: Scene): Issue[] {
       const m = rig.model(f);
       // Foot slide: a planted foot (at its floor level and slow) should not drift, and a figure
       // should not glide along with both feet on the floor (in a step only one foot moves).
-      // Stand-ins glide from place to place by design: no foot slide or joint limits for them.
-      const feet = (f.proxy ? [] : (['leftFoot', 'rightFoot'] as const)).map((k) => {
+      // Stand-ins glide from place to place by design: no foot slide or joint limits for them; nor
+      // does someone carried (lying on a stretcher) have feet on the floor.
+      const carried = a.constraints?.some((c) => c.figure === f.id && c.bone === 'hips' && 'prop' in c.target && c.start <= times[i] && times[i] <= c.end);
+      const feet = (f.proxy || carried ? [] : (['leftFoot', 'rightFoot'] as const)).map((k) => {
         const p = m.joints[k].getWorldPosition(new THREE.Vector3());
         const prev = prevAnkle.get(f.id + k);
         const floor = minAnkle.get(f.id + k)!;

@@ -31,6 +31,15 @@ type Piece = [THREE.BufferGeometry, Vec3];
 /** A gymnastics ribbon: the stick (its tip this far along it), the ribbon's length and its cross-section, in segments. */
 export const RIBBON = { stick: 0.6, length: 4, width: 0.05, thickness: 0.004, segments: 20 };
 
+/**
+ * Where hands take hold of a prop, in its own frame at its size: its own handles, or a long box's
+ * two ends (a stretcher, a bench, a table carried by two). None: it is held as its kind is.
+ */
+export function handlesOf(p: Pick<Prop, 'kind' | 'scale' | 'handles'>): Vec3[] {
+  const own = p.handles ?? (p.kind === 'box' && p.scale[0] >= 1.2 ? [[0.5, 0.5, 0], [-0.5, 0.5, 0]] as Vec3[] : []);
+  return own.map((h) => [h[0] * p.scale[0], h[1] * p.scale[1], h[2] * p.scale[2]]);
+}
+
 /** A basketball hoop's rim, in the prop's own frame: its centre and radius. */
 export const RIM = { at: [0, 3.05, 0.87] as Vec3, radius: 0.23 };
 
@@ -255,4 +264,21 @@ export class PropObject {
     this.parts.dispose();
     this.object.clear();
   }
+}
+
+const bounds = new Map<string, THREE.Box3>();
+let boundsInk: Ink | null = null;
+
+/** A kind's extent in its own frame (at scale 1). */
+export function localBounds(kind: Prop['kind']) {
+  let b = bounds.get(kind);
+  if (!b) {
+    const o = new PropObject(boundsInk ??= new Ink(), kind, 'bounds');
+    o.apply({ id: 'bounds', name: '', kind, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    b = new THREE.Box3();
+    for (const m of o.solids) b.expandByObject(m);
+    o.dispose();
+    bounds.set(kind, b);
+  }
+  return b;
 }

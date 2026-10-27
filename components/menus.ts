@@ -1,11 +1,12 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, ArrowUpFromDot, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  dribbleProp, duplicateProp, holdProp, propNow, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
+  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
+import { handlesOf } from '@/lib/props';
 import { describeSpan } from '@/lib/prompt';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
@@ -96,11 +97,23 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
         onSelect: () => holdProp(store, id, { figure: figure.id, hand }),
       }))
     : [];
+  // Someone else takes it from the hand holding it (a handoff), or out of the air (it must be within reach).
+  const active = store.figure;
+  const takes: MenuItem[] = HOLDABLE.includes(p.kind) && active && p.hold && active.id !== p.hold.figure
+    ? [{ label: `${active.name} takes it (right hand)`, icon: Hand, onSelect: () => holdProp(store, id, { figure: active.id, hand: 'R' }) }]
+    : [];
+  // A long prop carried by two (the other one holds its other end), lain on.
+  const others = store.scene.figures.filter((x) => x.id !== p.hold?.figure && !x.proxy);
+  const carried: MenuItem[] = [
+    ...(p.hold && handlesOf(p).length > 1 ? others.map((x): MenuItem => ({ label: `${x.name} takes the other end`, icon: Hand, onSelect: () => holdHandle(store, x.id, id, 'R') })) : []),
+    ...(p.kind === 'box' || p.kind === 'mat' ? others.map((x): MenuItem => ({ label: `${x.name} lies on it`, icon: BedSingle, onSelect: () => lieOn(store, x.id, id) })) : []),
+  ];
   return [
     { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
     { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateProp(store, id) },
     ...(hands.length || p.hold ? ['-' as const] : []),
     ...hands,
+    ...takes,
     ...(p.hold ? [{ label: store.scene.animation ? 'Let go (it falls)' : 'Let go', icon: ArrowDownToLine, onSelect: () => holdProp(store, id, null) }] : []),
     // Thrown to someone else, caught in a hand; tossed up and caught; a ball dribbled or shot.
     ...(p.hold ? store.scene.figures.filter((x) => x.id !== p.hold!.figure).flatMap((x) => (['R', 'L'] as const).map((hand): MenuItem => ({
@@ -114,6 +127,7 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
         { label: `Shoot at ${x.name}, off the rim`, icon: Goal, onSelect: () => throwProp(store, id, { hoop: x.id, miss: true }) },
       ]),
     ] : []),
+    ...(carried.length ? ['-' as const, ...carried] : []),
     '-',
     { label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },
   ];

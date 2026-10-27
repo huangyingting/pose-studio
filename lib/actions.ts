@@ -8,8 +8,9 @@ import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard 
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { keysClip, partKeys } from './clip';
-import { actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt } from './evaluate';
+import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt } from './evaluate';
 import { putPropKey, setPropKey } from './propmotion';
+import { handlesOf, localBounds } from './props';
 import { addTravel, addUpper, insertClip, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, ripple, setPoseAt, setTravelMode, travelInto } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { MOTIONS } from './motions';
@@ -323,7 +324,10 @@ function handle(store: Store, id: string, motion: string, target: PropTarget, t:
   if (!prop || !hold || !clip) return null;
   const a = store.scene.animation!;
   const release = clip.events.find((e) => e.kind === 'release')?.t ?? 0;
-  const start = Math.max(0, snapTime({ ...a, duration: 60 }, t - release));
+  // After it is caught or picked up (a shot right after a catch): the arms ease into the motion
+  // once the hand is back with it, not while it reaches for it.
+  const got = propStretchesOf(store.scene, id).filter((x) => x.kind === 'held' && x.t0 <= t + 1e-6).at(-1);
+  const start = Math.max(0, got && got.t0 > 0 ? got.t0 + CATCH_LEAD + UPPER_EASE : 0, snapTime({ ...a, duration: 60 }, t - release));
   const act: Action = {
     id: uid('act'), start, duration: Math.min(60 - start, clip.duration * laps), layer: 'upper', roles: [{ figure: hold.figure }],
     source: { kind: 'clip', clip: clip.id, ...(hold.hand === 'L' ? { mirror: true } : {}) }, prop: id, target,
@@ -350,14 +354,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   if (!holder) return null;
   const toss = 'figure' in target && target.figure === holder.figure;
   const motion = 'hoop' in target ? 'shoot' : toss ? 'toss' : 'pass';
-  let t = store.getState().time;
-  // After it is caught or picked up (a shot right after a catch), so it is in the hand to go.
-  const a = store.scene.animation;
-  if (a) {
-    const got = propStretchesOf(store.scene, id).filter((x) => x.kind === 'held' && x.t0 <= t + 1e-6).at(-1);
-    if (got && got.t0 > 0) t = Math.max(t, got.t0 + 16 / a.fps);
-  }
-  const done = handle(store, id, motion, toss ? { ...target, rise: 2 } : target, t);
+  const done = handle(store, id, motion, toss ? { ...target, rise: 2 } : target, store.getState().time);
   if (!done) return null;
   const to = arrivalAt(store.scene, id, done.release) ?? done.release;
   // Not caught: the animation runs on until it is down and still (a few seconds at most).
@@ -550,14 +547,40 @@ export function holdOn(store: Store, a: string, side: Side, b: string, contact: 
   try {
     const spot = contactSpot(rig.model(fb), fb, contact);
     const reached = reach(rig, fa, side, rig.model(fb).joints[spot.bone].localToWorld(new THREE.Vector3(...spot.at))).reached;
-    const doing = actionsOf(anim, a).find((x) => x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
-    const end = doing ? doing.start + doing.duration : anim.duration;
-    const hold: Constraint = { id: uid('hold'), figure: a, bone: sided('Hand', side) as Constraint['bone'], target: { figure: b, ...spot }, start: t, end: end > t ? end : anim.duration };
-    store.updateScene((sc) => (sc.animation ? { ...sc, animation: { ...sc.animation, constraints: [...(sc.animation.constraints ?? []), hold] } } : sc));
+    addHold(store, a, sided('Hand', side) as Constraint['bone'], { figure: b, ...spot });
     return reached;
   } finally {
     rig.dispose();
   }
+}
+
+/** A hold from the playhead to the end of what the figure is doing then (or of the animation). */
+function addHold(store: Store, figure: string, bone: Constraint['bone'], target: Constraint['target']) {
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  const anim = store.scene.animation!;
+  const t = snapTime(anim, store.getState().time);
+  const doing = actionsOf(anim, figure).find((x) => x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
+  const end = doing ? doing.start + doing.duration : anim.duration;
+  const hold: Constraint = { id: uid('hold'), figure, bone, target, start: t, end: end > t ? end : anim.duration };
+  store.updateScene((sc) => (sc.animation ? { ...sc, animation: { ...sc.animation, constraints: [...(sc.animation.constraints ?? []), hold] } } : sc));
+  return hold;
+}
+
+/** Take the other end of a prop someone carries: a hand held on its last handle (two people carrying a stretcher). */
+export function holdHandle(store: Store, figure: string, prop: string, hand: Side) {
+  const p = store.scene.props.find((x) => x.id === prop);
+  const handles = p ? handlesOf(p) : [];
+  if (!handles.length) return null;
+  return addHold(store, figure, sided('Hand', hand) as Constraint['bone'], { prop, at: handles[handles.length - 1] });
+}
+
+/** Lie on top of a prop (a stretcher, a bench, a mat): the hips held on its top, wherever it goes. */
+export function lieOn(store: Store, figure: string, prop: string) {
+  const p = store.scene.props.find((x) => x.id === prop);
+  if (!p) return null;
+  const b = localBounds(p.kind);
+  const top: Vec3 = [((b.min.x + b.max.x) / 2) * p.scale[0], b.max.y * p.scale[1] + 0.1, ((b.min.z + b.max.z) / 2) * p.scale[2]];
+  return addHold(store, figure, 'hips', { prop, at: top });
 }
 
 /** Let go of a hold at the playhead (one that has not started by then goes). */

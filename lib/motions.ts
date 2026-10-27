@@ -23,7 +23,7 @@ import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName,
  */
 
 /** Groups of the motion library (several-people motions are listed on their own). */
-export const MOTION_GROUPS = ['Getting around', 'Fighting', 'Sport & gymnastics', 'Dance', 'Everyday', 'Two people'] as const;
+export const MOTION_GROUPS = ['Getting around', 'Fighting', 'Sport & gymnastics', 'Dance', 'Everyday', 'Together'] as const;
 
 export interface Motion {
   id: string;
@@ -307,9 +307,34 @@ export const MOTIONS: Motion[] = [
     },
   },
   {
+    id: 'group-dance',
+    name: 'Group dance',
+    group: 'Together',
+    people: 4,
+    build: () => {
+      // Four in a diamond facing the front, in the groove: the lead and the one behind in step,
+      // the two at the sides mirrored.
+      const spots: [number, number][] = [[0, 0], [-1.1, -0.9], [1.1, -0.9], [0, -1.8]];
+      const names = ['Lead', 'Left', 'Right', 'Back'];
+      const stance: Joints = { leftUpperLeg: [0, 0, 6], rightUpperLeg: [0, 0, -6] };
+      const keys: Key[] = [];
+      const dancers = spots.map(([x, z], i) => ({ ...person(names[i], { ...DEFAULT_BODY }, STAND, 0, [x, 0, z]), hands: { L: hand('Open'), R: hand('Open') } }));
+      const beat = (f: Figure, n: number) => {
+        const up = posed(f, {
+          ...stance, hips: [0, 0, 6], leftUpperLeg: [0, 0, 0], rightUpperLeg: [0, 0, -12], spine: [0, 12, -8], chest: [0, 10, -5], head: [0, -10, 8],
+          rightUpperArm: [-20, 0, -150], rightLowerArm: [-24, 0, 0], leftUpperArm: [10, -20, 38], leftLowerArm: [-95, 0, 0],
+        });
+        const dip = sink(posed(f, { ...stance, spine: [8, 0, 0], head: [6, 0, 0], leftUpperArm: [-62, 0, 48], rightUpperArm: [-62, 0, -48], leftLowerArm: [-75, 0, 0], rightLowerArm: [-75, 0, 0] }), 30);
+        return [up, dip, mirrored(up), mirrored(dip)][((n % 4) + 4) % 4];
+      };
+      for (let k = 0; k < 4; k++) keys.push({ t: k * 0.5, figures: dancers.map((f, i) => beat(f, k + (i === 1 || i === 2 ? 2 : 0))) });
+      return animated('Group dance', keys, { duration: 2, loop: true, view: { yaw: 15, pitch: 10, fov: 34 }, camera: 'orbit360' });
+    },
+  },
+  {
     id: 'waltz-turn',
     name: 'Waltz turn',
-    group: 'Two people',
+    group: 'Together',
     people: 2,
     build: () => withRig((rig) => {
       const hold = buildTemplate('waltz')!;
@@ -329,7 +354,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'boxing',
     name: 'Boxing exchange',
-    group: 'Two people',
+    group: 'Together',
     people: 2,
     build: () => withRig((rig) => {
       const [a0, b0] = buildTemplate('sparring')!.figures;
@@ -363,7 +388,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'takedown',
     name: 'Clinch & takedown',
-    group: 'Two people',
+    group: 'Together',
     people: 2,
     build: () => withRig((rig) => {
       // Built facing each other along Z (B at the origin facing +Z, A in front facing back), then
@@ -766,6 +791,18 @@ export const MOTIONS: Motion[] = [
       return animated('Wave hello', [
         { t: 0, figures: [wave(28, 6)] }, { t: 0.3, figures: [wave(-22, 3)] }, { t: 0.6, figures: [wave(28, 6)] }, { t: 0.9, figures: [wave(-22, 3)] },
       ], { duration: 1.2, loop: true, view: { yaw: 0, pitch: 4, fov: 24 }, camera: 'push' });
+    },
+  },
+  {
+    // Arms steady at the sides, hands closed on what they carry (a bag, a stretcher's handles): over a walk, they do not swing.
+    id: 'carry',
+    name: 'Carry',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = { ...person('Sam', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } };
+      const carry = posed(f, { ...STAND, leftUpperArm: [-10, 0, 8], rightUpperArm: [-10, 0, -8], leftLowerArm: [-25, 0, 0], rightLowerArm: [-25, 0, 0] });
+      return animated('Carry', [{ t: 0, figures: [carry] }, { t: 1, figures: [carry] }], { duration: 1, loop: true, view: { yaw: 40, pitch: 4, fov: 24 }, camera: 'static' });
     },
   },
   {

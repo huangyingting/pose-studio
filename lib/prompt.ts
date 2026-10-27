@@ -27,7 +27,7 @@ function lens(fov: number) {
   return 'normal lens';
 }
 
-const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six'];
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 
 function cast(scene: Scene) {
   const visible = scene.figures.filter((f) => !f.hidden);
