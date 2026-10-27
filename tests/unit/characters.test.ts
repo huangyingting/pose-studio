@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { addFigure, applyMotion, setFigureModel } from '@/lib/actions';
 import { BUILT_IN_CHARACTERS, characterFile } from '@/lib/characters';
 import { parseScene } from '@/lib/doc';
-import { characterProportions, mapBones, missingBones, modelInfo, parseModel } from '@/lib/model';
+import * as THREE from 'three';
+import { mapBones, missingBones, modelInfo, parseModel } from '@/lib/model';
 import { checkMotion } from '@/lib/qa';
 import { fresh } from '../fixtures/scenes';
 
@@ -37,8 +38,9 @@ describe('built-in characters', () => {
       const map = mapBones(root);
       expect(missingBones(map), c.name).toEqual([]);
       expect(map, c.name).toEqual(c.bones);
-      const p = characterProportions(root, map)!;
-      for (const k of ['legs', 'head', 'shoulders'] as const) expect(p[k], `${c.name} ${k}`).toBeCloseTo(c.proportions![k], 3);
+      // Its height as listed (the figure drawn as it takes it).
+      const box = new THREE.Box3().setFromObject(root);
+      expect(box.max.y - box.min.y, c.name).toBeCloseTo(c.body!.height, 1);
     }
   }, 60_000);
 
@@ -54,6 +56,9 @@ describe('built-in characters', () => {
     expect(fa.model).toBe(man.id);
     expect(fa.body).not.toEqual(fb.body);
     expect(parseScene(JSON.parse(JSON.stringify(store.scene))).figures.map((f) => f.model)).toEqual([man.id, woman.id]);
+    // Each with its own body under it: a man's, a woman's; a child's is a child's height.
+    expect(fa.body).toEqual(man.body);
+    expect(BUILT_IN_CHARACTERS.find((c) => c.name === 'Child')!.body!.height).toBeLessThan(1.4);
     store.setTime(0);
     expect(applyMotion(store, a, 'waltz-turn', [b])).toBe(true);
     expect(checkMotion(store.scene).filter((i) => i.kind !== 'camera' && i.kind !== 'hidden').map((i) => i.message)).toEqual([]);

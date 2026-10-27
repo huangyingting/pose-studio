@@ -20,15 +20,38 @@ const side = (s: 'l' | 'r', L: 'left' | 'right') => ({
   })),
   [`${L}ThumbMetacarpal`]: `thumb_01_${s}`, [`${L}ThumbProximal`]: `thumb_02_${s}`, [`${L}ThumbDistal`]: `thumb_03_${s}`,
 });
+// MakeHuman's (Mixamo names, as MPFB rigs them).
+const mixamoSide = (S: 'Left' | 'Right', L: 'left' | 'right') => ({
+  [`${L}Shoulder`]: `mixamorig${S}Shoulder`, [`${L}UpperArm`]: `mixamorig${S}Arm`, [`${L}LowerArm`]: `mixamorig${S}ForeArm`, [`${L}Hand`]: `mixamorig${S}Hand`,
+  [`${L}UpperLeg`]: `mixamorig${S}UpLeg`, [`${L}LowerLeg`]: `mixamorig${S}Leg`, [`${L}Foot`]: `mixamorig${S}Foot`, [`${L}Toes`]: `mixamorig${S}ToeBase`,
+  ...Object.fromEntries((['Index', 'Middle', 'Ring', 'Little', 'Thumb'] as const).flatMap((f) => {
+    const n = f === 'Little' ? 'Pinky' : f;
+    const joints = f === 'Thumb' ? ['Metacarpal', 'Proximal', 'Distal'] : ['Proximal', 'Intermediate', 'Distal'];
+    return joints.map((j, k) => [`${L}${f}${j}`, `mixamorig${S}Hand${n}${k + 1}`]);
+  })),
+});
+const MIXAMO: ModelInfo['bones'] = {
+  hips: 'mixamorigHips', spine: 'mixamorigSpine', chest: 'mixamorigSpine1', upperChest: 'mixamorigSpine2', neck: 'mixamorigNeck', head: 'mixamorigHead',
+  ...mixamoSide('Left', 'left'), ...mixamoSide('Right', 'right'),
+};
+
 const BONES: ModelInfo['bones'] = {
   hips: 'pelvis', spine: 'spine_01', chest: 'spine_02', upperChest: 'spine_03', neck: 'neck_01', head: 'Head',
   ...side('l', 'left'), ...side('r', 'right'),
 };
 
-/** The built-in characters (Quaternius, Universal Base Characters: a man and a woman). */
+/**
+ * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
+ * heavier man and an older woman (MakeHuman, shaped with MPFB). Each with the body the mannequin
+ * under it takes (its height, build, head and legs, measured from the character), which contacts
+ * and the motion check use.
+ */
 export const BUILT_IN_CHARACTERS: ModelInfo[] = [
-  { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, proportions: { legs: 0.5077, head: 0.1279, shoulders: 0.1787 } },
-  { id: `${PREFIX}man`, name: 'Man', format: 'glb', bones: BONES, proportions: { legs: 0.5005, head: 0.122, shoulders: 0.246 } },
+  { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, body: { sex: 1, height: 1.77, build: 0.25, head: 1.05, legs: 0.95, bust: 0.4 } },
+  { id: `${PREFIX}man`, name: 'Man', format: 'glb', bones: BONES, body: { sex: 0, height: 1.82, build: 0.65, head: 0.96, legs: 0.9, bust: 0 } },
+  { id: `${PREFIX}child`, name: 'Child', format: 'glb', bones: MIXAMO, body: { sex: 0.5, height: 1.31, build: 0.3, head: 1.19, legs: 1, bust: 0 } },
+  { id: `${PREFIX}heavy-man`, name: 'Heavier man', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.73, build: 0.8, head: 1.05, legs: 1.05, bust: 0 } },
+  { id: `${PREFIX}older-woman`, name: 'Older woman', format: 'glb', bones: MIXAMO, body: { sex: 1, height: 1.52, build: 0.5, head: 1.05, legs: 1, bust: 0.5 } },
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);

@@ -471,6 +471,8 @@ export interface ModelInfo {
   bones: Partial<Record<Bone, string>>;
   /** Its build as shares of its height (to fit the mannequin under it, which contacts and checks use). */
   proportions?: Proportions;
+  /** The body under it, if known (the built-in characters): a figure drawn as it takes it, its height and build. */
+  body?: BodyParams;
 }
 
 /** A body's build as shares of its height: hips above the feet, the head above its joint, the shoulders' width. */

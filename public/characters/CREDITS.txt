@@ -13,3 +13,15 @@ man.glb, woman.glb
   Changes: the Superhero_Male_FullBody and Superhero_Female_FullBody glTF models packed into
   binary glTF (GLB) without their textures (the app draws characters in its own styles), to
   keep the files small. The meshes and skeletons are as they came.
+
+child.glb, heavy-man.glb, older-woman.glb
+
+  Made with MakeHuman's base mesh, targets and Mixamo-named rig, through MPFB 2.0-b1 (the
+  MakeHuman plugin for Blender), each shaped by MakeHuman's macro settings (a child of about
+  eleven; a heavier man; an older woman), its targets baked, exported as GLB without textures.
+  https://github.com/makehumancommunity/mpfb2 (assets: LICENSE.ASSETS.md)
+  https://github.com/makehumancommunity/makehuman/blob/master/LICENSE.md
+
+  License: the MakeHuman / MPFB assets (base mesh, targets, rigs) are CC0 1.0 Universal, and so
+  is what is made from them. (MPFB's program code is GPLv3; none of it ships with the app.)
+
