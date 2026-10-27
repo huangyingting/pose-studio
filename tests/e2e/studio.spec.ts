@@ -1332,6 +1332,20 @@ test('a motion file is imported into My motions and given to the figure', async 
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
 });
 
+test('a built-in character is fetched only when a figure is drawn as it', async ({ page }) => {
+  const fetched: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('/characters/')) fetched.push(r.url()); });
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Characters');
+  const list = page.getByRole('region', { name: 'Characters' });
+  await expect(list.getByRole('button', { name: /^Woman/ })).toBeVisible();
+  expect(fetched).toEqual([]);
+  await list.getByRole('button', { name: /^Woman/ }).click();
+  await expect.poll(() => fetched.length).toBe(1);
+  expect(fetched[0]).toMatch(/\/characters\/woman\.glb$/);
+  expect((await state(page)).scene.figures[0] as unknown as { model?: string }).toMatchObject({ model: 'character:woman' });
+});
+
 test('a character is imported and the figure drawn as it; bones it cannot name are matched by hand', async ({ page }) => {
   await openSection(page, 'Library');
   await libraryShows(page, 'Characters');

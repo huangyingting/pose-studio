@@ -11,6 +11,7 @@ import {
 } from '@/lib/actions';
 import { VIDEO_MODELS } from '@/lib/shots';
 import { travelAt } from '@/lib/evaluate';
+import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
@@ -421,7 +422,8 @@ function BodySection({ figure }: { figure: Figure }) {
   const body = figure.body;
   const setBody = (patch: Partial<typeof body>, key = '') => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...f.body, ...patch } }), key);
   const heightField = BODY_FIELDS.find((f) => f.key === 'height')!;
-  const models = useStudio((s) => s.library.models) ?? [];
+  const mine = useStudio((s) => s.library.models);
+  const models = [...BUILT_IN_CHARACTERS, ...(mine ?? [])];
   return (
     <Section id="body" title="Body & colour" collapsible defaultOpen={false}>
       <div className="field">

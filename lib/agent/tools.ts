@@ -1,3 +1,5 @@
+import { BUILT_IN_CHARACTERS } from '../characters';
+import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
@@ -82,7 +84,7 @@ function sceneSummary(store: Store) {
       facing: r1(facing(f)),
       grounded: f.grounded,
       ...(f.hidden ? { hidden: true } : {}),
-      ...(f.model ? { drawn_as: store.getState().library.models?.find((m) => m.id === f.model)?.name } : {}),
+      ...(f.model ? { drawn_as: modelInfo(f.model)?.name } : {}),
       joints: Object.fromEntries(Object.entries(anglesOf(f.bones)).map(([k, v]) => [k, v.map(r1)])),
     })),
     props: s.props.map((p) => ({ id: p.id, name: p.name, kind: p.kind, ...(p.hold ? { held_by: p.hold.figure, hand: p.hold.hand } : {}), position: { x: r2(p.position[0]), z: r2(p.position[2]) }, facing: r1(p.rotation[1]), scale: p.scale.map(r2) })),
@@ -669,7 +671,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'draw_as',
-    description: 'Draw a figure as one of the user\'s imported characters (by name), or with model null as the mannequin. It moves the same either way.',
+    description: `Draw a figure as a character (by name): built in, ${BUILT_IN_CHARACTERS.map((c) => c.name).join('; ')}; or one of the user's imported ones; or with model null as the mannequin. It moves the same either way.`,
     schema: obj({ figure: FIGURE, model: opt(str('Character name')) }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
@@ -677,9 +679,9 @@ export const TOOLS: AgentTool[] = [
         setFigureModel(store, f.id, null);
         return `${f.name} is drawn as the mannequin.`;
       }
-      const models = store.getState().library.models ?? [];
+      const models = [...BUILT_IN_CHARACTERS, ...(store.getState().library.models ?? [])];
       const m = models.find((x) => x.name.toLowerCase() === String(i.model).toLowerCase());
-      if (!m) throw new Error(`No character "${i.model}". Imported: ${models.map((x) => x.name).join(', ') || 'none'}`);
+      if (!m) throw new Error(`No character "${i.model}". There are: ${models.map((x) => x.name).join('; ')}`);
       setFigureModel(store, f.id, m.id);
       return `${f.name} is drawn as ${m.name}.`;
     },

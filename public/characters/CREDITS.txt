@@ -1,0 +1,15 @@
+Built-in characters
+===================
+
+man.glb, woman.glb
+
+  From "Universal Base Characters" (Standard, free version) by Quaternius
+  https://quaternius.com/packs/universalbasecharacters.html
+  https://quaternius.itch.io/universal-base-characters
+
+  License: CC0 1.0 Universal (CC0 1.0), Public Domain Dedication
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+  Changes: the Superhero_Male_FullBody and Superhero_Female_FullBody glTF models packed into
+  binary glTF (GLB) without their textures (the app draws characters in its own styles), to
+  keep the files small. The meshes and skeletons are as they came.

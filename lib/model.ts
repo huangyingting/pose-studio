@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadModelFile, saveModelFile } from './assetstore';
 import { BODY_FIELDS } from './body';
+import { BUILT_IN_CHARACTERS, characterFile, isBuiltInCharacter } from './characters';
 import { legsOf } from './locomotion';
 import { Rig } from './relations';
 import { setWorldQuaternion } from './mannequin';
@@ -395,11 +396,12 @@ const templates = new Map<string, THREE.Object3D>();
 const loading = new Set<string>();
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((f) => f());
+for (const m of BUILT_IN_CHARACTERS) infos.set(m.id, m);
 
-/** The library's models (called whenever its list changes). */
+/** The library's models (called whenever its list changes), with the built-in characters. */
 export function setModels(list: ModelInfo[] | undefined) {
   infos.clear();
-  for (const m of list ?? []) infos.set(m.id, m);
+  for (const m of [...BUILT_IN_CHARACTERS, ...(list ?? [])]) infos.set(m.id, m);
 }
 
 export const modelInfo = (id: string) => infos.get(id) ?? null;
@@ -416,7 +418,9 @@ export function modelTemplate(id: string): THREE.Object3D | null {
   const info = infos.get(id);
   if (hit || !info || loading.has(id)) return hit ?? null;
   loading.add(id);
-  void loadModelFile(id)
+  // A built-in character's file comes with the app; an imported one's is kept as an asset.
+  const file = isBuiltInCharacter(id) ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : null)) : loadModelFile(id);
+  void file
     .then(async (data) => {
       if (!data) return;
       templates.set(id, await parseModel(info.format, data));

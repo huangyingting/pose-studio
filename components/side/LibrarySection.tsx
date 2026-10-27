@@ -14,8 +14,9 @@ import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
-import { PREVIEW_SIZE, cameraPreview, motionPreview, posePreview, runPreview, templatePreview, type PreviewJob } from '@/lib/previews';
+import { PREVIEW_SIZE, cameraPreview, characterPreview, motionPreview, posePreview, runPreview, templatePreview, type PreviewJob } from '@/lib/previews';
 import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
+import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
@@ -58,7 +59,7 @@ export default function LibrarySection(props: SectionProps) {
       </div>
       {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
       {tab === 'motions' && <Motions {...props} preview={preview.bind} />}
-      {tab === 'characters' && <Characters {...props} />}
+      {tab === 'characters' && <Characters {...props} preview={preview.bind} />}
       {tab === 'templates' && <Templates {...props} preview={preview.bind} />}
       {tab === 'camera' && <CameraMoves {...props} preview={preview.bind} />}
       {preview.card}
@@ -368,7 +369,8 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
 }
 
 /** Characters to draw figures as: the mannequin, or one imported (a glTF/GLB or FBX with a skeleton). */
-function Characters({ notify, notifyUndo }: SectionProps) {
+function Characters({ notify, notifyUndo, preview }: Listed) {
+  const style = useFilm().style;
   const store = useStore();
   const figure = useActiveFigure();
   const mine = useStudio((s) => s.library.models) ?? [];
@@ -395,14 +397,20 @@ function Characters({ notify, notifyUndo }: SectionProps) {
       setReading(false);
     }
   };
-  const row = (id: string | null, name: string) => (
+  const row = (id: string | null, name: string, mineToo = false) => (
     <li key={id ?? 'mannequin'}>
-      <button type="button" aria-disabled={!usable} aria-pressed={usable ? (figure.model ?? null) === id : undefined} onClick={() => give(id, name)}>
+      <button
+        type="button"
+        aria-disabled={!usable}
+        aria-pressed={usable ? (figure.model ?? null) === id : undefined}
+        onClick={() => give(id, name)}
+        {...(id ? preview(name, usable ? `Click to draw ${figure.name} as ${name}` : undefined, () => characterPreview(id, style)) : {})}
+      >
         <PersonStanding size={14} aria-hidden />
         <span className="side-list-name">{name}</span>
         {usable && (figure.model ?? null) === id && <em>{figure.name}</em>}
       </button>
-      {id && <IconButton icon={Trash2} label={`Delete my character ${name}`} className="row-delete" size={13} onClick={() => { deleteModel(store, id); notifyUndo(`Deleted “${name}”`); }} />}
+      {id && mineToo && <IconButton icon={Trash2} label={`Delete my character ${name}`} className="row-delete" size={13} onClick={() => { deleteModel(store, id); notifyUndo(`Deleted “${name}”`); }} />}
     </li>
   );
   return (
@@ -434,8 +442,8 @@ function Characters({ notify, notifyUndo }: SectionProps) {
         />
       </div>
       <section aria-label="Characters">
-        <Group title="Built in" count={1}>{row(null, 'Mannequin')}</Group>
-        {mine.length > 0 && <Group title="My characters" count={mine.length}>{mine.map((m) => row(m.id, m.name))}</Group>}
+        <Group title="Built in" count={1 + BUILT_IN_CHARACTERS.length}>{row(null, 'Mannequin')}{BUILT_IN_CHARACTERS.map((c) => row(c.id, c.name))}</Group>
+        {mine.length > 0 && <Group title="My characters" count={mine.length}>{mine.map((m) => row(m.id, m.name, true))}</Group>}
       </section>
       {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
     </div>

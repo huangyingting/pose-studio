@@ -1,5 +1,7 @@
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
+import { newFigure, newScene } from './doc';
+import { modelTemplate } from './model';
 import { poseScene } from './poses';
 import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type CameraMove } from './cameras';
 import { newShot } from './shots';
@@ -25,6 +27,8 @@ export interface PreviewJob {
   key: string;
   count: number;
   frame(i: number): string;
+  /** Whether it can be drawn yet (a character whose file is still coming): waited for. */
+  ready?(): boolean;
 }
 
 const done = new Map<string, string[]>();
@@ -45,6 +49,10 @@ export function runPreview(job: PreviewJob, onFrames: (frames: string[]) => void
   const later = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 200 }) : setTimeout(fn, 0));
   const step = () => {
     if (stopped) return;
+    if (job.ready && !job.ready()) {
+      later(step);
+      return;
+    }
     frames.push(job.frame(frames.length));
     onFrames([...frames]);
     if (frames.length < job.count) later(step);
@@ -77,6 +85,17 @@ export function posePreview(p: PoseAsset, style: Style): PreviewJob {
     key: `pose:${style}:${p.id}:${JSON.stringify(p.bones)}`,
     count: 1,
     frame: () => sharedRenderer().render(poseScene(p), W, H, LINE, { style, faces: true, margin: 0.1, angle: p.view }).toDataURL('image/png'),
+  };
+}
+
+/** A character: a figure drawn as it, standing (its file read first). */
+export function characterPreview(id: string, style: Style): PreviewJob {
+  const scene = newScene('Character', [newFigure({ model: id })]);
+  return {
+    key: `character:${style}:${id}`,
+    count: 1,
+    ready: () => !!modelTemplate(id),
+    frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1, angle: { yaw: 20, pitch: 4, fov: 30 } }).toDataURL('image/png'),
   };
 }
 

@@ -19,7 +19,7 @@ import {
   actionLabel, addTravel, addUpper, insertClip, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
-import { fitBody } from './model';
+import { fitBody, modelInfo } from './model';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
 import {
@@ -1416,7 +1416,7 @@ export function deleteModel(store: Store, id: string) {
 /** Draw a figure as an imported character, or (null) as the mannequin. */
 /** Draw a figure as a character (null: the mannequin), the mannequin under it fitted to the character's build. */
 export function setFigureModel(store: Store, figureId: string, model: string | null) {
-  const proportions = model ? store.getState().library.models?.find((m) => m.id === model)?.proportions : undefined;
+  const proportions = model ? modelInfo(model)?.proportions : undefined;
   store.updateFigure(figureId, (f) => {
     const { model: _old, ...rest } = f;
     void _old;
