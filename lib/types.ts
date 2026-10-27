@@ -84,6 +84,10 @@ export interface Prop {
   scale: Vec3;
   /** Held in a figure's hand: then position and rotation are relative to that hand. */
   hold?: { figure: string; hand: Side };
+  /** Where hands take hold of it (points in its own frame; its kind's own without). */
+  handles?: Vec3[];
+  /** How it bounces and grips when it is free (0–1; its kind's own without). */
+  physics?: { bounce: number; friction: number };
   /** A ribbon's line through the air at a moment (world points from the stick's tip), worked out from how the tip moved; not saved. */
   trail?: Vec3[];
 }
@@ -148,8 +152,9 @@ export interface ClipPart {
 export interface ClipEvent {
   t: number;
   part: number;
-  kind: string;
-  hand?: Side;
+  /** A hand lets a prop go (thrown where the action sends it), or takes hold of it. */
+  kind: 'release' | 'grab';
+  hand: Side;
 }
 
 /** A body part of a part held still from `start` to `end`: a foot on the floor, or a hand on another part's body. */
@@ -205,7 +210,22 @@ export interface Action {
   layer?: 'upper' | 'correction';
   roles: Role[];
   source: ActionSource;
+  /** The prop its clip's events let go of and take hold of (a ball thrown, dribbled). */
+  prop?: string;
+  /** Where its release sends the prop. */
+  target?: PropTarget;
 }
+
+/**
+ * Where a release sends a prop: to a floor point, into someone's hand (caught there when it
+ * arrives, if the hand can reach it), through a basketball hoop (or off its rim), or bouncing once
+ * on the floor back up to the hand that takes hold of it next (a dribble).
+ */
+export type PropTarget =
+  | { at: [number, number] }
+  | { figure: string; hand: Side; rise?: number }
+  | { hoop: string; miss?: boolean }
+  | { bounce: true };
 
 /** The body parts a constraint can hold. */
 export const HOLDERS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot', 'hips'] as const;
@@ -235,10 +255,8 @@ export interface PropKey {
   rotation: Vec3;
   /** In a figure's hand from this key on. */
   hold?: { figure: string; hand: Side };
-  /** Let go here: it starts from where the hand had it (and falls, or flies if thrown on). */
+  /** Let go here: it falls from where the hand had it. */
   release?: boolean;
-  /** Thrown here from the previous key: it flies under gravity (into a hand if this key holds it). */
-  throw?: boolean;
 }
 
 /**

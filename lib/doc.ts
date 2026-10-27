@@ -11,7 +11,7 @@ import { clampLight } from './lighting';
 import {
   FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
   type Action, type Animation, type Clip, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type Pose, type PoseAsset,
-  type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
+  type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -238,6 +238,8 @@ function parseProp(v: unknown): Prop | null {
     ...(isObj(v.hold) && typeof v.hold.figure === 'string' && (v.hold.hand === 'L' || v.hold.hand === 'R')
       ? { hold: { figure: v.hold.figure, hand: v.hold.hand } }
       : {}),
+    ...(Array.isArray(v.handles) && v.handles.length ? { handles: v.handles.slice(0, 8).map((h) => vec3(h, [0, 0, 0])) } : {}),
+    ...(isObj(v.physics) ? { physics: { bounce: Math.min(1, Math.max(0, num(v.physics.bounce, 0.3))), friction: Math.min(1, Math.max(0, num(v.physics.friction, 0.6))) } } : {}),
   };
 }
 
@@ -288,7 +290,6 @@ function parsePropKey(v: unknown, t: number): PropKey | null {
     rotation: vec3(v.rotation, [0, 0, 0]),
     ...(hold ? { hold } : {}),
     ...(v.release === true ? { release: true } : {}),
-    ...(v.throw === true ? { throw: true } : {}),
   };
 }
 
@@ -346,8 +347,8 @@ export function parseClip(v: unknown): Clip | null {
     parts,
     events: (Array.isArray(v.events) ? v.events.slice(0, 500) : []).filter(isObj).flatMap((e) => {
       const part = Math.round(num(e.part, 0));
-      if (part < 0 || part >= n || typeof e.kind !== 'string') return [];
-      return [{ t: num(e.t, 0), part, kind: e.kind.slice(0, 40), ...(e.hand === 'L' || e.hand === 'R' ? { hand: e.hand as Side } : {}) }];
+      if (part < 0 || part >= n || (e.kind !== 'release' && e.kind !== 'grab') || (e.hand !== 'L' && e.hand !== 'R')) return [];
+      return [{ t: num(e.t, 0), part, kind: e.kind as 'release' | 'grab', hand: e.hand as Side }];
     }),
     contacts: (Array.isArray(v.contacts) ? v.contacts.slice(0, 2000) : []).filter(isObj).flatMap((c) => {
       const part = Math.round(num(c.part, 0));
@@ -359,7 +360,16 @@ export function parseClip(v: unknown): Clip | null {
   };
 }
 
-function parseAction(v: unknown, figures: Set<string>, duration: number): Action | null {
+function parseTarget(v: unknown, figures: Set<string>, props: Set<string>): PropTarget | null {
+  if (!isObj(v)) return null;
+  if (Array.isArray(v.at)) return { at: [num(v.at[0], 0), num(v.at[1], 0)] };
+  if (typeof v.figure === 'string' && figures.has(v.figure) && (v.hand === 'L' || v.hand === 'R')) return { figure: v.figure, hand: v.hand, ...(typeof v.rise === 'number' && Number.isFinite(v.rise) ? { rise: Math.min(10, Math.max(0, v.rise)) } : {}) };
+  if (typeof v.hoop === 'string' && props.has(v.hoop)) return { hoop: v.hoop, ...(v.miss === true ? { miss: true } : {}) };
+  if (v.bounce === true) return { bounce: true };
+  return null;
+}
+
+function parseAction(v: unknown, figures: Set<string>, duration: number, props: Set<string>): Action | null {
   if (!isObj(v) || !Array.isArray(v.roles) || !isObj(v.source)) return null;
   const roles = v.roles.slice(0, 8).filter(isObj).map((r) => {
     const end = parseMark(r.end);
@@ -383,6 +393,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number): Action
   if (source.kind !== 'keys' && roles.length > 1 && source.kind === 'travel') return null;
   const start = Math.min(duration, Math.max(0, num(v.start, 0)));
   const blendIn = num(v.blendIn, 0);
+  const target = parseTarget(v.target, figures, props);
   return {
     id: str(v.id, uid('act')).slice(0, 40),
     start,
@@ -391,6 +402,8 @@ function parseAction(v: unknown, figures: Set<string>, duration: number): Action
     ...(v.layer === 'correction' || v.layer === 'upper' ? { layer: v.layer } : {}),
     roles,
     source,
+    ...(typeof v.prop === 'string' && props.has(v.prop) ? { prop: v.prop } : {}),
+    ...(target ? { target } : {}),
   };
 }
 
@@ -413,7 +426,7 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   const old = !Array.isArray(v.actions) && Array.isArray(v.keys);
   const actions = old
     ? fromKeyframes(v.keys as unknown[], figures, duration, loop)
-    : (Array.isArray(v.actions) ? v.actions.slice(0, 2000) : []).map((x) => parseAction(x, figures, duration)).filter((x): x is Action => x !== null);
+    : (Array.isArray(v.actions) ? v.actions.slice(0, 2000) : []).map((x) => parseAction(x, figures, duration, propIds)).filter((x): x is Action => x !== null);
   const props: Record<string, PropKey[]> = {};
   if (old) {
     for (const k of (v.keys as unknown[]).filter(isObj)) {

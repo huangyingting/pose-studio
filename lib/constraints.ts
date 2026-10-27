@@ -4,7 +4,7 @@ import { RELAXED_HAND } from './hands';
 import { samplePart } from './clip';
 import { clampRotation } from './joints';
 import { feetOf, plantFeet } from './locomotion';
-import { IK_CHAINS, rotateWorld, setWorldQuaternion } from './mannequin';
+import { IK_CHAINS, rotateWorld } from './mannequin';
 import { angleToQuat, fromQuat, quatToAngle, toQuat } from './pose';
 import { Rig, reach } from './relations';
 import type { Clip, ClipContact, Figure, Holder, JointName } from './types';
@@ -148,7 +148,7 @@ export interface Hold {
   /** Where: what a hand's palm touches, where an ankle goes, where the pelvis goes. */
   at: THREE.Vector3;
   weight: number;
-  /** The limb kept as it moves (a clip's way of moving): only what it takes to get the part from where it is to `at` changes; a hand keeps its turn. */
+  /** The limb kept as it moves (a clip's way of moving): only what it takes to get the part from where it is to `at` changes. */
   relative?: boolean;
 }
 
@@ -180,7 +180,6 @@ export function solveHolds(rig: Rig, f: Figure, holds: Hold[], limits = true): P
     } else if (foot) solved = plantFeet(rig, fig, [{ ...here, p: h.at }]).bones;
     else if (h.relative) {
       reachLeast(m, chain, h.at);
-      setWorldQuaternion(end, here.q);
       solved = m.read().bones;
     } else solved = reach(rig, fig, side, h.at, limits).bones;
     const bones = { ...fig.bones };

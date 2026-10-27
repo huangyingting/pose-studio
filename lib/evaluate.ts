@@ -5,12 +5,13 @@ import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
 import { angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones } from './pose';
-import { propsAt, ribbonTrail, worldOfProp } from './propmotion';
+import { PropTimeline, animated, placeInWorld, propOn, ribbonTrail } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
 import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
-import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Scene, type Vec3 } from './types';
+import { HZ, physicsReady } from './physics';
+import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
 
 /*
  * Evaluation: where everything is at a time. For each figure, its actions on the base layer give
@@ -28,6 +29,8 @@ const EPS = 1e-6;
 const RELEASE = 0.12;
 /** How long a hold asked for takes to take hold and let go (s). */
 const EASE = 0.25;
+/** How long a hand reaches out for a pass before it arrives (s). */
+const CATCH_LEAD = 0.3;
 /** How long an upper-body action takes to take over and to hand back (s). */
 const UPPER_EASE = 0.25;
 const D2R = Math.PI / 180;
@@ -79,6 +82,7 @@ class Evaluator {
   private readonly marks = new Map<string, Mark>();
   private readonly chains = new Map<string, Chain>();
   private readonly anchors = new Map<string, ReturnType<typeof feetOf>>();
+  private readonly timelines = new Map<string, PropTimeline | null>();
 
   constructor(private readonly scene: Scene) {
     this.a = scene.animation!;
@@ -109,7 +113,7 @@ class Evaluator {
   }
 
   /** A figure's pose at t before contacts are held (what others' holds on it are measured on). */
-  private free(f: Figure, t: number): Pose {
+  free(f: Figure, t: number): Pose {
     const key = `free:${f.id}@${t}`;
     let p = this.poses.get(key);
     if (!p) {
@@ -127,16 +131,16 @@ class Evaluator {
   /** Upper-body actions over the base: their spine, arms and head (and hands), eased in and out. */
   private upper(f: Figure, t: number, pose: Pose): Pose {
     for (const x of actionsOf(this.a, f.id, 'upper')) {
-      if (t < x.start - EPS || t > end(x) + EPS) continue;
+      // Easing into its first frame before it starts, and out of its last after it ends.
+      if (t < x.start - UPPER_EASE || t > end(x) + UPPER_EASE) continue;
       const clip = clipOf(x);
       if (!clip) continue;
       const src = x.source as { speed?: number; mirror?: boolean };
-      let u = (t - x.start) * (src.speed ?? 1);
-      if (clip.loop && clip.duration > EPS) u %= clip.duration;
+      let u = (Math.min(end(x), Math.max(x.start, t)) - x.start) * (src.speed ?? 1);
+      if (clip.loop && clip.duration > EPS && u > EPS) u = u % clip.duration || (u > EPS ? clip.duration : 0);
       const raw = samplePart(clip.parts[0], Math.min(clip.duration, u), clip.duration, clip.loop);
       const over = src.mirror ? mirrorPose(raw) : raw;
-      const ease = Math.min(1, x.duration > EPS ? Math.min(t - x.start, end(x) - t) / Math.min(UPPER_EASE, x.duration / 2) : 1);
-      const w = smooth(ease);
+      const w = smooth(1 - Math.max(x.start - t, t - end(x), 0) / UPPER_EASE);
       // Eased in joint angles, so an arm swings within its range on the way.
       const bones = { ...pose.bones };
       for (const j of UPPER_BODY) {
@@ -164,6 +168,14 @@ class Evaluator {
   private holds(f: Figure, t: number, free: Pose): Hold[] {
     const act = actionsOf(this.a, f.id).filter((x) => x.source.kind === 'clip' && x.start - EPS <= t && t <= end(x) + EPS).at(-1);
     const out = act ? this.clipHolds(f, act, t, free) : [];
+    // Reaching for a pass as it comes: the hand goes out to meet it, and back with it.
+    for (const c of this.scene.props.flatMap((p) => this.timeline(p.id)?.catches ?? [])) {
+      if (c.figure !== f.id || t < c.t - CATCH_LEAD || t > c.t + CATCH_LEAD) continue;
+      const bone = c.hand === 'L' ? 'leftHand' : 'rightHand';
+      const w = smooth(1 - Math.abs(c.t - t) / CATCH_LEAD);
+      const wrist = this.rig.model({ ...f, ...free }).joints[bone].getWorldPosition(new THREE.Vector3());
+      out.push({ bone, at: wrist.addScaledVector(new THREE.Vector3(...c.reach), w), weight: 1, relative: true });
+    }
     for (const c of this.a.constraints ?? []) {
       if (c.figure !== f.id || t < c.start - EASE || t > c.end + EASE) continue;
       const weight = t < c.start ? smooth(1 - (c.start - t) / EASE) : t <= c.end ? 1 : 1 - smooth((t - c.end) / EASE);
@@ -238,14 +250,49 @@ class Evaluator {
     return this.rig.model(pose(other)).joints[bone].worldToLocal(w).toArray() as Vec3;
   }
 
+  /* ---------- props ---------- */
+
+  /** A prop's timeline: held, flying, resting (null: it does nothing over time). */
+  timeline(id: string): PropTimeline | null {
+    if (!this.timelines.has(id)) {
+      const p = this.scene.props.find((x) => x.id === id);
+      this.timelines.set(id, p && animated(this.a, id) ? new PropTimeline(this.scene, p, this.figureAt, this.freeAt) : null);
+    }
+    return this.timelines.get(id)!;
+  }
+
+  /** A prop as it is at t. */
+  propAt(id: string, t: number): Prop | null {
+    const p = this.scene.props.find((x) => x.id === id);
+    if (!p) return null;
+    const tl = this.timeline(id);
+    return tl ? propOn(tl, this.scene, p, t) : p;
+  }
+
+  /** Where a prop is in the world at t (in a hand: where `figureAt` has the hand). */
+  propWorld(id: string, t: number, figureAt: (id: string, t: number) => Figure | null = this.figureAt) {
+    const p = this.propAt(id, t);
+    return p ? placeInWorld(p, figureAt, t) : null;
+  }
+
+  /** A figure as it is at t. */
+  readonly figureAt = (id: string, t: number): Figure | null => {
+    const f = this.figures.get(id);
+    const p = f && this.pose(id, t);
+    return f && p ? { ...f, ...p } : null;
+  };
+
+  /** A figure's pose before holds, as figures go (for props: aiming and catching). */
+  private readonly freeAt = (id: string, t: number): Figure | null => {
+    const f = this.figures.get(id);
+    return f ? { ...f, ...this.free(f, t) } : null;
+  };
+
   /** Where a constraint's target is at t. */
   private targetOf(target: ConstraintTarget, t: number): THREE.Vector3 | null {
     if ('point' in target) return new THREE.Vector3(...target.point);
     if ('figure' in target) return this.onBody(target.figure, target.bone, target.at, t);
-    const place = worldOfProp(this.scene, target.prop, (id, at) => {
-      const f = this.figures.get(id);
-      return f ? { ...f, ...this.free(f, at) } : null;
-    }, t);
+    const place = this.propWorld(target.prop, t, this.freeAt);
     if (!place) return null;
     const d = Math.PI / 180;
     const m = new THREE.Matrix4().compose(new THREE.Vector3(...place.position), new THREE.Quaternion().setFromEuler(new THREE.Euler(place.rotation[0] * d, place.rotation[1] * d, place.rotation[2] * d)), new THREE.Vector3(1, 1, 1));
@@ -489,7 +536,10 @@ const cache = new WeakMap<Animation, { key: string; ev: Evaluator }>();
 /** The evaluator of a scene's animation (shared while the animation, cast and ground stay the same). */
 function evaluator(scene: Scene): Evaluator {
   const a = scene.animation!;
-  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body]), surfacesKey(scene.props)]);
+  // What it depends on besides the animation: the cast's bodies, what stands in the scene, the
+  // props (their places, those that do not move by themselves), and whether physics is loaded.
+  const props = scene.props.map((p) => (animated(a, p.id) ? [p.id, p.kind, p.scale, p.physics] : [p.id, p.kind, p.scale, p.position, p.rotation, p.hold]));
+  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body]), surfacesKey(scene.props), props, physicsReady()]);
   const hit = cache.get(a);
   if (hit && hit.key === key) return hit.ev;
   hit?.ev.dispose();
@@ -530,19 +580,49 @@ export function marksOf(scene: Scene, act: Action, id: string): { start: Mark; e
 export function sceneAt(scene: Scene, t: number): Scene {
   if (!scene.animation) return scene;
   const ev = evaluator(scene);
-  const posed = (f: Figure, at: number): Figure => {
-    const p = ev.pose(f.id, at)!;
-    return { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded };
-  };
-  const figures = scene.figures.map((f) => posed(f, t));
-  // Props ride in hands, fly and fall: they need the figures' hands at their key times too.
-  const figureAt = (id: string, at: number) => {
-    const f = scene.figures.find((x) => x.id === id);
-    return f ? (Math.abs(at - t) < 1e-9 ? figures.find((x) => x.id === id)! : posed(f, at)) : null;
-  };
+  const figures = scene.figures.map((f) => ev.figureAt(f.id, t)!);
   // A ribbon trails where its stick's tip has just been.
-  const props = propsAt(scene, t, figureAt).map((p) => (p.kind === 'ribbon' ? { ...p, trail: ribbonTrail(scene, p.id, t, figureAt) ?? undefined } : p));
+  const props = scene.props.map((p) => {
+    const now = ev.propAt(p.id, t)!;
+    return p.kind === 'ribbon' ? { ...now, trail: ribbonTrail(scene, p.id, t, ev.figureAt, (at) => ev.propWorld(p.id, at)) ?? undefined } : now;
+  });
   return { ...scene, figures, props };
+}
+
+/** Where a prop is in the world at time t (in a hand: where the hand has it). */
+export function propWorldAt(scene: Scene, id: string, t: number) {
+  if (!scene.animation) {
+    const p = scene.props.find((x) => x.id === id);
+    return p ? placeInWorld(p, (fid) => scene.figures.find((f) => f.id === fid) ?? null, t) : null;
+  }
+  return evaluator(scene).propWorld(id, t);
+}
+
+/** When a prop let go at `release` gets where it was sent (null: it was not let go then). */
+export function arrivalAt(scene: Scene, id: string, release: number): number | null {
+  if (!scene.animation) return null;
+  return evaluator(scene).timeline(id)?.arrivals.find((x) => Math.abs(x.release - release) < 1e-3)?.arrive ?? null;
+}
+
+/** When a prop let go at `release` is down to stay (null: it is caught first, or never settles). */
+export function settledAt(scene: Scene, id: string, release: number): number | null {
+  const s = scene.animation ? evaluator(scene).timeline(id)?.stretches.find((x) => x.kind === 'free' && Math.abs(x.t - release) < 1e-3) : null;
+  if (!s || s.kind !== 'free') return null;
+  return s.flight.down ?? s.flight.t0 + s.flight.positions.length / 3 / HZ;
+}
+
+/** A prop's time in stretches, for the timeline: in someone's hand, flying, resting. */
+export function propStretchesOf(scene: Scene, id: string): { t0: number; t1: number; kind: 'held' | 'free' | 'rest'; figure?: string }[] {
+  const tl = scene.animation ? evaluator(scene).timeline(id) : null;
+  if (!tl) return [];
+  return tl.stretches.map((s, i) => ({ t0: s.t, t1: tl.stretches[i + 1]?.t ?? scene.animation!.duration, kind: s.kind, ...(s.kind === 'held' ? { figure: s.figure } : {}) }));
+}
+
+/** Grabs and catches that missed (the prop was not within reach then). */
+export function missedCatchesOf(scene: Scene): { t: number; figure: string; prop: string }[] {
+  if (!scene.animation) return [];
+  const ev = evaluator(scene);
+  return scene.props.flatMap((p) => (ev.timeline(p.id)?.misses ?? []).map((m) => ({ ...m, prop: p.id })));
 }
 
 /** The travel action a figure is on at t, if any. */

@@ -11,7 +11,7 @@ import { buildTemplate, waltzHold } from './templates';
 import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
 import { keysAction } from './track';
 import { uid } from './uid';
-import type { Action, Animation, BodyParams, Figure, Hand, JointName, Pose, Scene, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName, Pose, Scene, Side, Travel, Vec3, View } from './types';
 
 /*
  * Built-in motions: walking, running and jumping ahead (generated, lib/locomotion.ts), dances, a
@@ -35,6 +35,8 @@ export interface Motion {
   travel?: { kind: Travel; distance: number };
   /** A whole set-up with its props (a bar and a mat): it opens as a new scene. */
   setUp?: boolean;
+  /** When a hand lets a prop go or takes hold of it (motions that handle props). */
+  events?: ClipEvent[];
 }
 
 type Joints = Angles;
@@ -788,3 +790,81 @@ export const MOTIONS: Motion[] = [
 export function buildMotion(id: string): Scene | null {
   return MOTIONS.find((m) => m.id === id)?.build() ?? null;
 }
+
+/* ---------- handling props ---------- */
+
+/** One person's arms over the frames of a motion that handles a prop (played from the waist up, with the right hand; mirrored for the left). */
+function handling(name: string, frames: [number, Joints][], o: { loop?: boolean; hands?: [string, string] } = {}): Scene {
+  const [left, right] = o.hands ?? ['Grip', 'Grip'];
+  const f = { ...person(name, { ...DEFAULT_BODY }, STAND), hands: { L: hand(left), R: hand(right) } };
+  const last = frames[frames.length - 1][0];
+  return animated(name, frames.map(([frame, arms]) => ({ t: frame / 24, figures: [posed(f, { ...STAND, ...arms })] })), { duration: last / 24, loop: !!o.loop, view: { yaw: 40, pitch: 6, fov: 26 } });
+}
+
+const relaxed: Joints = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
+
+/**
+ * Motions that handle props, put on a figure's upper body by the prop's menu (not listed in the
+ * library): their release lets the prop go where the action sends it, their grab takes hold of it.
+ */
+export const HANDLING: Motion[] = [
+  {
+    // A jump shot's arms: the ball up in front of the face, the arm up and out to the hoop, a follow-through; the other hand at the ball's side until it goes.
+    id: 'shoot',
+    name: 'Shot',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 16 / 24, part: 0, kind: 'release', hand: 'R' }],
+    build: () => handling('Shot', [
+      [0, { rightUpperArm: [-60, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-55, 0, 20], leftLowerArm: [-95, 0, 0] }],
+      [8, { rightUpperArm: [-110, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-70, 0, 10], leftLowerArm: [-90, 0, 0] }],
+      [16, { rightUpperArm: [-155, 0, -10], rightLowerArm: [-15, 0, 0], leftUpperArm: [-95, 0, 20], leftLowerArm: [-60, 0, 0] }],
+      [24, { rightUpperArm: [-145, 0, -10], rightLowerArm: [-20, 0, 0], leftUpperArm: [-75, 0, 20], leftLowerArm: [-50, 0, 0] }],
+      [36, relaxed],
+    ]),
+  },
+  {
+    // A pass from the chest: both hands at the ball, the arms push out and the right hand lets it go.
+    id: 'pass',
+    name: 'Pass',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
+    build: () => handling('Pass', [
+      [0, { rightUpperArm: [-50, 0, -15], rightLowerArm: [-100, 0, 0], leftUpperArm: [-50, 0, 15], leftLowerArm: [-100, 0, 0] }],
+      [6, { rightUpperArm: [-30, 0, -25], rightLowerArm: [-120, 0, 0], leftUpperArm: [-30, 0, 25], leftLowerArm: [-120, 0, 0] }],
+      [12, { rightUpperArm: [-85, 0, -10], rightLowerArm: [-10, 0, 0], leftUpperArm: [-80, 0, 10], leftLowerArm: [-15, 0, 0] }],
+      [20, { rightUpperArm: [-75, 0, -12], rightLowerArm: [-15, 0, 0], leftUpperArm: [-70, 0, 12], leftLowerArm: [-20, 0, 0] }],
+      [32, relaxed],
+    ]),
+  },
+  {
+    // Tossed up from the right hand (a gymnast's hoop, say): down, up and let go; the arm waits up to catch it.
+    id: 'toss',
+    name: 'Toss',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
+    build: () => handling('Toss', [
+      [0, { rightUpperArm: [-20, 0, -15], rightLowerArm: [-20, 0, 0] }],
+      [6, { rightUpperArm: [20, 0, -15], rightLowerArm: [-10, 0, 0] }],
+      [12, { rightUpperArm: [-150, 0, -10], rightLowerArm: [-5, 0, 0] }],
+      [30, { rightUpperArm: [-120, 0, -12], rightLowerArm: [-15, 0, 0] }],
+    ], { hands: ['Relaxed', 'Open'] }),
+  },
+  {
+    // A dribble, one bounce every half second, out at the side: the arm pushes the ball down, the
+    // hand meets it on its way back up and rides it to the top before pushing again.
+    id: 'dribble',
+    name: 'Dribble',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 0, part: 0, kind: 'release', hand: 'R' }, { t: 7 / 24, part: 0, kind: 'grab', hand: 'R' }],
+    build: () => handling('Dribble', [
+      [0, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],
+      [9, { rightUpperArm: [-18, 0, -48], rightLowerArm: [-60, 0, 0] }],
+      [12, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],
+    ], { loop: true, hands: ['Relaxed', 'Open'] }),
+  },
+];
+

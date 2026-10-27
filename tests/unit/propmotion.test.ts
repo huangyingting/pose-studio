@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { addFigure, addProp, holdProp, moveProp, startAnimation, throwProp } from '@/lib/actions';
-import { figurePoseAt, sceneAt } from '@/lib/evaluate';
+import { figurePoseAt, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { duplicateScene, parseLibrary } from '@/lib/doc';
-import { handPosition, worldOfProp } from '@/lib/propmotion';
+import { handPosition } from '@/lib/propmotion';
 import { Store } from '@/lib/store';
 import type { Scene } from '@/lib/types';
 
@@ -16,8 +16,7 @@ class MemoryStorage implements Storage {
   setItem(k: string, v: string) { this.m.set(k, v); }
 }
 
-const at = (scene: Scene) => (id: string, t: number) => figurePoseAt(scene, id, t);
-const where = (scene: Scene, id: string, t: number) => worldOfProp(scene, id, at(scene), t)!.position;
+const where = (scene: Scene, id: string, t: number) => propWorldAt(scene, id, t)!.position;
 const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 /** A figure holding a ball in its right hand, animated. */
@@ -45,9 +44,10 @@ describe('props over time: carried, thrown, caught, dropped', () => {
     const mid = where(scene, ball, (span.from + span.to) / 2);
     const land = where(scene, ball, span.to);
     expect(mid[1]).toBeGreaterThan(Math.max(release[1], land[1]));
-    expect(land[0]).toBeCloseTo(2, 2);
-    expect(land[2]).toBeCloseTo(1, 2);
-    expect(land[1]).toBeCloseTo(0, 2);
+    // (It is a real bounce: the floor takes a little off it as it lands.)
+    expect(land[0]).toBeCloseTo(2, 1);
+    expect(land[2]).toBeCloseTo(1, 1);
+    expect(land[1]).toBeCloseTo(0, 1);
     expect(store.getState().time).toBeCloseTo(span.to, 3);
   });
 
@@ -70,7 +70,9 @@ describe('props over time: carried, thrown, caught, dropped', () => {
     const y0 = where(scene, ball, 0.5)[1];
     expect(y0).toBeGreaterThan(0.5);
     expect(where(scene, ball, 0.7)[1]).toBeLessThan(y0);
-    expect(where(scene, ball, 1.5)[1]).toBeCloseTo(0, 3);
+    // Down on the floor, bouncing.
+    const low = Math.min(...Array.from({ length: 60 }, (_, i) => where(scene, ball, 0.55 + i / 40)[1]));
+    expect(low).toBeCloseTo(0, 2);
   });
 
   it('moving a prop in an animated scene keys it, from where it was', () => {
@@ -90,7 +92,9 @@ describe('props over time: carried, thrown, caught, dropped', () => {
     throwProp(store, ball, { at: [2, 1] });
     const lib = parseLibrary(JSON.parse(JSON.stringify(store.getState().library)));
     const scene = lib.scenes[0];
-    expect(scene.animation!.props![ball]).toHaveLength(3);
+    // Where it starts (in the hand), and the throw that handles it (where it sends it).
+    expect(scene.animation!.props![ball]).toHaveLength(1);
+    expect(scene.animation!.actions.find((x) => x.prop === ball)!.target).toEqual({ at: [2, 1] });
     const copy = duplicateScene(scene);
     const newBall = copy.props[0].id;
     const newFigure = copy.figures[0].id;
@@ -98,5 +102,6 @@ describe('props over time: carried, thrown, caught, dropped', () => {
     const held = copy.animation!.props![newBall].find((k) => k.hold)!;
     expect(held.hold!.figure).toBe(newFigure);
     expect(newFigure).not.toBe(id);
+    expect(copy.animation!.actions.find((x) => x.prop === newBall)!.roles[0].figure).toBe(newFigure);
   });
 });

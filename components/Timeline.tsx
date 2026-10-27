@@ -10,13 +10,13 @@ import {
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { clipById } from '@/lib/assets';
-import { actionsOf } from '@/lib/evaluate';
-import { propKeyTimes, propTrack, removePropKey } from '@/lib/propmotion';
+import { actionsOf, propStretchesOf } from '@/lib/evaluate';
+import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
-import type { Action, Animation, CameraKey, Figure } from '@/lib/types';
+import type { Action, Animation, CameraKey, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { figureMenu, shotMenu, travelMenu } from './menus';
@@ -255,7 +255,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   ) < 8);
   // Ruler, shots, one row per figure (taller when there is just one), camera.
   // Props that move over time get a row each, under the figures.
-  const moving = scene.props.filter((p) => propKeyTimes(a, p.id).length > 0);
+  const moving = scene.props.filter((p) => propKeyTimes(a, p.id).length > 0 || a.actions.some((x) => x.prop === p.id));
   const rows = `18px 24px ${multi ? figures.map(() => '24px').join(' ') : '26px'} ${moving.map(() => '22px').join(' ')} 26px`;
   const step = TICKS.find((x) => x * pxPerSecond >= 10) ?? 60;
   const labelStep = LABELS.find((x) => x * pxPerSecond >= 56) ?? 120;
@@ -565,7 +565,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               const tight = dense(times);
               return (
                 <div key={p.id} className="tl-row" aria-label={`${p.name} keys`}>
-                  {propBars(a, p.id, figures).map((b) => (
+                  {propBars(scene, p.id).map((b) => (
                     <span key={b.t0} className={`tl-travel ${b.kind}`} style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }} title={b.label}>
                       <span style={inSight(b.t0, b.t1)}>{b.label}</span>
                     </span>
@@ -689,16 +689,10 @@ function actionBars(a: Animation, id: string) {
   });
 }
 
-/** The stretches of a prop's track: in a hand, or flying (thrown). */
-function propBars(a: Animation, id: string, figures: Figure[]) {
-  const track = propTrack(a, id);
-  const bars: { t0: number; t1: number; kind: string; label: string }[] = [];
-  const name = (fid: string) => figures.find((f) => f.id === fid)?.name ?? 'a hand';
-  for (let i = 1; i < track.length; i++) {
-    const prev = track[i - 1];
-    const k = track[i];
-    if (k.throw) bars.push({ t0: track[i - 1].t, t1: track[i].t, kind: 'throw', label: k.hold ? `To ${name(k.hold.figure)}` : 'Thrown' });
-    else if (prev.hold && !k.release) bars.push({ t0: track[i - 1].t, t1: track[i].t, kind: 'held', label: `${name(prev.hold.figure)}'s hand` });
-  }
-  return bars;
+/** The stretches of a prop's time, read-only: in someone's hand, or flying. */
+function propBars(scene: Scene, id: string) {
+  const name = (fid?: string) => scene.figures.find((f) => f.id === fid)?.name ?? 'a hand';
+  return propStretchesOf(scene, id).flatMap((x) => (x.kind === 'held'
+    ? [{ t0: x.t0, t1: x.t1, kind: 'held', label: `${name(x.figure)}'s hand` }]
+    : x.kind === 'free' ? [{ t0: x.t0, t1: x.t1, kind: 'throw', label: 'Free' }] : []));
 }

@@ -2,7 +2,7 @@ import { newAnimation } from './animation';
 import { keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
-import { MOTIONS } from './motions';
+import { HANDLING, MOTIONS } from './motions';
 import { CAMERA_MOVES } from './shot';
 import { uid } from './uid';
 import type { Action, Clip, Scene } from './types';
@@ -21,8 +21,8 @@ const builtIn = new Map<string, Clip | null>();
 export function clipById(id: string): Clip | null {
   if (!id.startsWith(BUILT_IN)) return library.get(id) ?? null;
   if (!builtIn.has(id)) {
-    const m = MOTIONS.find((x) => x.id === id.slice(BUILT_IN.length));
-    builtIn.set(id, m && !m.travel ? bakeClip(m.build(), id, m.name) : null);
+    const m = [...MOTIONS, ...HANDLING].find((x) => x.id === id.slice(BUILT_IN.length));
+    builtIn.set(id, m && !m.travel ? { ...bakeClip(m.build(), id, m.name), events: m.events ?? [] } : null);
   }
   return builtIn.get(id)!;
 }

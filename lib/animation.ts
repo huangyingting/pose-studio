@@ -2,7 +2,7 @@ import { hermite, keysClip, mirrorClip, segment } from './clip';
 import { mirrorJointName, wrapDeg } from './joints';
 import { keysInShot, spanAt } from './shots';
 import { uid } from './uid';
-import type { Action, Animation, CameraKey, CameraTrack, Constraint, Figure, Mark, Prop, PropKey, Scene, Shot, Vec3 } from './types';
+import type { Action, Animation, CameraKey, CameraTrack, Constraint, Figure, Mark, Prop, PropKey, PropTarget, Scene, Shot, Vec3 } from './types';
 
 export type { Animation };
 
@@ -111,9 +111,22 @@ export function frameTimes(a: Animation, count?: number) {
 
 /** Replace figure and prop ids (after copying a scene with fresh ids). */
 export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: Map<string, string> = new Map()): Animation {
+  const target = (t: PropTarget | undefined): PropTarget | undefined => {
+    if (!t) return undefined;
+    if ('figure' in t) return ids.has(t.figure) ? { ...t, figure: ids.get(t.figure)! } : undefined;
+    if ('hoop' in t) return propIds.has(t.hoop) ? { ...t, hoop: propIds.get(t.hoop)! } : undefined;
+    return t;
+  };
   const actions = a.actions
     .filter((x) => x.roles.every((r) => ids.has(r.figure)))
-    .map((x) => ({ ...structuredClone(x), id: uid('act'), roles: x.roles.map((r) => ({ ...structuredClone(r), figure: ids.get(r.figure)! })) }));
+    .map((x) => {
+      const { prop, target: aim, ...rest } = structuredClone(x);
+      const to = target(aim);
+      return {
+        ...rest, id: uid('act'), roles: x.roles.map((r) => ({ ...structuredClone(r), figure: ids.get(r.figure)! })),
+        ...(prop && propIds.has(prop) ? { prop: propIds.get(prop)! } : {}), ...(to ? { target: to } : {}),
+      };
+    });
   const props = a.props && Object.fromEntries(Object.entries(a.props).flatMap(([id, keys]) => (propIds.has(id)
     ? [[propIds.get(id)!, keys.map((k) => ({ ...structuredClone(k), ...(k.hold ? { hold: { ...k.hold, figure: ids.get(k.hold.figure) ?? k.hold.figure } } : {}) }))]]
     : [])));
@@ -128,7 +141,9 @@ export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: 
 /** An animation mirrored left ↔ right (across the plane x = 0). */
 export function mirrorAnimation(a: Animation): Animation {
   const mark = (m: Mark): Mark => ({ at: [-m.at[0] || 0, m.at[1]], facing: wrapDeg(-m.facing) || 0 });
-  const actions = a.actions.map((x): Action => {
+  const actions = a.actions.map((y): Action => {
+    const t = y.target;
+    const x = !t ? y : { ...y, target: 'at' in t ? { at: [-t.at[0] || 0, t.at[1]] as [number, number] } : 'figure' in t ? { ...t, hand: t.hand === 'L' ? 'R' as const : 'L' as const } : t };
     const roles = x.roles.map((r) => (r.end ? { ...r, end: mark(r.end) } : r));
     const src = x.source;
     if (src.kind === 'keys') return { ...x, roles, source: { ...src, clip: mirrorClip(src.clip) } };

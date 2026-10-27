@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "@mediapipe/tasks-vision": "^1.1.1",
     "@prisma/adapter-better-sqlite3": "^7.10.1",
     "@prisma/client": "^7.10.1",

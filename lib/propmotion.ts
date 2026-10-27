@@ -1,16 +1,21 @@
 import * as THREE from 'three';
-import { GRAVITY } from './locomotion';
-import { RIBBON, RIM } from './props';
-import { Rig } from './relations';
-import { groundOf } from './surfaces';
 import { propKeyOf } from './animation';
-import type { Animation, Figure, Prop, PropKey, Scene, Side, Vec3 } from './types';
+import { clipById } from './assets';
+import { grip } from './hold';
+import { Ink } from './ink';
+import { FLOOR_BOUNCE, GRAVITY, aim, aimBounce, flightAt, fly, type Body, type Flight, type Solid } from './physics';
+import { PropObject, RIBBON, RIM } from './props';
+import { Rig, capsules } from './relations';
+import { groundOf } from './surfaces';
+import type { Action, Animation, Figure, Prop, PropKey, Scene, Side, Vec3 } from './types';
 
 /*
- * Props over time. A prop with keys moves between them: it glides, rides in a hand (its place
- * relative to the hand), flies when thrown (under gravity, from the releasing hand to a floor
- * point or into another hand) or falls when let go. Hands are found where the figures have them
- * at that moment, so a throw still leaves the hand after the arm is re-animated.
+ * Props over time. A prop is held in a hand (it follows the hand), flies free (simulated, lib/
+ * physics.ts) or rests (where it was put, or moved by hand on its own track). What happens to it
+ * comes from its own keys (put in a hand, let go, moved) and from the actions handling it: the
+ * releases and grabs of their clips (a throw, a shot, a dribble), each release sent where its
+ * action says. Hands are found where the figures have them at that moment, so a throw still
+ * leaves the hand after the arm is re-animated.
  */
 
 const D2R = Math.PI / 180;
@@ -72,7 +77,7 @@ export function setPropKey(a: Animation, t: number, prop: Prop, extra: Partial<P
   let out = a;
   if (was && !propTrack(a, prop.id).length && time > 0) out = putPropKey(out, 0, prop.id, propKeyOf(was, 0));
   const old = propTrack(out, prop.id).find((k) => Math.abs(k.t - time) < 0.5 / a.fps);
-  return putPropKey(out, time, prop.id, { ...propKeyOf(prop, time), ...(old?.release ? { release: true } : {}), ...(old?.throw ? { throw: true } : {}), ...extra });
+  return putPropKey(out, time, prop.id, { ...propKeyOf(prop, time), ...(old?.release ? { release: true } : {}), ...extra });
 }
 
 /** Remove one prop's key at time t. */
@@ -86,91 +91,335 @@ export function shiftPropTrack(a: Animation, id: string, after: number, by: numb
   return { ...withTrack(a, id, keys), duration: Math.min(60, Math.max(a.duration, ...keys.map((k) => k.t))) };
 }
 
-/** Only the keys of these props (after props are deleted). */
+/** Only the keys of these props, and only these handled by actions (after props are deleted). */
 export function keepProps(a: Animation, ids: Set<string>): Animation {
-  if (Object.keys(a.props ?? {}).every((id) => ids.has(id))) return a;
-  return Object.keys(a.props ?? {}).reduce((out, id) => (ids.has(id) ? out : withTrack(out, id, [])), a);
+  const gone = (x: Animation['actions'][number]) => (x.prop && !ids.has(x.prop)) || (x.target && 'hoop' in x.target && !ids.has(x.target.hoop));
+  let out = a;
+  if (a.actions.some(gone)) {
+    out = { ...out, actions: a.actions.map((x) => {
+      if (!gone(x)) return x;
+      const { prop: _p, target: _t, ...rest } = x;
+      void _p; void _t;
+      return rest;
+    }) };
+  }
+  if (Object.keys(out.props ?? {}).every((id) => ids.has(id))) return out;
+  return Object.keys(out.props ?? {}).reduce((b, id) => (ids.has(id) ? b : withTrack(b, id, [])), out);
+}
+
+/** A figure's pose at a time (the hands, for what they hold; the bodies, for what flies into them). */
+export type FigureAt = (id: string, t: number) => Figure | null;
+
+/** The longest a prop flies free before it is left where it is (s). */
+const FLIGHT = 6;
+
+/** A hand catches what comes within this of its palm (m). */
+const CATCH_REACH = 0.35;
+
+/** One stretch of a prop's time, from `t` on: in a hand, flying free, or resting somewhere. */
+type Stretch =
+  | { t: number; kind: 'held'; figure: string; hand: Side; local: { position: Vec3; rotation: Vec3 } }
+  | { t: number; kind: 'free'; flight: Flight }
+  | { t: number; kind: 'rest'; position: Vec3; rotation: Vec3; glide: boolean };
+
+/** Something that happens to a prop: a key on its own track, or a hand of an action letting go or taking hold. */
+type ByHand = { t: number; kind: 'release' | 'grab'; figure: string; hand: Side; act: Action };
+type Happening = { t: number; kind: 'key'; key: PropKey } | ByHand;
+
+/** A catch: who, with which hand, when, and how far the hand has to go to meet the prop then. */
+export interface Catch { t: number; figure: string; hand: Side; reach: Vec3 }
+
+/** What a prop is, to fly: its body, and where its centre is in its own frame. */
+function bodyOf(p: Prop): { body: Body; centre: THREE.Vector3 } {
+  const bounce = p.physics?.bounce ?? (p.kind === 'sphere' ? 0.7 : 0.3);
+  const friction = p.physics?.friction ?? (p.kind === 'sphere' ? 0.15 : 0.6);
+  if (p.kind === 'sphere') {
+    const r = p.scale[0] / 2;
+    return { body: { shape: 'ball', size: [r, r, r], bounce, friction }, centre: new THREE.Vector3(0, r, 0) };
+  }
+  const box = localBox(p.kind).clone();
+  box.min.multiply(new THREE.Vector3(...p.scale));
+  box.max.multiply(new THREE.Vector3(...p.scale));
+  const half = box.getSize(new THREE.Vector3()).multiplyScalar(0.5).max(new THREE.Vector3(0.01, 0.01, 0.01));
+  return { body: { shape: 'box', size: [half.x, half.y, half.z], bounce, friction }, centre: box.getCenter(new THREE.Vector3()) };
+}
+
+const boxes = new Map<string, THREE.Box3>();
+/** A kind's extent in its own frame (at scale 1). */
+function localBox(kind: Prop['kind']) {
+  let b = boxes.get(kind);
+  if (!b) {
+    const o = new PropObject(ink ??= new Ink(), kind, 'box');
+    o.apply({ id: 'box', name: '', kind, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    b = new THREE.Box3();
+    for (const m of o.solids) b.expandByObject(m);
+    o.dispose();
+    boxes.set(kind, b);
+  }
+  return b;
+}
+
+let ink: Ink | null = null;
+
+/** What stands in the scene, for a free prop to hit: the props (a hoop's rim as a ring of capsules) but this one and the held ones. */
+function solidsOf(scene: Scene, except: string): Solid[] {
+  const out: Solid[] = [];
+  ink ??= new Ink();
+  for (const p of scene.props) {
+    if (p.id === except || p.hold) continue;
+    const o = new PropObject(ink, p.kind, p.id);
+    o.apply(p);
+    o.liftAboveFloor();
+    o.object.updateMatrixWorld(true);
+    for (const m of o.solids) {
+      // The rim: a ring of short capsules the ball can hit and drop through.
+      if (p.kind === 'hoop' && (m.geometry as THREE.BufferGeometry).type === 'TorusGeometry') continue;
+      const b = new THREE.Box3().setFromObject(m);
+      out.push({ box: { min: b.min.toArray() as Vec3, max: b.max.toArray() as Vec3 } });
+    }
+    if (p.kind === 'hoop') {
+      const centre = new THREE.Vector3(...rimOf(p));
+      const r = RIM.radius * p.scale[0];
+      for (let k = 0; k < 16; k++) {
+        const a0 = (k / 16) * Math.PI * 2;
+        const a1 = ((k + 1) / 16) * Math.PI * 2;
+        out.push({ capsule: { a: [centre.x + r * Math.cos(a0), centre.y, centre.z + r * Math.sin(a0)], b: [centre.x + r * Math.cos(a1), centre.y, centre.z + r * Math.sin(a1)], r: 0.012 } });
+      }
+    }
+    o.dispose();
+  }
+  return out;
 }
 
 /**
- * Where every prop is at time t. `figureAt` gives a figure's pose at a time (for the hands).
+ * The people's bodies for a free prop to hit (not their hands and forearms, which reach for it),
+ * always the same list; `clear`'s are put out of the way (far under the floor).
  */
-export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: number) => Figure | null): Prop[] {
-  const a = scene.animation;
-  if (!a?.props) return scene.props;
+function bodiesAt(scene: Scene, freeAt: FigureAt, t: number, clear: string[] = []): Solid[] {
   rig ??= new Rig();
-  rig.ground = groundOf(scene.props);
-  const wrists = new Map<string, THREE.Matrix4 | null>();
-  /** The world matrix of a figure's wrist at time `at`. */
-  const wrist = (figure: string, hand: Side, at: number) => {
-    const key = `${figure}:${hand}:${at}`;
-    if (!wrists.has(key)) {
-      const f = figureAt(figure, at);
-      if (!f) wrists.set(key, null);
-      else {
-        const j = rig!.model(f).joints[hand === 'L' ? 'leftHand' : 'rightHand'];
-        j.updateWorldMatrix(true, false);
-        wrists.set(key, j.matrixWorld.clone());
-      }
-    }
-    return wrists.get(key)!;
-  };
-  return scene.props.map((p) => {
-    const track = propTrack(a, p.id);
-    if (!track.length) return p;
-    const ground = groundOf(scene.props, p.id);
-    const held = (k: PropKey) => !!k.hold && scene.figures.some((f) => f.id === k.hold!.figure);
-    /** A key's world place: in the hand at that time if held, or where the hand let go. */
-    const world = (i: number): { position: Vec3; rotation: Vec3 } => {
-      const key = track[i];
-      const at = key.t;
-      const hand = held(key) ? key.hold! : key.release && i > 0 && held(track[i - 1]) ? track[i - 1].hold! : null;
-      const local = held(key) ? key : key.release && i > 0 ? track[i - 1] : key;
-      if (hand) {
-        const m = wrist(hand.figure, hand.hand, at);
-        if (m) return decompose(m.clone().multiply(compose(local.position, local.rotation)));
-      }
-      return { position: key.position, rotation: key.rotation };
-    };
-    const asProp = (w: { position: Vec3; rotation: Vec3 }, hold?: PropKey['hold']): Prop => {
-      const { hold: _, ...free } = p;
-      void _;
-      return hold ? { ...free, position: w.position, rotation: w.rotation, hold } : { ...free, position: w.position, rotation: w.rotation };
-    };
-
-    // Before the first key: as at the first key.
-    if (t <= track[0].t) return held(track[0]) ? asProp(track[0], track[0].hold) : asProp(world(0));
-    let i = track.length - 1;
-    while (i > 0 && track[i].t > t) i--;
-    const a0 = track[i];
-    // After the last key: held, at rest, or falling from where it was let go.
-    if (i === track.length - 1) {
-      if (held(a0)) return asProp(a0, a0.hold);
-      const w = world(i);
-      if (!a0.release) return asProp(w);
-      const fall = t - a0.t;
-      const floor = ground(w.position[0], w.position[2]);
-      return asProp({ position: [w.position[0], Math.max(floor, w.position[1] - (GRAVITY * fall * fall) / 2), w.position[2]], rotation: w.rotation });
-    }
-    const b0 = track[i + 1];
-    const u = (t - a0.t) / (b0.t - a0.t);
-    // In a hand: it rides along (easing to the next place in the same hand).
-    if (held(a0) && !b0.release) {
-      const same = held(b0) && b0.hold!.figure === a0.hold!.figure && b0.hold!.hand === a0.hold!.hand;
-      return asProp(same ? lerpPlace(a0, b0, smooth(u)) : a0, a0.hold);
-    }
-    if (held(a0)) return asProp(a0, a0.hold);
-    const wa = world(i);
-    const wb = world(i + 1);
-    if (b0.throw) {
-      // In flight: straight across, and up and down under gravity.
-      const T = b0.t - a0.t;
-      const p0 = lerpPlace(wa, wb, u);
-      p0.position[1] += (GRAVITY * T * T * u * (1 - u)) / 2;
-      return asProp(p0);
-    }
-    return asProp(lerpPlace(wa, wb, smooth(u)));
+  return scene.figures.filter((f) => !f.hidden && !f.proxy).flatMap((f) => {
+    const now = freeAt(f.id, t) ?? f;
+    const away = clear.includes(f.id) ? -100 : 0;
+    return capsules(rig!, now).filter((c) => !c.bone.endsWith('LowerArm')).map((c) => ({ capsule: { a: [c.p.x, c.p.y + away, c.p.z] as Vec3, b: [c.q.x, c.q.y + away, c.q.z] as Vec3, r: c.r } }));
   });
+}
+
+/** The world matrix of a figure's wrist at a time. */
+function wristAt(figureAt: FigureAt, figure: string, hand: Side, t: number): THREE.Matrix4 | null {
+  const f = figureAt(figure, t);
+  if (!f) return null;
+  rig ??= new Rig();
+  const j = rig.model(f).joints[hand === 'L' ? 'leftHand' : 'rightHand'];
+  j.updateWorldMatrix(true, false);
+  return j.matrixWorld.clone();
+}
+
+/** What happens to a prop, in time order: its keys, and the releases and grabs of the actions handling it. */
+function happenings(a: Animation, id: string): Happening[] {
+  const out: Happening[] = (a.props?.[id] ?? []).map((key) => ({ t: key.t, kind: 'key', key }));
+  for (const act of a.actions) {
+    if (act.prop !== id || act.source.kind !== 'clip') continue;
+    const clip = clipById(act.source.clip);
+    if (!clip) continue;
+    const speed = act.source.speed ?? 1;
+    const laps = clip.loop && clip.duration > 1e-6 ? Math.max(1, Math.round((act.duration * speed) / clip.duration)) : 1;
+    for (let lap = 0; lap < laps; lap++) {
+      for (const e of clip.events) {
+        const t = act.start + (e.t + lap * clip.duration) / speed;
+        const figure = act.roles[e.part]?.figure;
+        if (!figure || t > act.start + act.duration + 1e-6) continue;
+        const hand: Side = act.source.mirror ? (e.hand === 'L' ? 'R' : 'L') : e.hand;
+        out.push({ t, kind: e.kind, figure, hand, act });
+      }
+    }
+  }
+  return out.sort((p, q) => p.t - q.t || (p.kind === 'key' ? -1 : 0));
+}
+
+/**
+ * A prop's time, stretch by stretch: held, flying (simulated, lib/physics.ts) or resting, as its
+ * keys and the actions handling it have it. Releases are aimed where their action sends the prop
+ * (a pass at where the catcher's hand will be when it gets there); a hand takes hold of a free
+ * prop when it is within reach then (otherwise it flies on, and the check says so).
+ */
+export class PropTimeline {
+  readonly stretches: Stretch[] = [];
+  readonly catches: Catch[] = [];
+  readonly misses: { t: number; figure: string }[] = [];
+  /** Each release, and when it gets where it was sent. */
+  readonly arrivals: { release: number; arrive: number }[] = [];
+
+  /** `figureAt`: the figures as they are (for what is held); `freeAt`: before anyone reaches for anything (for aiming and catching). */
+  constructor(private scene: Scene, private prop: Prop, private figureAt: FigureAt, private freeAt: FigureAt) {
+    const a = scene.animation!;
+    const shape = bodyOf(prop);
+    const end = a.duration;
+    const events = happenings(a, prop.id);
+    // How it starts: as its first key has it, or as the scene does.
+    const first = events.find((e) => e.kind === 'key' && e.t <= 1e-6) as Extract<Happening, { kind: 'key' }> | undefined;
+    const start = first?.key ?? prop;
+    this.stretches.push(start.hold
+      ? { t: 0, kind: 'held', figure: start.hold.figure, hand: start.hold.hand, local: { position: start.position, rotation: start.rotation } }
+      : { t: 0, kind: 'rest', position: start.position, rotation: start.rotation, glide: false });
+    const pending: { t: number; figure: string; hand: Side }[] = [];
+    const queue = [...events];
+    while (queue.length || pending.length) {
+      const next = pending.length && (!queue.length || pending[0].t <= queue[0].t) ? { ...pending.shift()!, kind: 'catch' as const } : queue.shift()!;
+      const now = this.stretches[this.stretches.length - 1];
+      if (next.kind === 'key') {
+        const k = next.key;
+        if (k.hold) this.stretches.push({ t: k.t, kind: 'held', figure: k.hold.figure, hand: k.hold.hand, local: { position: k.position, rotation: k.rotation } });
+        else if (k.release) this.stretches.push({ t: k.t, kind: 'free', flight: this.flight(shape, k.t, [0, 0, 0], end) });
+        else if (k.t > 1e-6 || !first) this.stretches.push({ t: k.t, kind: 'rest', position: k.position, rotation: k.rotation, glide: now.kind === 'rest' });
+        continue;
+      }
+      if (next.kind === 'release') {
+        // Only what the hand holds is let go.
+        if (now.kind !== 'held' || now.figure !== next.figure || now.hand !== next.hand) continue;
+        const aim = this.aim(shape, next, queue);
+        this.arrivals.push({ release: next.t, arrive: aim.arrive });
+        // Not stopped by the thrower's own body as it leaves, nor the catcher's as it comes in.
+        // (A dribble comes back to the one dribbling: their body does not stop it either.)
+        const back = next.act.target && 'bounce' in next.act.target ? next.figure : undefined;
+        this.stretches.push({ t: next.t, kind: 'free', flight: this.flight(shape, next.t, aim.velocity, end, next.figure, aim.catch?.figure ?? back) });
+        if (aim.catch) {
+          pending.push(aim.catch);
+          pending.sort((p, q) => p.t - q.t);
+        }
+        continue;
+      }
+      // A grab, or a catch: the hand takes hold of it if it is free and within reach.
+      if (now.kind === 'held' && now.figure === next.figure && now.hand === next.hand) continue;
+      const at = this.placeAt(next.t, now, this.freeAt);
+      const palm = this.palmAt(next.figure, next.hand, next.t);
+      const catcher = this.scene.figures.find((f) => f.id === next.figure);
+      if (!at || !palm || !catcher) continue;
+      const g = grip(prop.kind, next.hand, catcher.body.height);
+      if (now.kind === 'free' && palm.distanceTo(at.centre) > CATCH_REACH) {
+        this.misses.push({ t: next.t, figure: next.figure });
+        continue;
+      }
+      if (next.kind === 'catch') this.catches.push({ t: next.t, figure: next.figure, hand: next.hand, reach: at.centre.clone().sub(palm).toArray() as Vec3 });
+      this.stretches.push({ t: next.t, kind: 'held', figure: next.figure, hand: next.hand, local: { position: g.position, rotation: g.rotation } });
+    }
+  }
+
+  /** Let go at t with a velocity: its flight from where the hand has it then (through the thrower's body as it leaves, and the catcher's as it comes in). */
+  private flight(shape: ReturnType<typeof bodyOf>, t: number, velocity: Vec3, end: number, thrower?: string, catcher?: string): Flight {
+    const at = this.placeAt(t, this.stretches[this.stretches.length - 1], this.freeAt)!;
+    // Flown until it lies still (or a while), whatever the animation's length (it may run on until then).
+    return fly(shape.body, { t, position: at.centre.toArray() as Vec3, velocity, rotation: at.turn.toArray() as [number, number, number, number] }, Math.max(end, t + FLIGHT), solidsOf(this.scene, this.prop.id),
+      (time) => bodiesAt(this.scene, this.freeAt, time, [...(thrower && time - t < 0.25 ? [thrower] : []), ...(catcher ? [catcher] : [])]));
+  }
+
+  /** Where a release sends the prop: the velocity, and the catch it leads to (into a hand, or back into the one dribbling). */
+  private aim(shape: ReturnType<typeof bodyOf>, e: ByHand, queue: Happening[]): { velocity: Vec3; arrive: number; catch?: { t: number; figure: string; hand: Side } } {
+    const from = this.placeAt(e.t, this.stretches[this.stretches.length - 1], this.freeAt)!.centre;
+    const p0 = from.toArray() as Vec3;
+    const target = e.act.target;
+    const fps = this.scene.animation!.fps;
+    const onFrame = (t: number) => Math.max(e.t + 1 / fps, Math.round(t * fps) / fps);
+    const low = shape.body.shape === 'ball' ? shape.body.size[0] : shape.body.size[1];
+    if (!target) return { velocity: [0, 0, 0], arrive: e.t };
+    if ('bounce' in target) {
+      // Into the hand again when it next takes hold (a dribble).
+      const grab = queue.find((q): q is ByHand => q.kind === 'grab' && q.act === e.act && q.figure === e.figure && q.hand === e.hand);
+      const into = grab && this.palmAt(grab.figure, grab.hand, grab.t);
+      if (!grab || !into) return { velocity: [0, 0, 0], arrive: e.t };
+      return { velocity: aimBounce(p0, into.toArray() as Vec3, grab.t - e.t, low, (shape.body.bounce + FLOOR_BOUNCE) / 2), arrive: grab.t };
+    }
+    if ('at' in target) {
+      const ground = groundOf(this.scene.props, this.prop.id);
+      const to: Vec3 = [target.at[0], ground(target.at[0], target.at[1]) + low, target.at[1]];
+      const T = onFrame(e.t + throwTime(p0, to));
+      return { velocity: aim(p0, to, T - e.t), arrive: T };
+    }
+    if ('hoop' in target) {
+      const hoop = this.scene.props.find((p) => p.id === target.hoop && p.kind === 'hoop');
+      if (!hoop) return { velocity: [0, 0, 0], arrive: e.t };
+      const rim = new THREE.Vector3(...rimOf(hoop));
+      // Through the rim's centre, or onto its front.
+      const toward = rim.clone().sub(from).setY(0).normalize();
+      const to = target.miss ? rim.clone().addScaledVector(toward, -RIM.radius * hoop.scale[0]).add(new THREE.Vector3(0, 0.02, 0)) : rim;
+      const p1 = to.toArray() as Vec3;
+      const T = onFrame(e.t + throwTime(p0, p1));
+      return { velocity: aim(p0, p1, T - e.t), arrive: T };
+    }
+    // Into someone's hand (or one's own, tossed up): where it will be when it gets there.
+    let T = onFrame(e.t + throwTime(p0, (this.palmAt(target.figure, target.hand, e.t) ?? from).toArray() as Vec3, target.rise));
+    let to = from;
+    for (let k = 0; k < 3; k++) {
+      to = this.palmAt(target.figure, target.hand, T) ?? from;
+      T = onFrame(e.t + throwTime(p0, to.toArray() as Vec3, target.rise));
+    }
+    to = this.palmAt(target.figure, target.hand, T) ?? from;
+    return { velocity: aim(p0, to.toArray() as Vec3, T - e.t), arrive: T, catch: { t: T, figure: target.figure, hand: target.hand } };
+  }
+
+  /** Where a hand holds a prop of this kind at a time (its centre), before anything reaches for it. */
+  private palmAt(figure: string, hand: Side, t: number) {
+    const w = wristAt(this.freeAt, figure, hand, t);
+    const f = this.scene.figures.find((x) => x.id === figure);
+    if (!w || !f) return null;
+    const g = grip(this.prop.kind, hand, f.body.height);
+    const centre = bodyOf(this.prop).centre;
+    return centre.applyMatrix4(compose(g.position, g.rotation)).applyMatrix4(w);
+  }
+
+  /** The stretch at time t. */
+  at(t: number) {
+    let i = this.stretches.length - 1;
+    while (i > 0 && this.stretches[i].t > t + 1e-9) i--;
+    return { now: this.stretches[i], next: this.stretches[i + 1] };
+  }
+
+  /**
+   * Where the prop is at t in a stretch: its world matrix, centre and turn. In a hand, where
+   * `figureAt` has the hand (working the timeline out, where the hand is before anyone reaches).
+   */
+  placeAt(t: number, s: Stretch, figureAt = this.figureAt): { matrix: THREE.Matrix4; centre: THREE.Vector3; turn: THREE.Quaternion } | null {
+    const shape = bodyOf(this.prop);
+    let matrix: THREE.Matrix4;
+    if (s.kind === 'held') {
+      const w = wristAt(figureAt, s.figure, s.hand, t);
+      if (!w) return null;
+      matrix = w.multiply(compose(s.local.position, s.local.rotation));
+    } else if (s.kind === 'free') {
+      const f = flightAt(s.flight, t);
+      // A ball rolls as it likes; it is drawn upright (its place right under its centre).
+      const turn = shape.body.shape === 'ball' ? new THREE.Quaternion() : f.rotation;
+      const base = f.position.clone().sub(shape.centre.clone().applyQuaternion(turn));
+      matrix = new THREE.Matrix4().compose(base, turn, new THREE.Vector3(1, 1, 1));
+    } else {
+      const { next } = this.at(t);
+      const to = next?.kind === 'rest' && next.glide ? next : null;
+      const u = to ? smooth((t - s.t) / (to.t - s.t)) : 0;
+      const w = to ? lerpPlace(s, to, u) : s;
+      matrix = compose(w.position, w.rotation);
+    }
+    const centre = shape.centre.clone().applyMatrix4(matrix);
+    return { matrix, centre, turn: new THREE.Quaternion().setFromRotationMatrix(matrix) };
+  }
+}
+
+/** Whether a prop does anything over time (keys of its own, or actions handling it). */
+export const animated = (a: Animation, id: string) => !!a.props?.[id]?.length || a.actions.some((x) => x.prop === id);
+
+/** The prop as it is at t on its timeline (held: its place in the hand, as a held prop keeps it). */
+export function propOn(tl: PropTimeline, scene: Scene, p: Prop, t: number): Prop {
+  const { now } = tl.at(t);
+  const { hold: _, ...free } = p;
+  void _;
+  if (now.kind === 'held') return { ...free, position: now.local.position, rotation: now.local.rotation, hold: { figure: now.figure, hand: now.hand } };
+  const place = tl.placeAt(t, now);
+  return place ? { ...free, ...decompose(place.matrix) } : p;
+}
+
+/** Where a prop is in the world (in a hand: where the hand has it). */
+export function placeInWorld(p: Prop, figureAt: FigureAt, t: number): { position: Vec3; rotation: Vec3 } | null {
+  if (!p.hold) return { position: p.position, rotation: p.rotation };
+  const w = wristAt(figureAt, p.hold.figure, p.hold.hand, t);
+  return w ? decompose(w.multiply(compose(p.position, p.rotation))) : null;
 }
 
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };
@@ -198,12 +447,12 @@ const tips = new WeakMap<Scene, Map<string, THREE.Vector3 | null>>();
  * moment of the last second dropped by how long the ribbon has been falling since), at a fixed
  * length; what that path does not cover hangs straight down, and what reaches the floor lies on it.
  */
-export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: (fid: string, at: number) => Figure | null): Vec3[] | null {
+export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: FigureAt, placeAt: (at: number) => { position: Vec3; rotation: Vec3 } | null): Vec3[] | null {
   const prop = scene.props.find((p) => p.id === id);
   if (!prop || prop.kind !== 'ribbon') return null;
   const scale = new THREE.Vector3(...prop.scale);
   // Held all along (no keys of its own): straight from the hand, the quick way.
-  const steady = prop.hold && !(scene.animation && propTrack(scene.animation, id).length) ? prop.hold : null;
+  const steady = prop.hold && !(scene.animation && animated(scene.animation, id)) ? prop.hold : null;
   const local = compose(prop.position, prop.rotation).scale(scale);
   rig ??= new Rig();
   const seen = tips.get(scene) ?? new Map<string, THREE.Vector3 | null>();
@@ -221,7 +470,7 @@ export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: (fid:
       j.updateWorldMatrix(true, false);
       return new THREE.Vector3(0, RIBBON.stick, 0).applyMatrix4(j.matrixWorld.clone().multiply(local));
     }
-    const w = worldOfProp(scene, id, figureAt, Math.max(0, at));
+    const w = placeAt(Math.max(0, at));
     return w && new THREE.Vector3(0, RIBBON.stick, 0).applyMatrix4(compose(w.position, w.rotation).scale(scale));
   };
   const start = tip(t);
@@ -276,18 +525,4 @@ export function handPosition(f: Figure, hand: Side, props?: Prop[]): Vec3 {
   rig.ground = props ? groundOf(props) : null;
   const p = rig.model(f).joints[hand === 'L' ? 'leftHand' : 'rightHand'].getWorldPosition(new THREE.Vector3());
   return [p.x, p.y, p.z];
-}
-
-/** A prop's world place at time t in a scene (for throwing and letting go). */
-export function worldOfProp(scene: Scene, id: string, figureAt: (fid: string, at: number) => Figure | null, t: number) {
-  const p = propsAt(scene, t, figureAt).find((x) => x.id === id);
-  if (!p) return null;
-  if (!p.hold) return { position: p.position, rotation: p.rotation };
-  rig ??= new Rig();
-  rig.ground = groundOf(scene.props);
-  const f = figureAt(p.hold.figure, t);
-  if (!f) return { position: p.position, rotation: p.rotation };
-  const j = rig.model(f).joints[p.hold.hand === 'L' ? 'leftHand' : 'rightHand'];
-  j.updateWorldMatrix(true, false);
-  return decompose(j.matrixWorld.clone().multiply(compose(p.position, p.rotation)));
 }

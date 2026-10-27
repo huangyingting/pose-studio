@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { expect } from 'vitest';
 import { frameTimes } from '@/lib/animation';
-import { sceneAt } from '@/lib/evaluate';
+import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { BODY_PRESETS } from '@/lib/body';
-import { handPosition, worldOfProp } from '@/lib/propmotion';
+import { handPosition } from '@/lib/propmotion';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -54,7 +54,7 @@ export function audit(scene: Scene) {
     }
     for (const p of s.props) {
       if (!p.hold) continue;
-      const w = worldOfProp(scene, p.id, at, t)!.position;
+      const w = propWorldAt(scene, p.id, t)!.position;
       const h = handPosition(at(p.hold.figure, t)!, p.hold.hand, s.props);
       handGap = Math.max(handGap, Math.hypot(w[0] - h[0], w[1] - h[1], w[2] - h[2]));
     }

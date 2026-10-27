@@ -14,6 +14,7 @@ import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam, shareUrl } from '@/lib/share';
 import { Store, type SaveStatus } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
+import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById } from '@/lib/assets';
 import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
@@ -110,6 +111,14 @@ function App() {
     store.setTime(clock.time);
   }, [clock, store]);
   useEffect(() => stopPlayback, [scene.id, stopPlayback]);
+  // Props that fly free need the physics engine: loaded when a scene first lets one go, and the
+  // frame on show worked out again once it is there.
+  const flies = !!scene.animation && (scene.animation.actions.some((x) => x.prop) || Object.values(scene.animation.props ?? {}).some((keys) => keys.some((k) => k.release)));
+  useEffect(() => {
+    if (!flies) return;
+    void loadPhysics();
+    return onPhysicsReady(() => store.setTime(store.getState().time));
+  }, [flies, store]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = useCallback<Notify>((text, kind = 'info', action) => {

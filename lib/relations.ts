@@ -270,3 +270,35 @@ export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true
 export function headPoint(m: Mannequin, f: Figure) {
   return m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * (f.body.height / 1.8), 0.02));
 }
+
+/* ---------- the body as capsules (bodies through each other, a ball through someone) ---------- */
+
+interface Bone { a: JointName; b: JointName | null; r: number; from?: number; to?: number }
+
+/** The body's main bones as capsules (radii for a 1.7 m figure of medium build). */
+const BONES: Bone[] = [
+  { a: 'hips', b: 'neck', r: 0.1 },
+  { a: 'head', b: null, r: 0.09 },
+  { a: 'leftUpperArm', b: 'leftLowerArm', r: 0.045, from: 0.2 }, { a: 'leftLowerArm', b: 'leftHand', r: 0.035, to: 0.7 },
+  { a: 'rightUpperArm', b: 'rightLowerArm', r: 0.045, from: 0.2 }, { a: 'rightLowerArm', b: 'rightHand', r: 0.035, to: 0.7 },
+  { a: 'leftUpperLeg', b: 'leftLowerLeg', r: 0.07 }, { a: 'leftLowerLeg', b: 'leftFoot', r: 0.045 },
+  { a: 'rightUpperLeg', b: 'rightLowerLeg', r: 0.07 }, { a: 'rightLowerLeg', b: 'rightFoot', r: 0.045 },
+];
+
+/** A bone as a capsule in the world. */
+export interface Capsule { p: THREE.Vector3; q: THREE.Vector3; r: number; bone: JointName }
+
+/** A posed figure's bones as capsules. */
+export function capsules(rig: Rig, f: Figure): Capsule[] {
+  const m = rig.model(f);
+  const s = f.body.height / 1.7;
+  const w = (k: JointName) => m.joints[k].getWorldPosition(new THREE.Vector3());
+  return BONES.map((b) => {
+    const a = w(b.a);
+    if (!b.b) return { p: a, q: m.joints.head.localToWorld(new THREE.Vector3(0, 0.12 * s, 0)), r: b.r * s, bone: b.a };
+    const end = w(b.b);
+    const p = a.clone().lerp(end, b.from ?? 0);
+    const q = a.clone().lerp(end, b.to ?? 1);
+    return { p, q, r: b.r * s * (0.85 + f.body.build * 0.3), bone: b.a };
+  });
+}

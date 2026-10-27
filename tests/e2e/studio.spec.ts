@@ -964,8 +964,9 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
   for (let i = 0; i < 6; i++) await page.keyboard.press('.');
   await floorMenu(page, [1.2, 0, -1], /^Throw .* here$/);
   s = await live(page);
-  expect(s.scene.animation!.props![s.scene.props[0].id].some((k) => k.throw)).toBe(true);
-  await expect(page.locator('.tl-key.prop').first()).toBeVisible();
+  // A throw on the figure's upper body, sending it there; the stick's row says when it flies.
+  expect(s.scene.animation!.actions.find((x) => x.prop === s.scene.props[0].id)?.target).toEqual({ at: [1.2, -1] });
+  await expect(page.locator('.tl-travel.throw').first()).toBeVisible();
 });
 
 test('a two-person motion goes on the selected figure and the one next to it', async ({ page }) => {
@@ -997,20 +998,21 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ri
   await propMenu('Ball', 'Dribble (2 s)');
   let s = await live(page);
   const ball = s.scene.props.find((p) => p.kind === 'sphere')!.id;
-  const track = () => s.scene.animation!.props![ball];
-  expect(track().filter((k) => k.release)).toHaveLength(4);
+  const handling = () => s.scene.animation!.actions.filter((x) => x.prop === ball);
+  expect(handling().map((x) => [x.source.kind === 'clip' && x.source.clip, x.duration])).toEqual([['motion:dribble', 2]]);
   expect(s.time).toBeCloseTo(2, 2);
   await propMenu('Ball', /^Shoot at Basketball hoop$/);
   s = await live(page);
-  // Through the rim, then down and bouncing on the floor: the animation runs on until it rests.
-  expect(track().slice(-4).every((k) => k.throw)).toBe(true);
+  // Through the rim, then down and bouncing on the floor: the animation runs on until it is down.
+  expect(handling().at(-1)!.target).toMatchObject({ hoop: expect.any(String) });
   expect(s.scene.animation!.duration).toBeGreaterThan(s.time + 0.5);
 
   await addLayer(page, 'Gym hoop');
   await propMenu('Gym hoop', 'Toss up and catch');
   s = await live(page);
   const ring = s.scene.props.find((p) => p.kind === 'ring')!.id;
-  expect(s.scene.animation!.props![ring].at(-1)!.hold).toBeTruthy();
+  // Up from her hand and back into it.
+  expect(s.scene.animation!.actions.find((x) => x.prop === ring)!.target).toMatchObject({ figure: s.active, rise: 2 });
 
   // A ribbon goes in the other hand; it trails its stick as drawn (not kept in the scene).
   await addLayer(page, 'Ribbon');

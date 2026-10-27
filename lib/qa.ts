@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 import { frameTimes } from './animation';
-import { sceneAt, travelAt } from './evaluate';
+import { missedCatchesOf, sceneAt, travelAt } from './evaluate';
 import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
-import { Rig } from './relations';
+import { Rig, capsules, type Capsule } from './relations';
 import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
 import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
 import { shotSpans } from './shots';
-import { JOINTS, type Figure, type JointName, type Prop, type Scene, type Vec3 } from './types';
+import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -19,7 +19,7 @@ import { JOINTS, type Figure, type JointName, type Prop, type Scene, type Vec3 }
  * Bodies are approximated by capsules around the bones, so only clear overlaps are reported.
  */
 
-export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop' | 'hidden';
+export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop' | 'hidden' | 'miss';
 
 export interface Issue {
   kind: IssueKind;
@@ -33,7 +33,7 @@ export interface Issue {
 }
 
 export const ISSUE_LABELS: Record<IssueKind, string> = {
-  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop', hidden: 'Hidden from the camera',
+  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop', hidden: 'Hidden from the camera', miss: 'Missed catch',
 };
 
 const HINTS: Record<IssueKind, string> = {
@@ -42,6 +42,7 @@ const HINTS: Record<IssueKind, string> = {
   limit: 'Re-pose this key with “Natural joint limits” on.',
   pop: 'Add an in-between key, or move the keys further apart.',
   hidden: 'Move the camera, the prop, or the figure out from behind it.',
+  miss: 'Something got in its way, or the hand cannot reach it then: clear the way, or move the catch.',
 };
 
 /** Thresholds (metres, degrees). */
@@ -59,20 +60,11 @@ const POP_ROOT = 0.12;
 /** Capsules closer than this fraction of their radii overlap clearly (resting on each other is fine). */
 const OVERLAP = 0.5;
 
-interface Bone { a: JointName; b: JointName | null; r: number; from?: number; to?: number }
 
 /**
  * Capsules around the bones (radius at 1.7 m height). Hands and the shoulder caps are left out:
  * holding hands and a hand on a shoulder are contact, not overlap.
  */
-const BONES: Bone[] = [
-  { a: 'hips', b: 'neck', r: 0.1 },
-  { a: 'head', b: null, r: 0.09 },
-  { a: 'leftUpperArm', b: 'leftLowerArm', r: 0.045, from: 0.2 }, { a: 'leftLowerArm', b: 'leftHand', r: 0.035, to: 0.7 },
-  { a: 'rightUpperArm', b: 'rightLowerArm', r: 0.045, from: 0.2 }, { a: 'rightLowerArm', b: 'rightHand', r: 0.035, to: 0.7 },
-  { a: 'leftUpperLeg', b: 'leftLowerLeg', r: 0.07 }, { a: 'leftLowerLeg', b: 'leftFoot', r: 0.045 },
-  { a: 'rightUpperLeg', b: 'rightLowerLeg', r: 0.07 }, { a: 'rightLowerLeg', b: 'rightFoot', r: 0.045 },
-];
 
 const BONE_LABELS: Record<string, string> = {
   hips: 'body', head: 'head', leftUpperArm: 'left upper arm', leftLowerArm: 'left forearm', rightUpperArm: 'right upper arm', rightLowerArm: 'right forearm',
@@ -82,7 +74,6 @@ const BONE_LABELS: Record<string, string> = {
 /** Arms crossing arms is usually a hold, and the capsules are roughest there: not checked. */
 const ARMS = new Set<JointName>(['leftUpperArm', 'leftLowerArm', 'rightUpperArm', 'rightLowerArm']);
 
-interface Capsule { p: THREE.Vector3; q: THREE.Vector3; r: number; bone: JointName }
 
 /** Closest distance between segments p1q1 and p2q2. */
 export function segmentDistance(p1: THREE.Vector3, q1: THREE.Vector3, p2: THREE.Vector3, q2: THREE.Vector3) {
@@ -111,19 +102,6 @@ export function segmentDistance(p1: THREE.Vector3, q1: THREE.Vector3, p2: THREE.
   return p1.clone().addScaledVector(d1, s).distanceTo(p2.clone().addScaledVector(d2, t));
 }
 
-function capsules(rig: Rig, f: Figure): Capsule[] {
-  const m = rig.model(f);
-  const s = f.body.height / 1.7;
-  const w = (k: JointName) => m.joints[k].getWorldPosition(new THREE.Vector3());
-  return BONES.map((b) => {
-    const a = w(b.a);
-    if (!b.b) return { p: a, q: m.joints.head.localToWorld(new THREE.Vector3(0, 0.12 * s, 0)), r: b.r * s, bone: b.a };
-    const end = w(b.b);
-    const p = a.clone().lerp(end, b.from ?? 0);
-    const q = a.clone().lerp(end, b.to ?? 1);
-    return { p, q, r: b.r * s * (0.85 + f.body.build * 0.3), bone: b.a };
-  });
-}
 
 /** Group frame-level hits into time ranges (gaps of one frame are bridged). */
 class Ranges {
@@ -212,7 +190,7 @@ export function checkMotion(scene: Scene): Issue[] {
   const stamps = a.loop ? [...times, a.duration] : times;
   const ranges = new Ranges(stamps, (key, worst, d) => {
     switch (d.kind) {
-      case 'hidden': return null; // found shot by shot (hiddenInShots)
+      case 'hidden': case 'miss': return null; // found shot by shot (hiddenInShots), and on the props' timelines
       case 'slide': return worst >= SLIDE_MIN ? `${who(d.figure)}${d.joint === 'leftFoot' ? 'Left' : 'Right'} foot slides ${cm(worst)} while planted` : null;
       case 'limit': return `${who(d.figure)}${JOINT_LABELS[d.joint!]} bends ${Math.round(worst)}° past its natural range`;
       case 'pop': return d.joint === 'hips' && key.endsWith(':move')
@@ -384,8 +362,13 @@ export function checkMotion(scene: Scene): Issue[] {
   rig.dispose();
   for (const p of props.values()) p.dispose();
   ink.dispose();
-  const order2: IssueKind[] = ['hidden', 'overlap', 'slide', 'pop', 'limit'];
-  return [...ranges.finish(), ...hiddenInShots(scene)].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+  const order2: IssueKind[] = ['miss', 'hidden', 'overlap', 'slide', 'pop', 'limit'];
+  // A prop that should have been caught (or picked up) but was not within reach.
+  const misses: Issue[] = missedCatchesOf(scene).map((m) => ({
+    kind: 'miss', figure: m.figure, start: m.t, end: m.t, hint: HINTS.miss,
+    message: `${names.get(m.figure) ?? 'Someone'} misses ${scene.props.find((p) => p.id === m.prop)?.name ?? 'the prop'}`,
+  }));
+  return [...ranges.finish(), ...hiddenInShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }
 
 /**

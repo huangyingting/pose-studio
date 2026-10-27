@@ -4,17 +4,17 @@ import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, arrange, cutShot, dribbleProp, editShot, holdProp, moveProp, setGaze, setSceneLight,
   throwProp, travelTo,
 } from '@/lib/actions';
-import { sceneAt } from '@/lib/evaluate';
+import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { buildMotion } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
-import { rimOf, worldOfProp } from '@/lib/propmotion';
+import { rimOf } from '@/lib/propmotion';
 import { withFacing } from '@/lib/relations';
 import { SceneView } from '@/lib/sceneview';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import { body, expectClean, figureAt, fresh } from '../fixtures/scenes';
+import { body, expectClean, fresh } from '../fixtures/scenes';
 
 /*
  * Acceptance baseline for the redesign (issue #1): these films must keep passing at every step.
@@ -99,9 +99,8 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     expectFilm(store, 'noon', 2);
     // Leo has it after the pass; it goes through the rim and ends on the floor.
     expect(sceneAt(store.scene, pass.to + 0.1).props[0].hold?.figure).toBe(b);
-    const at = figureAt(store.scene);
     const rim = rimOf(hoop);
-    const through = worldOfProp(store.scene, ball, at, shot.to)!.position;
+    const through = propWorldAt(store.scene, ball, shot.to)!.position;
     expect(Math.hypot(through[0] - rim[0], through[2] - rim[2])).toBeLessThan(0.05);
     expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].position[1]).toBeCloseTo(0, 2);
   }, 120_000);

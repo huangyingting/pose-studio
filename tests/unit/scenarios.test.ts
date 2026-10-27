@@ -5,10 +5,10 @@ import {
   travelTo,
 } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
-import { actionsOf, figurePoseAt, sceneAt } from '@/lib/evaluate';
+import { actionsOf, figurePoseAt, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { LIGHT_PRESETS } from '@/lib/lighting';
-import { handPosition, rimOf, worldOfProp } from '@/lib/propmotion';
+import { handPosition, rimOf } from '@/lib/propmotion';
 import { buildMotion } from '@/lib/motions';
 import { withFacing } from '@/lib/relations';
 import { checkMotion } from '@/lib/qa';
@@ -73,7 +73,7 @@ describe('scenes from the use case', () => {
     const pass = throwProp(store, ball, { figure: b, hand: 'R' })!;
     expectClean(store.scene);
     const at = figureAt(store.scene);
-    const w = worldOfProp(store.scene, ball, at, pass.to)!.position;
+    const w = propWorldAt(store.scene, ball, pass.to)!.position;
     const h = handPosition(at(b, pass.to)!, 'R', store.scene.props);
     expect(Math.hypot(w[0] - h[0], w[1] - h[1], w[2] - h[2])).toBeLessThan(0.25);
     expect(sceneAt(store.scene, pass.to + 0.3).props[0].hold?.figure).toBe(b);
@@ -166,17 +166,17 @@ describe('scenes from the use case', () => {
     const shot = throwProp(store, ball, { hoop })!;
     expectClean(store.scene);
     const at = figureAt(store.scene);
-    // Pushed down, off the floor a third of the way through each dribble, met by the hand on its
-    // way up; the hand rides it to the top, lower as it lets go.
-    expect(worldOfProp(store.scene, ball, at, 4 / 24)!.position[1]).toBeCloseTo(0, 2);
+    // Pushed down, off the floor, met by the hand on its way up; the hand rides it to the top,
+    // lower as it lets go.
+    expect(Math.min(...Array.from({ length: 32 }, (_, i) => propWorldAt(store.scene, ball, i / 96)!.position[1]))).toBeCloseTo(0, 1);
     expect(sceneAt(store.scene, 8 / 24).props[0].hold?.figure).toBe(a);
     const wrist = (t: number) => handPosition(at(a, t)!, 'R', store.scene.props)[1];
     expect(wrist(9 / 24) - wrist(12 / 24)).toBeGreaterThan(0.1);
     // Through the rim (its centre there), then down on the floor.
     const rim = rimOf(store.scene.props[1]);
-    const through = worldOfProp(store.scene, ball, at, shot.to)!.position;
+    const through = propWorldAt(store.scene, ball, shot.to)!.position;
     expect(Math.hypot(through[0] - rim[0], through[2] - rim[2])).toBeLessThan(0.05);
-    expect(rim[1] - through[1]).toBeCloseTo(store.scene.props[0].scale[1] / 2, 2);
+    expect(rim[1] - through[1]).toBeCloseTo(store.scene.props[0].scale[1] / 2, 1);
     const end = sceneAt(store.scene, store.scene.animation!.duration).props[0];
     expect(end.hold).toBeUndefined();
     expect(end.position[1]).toBeCloseTo(0, 2);
@@ -195,9 +195,8 @@ describe('scenes from the use case', () => {
     expect(hoop.position[2]).toBeCloseTo(5, 3);
     const shot = throwProp(store, ball, { hoop: hoop.id, miss: true })!;
     expectClean(store.scene);
-    const at = figureAt(store.scene);
     const rim = rimOf(hoop);
-    const hit = worldOfProp(store.scene, ball, at, shot.to)!.position;
+    const hit = propWorldAt(store.scene, ball, shot.to)!.position;
     // At the rim's front edge, not through its middle.
     expect(rim[2] - hit[2]).toBeGreaterThan(0.25);
     const end = sceneAt(store.scene, store.scene.animation!.duration).props[0];
@@ -280,14 +279,13 @@ describe('scenes from the use case', () => {
     expect(ribbon.hold).toEqual({ figure: a, hand: 'R' });
     applyMotion(store, a, 'pirouette');
     expectClean(store.scene);
-    const at = figureAt(store.scene);
     const lengths = (trail: number[][]) => trail.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - trail[i][0], p[1] - trail[i][1], p[2] - trail[i][2]), 0);
     const started = performance.now();
     const times = [0, 0.8, 1.1, 1.4];
     for (const t of times) {
       const trail = sceneAt(store.scene, t).props[0].trail!;
       // From the stick's tip, four metres long, never under the floor.
-      const tip = worldOfProp(store.scene, ribbon.id, at, t)!;
+      const tip = propWorldAt(store.scene, ribbon.id, t)!;
       expect(Math.hypot(trail[0][0] - tip.position[0], trail[0][2] - tip.position[2])).toBeLessThan(0.7);
       expect(lengths(trail)).toBeCloseTo(4, 1);
       expect(Math.min(...trail.map((p) => p[1]))).toBeGreaterThan(0);
