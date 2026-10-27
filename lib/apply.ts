@@ -29,62 +29,81 @@ function turn(x: number, z: number, deg: number): [number, number] {
 const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
 
 /**
- * Put a one-person motion (an animated scene) on one figure's track, starting at `start`. Its
- * moves are turned and moved to start where the figure stands, facing its way; the figure's own
- * keys inside that time are replaced, the other figures' tracks are untouched. The animation is
- * created or lengthened as needed.
+ * Put a motion (an animated scene) on figures' tracks, starting at `start`: `cast` names the
+ * figure taking each of its parts, in its order (one figure for a one-person motion). It is turned
+ * and moved to start where the first of them (the lead) stands, facing its way; the others take
+ * their places around the lead as in the motion. Their own keys inside that time are replaced, the
+ * other figures' tracks are untouched. The animation is created or lengthened as needed.
  */
-export function insertMotion(scene: Scene, figureId: string, motion: Scene, start: number): Scene {
-  const target = scene.figures.find((f) => f.id === figureId);
-  const src = motion.figures[0];
+export function insertMotion(scene: Scene, cast: string | string[], motion: Scene, start: number): Scene {
+  const ids = typeof cast === 'string' ? [cast] : cast;
+  // Each figure as it is when the motion starts (where an animation has put it by then).
+  const targets = ids.map((id) => {
+    const f = scene.figures.find((x) => x.id === id);
+    const p = f && scene.animation ? samplePose(scene.animation, id, start) : null;
+    return f && p ? { ...f, joints: p.joints, position: p.position, grounded: p.grounded } : f;
+  });
   const m = motion.animation;
-  if (!target || !src || !m) return scene;
+  if (!m || ids.length > motion.figures.length || targets.some((f) => !f) || new Set(ids).size < ids.length) return scene;
   const end = Math.min(60, start + m.duration);
   let a: Animation = scene.animation ?? { ...newAnimation(scene, Math.max(end, 0.2)), loop: m.loop && start === 0 };
   if (end > a.duration) a = { ...a, duration: end };
   const t0 = snapTime(a, start);
   const t1 = snapTime(a, end);
 
-  const turnBy = facing(target) - facing(src);
+  // Placed by the lead: turned to its facing, moved to where it stands.
+  const lead = targets[0]!;
+  const leadSrc = motion.figures[0];
+  const turnBy = facing(lead) - facing(leadSrc);
+  // Travel, spacing and changes of height scale with the figures (a child's cartwheel covers less
+  // ground); people moving together keep together, spaced for the biggest of them so nobody walks
+  // into anybody.
+  const size = Math.max(...targets.map((f, n) => legsOf(f!.body).rootY / legsOf(motion.figures[n].body).rootY));
   // Heights are of the hips; a grounded figure's are those of standing.
   const hipsOf = (f: Figure) => (f.grounded ? legsOf(f.body).rootY : f.position[1]);
-  // Travel and changes of height scale with the figure (a child's cartwheel covers less ground).
-  const size = legsOf(target.body).rootY / legsOf(src.body).rootY;
-  const retarget = (p: PoseKey): PoseKey => {
-    const [dx, dz] = turn((p.position[0] - src.position[0]) * size, (p.position[2] - src.position[2]) * size, turnBy);
-    const root = p.joints.root ?? [0, 0, 0];
-    const y = p.grounded ? target.position[1] : r3(hipsOf(target) + (p.position[1] - hipsOf(src)) * size);
-    return {
-      joints: { ...structuredClone(p.joints), root: [root[0], r3(wrapDeg(root[1] + turnBy)), root[2]] },
-      position: [r3(target.position[0] + dx), y, r3(target.position[2] + dz)] as Vec3,
-      hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) },
-      grounded: p.grounded,
-      ...(p.travel && { travel: p.travel }),
-      ...(p.strafe && { strafe: p.strafe }),
-      ...(p.spin && { spin: p.spin }),
-      ...(p.flip && { flip: p.flip }),
+
+  let keys = a.keys;
+  for (const [n, target] of targets.entries()) {
+    const src = motion.figures[n];
+    const figureId = target!.id;
+    const retarget = (p: PoseKey): PoseKey => {
+      const [dx, dz] = turn((p.position[0] - leadSrc.position[0]) * size, (p.position[2] - leadSrc.position[2]) * size, turnBy);
+      const root = p.joints.root ?? [0, 0, 0];
+      const y = p.grounded ? lead.position[1] : r3(hipsOf(target!) + (p.position[1] - hipsOf(src)) * size);
+      return {
+        joints: { ...structuredClone(p.joints), root: [root[0], r3(wrapDeg(root[1] + turnBy)), root[2]] },
+        position: [r3(lead.position[0] + dx), y, r3(lead.position[2] + dz)] as Vec3,
+        hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) },
+        grounded: p.grounded,
+        ...(p.travel && { travel: p.travel }),
+        ...(p.strafe && { strafe: p.strafe }),
+        ...(p.spin && { spin: p.spin }),
+        ...(p.flip && { flip: p.flip }),
+      };
     };
-  };
 
-  // The motion's keys for its figure, and for a loop the first again at the end (a full cycle).
-  const keyed = m.keys.filter((k) => k.poses[src.id]).map((k) => ({ t: k.t, pose: k.poses[src.id] }));
-  if (m.loop && keyed.length) keyed.push({ t: m.duration, pose: keyed[0].pose });
-  const same = JSON.stringify(src.body) === JSON.stringify(target.body);
-  // On other proportions, stretches with a foot planted get a key every frame, each with the
-  // foot locked (blended joint angles alone would let it drift between keys far apart).
-  const moves = same ? keyed : densePlanted(m, src, keyed);
+    // The motion's keys for this part, and for a loop the first again at the end (a full cycle).
+    const keyed = m.keys.filter((k) => k.poses[src.id]).map((k) => ({ t: k.t, pose: k.poses[src.id] }));
+    if (m.loop && keyed.length && keyed[keyed.length - 1].t < m.duration - 1e-6) keyed.push({ t: m.duration, pose: keyed[0].pose });
+    const same = JSON.stringify(src.body) === JSON.stringify(target!.body);
+    // On other proportions, stretches with a foot planted get a key every frame, each with the
+    // foot locked (blended joint angles alone would let it drift between keys far apart).
+    const moves = same ? keyed : densePlanted(m, src, keyed);
 
-  // Clear the figure's keys in that span, then key the motion.
-  let keys = a.keys
-    .map((k) => (k.t >= t0 - 1e-6 && k.t <= t1 + 1e-6 && k.poses[figureId] ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => id !== figureId)) } : k))
-    .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
-  const retargeted = moves.map((m) => retarget(m.pose));
-  const locked = same ? retargeted : lockFeet(src, target, moves.map((m) => m.pose), retargeted);
-  for (const [n, { t }] of moves.entries()) {
-    const time = snapTime(a, start + t);
-    const i = keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);
-    const keyed = locked[n];
-    keys = i >= 0 ? keys.map((k, j) => (j === i ? { ...k, poses: { ...k.poses, [figureId]: keyed } } : k)) : [...keys, { t: time, poses: { [figureId]: keyed } }];
+    // How it got to where the motion starts (the end of a walk there, say) stays.
+    const arrival = keys.find((k) => Math.abs(k.t - t0) < 1e-6)?.poses[figureId];
+    const how = arrival ? { ...(arrival.travel && { travel: arrival.travel }), ...(arrival.strafe && { strafe: arrival.strafe }), ...(arrival.spin && { spin: arrival.spin }), ...(arrival.flip && { flip: arrival.flip }) } : {};
+    // Clear the figure's keys in that span, then key the motion.
+    keys = keys
+      .map((k) => (k.t >= t0 - 1e-6 && k.t <= t1 + 1e-6 && k.poses[figureId] ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).filter(([id]) => id !== figureId)) } : k))
+      .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
+    const retargeted = moves.map((x, i) => (i === 0 && !x.pose.travel ? { ...retarget(x.pose), ...how } : retarget(x.pose)));
+    const locked = same ? retargeted : lockFeet(src, target!, moves.map((x) => x.pose), retargeted);
+    for (const [i, { t }] of moves.entries()) {
+      const time = snapTime(a, start + t);
+      const at = keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);
+      keys = at >= 0 ? keys.map((k, j) => (j === at ? { ...k, poses: { ...k.poses, [figureId]: locked[i] } } : k)) : [...keys, { t: time, poses: { [figureId]: locked[i] } }];
+    }
   }
   return { ...scene, animation: { ...a, keys: keys.sort((p, q) => p.t - q.t) } };
 }

@@ -997,11 +997,25 @@ export function deleteMotion(store: Store, id: string) {
   });
 }
 
+/** The figures nearest to one (posable ones, shown), nearest first: partners for a motion of several people. */
+export function nearestPartners(store: Store, figureId: string, count: number) {
+  const f = store.scene.figures.find((x) => x.id === figureId);
+  if (!f) return [];
+  return store.scene.figures
+    .filter((x) => x.id !== figureId && !x.proxy && !x.hidden)
+    .sort((p, q) => Math.hypot(p.position[0] - f.position[0], p.position[2] - f.position[2]) - Math.hypot(q.position[0] - f.position[0], q.position[2] - f.position[2]))
+    .slice(0, count)
+    .map((x) => x.id);
+}
+
 /**
- * Give a figure a one-person motion from the library (built in, or one of mine), starting at the playhead (the scene is
- * animated if it is not yet). Returns false for motions with several people.
+ * Give a figure a motion from the library (built in, or one of mine), starting at the playhead
+ * (the scene is animated if it is not yet). A motion of several people goes on this figure (the
+ * lead: the first part) and `partners` (by default the nearest figures), who take their places
+ * around it, walking there first if there is time. Returns false if it cannot (a set-up with its
+ * own props, or too few figures).
  */
-export function applyMotion(store: Store, figureId: string, motionId: string) {
+export function applyMotion(store: Store, figureId: string, motionId: string, partners?: string[]) {
   const mine = store.getState().library.motions?.find((m) => m.id === motionId);
   if (mine) {
     const start = store.scene.animation ? store.getState().time : 0;
@@ -1010,7 +1024,16 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
     return true;
   }
   const motion = MOTIONS.find((m) => m.id === motionId);
-  if (!motion || motion.people !== 1 || motion.setUp) return false;
+  if (!motion || motion.setUp) return false;
+  if (motion.people > 1) {
+    const cast = [figureId, ...(partners ?? nearestPartners(store, figureId, motion.people - 1))];
+    if (cast.length < motion.people) return false;
+    const start = store.scene.animation ? store.getState().time : 0;
+    const before = store.scene;
+    store.updateScene((s) => walkIn(before, insertMotion(s, cast, motion.build(), start), cast.slice(1), start));
+    store.setTime(start);
+    return true;
+  }
   if (motion.travel) {
     // Walk, run or jump ahead from where the figure stands, facing its way.
     const f = store.scene.figures.find((x) => x.id === figureId);
@@ -1024,4 +1047,38 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
   store.updateScene((s) => insertMotion(s, figureId, motion.build(), start));
   store.setTime(start);
   return true;
+}
+
+/**
+ * Partners keyed before a motion starts walk to their places for it (if they are not there
+ * already): they hold where they were until they set off, or (short of time) go at once, briskly.
+ */
+function walkIn(before: Scene, after: Scene, partners: string[], start: number): Scene {
+  const a = after.animation;
+  if (!before.animation || !a) return after;
+  let keys = a.keys;
+  for (const id of partners) {
+    const f = before.figures.find((x) => x.id === id);
+    const at = keys.findIndex((k) => Math.abs(k.t - start) < 0.5 / a.fps && k.poses[id]);
+    const prev = figureKeyTimes(before.animation, id).filter((t) => t < start - 1e-6).at(-1);
+    if (!f || at < 0 || prev === undefined) continue;
+    const from = figurePoseAt(before, id, start)!;
+    const to = keys[at].poses[id].position;
+    const d = Math.hypot(to[0] - from.position[0], to[2] - from.position[2]);
+    if (d < 0.3) continue;
+    // Facing about the way it goes, it walks there and turns; otherwise it steps there facing its
+    // partner (turning on the spot at the end of a walk would twist the legs).
+    const heading = Math.atan2(to[0] - from.position[0], to[2] - from.position[2]) * (180 / Math.PI);
+    const off = Math.abs(wrapDeg(heading - (keys[at].poses[id].joints.root?.[1] ?? 0)));
+    const strafe = off > 90;
+    const sideways = strafe ? Math.abs(Math.sin((off * Math.PI) / 180)) : 0;
+    keys = keys.map((k, i) => (i === at ? { ...k, poses: { ...k.poses, [id]: { ...k.poses[id], travel: 'walk' as const, ...(strafe && { strafe: true }) } } } : k));
+    const leave = Math.round((start - travelTime('walk', d, f.body, undefined, sideways)) * a.fps) / a.fps;
+    if (leave <= prev + 1e-6) continue;
+    const { travel: _t, strafe: _s, spin: _p, flip: _f, ...setOff } = samplePose(before.animation, id, leave)!;
+    void _t; void _s; void _p; void _f;
+    const j = keys.findIndex((k) => Math.abs(k.t - leave) < 0.5 / a.fps);
+    keys = j >= 0 ? keys.map((k, i) => (i === j ? { ...k, poses: { ...k.poses, [id]: setOff } } : k)) : [...keys, { t: leave, poses: { [id]: setOff } }].sort((p, q) => p.t - q.t);
+  }
+  return { ...after, animation: { ...a, keys } };
 }

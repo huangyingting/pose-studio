@@ -9,6 +9,10 @@ import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { handPosition, rimOf, worldOfProp } from '@/lib/propmotion';
 import { buildMotion } from '@/lib/motions';
+import { BODY_PRESETS } from '@/lib/body';
+import { withFacing } from '@/lib/relations';
+
+const body = (name: string) => ({ ...BODY_PRESETS.find((p) => p.name === name)!.body });
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -355,6 +359,49 @@ describe('scenes from the use case', () => {
     expect(still.at(-1)![1]).toBeLessThan(0.01);
     const turning = sceneAt(store.scene, 1.1).props[0].trail!;
     expect(Math.max(...turning.map((p) => p[1]))).toBeGreaterThan(0.5);
+  }, 60_000);
+
+  it('two-person motions go on figures already in the scene: the selected one leads, the other takes its place', () => {
+    const { store, a } = fresh();
+    addFigure(store, [2.5, 0, 1]);
+    const b = store.getState().activeFigure!;
+    // The lead faces somewhere else; the partner is across the room.
+    store.updateFigure(a, (f) => withFacing(f, 60));
+    expect(applyMotion(store, a, 'takedown')).toBe(true);
+    expectClean(store.scene);
+    const first = (id: string) => store.scene.animation!.keys.find((k) => k.poses[id])!.poses[id];
+    // The lead starts where it stood; the partner opposite it, as in the motion (0.72 m apart).
+    expect(first(a).position).toEqual(store.scene.figures[0].position);
+    const pa = first(a).position;
+    const pb = first(b).position;
+    expect(Math.hypot(pb[0] - pa[0], pb[2] - pa[2])).toBeCloseTo(0.72, 1);
+    expect(sceneAt(store.scene, 0).figures.find((f) => f.id === b)!.position).not.toEqual([2.5, 0, 1]);
+  }, 60_000);
+
+  it('a partner keyed elsewhere walks over to its place, then they box', () => {
+    const { store, a } = fresh();
+    addFigure(store, [1.5, 0, 5.5]);
+    const b = store.getState().activeFigure!;
+    // B steps aside early on, near where A is going; A walks a long way; when A gets there, they box.
+    travelTo(store, b, [2, 6], 'walk');
+    store.setTime(0);
+    const walk = travelTo(store, a, [0, 6], 'walk')!;
+    expect(applyMotion(store, a, 'boxing', [b])).toBe(true);
+    const track = store.scene.animation!.keys.filter((k) => k.poses[b]);
+    const atStart = track.find((k) => Math.abs(k.t - walk.to) < 1e-6)!;
+    // B steps over facing A (a long turn at the end of a walk would twist its legs).
+    expect(atStart.poses[b]).toMatchObject({ travel: 'walk', strafe: true });
+    expectClean(store.scene);
+  }, 60_000);
+
+  it('a waltz on two figures of different builds', () => {
+    const { store, a } = fresh();
+    addFigure(store, [1, 0, 0]);
+    const b = store.getState().activeFigure!;
+    store.updateFigure(a, (f) => ({ ...f, body: body('Female') }));
+    store.updateFigure(b, (f) => ({ ...f, body: body('Heroic') }));
+    expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
+    expectClean(store.scene);
   }, 60_000);
 
   it('a figure walking behind a wall is reported hidden from the shot camera', () => {

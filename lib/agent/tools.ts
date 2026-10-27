@@ -418,16 +418,17 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a one-person motion from the library, on its own track from the playhead (the scene is animated if needed), starting where it stands and facing its way: ${MOTIONS.filter((m) => m.people === 1 && !m.setUp).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name.`,
-    schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion') }),
+    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. One person: ${MOTIONS.filter((m) => m.people === 1 && !m.setUp).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. Two people (the figure leads, the partner takes its place opposite, walking there if there is time): ${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
+    schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion'), partner: opt(str('For a two-person motion: the other figure (id or name); default the nearest')) }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
       const q = String(i.motion).trim().toLowerCase();
       const mine = store.getState().library.motions ?? [];
-      const motion = MOTIONS.find((m) => m.people === 1 && !m.setUp && m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
-      if (!motion) throw new Error(`No one-person motion "${i.motion}"`);
+      const motion = MOTIONS.find((m) => !m.setUp && m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
+      if (!motion) throw new Error(`No motion "${i.motion}"`);
+      const partners = i.partner ? [findFigure(store, i.partner).id] : undefined;
       const from = store.scene.animation ? store.getState().time : 0;
-      applyMotion(store, f.id, motion.id);
+      if (!applyMotion(store, f.id, motion.id, partners)) throw new Error(`${motion.name} needs another figure in the scene`);
       const a = store.scene.animation!;
       return `${f.name}: ${motion.name} from ${r2(from)} s (animation ${a.duration} s).`;
     },

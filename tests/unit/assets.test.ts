@@ -80,8 +80,14 @@ describe('library assets applied to the scene', () => {
     store.setTime(store.scene.animation!.duration);
     expect(applyMotion(store, other, 'jump')).toBe(true);
     expect(store.scene.animation!.duration).toBeGreaterThan(buildMotion('wave')!.animation!.duration);
-    // Several people: not for one figure.
-    expect(applyMotion(store, id, 'waltz-turn')).toBe(false);
+    // Several people: on this figure and the other (the nearest), not on one alone.
+    expect(applyMotion(store, id, 'waltz-turn')).toBe(true);
+    const keyed = (f: string) => store.scene.animation!.keys.filter((k) => k.poses[f]).length;
+    expect(keyed(other)).toBeGreaterThan(3);
+    const solo = new Store(new MemoryStorage());
+    expect(applyMotion(solo, solo.figure!.id, 'waltz-turn')).toBe(false);
+    // A set-up with its own props opens as a scene instead.
+    expect(applyMotion(store, id, 'high-jump')).toBe(false);
   });
 
   it('syncs saved poses, keeping deletions from either side', () => {

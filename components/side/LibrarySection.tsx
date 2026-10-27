@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookmarkPlus, Film, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
-import { addScene, applyCameraMove, applyMotion, applyPose, deleteMotion, deletePose, saveMotion, savePose, startAnimation } from '@/lib/actions';
+import { BookmarkPlus, FilePlus2, Film, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
+import { addScene, applyCameraMove, applyMotion, applyPose, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, startAnimation } from '@/lib/actions';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
@@ -229,6 +229,19 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   const [reading, setReading] = useState(false);
   const usable = !!figure && !figure.proxy;
   const give = (id: string, name: string) => { if (usable && applyMotion(store, figure.id, id)) { notifyUndo(`${figure.name}: ${name}`); onPick?.(); } };
+  const scene = useScene();
+  const nameOf = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? '';
+  /** Who joins the selected figure in a motion of several people (the nearest), or null if too few. */
+  const partnersFor = (people: number) => {
+    if (!usable) return null;
+    const p = nearestPartners(store, figure.id, people - 1);
+    return p.length === people - 1 ? p : null;
+  };
+  const together = (id: string, name: string, partners: string[]) => {
+    if (!usable || !applyMotion(store, figure.id, id, partners)) return;
+    notifyUndo(`${[figure.name, ...partners.map(nameOf)].join(' and ')}: ${name}`);
+    onPick?.();
+  };
 
   const read = async (file: File) => {
     setReading(true);
@@ -248,7 +261,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   return (
     <div className="side-scroll">
       <Target>
-        {usable ? <>One-person motions go on <strong>{figure.name}</strong>&apos;s track at the playhead.</> : 'Select a figure to give it a motion.'}
+        {usable ? <>Motions go on <strong>{figure.name}</strong>&apos;s track at the playhead (with the nearest figures for two people).</> : 'Select a figure to give it a motion.'}
       </Target>
       <div className="library-row">
         <button
@@ -279,20 +292,29 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
           return (
             <Group key={g} title={g} count={motions.length}>
               {motions.map((m) => {
-                // One person's motion goes on the selected figure; people together, or a set-up with props, open as a scene.
+                // One person's motion goes on the selected figure, several people's on it and the
+                // nearest (or, without them, into a new scene, as a set-up with its props does).
                 const solo = m.people === 1 && !m.setUp;
+                const partners = m.people > 1 ? partnersFor(m.people) : null;
+                const open = () => { addScene(store, m.build()); onPick?.(); };
+                const note = solo
+                  ? (usable ? `Click to give it to ${figure.name}` : undefined)
+                  : partners && figure
+                    ? `Click to put it on ${figure.name} (leading) and ${partners.map(nameOf).join(', ')}, at the playhead`
+                    : m.people > 1 ? 'Opens as a new scene (or select a figure, with another in the scene, to put it on them)' : 'Opens as a new scene, with its props';
                 return (
                   <li key={m.id}>
                     <button
                       type="button"
                       aria-disabled={solo && !usable}
-                      onClick={() => { if (solo) give(m.id, m.name); else { addScene(store, m.build()); onPick?.(); } }}
-                      {...preview(m.name, solo ? (usable ? `Click to give it to ${figure.name}` : undefined) : 'Opens as a new scene', () => motionPreview(m.id, m.build, style))}
+                      onClick={() => (solo ? give(m.id, m.name) : partners ? together(m.id, m.name, partners) : open())}
+                      {...preview(m.name, note, () => motionPreview(m.id, m.build, style))}
                     >
                       {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}
                       <span className="side-list-name">{m.name}</span>
                       <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : m.people > 1 ? `${m.people} people` : 'scene'}</em>
                     </button>
+                    {partners && <IconButton icon={FilePlus2} label={`Open ${m.name} as a new scene`} className="row-action" size={13} onClick={open} />}
                   </li>
                 );
               })}

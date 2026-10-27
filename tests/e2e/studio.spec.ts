@@ -111,7 +111,11 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
 async function motionScene(page: Page, motion: string) {
   await openSection(page, 'Library');
   await page.getByRole('radio', { name: 'Motions' }).click();
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  const region = page.getByRole('region', { name: 'Motions' });
+  // With figures to put it on, a several-people motion has its own "open as a scene" button.
+  const open = region.getByRole('button', { name: `Open ${motion} as a new scene` });
+  if (await open.count()) await open.click({ force: true });
+  else await region.getByRole('button', { name: new RegExp(`^${motion}`) }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -969,6 +973,21 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
   const keys = s.scene.animation!.keys.filter((k) => k.props?.[s.scene.props[0].id]);
   expect(keys.some((k) => k.props![s.scene.props[0].id].throw)).toBe(true);
   await expect(page.locator('.tl-key.prop').first()).toBeVisible();
+});
+
+test('a two-person motion goes on the selected figure and the one next to it', async ({ page }) => {
+  await addLayer(page, 'Figure');
+  let s = await live(page);
+  const [first, second] = s.scene.figures;
+  const scenes = (await state(page)).library.scenes.length;
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Boxing exchange/ }).click();
+  s = await live(page);
+  // In this scene (no new one), both figures keyed: the selected one leads.
+  expect((await state(page)).library.scenes).toHaveLength(scenes);
+  for (const f of [first, second]) expect(s.scene.animation!.keys.filter((k) => k.poses[f.id]).length).toBeGreaterThan(3);
+  await expect(page.getByText(`${second.name} and ${first.name}: Boxing exchange`)).toBeVisible();
 });
 
 test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ribbon; the high jump set-up', async ({ page }) => {
