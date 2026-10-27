@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ChevronDown, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, Eye, FilePlus2, FileUp, Focus, FolderOpen,
   Hand, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
@@ -16,6 +16,7 @@ import { Store, type SaveStatus } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
+import { frameAspect } from '@/lib/shot';
 import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';
@@ -493,7 +494,7 @@ function App() {
           onion={onion}
           onMenu={openCanvasMenu}
         />
-        {shotMode && <div className="letterbox" aria-hidden><div /></div>}
+        {shotMode && <Letterbox aspect={frameAspect(scene)} guides={settings.guides} />}
         {scene.animation && !shotMode && <CorrectionBadge scene={scene} figureId={activeFigure} time={time} />}
         {settings.tips && (
           <section className="tips" aria-label="Tips">
@@ -584,4 +585,20 @@ function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: st
   const src = over.source;
   const what = src.kind === 'travel' ? `${f.name}'s ${src.mode}` : `${f.name}'s ${clipById(src.kind === 'clip' ? src.clip : '')?.name ?? 'motion'}${over.layer === 'upper' ? ' (upper body)' : ''}`;
   return <div className="correcting" role="status">Posing here corrects {what}</div>;
+}
+
+/** The shot's frame over the canvas (its shape), with rule-of-thirds lines and safe areas if asked for. */
+function Letterbox({ aspect, guides }: { aspect: number; guides: boolean }) {
+  return (
+    <div className="letterbox" aria-hidden>
+      <div style={{ '--aspect': aspect } as CSSProperties}>
+        {guides && (
+          <>
+            <i className="third v1" /><i className="third v2" /><i className="third h1" /><i className="third h2" />
+            <i className="safe action" /><i className="safe title" />
+          </>
+        )}
+      </div>
+    </div>
+  );
 }

@@ -709,6 +709,12 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   expect(s.points[0].lens).toBe(85);
   expect(Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]))).toBeCloseTo((near * 85) / lens, 1);
   await expect(inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // Looking through it with framing guides: the frame's thirds and safe areas.
+  await page.getByRole('button', { name: 'Look through the shot camera' }).click();
+  await page.getByRole('button', { name: 'Animation options' }).click();
+  await page.getByRole('menuitemradio', { name: /Framing guides/ }).click();
+  await expect(page.locator('.letterbox .third')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Look through the shot camera' }).click();
   // A close-up through a wide lens (the camera near the figure); seen from above and aside, the
   // shot's camera is dragged across the floor, its height kept.
   await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'CU', exact: true }).click();
@@ -753,7 +759,14 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
-  await choose(page, 'Size', '1080 × 1080 (1:1)');
+  await page.keyboard.press('Escape');
+  // Filmed square (the shot's frame): the video follows.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
+  await choose(page, 'Frame', '1:1 square');
+  await page.keyboard.press('Control+e');
+  await page.getByRole('radio', { name: 'Video' }).click();
+  await expect(page.getByText(/720 × 720 px/)).toBeVisible();
   [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Record video' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);

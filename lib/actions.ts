@@ -22,13 +22,13 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleOf, cameraAt, capturePoint, filmWith, fovLens, framePoint, lensFov, pointIn, restate, type Placement, type ShotSize } from './shot';
+import { angleOf, cameraAt, capturePoint, filmWith, frameAspect, framePoint, lensFov, pointIn, restate, type Placement, type ShotSize } from './shot';
 import { bonesOf, withAngles } from './pose';
 import { cutAt, movePoint, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, Posture, Prop, PropKind, Scene, Shot, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Scene, Shot, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -881,7 +881,7 @@ export function frameShot(store: Store, size: ShotSize, o: { lens?: number; plac
   const s = store.scene;
   const view = cameraAt(s, here.t);
   const { yaw, pitch } = angleOf(view);
-  const point = framePoint(s, here.span.shot, here.span.start, here.t, size, { yaw, pitch, lens: o.lens ?? fovLens(view.fov), place: o.place });
+  const point = framePoint(s, here.span.shot, here.span.start, here.t, size, { yaw, pitch, lens: o.lens ?? view.lens, place: o.place });
   store.updateScene((x) => (x.animation ? { ...x, animation: setPointAt(x.animation, here.t, point) } : x));
 }
 
@@ -898,9 +898,9 @@ export function setLens(store: Store, mm: number, keep: 'size' | 'place' = 'size
     if (!s.animation) return s;
     const view = cameraAt(s, here.t);
     const position = keep === 'size'
-      ? view.target.clone().add(view.position.clone().sub(view.target).multiplyScalar(lens / fovLens(view.fov)))
+      ? view.target.clone().add(view.position.clone().sub(view.target).multiplyScalar(lens / view.lens))
       : view.position;
-    const point = capturePoint(s, here.t, position, view.target, lensFov(lens));
+    const point = capturePoint(s, here.t, position, view.target, lensFov(lens, frameAspect(s)));
     return point ? { ...s, animation: setPointAt(s.animation, here.t, { ...point, lens, ...(view.roll ? { roll: view.roll } : {}) }) } : s;
   }, key);
 }
@@ -925,6 +925,16 @@ export function setShotCamera(store: Store, id: string, patch: Partial<Pick<Shot
   }, `shot-camera:${id}`);
 }
 
+/** The frame shape the scene's shots are filmed in (16:9, 9:16, 1:1, 2.39:1). */
+export function setFrameShape(store: Store, frame: FrameShape) {
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const { frame: _old, ...rest } = s.animation;
+    void _old;
+    return { ...s, animation: frame === '16:9' ? rest : { ...rest, frame } };
+  });
+}
+
 /** Give the current shot (the whole animation without cuts) a ready-made camera move. */
 export function applyCameraMove(store: Store, id: string) {
   const t = store.getState().time;
@@ -944,7 +954,7 @@ export function cutShot(store: Store) {
     const time = snapTime(s.animation, t);
     const span = spanAt(s.animation, time);
     const view = cameraAt(s, time);
-    return { ...s, animation: cutAt(s.animation, time, pointIn(s, span.shot, time - span.start, time, view.position, view.target, fovLens(view.fov), view.roll)) };
+    return { ...s, animation: cutAt(s.animation, time, pointIn(s, span.shot, time - span.start, time, view.position, view.target, view.lens, view.roll)) };
   });
 }
 

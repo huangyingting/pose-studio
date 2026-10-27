@@ -106,16 +106,19 @@ export interface ExportOptions {
   margin: number;
 }
 
+export type VideoSize = '720p' | '1080p';
+
+/** A video's size in pixels: 720 or 1080 on its short side, in the shot's frame shape (even numbers, as encoders want). */
+export function videoSize(size: VideoSize, aspect: number) {
+  const short = size === '1080p' ? 1080 : 720;
+  const long = Math.round((short * Math.max(aspect, 1 / aspect)) / 2) * 2;
+  const [width, height] = aspect >= 1 ? [long, short] : [short, long];
+  return { width, height, label: `${width} × ${height}` };
+}
+
+export const VIDEO_SIZES: VideoSize[] = ['720p', '1080p'];
+
 /** Matches the layout of the original Pose.jpg: 4 × 5 cells of 600 × 640. */
-export type VideoSize = '720p' | '1080p' | 'square' | 'vertical';
-
-export const VIDEO_SIZES: Record<VideoSize, { label: string; width: number; height: number }> = {
-  '720p': { label: '1280 × 720 (16:9)', width: 1280, height: 720 },
-  '1080p': { label: '1920 × 1080 (16:9)', width: 1920, height: 1080 },
-  square: { label: '1080 × 1080 (1:1)', width: 1080, height: 1080 },
-  vertical: { label: '1080 × 1920 (9:16)', width: 1080, height: 1920 },
-};
-
 export const DEFAULT_EXPORT: ExportOptions = {
   scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
@@ -135,7 +138,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
     greybox: o.greybox !== false,
     angles: o.angles === 8 ? 8 : 4,
     frames: int(o.frames, d.frames, 2, 48),
-    videoSize: typeof o.videoSize === 'string' && o.videoSize in VIDEO_SIZES ? (o.videoSize as VideoSize) : d.videoSize,
+    videoSize: VIDEO_SIZES.includes(o.videoSize as VideoSize) ? (o.videoSize as VideoSize) : d.videoSize,
     videoLoops: int(o.videoLoops, d.videoLoops, 1, 5),
     columns: int(o.columns, d.columns, 1, 12),
     cellWidth: int(o.cellWidth, d.cellWidth, 100, 4000),

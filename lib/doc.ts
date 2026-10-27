@@ -10,8 +10,8 @@ import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bones, type Quat } from './pose';
 import { clampLight } from './lighting';
 import {
-  BONES, FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type Pose, type PoseAsset,
+  BONES, FINGERS, FRAME_SHAPES, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Action, type Animation, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type FrameShape, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type Pose, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -455,6 +455,7 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   const shots = parseShots(v.shots, duration);
   if (shots) anim.shots = shots;
   if (typeof v.target === 'string' && v.target.length <= 40) anim.target = v.target;
+  if (FRAME_SHAPES.includes(v.frame as FrameShape) && v.frame !== '16:9') anim.frame = v.frame as FrameShape;
   return anim;
 }
 

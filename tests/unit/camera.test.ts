@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addFigure, applyCameraMove, frameShot, setLens, setShotCamera, startAnimation, travelTo } from '@/lib/actions';
+import { addFigure, applyCameraMove, frameShot, setCameraPoint, setFrameShape, setLens, setShotCamera, startAnimation, travelTo } from '@/lib/actions';
+import { checkMotion } from '@/lib/qa';
 import { parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
 import { Rig } from '@/lib/relations';
-import { fitCamera, viewDirection } from '@/lib/render';
-import { SHOT_ASPECT, cameraAt, fovLens, framingFor, lensFov, placeCamera, sizeOf, subjectPlace } from '@/lib/shot';
+import { fitCamera, videoSize, viewDirection } from '@/lib/render';
+import { ASPECTS, SHOT_ASPECT, cameraAt, fovLens, frameAspect, framingFor, lensFov, placeCamera, sizeOf, subjectPlace } from '@/lib/shot';
 import { shotSpans } from '@/lib/shots';
 import type { Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
@@ -141,4 +142,30 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     // Kept as converted.
     expect(parseScene(JSON.parse(JSON.stringify(converted)))).toEqual(converted);
   });
+
+  it('films in the scene\'s frame shape: the lens sees as on that frame, videos come out that shape', () => {
+    const { store } = fresh();
+    startAnimation(store, 2);
+    frameShot(store, 'fs', { lens: 50 });
+    expect(cameraAt(store.scene, 0).fov).toBeCloseTo(lensFov(50, 16 / 9), 3);
+    setFrameShape(store, '9:16');
+    expect(store.scene.animation!.frame).toBe('9:16');
+    // The same lens on a tall frame sees more height (the sensor's 24 mm).
+    expect(cameraAt(store.scene, 0).fov).toBeCloseTo(lensFov(50, 9 / 16), 3);
+    expect(videoSize('1080p', frameAspect(store.scene))).toMatchObject({ width: 1080, height: 1920 });
+    expect(videoSize('720p', ASPECTS['2.39:1'])).toMatchObject({ width: 1720, height: 720 });
+    expect(parseScene(JSON.parse(JSON.stringify(store.scene))).animation!.frame).toBe('9:16');
+  });
+
+  it('reports the camera going through someone', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    // A camera point inside the figure's chest, looking out.
+    const chest = new THREE.Vector3(...store.scene.figures[0].position).setY(1.25);
+    setCameraPoint(store, chest, chest.clone().add(new THREE.Vector3(0, 0, 3)), 40);
+    const issues = checkMotion(store.scene).filter((i) => i.kind === 'camera');
+    expect(issues.map((i) => i.figure)).toEqual([a]);
+    expect(issues[0].message).toMatch(/camera of Shot 1 goes through Figure/);
+  });
 });
+

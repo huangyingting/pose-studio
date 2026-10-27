@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   Activity, Camera, ChevronDown, ChevronUp, Clapperboard, Diamond, Scissors, TriangleAlert, X, Ellipsis, Ghost, MoveHorizontal, Pause, Play, Repeat, Repeat1,
-  StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
+  Grid3x3, StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import {
   addKeyframe, cutShot, deleteCameraPoint, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, retimeCameraPoint, rippleKeys, setAnimationOptions,
@@ -57,6 +57,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const time = usePlayhead(clock);
   const folded = useStudio((s) => s.settings.timelineFolded);
   const height = useStudio((s) => s.settings.timelineHeight);
+  const guides = useStudio((s) => s.settings.guides);
   const track = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const [laneWidth, setLaneWidth] = useState(600);
@@ -453,6 +454,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             ] : []),
             { label: 'Loop the animation', icon: Repeat, checked: a.loop, onSelect: () => setAnimationOptions(store, { loop: !a.loop }) },
             { label: 'Onion skin (ghosts of the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) },
+            { label: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: guides, onSelect: () => store.setSettings({ guides: !guides }) },
             '-',
             { label: 'Delete camera point', icon: Trash2, disabled: !onCamKey, onSelect: () => deleteCameraPoint(store) },
             { label: 'Remove animation', icon: Trash2, danger: true, onSelect: () => { pause(); removeAnimation(store); } },

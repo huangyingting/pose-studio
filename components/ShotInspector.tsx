@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Camera, ClipboardCopy, Scissors, Trash2, TriangleAlert, Video } from 'lucide-react';
-import { deleteCameraPoint, editShot, frameShot, removeShotCut, setLens, setShotCamera, setTargetModel } from '@/lib/actions';
-import { LENSES, SHOT_SIZES, cameraAt, fovLens, sizeOf, type Placement } from '@/lib/shot';
+import { deleteCameraPoint, editShot, frameShot, removeShotCut, setFrameShape, setLens, setShotCamera, setTargetModel } from '@/lib/actions';
+import { LENSES, SHOT_SIZES, cameraAt, sizeOf, type Placement } from '@/lib/shot';
 import { describeSpan } from '@/lib/prompt';
 import { VIDEO_MODELS, overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
-import type { Shot } from '@/lib/types';
+import { FRAME_SHAPES, type FrameShape, type Shot } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome, type Notify } from './ui';
 
@@ -47,6 +47,15 @@ export default function ShotInspector({ id, notify, chrome }: { id: string; noti
           {over && model && <span className="warn"><TriangleAlert size={12} aria-hidden /> Longer than {model.name} allows ({model.max} s)</span>}
         </p>
         <div className="field">
+          <span>Frame (all shots)</span>
+          <Select<FrameShape>
+            label="Frame"
+            value={a.frame ?? '16:9'}
+            onChange={(v) => setFrameShape(store, v)}
+            options={FRAME_SHAPES.map((f) => ({ value: f, label: { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' }[f] }))}
+          />
+        </div>
+        <div className="field">
           <span>Cut for</span>
           <Select
             label="Cut for"
@@ -75,7 +84,7 @@ function ShotCamera({ span }: { span: ShotSpan }) {
   const inside = time >= span.start - 1e-6 && (time < span.end - 1e-6 || span.end >= scene.animation!.duration - 1e-6);
   const view = inside ? cameraAt(scene, time) : null;
   const size = view ? sizeOf(scene, shot, time, view) : null;
-  const lens = view ? Math.round(fovLens(view.fov)) : null;
+  const lens = view ? Math.round(view.lens) : null;
   const set = (patch: Parameters<typeof setShotCamera>[2]) => setShotCamera(store, shot.id, patch);
   return (
     <Section title="Camera">

@@ -883,14 +883,26 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-playhead::before { content: ''; position: absolute; top: -2px; left: -4px; width: 10px; height: 10px; border-radius: 2px 2px 50% 50%; background: var(--danger); }
 
 /* Shot mode: darken everything outside the 16:9 frame the video will show. */
-.letterbox { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2; }
+.letterbox { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2; container-type: size; }
 .letterbox > div {
-  width: 100%;
-  max-height: 100%;
-  aspect-ratio: 16 / 9;
+  position: relative;
+  /* The shot's frame shape, as large as fits. */
+  width: min(100cqw, 100cqh * var(--aspect, 1.7778));
+  aspect-ratio: var(--aspect, 1.7778);
   box-shadow: 0 0 0 100vmax rgba(18, 18, 22, 0.55);
   outline: 1px solid rgba(255, 255, 255, 0.6);
 }
+/* Framing guides: thirds, and the action- and title-safe areas (90% and 80%). */
+.letterbox .third { position: absolute; background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25); }
+.letterbox .third.v1, .letterbox .third.v2 { top: 0; bottom: 0; width: 1px; }
+.letterbox .third.v1 { left: 33.333%; }
+.letterbox .third.v2 { left: 66.667%; }
+.letterbox .third.h1, .letterbox .third.h2 { left: 0; right: 0; height: 1px; }
+.letterbox .third.h1 { top: 33.333%; }
+.letterbox .third.h2 { top: 66.667%; }
+.letterbox .safe { position: absolute; border: 1px dashed rgba(255, 255, 255, 0.6); }
+.letterbox .safe.action { inset: 5%; }
+.letterbox .safe.title { inset: 10%; }
 
 /* ---------- right: inspector ---------- */
 

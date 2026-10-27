@@ -1,5 +1,5 @@
 import type { Scene } from './types';
-import { angleOf, cameraAt, fovLens, sizeOf, type CameraView, type ShotSize } from './shot';
+import { angleOf, cameraAt, sizeOf, type CameraView, type ShotSize } from './shot';
 import { newShot, shotSpans, type ShotSpan } from './shots';
 
 /*
@@ -19,8 +19,8 @@ function angle(pitch: number) {
   return 'eye level';
 }
 
-function lens(fov: number) {
-  const mm = Math.round(fovLens(fov));
+function lens(view: CameraView) {
+  const mm = Math.round(view.lens);
   return `${mm}mm ${mm < 28 ? 'wide-angle lens' : mm > 70 ? 'telephoto lens' : 'lens'}`;
 }
 
@@ -52,7 +52,7 @@ function movement(scene: Scene, span: ShotSpan) {
     const step = (p: number, q: number) => Math.abs(((q - p + 540) % 360) - 180);
     const turned = views.reduce((sum, v, i) => (i ? sum + step(angleOf(views[i - 1]).yaw, angleOf(v).yaw) : 0), 0);
     const tighter = near(first) / near(last);
-    if (Math.abs(fovLens(last.fov) / fovLens(first.fov) - 1) > 0.5 && Math.abs(tighter - 1) < 0.2) moves.push('dolly zoom (the background stretches while the subject keeps its size)');
+    if (Math.abs(last.lens / first.lens - 1) > 0.5 && Math.abs(tighter - 1) < 0.2) moves.push('dolly zoom (the background stretches while the subject keeps its size)');
     else if (tighter > 1.2) moves.push('slow push in');
     else if (tighter < 1 / 1.2) moves.push('pull out to reveal the scene');
     if (turned >= 300) moves.push('a full 360° orbit around the subject');
@@ -72,7 +72,7 @@ export function describeSpan(scene: Scene, span: ShotSpan) {
   const a = scene.animation;
   const c = cast(scene);
   const parts = [
-    `${FRAMING[sizeOf(scene, span.shot, span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view.fov)}.`,
+    `${FRAMING[sizeOf(scene, span.shot, span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view)}.`,
     `Camera: ${movement(scene, span)}.`,
     `${c[0].toUpperCase()}${c.slice(1)}: ${(span.shot.caption || scene.name).toLowerCase()}.`,
   ];

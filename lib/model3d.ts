@@ -3,7 +3,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { frameTimes } from './animation';
 import { sceneAt } from './evaluate';
 import { SceneView } from './sceneview';
-import { SHOT_ASPECT, cameraAt, placeCamera } from './shot';
+import { cameraAt, frameAspect, placeCamera } from './shot';
 import type { Scene } from './types';
 
 /*
@@ -96,7 +96,8 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
 
     const animations: THREE.AnimationClip[] = [];
     if (a) {
-      const camera = new THREE.PerspectiveCamera(30, SHOT_ASPECT, 0.05, 200);
+      const aspect = frameAspect(scene);
+      const camera = new THREE.PerspectiveCamera(30, aspect, 0.05, 200);
       camera.name = unique('Shot camera');
       out.add(camera);
       const times = frameTimes(a);
@@ -119,12 +120,12 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
           pos.set(x.node, [...(pos.get(x.node) ?? []), ...p.toArray()]);
           rot.set(x.node, [...(rot.get(x.node) ?? []), q.x, q.y, q.z, q.w]);
         }
-        placeCamera(camera, cameraAt(scene, t), SHOT_ASPECT);
+        placeCamera(camera, cameraAt(scene, t), aspect);
         cam.pos.push(...camera.position.toArray());
         cam.rot.push(camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w);
       }
       // (The lens a file keeps is the first frame's.)
-      placeCamera(camera, cameraAt(scene, 0), SHOT_ASPECT);
+      placeCamera(camera, cameraAt(scene, 0), aspect);
       const tracks = (nodes: THREE.Object3D[]) => nodes.flatMap((node) => [
         ...(rot.has(node) ? [new THREE.QuaternionKeyframeTrack(`${node.name}.quaternion`, times, rot.get(node)!)] : []),
         ...(pos.has(node) ? [new THREE.VectorKeyframeTrack(`${node.name}.position`, times, pos.get(node)!)] : []),

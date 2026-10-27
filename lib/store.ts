@@ -31,6 +31,8 @@ export interface Settings {
   timelineFolded: boolean;
   /** Height of the timeline's tracks (px), or 0 to fit them (up to a limit). */
   timelineHeight: number;
+  /** Looking through the shot camera, show the rule-of-thirds lines and safe areas. */
+  guides: boolean;
 }
 
 export const LIBRARY_TABS = ['poses', 'motions', 'models', 'camera'] as const;
@@ -56,7 +58,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, faces: true, side: 'scene', libraryTab: 'poses', tips: true, inspector: true, timelineFolded: false, timelineHeight: 0,
+  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, faces: true, side: 'scene', libraryTab: 'poses', tips: true, inspector: true, timelineFolded: false, timelineHeight: 0, guides: false,
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -111,6 +113,7 @@ function loadSettings(storage: Storage | null): Settings {
         inspector: s.inspector !== false,
         timelineFolded: s.timelineFolded === true,
         timelineHeight: typeof s.timelineHeight === 'number' ? Math.min(2000, Math.max(0, s.timelineHeight)) : 0,
+        guides: s.guides === true,
       };
     }
   } catch {

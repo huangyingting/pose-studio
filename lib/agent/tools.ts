@@ -16,7 +16,7 @@ import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { anglesOf, withAngles, type Angles } from '../pose';
-import { CAMERA_MOVES, SHOT_SIZES, cameraAt, fovLens, sizeOf, type Placement, type ShotSize } from '../shot';
+import { CAMERA_MOVES, SHOT_SIZES, cameraAt, sizeOf, type Placement, type ShotSize } from '../shot';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
@@ -338,7 +338,7 @@ export const TOOLS: AgentTool[] = [
       if (i.size) frameShot(store, i.size as ShotSize, { lens, place: (i.place as Placement | null) ?? undefined });
       else if (lens) setLens(store, lens, 'size');
       const v = cameraAt(store.scene, store.getState().time);
-      return `${span.shot.name} at ${r2(store.getState().time)} s: ${SHOT_SIZES.find((x) => x.id === sizeOf(store.scene, spanAt(store.scene.animation!, store.getState().time).shot, store.getState().time, v))?.name.toLowerCase()} shot, ${Math.round(fovLens(v.fov))}mm.`;
+      return `${span.shot.name} at ${r2(store.getState().time)} s: ${SHOT_SIZES.find((x) => x.id === sizeOf(store.scene, spanAt(store.scene.animation!, store.getState().time).shot, store.getState().time, v))?.name.toLowerCase()} shot, ${Math.round(v.lens)}mm.`;
     },
   },
   {

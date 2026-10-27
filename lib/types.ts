@@ -302,7 +302,13 @@ export interface Animation {
   shots?: Shot[];
   /** Video model the shots are cut for (see lib/shots.ts), which limits a shot's length. */
   target?: string;
+  /** The frame's shape the shots are filmed in (default 16:9). */
+  frame?: FrameShape;
 }
+
+/** Frame shapes the shots can be filmed in. */
+export const FRAME_SHAPES = ['16:9', '9:16', '1:1', '2.39:1'] as const;
+export type FrameShape = (typeof FRAME_SHAPES)[number];
 
 /** A shot: a block on the camera's track, with its own camera path. */
 export interface Shot {

@@ -11,9 +11,9 @@ import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
-  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, type ExportOptions, type Pass, type VideoSize,
+  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, videoSize, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
-import { cameraAt } from '@/lib/shot';
+import { cameraAt, frameAspect } from '@/lib/shot';
 import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
@@ -65,7 +65,7 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
     () => exportCells(scope === 'poses' ? allPoses(library).map((p) => poseScene(p)) : scenes, scene, { ...o, scope }),
     [o, scope, scenes, scene, library],
   );
-  const size = filmed ? VIDEO_SIZES[o.videoSize] : sheetSize(cells.length, o);
+  const size = filmed ? videoSize(o.videoSize, frameAspect(scene)) : sheetSize(cells.length, o);
   const { width, height } = size;
   const tooBig = !filmed && (width * height > 120_000_000 || width > 16384 || height > 16384);
   const pass = pack ? 'beauty' : o.pass;
@@ -275,7 +275,7 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
             </label>
             {filmed ? (
               <label>Size
-                <Select<VideoSize> label="Size" value={o.videoSize} onChange={(videoSize) => set({ videoSize })} options={(Object.keys(VIDEO_SIZES) as VideoSize[]).map((k) => ({ value: k, label: VIDEO_SIZES[k].label }))} />
+                <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect(scene)).label} (${scene.animation?.frame ?? '16:9'})` }))} />
               </label>
             ) : (
               <label>Format
@@ -525,6 +525,7 @@ const SHORTCUTS: [string, string][] = [
   ['Edit an action (a walk, a motion) in the inspector', 'Click its block'],
   ['Move · retime · blend an action', 'Drag its block · its right edge · its ramp'],
   ['Where an action ends · a formation', 'Drag its numbered mark on the floor'],
+  ['Move a shot\'s camera · up and down · add a point', 'Drag it · Shift drag · double-click its path'],
   ['Previous / next scene', '[  ]'],
   ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
   ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],

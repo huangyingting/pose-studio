@@ -8,7 +8,7 @@ import { Rig } from './relations';
 import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
-import type { Animation, CameraPoint, Scene, Shot, Vec3, View } from './types';
+import type { Animation, CameraPoint, FrameShape, Scene, Shot, Vec3, View } from './types';
 
 /*
  * The shot camera: how a "director" films the figures. Each shot of an animation has a camera
@@ -19,8 +19,14 @@ import type { Animation, CameraPoint, Scene, Shot, Vec3, View } from './types';
  * frame. Shot sizes (wide … close-up) and camera moves make paths; they can be edited after.
  */
 
-/** Video frame shape used for shot framing and the letterbox. */
+/** The usual frame shape (16:9), for shots and exports that have none of their own. */
 export const SHOT_ASPECT = 16 / 9;
+
+/** The width over height of a frame shape. */
+export const ASPECTS: Record<FrameShape, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '2.39:1': 2.39 };
+
+/** The shape (width over height) a scene's shots are filmed in. */
+export const frameAspect = (scene: Scene) => ASPECTS[scene.animation?.frame ?? '16:9'];
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
@@ -149,11 +155,12 @@ export function subjectPlace(scene: Scene, shot: Shot, t: number): THREE.Vector3
 
 /* ---------- the camera at a time ---------- */
 
-/** Where the camera is, where it looks, its field of view (vertical, degrees) and roll. */
+/** Where the camera is, where it looks, its field of view (vertical, degrees) and lens (mm), and roll. */
 export interface CameraView {
   position: THREE.Vector3;
   target: THREE.Vector3;
   fov: number;
+  lens: number;
   roll: number;
 }
 
@@ -162,7 +169,7 @@ function stillView(scene: Scene, span: ShotSpan | null, aspect: number): CameraV
   const cam = new THREE.PerspectiveCamera(scene.view.fov, aspect);
   const f = framingOf(scene, span);
   const target = fitCamera(cam, { forEachPoint: (cb) => f.points.forEach(cb) }, scene.view, 0.1);
-  return { position: cam.position.clone(), target: target.clone(), fov: scene.view.fov, roll: 0 };
+  return { position: cam.position.clone(), target: target.clone(), fov: scene.view.fov, lens: fovLens(scene.view.fov, aspect), roll: 0 };
 }
 
 /** Smooth pseudo-random wobble in [-1, 1] for hand-held shake. */
@@ -206,7 +213,7 @@ export function samplePath(points: CameraPoint[], u: number, ease: Shot['ease'] 
 }
 
 /** The camera filming a scene at time t (an animation's shot, or the still camera). */
-export function cameraAt(scene: Scene, t: number, aspect = SHOT_ASPECT): CameraView {
+export function cameraAt(scene: Scene, t: number, aspect = frameAspect(scene)): CameraView {
   const a = scene.animation;
   const span = a ? spanAt(a, t) : null;
   const shot = span?.shot;
@@ -229,7 +236,7 @@ export function cameraAt(scene: Scene, t: number, aspect = SHOT_ASPECT): CameraV
     if (side.lengthSq() > 0) d.applyAxisAngle(side, shake * 1.1 * D2R * wobble(t, 4));
     target = position.clone().add(d);
   }
-  return { position, target, fov: lensFov(p.lens, aspect), roll: p.roll ?? 0 };
+  return { position, target, fov: lensFov(p.lens, aspect), lens: p.lens, roll: p.roll ?? 0 };
 }
 
 /** Put a three.js camera where a camera view says. */
@@ -292,7 +299,7 @@ export type Placement = 'center' | 'left' | 'right';
  * `lens`, as far away as that size takes. In the shot's own terms (anchor and aim).
  */
 export function framePoint(scene: Scene, shot: Shot, start: number, t: number, size: ShotSize, o: { yaw: number; pitch: number; lens: number; place?: Placement; aspect?: number }): CameraPoint {
-  const aspect = o.aspect ?? SHOT_ASPECT;
+  const aspect = o.aspect ?? frameAspect(scene);
   const body = bodyAt(scene, shot, t);
   const [a, b] = SPAN[size];
   const top = body.top - a * body.height;
@@ -368,14 +375,15 @@ export interface CameraMove {
 
 /** Everyone the shot frames over its time in view from an angle, `zoom` times closer: a point. */
 function fitPoint(c: MoveContext, shot: Shot, t: number, yaw: number, pitch: number, fov: number, zoom = 1, rise = 0): CameraPoint {
-  const cam = new THREE.PerspectiveCamera(fov, SHOT_ASPECT);
+  const aspect = frameAspect(c.scene);
+  const cam = new THREE.PerspectiveCamera(fov, aspect);
   const f = framingOf(c.scene, { shot: c.shot, index: 0, start: c.start, end: c.end });
   const view = { yaw, pitch, fov };
   const target = fitCamera(cam, { forEachPoint: (cb) => f.points.forEach(cb) }, view, 0.1);
   const dist = target.distance / zoom;
   // A closer view looks a little higher (at the upper body).
   target.y += rise;
-  return pointIn(c.scene, shot, t - c.start, t, target.clone().addScaledVector(viewDirection(view), dist), target, fovLens(fov));
+  return pointIn(c.scene, shot, t - c.start, t, target.clone().addScaledVector(viewDirection(view), dist), target, fovLens(fov, aspect));
 }
 
 const world = (c: MoveContext): Shot => ({ ...c.shot, anchor: 'world', aim: 'point' });
@@ -472,7 +480,7 @@ export function filmWith(scene: Scene, moveId: string, o: { index?: number; foll
 /* ---------- capture and export ---------- */
 
 /** A view as a path point of the shot playing at t (for "set camera point from the view"). */
-export function capturePoint(scene: Scene, t: number, position: THREE.Vector3, look: THREE.Vector3, fov: number, aspect = SHOT_ASPECT): CameraPoint | null {
+export function capturePoint(scene: Scene, t: number, position: THREE.Vector3, look: THREE.Vector3, fov: number, aspect = frameAspect(scene)): CameraPoint | null {
   const a = scene.animation;
   if (!a) return null;
   const span = spanAt(a, t);
@@ -489,13 +497,13 @@ export function cameraPath(scene: Scene, start: number, end: number, aspect: num
   for (let i = 0; i < n; i++) {
     const t = start + i / fps;
     const v = cameraAt(scene, t, aspect);
-    frames.push({ frame: Math.round(t * fps), time: r(t), position: v.position.toArray().map(r), target: v.target.toArray().map(r), fov: r(v.fov), lens: r(fovLens(v.fov, aspect)), roll: r(v.roll) });
+    frames.push({ frame: Math.round(t * fps), time: r(t), position: v.position.toArray().map(r), target: v.target.toArray().map(r), fov: r(v.fov), lens: r(v.lens), roll: r(v.roll) });
   }
   return { units: 'metres, +Y up, floor at y = 0; lens in mm (full frame)', aspect: r(aspect), fps, frames };
 }
 
 /** The path a shot's camera takes (world points every tenth of a second), for drawing it. */
-export function shotPath(scene: Scene, span: ShotSpan, aspect = SHOT_ASPECT): THREE.Vector3[] {
+export function shotPath(scene: Scene, span: ShotSpan, aspect = frameAspect(scene)): THREE.Vector3[] {
   const n = Math.max(2, Math.ceil((span.end - span.start) * 10));
   return Array.from({ length: n + 1 }, (_, i) => cameraAt(scene, Math.min(span.end - 1e-3, span.start + ((span.end - span.start) * i) / n), aspect).position);
 }

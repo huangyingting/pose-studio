@@ -13,7 +13,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
-import { SHOT_ASPECT, cameraAt, placeCamera, shotPath, type CameraView } from '@/lib/shot';
+import { cameraAt, fovLens, frameAspect, placeCamera, shotPath, type CameraView } from '@/lib/shot';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
@@ -328,16 +328,17 @@ function ShotDriver({ store, scene, clock, time, enabled, captureRef }: {
   useEffect(() => { dirty.current = true; }, [time, scene, enabled, size]);
 
   const stageAspect = size.width / Math.max(1, size.height);
-  /** Vertical lens for the editor so the 16:9 letterbox shows exactly the shot (and back). */
+  const aspect = frameAspect(scene);
+  /** Vertical lens for the editor so the letterbox (the shot's frame) shows exactly the shot (and back). */
   const widen = (fov: number, k: number) => THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov) / 2) * k));
-  const displayFov = (fov: number) => (stageAspect < SHOT_ASPECT ? widen(fov, SHOT_ASPECT / stageAspect) : fov);
+  const displayFov = (fov: number) => (stageAspect < aspect ? widen(fov, aspect / stageAspect) : fov);
 
   useEffect(() => {
     captureRef.current = () => {
       const { camera, controls } = get() as unknown as { camera: THREE.PerspectiveCamera; controls: Controls };
       if (!controls) return null;
-      const fov = enabled && stageAspect < SHOT_ASPECT ? widen(camera.fov, stageAspect / SHOT_ASPECT) : camera.fov;
-      return { position: camera.position.clone(), target: controls.target.clone(), fov, roll: 0 };
+      const fov = enabled && stageAspect < aspect ? widen(camera.fov, stageAspect / aspect) : camera.fov;
+      return { position: camera.position.clone(), target: controls.target.clone(), fov, lens: fovLens(fov, aspect), roll: 0 };
     };
   });
 
@@ -494,7 +495,7 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   const a = scene.animation!;
   const get = useThree((s) => s.get);
   const dot = useRef<THREE.Mesh>(null);
-  const [cam] = useState(() => new THREE.PerspectiveCamera(30, SHOT_ASPECT));
+  const [cam] = useState(() => new THREE.PerspectiveCamera(30, frameAspect(scene)));
   // The paths and cameras only depend on the shots and the motion, not on the playhead.
   const spans = useMemo(() => shotSpans(a), [a]);
   // (Worked out again when the animation changes, not as the playhead moves the figures.)
@@ -503,7 +504,7 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   const markers = useMemo(() => spans.flatMap((span) => span.shot.points.map((p) => {
     const t = span.start + p.t;
     const view = cameraAt(scene, t);
-    placeCamera(cam, view, SHOT_ASPECT);
+    placeCamera(cam, view, frameAspect(scene));
     return { t, span, position: cam.position.clone(), quaternion: cam.quaternion.clone(), target: view.target.clone(), aimed: span.shot.aim === 'point' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [spans, cam]);

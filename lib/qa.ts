@@ -8,7 +8,7 @@ import { Rig, capsules, type Capsule } from './relations';
 import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
-import { SHOT_ASPECT, cameraAt, placeCamera, subjectAt } from './shot';
+import { cameraAt, frameAspect, placeCamera, subjectAt } from './shot';
 import { shotSpans } from './shots';
 import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
@@ -19,7 +19,7 @@ import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './type
  * Bodies are approximated by capsules around the bones, so only clear overlaps are reported.
  */
 
-export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop' | 'hidden' | 'miss';
+export type IssueKind = 'slide' | 'overlap' | 'limit' | 'pop' | 'hidden' | 'miss' | 'camera';
 
 export interface Issue {
   kind: IssueKind;
@@ -33,7 +33,7 @@ export interface Issue {
 }
 
 export const ISSUE_LABELS: Record<IssueKind, string> = {
-  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop', hidden: 'Hidden from the camera', miss: 'Missed catch',
+  slide: 'Foot slide', overlap: 'Interpenetration', limit: 'Joint limit', pop: 'Pop', hidden: 'Hidden from the camera', miss: 'Missed catch', camera: 'Camera inside',
 };
 
 const HINTS: Record<IssueKind, string> = {
@@ -43,6 +43,7 @@ const HINTS: Record<IssueKind, string> = {
   pop: 'Add an in-between key, or move the keys further apart.',
   hidden: 'Move the camera, the prop, or the figure out from behind it.',
   miss: 'Something got in its way, or the hand cannot reach it then: clear the way, or move the catch.',
+  camera: 'Move the shot\'s camera point out of the way (drag it on the canvas), or its path around it.',
 };
 
 /** Thresholds (metres, degrees). */
@@ -190,7 +191,7 @@ export function checkMotion(scene: Scene): Issue[] {
   const stamps = a.loop ? [...times, a.duration] : times;
   const ranges = new Ranges(stamps, (key, worst, d) => {
     switch (d.kind) {
-      case 'hidden': case 'miss': return null; // found shot by shot (hiddenInShots), and on the props' timelines
+      case 'hidden': case 'miss': case 'camera': return null; // found shot by shot (hiddenInShots, cameraInside), and on the props' timelines
       case 'slide': return worst >= SLIDE_MIN ? `${who(d.figure)}${d.joint === 'leftFoot' ? 'Left' : 'Right'} foot slides ${cm(worst)} while planted` : null;
       case 'limit': return `${who(d.figure)}${JOINT_LABELS[d.joint!]} bends ${Math.round(worst)}° past its natural range`;
       case 'pop': return d.joint === 'hips' && key.endsWith(':move')
@@ -364,13 +365,13 @@ export function checkMotion(scene: Scene): Issue[] {
   rig.dispose();
   for (const p of props.values()) p.dispose();
   ink.dispose();
-  const order2: IssueKind[] = ['miss', 'hidden', 'overlap', 'slide', 'pop', 'limit'];
+  const order2: IssueKind[] = ['miss', 'camera', 'hidden', 'overlap', 'slide', 'pop', 'limit'];
   // A prop that should have been caught (or picked up) but was not within reach.
   const misses: Issue[] = missedCatchesOf(scene).map((m) => ({
     kind: 'miss', figure: m.figure, start: m.t, end: m.t, hint: HINTS.miss,
     message: `${names.get(m.figure) ?? 'Someone'} misses ${scene.props.find((p) => p.id === m.prop)?.name ?? 'the prop'}`,
   }));
-  return [...ranges.finish(), ...hiddenInShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+  return [...ranges.finish(), ...hiddenInShots(scene), ...cameraInside(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }
 
 /**
@@ -382,7 +383,7 @@ function hiddenInShots(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a || !scene.props.some((p) => !p.hold)) return [];
   const view = new SceneView();
-  const cam = new THREE.PerspectiveCamera(30, SHOT_ASPECT);
+  const cam = new THREE.PerspectiveCamera(30, frameAspect(scene));
   const ray = new THREE.Raycaster();
   const issues: Issue[] = [];
   for (const span of shotSpans(a)) {
@@ -393,7 +394,7 @@ function hiddenInShots(scene: Scene): Issue[] {
       const now = sceneAt(scene, t);
       view.sync(now);
       const subject = subjectAt(scene, t);
-      placeCamera(cam, cameraAt(scene, t), SHOT_ASPECT);
+      placeCamera(cam, cameraAt(scene, t), frameAspect(scene));
       const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name })));
       if (!blockers.length) continue;
       for (const f of now.figures.filter((x) => !x.hidden && (!subject || x.id === subject))) {
@@ -427,3 +428,50 @@ function hiddenInShots(scene: Scene): Issue[] {
   view.dispose();
   return issues;
 }
+
+/**
+ * The shot camera passing through a figure (its bones as capsules) or a prop (its solid parts),
+ * along its path; ten times a second.
+ */
+function cameraInside(scene: Scene): Issue[] {
+  const a = scene.animation;
+  if (!a) return [];
+  const view = new SceneView();
+  const rig = new Rig();
+  const issues: Issue[] = [];
+  const step = 0.1;
+  for (const span of shotSpans(a)) {
+    if (!span.shot.points.length) continue;
+    const runs = new Map<string, { start: number; end: number; name: string; figure: string }>();
+    for (let t = span.start; t < span.end - 1e-6; t += step) {
+      const now = sceneAt(scene, t);
+      const p = cameraAt(scene, t).position;
+      const inside: { key: string; name: string; figure: string }[] = [];
+      for (const f of now.figures.filter((x) => !x.hidden)) {
+        if (capsules(rig, f).some((c) => new THREE.Line3(c.p, c.q).closestPointToPoint(p, true, new THREE.Vector3()).distanceTo(p) < c.r)) inside.push({ key: f.id, name: f.name, figure: f.id });
+      }
+      view.sync(now);
+      for (const pr of now.props) {
+        const solid = view.props.get(pr.id)?.solids.some((mesh) => new THREE.Box3().setFromObject(mesh).containsPoint(p));
+        if (solid) inside.push({ key: pr.id, name: pr.name, figure: '' });
+      }
+      for (const x of inside) {
+        const run = runs.get(x.key);
+        if (run && t - run.end <= step * 1.5) run.end = t;
+        else {
+          if (run) issues.push(issueOf(run, span.shot.name, a.fps));
+          runs.set(x.key, { start: t, end: t, name: x.name, figure: x.figure });
+        }
+      }
+    }
+    for (const run of runs.values()) issues.push(issueOf(run, span.shot.name, a.fps));
+  }
+  view.dispose();
+  rig.dispose();
+  return issues;
+}
+
+function issueOf(run: { start: number; end: number; name: string; figure: string }, shot: string, fps: number): Issue {
+  return { kind: 'camera', figure: run.figure, start: run.start, end: Math.max(run.end, run.start + 1 / fps), message: `The camera of ${shot} goes through ${run.name}`, hint: HINTS.camera };
+}
+
