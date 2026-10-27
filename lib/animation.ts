@@ -1,4 +1,4 @@
-import { keysClip, mirrorClip } from './clip';
+import { keysClip, mirrorClip, placeClip } from './clip';
 import { mirrorJointName, wrapDeg } from './joints';
 import { uid } from './uid';
 import type { OldCameraKey } from './shot';
@@ -154,6 +154,30 @@ export function mirrorAnimation(a: Animation): Animation {
     target: 'figure' in c.target ? { ...c.target, bone: mirrorJointName(c.target.bone), at: flipped(c.target.at) } : 'prop' in c.target ? { ...c.target, at: flipped(c.target.at) } : { point: flipped(c.target.point) },
   }));
   return { ...a, actions, ...(props ? { props } : {}), ...(cameras ? { cameras } : {}), ...(constraints ? { constraints } : {}) };
+}
+
+/**
+ * An animation turned by `deg` about the vertical, its floor points moved by `place` (where the
+ * turned point goes) and its times by `dt`: its actions' marks and keys, props' keys, holds.
+ * (Cameras and shots are the scene's own: they are not moved.)
+ */
+export function placeAnimation(a: Animation, deg: number, place: (x: number, z: number) => [number, number], dt = 0): Animation {
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  const at = (x: number, z: number): [number, number] => place(x, z).map(r3) as [number, number];
+  const mark = (m: Mark): Mark => ({ at: at(m.at[0], m.at[1]), facing: Math.round(wrapDeg(m.facing + deg) * 10) / 10 || 0 });
+  const vec = (v: Vec3): Vec3 => { const [x, z] = at(v[0], v[2]); return [x, v[1], z]; };
+  const actions = a.actions.map((y): Action => {
+    const target = y.target && 'at' in y.target ? { at: at(y.target.at[0], y.target.at[1]) } : y.target;
+    const roles = y.roles.map((r) => (r.end ? { ...r, end: mark(r.end) } : r));
+    const src = y.source;
+    const source = src.kind === 'keys' ? { ...src, clip: placeClip(src.clip, deg, at) } : src.kind === 'travel' && src.via ? { ...src, via: src.via.map(mark) } : src;
+    return { ...y, start: y.start + dt, roles, source, ...(target ? { target } : {}) };
+  });
+  const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.map((k) => (k.hold
+    ? { ...k, t: k.t + dt }
+    : { ...k, t: k.t + dt, position: vec(k.position), rotation: [k.rotation[0], wrapDeg(k.rotation[1] + deg) || 0, k.rotation[2]] as PropKey['rotation'] }))]));
+  const constraints = a.constraints?.map((c) => ({ ...c, start: c.start + dt, end: c.end + dt, ...('point' in c.target ? { target: { point: vec(c.target.point) } } : {}) }));
+  return { ...a, actions, ...(props ? { props } : {}), ...(constraints ? { constraints } : {}) };
 }
 
 /* ---------- validation of untrusted data ---------- */

@@ -9,7 +9,7 @@ import { actionsOf, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { importMotion } from '@/lib/importmotion';
 import { importModel } from '@/lib/model';
 import { LIGHT_PRESETS } from '@/lib/lighting';
-import { buildMotion } from '@/lib/motions';
+import { highJump } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
 import { rimOf } from '@/lib/propmotion';
@@ -19,7 +19,7 @@ import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
-import { body, expectClean, fresh } from '../fixtures/scenes';
+import { body, expectClean, fresh, motionScene } from '../fixtures/scenes';
 
 /*
  * Acceptance baseline for the redesign (issue #1): these films must keep passing at every step.
@@ -87,7 +87,7 @@ function boxing(ben: string, kai: string) {
   store.setTime(later);
   applyMotion(store, b, 'block-duck');
   // The hit lands as the block and duck finishes.
-  store.setTime(later + buildMotion('block-duck')!.animation!.duration);
+  store.setTime(later + motionScene('block-duck').animation!.duration);
   applyMotion(store, b, 'hit');
   setGaze(store, a, { figure: b });
   setGaze(store, b, { figure: a });
@@ -356,7 +356,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
 
   it('high jump: the flop over the bar onto the mat, a coach watching from the side', () => {
     const { store } = fresh();
-    addScene(store, buildMotion('high-jump')!);
+    addScene(store, highJump());
     const jumper = store.scene.figures[0].id;
     store.select({ kind: 'figure', figure: jumper });
     addFigure(store, [2.5, 0, 4]);

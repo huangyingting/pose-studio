@@ -1496,6 +1496,7 @@ button.psec-title svg { color: var(--text-3); }
 .library-list li { position: relative; }
 .library-list .row-delete, .library-list .row-action { position: absolute; top: 50%; right: 4px; width: 24px; height: 24px; transform: translateY(-50%); background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
 .library-list li:hover :is(.row-delete, .row-action), .library-list :is(.row-delete, .row-action):focus-visible { opacity: 1; }
+.library-list .row-action + :is(.row-delete, .row-action) { right: 32px; }
 .library-import { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .library-list button:disabled, .library-list button[aria-disabled='true'] { color: var(--text-3); cursor: default; }
 .library-list button:disabled:hover, .library-list button[aria-disabled='true']:hover { background: none; }

@@ -3,7 +3,6 @@ import { keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
 import { HANDLING, MOTIONS } from './motions';
-import { filmWith } from './shot';
 import { uid } from './uid';
 import type { Action, Clip, Library, Scene } from './types';
 
@@ -55,11 +54,11 @@ export function clipIdsOf(lib: Library): string[] {
   return [...ids];
 }
 
-/** A clip playing on its own people, where it has them (to preview it). */
+/** A clip playing on its own people, where it has them. */
 export function clipScene(clip: Clip): Scene {
   const figures = clip.parts.map((p) => ({ ...newFigure({ name: p.name, ...(p.body ? { body: { ...p.body } } : {}) }), ...keyPose(p, 0) }));
   const scene = newScene(clip.name, figures);
   const base = { ...newAnimation(scene, Math.max(0.2, clip.duration)), loop: clip.loop };
   const play: Action = { id: uid('act'), start: 0, duration: clip.duration, roles: figures.map((f) => ({ figure: f.id })), source: { kind: 'clip', clip: clip.id } };
-  return filmWith({ ...scene, animation: { ...base, actions: [...base.actions, play] } }, 'static', { follow: true });
+  return { ...scene, animation: { ...base, actions: [...base.actions, play] } };
 }

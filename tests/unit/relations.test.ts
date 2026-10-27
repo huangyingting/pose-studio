@@ -94,12 +94,12 @@ describe('posing against another figure', () => {
   });
 });
 
-describe('multi-person templates', () => {
+describe('people standing together (stagings)', () => {
   it('builds every template with fresh ids, valid data and joints within limits', async () => {
-    const { TEMPLATES } = await import('@/lib/templates');
+    const { STAGINGS } = await import('@/lib/stagings');
     const { parseScene } = await import('@/lib/doc');
     const { jointLimits } = await import('@/lib/joints');
-    for (const t of TEMPLATES) {
+    for (const t of STAGINGS) {
       const s = t.build();
       expect(s.figures).toHaveLength(t.people);
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
@@ -118,8 +118,8 @@ describe('multi-person templates', () => {
   });
 
   it('really joins the hands in a handshake', async () => {
-    const { buildTemplate } = await import('@/lib/templates');
-    const s = buildTemplate('handshake')!;
+    const { buildStaging } = await import('@/lib/stagings');
+    const s = buildStaging('handshake')!;
     const rig = new Rig();
     const [a, b] = s.figures;
     const pa = contactPoint(rig.model(a), a, 'rightHand');
@@ -129,8 +129,8 @@ describe('multi-person templates', () => {
   });
 
   it('puts a hand on the partner’s shoulder', async () => {
-    const { buildTemplate } = await import('@/lib/templates');
-    const s = buildTemplate('shoulder')!;
+    const { buildStaging } = await import('@/lib/stagings');
+    const s = buildStaging('shoulder')!;
     const rig = new Rig();
     const [a, b] = s.figures;
     const palm = contactPoint(rig.model(a), a, 'leftHand');

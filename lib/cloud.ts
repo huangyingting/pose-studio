@@ -27,7 +27,7 @@ const KEY = 'pose-studio:sync';
 const PUSH_DELAY = 1500;
 
 const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}:${p.caption ?? ''}`).join()
-  + [lib.poses, lib.clips, lib.models].map((list) => (list ?? []).map((x) => x.id).join()).join('|');
+  + [lib.poses, lib.clips, lib.models, lib.templates].map((list) => (list ?? []).map((x) => x.id).join()).join('|');
 
 export class CloudSync {
   status: CloudStatus = 'syncing';

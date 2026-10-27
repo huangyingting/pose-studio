@@ -1,5 +1,5 @@
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, placeTemplate, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
   setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
@@ -10,7 +10,7 @@ import { HAND_PRESETS, cloneHand } from '../hands';
 import { actionsOf, marksOf, missedCatchesOf, overWarp } from '../evaluate';
 import { actionLabel, restage } from '../track';
 import { clampRotation } from '../joints';
-import { MOTIONS, buildMotion } from '../motions';
+import { MOTIONS } from '../motions';
 import { allPoses, builtInPoses } from '../poses';
 import { COVERAGES, castCoverage } from '../coverage';
 import { describeShot } from '../prompt';
@@ -20,7 +20,7 @@ import { anglesOf, withAngles, type Angles } from '../pose';
 import { CAMERA_MOVES, SHOT_SIZES, cameraAt, liveCamera, sizeOf, type Placement, type ShotSize } from '../shot';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
-import { TEMPLATES, buildTemplate } from '../templates';
+import { SCENE_TEMPLATES, templatesOf } from '../templates';
 import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Camera, type Style, type Vec3 } from '../types';
 
 /*
@@ -122,6 +122,14 @@ function sceneSummary(store: Store) {
     style: store.getState().settings.style,
     joint_limits: store.getState().settings.limits,
   };
+}
+
+/** A template by id or (the user's) by name. */
+function findTemplate(store: Store, q: string) {
+  const all = templatesOf(store.getState().library);
+  const t = all.find((x) => x.id === q) ?? all.find((x) => x.name.toLowerCase() === q.trim().toLowerCase());
+  if (!t) throw new Error(`No template "${q}". Templates: ${all.map((x) => x.id === x.name ? x.name : `${x.id} (${x.name})`).join(', ')}`);
+  return t;
 }
 
 const RELATIONS = ['turn_to', 'face_each_other', 'look_at', 'beside_left', 'beside_right', 'back_to_back', 'in_front', 'distance'] as const;
@@ -480,14 +488,24 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'new_scene',
-    description: `Start a new scene in the project and open it: blank, or a set-up with people (${TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}) or an animated set-up for several people or with its props (${MOTIONS.filter((m) => m.people > 1 || m.setUp).map((m) => `${m.id} = ${m.name}`).join(', ')}).`,
-    schema: obj({ template: str('Template', ['blank', ...TEMPLATES.map((t) => t.id), ...MOTIONS.filter((m) => m.people > 1 || m.setUp).map((m) => m.id)]), name: opt(str('Name for the scene')) }),
+    description: `Start a new scene in the project and open it: blank, or from a scene template (a cast, a set and what they do, no cameras): ${SCENE_TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}; or one of the user's saved templates by name.`,
+    schema: obj({ template: str('"blank", a template id, or a saved template\'s name'), name: opt(str('Name for the scene')) }),
     run: (store, i) => {
       const id = String(i.template);
-      const scene = id === 'blank' ? newScene() : buildTemplate(id) ?? buildMotion(id);
-      if (!scene) throw new Error(`Unknown template "${id}"`);
+      const scene = id === 'blank' ? newScene() : findTemplate(store, id).build();
       addScene(store, i.name ? { ...scene, name: String(i.name).slice(0, 80) } : scene);
       return `Opened "${store.scene.name}". ${JSON.stringify(sceneSummary(store))}`;
+    },
+  },
+  {
+    name: 'use_template',
+    description: 'Put a scene template into the open scene at the playhead: its first role taken by the figure given (where it stands, facing its way), the others by the figures nearest it, new figures for the rest; its props and actions come too. Templates as for new_scene.',
+    schema: obj({ template: str('A template id, or a saved template\'s name'), figure: opt(FIGURE) }),
+    run: (store, i) => {
+      const t = findTemplate(store, String(i.template));
+      const lead = i.figure ? findFigure(store, i.figure).id : undefined;
+      const cast = placeTemplate(store, t.id, lead)!;
+      return `${t.name}: ${cast.map((id) => store.scene.figures.find((f) => f.id === id)?.name).join(', ')}. ${JSON.stringify(sceneSummary(store))}`;
     },
   },
   {
@@ -505,13 +523,13 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. One person: ${MOTIONS.filter((m) => m.people === 1 && !m.setUp).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. Several people (the figure leads, the others take their places around it, walking there if there is time: the partner given, or the nearest figures): ${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
+    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. One person: ${MOTIONS.filter((m) => m.people === 1).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. Several people (the figure leads, the others take their places around it, walking there if there is time: the partner given, or the nearest figures): ${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
     schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion'), partner: opt(str('For a two-person motion: the other figure (id or name); default the nearest')) }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
       const q = String(i.motion).trim().toLowerCase();
       const mine = store.getState().library.clips ?? [];
-      const motion = MOTIONS.find((m) => !m.setUp && m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
+      const motion = MOTIONS.find((m) => m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
       if (!motion) throw new Error(`No motion "${i.motion}"`);
       const partners = i.partner ? [findFigure(store, i.partner).id] : undefined;
       const from = store.scene.animation ? store.getState().time : 0;
@@ -564,7 +582,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'upper_body',
-    description: `Play a one-person motion from the waist up over what a figure does at the playhead (waving while walking): ${MOTIONS.filter((m) => m.people === 1 && !m.setUp && !m.travel).map((m) => m.id).join(', ')}. A motion that loops lasts as long as what is under it.`,
+    description: `Play a one-person motion from the waist up over what a figure does at the playhead (waving while walking): ${MOTIONS.filter((m) => m.people === 1 && !m.travel).map((m) => m.id).join(', ')}. A motion that loops lasts as long as what is under it.`,
     schema: obj({ figure: FIGURE, motion: str('Motion id') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);

@@ -1,5 +1,5 @@
 import { jointLimits, mirrorJointName, wrapDeg } from './joints';
-import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
+import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat, turnBones } from './pose';
 import { uid } from './uid';
 import { EXTRA_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
 
@@ -234,6 +234,20 @@ export function mirrorClip(c: Clip): Clip {
     }),
     events: c.events.map((e) => (e.hand ? { ...e, hand: e.hand === 'L' ? 'R' : 'L' } : e)),
     contacts: c.contacts.map((x) => ({ ...x, bone: mirrorJointName(x.bone) })),
+  };
+}
+
+/** A clip of keys in the world turned by `deg` about the vertical, its floor points moved by `place`. */
+export function placeClip(c: Clip, deg: number, place: (x: number, z: number) => [number, number]): Clip {
+  return {
+    ...c,
+    parts: c.parts.map((part) => {
+      const keys = partKeys(part).map((k) => {
+        const [x, z] = place(k.pose.position[0], k.pose.position[2]);
+        return { t: k.t, pose: { ...k.pose, bones: turnBones(k.pose.bones, deg), position: [x, k.pose.position[1], z] as Vec3 } };
+      });
+      return partFromPoses(part.name, keys, trackOf(part, ROOT)?.interpolation === 'linear' ? 'linear' : 'smooth', part.body);
+    }),
   };
 }
 

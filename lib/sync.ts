@@ -18,6 +18,8 @@ export interface SyncBase {
   clips?: string[];
   /** Imported characters both sides had. */
   models?: string[];
+  /** Saved scene templates both sides had. */
+  templates?: string[];
 }
 
 function hash(text: string) {
@@ -46,7 +48,7 @@ const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
 
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
-  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length || lib.models?.length) return false;
+  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length || lib.models?.length || lib.templates?.length) return false;
   const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
@@ -59,7 +61,7 @@ export function canonical(lib: Library): Library {
 export function syncBase(lib: Library): SyncBase {
   return {
     scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board),
-    poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id), models: (lib.models ?? []).map((m) => m.id),
+    poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id), models: (lib.models ?? []).map((m) => m.id), templates: (lib.templates ?? []).map((t) => t.id),
   };
 }
 
@@ -71,7 +73,8 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
     && boardHash(lib.board) === base.board
     && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join()
     && (lib.clips ?? []).map((m) => m.id).join() === (base.clips ?? []).join()
-    && (lib.models ?? []).map((m) => m.id).join() === (base.models ?? []).join();
+    && (lib.models ?? []).map((m) => m.id).join() === (base.models ?? []).join()
+    && (lib.templates ?? []).map((t) => t.id).join() === (base.templates ?? []).join();
 }
 
 export function mergeLibraries(server: Library, local: Library, base: SyncBase | null): Library {
@@ -120,6 +123,7 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
   const poses = assets(server.poses, local.poses, base?.poses);
   const clips = assets(server.clips, local.clips, base?.clips);
   const models = assets(server.models, local.models, base?.models);
+  const templates = assets(server.templates, local.templates, base?.templates);
   return {
     ...server,
     scenes: out.length ? out : server.scenes,
@@ -127,6 +131,7 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     ...(poses.length ? { poses } : { poses: undefined }),
     ...(clips.length ? { clips } : { clips: undefined }),
     ...(models.length ? { models } : { models: undefined }),
+    ...(templates.length ? { templates } : { templates: undefined }),
   };
 }
 

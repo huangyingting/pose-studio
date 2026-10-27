@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, Ellipsis, FilePlus2, Search, Users, UsersRound } from 'lucide-react';
 import { addScene, moveScene } from '@/lib/actions';
-import { TEMPLATES } from '@/lib/templates';
+import { templatesOf } from '@/lib/templates';
 import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
 import { sceneMenu } from './menus';
@@ -114,8 +114,8 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
             tip="New scene"
             items={[
               { label: 'Blank scene', icon: FilePlus2, onSelect: () => { addScene(store); onPick(); } },
-              { group: 'From a set-up' },
-              ...TEMPLATES.map((t) => ({
+              { group: 'From a template' },
+              ...templatesOf(store.getState().library).map((t) => ({
                 label: t.name,
                 icon: t.people > 2 ? Users : UsersRound,
                 onSelect: () => { addScene(store, t.build()); onPick(); },

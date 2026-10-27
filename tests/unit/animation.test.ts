@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { liveCamera } from '@/lib/shot';
 import { setDuration, frameTimes } from '@/lib/animation';
 import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
@@ -7,7 +6,7 @@ import { addFigure, addKeyframe, applyCameraMove, applyMotion, deleteFigure, del
 import { BODY_PRESETS } from '@/lib/body';
 import { duplicateScene, mirrorScene, newFigure, newScene, parseScene } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
-import { MOTIONS, buildMotion } from '@/lib/motions';
+import { MOTIONS } from '@/lib/motions';
 import { describeShot } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
 import { withFacing } from '@/lib/relations';
@@ -141,7 +140,7 @@ describe('animation templates', () => {
 
   it('keeps one-person motions clean on figures of every build (feet locked, travel scaled)', () => {
     for (const preset of BODY_PRESETS) {
-      for (const m of MOTIONS.filter((x) => x.people === 1 && !x.setUp)) {
+      for (const m of MOTIONS.filter((x) => x.people === 1)) {
         const store = new Store(new MemoryStorage());
         const id = store.figure!.id;
         store.updateScene((s) => ({ ...s, figures: s.figures.map((f) => ({ ...f, body: { ...preset.body } })) }));
@@ -158,7 +157,8 @@ describe('animation templates', () => {
       const a = s.animation!;
       expect(s.figures, m.id).toHaveLength(m.people);
       expect(a.actions.length, m.id).toBeGreaterThan(m.people - 1);
-      expect(liveCamera(buildMotion(m.id)!, 0)!.points.length, m.id).toBeGreaterThan(0);
+      // Only what the people do: no cameras, no set.
+      expect(a.cameras ?? a.shots ?? s.props[0], m.id).toBeUndefined();
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
       for (const x of a.actions) {
         if (x.source.kind !== 'keys') continue;

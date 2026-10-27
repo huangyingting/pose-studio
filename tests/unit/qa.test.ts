@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { motionScene } from '../fixtures/scenes';
 import { newFigure, newProp, newScene } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
-import { buildMotion } from '@/lib/motions';
 import { checkMotion, segmentDistance } from '@/lib/qa';
-import { buildTemplate } from '@/lib/templates';
+import { buildStaging } from '@/lib/stagings';
 import type { Figure, Scene } from '@/lib/types';
 import { keysAction } from '@/lib/track';
 import { angle, bonesOf, withAngles } from '../../lib/pose';
@@ -20,9 +20,9 @@ const kinds = (s: Scene) => checkMotion(s).map((i) => i.kind);
 
 describe('motion QA', () => {
   it('passes the built-in animations and multi-person holds', () => {
-    for (const id of ['walk', 'run', 'jump', 'dance', 'boxing', 'kick', 'wave', 'bow']) expect(checkMotion(buildMotion(id)!), id).toEqual([]);
+    for (const id of ['walk', 'run', 'jump', 'dance', 'boxing', 'kick', 'wave', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
     for (const id of ['waltz', 'shoulder', 'group', 'sparring']) {
-      const s = buildTemplate(id)!;
+      const s = buildStaging(id)!;
       expect(checkMotion(animate([[0, s.figures]])), id).toEqual([]);
     }
   }, 30_000);

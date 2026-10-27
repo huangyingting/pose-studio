@@ -8,7 +8,7 @@ import type { PoseAsset, Scene, Style } from './types';
 
 /*
  * Previews for the library, shown while the pointer rests on an item: a pose as a still, a
- * motion playing (filmed by its own camera), and a camera move filming the open scene, so you see
+ * motion playing (followed by a camera), and a camera move filming the open scene, so you see
  * what an item does before you use it. Frames are rendered off-screen one at a time (the page
  * stays responsive, the first shows at once) and kept once complete.
  */
@@ -80,9 +80,17 @@ export function posePreview(p: PoseAsset, style: Style): PreviewJob {
   };
 }
 
-/** A motion playing, filmed by the camera it comes with. */
+/** A scene template: playing (followed by a camera), or its people as they stand. */
+export function templatePreview(id: string, build: () => Scene, style: Style): PreviewJob {
+  const key = `template:${style}:${id}`;
+  const scene = build();
+  if (scene.animation) return filmed(key, () => filmWith(scene, 'static', { follow: true }), style);
+  return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1 }).toDataURL('image/png') };
+}
+
+/** A motion playing, followed by a camera from its scene's angle. */
 export function motionPreview(id: string, build: () => Scene, style: Style): PreviewJob {
-  return filmed(`motion:${style}:${id}`, build, style);
+  return filmed(`motion:${style}:${id}`, () => filmWith(build(), 'static', { follow: true }), style);
 }
 
 const sceneIds = new WeakMap<Scene, number>();

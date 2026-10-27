@@ -35,7 +35,7 @@ export interface Settings {
   guides: boolean;
 }
 
-export const LIBRARY_TABS = ['poses', 'motions', 'models', 'camera'] as const;
+export const LIBRARY_TABS = ['poses', 'motions', 'models', 'templates', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export const SIDE_SECTIONS = ['scene', 'library', 'ai'] as const;

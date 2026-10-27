@@ -9,12 +9,12 @@ import { actionsOf, figurePoseAt, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { handPosition, rimOf } from '@/lib/propmotion';
-import { buildMotion } from '@/lib/motions';
+import { highJump } from '@/lib/motions';
 import { withFacing } from '@/lib/relations';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { CMU, bvh } from '../fixtures/bvh';
-import { audit, body, expectClean, figureAt, fresh } from '../fixtures/scenes';
+import { audit, body, expectClean, figureAt, fresh, motionScene } from '../fixtures/scenes';
 
 /*
  * Whole scenes made the way a user makes them (the same actions as the menus), for the use case of
@@ -217,7 +217,7 @@ describe('scenes from the use case', () => {
 
   it('high jump: the flop clears its bar, back first, onto the mat; a jump too low is caught going through the bar', () => {
     const { store } = fresh();
-    addScene(store, buildMotion('high-jump')!);
+    addScene(store, highJump());
     expectClean(store.scene);
     const jumper = store.scene.figures[0].id;
     const [bar, mat] = store.scene.props;
@@ -250,9 +250,9 @@ describe('scenes from the use case', () => {
 
   it('wrestling: a clinch and a takedown, then a boxing exchange in the next scene', () => {
     const { store } = fresh();
-    addScene(store, buildMotion('takedown')!);
+    addScene(store, motionScene('takedown'));
     expectClean(store.scene);
-    addScene(store, buildMotion('boxing')!);
+    addScene(store, motionScene('boxing'));
     expectClean(store.scene);
   }, 60_000);
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { motionScene } from '../fixtures/scenes';
 import { addFigure, applyMotion, applyPose, deletePose, saveMotion, savePose } from '@/lib/actions';
 import { BUILT_IN, clipById } from '@/lib/assets';
 import { keysClip } from '@/lib/clip';
 import { clipsIn, newFigure, newScene, parseLibrary } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
-import { buildMotion } from '@/lib/motions';
 import { allPoses, builtInPoses, withPose } from '@/lib/poses';
 import { insertClip } from '@/lib/track';
 import { facing, withFacing } from '@/lib/relations';
@@ -83,7 +83,7 @@ describe('library assets applied to the scene', () => {
     const other = store.getState().activeFigure!;
     store.setTime(store.scene.animation!.duration);
     expect(applyMotion(store, other, 'jump')).toBe(true);
-    expect(store.scene.animation!.duration).toBeGreaterThan(buildMotion('wave')!.animation!.duration);
+    expect(store.scene.animation!.duration).toBeGreaterThan(motionScene('wave').animation!.duration);
     // Several people: on this figure and the other (the nearest), not on one alone.
     expect(applyMotion(store, id, 'waltz-turn')).toBe(true);
     const together = actionsOf(store.scene.animation!, other).find((x) => x.source.kind === 'clip' && x.source.clip === BUILT_IN + 'waltz-turn');

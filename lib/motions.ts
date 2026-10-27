@@ -6,8 +6,7 @@ import { HAND_PRESETS, cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
-import { filmWith } from './shot';
-import { buildTemplate, waltzHold } from './templates';
+import { buildStaging, waltzHold } from './stagings';
 import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
 import { keysAction } from './track';
 import { uid } from './uid';
@@ -18,8 +17,8 @@ import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName,
  * boxing exchange and more. Each is made as a scene on the default figure(s), with keys (and
  * travels where steps are generated), and plays as a Clip baked from it (lib/assets.ts): on a
  * figure like it exactly as made; on other proportions its planted feet are locked. Keys are
- * authored as joint angles (with IK for contacts and punches) and each animation comes with a
- * camera move, so it plays like a short shot.
+ * authored as joint angles (with IK for contacts and punches). A motion is only what the people
+ * do: where it is filmed from, and what set it plays in, are up to the scene.
  */
 
 /** Groups of the motion library (several-people motions are listed on their own). */
@@ -33,8 +32,6 @@ export interface Motion {
   build(): Scene;
   /** Moving from mark to mark (generated steps): applied, the figure goes this far ahead. */
   travel?: { kind: Travel; distance: number };
-  /** A whole set-up with its props (a bar and a mat): it opens as a new scene. */
-  setUp?: boolean;
   /** When a hand lets a prop go or takes hold of it (motions that handle props). */
   events?: ClipEvent[];
 }
@@ -72,7 +69,7 @@ interface Key {
 const poseOf = (f: Figure): Pose => ({ bones: f.bones, position: f.position, hands: f.hands, grounded: f.grounded });
 
 /** A scene keyed with these poses: each figure's keys one action (going round, in a loop). */
-function animated(name: string, keys: Key[], o: { duration: number; loop: boolean; view: View; camera?: string; follow?: boolean }): Scene {
+function animated(name: string, keys: Key[], o: { duration: number; loop: boolean; view: View }): Scene {
   const scene = { ...newScene(name, keys[0].figures), view: o.view };
   const actions = keys[0].figures.map((f): Action => {
     // On frame times, so a motion plays exactly as made.
@@ -81,13 +78,8 @@ function animated(name: string, keys: Key[], o: { duration: number; loop: boolea
     return { id: uid('act'), start: 0, duration: o.duration, roles: [{ figure: f.id }], source: { kind: 'keys', clip: keysClip(mine, true, o.duration) } };
   });
   const animation: Animation = { duration: o.duration, fps: 24, loop: o.loop, actions };
-  // Filmed when it is opened as a scene (buildMotion), not when only its motion is wanted.
-  filming.set(name, { move: o.camera ?? 'static', follow: !!o.follow });
   return { ...scene, animation };
 }
-
-/** How each motion's scene is filmed (by its name): its camera move, riding along with its people or not. */
-const filming = new Map<string, { move: string; follow: boolean }>();
 
 /**
  * A figure's keys from t0 to t1 walked, run or jumped instead (its steps generated): the keys in
@@ -112,10 +104,10 @@ function travelling(scene: Scene, figure: string, t0: number, t1: number, mode: 
 }
 
 /** A figure walking, running or jumping `distance` metres ahead, its steps generated. */
-function travelled(f: Figure, kind: Travel, distance: number, o: { view: View; camera?: string }): Scene {
+function travelled(f: Figure, kind: Travel, distance: number, o: { view: View }): Scene {
   const t = Math.round(travelTime(kind, distance, f.body) * 24) / 24;
   const there = { ...f, position: [f.position[0], f.position[1], f.position[2] + distance] as Vec3 };
-  return travelling(animated(f.name, [{ t: 0, figures: [f] }, { t, figures: [there] }], { duration: t, loop: false, ...o, follow: true }), f.id, 0, t, kind);
+  return travelling(animated(f.name, [{ t: 0, figures: [f] }, { t, figures: [there] }], { duration: t, loop: false, ...o }), f.id, 0, t, kind);
 }
 
 function withRig<T>(fn: (rig: Rig) => T): T {
@@ -268,7 +260,7 @@ export const MOTIONS: Motion[] = [
     group: 'Getting around',
     people: 1,
     travel: { kind: 'walk', distance: 3 },
-    build: () => travelled(person('Walker', { ...DEFAULT_BODY }, STAND), 'walk', 3, { view: { yaw: 70, pitch: 6, fov: 30 }, camera: 'static' }),
+    build: () => travelled(person('Walker', { ...DEFAULT_BODY }, STAND), 'walk', 3, { view: { yaw: 70, pitch: 6, fov: 30 } }),
   },
   {
     id: 'run',
@@ -276,7 +268,7 @@ export const MOTIONS: Motion[] = [
     group: 'Getting around',
     people: 1,
     travel: { kind: 'run', distance: 6 },
-    build: () => travelled({ ...person('Runner', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } }, 'run', 6, { view: { yaw: 90, pitch: 4, fov: 34 }, camera: 'static' }),
+    build: () => travelled({ ...person('Runner', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } }, 'run', 6, { view: { yaw: 90, pitch: 4, fov: 34 } }),
   },
   {
     id: 'jump',
@@ -284,7 +276,7 @@ export const MOTIONS: Motion[] = [
     group: 'Getting around',
     people: 1,
     travel: { kind: 'jump', distance: 1 },
-    build: () => travelled(person('Jumper', { ...DEFAULT_BODY }, STAND), 'jump', 1, { view: { yaw: 70, pitch: 4, fov: 30 }, camera: 'static' }),
+    build: () => travelled(person('Jumper', { ...DEFAULT_BODY }, STAND), 'jump', 1, { view: { yaw: 70, pitch: 4, fov: 30 } }),
   },
   {
     id: 'dance',
@@ -306,7 +298,7 @@ export const MOTIONS: Motion[] = [
       }), 30);
       return animated('Dance groove', [
         { t: 0, figures: [up] }, { t: 0.5, figures: [dip] }, { t: 1, figures: [mirrored(up)] }, { t: 1.5, figures: [mirrored(dip)] },
-      ], { duration: 2, loop: true, view: { yaw: 10, pitch: 6, fov: 26 }, camera: 'orbit360' });
+      ], { duration: 2, loop: true, view: { yaw: 10, pitch: 6, fov: 26 } });
     },
   },
   {
@@ -331,7 +323,7 @@ export const MOTIONS: Motion[] = [
         return [up, dip, mirrored(up), mirrored(dip)][((n % 4) + 4) % 4];
       };
       for (let k = 0; k < 4; k++) keys.push({ t: k * 0.5, figures: dancers.map((f, i) => beat(f, k + (i === 1 || i === 2 ? 2 : 0))) });
-      return animated('Group dance', keys, { duration: 2, loop: true, view: { yaw: 15, pitch: 10, fov: 34 }, camera: 'orbit360' });
+      return animated('Group dance', keys, { duration: 2, loop: true, view: { yaw: 15, pitch: 10, fov: 34 } });
     },
   },
   {
@@ -340,7 +332,7 @@ export const MOTIONS: Motion[] = [
     group: 'Together',
     people: 2,
     build: () => withRig((rig) => {
-      const hold = buildTemplate('waltz')!;
+      const hold = buildStaging('waltz')!;
       const [a, b] = hold.figures;
       // A slightly open hold (room for the knees as they step), solved again at that spacing.
       const centre = [(a.position[0] + b.position[0]) / 2, (a.position[2] + b.position[2]) / 2];
@@ -349,7 +341,7 @@ export const MOTIONS: Motion[] = [
       // A full turn in eight steps: each dancer side-steps around the couple's centre, turning with
       // it (generated steps, keeping their facing), so no foot slides and the hold keeps its shape.
       const keys: Key[] = Array.from({ length: 9 }, (_, i) => ({ t: i * 0.375, figures: couple.map((f) => turnAbout(f, -45 * i)) }));
-      const scene = animated('Waltz turn', keys, { duration: 3, loop: false, view: { yaw: 30, pitch: 10, fov: 26 }, camera: 'push' });
+      const scene = animated('Waltz turn', keys, { duration: 3, loop: false, view: { yaw: 30, pitch: 10, fov: 26 } });
       const turning = couple.reduce((sc, f) => travelling(sc, f.id, 0, 3, 'walk', true), scene);
       return { ...turning, animation: { ...turning.animation!, loop: true } };
     }),
@@ -360,7 +352,7 @@ export const MOTIONS: Motion[] = [
     group: 'Together',
     people: 2,
     build: () => withRig((rig) => {
-      const [a0, b0] = buildTemplate('sparring')!.figures;
+      const [a0, b0] = buildStaging('sparring')!.figures;
       const head = (f: Figure) => headPoint(rig.model(f), f);
       const towards = (from: Figure, to: Figure, short: number) => {
         const h = head(to);
@@ -385,7 +377,7 @@ export const MOTIONS: Motion[] = [
         { t: 0.82, figures: [cross, slip] },
         { t: 1.15, figures: [a0, counter] },
         { t: 1.42, figures: [a0, b0] },
-      ], { duration: 1.7, loop: true, view: { yaw: 15, pitch: 6, fov: 28 }, camera: 'handheld' });
+      ], { duration: 1.7, loop: true, view: { yaw: 15, pitch: 6, fov: 28 } });
     }),
   },
   {
@@ -438,7 +430,7 @@ export const MOTIONS: Motion[] = [
       keys.push({ t: at(56), figures: [aOver, lying] }, { t: at(64), figures: [aOver, lying] });
       // Side-on to the camera.
       const turned = keys.map((k) => ({ ...k, figures: k.figures.map((f) => turnAbout(f, 90)) }));
-      return animated('Clinch & takedown', turned, { duration: 2.8, loop: false, view: { yaw: 0, pitch: 8, fov: 30 }, camera: 'static' });
+      return animated('Clinch & takedown', turned, { duration: 2.8, loop: false, view: { yaw: 0, pitch: 8, fov: 30 } });
     }),
   },
   {
@@ -456,7 +448,7 @@ export const MOTIONS: Motion[] = [
       const extend = { ...stance, bones: bonesOf({ ...g, hips: [-12, g.hips![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, leftUpperLeg: support(-12), rightUpperLeg: [-88, 0, -6] as Vec3, rightLowerLeg: [6, 0, 0] as Vec3, rightFoot: [-25, 0, 0] as Vec3 }) };
       return animated('Front kick', [
         { t: 0, figures: [stance] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
-      ], { duration: 1.5, loop: true, view: { yaw: 70, pitch: 2, fov: 28 }, camera: 'hero' });
+      ], { duration: 1.5, loop: true, view: { yaw: 70, pitch: 2, fov: 28 } });
     }),
   },
   {
@@ -473,7 +465,7 @@ export const MOTIONS: Motion[] = [
       const cross = reachTo(rig, turned, 'R', target.clone().add(new THREE.Vector3(-0.08, 0, 0.1)));
       return animated('Jab & cross', [
         { t: 0, figures: [stance] }, { t: 4 / 24, figures: [jab] }, { t: 9 / 24, figures: [stance] }, { t: 15 / 24, figures: [cross] }, { t: 22 / 24, figures: [stance] },
-      ], { duration: 1.25, loop: false, view: { yaw: 60, pitch: 4, fov: 28 }, camera: 'static' });
+      ], { duration: 1.25, loop: false, view: { yaw: 60, pitch: 4, fov: 28 } });
     }),
   },
   {
@@ -490,7 +482,7 @@ export const MOTIONS: Motion[] = [
       return animated('Block & duck', [
         { t: 0, figures: [stance] }, { t: 0.2, figures: [block] }, { t: 0.55, figures: [block] }, { t: 0.75, figures: [stance] },
         { t: 1.0, figures: [duck] }, { t: 1.3, figures: [duck] }, { t: 1.6, figures: [stance] },
-      ], { duration: 1.9, loop: true, view: { yaw: 60, pitch: 4, fov: 28 }, camera: 'static' });
+      ], { duration: 1.9, loop: true, view: { yaw: 60, pitch: 4, fov: 28 } });
     }),
   },
   {
@@ -508,7 +500,7 @@ export const MOTIONS: Motion[] = [
       const reel = plantFeet(rig, adjusted(sink(rock(stance, -4), 16), { spine: [6, -8, 4], neck: [10, 8, 0], leftUpperArm: [-25, 0, 25], leftLowerArm: [-60, 0, 0], rightUpperArm: [-25, 0, -25], rightLowerArm: [-60, 0, 0] }), stance);
       return animated('Take a hit', [
         { t: 0, figures: [stance] }, { t: 0.16, figures: [snap] }, { t: 0.6, figures: [reel] }, { t: 1.2, figures: [stance] },
-      ], { duration: 1.4, loop: false, view: { yaw: 50, pitch: 4, fov: 28 }, camera: 'static' });
+      ], { duration: 1.4, loop: false, view: { yaw: 50, pitch: 4, fov: 28 } });
     }),
   },
   {
@@ -532,7 +524,7 @@ export const MOTIONS: Motion[] = [
       follow = reachTo(rig, follow, 'R', near(rig, follow, 'leftUpperLeg', [0.15, 0.05, 0.35]));
       return animated('Throw overhand', [
         { t: 0, figures: [ready] }, ...[windup, release, follow].map((k, i) => ({ t: [0.5, 0.68, 0.88][i], figures: [plantFeet(rig, k, ready)] })), { t: 1.5, figures: [ready] },
-      ], { duration: 1.7, loop: false, view: { yaw: 80, pitch: 4, fov: 30 }, camera: 'static' });
+      ], { duration: 1.7, loop: false, view: { yaw: 80, pitch: 4, fov: 30 } });
     }),
   },
   {
@@ -555,16 +547,256 @@ export const MOTIONS: Motion[] = [
         { t: 0, figures: [posed(f, STAND)] }, { t: 0.35, figures: [prep] }, { t: 0.45, figures: [prep] },
         { t: 0.7, figures: [up] }, { t: 0.95, figures: [turnOn(up, 120, pivot)] }, { t: 1.2, figures: [turnOn(up, 240, pivot)] }, { t: 1.45, figures: [turnOn(up, 360, pivot)] },
         { t: 1.75, figures: [prep] }, { t: 1.9, figures: [prep] }, { t: 2.25, figures: [posed(f, STAND)] },
-      ], { duration: 2.5, loop: false, view: { yaw: 20, pitch: 6, fov: 26 }, camera: 'static' });
+      ], { duration: 2.5, loop: false, view: { yaw: 20, pitch: 6, fov: 26 } });
     }),
   },
   {
-    id: 'high-jump',
-    name: 'High jump',
+    id: 'cartwheel',
+    name: 'Cartwheel',
     group: 'Sport & gymnastics',
     people: 1,
-    setUp: true,
     build: () => withRig((rig) => {
+      const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
+      const stand = posed(f, STAND);
+      const arms = posed(f, { ...STAND, leftUpperArm: [0, 0, 140], rightUpperArm: [0, 0, -140], leftLowerArm: [0, 0, 0], rightLowerArm: [0, 0, 0] });
+      const x = (roll: number, at: number): Figure => ({ ...posed(f, { hips: [0, 0, roll], leftUpperArm: [0, 0, 140], rightUpperArm: [0, 0, -140], leftUpperLeg: [0, 0, 40], rightUpperLeg: [0, 0, -40] }), position: [at, 0, 0] });
+      // Arms up, a step out to the right into an X (the left foot stays), then the X wheels over
+      // sideways: hand, hand, foot, foot. The hips' height is keyed from where the X rests at each
+      // eighth of the turn, so they ride smoothly from one contact to the next. It lands in the X
+      // and steps the trailing foot in.
+      const start = footAt(rig, x(0, 0), stand, 'L');
+      const reach = plantFeet(rig, { ...posed(f, { ...J(arms), rightUpperLeg: [-35, 0, -30], rightLowerLeg: [75, 0, 0], rightFoot: [20, 0, 0] }), position: [start.position[0] / 2, 0, 0] }, stand, ['L']);
+      // Each step lifts the foot straight up where it stands first (thigh and shin at equal angles), then carries it over.
+      const lift = (from: Figure, side: Side, spread: number) => plantFeet(rig, { ...from, bones: bonesOf({ ...J(from), [sided('UpperLeg', side)]: [-30, 0, spread], [sided('LowerLeg', side)]: [60, 0, 0], [sided('Foot', side)]: [15, 0, 0] }) }, from, [side === 'L' ? 'R' : 'L']);
+      const keys: Key[] = [{ t: 0, figures: [stand] }, { t: 0.3, figures: [arms] }, { t: 0.42, figures: [lift(arms, 'R', -3)] }, { t: 0.55, figures: [reach] }];
+      let last = start;
+      for (let i = 0; i <= 8; i++) {
+        const star = x(wrapDeg(45 * i), Math.round((start.position[0] - 0.26 * i) * 1000) / 1000);
+        const y = rig.model(star).joints.hips.position.y;
+        last = { ...star, grounded: false, position: [star.position[0], Math.round(y * 1000) / 1000, 0] };
+        keys.push({ t: Math.round((0.8 + i * 0.16) * 1000) / 1000, figures: [last] });
+      }
+      const together = footAt(rig, arms, last, 'R');
+      const close = plantFeet(rig, { ...posed(f, { ...J(arms), leftUpperLeg: [-35, 0, 30], leftLowerLeg: [75, 0, 0], leftFoot: [20, 0, 0] }), position: [(last.position[0] + together.position[0]) / 2, 0, 0] }, last, ['R']);
+      // Landing, the hips carry on over the right foot (no dead stop) as the left one lifts.
+      const landing = plantFeet(rig, lift({ ...last, position: [last.position[0] - 0.1, last.position[1], last.position[2]] }, 'L', 40), last, ['R']);
+      // Both feet stay down for a frame as the hips carry on, then the left one lifts over two.
+      const settle = plantFeet(rig, inBetween(rig, last, landing, 3, last, ['R'])[0], last);
+      keys.push({ t: 51 / 24, figures: [settle] }, ...inBetween(rig, settle, landing, 2, last, ['R']).map((p, i) => ({ t: (52 + i) / 24, figures: [p] })));
+      keys.push({ t: 54 / 24, figures: [landing] }, { t: 2.4, figures: [close] }, { t: 2.65, figures: [together] }, { t: 2.95, figures: [{ ...stand, position: together.position }] });
+      return animated('Cartwheel', atHeights(rig, keys), { duration: 3.1, loop: false, view: { yaw: 0, pitch: 4, fov: 36 } });
+    }),
+  },
+  {
+    id: 'leap',
+    name: 'Split leap',
+    group: 'Sport & gymnastics',
+    people: 1,
+    build: () => withRig((rig) => {
+      const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
+      const stand = posed(f, STAND);
+      const at = (frame: number) => frame / 24;
+      /** Where `side`'s foot is with the figure moved `dz` ahead. */
+      const spot = (pose: Figure, side: Side, dz: number) => feetOf(rig, { ...pose, position: [pose.position[0], pose.position[1], pose.position[2] + dz] }, [side]);
+      const ahead = (pose: Figure, z: number): Figure => ({ ...pose, position: [0, 0, z] });
+      const prepArms: Joints = { leftUpperArm: [30, 0, 30], rightUpperArm: [30, 0, -30], leftLowerArm: [-20, 0, 0], rightLowerArm: [-20, 0, 0] };
+      const risingArms: Joints = { leftUpperArm: [-15, 0, 60], rightUpperArm: [-15, 0, -60], leftLowerArm: [-15, 0, 0], rightLowerArm: [-15, 0, 0] };
+      const openArms: Joints = { leftUpperArm: [-40, 0, 95], rightUpperArm: [-40, 0, -95], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
+      // A step onto the right foot, a plié on it, and a push off it as the left leg swings up
+      // ahead: legs split in the air, the arms open; landing on the left foot, the right comes down.
+      const lift = plantFeet(rig, ahead(posed(f, { ...STAND, rightUpperLeg: [-40, 0, -3], rightLowerLeg: [60, 0, 0], rightFoot: [15, 0, 0] }), 0.08), stand, ['L']);
+      const reachOut = spot(stand, 'R', 0.5).map((w) => ({ ...w, p: w.p.clone().add(new THREE.Vector3(0, 0.06, 0)) }));
+      const reaching = plantFeet(rig, plantFeet(rig, ahead(posed(f, { ...STAND, ...prepArms }), 0.18), stand, ['L']), reachOut);
+      /** Lower by `dy` (held there, not left to the floor): planted legs then bend to reach. */
+      const lowered = (p: Figure, dy: number): Figure => ({ ...p, grounded: false, position: [p.position[0], Math.round((rig.model(p).joints.hips.position.y - dy) * 1000) / 1000, p.position[2]] });
+      const step = plantFeet(rig, lowered(plantFeet(rig, ahead(sink(posed(f, { ...STAND, ...prepArms }), 30), 0.3), stand, ['L']), 0.04), [...feetOf(rig, stand, ['L']), ...spot(stand, 'R', 0.6)]);
+      const plie = plantFeet(rig, ahead(sink(posed(f, { ...prepArms, hips: [10, 0, 0], spine: [6, 0, 0], leftUpperLeg: [25, 0, 4], leftLowerLeg: [60, 0, 0], leftFoot: [20, 0, 0] }), 30), 0.52), step, ['R']);
+      const push = plantFeet(rig, ahead(posed(f, { ...risingArms, hips: [6, 0, 0], leftUpperLeg: [-60, 0, 4], leftLowerLeg: [40, 0, 0], leftFoot: [30, 0, 0], rightFoot: [30, 0, 0] }), 0.8), step, ['R']);
+      const split = posed(f, { ...openArms, hips: [8, 0, 0], spine: [-6, 0, 0], neck: [-8, 0, 0], leftUpperLeg: [-88, 0, 4], leftLowerLeg: [0, 0, 0], leftFoot: [35, 0, 0], rightUpperLeg: [45, 0, -4], rightLowerLeg: [8, 0, 0], rightFoot: [35, 0, 0] });
+      const land = plantFeet(rig, ahead(posed(f, { ...risingArms, hips: [6, 0, 0], leftUpperLeg: [-30, 0, 4], leftLowerLeg: [40, 0, 0], rightUpperLeg: [35, 0, -4], rightLowerLeg: [40, 0, 0], rightFoot: [30, 0, 0] }), 1.8), spot(stand, 'L', 1.95), ['L']);
+      const absorb = plantFeet(rig, ahead(sink(posed(f, { ...prepArms, hips: [8, 0, 0], leftUpperLeg: [-30, 0, 4], leftLowerLeg: [40, 0, 0], rightUpperLeg: [30, 0, -4], rightLowerLeg: [50, 0, 0], rightFoot: [25, 0, 0] }), 35), 2.05), land, ['L']);
+      const end = footAt(rig, stand, land, 'L');
+      const lower = plantFeet(rig, { ...posed(f, { ...STAND, rightUpperLeg: [10, 0, -3], rightLowerLeg: [40, 0, 0], rightFoot: [20, 0, 0] }), position: [end.position[0], 0, (end.position[2] + absorb.position[2]) / 2] }, land, ['L']);
+      // In the air a frame at a time: the pelvis flies a parabola under gravity from the push to
+      // the landing, the limbs blending into the split and out of it.
+      const pelvis = (p: Figure) => rig.model(p).joints.hips.getWorldPosition(new THREE.Vector3());
+      const [from, to] = [pelvis(push), pelvis(land)];
+      const [UP, AIR, DOWN] = [19, 10, 29];
+      const T = at(AIR);
+      const v = (to.y - from.y + (9.81 * T * T) / 2) / T;
+      const r3 = (x: number) => Math.round(x * 1000) / 1000;
+      const flight: Key[] = [];
+      for (let i = 1; i < AIR; i++) {
+        const u = i / AIR;
+        const half = AIR / 2;
+        const joints = (i < half ? inBetween(rig, push, { ...split, position: push.position }, half - 1, push, [])[i - 1] : i === half ? split : inBetween(rig, split, { ...land, position: split.position }, half - 1, split, [])[i - half - 1]).bones;
+        const time = at(i);
+        const y = from.y + v * time - (9.81 * time * time) / 2;
+        flight.push({ t: at(UP + i), figures: [{ ...f, bones: joints, grounded: false, position: [r3(from.x + (to.x - from.x) * u), r3(y), r3(from.z + (to.z - from.z) * u)] }] });
+      }
+      return animated('Split leap', atHeights(rig, [
+        { t: 0, figures: [stand] }, { t: at(5), figures: [lift] }, { t: at(8), figures: [reaching] }, { t: at(10), figures: [step] },
+        ...inBetween(rig, step, plie, 5, step, ['R']).map((p, i) => ({ t: at(11 + i), figures: [p] })),
+        { t: at(16), figures: [plie] },
+        ...inBetween(rig, plie, push, 2, step, ['R']).map((p, i) => ({ t: at(17 + i), figures: [p] })),
+        { t: at(UP), figures: [push] }, ...flight, { t: at(DOWN), figures: [land] },
+        ...inBetween(rig, land, absorb, 5, land, ['L']).map((p, i) => ({ t: at(DOWN + 1 + i), figures: [p] })),
+        { t: at(DOWN + 6), figures: [absorb] }, { t: at(DOWN + 12), figures: [lower] }, { t: at(DOWN + 18), figures: [end] },
+      ]), { duration: 2.25, loop: false, view: { yaw: 90, pitch: 4, fov: 34 } });
+    }),
+  },
+  {
+    id: 'fall',
+    name: 'Fall & get up',
+    group: 'Everyday',
+    people: 1,
+    build: () => withRig((rig) => {
+      const f = person('Faller', { ...DEFAULT_BODY }, STAND);
+      const { stand, lying, falling } = fallBack(rig, f);
+      const sitUp = { ...posed(f, { hips: [-20, 0, 0], spine: [15, 0, 0], leftUpperLeg: [-60, 0, 8], rightUpperLeg: [-75, 0, -8], leftLowerLeg: [40, 0, 0], rightLowerLeg: [110, 0, 0], leftUpperArm: [30, 0, 25], rightUpperArm: [30, 0, -25], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] }), position: [0, 0, -0.35] as Vec3 };
+      const kneel = { ...posed(f, { hips: [20, 0, 0], leftUpperLeg: [-80, 0, 6], leftLowerLeg: [90, 0, 0], rightUpperLeg: [10, 0, -6], rightLowerLeg: [100, 0, 0], rightFoot: [40, 0, 0], leftUpperArm: [-30, 0, 15], rightUpperArm: [-30, 0, -15], spine: [10, 0, 0] }), position: [0, 0, -0.2] as Vec3 };
+      // It rises over the left foot while the right comes through.
+      const sitting = plantFeet(rig, sitUp, lying);
+      const kneeling = plantFeet(rig, kneel, sitting, ['L']);
+      const up = plantFeet(rig, footAt(rig, stand, kneeling, 'L'), kneeling, ['L']);
+      // Times in frames (24 a second). Going down, rolling back and sitting up are big changes:
+      // in-between poses every other frame keep the feet planted.
+      const at = (frame: number) => frame / 24;
+      const keys: Key[] = [{ t: 0, figures: [stand] }, ...falling.map((p) => ({ t: at(p.frame), figures: [p.pose] })), { t: at(43), figures: [lying] }];
+      inBetween(rig, lying, sitting, 2, lying).forEach((p, i) => keys.push({ t: at(47 + 4 * i), figures: [p] }));
+      // Rising over the left foot, the right comes through off the floor and lands beside it.
+      const rising = plantFeet(rig, { ...up, bones: bonesOf({ ...J(up), rightUpperLeg: [-40, 0, -6], rightLowerLeg: [80, 0, 0], rightFoot: [20, 0, 0] }), position: [(kneeling.position[0] + up.position[0]) / 2, 0, (kneeling.position[2] + up.position[2]) / 2] }, kneeling, ['L']);
+      keys.push({ t: at(55), figures: [sitting] }, { t: at(67), figures: [kneeling] }, { t: at(76), figures: [rising] }, { t: at(84), figures: [up] });
+      return animated('Fall & get up', keys, { duration: 3.6, loop: false, view: { yaw: 80, pitch: 6, fov: 32 } });
+    }),
+  },
+  {
+    id: 'wave',
+    name: 'Wave hello',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = { ...person('Mia', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Open') } };
+      const wave = (twist: number, tilt: number) => posed(f, {
+        ...STAND, leftUpperLeg: [0, 0, 6], rightUpperLeg: [-3, 0, -3], rightLowerLeg: [8, 0, 0],
+        rightUpperArm: [-10, twist, -138], rightLowerArm: [-55, 0, 0], head: [0, 0, tilt],
+      });
+      return animated('Wave hello', [
+        { t: 0, figures: [wave(28, 6)] }, { t: 0.3, figures: [wave(-22, 3)] }, { t: 0.6, figures: [wave(28, 6)] }, { t: 0.9, figures: [wave(-22, 3)] },
+      ], { duration: 1.2, loop: true, view: { yaw: 0, pitch: 4, fov: 24 } });
+    },
+  },
+  {
+    // Arms steady at the sides, hands closed on what they carry (a bag, a stretcher's handles): over a walk, they do not swing.
+    id: 'carry',
+    name: 'Carry',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = { ...person('Sam', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } };
+      const carry = posed(f, { ...STAND, leftUpperArm: [-10, 0, 8], rightUpperArm: [-10, 0, -8], leftLowerArm: [-25, 0, 0], rightLowerArm: [-25, 0, 0] });
+      return animated('Carry', [{ t: 0, figures: [carry] }, { t: 1, figures: [carry] }], { duration: 1, loop: true, view: { yaw: 40, pitch: 4, fov: 24 } });
+    },
+  },
+  {
+    id: 'bow',
+    name: 'Bow',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = person('Ken', { ...DEFAULT_BODY }, STAND);
+      const stand = posed(f, STAND);
+      const bow = posed(f, {
+        ...STAND, hips: [40, 0, 0], leftUpperLeg: [-40, 0, 3], rightUpperLeg: [-40, 0, -3], spine: [8, 0, 0], neck: [10, 0, 0],
+        leftUpperArm: [-38, 0, 6], rightUpperArm: [-38, 0, -6],
+      });
+      return animated('Bow', [
+        { t: 0, figures: [stand] }, { t: 0.7, figures: [bow] }, { t: 1.4, figures: [bow] }, { t: 2.1, figures: [stand] },
+      ], { duration: 2.6, loop: true, view: { yaw: 55, pitch: 6, fov: 24 } });
+    },
+  },
+];
+
+
+/* ---------- handling props ---------- */
+
+/** One person's arms over the frames of a motion that handles a prop (played from the waist up, with the right hand; mirrored for the left). */
+function handling(name: string, frames: [number, Joints][], o: { loop?: boolean; hands?: [string, string] } = {}): Scene {
+  const [left, right] = o.hands ?? ['Grip', 'Grip'];
+  const f = { ...person(name, { ...DEFAULT_BODY }, STAND), hands: { L: hand(left), R: hand(right) } };
+  const last = frames[frames.length - 1][0];
+  return animated(name, frames.map(([frame, arms]) => ({ t: frame / 24, figures: [posed(f, { ...STAND, ...arms })] })), { duration: last / 24, loop: !!o.loop, view: { yaw: 40, pitch: 6, fov: 26 } });
+}
+
+const relaxed: Joints = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
+
+/**
+ * Motions that handle props, put on a figure's upper body by the prop's menu (not listed in the
+ * library): their release lets the prop go where the action sends it, their grab takes hold of it.
+ */
+export const HANDLING: Motion[] = [
+  {
+    // A jump shot's arms: the ball up in front of the face, the arm up and out to the hoop, a follow-through; the other hand at the ball's side until it goes.
+    id: 'shoot',
+    name: 'Shot',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 16 / 24, part: 0, kind: 'release', hand: 'R' }],
+    build: () => handling('Shot', [
+      [0, { rightUpperArm: [-60, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-55, 0, 20], leftLowerArm: [-95, 0, 0] }],
+      [8, { rightUpperArm: [-110, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-70, 0, 10], leftLowerArm: [-90, 0, 0] }],
+      [16, { rightUpperArm: [-155, 0, -10], rightLowerArm: [-15, 0, 0], leftUpperArm: [-95, 0, 20], leftLowerArm: [-60, 0, 0] }],
+      [24, { rightUpperArm: [-145, 0, -10], rightLowerArm: [-20, 0, 0], leftUpperArm: [-75, 0, 20], leftLowerArm: [-50, 0, 0] }],
+      [36, relaxed],
+    ]),
+  },
+  {
+    // A pass from the chest: both hands at the ball, the arms push out and the right hand lets it go.
+    id: 'pass',
+    name: 'Pass',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
+    build: () => handling('Pass', [
+      [0, { rightUpperArm: [-50, 0, -15], rightLowerArm: [-100, 0, 0], leftUpperArm: [-50, 0, 15], leftLowerArm: [-100, 0, 0] }],
+      [6, { rightUpperArm: [-30, 0, -25], rightLowerArm: [-120, 0, 0], leftUpperArm: [-30, 0, 25], leftLowerArm: [-120, 0, 0] }],
+      [12, { rightUpperArm: [-85, 0, -10], rightLowerArm: [-10, 0, 0], leftUpperArm: [-80, 0, 10], leftLowerArm: [-15, 0, 0] }],
+      [20, { rightUpperArm: [-75, 0, -12], rightLowerArm: [-15, 0, 0], leftUpperArm: [-70, 0, 12], leftLowerArm: [-20, 0, 0] }],
+      [32, relaxed],
+    ]),
+  },
+  {
+    // Tossed up from the right hand (a gymnast's hoop, say): down, up and let go; the arm waits up to catch it.
+    id: 'toss',
+    name: 'Toss',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
+    build: () => handling('Toss', [
+      [0, { rightUpperArm: [-20, 0, -15], rightLowerArm: [-20, 0, 0] }],
+      [6, { rightUpperArm: [20, 0, -15], rightLowerArm: [-10, 0, 0] }],
+      [12, { rightUpperArm: [-150, 0, -10], rightLowerArm: [-5, 0, 0] }],
+      [30, { rightUpperArm: [-120, 0, -12], rightLowerArm: [-15, 0, 0] }],
+    ], { hands: ['Relaxed', 'Open'] }),
+  },
+  {
+    // A dribble, one bounce every half second, out at the side: the arm pushes the ball down, the
+    // hand meets it on its way back up and rides it to the top before pushing again.
+    id: 'dribble',
+    name: 'Dribble',
+    group: 'Sport & gymnastics',
+    people: 1,
+    events: [{ t: 0, part: 0, kind: 'release', hand: 'R' }, { t: 7 / 24, part: 0, kind: 'grab', hand: 'R' }],
+    build: () => handling('Dribble', [
+      [0, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],
+      [9, { rightUpperArm: [-18, 0, -48], rightLowerArm: [-60, 0, 0] }],
+      [12, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],
+    ], { loop: true, hands: ['Relaxed', 'Open'] }),
+  },
+];
+
+/** The high jump, with its bar and mat: a set-up for a scene template (lib/templates.ts), not a motion of the library. */
+export const highJump = (): Scene => withRig((rig) => {
       // The Fosbury flop: a run-up, a plant and a drive off the left foot, turning the back to the
       // bar in the air; over it head first, face up, the back arched, the legs kicking up after
       // the hips; the shoulders land first on the mat and the body rolls back flat on it.
@@ -646,7 +878,7 @@ export const MOTIONS: Motion[] = [
       const end = at(T0 + AIR + ROLL + 24);
       const to = { z: zEnd };
       // The run-up is generated: the take-off mark is reached running.
-      const scene = travelling(animated('High jump', keys, { duration: end, loop: false, view: { yaw: 90, pitch: 4, fov: 40 }, follow: true }), f.id, 0, at(tRun), 'run');
+      const scene = travelling(animated('High jump', keys, { duration: end, loop: false, view: { yaw: 90, pitch: 4, fov: 40 } }), f.id, 0, at(tRun), 'run');
       const animation = scene.animation!;
       // The bar where the hips are at the top of the flight; the mat beyond it.
       const bar = r3(from.z + (to.z - from.z) * apex);
@@ -658,257 +890,4 @@ export const MOTIONS: Motion[] = [
         ],
         animation,
       };
-    }),
-  },
-  {
-    id: 'cartwheel',
-    name: 'Cartwheel',
-    group: 'Sport & gymnastics',
-    people: 1,
-    build: () => withRig((rig) => {
-      const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
-      const stand = posed(f, STAND);
-      const arms = posed(f, { ...STAND, leftUpperArm: [0, 0, 140], rightUpperArm: [0, 0, -140], leftLowerArm: [0, 0, 0], rightLowerArm: [0, 0, 0] });
-      const x = (roll: number, at: number): Figure => ({ ...posed(f, { hips: [0, 0, roll], leftUpperArm: [0, 0, 140], rightUpperArm: [0, 0, -140], leftUpperLeg: [0, 0, 40], rightUpperLeg: [0, 0, -40] }), position: [at, 0, 0] });
-      // Arms up, a step out to the right into an X (the left foot stays), then the X wheels over
-      // sideways: hand, hand, foot, foot. The hips' height is keyed from where the X rests at each
-      // eighth of the turn, so they ride smoothly from one contact to the next. It lands in the X
-      // and steps the trailing foot in.
-      const start = footAt(rig, x(0, 0), stand, 'L');
-      const reach = plantFeet(rig, { ...posed(f, { ...J(arms), rightUpperLeg: [-35, 0, -30], rightLowerLeg: [75, 0, 0], rightFoot: [20, 0, 0] }), position: [start.position[0] / 2, 0, 0] }, stand, ['L']);
-      // Each step lifts the foot straight up where it stands first (thigh and shin at equal angles), then carries it over.
-      const lift = (from: Figure, side: Side, spread: number) => plantFeet(rig, { ...from, bones: bonesOf({ ...J(from), [sided('UpperLeg', side)]: [-30, 0, spread], [sided('LowerLeg', side)]: [60, 0, 0], [sided('Foot', side)]: [15, 0, 0] }) }, from, [side === 'L' ? 'R' : 'L']);
-      const keys: Key[] = [{ t: 0, figures: [stand] }, { t: 0.3, figures: [arms] }, { t: 0.42, figures: [lift(arms, 'R', -3)] }, { t: 0.55, figures: [reach] }];
-      let last = start;
-      for (let i = 0; i <= 8; i++) {
-        const star = x(wrapDeg(45 * i), Math.round((start.position[0] - 0.26 * i) * 1000) / 1000);
-        const y = rig.model(star).joints.hips.position.y;
-        last = { ...star, grounded: false, position: [star.position[0], Math.round(y * 1000) / 1000, 0] };
-        keys.push({ t: Math.round((0.8 + i * 0.16) * 1000) / 1000, figures: [last] });
-      }
-      const together = footAt(rig, arms, last, 'R');
-      const close = plantFeet(rig, { ...posed(f, { ...J(arms), leftUpperLeg: [-35, 0, 30], leftLowerLeg: [75, 0, 0], leftFoot: [20, 0, 0] }), position: [(last.position[0] + together.position[0]) / 2, 0, 0] }, last, ['R']);
-      // Landing, the hips carry on over the right foot (no dead stop) as the left one lifts.
-      const landing = plantFeet(rig, lift({ ...last, position: [last.position[0] - 0.1, last.position[1], last.position[2]] }, 'L', 40), last, ['R']);
-      // Both feet stay down for a frame as the hips carry on, then the left one lifts over two.
-      const settle = plantFeet(rig, inBetween(rig, last, landing, 3, last, ['R'])[0], last);
-      keys.push({ t: 51 / 24, figures: [settle] }, ...inBetween(rig, settle, landing, 2, last, ['R']).map((p, i) => ({ t: (52 + i) / 24, figures: [p] })));
-      keys.push({ t: 54 / 24, figures: [landing] }, { t: 2.4, figures: [close] }, { t: 2.65, figures: [together] }, { t: 2.95, figures: [{ ...stand, position: together.position }] });
-      return animated('Cartwheel', atHeights(rig, keys), { duration: 3.1, loop: false, view: { yaw: 0, pitch: 4, fov: 36 }, camera: 'static' });
-    }),
-  },
-  {
-    id: 'leap',
-    name: 'Split leap',
-    group: 'Sport & gymnastics',
-    people: 1,
-    build: () => withRig((rig) => {
-      const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
-      const stand = posed(f, STAND);
-      const at = (frame: number) => frame / 24;
-      /** Where `side`'s foot is with the figure moved `dz` ahead. */
-      const spot = (pose: Figure, side: Side, dz: number) => feetOf(rig, { ...pose, position: [pose.position[0], pose.position[1], pose.position[2] + dz] }, [side]);
-      const ahead = (pose: Figure, z: number): Figure => ({ ...pose, position: [0, 0, z] });
-      const prepArms: Joints = { leftUpperArm: [30, 0, 30], rightUpperArm: [30, 0, -30], leftLowerArm: [-20, 0, 0], rightLowerArm: [-20, 0, 0] };
-      const risingArms: Joints = { leftUpperArm: [-15, 0, 60], rightUpperArm: [-15, 0, -60], leftLowerArm: [-15, 0, 0], rightLowerArm: [-15, 0, 0] };
-      const openArms: Joints = { leftUpperArm: [-40, 0, 95], rightUpperArm: [-40, 0, -95], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
-      // A step onto the right foot, a plié on it, and a push off it as the left leg swings up
-      // ahead: legs split in the air, the arms open; landing on the left foot, the right comes down.
-      const lift = plantFeet(rig, ahead(posed(f, { ...STAND, rightUpperLeg: [-40, 0, -3], rightLowerLeg: [60, 0, 0], rightFoot: [15, 0, 0] }), 0.08), stand, ['L']);
-      const reachOut = spot(stand, 'R', 0.5).map((w) => ({ ...w, p: w.p.clone().add(new THREE.Vector3(0, 0.06, 0)) }));
-      const reaching = plantFeet(rig, plantFeet(rig, ahead(posed(f, { ...STAND, ...prepArms }), 0.18), stand, ['L']), reachOut);
-      /** Lower by `dy` (held there, not left to the floor): planted legs then bend to reach. */
-      const lowered = (p: Figure, dy: number): Figure => ({ ...p, grounded: false, position: [p.position[0], Math.round((rig.model(p).joints.hips.position.y - dy) * 1000) / 1000, p.position[2]] });
-      const step = plantFeet(rig, lowered(plantFeet(rig, ahead(sink(posed(f, { ...STAND, ...prepArms }), 30), 0.3), stand, ['L']), 0.04), [...feetOf(rig, stand, ['L']), ...spot(stand, 'R', 0.6)]);
-      const plie = plantFeet(rig, ahead(sink(posed(f, { ...prepArms, hips: [10, 0, 0], spine: [6, 0, 0], leftUpperLeg: [25, 0, 4], leftLowerLeg: [60, 0, 0], leftFoot: [20, 0, 0] }), 30), 0.52), step, ['R']);
-      const push = plantFeet(rig, ahead(posed(f, { ...risingArms, hips: [6, 0, 0], leftUpperLeg: [-60, 0, 4], leftLowerLeg: [40, 0, 0], leftFoot: [30, 0, 0], rightFoot: [30, 0, 0] }), 0.8), step, ['R']);
-      const split = posed(f, { ...openArms, hips: [8, 0, 0], spine: [-6, 0, 0], neck: [-8, 0, 0], leftUpperLeg: [-88, 0, 4], leftLowerLeg: [0, 0, 0], leftFoot: [35, 0, 0], rightUpperLeg: [45, 0, -4], rightLowerLeg: [8, 0, 0], rightFoot: [35, 0, 0] });
-      const land = plantFeet(rig, ahead(posed(f, { ...risingArms, hips: [6, 0, 0], leftUpperLeg: [-30, 0, 4], leftLowerLeg: [40, 0, 0], rightUpperLeg: [35, 0, -4], rightLowerLeg: [40, 0, 0], rightFoot: [30, 0, 0] }), 1.8), spot(stand, 'L', 1.95), ['L']);
-      const absorb = plantFeet(rig, ahead(sink(posed(f, { ...prepArms, hips: [8, 0, 0], leftUpperLeg: [-30, 0, 4], leftLowerLeg: [40, 0, 0], rightUpperLeg: [30, 0, -4], rightLowerLeg: [50, 0, 0], rightFoot: [25, 0, 0] }), 35), 2.05), land, ['L']);
-      const end = footAt(rig, stand, land, 'L');
-      const lower = plantFeet(rig, { ...posed(f, { ...STAND, rightUpperLeg: [10, 0, -3], rightLowerLeg: [40, 0, 0], rightFoot: [20, 0, 0] }), position: [end.position[0], 0, (end.position[2] + absorb.position[2]) / 2] }, land, ['L']);
-      // In the air a frame at a time: the pelvis flies a parabola under gravity from the push to
-      // the landing, the limbs blending into the split and out of it.
-      const pelvis = (p: Figure) => rig.model(p).joints.hips.getWorldPosition(new THREE.Vector3());
-      const [from, to] = [pelvis(push), pelvis(land)];
-      const [UP, AIR, DOWN] = [19, 10, 29];
-      const T = at(AIR);
-      const v = (to.y - from.y + (9.81 * T * T) / 2) / T;
-      const r3 = (x: number) => Math.round(x * 1000) / 1000;
-      const flight: Key[] = [];
-      for (let i = 1; i < AIR; i++) {
-        const u = i / AIR;
-        const half = AIR / 2;
-        const joints = (i < half ? inBetween(rig, push, { ...split, position: push.position }, half - 1, push, [])[i - 1] : i === half ? split : inBetween(rig, split, { ...land, position: split.position }, half - 1, split, [])[i - half - 1]).bones;
-        const time = at(i);
-        const y = from.y + v * time - (9.81 * time * time) / 2;
-        flight.push({ t: at(UP + i), figures: [{ ...f, bones: joints, grounded: false, position: [r3(from.x + (to.x - from.x) * u), r3(y), r3(from.z + (to.z - from.z) * u)] }] });
-      }
-      return animated('Split leap', atHeights(rig, [
-        { t: 0, figures: [stand] }, { t: at(5), figures: [lift] }, { t: at(8), figures: [reaching] }, { t: at(10), figures: [step] },
-        ...inBetween(rig, step, plie, 5, step, ['R']).map((p, i) => ({ t: at(11 + i), figures: [p] })),
-        { t: at(16), figures: [plie] },
-        ...inBetween(rig, plie, push, 2, step, ['R']).map((p, i) => ({ t: at(17 + i), figures: [p] })),
-        { t: at(UP), figures: [push] }, ...flight, { t: at(DOWN), figures: [land] },
-        ...inBetween(rig, land, absorb, 5, land, ['L']).map((p, i) => ({ t: at(DOWN + 1 + i), figures: [p] })),
-        { t: at(DOWN + 6), figures: [absorb] }, { t: at(DOWN + 12), figures: [lower] }, { t: at(DOWN + 18), figures: [end] },
-      ]), { duration: 2.25, loop: false, view: { yaw: 90, pitch: 4, fov: 34 }, camera: 'static' });
-    }),
-  },
-  {
-    id: 'fall',
-    name: 'Fall & get up',
-    group: 'Everyday',
-    people: 1,
-    build: () => withRig((rig) => {
-      const f = person('Faller', { ...DEFAULT_BODY }, STAND);
-      const { stand, lying, falling } = fallBack(rig, f);
-      const sitUp = { ...posed(f, { hips: [-20, 0, 0], spine: [15, 0, 0], leftUpperLeg: [-60, 0, 8], rightUpperLeg: [-75, 0, -8], leftLowerLeg: [40, 0, 0], rightLowerLeg: [110, 0, 0], leftUpperArm: [30, 0, 25], rightUpperArm: [30, 0, -25], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] }), position: [0, 0, -0.35] as Vec3 };
-      const kneel = { ...posed(f, { hips: [20, 0, 0], leftUpperLeg: [-80, 0, 6], leftLowerLeg: [90, 0, 0], rightUpperLeg: [10, 0, -6], rightLowerLeg: [100, 0, 0], rightFoot: [40, 0, 0], leftUpperArm: [-30, 0, 15], rightUpperArm: [-30, 0, -15], spine: [10, 0, 0] }), position: [0, 0, -0.2] as Vec3 };
-      // It rises over the left foot while the right comes through.
-      const sitting = plantFeet(rig, sitUp, lying);
-      const kneeling = plantFeet(rig, kneel, sitting, ['L']);
-      const up = plantFeet(rig, footAt(rig, stand, kneeling, 'L'), kneeling, ['L']);
-      // Times in frames (24 a second). Going down, rolling back and sitting up are big changes:
-      // in-between poses every other frame keep the feet planted.
-      const at = (frame: number) => frame / 24;
-      const keys: Key[] = [{ t: 0, figures: [stand] }, ...falling.map((p) => ({ t: at(p.frame), figures: [p.pose] })), { t: at(43), figures: [lying] }];
-      inBetween(rig, lying, sitting, 2, lying).forEach((p, i) => keys.push({ t: at(47 + 4 * i), figures: [p] }));
-      // Rising over the left foot, the right comes through off the floor and lands beside it.
-      const rising = plantFeet(rig, { ...up, bones: bonesOf({ ...J(up), rightUpperLeg: [-40, 0, -6], rightLowerLeg: [80, 0, 0], rightFoot: [20, 0, 0] }), position: [(kneeling.position[0] + up.position[0]) / 2, 0, (kneeling.position[2] + up.position[2]) / 2] }, kneeling, ['L']);
-      keys.push({ t: at(55), figures: [sitting] }, { t: at(67), figures: [kneeling] }, { t: at(76), figures: [rising] }, { t: at(84), figures: [up] });
-      return animated('Fall & get up', keys, { duration: 3.6, loop: false, view: { yaw: 80, pitch: 6, fov: 32 }, camera: 'static' });
-    }),
-  },
-  {
-    id: 'wave',
-    name: 'Wave hello',
-    group: 'Everyday',
-    people: 1,
-    build: () => {
-      const f = { ...person('Mia', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Open') } };
-      const wave = (twist: number, tilt: number) => posed(f, {
-        ...STAND, leftUpperLeg: [0, 0, 6], rightUpperLeg: [-3, 0, -3], rightLowerLeg: [8, 0, 0],
-        rightUpperArm: [-10, twist, -138], rightLowerArm: [-55, 0, 0], head: [0, 0, tilt],
-      });
-      return animated('Wave hello', [
-        { t: 0, figures: [wave(28, 6)] }, { t: 0.3, figures: [wave(-22, 3)] }, { t: 0.6, figures: [wave(28, 6)] }, { t: 0.9, figures: [wave(-22, 3)] },
-      ], { duration: 1.2, loop: true, view: { yaw: 0, pitch: 4, fov: 24 }, camera: 'push' });
-    },
-  },
-  {
-    // Arms steady at the sides, hands closed on what they carry (a bag, a stretcher's handles): over a walk, they do not swing.
-    id: 'carry',
-    name: 'Carry',
-    group: 'Everyday',
-    people: 1,
-    build: () => {
-      const f = { ...person('Sam', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } };
-      const carry = posed(f, { ...STAND, leftUpperArm: [-10, 0, 8], rightUpperArm: [-10, 0, -8], leftLowerArm: [-25, 0, 0], rightLowerArm: [-25, 0, 0] });
-      return animated('Carry', [{ t: 0, figures: [carry] }, { t: 1, figures: [carry] }], { duration: 1, loop: true, view: { yaw: 40, pitch: 4, fov: 24 }, camera: 'static' });
-    },
-  },
-  {
-    id: 'bow',
-    name: 'Bow',
-    group: 'Everyday',
-    people: 1,
-    build: () => {
-      const f = person('Ken', { ...DEFAULT_BODY }, STAND);
-      const stand = posed(f, STAND);
-      const bow = posed(f, {
-        ...STAND, hips: [40, 0, 0], leftUpperLeg: [-40, 0, 3], rightUpperLeg: [-40, 0, -3], spine: [8, 0, 0], neck: [10, 0, 0],
-        leftUpperArm: [-38, 0, 6], rightUpperArm: [-38, 0, -6],
-      });
-      return animated('Bow', [
-        { t: 0, figures: [stand] }, { t: 0.7, figures: [bow] }, { t: 1.4, figures: [bow] }, { t: 2.1, figures: [stand] },
-      ], { duration: 2.6, loop: true, view: { yaw: 55, pitch: 6, fov: 24 }, camera: 'static' });
-    },
-  },
-];
-
-/** A motion as a scene of its own, filmed with its camera move. */
-export function buildMotion(id: string): Scene | null {
-  const scene = MOTIONS.find((m) => m.id === id)?.build();
-  const how = scene && filming.get(scene.name);
-  if (!scene || !how) return scene ?? null;
-  return filmWith(scene, how.move, { follow: how.follow });
-}
-
-/* ---------- handling props ---------- */
-
-/** One person's arms over the frames of a motion that handles a prop (played from the waist up, with the right hand; mirrored for the left). */
-function handling(name: string, frames: [number, Joints][], o: { loop?: boolean; hands?: [string, string] } = {}): Scene {
-  const [left, right] = o.hands ?? ['Grip', 'Grip'];
-  const f = { ...person(name, { ...DEFAULT_BODY }, STAND), hands: { L: hand(left), R: hand(right) } };
-  const last = frames[frames.length - 1][0];
-  return animated(name, frames.map(([frame, arms]) => ({ t: frame / 24, figures: [posed(f, { ...STAND, ...arms })] })), { duration: last / 24, loop: !!o.loop, view: { yaw: 40, pitch: 6, fov: 26 } });
-}
-
-const relaxed: Joints = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
-
-/**
- * Motions that handle props, put on a figure's upper body by the prop's menu (not listed in the
- * library): their release lets the prop go where the action sends it, their grab takes hold of it.
- */
-export const HANDLING: Motion[] = [
-  {
-    // A jump shot's arms: the ball up in front of the face, the arm up and out to the hoop, a follow-through; the other hand at the ball's side until it goes.
-    id: 'shoot',
-    name: 'Shot',
-    group: 'Sport & gymnastics',
-    people: 1,
-    events: [{ t: 16 / 24, part: 0, kind: 'release', hand: 'R' }],
-    build: () => handling('Shot', [
-      [0, { rightUpperArm: [-60, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-55, 0, 20], leftLowerArm: [-95, 0, 0] }],
-      [8, { rightUpperArm: [-110, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-70, 0, 10], leftLowerArm: [-90, 0, 0] }],
-      [16, { rightUpperArm: [-155, 0, -10], rightLowerArm: [-15, 0, 0], leftUpperArm: [-95, 0, 20], leftLowerArm: [-60, 0, 0] }],
-      [24, { rightUpperArm: [-145, 0, -10], rightLowerArm: [-20, 0, 0], leftUpperArm: [-75, 0, 20], leftLowerArm: [-50, 0, 0] }],
-      [36, relaxed],
-    ]),
-  },
-  {
-    // A pass from the chest: both hands at the ball, the arms push out and the right hand lets it go.
-    id: 'pass',
-    name: 'Pass',
-    group: 'Sport & gymnastics',
-    people: 1,
-    events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
-    build: () => handling('Pass', [
-      [0, { rightUpperArm: [-50, 0, -15], rightLowerArm: [-100, 0, 0], leftUpperArm: [-50, 0, 15], leftLowerArm: [-100, 0, 0] }],
-      [6, { rightUpperArm: [-30, 0, -25], rightLowerArm: [-120, 0, 0], leftUpperArm: [-30, 0, 25], leftLowerArm: [-120, 0, 0] }],
-      [12, { rightUpperArm: [-85, 0, -10], rightLowerArm: [-10, 0, 0], leftUpperArm: [-80, 0, 10], leftLowerArm: [-15, 0, 0] }],
-      [20, { rightUpperArm: [-75, 0, -12], rightLowerArm: [-15, 0, 0], leftUpperArm: [-70, 0, 12], leftLowerArm: [-20, 0, 0] }],
-      [32, relaxed],
-    ]),
-  },
-  {
-    // Tossed up from the right hand (a gymnast's hoop, say): down, up and let go; the arm waits up to catch it.
-    id: 'toss',
-    name: 'Toss',
-    group: 'Sport & gymnastics',
-    people: 1,
-    events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
-    build: () => handling('Toss', [
-      [0, { rightUpperArm: [-20, 0, -15], rightLowerArm: [-20, 0, 0] }],
-      [6, { rightUpperArm: [20, 0, -15], rightLowerArm: [-10, 0, 0] }],
-      [12, { rightUpperArm: [-150, 0, -10], rightLowerArm: [-5, 0, 0] }],
-      [30, { rightUpperArm: [-120, 0, -12], rightLowerArm: [-15, 0, 0] }],
-    ], { hands: ['Relaxed', 'Open'] }),
-  },
-  {
-    // A dribble, one bounce every half second, out at the side: the arm pushes the ball down, the
-    // hand meets it on its way back up and rides it to the top before pushing again.
-    id: 'dribble',
-    name: 'Dribble',
-    group: 'Sport & gymnastics',
-    people: 1,
-    events: [{ t: 0, part: 0, kind: 'release', hand: 'R' }, { t: 7 / 24, part: 0, kind: 'grab', hand: 'R' }],
-    build: () => handling('Dribble', [
-      [0, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],
-      [9, { rightUpperArm: [-18, 0, -48], rightLowerArm: [-60, 0, 0] }],
-      [12, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],
-    ], { loop: true, hands: ['Relaxed', 'Open'] }),
-  },
-];
-
+    });

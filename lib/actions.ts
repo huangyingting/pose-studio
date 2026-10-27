@@ -8,6 +8,7 @@ import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard 
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
+import { asTemplate, putTemplate, templatesOf } from './templates';
 import { clipInfo, keysClip, partKeys } from './clip';
 import { saveClips } from './assetstore';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
@@ -1197,6 +1198,48 @@ export function deletePose(store: Store, id: string) {
   });
 }
 
+/* Scene templates (lib/templates.ts) */
+
+/** A new scene from a template, opened. */
+export function sceneFromTemplate(store: Store, id: string) {
+  const t = templatesOf(store.getState().library).find((x) => x.id === id);
+  if (!t) return false;
+  addScene(store, t.build());
+  return true;
+}
+
+/**
+ * Put a template into the open scene, at the playhead: its first role taken by the active figure
+ * (where it stands, facing its way), the next by the figures nearest it, new figures for the rest.
+ * The figures it brings in or casts, by role.
+ */
+export function placeTemplate(store: Store, id: string, lead = store.getState().activeFigure ?? undefined): string[] | null {
+  const t = templatesOf(store.getState().library).find((x) => x.id === id);
+  if (!t) return null;
+  const built = t.build();
+  const cast = lead && store.scene.figures.some((f) => f.id === lead) ? [lead, ...nearestPartners(store, lead, built.figures.length - 1)] : [];
+  const before = new Set(store.scene.figures.map((f) => f.id));
+  const t0 = store.scene.animation ? snapTime(store.scene.animation, store.getState().time) : 0;
+  store.updateScene((s) => putTemplate(s, built, cast, t0));
+  return [...cast, ...store.scene.figures.filter((f) => !before.has(f.id)).map((f) => f.id)];
+}
+
+/** Save the open scene as a template in the library (its cast, set, actions and light). */
+export function saveTemplate(store: Store, name: string) {
+  const t = asTemplate(store.scene, name.trim().slice(0, 80) || store.scene.name);
+  store.commit((lib) => ({ ...lib, templates: [...(lib.templates ?? []), t] }));
+  return t;
+}
+
+export function deleteTemplate(store: Store, id: string) {
+  store.commit((lib) => {
+    const templates = (lib.templates ?? []).filter((t) => t.id !== id);
+    const { templates: _old, ...rest } = lib;
+    void _old;
+    return templates.length ? { ...rest, templates } : rest;
+  });
+}
+
 /** Keep an imported motion in the library (My motions): listed there, its frames kept as an asset. */
 export function saveMotion(store: Store, clip: Clip) {
   void saveClips([clip]);
@@ -1263,7 +1306,7 @@ export function nearestPartners(store: Store, figureId: string, count: number) {
 export function applyUpperBody(store: Store, figureId: string, motionId: string) {
   const mine = store.getState().library.clips?.some((c) => c.id === motionId);
   const motion = MOTIONS.find((m) => m.id === motionId);
-  if (!mine && (!motion || motion.people > 1 || motion.setUp || motion.travel)) return false;
+  if (!mine && (!motion || motion.people > 1 || motion.travel)) return false;
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const animation = addUpper(store.scene, figureId, mine ? motionId : BUILT_IN + motionId, store.getState().time);
   if (!animation) return false;
@@ -1281,8 +1324,7 @@ export function deleteCorrection(store: Store, figureId: string, t: number) {
  * Give a figure a motion from the library (built in, or one of mine), starting at the playhead
  * (the scene is animated if it is not yet). A motion of several people goes on this figure (the
  * lead: the first part) and `partners` (by default the nearest figures), who take their places
- * around it, walking there first if there is time. Returns false if it cannot (a set-up with its
- * own props, or too few figures).
+ * around it, walking there first if there is time. Returns false if it cannot (too few figures).
  */
 export function applyMotion(store: Store, figureId: string, motionId: string, partners?: string[]) {
   const start = store.scene.animation ? store.getState().time : 0;
@@ -1292,7 +1334,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string, pa
     return true;
   }
   const motion = MOTIONS.find((m) => m.id === motionId);
-  if (!motion || motion.setUp) return false;
+  if (!motion) return false;
   if (motion.travel) {
     // Walk, run or jump ahead from where the figure stands, facing its way.
     const f = store.figure?.id === figureId ? store.figure : store.scene.figures.find((x) => x.id === figureId);

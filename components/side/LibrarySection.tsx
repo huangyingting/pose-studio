@@ -2,18 +2,19 @@
 
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookmarkPlus, Clapperboard, FilePlus2, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
+import { BookmarkPlus, Clapperboard, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import {
-  addModel, addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
+  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, placeTemplate, saveTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
 } from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
+import { TEMPLATE_GROUPS, templatesOf } from '@/lib/templates';
 import { newScene } from '@/lib/doc';
 import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
-import { PREVIEW_SIZE, cameraPreview, motionPreview, posePreview, runPreview, type PreviewJob } from '@/lib/previews';
+import { PREVIEW_SIZE, cameraPreview, motionPreview, posePreview, runPreview, templatePreview, type PreviewJob } from '@/lib/previews';
 import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/shot';
 import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
@@ -25,9 +26,9 @@ import type { SectionProps } from './sections';
 
 /**
  * Ready-made things to build a scene with, in groups. They apply to what is selected: a pose or a
- * motion to the selected figure, a camera move to the selected (or current) shot. Resting the
- * pointer on one shows what it does: the pose, the motion playing, the move filming this scene.
- * (Scene set-ups are in the scene picker's New menu.)
+ * motion to the selected figure, a scene template to the open scene (or as a new one), a camera
+ * move to the selected (or current) shot. Resting the pointer on one shows what it does: the
+ * pose, the motion playing, the move filming this scene.
  */
 export default function LibrarySection(props: SectionProps) {
   const store = useStore();
@@ -43,13 +44,14 @@ export default function LibrarySection(props: SectionProps) {
             label="Library section"
             value={tab}
             onChange={(t) => { preview.hide(); setTab(t); }}
-            options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'models', label: 'Models' }, { value: 'camera', label: 'Camera' }]}
+            options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'models', label: 'Models' }, { value: 'templates', label: 'Templates' }, { value: 'camera', label: 'Camera' }]}
           />
         </div>
       </div>
       {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
       {tab === 'motions' && <Motions {...props} preview={preview.bind} />}
       {tab === 'models' && <Models {...props} />}
+      {tab === 'templates' && <Templates {...props} preview={preview.bind} />}
       {tab === 'camera' && <CameraMoves {...props} preview={preview.bind} />}
       {preview.card}
     </div>
@@ -303,29 +305,26 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
           return (
             <Group key={g} title={g} count={motions.length}>
               {motions.map((m) => {
-                // One person's motion goes on the selected figure, several people's on it and the
-                // nearest (or, without them, into a new scene, as a set-up with its props does).
-                const solo = m.people === 1 && !m.setUp;
+                // One person's motion goes on the selected figure, several people's on it and the nearest.
+                const solo = m.people === 1;
                 const partners = m.people > 1 ? partnersFor(m.people) : null;
-                const open = () => { addScene(store, m.build()); onPick?.(); };
                 const note = solo
                   ? (usable ? `Click to give it to ${figure.name}` : undefined)
                   : partners && figure
                     ? `Click to put it on ${figure.name} (leading) and ${partners.map(nameOf).join(', ')}, at the playhead`
-                    : m.people > 1 ? 'Opens as a new scene (or select a figure, with another in the scene, to put it on them)' : 'Opens as a new scene, with its props';
+                    : `For ${m.people} people: select a figure with ${m.people - 1 === 1 ? 'another' : `${m.people - 1} others`} in the scene (or start from the ${m.name} template)`;
                 return (
                   <li key={m.id}>
                     <button
                       type="button"
-                      aria-disabled={solo && !usable}
-                      onClick={() => (solo ? give(m.id, m.name) : partners ? together(m.id, m.name, partners) : open())}
+                      aria-disabled={solo ? !usable : !partners}
+                      onClick={() => (solo ? give(m.id, m.name) : partners && together(m.id, m.name, partners))}
                       {...preview(m.name, note, () => motionPreview(m.id, m.build, style))}
                     >
                       {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}
                       <span className="side-list-name">{m.name}</span>
-                      <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : m.people > 1 ? `${m.people} people` : 'scene'}</em>
+                      <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : `${m.people} people`}</em>
                     </button>
-                    {partners && <IconButton icon={FilePlus2} label={`Open ${m.name} as a new scene`} className="row-action" size={13} onClick={open} />}
                     {solo && !m.travel && usable && <IconButton icon={Layers} label={`${m.name}: upper body only, over what ${figure.name} is doing`} className="row-action" size={13} onClick={() => over(m.id, m.name)} />}
                   </li>
                 );
@@ -429,6 +428,67 @@ function Models({ notify, notifyUndo }: SectionProps) {
         {mine.length > 0 && <Group title="My models" count={mine.length}>{mine.map((m) => row(m.id, m.name))}</Group>}
       </section>
       {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
+    </div>
+  );
+}
+
+/** Scene templates: each as a new scene, or into the open one (its first role on the selected figure). */
+function Templates({ notifyUndo, onPick, preview }: Listed) {
+  const store = useStore();
+  const scene = useScene();
+  const figure = useActiveFigure();
+  const library = useStudio((s) => s.library);
+  const style = useStudio((s) => s.settings.style);
+  const all = templatesOf(library);
+  const groups = [...TEMPLATE_GROUPS, 'Mine'] as const;
+  const save = () => {
+    const name = window.prompt('Template name', scene.name)?.trim();
+    if (!name) return;
+    saveTemplate(store, name);
+    notifyUndo(`Saved “${name}” to My templates`);
+  };
+  return (
+    <div className="side-scroll">
+      <Target>
+        A template is a cast, a set and what they do, without cameras. Click to open it as a new scene;
+        {' '}{figure ? <>or put it here, its first role on <strong>{figure.name}</strong>.</> : 'or select a figure to put it into this scene around it.'}
+      </Target>
+      <div className="library-row">
+        <button type="button" className="btn subtle library-import" onClick={save} data-tip="Its cast, set, actions and light, without cameras or cuts">
+          <BookmarkPlus size={14} aria-hidden /> Save this scene as a template…
+        </button>
+      </div>
+      <section aria-label="Scene templates">
+        {groups.map((g) => {
+          const list = all.filter((t) => t.group === g);
+          if (!list.length) return null;
+          return (
+            <Group key={g} title={g === 'Mine' ? 'My templates' : g} count={list.length}>
+              {list.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => { sceneFromTemplate(store, t.id); onPick?.(); }}
+                    {...preview(t.name, 'Click to open it as a new scene', () => templatePreview(t.id, t.build, style))}
+                  >
+                    {t.people > 1 ? <UsersRound size={14} aria-hidden /> : <PersonStanding size={14} aria-hidden />}
+                    <span className="side-list-name">{t.name}</span>
+                    <em>{t.people === 1 ? '1 person' : `${t.people} people`}</em>
+                  </button>
+                  <IconButton
+                    icon={Layers}
+                    label={figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`}
+                    className="row-action"
+                    size={13}
+                    onClick={() => { if (placeTemplate(store, t.id)) { notifyUndo(`${t.name} put into ${scene.name}`); onPick?.(); } }}
+                  />
+                  {g === 'Mine' && <IconButton icon={Trash2} label={`Delete the template ${t.name}`} className="row-action" size={13} onClick={() => { deleteTemplate(store, t.id); notifyUndo(`Deleted the template ${t.name}`); }} />}
+                </li>
+              ))}
+            </Group>
+          );
+        })}
+      </section>
     </div>
   );
 }

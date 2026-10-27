@@ -69,7 +69,7 @@ async function choose(page: Page, select: string, option: string | RegExp) {
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 /** Pick what the Library lists (the drop-down beside its title). */
-async function libraryShows(page: Page, what: 'Poses' | 'Motions' | 'Models' | 'Camera') {
+async function libraryShows(page: Page, what: 'Poses' | 'Motions' | 'Models' | 'Templates' | 'Camera') {
   await page.getByRole('combobox', { name: 'Library section' }).click();
   await page.getByRole('option', { name: what, exact: true }).click();
 }
@@ -118,15 +118,11 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
-/** A scene from a several-people motion in the library (opens as a new scene). */
-async function motionScene(page: Page, motion: string) {
+/** A new scene from a scene template in the library. */
+async function templateScene(page: Page, template: string) {
   await openSection(page, 'Library');
-  await libraryShows(page, 'Motions');
-  const region = page.getByRole('region', { name: 'Motions' });
-  // With figures to put it on, a several-people motion has its own "open as a scene" button.
-  const open = region.getByRole('button', { name: `Open ${motion} as a new scene` });
-  if (await open.count()) await open.click({ force: true });
-  else await region.getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  await libraryShows(page, 'Templates');
+  await page.getByRole('region', { name: 'Scene templates' }).getByRole('button', { name: new RegExp(`^${template}`) }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -629,6 +625,23 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Look at' }).click();
   expect(anglesOf((await figs(page))[0].bones).head).toBeTruthy();
+
+  // Saved as a template of my own, it goes into another scene around the figure selected there.
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Templates');
+  page.once('dialog', (d) => d.accept('Close talk'));
+  await page.getByRole('button', { name: 'Save this scene as a template…' }).click();
+  const templates = page.getByRole('region', { name: 'Scene templates' });
+  await expect(templates.getByRole('list', { name: 'My templates' }).getByRole('button', { name: /^Close talk/ })).toBeVisible();
+  await templates.getByRole('button', { name: /^Group photo/ }).click();
+  expect((await state(page)).scene.name).toBe('Group photo');
+  const people = (await state(page)).scene.figures.length;
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  await openSection(page, 'Library');
+  await templates.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
+  // Its first role on the figure selected, the second on the one nearest it: nobody new.
+  expect((await state(page)).scene.figures).toHaveLength(people);
 });
 
 test('placement fields move and turn the figure, and faces can be hidden', async ({ page }) => {
@@ -929,7 +942,7 @@ test('the AI assistant runs on the server and its tools on the open pose', async
 });
 
 test('each figure has its own key track', async ({ page }) => {
-  await motionScene(page, 'Boxing exchange');
+  await templateScene(page, 'Boxing exchange');
   await expect(page.getByRole('button', { name: /^Kai key at 0.83 s/ })).toBeVisible();
   await page.locator('.tl-figure', { hasText: 'Kai' }).click();
   await expect(page.locator('.tl-figure.on')).toHaveText('Kai');
@@ -1139,9 +1152,7 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ri
   expect(s.scene.props.find((p) => p.kind === 'ribbon')!.hold).toBeTruthy();
   expect(s.scene.props.some((p) => 'trail' in p)).toBe(false);
 
-  await openSection(page, 'Library');
-  await libraryShows(page, 'Motions');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^High jump/ }).click();
+  await templateScene(page, 'High jump');
   s = await live(page);
   expect(s.scene.props.map((p) => p.kind).sort()).toEqual(['bar', 'mat']);
   // A generated run-up, then the flop keyed frame by frame.
@@ -1252,7 +1263,7 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
 });
 
 test('the timeline zooms, retimes a stretch, plays slower and folds away', async ({ page }) => {
-  await motionScene(page, 'Boxing exchange');
+  await templateScene(page, 'Boxing exchange');
   const keys = () => live(page).then(({ scene }) => keyTimesOf(scene.animation!, scene.figures[0].id).map((t) => Math.round(t * 1000) / 1000));
   // Zoom in about the playhead, then back to the whole animation.
   await page.getByRole('button', { name: /^Zoom in/ }).click();

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { motionScene } from '../fixtures/scenes';
 import { addProp, moveProp, setTravel, travelTo } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt } from '@/lib/evaluate';
 import { legsOf } from '@/lib/locomotion';
-import { buildMotion } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -128,7 +128,7 @@ describe('walking, running and jumping from mark to mark', () => {
   it('generates smooth motion: no joint snaps, even sampled ten times finer than the frame rate', () => {
     const legs = ['leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot', 'hips'] as const;
     for (const id of ['walk', 'run', 'jump']) {
-      const scene = buildMotion(id)!;
+      const scene = motionScene(id);
       let worst = 0;
       let prev: number[] | null = null;
       for (let t = 0; t <= scene.animation!.duration; t += 1 / 240) {

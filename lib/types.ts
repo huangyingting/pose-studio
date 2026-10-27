@@ -415,6 +415,15 @@ export interface Library {
   clips?: ClipInfo[];
   /** Characters the user imported, to draw figures as (their files are assets). */
   models?: ModelInfo[];
+  /** Scene templates the user saved (lib/templates.ts). */
+  templates?: TemplateAsset[];
+}
+
+/** A scene saved as a template: its cast, set, actions and light, around the stage origin; no cameras or cuts. */
+export interface TemplateAsset {
+  id: string;
+  name: string;
+  scene: Scene;
 }
 
 /**

@@ -457,7 +457,7 @@ function turn(x: number, z: number, deg: number): [number, number] {
 }
 
 /** Make room on a figure's track from t0 to t1: keys there go (one is kept at t0), actions starting there go, ones running into it end at t0. */
-function clear(scene: Scene, figure: string, t0: number, t1: number): Animation {
+export function clear(scene: Scene, figure: string, t0: number, t1: number): Animation {
   const split = splitAt(scene, figure, t0);
   let a = split.a;
   for (const x of actionsOf(a, figure)) {

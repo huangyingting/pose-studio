@@ -559,7 +559,15 @@ export function parseLibrary(data: unknown): Library {
   // What the imported clips are (a file, or a library from before they were kept apart, has their frames too: clipsIn).
   const clips = [...(Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []), ...clipsFromMotions(data.motions).map(clipInfo)];
   const models = (Array.isArray(data.models) ? data.models : []).slice(0, 200).flatMap((m) => parseModelInfo(m) ?? []);
-  return { version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}) };
+  const templates = (Array.isArray(data.templates) ? data.templates : []).slice(0, 200).filter(isObj).map((t, i) => ({
+    id: typeof t.id === 'string' && t.id ? t.id.slice(0, 40) : uid('tpl'),
+    name: typeof t.name === 'string' && t.name ? t.name.slice(0, 80) : `Template ${i + 1}`,
+    scene: parseScene(t.scene, i),
+  }));
+  return {
+    version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
+    ...(templates.length ? { templates } : {}),
+  };
 }
 
 function parseModelInfo(v: unknown): ModelInfo | null {

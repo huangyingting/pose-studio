@@ -3,6 +3,7 @@ import { expect } from 'vitest';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { BODY_PRESETS } from '@/lib/body';
+import { MOTIONS } from '@/lib/motions';
 import { handPosition } from '@/lib/propmotion';
 import { handlesOf } from '@/lib/props';
 import { checkMotion } from '@/lib/qa';
@@ -14,6 +15,9 @@ import type { Scene } from '@/lib/types';
  * Scenes made the way a user makes them, for the use case of filming several people moving
  * together, and what a viewer would notice in them.
  */
+
+/** A built-in motion's own scene: its people doing it. */
+export const motionScene = (id: string) => MOTIONS.find((m) => m.id === id)!.build();
 
 export const body = (name: string) => ({ ...BODY_PRESETS.find((p) => p.name === name)!.body });
 
