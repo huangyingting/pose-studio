@@ -30,7 +30,7 @@ function twoPeople() {
   return { store, a, b };
 }
 
-const byKey = (scene: Scene, key: string) => scene.animation!.cameras!.find((c) => c.made?.endsWith(`:${key}`))!;
+const byKey = (scene: Scene, key: string) => scene.cameras.find((c) => c.made?.endsWith(`:${key}`))!;
 
 describe('coverage: cameras on roles and cuts on what happens', () => {
   it('covers a dialogue from one side of the line between the two, singles clean, cut on a beat', () => {
@@ -40,7 +40,9 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     store.setTime(0);
     expect(coverScene(store, 'dialogue')).toEqual({ A: a, B: b });
     const scene = store.scene;
-    const cams = scene.animation!.cameras!;
+    // The scene's own camera stays, filming nothing now.
+    const [own, ...cams] = scene.cameras;
+    expect(own.made).toBeUndefined();
     expect(cams.map((c) => c.name)).toEqual(['Master', 'Figure over Figure 2’s shoulder', 'Figure 2 over Figure’s shoulder', 'Figure single', 'Figure 2 single']);
     // Cut on a beat: the master, the singles, the master again (one camera cut to twice).
     const spans = shotSpans(scene.animation!);
@@ -81,7 +83,7 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     store.select({ kind: 'figure', figure: a });
     coverScene(store, 'sports');
     const a2 = store.scene.animation!;
-    const cut = shotSpans(a2).map((s) => [Math.round(s.start * a2.fps), a2.cameras!.find((c) => c.id === s.shot.camera)!.made]);
+    const cut = shotSpans(a2).map((s) => [Math.round(s.start * a2.fps), store.scene.cameras.find((c) => c.id === s.shot.camera)!.made]);
     expect(cut).toContainEqual([Math.round(pass.from * a2.fps), 'sports:single-b']);
     expect(cut).toContainEqual([Math.round(run.from * a2.fps), 'sports:track-a']);
     expect(cut[0]).toEqual([0, 'sports:wide']);
@@ -92,7 +94,7 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     startAnimation(store, 12);
     store.select({ kind: 'figure', figure: a });
     coverScene(store, 'dialogue');
-    const before = store.scene.animation!.cameras!;
+    const before = store.scene.cameras.slice(1);
     // Other blocking: B a step further away and round to the side. The singles still hold.
     store.updateFigure(b, (f) => ({ ...f, position: [2.5, 0, 1.5] }));
     arrange(store, a, b, 'faceEachOther');
@@ -104,17 +106,17 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     // camera is as it was edited, the others are as the coverage makes them.
     editRig(store, byKey(store.scene, 'single-a').id, { yaw: 45 });
     removeShotCut(store, shotSpans(store.scene.animation!)[1].shot.id);
-    expect(store.scene.animation!.cameras).toHaveLength(5);
+    expect(store.scene.cameras).toHaveLength(6);
     coverScene(store, 'dialogue');
-    const after = store.scene.animation!.cameras!;
+    const after = store.scene.cameras.slice(1);
     expect(after.map((c) => c.id)).toEqual(before.map((c) => c.id));
-    expect(byKey(store.scene, 'single-a').rig!.yaw).toBe(45);
+    expect(byKey(store.scene, 'single-a')).toMatchObject({ rig: { yaw: 45 } });
     expect(byKey(store.scene, 'single-b')).toEqual(before[4]);
     expect(shotSpans(store.scene.animation!)).toHaveLength(4);
     expect(cameraAt(store.scene, 4).position.distanceTo(viewOf(store.scene, byKey(store.scene, 'single-a'), 4).position)).toBeLessThan(1e-9);
     // Another coverage over it: the dialogue's cameras go, but the one edited by hand stays.
     coverScene(store, 'follow');
-    const names = store.scene.animation!.cameras!.map((c) => c.made);
+    const names = store.scene.cameras.map((c) => c.made);
     expect(names.filter((m) => m?.startsWith('dialogue:'))).toEqual(['dialogue:single-a']);
     expect(names.filter((m) => m?.startsWith('follow:'))).toHaveLength(4);
   });

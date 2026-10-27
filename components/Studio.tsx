@@ -16,7 +16,7 @@ import { Store, type SaveStatus } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
-import { frameAspect } from '@/lib/cameras';
+import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';
@@ -141,7 +141,7 @@ function App() {
 
   const frameCurrent = useCallback(() => {
     const cur = apiRef.current?.getView();
-    frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : store.scene.view);
+    frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time));
   }, [frame, store]);
 
   const setReference = useCallback((patch: Partial<Reference>) => {
@@ -337,7 +337,7 @@ function App() {
   };
 
   const ctx: InspectorContext = {
-    currentView: () => apiRef.current?.getView() ?? null,
+    editorCamera: () => apiRef.current?.editorCamera() ?? null,
     rootPosition: (id) => apiRef.current?.rootPosition(id) ?? null,
     notify,
     notifyUndo,
@@ -532,7 +532,7 @@ function App() {
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
       {dialog === 'export' && (
-        <ExportDialog onClose={() => setDialog(null)} notify={notify} currentView={ctx.currentView} />
+        <ExportDialog onClose={() => setDialog(null)} notify={notify} editorCamera={ctx.editorCamera} />
       )}
       {dialog === 'photo' && (
         <PhotoDialog

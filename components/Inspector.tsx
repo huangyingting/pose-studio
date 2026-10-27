@@ -19,7 +19,8 @@ import { angle } from '@/lib/pose';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, type View, PROP_LABELS } from '@/lib/types';
+import type { CameraView } from '@/lib/cameras';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ActionInspector from './ActionInspector';
 import CameraInspector from './CameraInspector';
@@ -29,7 +30,8 @@ import { useActiveFigure, useScene, useStore, useStudio } from './store-context'
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
 
 export interface InspectorContext {
-  currentView(): View | null;
+  /** The editor camera, to make a scene camera from. */
+  editorCamera(): CameraView | null;
   rootPosition(figure: string): Vec3 | null;
   notify: Notify;
   /** Toast with an Undo button. */
@@ -61,7 +63,7 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   let content;
   if (selection?.kind === 'prop' && scene.props.some((p) => p.id === selection.prop)) content = <PropEditor id={selection.prop} chrome={chrome} />;
   else if (selection?.kind === 'shot') content = <ShotInspector id={selection.shot} notify={ctx.notify} chrome={chrome} />;
-  else if (selection?.kind === 'camera' && scene.animation?.cameras?.some((c) => c.id === selection.camera)) content = <CameraInspector id={selection.camera} chrome={chrome} />;
+  else if (selection?.kind === 'camera' && scene.cameras.some((c) => c.id === selection.camera)) content = <CameraInspector id={selection.camera} chrome={chrome} />;
   else if (selection?.kind === 'action') content = <ActionInspector id={selection.action} figure={selection.figure} chrome={chrome} />;
   else if (selection?.kind === 'scene' || !figure) content = <SceneInspector ctx={ctx} chrome={{ after: hide }} />;
   else content = <FigureInspector figure={figure} ctx={ctx} chrome={chrome} />;

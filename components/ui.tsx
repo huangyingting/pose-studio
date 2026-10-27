@@ -563,7 +563,7 @@ export function Select<T extends string>({ value, options, onChange, label }: {
               data-i={i}
               role="option"
               aria-label={o.label}
-              aria-description={o.hint}
+              aria-describedby={o.hint ? `${id}-${i}-hint` : undefined}
               aria-selected={i === index}
               className={i === active ? 'active' : undefined}
               onPointerDown={(e) => e.preventDefault()}
@@ -571,7 +571,7 @@ export function Select<T extends string>({ value, options, onChange, label }: {
               onClick={() => { pick(i); button.current?.focus(); }}
             >
               <Check size={14} aria-hidden />
-              {o.hint ? <span className="select-option"><span>{o.label}</span><small>{o.hint}</small></span> : <span>{o.label}</span>}
+              {o.hint ? <span className="select-option"><span>{o.label}</span><small id={`${id}-${i}-hint`}>{o.hint}</small></span> : <span>{o.label}</span>}
             </li>
           ))}
         </ul>,

@@ -13,12 +13,14 @@ import { MemoryStorage, fresh } from '../fixtures/scenes';
 const apart = (p: number[], q: number[]) => Math.hypot(p[0] - q[0], p[2] - q[2]);
 
 describe('scene templates: what is filmed, without how', () => {
-  it('builds every template: a cast, a set and what they do, no cameras', () => {
+  it('builds every template: a cast, a set and what they do, seen by one plain camera', () => {
     expect(new Set(SCENE_TEMPLATES.map((t) => t.group))).toEqual(new Set(TEMPLATE_GROUPS));
     for (const t of SCENE_TEMPLATES) {
       const s = t.build();
       expect(s.figures, t.id).toHaveLength(t.people);
-      expect(s.animation?.cameras ?? s.animation?.shots, t.id).toBeUndefined();
+      expect(s.cameras.map((c) => c.made ?? c.kind), t.id).toEqual(['rig']);
+      expect(s.coverage, t.id).toBeUndefined();
+      if (s.animation) expect(s.animation.shots.map((x) => x.camera), t.id).toEqual([s.cameras[0].id]);
     }
     // Several people's motions as made, key by key, on both.
     const waltz = SCENE_TEMPLATES.find((t) => t.id === 'waltz-turn')!.build();
@@ -37,7 +39,7 @@ describe('scene templates: what is filmed, without how', () => {
     store.select({ kind: 'figure', figure: a });
     coverScene(store, 'dialogue');
     const t = saveTemplate(store, 'Interview');
-    expect(t.scene.animation!.cameras ?? t.scene.animation!.shots ?? t.scene.animation!.coverage).toBeUndefined();
+    expect([t.scene.cameras, t.scene.animation!.shots, t.scene.coverage]).toEqual([[], [], undefined]);
     expect(t.scene.figures.map((f) => f.position[0])).toEqual([-1, 1]);
     expect(t.scene.props[0].position).toEqual([0, 0, 1]);
     // Kept in the library (and read back as it was); it opens as a new scene, with new ids.
@@ -47,6 +49,9 @@ describe('scene templates: what is filmed, without how', () => {
     expect(store.scene.name).toBe('Interview');
     expect(store.scene.figures.map((f) => f.id)).not.toContain(a);
     expect(store.scene.figures.map((f) => f.position[0])).toEqual([-1, 1]);
+    // Given the default camera, filming its one shot.
+    expect(store.scene.cameras).toHaveLength(1);
+    expect(store.scene.animation!.shots.map((x) => x.camera)).toEqual([store.scene.cameras[0].id]);
   });
 
   it('goes into the open scene: its first role on the selected figure, where it stands, facing its way', () => {
@@ -95,12 +100,14 @@ describe('scene templates: what is filmed, without how', () => {
       expect(newShoot(store, p.id), p.id).toBe(true);
       const a = store.scene.animation!;
       expect(store.scene.name).toBe(p.name);
-      expect(a.coverage?.id, p.id).toBe(p.coverage);
-      expect(shotSpans(a).every((s) => a.cameras!.some((c) => c.id === s.shot.camera)), p.id).toBe(true);
+      expect(store.scene.coverage?.id, p.id).toBe(p.coverage);
+      expect(shotSpans(a).every((s) => store.scene.cameras.some((c) => c.id === s.shot.camera)), p.id).toBe(true);
       if (p.duration) expect(a.duration).toBe(p.duration);
       expect(checkShots(store.scene).map((i) => i.message), p.id).toEqual([]);
-      // Neither holds the other: the template has no cameras, the coverage no people.
-      expect(SCENE_TEMPLATES.find((t) => t.id === p.template)!.build().animation?.cameras).toBeUndefined();
+      // Neither holds the other: the template has only a plain camera, the coverage no people.
+      const t = SCENE_TEMPLATES.find((x) => x.id === p.template)!.build();
+      expect(t.cameras.map((c) => c.made ?? c.kind)).toEqual(['rig']);
+      expect(t.coverage).toBeUndefined();
     }
     // Opened in one step: one undo goes back to before it.
     const store = new Store(new MemoryStorage());

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { keysClip, partKeys } from './clip';
 import { DEFAULT_BODY } from './body';
-import { mirrorFigure, newFigure, newProp, newScene } from './doc';
+import { cameraFrom, mirrorFigure, newFigure, newProp, newScene } from './doc';
 import { HAND_PRESETS, cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
@@ -70,14 +70,15 @@ const poseOf = (f: Figure): Pose => ({ bones: f.bones, position: f.position, han
 
 /** A scene keyed with these poses: each figure's keys one action (going round, in a loop). */
 function animated(name: string, keys: Key[], o: { duration: number; loop: boolean; view: View }): Scene {
-  const scene = { ...newScene(name, keys[0].figures), view: o.view };
+  // Seen from its own angle (where its preview is filmed from).
+  const scene = { ...newScene(name, keys[0].figures), cameras: [cameraFrom(o.view)] };
   const actions = keys[0].figures.map((f): Action => {
     // On frame times, so a motion plays exactly as made.
     const mine = keys.filter((k) => k.figures.some((x) => x.id === f.id)).map((k) => ({ t: Math.round(k.t * 24) / 24, pose: poseOf(k.figures.find((x) => x.id === f.id)!) }));
     if (!o.loop) return keysAction(f.id, mine);
     return { id: uid('act'), start: 0, duration: o.duration, roles: [{ figure: f.id }], source: { kind: 'keys', clip: keysClip(mine, true, o.duration) } };
   });
-  const animation: Animation = { duration: o.duration, fps: 24, loop: o.loop, actions };
+  const animation: Animation = { duration: o.duration, fps: 24, loop: o.loop, actions, shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] };
   return { ...scene, animation };
 }
 

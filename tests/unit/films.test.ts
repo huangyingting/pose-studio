@@ -19,7 +19,7 @@ import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
-import { body, expectClean, fresh, motionScene } from '../fixtures/scenes';
+import { body, expectClean, fresh, motionScene, seenFrom } from '../fixtures/scenes';
 
 /*
  * Acceptance baseline for the redesign (issue #1): these films must keep passing at every step.
@@ -60,7 +60,7 @@ function expectFilm(store: Store, lightId: string, people: number) {
   expect(spans.length).toBeGreaterThan(1);
   for (const span of spans) {
     const cam = liveCamera(scene, span.start);
-    expect(!!cam?.rig || (cam?.points.length ?? 0) > 0, `${span.shot.name} ${span.start}-${span.end}`).toBe(true);
+    expect(cam.kind === 'rig' || cam.points.length > 0, `${span.shot.name} ${span.start}-${span.end}`).toBe(true);
     const text = describeSpan(scene, span);
     expect(text, span.shot.name).toMatch(new RegExp(`${['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'][people - 1]} mannequin figure`, 'i'));
   }
@@ -102,7 +102,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     addFigure(store, [2, 0, 1]);
     const b = store.getState().activeFigure!;
     name(store, b, 'Leo');
-    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 8, fov: 42 } }));
+    seenFrom(store, { yaw: 90, pitch: 8, fov: 42 });
     addProp(store, 'sphere', [0.5, 0, 0.5]);
     const ball = store.scene.props[0].id;
     moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
@@ -147,7 +147,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const c = store.getState().activeFigure!;
     name(store, c, 'Sam');
     store.updateFigure(c, (f) => ({ ...f, body: body('Heroic') }));
-    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 8, fov: 44 } }));
+    seenFrom(store, { yaw: 90, pitch: 8, fov: 44 });
     addProp(store, 'sphere', [0.5, 0, 0.5]);
     const ball = store.scene.props[0].id;
     moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
@@ -200,7 +200,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const c = store.getState().activeFigure!;
     store.updateFigure(b, (f) => ({ ...f, body: body('Athletic') }));
     store.updateFigure(c, (f) => ({ ...f, body: body('Slender') }));
-    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 44 } }));
+    seenFrom(store, { yaw: 90, pitch: 6, fov: 44 });
     // A low hurdle in the middle lane.
     addProp(store, 'box', [1.2, 0, 5]);
     moveProp(store, store.scene.props[0].id, { scale: [0.9, 0.35, 0.15] });
@@ -230,7 +230,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     }
     runners.forEach((id, i) => name(store, id, ['Ana', 'Ben', 'Cleo', 'Dev'][i]));
     store.updateFigure(runners[2], (f) => ({ ...f, body: body('Athletic') }));
-    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 50 } }));
+    seenFrom(store, { yaw: 90, pitch: 6, fov: 50 });
     addProp(store, 'stick');
     const baton = store.scene.props[0].id;
     holdProp(store, baton, { figure: a, hand: 'R' });
@@ -309,7 +309,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
       addFigure(store, [x, 0, dancers.length]);
       dancers.push(store.getState().activeFigure!);
     }
-    store.updateScene((s) => ({ ...s, view: { yaw: 20, pitch: 12, fov: 55 } }));
+    seenFrom(store, { yaw: 20, pitch: 12, fov: 55 });
     store.setTime(0);
     expect(applyMotion(store, dancers[0], 'group-dance', dancers.slice(1))).toBe(true);
     store.setTime(2);
@@ -535,7 +535,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     store.setTime(0);
     travelTo(store, a, [0, 3], 'run');
     // The camera looks back down the court from beyond the hoop.
-    store.updateScene((s) => ({ ...s, view: { yaw: 0, pitch: 2, fov: 30 } }));
+    seenFrom(store, { yaw: 0, pitch: 2, fov: 30 });
     store.setTime(0);
     applyCameraMove(store, 'static');
     expect(checkMotion(store.scene).some((i) => i.kind === 'hidden' && /behind Basketball hoop/.test(i.message))).toBe(true);

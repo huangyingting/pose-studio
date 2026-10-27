@@ -6,7 +6,7 @@ import { DEFAULT_LIGHT, LightRig } from './lighting';
 import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
-import { placeCamera, type CameraView } from './cameras';
+import { angleAt, angleOf, cameraAt, cameraById, frameAspect, placeCamera, viewOf, type CameraView } from './cameras';
 import { STYLES, type Scene, type Style, type View } from './types';
 
 const D2R = Math.PI / 180;
@@ -158,25 +158,34 @@ const TURNAROUND_NAMES: Record<4 | 8, string[]> = {
   8: ['Front', 'Front-left ¾', 'Left side', 'Back-left ¾', 'Back', 'Back-right ¾', 'Right side', 'Front-right ¾'],
 };
 
+/** A cell of a sheet: a scene drawn fitted to the cell from an angle, or (`camera`) as a camera films it. */
 export interface Cell {
   scene: Scene;
   caption: string;
+  angle: View;
+  camera?: CameraView;
 }
 
 /**
- * The cells of an export sheet. A turnaround shows `current` from evenly spaced angles around
- * the figure; a frame sheet shows evenly spaced moments of its animation.
+ * The cells of an export sheet: the open scene as its camera films it at `time` (or as one of its
+ * cameras, `camera`, sees it then); every scene (or pose) from the angle its first camera sees it
+ * from; a turnaround of the open scene from evenly spaced angles around it; a frame sheet of evenly
+ * spaced moments of its animation, from the angle it is filmed from at `time`.
  */
-export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptions, 'scope' | 'angles' | 'frames'>): Cell[] {
-  if (o.scope === 'all' || o.scope === 'poses') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}` }));
+export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptions, 'scope' | 'angles' | 'frames' | 'cellWidth' | 'cellHeight'>, time = 0, camera?: string): Cell[] {
+  if (o.scope === 'all' || o.scope === 'poses') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}`, angle: angleAt(scene) }));
+  const cam = camera ? cameraById(current, camera) : undefined;
+  const look = (aspect: number) => (cam ? viewOf(current, cam, time, aspect) : cameraAt(current, time, aspect));
+  const front = look(frameAspect(current));
+  const base: View = { ...angleOf(front), fov: front.fov };
   if ((o.scope === 'frames' || o.scope === 'video') && current.animation) {
-    return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s` }));
+    return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s`, angle: base }));
   }
-  if (o.scope !== 'turnaround') return [{ scene: current, caption: current.name }];
-  return TURNAROUND_NAMES[o.angles].map((name, i) => ({
-    scene: { ...current, view: { ...current.view, yaw: wrapDeg((360 / o.angles) * i) } },
-    caption: name,
-  }));
+  if (o.scope !== 'turnaround') {
+    const now = current.animation ? sceneAt(current, time) : current;
+    return [{ scene: now, caption: current.name, angle: base, camera: look(o.cellWidth / o.cellHeight) }];
+  }
+  return TURNAROUND_NAMES[o.angles].map((name, i) => ({ scene: current, caption: name, angle: { ...base, yaw: wrapDeg((360 / o.angles) * i) } }));
 }
 
 const LABEL_HEIGHT = 40;
@@ -223,11 +232,11 @@ export class SceneRenderer {
     this.scene.add(this.view.root, this.lights.object);
   }
 
-  /** Camera distance that fits `doc` into a w × h cell (no rendering). */
-  measure(doc: Scene, w: number, h: number, margin = 0.07) {
+  /** Camera distance that fits `doc` into a w × h cell from an angle (no rendering). */
+  measure(doc: Scene, w: number, h: number, angle: View, margin = 0.07) {
     this.view.sync(doc);
     this.camera.aspect = w / h;
-    return fitCamera(this.camera, this.view, doc.view, margin).distance;
+    return fitCamera(this.camera, this.view, angle, margin).distance;
   }
 
   /** Size the output and pose the view for a frame (everything but the camera). */
@@ -285,10 +294,11 @@ export class SceneRenderer {
     return this.renderer.domElement;
   }
 
-  render(doc: Scene, w: number, h: number, line = 2, opts: RenderOptions = {}): HTMLCanvasElement {
+  /** A scene fitted into a w × h picture, seen from an angle. */
+  render(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { angle: View }): HTMLCanvasElement {
     this.setup(doc, w, h, line, opts);
     this.camera.aspect = w / h;
-    fitCamera(this.camera, this.view, doc.view, opts.margin ?? 0.07, opts.minDistance ?? 0);
+    fitCamera(this.camera, this.view, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
     return this.draw(line, opts);
   }
 
@@ -308,8 +318,9 @@ export class SceneRenderer {
     return { position: c.position.toArray().map(r), direction: dir.toArray().map(r), up: c.up.toArray().map(r), fov: r(c.fov), aspect: r(c.aspect) };
   }
 
+  /** A small picture of a scene as its first camera films it. */
   thumbnail(doc: Scene): string {
-    return this.render(doc, 180, 192, 1.1).toDataURL('image/png');
+    return this.renderShot(doc.animation ? sceneAt(doc, 0) : doc, 180, 192, 1.1, { camera: cameraAt(doc, 0, 180 / 192) }).toDataURL('image/png');
   }
 
   /** Lay cells out in a grid, optionally captioned. */
@@ -326,15 +337,17 @@ export class SceneRenderer {
       ctx.fillRect(0, 0, out.width, out.height);
     }
     // Same scale: the apparent size depends on distance × tan(fov / 2), so match that product.
-    const tan = (s: Scene) => Math.tan((s.view.fov * D2R) / 2);
+    const tan = (c: Cell) => Math.tan((c.angle.fov * D2R) / 2);
     // Turnarounds and frame sheets are only useful if every cell has the same scale.
-    const size = o.sameScale || o.scope === 'turnaround' || o.scope === 'frames' ? Math.max(...cells.map((c) => this.measure(c.scene, o.cellWidth, o.cellHeight, o.margin) * tan(c.scene))) : 0;
-    cells.forEach(({ scene, caption }, i) => {
+    const size = o.sameScale || o.scope === 'turnaround' || o.scope === 'frames' ? Math.max(...cells.map((c) => this.measure(c.scene, o.cellWidth, o.cellHeight, c.angle, o.margin) * tan(c))) : 0;
+    cells.forEach((cell, i) => {
+      const { scene, caption } = cell;
       const x = (i % cols) * o.cellWidth;
       const y = Math.floor(i / cols) * (o.cellHeight + labelH);
-      const canvas = this.render(scene, o.cellWidth, o.cellHeight, o.lineWidth, {
-        transparent, margin: o.margin, style: o.style, faces, pass: o.pass, minDistance: size / tan(scene),
-      });
+      const look = { transparent, style: o.style, faces, pass: o.pass };
+      const canvas = cell.camera
+        ? this.renderShot(scene, o.cellWidth, o.cellHeight, o.lineWidth, { ...look, camera: cell.camera })
+        : this.render(scene, o.cellWidth, o.cellHeight, o.lineWidth, { ...look, margin: o.margin, minDistance: size / tan(cell), angle: cell.angle });
       ctx.drawImage(canvas, x, y);
       if (o.labels) {
         ctx.fillStyle = '#3a3a40';

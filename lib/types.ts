@@ -124,7 +124,13 @@ export interface Scene {
   name: string;
   figures: Figure[];
   props: Prop[];
-  view: View;
+  /**
+   * The scene's cameras (lib/cameras.ts), at least one: a still scene is filmed by the first, an
+   * animated one by its shots' (lib/shots.ts).
+   */
+  cameras: Camera[];
+  /** The coverage its cameras and cuts were made with, and the figures playing its roles (lib/coverage.ts). */
+  coverage?: { id: string; roles: Record<string, string> };
   /** The scene's key light (lib/lighting.ts DEFAULT_LIGHT without one). */
   light?: Light;
   /** Optional keyframe animation (see lib/animation.ts). */
@@ -291,15 +297,11 @@ export interface Animation {
   constraints?: Constraint[];
   /** Keys of props that move (by id, in time order). */
   props?: Record<string, PropKey[]>;
-  /** The scene's cameras (lib/cameras.ts). */
-  cameras?: Camera[];
-  /** The coverage its cameras and cuts were made with, and the figures playing its roles (lib/coverage.ts). */
-  coverage?: { id: string; roles: Record<string, string> };
   /**
-   * The camera track: shots sorted by start; each runs until the next one starts (a cut) or the
-   * animation ends, filmed by one of the cameras. None: one shot, the still camera's.
+   * The camera track: shots sorted by start, at least one; each runs until the next one starts
+   * (a cut) or the animation ends, filmed by one of the scene's cameras.
    */
-  shots?: Shot[];
+  shots: Shot[];
   /** Video model the shots are cut for (see lib/shots.ts), which limits a shot's length. */
   target?: string;
   /** The frame's shape the shots are filmed in (default 16:9). */
@@ -318,17 +320,20 @@ export interface Shot {
   name: string;
   /** What happens in the shot (used in prompts, storyboards and cut lists). */
   caption?: string;
-  /** The camera filming it (none, or gone: the still camera's view of everyone). */
-  camera?: string;
+  /** The camera filming it (one of the scene's). */
+  camera: string;
   /** Comes in by blending from the camera before over this long (s); none: a cut. */
   blend?: number;
 }
 
 /**
- * A camera of the scene: where it is and where it looks over the animation's time, its lens,
- * its shake. Shots refer to cameras; one camera can film several shots.
+ * A camera of the scene: what it films, and either the path it takes (points in time, each with
+ * where it looks and its lens) or the rig that places it from its subject every frame. Shots
+ * refer to cameras; one camera can film several shots.
  */
-export interface Camera {
+export type Camera = PathCamera | RigCamera;
+
+interface CameraBase {
   id: string;
   name: string;
   /** The figure it films (none: everyone). */
@@ -337,18 +342,27 @@ export interface Camera {
   also?: string[];
   /** Made by the scene's coverage, as its camera with this key (lib/coverage.ts). */
   made?: string;
+  /** Hand-held shake, 0–1. */
+  shake?: number;
+}
+
+/** A camera that goes along a path. */
+export interface PathCamera extends CameraBase {
+  kind: 'path';
   /** Where its path is: fixed in the world, or riding along with its subject. */
   anchor: 'world' | 'subject';
   /** Where it looks: at its subject, at a point, or along its path. */
   aim: 'subject' | 'point' | 'path';
-  /** The path's points in time order (animation time). */
+  /** The path's points in time order (animation time), at least one. */
   points: CameraPoint[];
   /** How it goes from point to point: easing through them, or at an even pace. */
   ease?: 'smooth' | 'linear';
-  /** Hand-held shake, 0–1. */
-  shake?: number;
-  /** Placing itself every frame from its subject's body, rather than by its path (see CameraRig). */
-  rig?: CameraRig;
+}
+
+/** A camera that places itself every frame from its subject's body (see CameraRig). */
+export interface RigCamera extends CameraBase {
+  kind: 'rig';
+  rig: CameraRig;
 }
 
 /** How much of the body a shot holds: extreme wide … extreme close-up (lib/cameras.ts SHOT_SIZES). */

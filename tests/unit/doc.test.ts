@@ -36,7 +36,7 @@ describe('parseLibrary', () => {
         hands: { L: { curl: [2, -1, 0.5], spread: 7 } },
       }],
       props: [{ kind: 'spaceship' }, { kind: 'box', scale: [0, -2, 1e9] }],
-      view: { yaw: 900, pitch: 200, fov: 0 },
+      cameras: [{ kind: 'path', points: [] }, { kind: 'rig', rig: { pitch: 200, lens: 0 } }],
     });
     const f = s.figures[0];
     // A broken rotation goes, one not of unit length is made so.
@@ -49,7 +49,8 @@ describe('parseLibrary', () => {
     expect(s.name).toBe('Scene 1');
     expect(s.props).toHaveLength(1);
     expect(s.props[0].scale).toEqual([0.02, 2, 20]);
-    expect(s.view).toEqual({ yaw: 180, pitch: 89, fov: 5 });
+    // A path without points goes; a rig's numbers are kept in range.
+    expect(s.cameras).toMatchObject([{ kind: 'rig', rig: { pitch: 89, lens: 4 } }]);
   });
 
   it('gives duplicate ids fresh ones', () => {

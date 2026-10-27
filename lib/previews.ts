@@ -1,8 +1,8 @@
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { poseScene } from './poses';
-import { cameraAt, filmWith, subjectAt, type CameraMove } from './cameras';
-import { newCamera, newShot } from './shots';
+import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type CameraMove } from './cameras';
+import { newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { PoseAsset, Scene, Style } from './types';
 
@@ -76,7 +76,7 @@ export function posePreview(p: PoseAsset, style: Style): PreviewJob {
   return {
     key: `pose:${style}:${p.id}:${JSON.stringify(p.bones)}`,
     count: 1,
-    frame: () => sharedRenderer().render(poseScene(p), W, H, LINE, { style, faces: true, margin: 0.1 }).toDataURL('image/png'),
+    frame: () => sharedRenderer().render(poseScene(p), W, H, LINE, { style, faces: true, margin: 0.1, angle: p.view }).toDataURL('image/png'),
   };
 }
 
@@ -85,7 +85,7 @@ export function templatePreview(id: string, build: () => Scene, style: Style): P
   const key = `template:${style}:${id}`;
   const scene = build();
   if (scene.animation) return filmed(key, () => filmWith(scene, 'static', { follow: true }), style);
-  return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1 }).toDataURL('image/png') };
+  return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1, angle: angleAt(scene) }).toDataURL('image/png') };
 }
 
 /** A motion playing, followed by a camera from its scene's angle. */
@@ -101,12 +101,11 @@ export function cameraPreview(move: CameraMove, scene: Scene, style: Style): Pre
   if (!sceneIds.has(scene)) sceneIds.set(scene, nextScene++);
   return filmed(`camera:${style}:${move.id}:${sceneIds.get(scene)}`, () => {
     const anim = scene.animation ?? { ...newAnimation(scene, 3), loop: false };
-    // One shot over the whole animation (on the subject of the camera at its start), filmed by this move.
-    const { shots: _shots, cameras: _cameras, ...whole } = anim;
-    void _shots;
-    void _cameras;
+    // One shot over the whole animation (on the subject of the camera at its start), filmed by this
+    // move, from the angle it is filmed from now.
     const subject = subjectAt(scene, 0);
-    const cam = { ...newCamera(whole), id: 'preview', ...(subject ? { subject } : {}) };
-    return filmWith({ ...scene, animation: { ...whole, cameras: [cam], shots: [{ ...newShot(0, 'Shot 1', 'main'), camera: cam.id }] } }, move.id);
+    const cam = { ...newCamera(scene), id: 'preview', ...(subject ? { subject } : {}) };
+    const base = angleAt(scene, 0);
+    return filmWith({ ...scene, cameras: [cam], animation: { ...anim, shots: [newShot(0, 'Shot 1', cam.id, 'main')] } }, move.id, { base });
   }, style);
 }

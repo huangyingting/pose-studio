@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Camera as CameraIcon, Trash2 } from 'lucide-react';
 import { deleteCamera, deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens, setShotSubject } from '@/lib/actions';
-import { LENSES, SHOT_SIZES, cameraAt, cameraById, liveCamera, sizeOf } from '@/lib/cameras';
+import { LENSES, SHOT_SIZES, cameraById, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
-import type { Camera, CameraRig, Placement, ShotSize } from '@/lib/types';
+import type { Camera, CameraRig, PathCamera, Placement, RigCamera, ShotSize } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome } from './ui';
 
@@ -12,16 +12,19 @@ export default function CameraInspector({ id, chrome }: { id: string; chrome?: H
   const store = useStore();
   const scene = useScene();
   const a = scene.animation;
-  const cam = cameraById(a, id);
-  if (!a || !cam) return null;
-  const films = shotSpans(a).filter((s) => s.shot.camera === id);
+  const cam = cameraById(scene, id);
+  if (!cam) return null;
+  const films = a ? shotSpans(a).filter((s) => s.shot.camera === id) : [];
+  const first = scene.cameras[0].id === id;
   return (
     <>
       <NameHeader chrome={chrome} lead={<CameraIcon size={15} aria-hidden />} name={cam.name} label="Camera name" onRename={(name) => editCamera(store, id, { name })}>
         <IconButton icon={Trash2} label="Delete camera" shortcut="Del" onClick={() => deleteCamera(store, id)} />
       </NameHeader>
       <Section title="Films">
-        {films.length ? (
+        {!a ? (
+          <p className="hint-text">{first ? 'The still: the scene is filmed by its first camera.' : 'Another angle on the still; the first camera films it.'}</p>
+        ) : films.length ? (
           <ul className="side-list" aria-label="Shots it films">
             {films.map((s) => (
               <li key={s.shot.id}>
@@ -41,40 +44,42 @@ export default function CameraInspector({ id, chrome }: { id: string; chrome?: H
 }
 
 /**
- * A camera's settings (`span`: as the camera of that shot; none: the still camera, which framing
- * turns into a camera of the shot's own): what it films; its shot size, where the subject sits
- * and its lens (a rig's always; a path's at the playhead, while it is filming); how it moves.
+ * A camera's settings (`span`: as the camera of that shot): what it films; its shot size, where
+ * the subject sits and its lens (a rig's always; a path's at the playhead, while it is filming, or
+ * in a still); how it moves.
  */
-export function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotSpan }) {
+export function CameraSettings({ cam, span }: { cam: Camera; span?: ShotSpan }) {
   const store = useStore();
   const scene = useScene();
   const time = useStudio((s) => s.time);
   const [placed, setPlaced] = useState<Placement>('center');
   const [zoom, setZoom] = useState(false);
-  const rig = cam?.rig;
-  const live = span ? time >= span.start - 1e-6 && (time < span.end - 1e-6 || span.end >= scene.animation!.duration - 1e-6) : liveCamera(scene, time)?.id === cam?.id;
-  const view = live && !rig ? cameraAt(scene, time) : null;
-  const size = rig ? rig.size : view ? sizeOf(scene, cam, time, view) : null;
+  const a = scene.animation;
+  const rig = cam.kind === 'rig' ? cam.rig : null;
+  const t = a ? time : 0;
+  const live = !a || (span ? time >= span.start - 1e-6 && (time < span.end - 1e-6 || span.end >= a.duration - 1e-6) : liveCamera(scene, time).id === cam.id);
+  const view = live && !rig ? viewOf(scene, cam, t) : null;
+  const size = rig ? rig.size : view ? sizeOf(scene, cam, t, view) : null;
   const lens = rig ? Math.round(rig.lens) : view ? Math.round(view.lens) : null;
   const place = rig ? rig.place ?? 'center' : placed;
-  const set = (patch: Parameters<typeof editCamera>[2]) => { if (cam) editCamera(store, cam.id, patch); };
-  const frame = (to: ShotSize, at: Placement) => (rig ? editRig(store, cam!.id, { size: to, place: at }) : frameShot(store, to, { place: at }));
-  const setLensTo = (mm: number, key?: string) => (rig ? editRig(store, cam!.id, { lens: mm }) : setLens(store, mm, zoom ? 'place' : 'size', key));
+  const set = (patch: Parameters<typeof editCamera>[2]) => editCamera(store, cam.id, patch);
+  const frame = (to: ShotSize, at: Placement) => (rig ? editRig(store, cam.id, { size: to, place: at }) : frameShot(store, to, { place: at, camera: cam.id }));
+  const setLensTo = (mm: number, key?: string) => (rig ? editRig(store, cam.id, { lens: mm }) : setLens(store, mm, zoom ? 'place' : 'size', key, cam.id));
   return (
-    <Section title={cam?.name ?? 'Still camera'}>
+    <Section title={cam.name}>
       <div className="field">
-        <span>Frames{cam?.also?.length ? ` (with ${cam.also.map((id) => scene.figures.find((f) => f.id === id)?.name).filter(Boolean).join(', ')})` : ''}</span>
+        <span>Frames{cam.also?.length ? ` (with ${cam.also.map((id) => scene.figures.find((f) => f.id === id)?.name).filter(Boolean).join(', ')})` : ''}</span>
         <Select
           label="Camera subject"
-          value={cam?.subject && scene.figures.some((f) => f.id === cam.subject) ? cam.subject : 'all'}
-          onChange={(v) => (cam ? set({ subject: v === 'all' ? '' : v }) : span && setShotSubject(store, span.shot.id, v === 'all' ? '' : v))}
+          value={cam.subject && scene.figures.some((f) => f.id === cam.subject) ? cam.subject : 'all'}
+          onChange={(v) => (span ? setShotSubject(store, span.shot.id, v === 'all' ? '' : v) : set({ subject: v === 'all' ? '' : v }))}
           options={[{ value: 'all', label: 'Everyone' }, ...scene.figures.filter((f) => !f.hidden).map((f) => ({ value: f.id, label: f.name }))]}
         />
       </div>
       {size && lens ? (
         <>
           <div className="field">
-            <span>{rig ? 'Shot size (kept as the subject moves)' : `Shot size at ${time.toFixed(2)} s`}</span>
+            <span>{rig ? 'Shot size (kept as the subject moves)' : a ? `Shot size at ${time.toFixed(2)} s` : 'Shot size'}</span>
             <div className="shot-sizes" role="group" aria-label="Shot size">
               {SHOT_SIZES.map((x) => (
                 <button key={x.id} type="button" className={`btn subtle${size === x.id ? ' on' : ''}`} aria-pressed={size === x.id} data-tip={x.name} onClick={() => frame(x.id, place)}>{x.short}</button>
@@ -97,7 +102,7 @@ export function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotS
                 onChange={(v) => { if (v !== 'other') setLensTo(Number(v)); }}
                 options={[...LENSES.map((mm) => ({ value: String(mm), label: `${mm} mm` })), ...(LENSES.includes(lens) ? [] : [{ value: 'other', label: `${lens} mm` }])]}
               />
-              <NumberField prefix="mm" label="Focal length" value={lens} step={1} min={8} max={400} digits={0} onChange={(v) => setLensTo(v, `lens:${cam?.id ?? span?.shot.id}`)} />
+              <NumberField prefix="mm" label="Focal length" value={lens} step={1} min={8} max={400} digits={0} onChange={(v) => setLensTo(v, `lens:${cam.id}`)} />
             </div>
             {!rig && <Toggle label="Zoom (the camera stays put)" hint="Off: the camera moves to keep the subject's size, as with a dolly zoom" checked={zoom} onChange={setZoom} />}
           </div>
@@ -105,27 +110,23 @@ export function CameraSettings({ cam, span }: { cam: Camera | null; span?: ShotS
       ) : (
         <p className="hint-text">Move the playhead into {span ? 'this shot' : 'a shot it films'} to frame it there.</p>
       )}
-      {cam ? (
-        <>
-          <div className="field">
-            <span>Moves</span>
-            <Segmented<'path' | 'follow' | 'orbit'>
-              label="Camera moves"
-              full
-              value={rig?.body ?? 'path'}
-              onChange={(body) => setCameraBody(store, cam.id, body)}
-              options={[{ value: 'path', label: 'Along a path' }, { value: 'follow', label: 'Follows' }, { value: 'orbit', label: 'Circles' }]}
-            />
-          </div>
-          {rig ? <RigSettings cam={cam} rig={rig} set={set} /> : <PathSettings cam={cam} set={set} />}
-        </>
-      ) : <p className="hint-text">Framing the shot gives it a camera of its own.</p>}
+      <div className="field">
+        <span>Moves</span>
+        <Segmented<'path' | 'follow' | 'orbit'>
+          label="Camera moves"
+          full
+          value={rig?.body ?? 'path'}
+          onChange={(body) => setCameraBody(store, cam.id, body)}
+          options={[{ value: 'path', label: 'Along a path' }, { value: 'follow', label: 'Follows' }, { value: 'orbit', label: 'Circles' }]}
+        />
+      </div>
+      {cam.kind === 'rig' ? <RigSettings cam={cam} rig={cam.rig} set={set} /> : <PathSettings cam={cam} set={set} />}
     </Section>
   );
 }
 
 /** How a camera that places itself from its subject does it: its angle, how it turns, its smoothing. */
-function RigSettings({ cam, rig, set }: { cam: Camera; rig: CameraRig; set(patch: Parameters<typeof editCamera>[2]): void }) {
+function RigSettings({ cam, rig, set }: { cam: RigCamera; rig: CameraRig; set(patch: Parameters<typeof editCamera>[2]): void }) {
   const store = useStore();
   const scene = useScene();
   const edit = (patch: Parameters<typeof editRig>[2], key?: string) => editRig(store, cam.id, patch, key);
@@ -166,21 +167,21 @@ function RigSettings({ cam, rig, set }: { cam: Camera; rig: CameraRig; set(patch
 }
 
 /** Where a camera's path is, what it looks at, how it moves, its points. */
-function PathSettings({ cam, set }: { cam: Camera; set(patch: Parameters<typeof editCamera>[2]): void }) {
+function PathSettings({ cam, set }: { cam: PathCamera; set(patch: Parameters<typeof editCamera>[2]): void }) {
   const store = useStore();
   const time = useStudio((s) => s.time);
   return (
     <>
       <div className="field">
         <span>Camera path</span>
-        <Segmented<Camera['anchor']>
+        <Segmented<PathCamera['anchor']>
           label="Camera path"
           full
           value={cam.anchor}
           onChange={(anchor) => set({ anchor })}
           options={[{ value: 'world', label: 'Fixed in the scene' }, { value: 'subject', label: 'Rides along' }]}
         />
-        <Segmented<Camera['aim']>
+        <Segmented<PathCamera['aim']>
           label="Looks at"
           full
           value={cam.aim}

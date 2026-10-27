@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BODY_PRESETS, DEFAULT_BODY } from './body';
-import { newFigure, newScene } from './doc';
+import { cameraFrom, newFigure, newScene } from './doc';
 import { sided } from './joints';
 import { HAND_PRESETS, cloneHand } from './hands';
 import {
@@ -65,8 +65,9 @@ function lookAtEachOther(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
   return [lookTo(rig, a, hb), lookTo(rig, b, ha)];
 }
 
+/** A scene of these people, its first camera seeing them from an angle. */
 function scene(name: string, figures: Figure[], view: View): Scene {
-  return { ...newScene(name, figures), view };
+  return { ...newScene(name, figures), cameras: [cameraFrom(view)] };
 }
 
 /** Run a builder with a temporary rig. */

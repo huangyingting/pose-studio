@@ -1,7 +1,7 @@
 import { propStretchesOf } from './evaluate';
-import { cameraById } from './cameras';
-import { newCamera, newShot, shotSpans } from './shots';
-import type { Animation, Camera, CameraRig, Scene, Shot } from './types';
+import { newCamera } from './cameras';
+import { newShot, shotSpans } from './shots';
+import type { Camera, CameraRig, RigCamera, Scene, Shot } from './types';
 
 /*
  * Coverage: how to film a scene, as a set of cameras on roles (A, B) and rules for cutting
@@ -105,17 +105,17 @@ export const COVERAGES: Coverage[] = [
 export const coverageById = (id: string) => COVERAGES.find((c) => c.id === id) ?? null;
 
 /** The camera a coverage makes for one of its cameras, with these figures in its roles. */
-function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): Omit<Camera, 'id'> {
+function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): Omit<RigCamera, 'id'> {
   const name = cc.name.replace(/\{(A|B)\}/g, (_, r: string) => roles[`name:${r}`] ?? r);
   const { toward, clear, ...rig } = cc.rig;
   return {
     name, subject: roles[cc.subject], ...(cc.also ? { also: [roles[cc.also]] } : {}), made: `${c.id}:${cc.key}`,
-    anchor: 'world', aim: 'subject', points: [], rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}), ...(clear ? { clear: roles[clear] } : {}) },
+    kind: 'rig', rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}), ...(clear ? { clear: roles[clear] } : {}) },
   };
 }
 
 /** What the camera is apart from its id and name, in any key order (to tell whether it was edited by hand). */
-const rule = (cam: Omit<Camera, 'id'>) => {
+const rule = (cam: Omit<Camera, 'id'> | Camera) => {
   const canon = (v: unknown): unknown => (Array.isArray(v) ? v.map(canon) : v && typeof v === 'object'
     ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).sort(([p], [q]) => (p < q ? -1 : 1)).map(([k, x]) => [k, canon(x)]))
     : v);
@@ -186,35 +186,34 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   const a = scene.animation;
   if (!c || !a || c.roles.some((r) => !(r in roles))) return scene;
   const named = (rs: Record<string, string>) => ({ ...rs, ...Object.fromEntries(Object.entries(rs).map(([r, f]) => [`name:${r}`, scene.figures.find((x) => x.id === f)?.name ?? r])) });
-  const before = a.coverage?.id === id ? named(a.coverage.roles) : null;
-  let anim: Animation = { ...a, cameras: [...(a.cameras ?? [])] };
-  // Over another coverage: its cameras go, except those edited by hand since.
-  const last = a.coverage && a.coverage.id !== id ? coverageById(a.coverage.id) : null;
+  const before = scene.coverage?.id === id ? named(scene.coverage.roles) : null;
+  let cameras = [...scene.cameras];
+  // Over another coverage: its cameras go, except those edited by hand since (and the last camera).
+  const last = scene.coverage && scene.coverage.id !== id ? coverageById(scene.coverage.id) : null;
   if (last) {
-    const was = named(a.coverage!.roles);
+    const was = named(scene.coverage!.roles);
     const untouched = new Set(last.cameras.map((cc) => made(last, cc, was)).map(rule));
-    anim = { ...anim, cameras: anim.cameras!.filter((x) => !x.made?.startsWith(`${last.id}:`) || !untouched.has(rule(x))) };
+    cameras = cameras.filter((x) => !x.made?.startsWith(`${last.id}:`) || !untouched.has(rule(x)));
   }
   const ids = new Map<string, string>();
   for (const cc of c.cameras) {
     const want = made(c, cc, named(roles));
-    const old = anim.cameras!.find((x) => x.made === want.made);
+    const old = cameras.find((x) => x.made === want.made);
     if (old && !(before && rule(old) === rule(made(c, cc, before)))) {
       // Edited by hand since it was made.
       ids.set(cc.key, old.id);
       continue;
     }
-    const cam: Camera = { ...want, id: old?.id ?? newCamera(anim).id };
-    anim = { ...anim, cameras: old ? anim.cameras!.map((x) => (x === old ? cam : x)) : [...anim.cameras!, cam] };
+    const cam: Camera = { ...want, id: old?.id ?? newCamera({ cameras }).id };
+    cameras = old ? cameras.map((x) => (x === old ? cam : x)) : [...cameras, cam];
     ids.set(cc.key, cam.id);
   }
   const captions = new Map(shotSpans(a).filter((s) => s.shot.caption).map((s) => [Math.round(s.start * a.fps), s.shot.caption!]));
   const shots: Shot[] = cutsFor(scene, c, roles).map((cut, i) => {
     const caption = captions.get(Math.round(cut.t * a.fps));
-    const cam = cameraById(anim, ids.get(cut.camera));
-    return { ...newShot(cut.t, `Shot ${i + 1}`, i === 0 ? 'main' : undefined), ...(cam ? { camera: cam.id } : {}), ...(caption ? { caption } : {}) };
+    return { ...newShot(cut.t, `Shot ${i + 1}`, ids.get(cut.camera) ?? cameras[0].id, i === 0 ? 'main' : undefined), ...(caption ? { caption } : {}) };
   });
-  return { ...scene, animation: { ...anim, shots, coverage: { id, roles: { ...roles } } } };
+  return { ...scene, cameras, coverage: { id, roles: { ...roles } }, animation: { ...a, shots } };
 }
 
 /** Who plays a coverage's roles: A the given figure (else the first), B the one nearest A. */

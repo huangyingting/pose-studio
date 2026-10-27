@@ -49,7 +49,7 @@ const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
   if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length || lib.models?.length || lib.templates?.length) return false;
-  const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })) });
+  const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })), cameras: sc.cameras.map((c) => ({ ...c, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
 

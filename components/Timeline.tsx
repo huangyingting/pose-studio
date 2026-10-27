@@ -112,7 +112,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
   const spans = shotSpans(a);
-  const camTimes = pointTimes(a);
+  const camTimes = pointTimes(scene);
   const onCamKey = camTimes.some(near);
   // Motion check results, valid until the animation changes.
   const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
@@ -251,15 +251,15 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     if (e.button !== 0) return;
     e.stopPropagation();
     seek(t);
-    const cam = liveCamera(store.scene, t)?.id;
-    if (!cam) return;
+    const cam = liveCamera(store.scene, t).id;
     let from = t;
     const key = `campoint:${t}`;
     const move = (ev: PointerEvent) => {
       const to = snapTime(a, timeAt(ev.clientX));
       if (Math.abs(to - from) < 1e-6) return;
       retimeCameraPoint(store, from, to, key, cam);
-      const now = cameraById(store.scene.animation, cam)?.points.map((p) => p.t).find((x) => Math.abs(x - to) < 0.5 / a.fps);
+      const moved = cameraById(store.scene, cam);
+      const now = moved?.kind === 'path' ? moved.points.map((p) => p.t).find((x) => Math.abs(x - to) < 0.5 / a.fps) : undefined;
       if (now !== undefined) {
         from = now;
         store.setTime(now);
@@ -543,7 +543,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                   >
                     {!!sp.shot.blend && <i className="tl-blend" style={{ width: `${Math.min(100, (sp.shot.blend / (sp.end - sp.start)) * 100)}%` }} aria-hidden />}
                     {over && <TriangleAlert size={11} aria-hidden />}
-                    <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(a, sp.shot.camera) ? ` · ${cameraById(a, sp.shot.camera)!.name}` : ''}</span>
+                    <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(scene, sp.shot.camera) ? ` · ${cameraById(scene, sp.shot.camera)!.name}` : ''}</span>
                     <em>{(sp.end - sp.start).toFixed(1)}s</em>
                   </button>
                 );
@@ -692,7 +692,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               ))}
               {!camTimes.length && (
                 <span className="tl-empty">
-                  {a.cameras?.some((c) => c.rig) ? 'Cameras placing themselves from their subjects (no points to key)' : 'No camera moves yet: frame a view and press the camera button, or pick a move'}
+                  {spans.every((sp) => cameraById(scene, sp.shot.camera)?.kind === 'rig') ? 'Cameras placing themselves from their subjects (no points to key)' : 'No camera moves yet: frame a view and press the camera button, or pick a move'}
                 </span>
               )}
             </div>

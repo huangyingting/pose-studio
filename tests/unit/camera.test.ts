@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, applyCameraMove, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, applyCameraMove, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
-import { parseScene } from '@/lib/doc';
+import { newScene, parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
 import { Rig } from '@/lib/relations';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
-import { videoSize } from '@/lib/render';
+import { DEFAULT_EXPORT, exportCells, videoSize } from '@/lib/render';
 import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
-import type { Scene } from '@/lib/types';
+import type { RigCamera, Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
 /** Where on screen (−1 … 1, up +) a point is seen by the shot camera at t. */
@@ -71,6 +71,8 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
   it('changes the lens keeping the subject\'s size (the camera moves) or the camera\'s place (it zooms)', () => {
     const { store } = fresh();
     startAnimation(store, 2);
+    // A path camera (a rig keeps its shot size whatever the lens).
+    setCameraBody(store, store.scene.cameras[0].id, 'path');
     frameShot(store, 'fs', { lens: 35 });
     const before = cameraAt(store.scene, 0);
     setLens(store, 70, 'size');
@@ -129,6 +131,7 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
   it('reports the camera going through someone', () => {
     const { store, a } = fresh();
     startAnimation(store, 2);
+    setCameraBody(store, store.scene.cameras[0].id, 'path');
     // A camera point inside the figure's chest, looking out.
     const chest = new THREE.Vector3(...store.scene.figures[0].position).setY(1.25);
     setCameraPoint(store, chest, chest.clone().add(new THREE.Vector3(0, 0, 3)), 40);
@@ -156,9 +159,9 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     editCamera(store, two, { name: 'Wide' });
     store.setTime(1.5);
     frameShot(store, 'ws', { lens: 24 });
-    expect(store.scene.animation!.cameras!.map((c) => c.name)).toEqual([one.name, 'Wide']);
+    expect(store.scene.cameras.map((c) => c.name)).toEqual([one.name, 'Wide']);
     expect(cameraAt(store.scene, 0.5).position.distanceTo(before[0])).toBeLessThan(1e-6);
-    const wide = store.scene.animation!.cameras![1];
+    const wide = store.scene.cameras[1];
     expect(cameraAt(store.scene, 1.5).position.distanceTo(viewOf(store.scene, wide, 1.5).position)).toBeLessThan(1e-6);
     // Blending in over half a second: from where the first camera would be, to the second, smoothly.
     editShot(store, spans[1].shot.id, { blend: 0.5 });
@@ -168,14 +171,17 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     const mid = cameraAt(store.scene, 1.25).position;
     const ends = [viewOf(store.scene, one, 1.25).position, viewOf(store.scene, wide, 1.25).position];
     expect(mid.distanceTo(ends[0]) + mid.distanceTo(ends[1])).toBeLessThan(ends[0].distanceTo(ends[1]) * 1.01);
-    // Kept as saved; a camera removed leaves its shots to the still camera.
+    // Kept as saved; a camera removed leaves its shots to the first of the others; the last stays.
     expect(parseScene(JSON.parse(JSON.stringify(store.scene)))).toEqual(store.scene);
     deleteCamera(store, wide.id);
-    expect(store.scene.animation!.shots![1].camera).toBeUndefined();
-    // A subject for a shot: on its camera when no other shot films with it.
+    expect(store.scene.animation!.shots[1].camera).toBe(one.id);
+    deleteCamera(store, one.id);
+    expect(store.scene.cameras.map((c) => c.id)).toEqual([one.id]);
+    // A subject for a shot: on a copy of its camera, as the other shot films with it too.
     setShotSubject(store, spans[0].shot.id, a);
-    expect(store.scene.animation!.shots![0].camera).toBe(one.id);
-    expect(store.scene.animation!.cameras!.map((c) => c.subject)).toEqual([a]);
+    const [own, other] = store.scene.animation!.shots.map((x) => x.camera);
+    expect(other).toBe(one.id);
+    expect(store.scene.cameras.map((c) => [c.id, c.subject])).toEqual([[one.id, undefined], [own, a]]);
     expect(walk.to).toBeGreaterThan(1.5);
   });
 
@@ -186,8 +192,9 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     const walk = travelTo(store, a, [0, 3], 'walk')!;
     store.setTime(0);
     applyCameraMove(store, 'tracking');
-    const cam = () => liveCamera(store.scene, 0)!;
-    expect(cam().rig).toMatchObject({ body: 'follow', size: 'mws' });
+    const cam = () => liveCamera(store.scene, 0);
+    expect(cam()).toMatchObject({ kind: 'rig' });
+    expect((cam() as RigCamera).rig).toMatchObject({ body: 'follow', size: 'mws' });
     editCamera(store, cam().id, { subject: a });
     frameShot(store, 'ms');
     const held = (t: number) => {
@@ -242,19 +249,66 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     startAnimation(store, 4);
     store.setTime(0);
     applyCameraMove(store, 'circle');
-    const cam = liveCamera(store.scene, 0)!;
+    const cam = liveCamera(store.scene, 0) as RigCamera;
     expect(cam.rig).toMatchObject({ body: 'orbit', spin: 45 });
     const around = (t: number) => angleOf(cameraAt(store.scene, t)).yaw;
     expect(((around(2) - around(0) + 540) % 360) - 180).toBeCloseTo(90, 0);
     // As a path: the camera goes where it went.
     const before = [0.5, 1.7, 3.2].map((t) => cameraAt(store.scene, t).position);
     setCameraBody(store, cam.id, 'path');
-    expect(liveCamera(store.scene, 0)!.rig).toBeUndefined();
+    expect(liveCamera(store.scene, 0).kind).toBe('path');
     [0.5, 1.7, 3.2].forEach((t, i) => expect(cameraAt(store.scene, t).position.distanceTo(before[i])).toBeLessThan(0.15));
     // Following again, from where it is at the playhead.
     store.setTime(1.7);
     const at = cameraAt(store.scene, 1.7);
     setCameraBody(store, cam.id, 'follow');
     expect(cameraAt(store.scene, 1.7).position.distanceTo(at.position)).toBeLessThan(0.3);
+  });
+});
+
+describe('one camera model: stills and shots film through the scene\'s cameras', () => {
+  it('a still scene has cameras, framed by shot size and lens in mm, and exports through them', () => {
+    const { store, a } = fresh();
+    expect(store.scene.cameras).toHaveLength(1);
+    expect('view' in parseScene({ ...store.scene, view: { yaw: 90, pitch: 0, fov: 30 } })).toBe(false);
+    const id = addCamera(store);
+    editCamera(store, id, { subject: a });
+    frameShot(store, 'mcu', { lens: 85, camera: id });
+    const cam = store.scene.cameras.find((c) => c.id === id)!;
+    expect(cam).toMatchObject({ kind: 'path', points: [{ lens: 85 }] });
+    expect(sizeOf(store.scene, cam, 0, viewOf(store.scene, cam, 0))).toBe('mcu');
+    // A still is taken by the first camera, or by the one picked.
+    const o = { ...DEFAULT_EXPORT, scope: 'current' as const };
+    const aspect = o.cellWidth / o.cellHeight;
+    const [first] = exportCells([store.scene], store.scene, o);
+    expect(first.camera!.position.distanceTo(viewOf(store.scene, store.scene.cameras[0], 0, aspect).position)).toBeLessThan(1e-9);
+    const [picked] = exportCells([store.scene], store.scene, o, 0, id);
+    expect(picked.camera!.position.distanceTo(viewOf(store.scene, cam, 0, aspect).position)).toBeLessThan(1e-9);
+    expect(picked.camera!.lens).toBe(85);
+  });
+
+  it('a still of an animated scene is what the shot camera shows then; removing the animation keeps the cameras', () => {
+    const { store, a } = fresh();
+    store.setTime(0);
+    travelTo(store, a, [0, 3], 'walk');
+    applyCameraMove(store, 'orbit90');
+    const o = { ...DEFAULT_EXPORT, scope: 'current' as const };
+    const [cell] = exportCells([store.scene], store.scene, o, 1.3);
+    expect(cell.camera!.position.distanceTo(cameraAt(store.scene, 1.3, o.cellWidth / o.cellHeight).position)).toBeLessThan(1e-9);
+    const cameras = store.scene.cameras;
+    removeAnimation(store);
+    expect(store.scene.cameras).toEqual(cameras);
+  });
+
+  it('keeps a camera a path or a rig in the saved data, never both', () => {
+    const scene = parseScene({
+      ...newScene(),
+      cameras: [
+        { id: 'r', kind: 'rig', rig: { body: 'orbit', yaw: 30, pitch: 5, size: 'ms', lens: 35 }, points: [{ t: 0, position: [1, 1, 1], look: [0, 1, 0], lens: 50 }], anchor: 'world' },
+        { id: 'p', kind: 'path', anchor: 'world', aim: 'point', points: [{ t: 0, position: [1, 1, 1], look: [0, 1, 0], lens: 50 }], rig: { body: 'follow' } },
+      ],
+    });
+    expect(Object.keys(scene.cameras[0]).sort()).toEqual(['id', 'kind', 'name', 'rig']);
+    expect(Object.keys(scene.cameras[1]).sort()).toEqual(['aim', 'anchor', 'id', 'kind', 'name', 'points']);
   });
 });

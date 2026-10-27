@@ -9,7 +9,8 @@ import { handlesOf } from '@/lib/props';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
-import type { Scene } from '@/lib/types';
+import { cameraFrom } from '@/lib/doc';
+import type { Scene, View } from '@/lib/types';
 
 /*
  * Scenes made the way a user makes them, for the use case of filming several people moving
@@ -35,6 +36,9 @@ export const fresh = () => {
   const store = new Store(new MemoryStorage());
   return { store, a: store.figure!.id };
 };
+
+/** The scene's first camera seeing it from an angle (as a user turns it to). */
+export const seenFrom = (store: Store, view: View) => store.updateScene((s) => ({ ...s, cameras: [{ ...cameraFrom(view), id: s.cameras[0].id }, ...s.cameras.slice(1)] }));
 
 export const figureAt = (scene: Scene) => (id: string, t: number) => sceneAt(scene, t).figures.find((f) => f.id === id) ?? null;
 

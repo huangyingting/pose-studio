@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/evaluate';
-import { addFigures, appendScenes, setSceneView } from '@/lib/actions';
-import { newFigure, newScene } from '@/lib/doc';
+import { addCamera, addFigures, appendScenes } from '@/lib/actions';
+import { cameraFrom, newFigure, newScene } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
@@ -13,12 +13,12 @@ import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
   canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, videoSize, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
-import { cameraAt, frameAspect } from '@/lib/cameras';
+import { cameraAt, frameAspect, withCamera, type CameraView } from '@/lib/cameras';
 import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import type { BodyParams, Figure, Style, View } from '@/lib/types';
+import type { BodyParams, Figure, Style } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
 import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
@@ -37,7 +37,7 @@ function loadExportOptions(): ExportOptions {
 }
 
 
-export function ExportDialog({ onClose, notify, currentView }: { onClose(): void; notify: Notify; currentView(): View | null }) {
+export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): void; notify: Notify; editorCamera(): CameraView | null }) {
   const store = useStore();
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
@@ -46,6 +46,9 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
   const time = useStudio((s) => s.time);
   const animated = !!scene.animation;
   const [o, setO] = useState<ExportOptions>(loadExportOptions);
+  // The camera stills are taken through: '' is the one filming at the playhead (a still scene: its first).
+  const [picked, setPicked] = useState('');
+  const camera = scene.cameras.some((c) => c.id === picked) ? picked : '';
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const abort = useRef<AbortController | null>(null);
@@ -62,8 +65,8 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
   // The pose library sheet shows each pose on its own figure (the reference sheet layout).
   const poseCount = allPoses(library).length;
   const cells = useMemo(
-    () => exportCells(scope === 'poses' ? allPoses(library).map((p) => poseScene(p)) : scenes, scene, { ...o, scope }),
-    [o, scope, scenes, scene, library],
+    () => exportCells(scope === 'poses' ? allPoses(library).map((p) => poseScene(p)) : scenes, scene, { ...o, scope }, time, camera || undefined),
+    [o, scope, scenes, scene, library, time, camera],
   );
   const size = filmed ? videoSize(o.videoSize, frameAspect(scene)) : sheetSize(cells.length, o);
   const { width, height } = size;
@@ -245,13 +248,18 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
             </Field>
           )}
           {(scope === 'current' || scope === 'turnaround' || scope === 'frames') && (
-            // Stills of this scene are taken from its own camera (saved with it), not the editor's.
             <Field label="Camera">
-              <Slider label="Turn" min={-180} max={180} value={scene.view.yaw} display={`${Math.round(scene.view.yaw)}°`} typeable onChange={(yaw) => setSceneView(store, { ...scene.view, yaw })} />
-              <Slider label="Height" min={-60} max={89} value={scene.view.pitch} display={`${Math.round(scene.view.pitch)}°`} typeable onChange={(pitch) => setSceneView(store, { ...scene.view, pitch })} />
-              <Slider label="Lens (field of view)" min={8} max={70} value={scene.view.fov} display={`${Math.round(scene.view.fov)}°`} typeable onChange={(fov) => setSceneView(store, { ...scene.view, fov })} />
-              <button type="button" className="btn subtle" onClick={() => { const v = currentView(); if (v) setSceneView(store, { ...scene.view, yaw: v.yaw, pitch: v.pitch }); }}>
-                Use the editor&apos;s view
+              <Select<string>
+                label="Camera"
+                value={camera}
+                onChange={setPicked}
+                options={[
+                  { value: '', label: animated ? 'Filming at the playhead' : scene.cameras[0].name },
+                  ...scene.cameras.slice(animated ? 0 : 1).map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+              <button type="button" className="btn subtle" onClick={() => { const v = editorCamera(); if (v) setPicked(addCamera(store, v, false)); }}>
+                New camera from the editor view
               </button>
             </Field>
           )}
@@ -427,18 +435,19 @@ export function PhotoDialog({ onClose, notify, onReference }: {
 
   const apply = () => {
     const { figures, skipped } = poseFigures(people, body);
-    const photoView = { yaw: 0, pitch: 0, fov: 30 };
+    // A camera looking as the photo did (straight on), to check the pose against it from there.
+    const photo = cameraFrom({ yaw: 0, pitch: 0, fov: 30 }, 'Photo camera');
     if (target === 'new') {
-      const s = newScene('From photo', figures);
-      s.view = photoView;
-      appendScenes(store, [s]);
+      appendScenes(store, [{ ...newScene('From photo', figures), cameras: [photo] }]);
     } else if (activeFigure) {
       const [first, ...rest] = figures;
-      store.updateScene((s) => ({
-        ...s,
-        view: photoView,
-        figures: s.figures.map((f) => (f.id === activeFigure ? { ...f, bones: first.bones } : f)),
-      }));
+      store.updateScene((s) => {
+        const had = s.cameras.find((c) => c.name === photo.name);
+        return {
+          ...withCamera(s, had ? { ...photo, id: had.id } : photo),
+          figures: s.figures.map((f) => (f.id === activeFigure ? { ...f, bones: first.bones } : f)),
+        };
+      });
       if (rest.length) addFigures(store, rest);
     }
     if (asReference && url) onReference(url);

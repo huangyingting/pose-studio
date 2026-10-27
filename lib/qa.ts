@@ -8,7 +8,7 @@ import { Rig, capsules, type Capsule } from './relations';
 import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
-import { cameraAt, cameraById, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
+import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
 import { shotSpans } from './shots';
 import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
@@ -445,8 +445,6 @@ function cameraInside(scene: Scene): Issue[] {
   const issues: Issue[] = [];
   const step = 0.1;
   for (const span of shotSpans(a)) {
-    const cam = cameraById(a, span.shot.camera);
-    if (!cam?.rig && !cam?.points.length) continue;
     const runs = new Map<string, { start: number; end: number; name: string; figure: string }>();
     for (let t = span.start; t < span.end - 1e-6; t += step) {
       const now = sceneAt(scene, t);

@@ -78,8 +78,8 @@ function ShotFilming({ span }: { span: ShotSpan }) {
   const scene = useScene();
   const a = scene.animation!;
   const shot = span.shot;
-  const cam = cameraById(a, shot.camera);
-  const also = cam ? shotSpans(a).filter((s) => s.shot.id !== shot.id && s.shot.camera === cam.id) : [];
+  const cam = cameraById(scene, shot.camera) ?? scene.cameras[0];
+  const also = shotSpans(a).filter((s) => s.shot.id !== shot.id && s.shot.camera === cam.id);
   return (
     <>
       <Section title="Filmed by">
@@ -87,16 +87,15 @@ function ShotFilming({ span }: { span: ShotSpan }) {
           <span>Camera</span>
           <Select<string>
             label="Shot camera"
-            value={cam?.id ?? ''}
+            value={cam.id}
             onChange={(v) => {
-              if (v !== NEW) return editShot(store, shot.id, { camera: v || null });
+              if (v !== NEW) return editShot(store, shot.id, { camera: v });
               const t = store.getState().time;
               if (t < span.start - 1e-6 || t >= span.end - 1e-6) store.setTime(span.start);
               addCamera(store);
             }}
             options={[
-              { value: '', label: 'Still camera (everyone in view)' },
-              ...(a.cameras ?? []).map((c) => ({ value: c.id, label: c.name })),
+              ...scene.cameras.map((c) => ({ value: c.id, label: c.name })),
               { value: NEW, label: 'New camera from the view' },
             ]}
           />
@@ -118,7 +117,7 @@ function ShotFilming({ span }: { span: ShotSpan }) {
         )}
         {also.length > 0 && (
           <p className="hint-text">
-            {cam!.name} also films {also.map((s) => s.shot.name).join(', ')}: changing it changes those too.{' '}
+            {cam.name} also films {also.map((s) => s.shot.name).join(', ')}: changing it changes those too.{' '}
             <button type="button" className="btn subtle" onClick={() => ownCamera(store, shot.id)}><Copy size={13} aria-hidden /> A copy for this shot</button>
           </p>
         )}

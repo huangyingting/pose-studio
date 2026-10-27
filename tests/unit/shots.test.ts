@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { applyCameraMove, cutShot, editShot, moveCameraPoint, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
 import { cameraAt, liveCamera } from '@/lib/cameras';
-import type { Scene } from '@/lib/types';
+import type { PathCamera, Scene } from '@/lib/types';
 import { parseScene } from '@/lib/doc';
 import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
@@ -99,7 +99,7 @@ describe('keyframe pack pieces', () => {
     const store = animatedStore();
     applyCameraMove(store, 'orbit90');
     const cam = liveCamera(store.scene, 0)!.id;
-    const points = () => store.scene.animation!.cameras!.find((c) => c.id === cam)!.points;
+    const points = () => (store.scene.cameras.find((c) => c.id === cam) as PathCamera).points;
     const [first, last] = [points()[0], points()[points().length - 1]];
     moveCameraPoint(store, cam, last.t, new THREE.Vector3(3, 2, 4), 'drag');
     moveCameraPoint(store, cam, last.t, new THREE.Vector3(4, 2, 4), 'drag');

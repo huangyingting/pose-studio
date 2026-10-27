@@ -1,6 +1,6 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
-import { DEFAULT_FPS, normalize, parseShots, remapAnimation } from './animation';
+import { DEFAULT_FPS, normalize, parseCameras, parseShots, remapAnimation, remapCameras } from './animation';
 import { clipInfo } from './clip';
 import { parseBoard } from './board';
 import { uid } from './uid';
@@ -10,7 +10,7 @@ import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bon
 import { clampLight } from './lighting';
 import {
   BONES, FINGERS, FRAME_SHAPES, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type FrameShape, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type PoseAsset,
+  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type FrameShape, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -53,8 +53,31 @@ export function withPosture(f: Figure, posture: Posture): Figure {
   return { ...f, proxy: posture, bones: bonesOf({ ...p, hips: [root[0], facingOf(f.bones), root[2]] }) };
 }
 
+/**
+ * A scene's first camera: everyone in a full shot from the front, a little above eye level,
+ * kept in frame as they move.
+ */
+export function defaultCamera(name = 'Camera 1'): Camera {
+  return { id: uid('cam'), name, kind: 'rig', rig: { body: 'follow', yaw: 0, pitch: 4, size: 'fs', lens: 50 } };
+}
+
+/** A first camera seeing a scene from an angle (as a still is drawn from): everyone in a full shot. */
+export function cameraFrom(view: View, name = 'Camera 1'): Camera {
+  // The lens with that field of view on a 16:9 full-frame sensor (20.25 mm high).
+  const lens = Math.round(10.125 / Math.tan((Math.min(170, Math.max(1, view.fov)) * Math.PI) / 360));
+  return { ...defaultCamera(name), kind: 'rig', rig: { body: 'follow', yaw: wrapDeg(view.yaw), pitch: view.pitch, size: 'fs', lens } };
+}
+
 export function newScene(name = 'New scene', figures: Figure[] = [newFigure()]): Scene {
-  return { id: uid('s'), name, figures, props: [], view: { ...DEFAULT_VIEW } };
+  return { id: uid('s'), name, figures, props: [], cameras: [defaultCamera()] };
+}
+
+/** A scene with a camera, if it has none (a saved template opened): its shots filmed by it. */
+export function ensureCamera(scene: Scene): Scene {
+  if (scene.cameras.length) return scene;
+  const cam = defaultCamera();
+  const animation = scene.animation && { ...scene.animation, shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: cam.id }] };
+  return { ...scene, cameras: [cam], ...(animation ? { animation } : {}) };
 }
 
 const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
@@ -100,6 +123,7 @@ export function duplicateScene(s: Scene): Scene {
       ...(p.hold ? { hold: { ...p.hold, figure: ids.get(p.hold.figure) ?? p.hold.figure } } : {}),
     })),
   };
+  Object.assign(copy, remapCameras(s, ids));
   if (s.animation) copy.animation = remapAnimation(s.animation, ids, propIds);
   return copy;
 }
@@ -231,10 +255,15 @@ export function parseScene(v: unknown, i = 0): Scene {
     figures,
     props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null)
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
-    view: parseView(v.view),
+    cameras: parseCameras(v.cameras),
     ...(isObj(v.light) ? { light: clampLight(v.light as Partial<Light>) } : {}),
   };
-  const animation = parseAnimation(v.animation, ids, new Set(scene.props.map((p) => p.id)));
+  if (!scene.cameras.length) scene.cameras = [defaultCamera()];
+  if (isObj(v.coverage) && typeof v.coverage.id === 'string' && isObj(v.coverage.roles)) {
+    const roles = Object.entries(v.coverage.roles).filter((e): e is [string, string] => typeof e[1] === 'string' && ids.has(e[1])).slice(0, 8);
+    scene.coverage = { id: v.coverage.id.slice(0, 40), roles: Object.fromEntries(roles) };
+  }
+  const animation = parseAnimation(v.animation, ids, new Set(scene.props.map((p) => p.id)), scene.cameras.map((c) => c.id));
   if (animation) scene.animation = normalize(animation, figures);
   return scene;
 }
@@ -391,7 +420,7 @@ function parseConstraint(v: unknown, figures: Set<string>, props: Set<string>, d
   return { id: str(v.id, uid('hold')).slice(0, 40), figure: v.figure as string, bone: v.bone as Holder, target, start, end: Math.min(60, Math.max(start, num(v.end, start))) };
 }
 
-export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>): Animation | undefined {
+export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>, cameras: string[]): Animation | undefined {
   if (!isObj(v)) return undefined;
   const duration = Math.min(60, Math.max(0.2, num(v.duration, 2)));
   const fps = Math.round(Math.min(60, Math.max(4, num(v.fps, DEFAULT_FPS))));
@@ -408,17 +437,22 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   for (const list of Object.values(props)) list.sort((p, q) => p.t - q.t);
   if (!actions.length && !Object.keys(props).length) return undefined;
   const holds = (Array.isArray(v.constraints) ? v.constraints.slice(0, 500) : []).map((c) => parseConstraint(c, figures, propIds, duration)).filter((c): c is Constraint => c !== null);
-  const anim: Animation = { duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}) };
-  Object.assign(anim, parseShots(v.shots, v.cameras, duration));
-  if (isObj(v.coverage) && typeof v.coverage.id === 'string' && isObj(v.coverage.roles)) {
-    const roles = Object.entries(v.coverage.roles).filter((e): e is [string, string] => typeof e[1] === 'string' && figures.has(e[1])).slice(0, 8);
-    anim.coverage = { id: v.coverage.id.slice(0, 40), roles: Object.fromEntries(roles) };
-  }
+  const anim: Animation = {
+    duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}),
+    shots: parseShots(v.shots, duration, cameras),
+  };
   if (typeof v.target === 'string' && v.target.length <= 40) anim.target = v.target;
   if (FRAME_SHAPES.includes(v.frame as FrameShape) && v.frame !== '16:9') anim.frame = v.frame as FrameShape;
   return anim;
 }
 
+
+/** A template's scene keeps no cameras, coverage or cuts. */
+function bareTemplate(scene: Scene): Scene {
+  const { coverage: _c, ...rest } = scene;
+  void _c;
+  return { ...rest, cameras: [], ...(scene.animation ? { animation: { ...scene.animation, shots: [] } } : {}) };
+}
 
 /** Accepts a library, or throws on unusable input. */
 export function parseLibrary(data: unknown): Library {
@@ -439,7 +473,7 @@ export function parseLibrary(data: unknown): Library {
   const templates = (Array.isArray(data.templates) ? data.templates : []).slice(0, 200).filter(isObj).map((t, i) => ({
     id: typeof t.id === 'string' && t.id ? t.id.slice(0, 40) : uid('tpl'),
     name: typeof t.name === 'string' && t.name ? t.name.slice(0, 80) : `Template ${i + 1}`,
-    scene: parseScene(t.scene, i),
+    scene: bareTemplate(parseScene(t.scene, i)),
   }));
   return {
     version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),

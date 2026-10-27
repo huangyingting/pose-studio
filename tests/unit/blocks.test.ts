@@ -4,8 +4,9 @@ import {
 } from '@/lib/actions';
 import { actionsOf, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
 import { newAnimation } from '@/lib/animation';
+import { newScene } from '@/lib/doc';
 import { actionLabel, retimeAction, rippleInStep } from '@/lib/track';
-import type { Action, Animation, Scene } from '@/lib/types';
+import type { Action, Animation } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
 const ends = (store: ReturnType<typeof fresh>['store'], id: string) => actionsOf(store.scene.animation!, id).map((x) => +(x.start + x.duration).toFixed(3));
@@ -118,7 +119,7 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     const travel = (id: string, figure: string, start: number, duration: number, layer?: Action['layer']): Action => ({
       id, start, duration, roles: [{ figure }], source: { kind: 'travel', mode: 'walk' }, ...(layer ? { layer } : {}),
     });
-    const base: Animation = { ...newAnimation({ figures: [], props: [] } as unknown as Scene, 20), actions: [] };
+    const base: Animation = { ...newAnimation(newScene('Blocks', []), 20), actions: [] };
     const starts = (a: Animation) => Object.fromEntries(a.actions.map((x) => [x.id, x.start]));
 
     // A relay of three, then a duet of the first and the last: retiming the first leg moves the

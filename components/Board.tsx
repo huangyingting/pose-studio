@@ -18,7 +18,7 @@ const previewCache = new Map<string, string>();
 /** A small 16:9 frame of a scene through the camera filming its start (cached by everything it shows). */
 function preview(scene: Scene, style: Style, faces: boolean) {
   const a = scene.animation;
-  const key = JSON.stringify([style, faces, scene.figures, scene.props, scene.view, scene.light, a?.actions, a?.props, a?.constraints, a?.shots, a?.cameras, a?.frame]);
+  const key = JSON.stringify([style, faces, scene.figures, scene.props, scene.cameras, scene.light, a?.actions, a?.props, a?.constraints, a?.shots, a?.frame]);
   let url = previewCache.get(key);
   if (!url) {
     const c = document.createElement('canvas');

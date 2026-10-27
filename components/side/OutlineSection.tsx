@@ -144,22 +144,21 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
           </ul>
         </div>
 
-        {a && (
-          <div className="outline-group">
+        <div className="outline-group">
             <div className="outline-head">
-              <h3>Cameras <span className="count">{a.cameras?.length ?? 0}</span></h3>
+              <h3>Cameras <span className="count">{scene.cameras.length}</span></h3>
               <IconButton
                 icon={Plus}
-                label="New camera from the view, for the shot at the playhead"
-                onClick={() => { const id = addCamera(store); if (id) store.select({ kind: 'camera', camera: id }); }}
+                label={a ? 'New camera from the view, for the shot at the playhead' : 'New camera from the view'}
+                onClick={() => store.select({ kind: 'camera', camera: addCamera(store) })}
                 size={15}
               />
             </div>
             <ul className="layers" aria-label="Cameras">
-              {(a.cameras ?? []).map((c) => {
+              {scene.cameras.map((c) => {
                 const on = selection?.kind === 'camera' && selection.camera === c.id;
                 return (
-                  <li key={c.id} className={on ? 'on' : liveCamera(scene, time)?.id === c.id ? 'here' : ''}>
+                  <li key={c.id} className={on ? 'on' : liveCamera(scene, time).id === c.id ? 'here' : ''}>
                     <Row
                       id={c.id}
                       icon={Camera}
@@ -171,16 +170,16 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
                     >
                       <em>{spans.filter((sp) => sp.shot.camera === c.id).map((sp) => sp.index + 1).join(', ')}</em>
                     </Row>
-                    <span className="layer-actions">
-                      <IconButton icon={Trash2} label={`Delete ${c.name}`} onClick={() => { deleteCamera(store, c.id); notifyUndo(`Deleted ${c.name}`); }} size={14} />
-                    </span>
+                    {scene.cameras.length > 1 && (
+                      <span className="layer-actions">
+                        <IconButton icon={Trash2} label={`Delete ${c.name}`} onClick={() => { deleteCamera(store, c.id); notifyUndo(`Deleted ${c.name}`); }} size={14} />
+                      </span>
+                    )}
                   </li>
                 );
               })}
-              {!a.cameras?.length && <li className="outline-empty">The still camera films everyone</li>}
             </ul>
-          </div>
-        )}
+        </div>
 
         <div className="outline-group">
           <div className="outline-head">

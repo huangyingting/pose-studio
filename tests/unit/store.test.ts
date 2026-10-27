@@ -57,9 +57,10 @@ describe('Store', () => {
 
   it('merges continuous edits with the same key into one undo step', () => {
     const store = new Store(seeded());
-    for (let i = 0; i < 10; i++) store.updateScene((s) => ({ ...s, view: { ...s.view, yaw: i } }), 'drag');
+    const name = store.scene.name;
+    for (let i = 0; i < 10; i++) store.updateScene((s) => ({ ...s, name: `Take ${i}` }), 'drag');
     store.undo();
-    expect(store.scene.view.yaw).toBe(0); // preset value, not 8
+    expect(store.scene.name).toBe(name); // as it was, not Take 8
   });
 
   it('clears the selection when its target disappears', () => {

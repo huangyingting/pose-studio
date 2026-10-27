@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clampLight, DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
-import { newScene, parseScene } from '@/lib/doc';
+import { cameraFrom, newScene, parseScene } from '@/lib/doc';
+import { angleAt } from '@/lib/cameras';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
 import { builtInPoses, poseScene } from '@/lib/poses';
 
@@ -36,21 +37,22 @@ describe('export options', () => {
 
   it('builds a turnaround from evenly spaced angles around the figure', () => {
     const scenes = refScenes();
-    const current = { ...scenes[3], view: { yaw: 25, pitch: 10, fov: 24 } };
-    const cells = exportCells(scenes, current, { scope: 'turnaround', angles: 8, frames: 8 });
-    expect(cells.map((c) => c.scene.view.yaw)).toEqual([0, 45, 90, 135, 180, -135, -90, -45]);
-    expect(cells.every((c) => c.scene.view.pitch === 10 && c.scene.view.fov === 24)).toBe(true);
+    const current = { ...scenes[3], cameras: [cameraFrom({ yaw: 25, pitch: 10, fov: 24 })] };
+    const cells = exportCells(scenes, current, { ...DEFAULT_EXPORT, scope: 'turnaround', angles: 8 });
+    expect(cells.map((c) => c.angle.yaw)).toEqual([0, 45, 90, 135, 180, -135, -90, -45]);
+    // From the height and lens of the scene's camera.
+    expect(new Set(cells.map((c) => `${c.angle.pitch} ${c.angle.fov}`)).size).toBe(1);
+    expect(cells[0].angle.pitch).toBeCloseTo(angleAt(current).pitch, 6);
     expect(cells.map((c) => c.caption)).toContain('Back');
-    // The pose itself is not modified.
-    expect(current.view.yaw).toBe(25);
+    expect(cells.every((c) => c.scene === current)).toBe(true);
   });
 
   it('numbers captions for the whole library', () => {
     const scenes = refScenes();
-    const cells = exportCells(scenes, scenes[0], { scope: 'all', angles: 4, frames: 8 });
+    const cells = exportCells(scenes, scenes[0], { ...DEFAULT_EXPORT, scope: 'all' });
     expect(cells).toHaveLength(20);
     expect(cells[1].caption).toBe(`2. ${scenes[1].name}`);
-    expect(exportCells(scenes, scenes[4], { scope: 'current', angles: 4, frames: 8 })).toEqual([{ scene: scenes[4], caption: scenes[4].name }]);
+    expect(exportCells(scenes, scenes[4], { ...DEFAULT_EXPORT, scope: 'current' })).toMatchObject([{ scene: scenes[4], caption: scenes[4].name }]);
   });
 });
 
@@ -79,10 +81,10 @@ describe('gesture practice', () => {
     const slides = buildSession(scenes, scenes[2], { ...DEFAULT_PRACTICE, source: 'current', count: 5 }, seeded(11));
     expect(slides).toHaveLength(5);
     expect(slides.every((s) => s.scene.figures === scenes[2].figures)).toBe(true);
-    expect(new Set(slides.map((s) => s.scene.view.yaw)).size).toBeGreaterThan(1);
+    expect(new Set(slides.map((s) => s.angle.yaw)).size).toBeGreaterThan(1);
     for (const s of slides) {
-      expect(s.scene.view.pitch).toBeGreaterThanOrEqual(-10);
-      expect(s.scene.view.pitch).toBeLessThanOrEqual(35);
+      expect(s.angle.pitch).toBeGreaterThanOrEqual(-10);
+      expect(s.angle.pitch).toBeLessThanOrEqual(35);
     }
   });
 

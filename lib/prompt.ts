@@ -40,9 +40,9 @@ function cast(scene: Scene) {
 }
 
 function movement(scene: Scene, span: ShotSpan) {
-  const cam = cameraById(scene.animation, span.shot.camera);
+  const cam = cameraById(scene, span.shot.camera) ?? scene.cameras[0];
   const moves: string[] = [];
-  if (scene.animation && (cam?.rig || (cam?.points.length ?? 0) > 1)) {
+  if (scene.animation && (cam.kind === 'rig' || cam.points.length > 1)) {
     // The camera over the shot, a few times: how near it is, its lens, angle and height.
     const n = 8;
     const views = Array.from({ length: n + 1 }, (_, i) => cameraAt(scene, span.start + ((span.end - 1e-3 - span.start) * i) / n));
@@ -61,9 +61,9 @@ function movement(scene: Scene, span: ShotSpan) {
     if (rise > 20) moves.push('crane up');
     else if (rise < -20) moves.push('crane down');
   }
-  if (scene.animation && cam?.rig?.body === 'follow') moves.push(cam.rig.turn && Math.abs(cam.rig.yaw) > 135 ? 'following shot from behind the subject' : 'tracking shot that follows the subject');
-  else if (scene.animation && !cam?.rig && cam?.anchor === 'subject') moves.push('tracking shot that follows the subject');
-  if ((cam?.shake ?? 0) > 0) moves.push('hand-held camera');
+  if (scene.animation && cam.kind === 'rig' && cam.rig.body === 'follow' && cam.subject) moves.push(cam.rig.turn && Math.abs(cam.rig.yaw) > 135 ? 'following shot from behind the subject' : 'tracking shot that follows the subject');
+  else if (scene.animation && cam.kind === 'path' && cam.anchor === 'subject') moves.push('tracking shot that follows the subject');
+  if ((cam.shake ?? 0) > 0) moves.push('hand-held camera');
   return moves.length ? moves.join(', ') : 'static camera';
 }
 
@@ -73,7 +73,7 @@ export function describeSpan(scene: Scene, span: ShotSpan) {
   const a = scene.animation;
   const c = cast(scene);
   const parts = [
-    `${FRAMING[sizeOf(scene, cameraById(scene.animation, span.shot.camera), span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view)}.`,
+    `${FRAMING[sizeOf(scene, cameraById(scene, span.shot.camera) ?? scene.cameras[0], span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view)}.`,
     `Camera: ${movement(scene, span)}.`,
     `${c[0].toUpperCase()}${c.slice(1)}: ${(span.shot.caption || scene.name).toLowerCase()}.`,
   ];
@@ -87,7 +87,7 @@ export function describeSpan(scene: Scene, span: ShotSpan) {
 /** The whole scene: one line per shot when it has cuts. */
 export function describeShot(scene: Scene) {
   const a = scene.animation;
-  if (!a) return describeSpan(scene, { shot: newShot(0, scene.name, 'main'), index: 0, start: 0, end: 0 });
+  if (!a) return describeSpan(scene, { shot: newShot(0, scene.name, scene.cameras[0].id, 'main'), index: 0, start: 0, end: 0 });
   const spans = shotSpans(a);
   if (spans.length === 1) return describeSpan(scene, spans[0]);
   return spans.map((s) => `${s.shot.name} (${s.start.toFixed(1)}–${s.end.toFixed(1)} s): ${describeSpan(scene, s)}`).join('\n');

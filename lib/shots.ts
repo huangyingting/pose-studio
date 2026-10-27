@@ -1,4 +1,4 @@
-import type { Animation, Camera, CameraPoint, Shot } from './types';
+import type { Animation, CameraPoint, PathCamera, Scene, Shot } from './types';
 
 /*
  * Shots: the cuts along an animation's timeline. Each shot runs from its start to the next shot's
@@ -38,10 +38,10 @@ export interface ShotSpan {
   end: number;
 }
 
-/** A new shot from `start`: no camera yet (the still camera's view of everyone). */
-export const newShot = (start: number, name: string, id = uid('sh')): Shot => ({ id, start, name });
+/** A new shot from `start`, filmed by a camera. */
+export const newShot = (start: number, name: string, camera: string, id = uid('sh')): Shot => ({ id, start, name, camera });
 
-const shotsOf = (a: Animation) => (a.shots?.length ? a.shots : [newShot(0, 'Shot 1', 'main')]);
+const shotsOf = (a: Animation) => a.shots;
 
 /** The shots with their time ranges. An animation without cuts is one shot. */
 export function shotSpans(a: Animation): ShotSpan[] {
@@ -76,13 +76,12 @@ export function cutAt(a: Animation, t: number): Animation {
   const i = shots.findIndex((s, k) => t > s.start && (k === shots.length - 1 || t < shots[k + 1].start));
   const old = shots[i];
   const first = { ...old, id: old.id === 'main' ? uid('sh') : old.id };
-  const second: Shot = { id: uid('sh'), start: t, name: '', ...(old.camera ? { camera: old.camera } : {}) };
+  const second: Shot = { id: uid('sh'), start: t, name: '', camera: old.camera };
   return { ...a, shots: renamed([...shots.slice(0, i), first, second, ...shots.slice(i + 1)]) };
 }
 
 /** Remove a cut: the shot before it runs on over its time. */
 export function removeCut(a: Animation, id: string): Animation {
-  if (!a.shots) return a;
   const i = a.shots.findIndex((s) => s.id === id);
   if (i <= 0) return a;
   return { ...a, shots: renamed(a.shots.filter((_, j) => j !== i)) };
@@ -94,57 +93,44 @@ export function updateShot(a: Animation, id: string, patch: Partial<Omit<Shot, '
 
 /* ---------- cameras ---------- */
 
-/** A new camera for an animation, named after the ones it has: fixed in the world, looking at its subject, no path yet. */
-export function newCamera(a: Animation, patch: Partial<Camera> = {}): Camera {
-  const names = new Set((a.cameras ?? []).map((c) => c.name));
-  let n = 1;
-  while (names.has(`Camera ${n}`)) n++;
-  return { id: uid('cam'), name: `Camera ${n}`, anchor: 'world', aim: 'subject', points: [], ...patch };
-}
-
-export function updateCamera(a: Animation, id: string, patch: Partial<Omit<Camera, 'id'>>): Animation {
-  return { ...a, cameras: (a.cameras ?? []).map((c) => (c.id === id ? { ...c, ...patch } : c)) };
-}
-
-/** Remove a camera: the shots it filmed are filmed by the still camera. */
-export function removeCamera(a: Animation, id: string): Animation {
-  const shots = a.shots?.map((s) => {
-    if (s.camera !== id) return s;
-    const { camera: _camera, ...rest } = s;
-    void _camera;
-    return rest;
-  });
-  return { ...a, cameras: (a.cameras ?? []).filter((c) => c.id !== id), ...(shots ? { shots } : {}) };
+/** Remove a camera (not the last): the shots it filmed are filmed by the first of the others. */
+export function removeCamera(scene: Scene, id: string): Scene {
+  const rest = scene.cameras.filter((c) => c.id !== id);
+  if (!rest.length || rest.length === scene.cameras.length) return scene;
+  const shots = scene.animation?.shots.map((s) => (s.camera === id ? { ...s, camera: rest[0].id } : s));
+  return { ...scene, cameras: rest, ...(scene.animation ? { animation: { ...scene.animation, shots: shots! } } : {}) };
 }
 
 /* ---------- path points ---------- */
 
-/** Put a path point of a camera at time t, replacing one within half a frame. */
-export function setPointAt(a: Animation, cam: Camera, t: number, point: Omit<CameraPoint, 't'>): Animation {
+/** A path camera with a point at time t (replacing one within half a frame). */
+export function setPointAt(cam: PathCamera, fps: number, t: number, point: Omit<CameraPoint, 't'>): PathCamera {
   const u = r3(t);
-  const points = [...cam.points.filter((p) => Math.abs(p.t - u) >= 0.5 / a.fps), { ...point, t: u }].sort((p, q) => p.t - q.t);
-  return updateCamera(a, cam.id, { points });
+  return { ...cam, points: [...cam.points.filter((p) => Math.abs(p.t - u) >= 0.5 / fps), { ...point, t: u }].sort((p, q) => p.t - q.t) };
 }
 
-/** Remove a camera's path point at time t. */
-export function removePointAt(a: Animation, cam: Camera, t: number): Animation {
-  return updateCamera(a, cam.id, { points: cam.points.filter((p) => Math.abs(p.t - t) >= 0.5 / a.fps) });
+/** A path camera without its point at time t (not its last one). */
+export function removePointAt(cam: PathCamera, fps: number, t: number): PathCamera {
+  const points = cam.points.filter((p) => Math.abs(p.t - t) >= 0.5 / fps);
+  return points.length ? { ...cam, points } : cam;
 }
 
-/** Retime a camera's path point at `from` to `to` (within the animation; not onto another point). */
-export function movePoint(a: Animation, cam: Camera, from: number, to: number): Animation {
+/** A path camera with its point at `from` retimed to `to` (within the animation; not onto another point). */
+export function movePoint(cam: PathCamera, a: Pick<Animation, 'fps' | 'duration'>, from: number, to: number): PathCamera {
   const v = r3(Math.min(a.duration, Math.max(0, to)));
   const tol = 0.5 / a.fps;
-  if (cam.points.some((p) => Math.abs(p.t - v) < tol && Math.abs(p.t - from) >= tol)) return a;
-  const points = cam.points.map((p) => (Math.abs(p.t - from) < tol ? { ...p, t: v } : p)).sort((p, q) => p.t - q.t);
-  return updateCamera(a, cam.id, { points });
+  if (cam.points.some((p) => Math.abs(p.t - v) < tol && Math.abs(p.t - from) >= tol)) return cam;
+  return { ...cam, points: cam.points.map((p) => (Math.abs(p.t - from) < tol ? { ...p, t: v } : p)).sort((p, q) => p.t - q.t) };
 }
 
 /** The path points that show on the timeline: each shot's camera's, over the shot's time. */
-export function pointTimes(a: Animation): number[] {
-  return shotSpans(a).flatMap((sp) => {
-    const cam = a.cameras?.find((c) => c.id === sp.shot.camera);
-    const last = sp.index === shotSpans(a).length - 1;
-    return (cam?.points ?? []).filter((p) => p.t >= sp.start - 1e-6 && (p.t < sp.end - 1e-6 || (last && p.t <= sp.end + 1e-6))).map((p) => p.t);
+export function pointTimes(scene: Scene): number[] {
+  const a = scene.animation;
+  if (!a) return [];
+  const spans = shotSpans(a);
+  return spans.flatMap((sp) => {
+    const cam = scene.cameras.find((c) => c.id === sp.shot.camera);
+    const last = sp.index === spans.length - 1;
+    return (cam?.kind === 'path' ? cam.points : []).filter((p) => p.t >= sp.start - 1e-6 && (p.t < sp.end - 1e-6 || (last && p.t <= sp.end + 1e-6))).map((p) => p.t);
   });
 }

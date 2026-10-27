@@ -1,4 +1,4 @@
-import { DEFAULT_VIEW, newFigure, newScene } from './doc';
+import { DEFAULT_VIEW, cameraFrom, newFigure, newScene } from './doc';
 import { cloneHand } from './hands';
 import { BUILT_IN_POSES } from './presets';
 import { facing, withFacing } from './relations';
@@ -22,7 +22,7 @@ export function allPoses(lib: Library): PoseAsset[] {
 /** A pose as a one-figure scene: for thumbnails, sheets and gesture practice. */
 export function poseScene(p: PoseAsset, body?: Figure['body']): Scene {
   const figure = newFigure({ id: `${p.id}-f`, name: 'Figure', bones: { ...p.bones }, hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) }, ...(body ? { body: { ...body } } : {}) });
-  return { ...newScene(p.name, [figure]), id: p.id, view: { ...p.view } };
+  return { ...newScene(p.name, [figure]), id: p.id, cameras: [cameraFrom(p.view)] };
 }
 
 /** A figure's pose (facing forward), to save in the library. */

@@ -1,4 +1,5 @@
-import { STYLES, type Scene, type Style } from './types';
+import { angleAt } from './cameras';
+import { STYLES, type Scene, type Style, type View } from './types';
 
 /*
  * Gesture-drawing practice: a timed slideshow of poses, like the timers artists use for
@@ -51,6 +52,8 @@ export function sessionLength(o: Pick<PracticeOptions, 'source' | 'count'>, libr
 
 export interface Slide {
   scene: Scene;
+  /** Where it is drawn from. */
+  angle: View;
   mirrored: boolean;
 }
 
@@ -74,10 +77,12 @@ export function buildSession(scenes: Scene[], current: Scene, o: PracticeOptions
   }
   // A single pose is only interesting from different angles.
   const randomAngle = o.randomAngle || o.source === 'current';
-  return pool.map((scene) => ({
-    scene: randomAngle
-      ? { ...scene, view: { ...scene.view, yaw: Math.round(random() * 360 - 180), pitch: Math.round(random() * 45 - 10) } }
-      : scene,
-    mirrored: o.mirror && random() < 0.5,
-  }));
+  return pool.map((scene) => {
+    const angle = angleAt(scene);
+    return {
+      scene,
+      angle: randomAngle ? { ...angle, yaw: Math.round(random() * 360 - 180), pitch: Math.round(random() * 45 - 10) } : angle,
+      mirrored: o.mirror && random() < 0.5,
+    };
+  });
 }

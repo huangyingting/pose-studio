@@ -30,7 +30,7 @@ const withKnee = (f: Figure, deg: number): Figure => ({ ...f, bones: withAngles(
 /** One figure keyed at these times. */
 function keyed(keys: [number, Figure][], loop = false, duration = 2): Scene {
   const s = newScene('Test', [keys[0][1]]);
-  return { ...s, animation: { duration, fps: 24, loop, actions: [keysAction(s.figures[0].id, keys.map(([t, pose]) => ({ t, pose })))] } };
+  return { ...s, animation: { duration, fps: 24, loop, actions: [keysAction(s.figures[0].id, keys.map(([t, pose]) => ({ t, pose })))], shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: s.cameras[0].id }] } };
 }
 
 function twoKeyScene(loop = false) {
@@ -75,7 +75,7 @@ describe('keyframe sampling', () => {
     expect(keyTimesOf(moveKeyTo(a, id, 1.25, 1), id)).toEqual([0, 1, 1.25]); // occupied
     a = removeKeyAt(a, id, 1);
     expect(keyAtTime(a, id, 1)).toBeNull();
-    expect(keyTimesOf(setDuration(a, 4), id)).toEqual([0, 2.5]);
+    expect(keyTimesOf(setDuration({ ...s, animation: a }, 4).animation!, id)).toEqual([0, 2.5]);
     expect(frameTimes({ ...a, duration: 1, fps: 24, loop: true }, 4)).toEqual([0, 0.25, 0.5, 0.75]);
   });
 
@@ -155,8 +155,10 @@ describe('animation templates', () => {
       const a = s.animation!;
       expect(s.figures, m.id).toHaveLength(m.people);
       expect(a.actions.length, m.id).toBeGreaterThan(m.people - 1);
-      // Only what the people do: no cameras, no set.
-      expect(a.cameras ?? a.shots ?? s.props[0], m.id).toBeUndefined();
+      // Only what the people do: one plain camera seeing them, no coverage, no set.
+      expect(s.cameras, m.id).toHaveLength(1);
+      expect(a.shots, m.id).toHaveLength(1);
+      expect(s.coverage ?? s.cameras[0].made ?? s.props[0], m.id).toBeUndefined();
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
       for (const x of a.actions) {
         if (x.source.kind !== 'keys') continue;

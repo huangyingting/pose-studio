@@ -536,7 +536,7 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
       <section aria-label="Coverage">
         <Group title="Coverage of the whole animation">
           {COVERAGES.map((c) => {
-            const cast = a?.coverage?.id === c.id ? a.coverage.roles : castCoverage(scene, c, active ?? undefined);
+            const cast = scene.coverage?.id === c.id ? scene.coverage.roles : castCoverage(scene, c, active ?? undefined);
             const who = cast ? c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ') : `needs ${c.roles.length} people`;
             return (
               <li key={c.id}>
@@ -546,14 +546,14 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
                   data-tip={`${c.description} (${who})`}
                   onClick={() => {
                     if (!coverScene(store, c.id)) return;
-                    const n = store.scene.animation!;
-                    notify(`${c.name}: ${n.cameras!.filter((x) => x.made?.startsWith(`${c.id}:`)).length} cameras, ${shotSpans(n).length} shots`);
+                    const n = store.scene;
+                    notify(`${c.name}: ${n.cameras.filter((x) => x.made?.startsWith(`${c.id}:`)).length} cameras, ${shotSpans(n.animation!).length} shots`);
                     onPick?.();
                   }}
                 >
                   <Clapperboard size={14} aria-hidden />
                   <span className="side-list-name">{c.name}</span>
-                  <em>{a?.coverage?.id === c.id ? 'again' : who}</em>
+                  <em>{scene.coverage?.id === c.id ? 'again' : who}</em>
                 </button>
               </li>
             );

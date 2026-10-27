@@ -1,7 +1,7 @@
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, ownCamera, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
-  setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
+  setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
@@ -21,7 +21,7 @@ import { CAMERA_MOVES, SHOT_SIZES, liveCamera, type Placement, type ShotSize } f
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, templatesOf } from '../templates';
-import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Camera, type Style, type Vec3 } from '../types';
+import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -104,21 +104,24 @@ function sceneSummary(store: Store) {
         ...(x.prop ? { prop: s.props.find((p) => p.id === x.prop)?.name } : {}),
       })),
       holds: (a.constraints ?? []).map((c) => ({ id: c.id, figure: s.figures.find((f) => f.id === c.figure)?.name, part: c.bone, start: r2(c.start), end: r2(c.end) })),
-      // The cameras: what each films, its path's points (time, place, look point, lens in mm); the shots cutting between them.
-      cameras: (a.cameras ?? []).map((c) => ({
-        name: c.name, subject: c.subject ? s.figures.find((f) => f.id === c.subject)?.name : 'everyone',
-        ...(c.rig ? { rig: { ...c.rig, toward: c.rig.toward && s.figures.find((f) => f.id === c.rig!.toward)?.name } } : {
+      // The shots cutting between the scene's cameras.
+      shots: shotSpans(a).map((sp) => ({
+        name: sp.shot.name, start: r2(sp.start), end: r2(sp.end),
+        camera: s.cameras.find((c) => c.id === sp.shot.camera)?.name, ...(sp.shot.blend ? { blend: sp.shot.blend } : {}),
+      })),
+    } : null,
+    // The scene's cameras (a still scene is filmed by the first): what each films, and its rig or its path's points (time, place, look point, lens in mm).
+    cameras: s.cameras.map((c) => {
+      const who = (id: string | undefined) => (id ? s.figures.find((f) => f.id === id)?.name : undefined);
+      return {
+        name: c.name, subject: who(c.subject) ?? 'everyone',
+        ...(c.kind === 'rig' ? { rig: { ...c.rig, toward: who(c.rig.toward), clear: who(c.rig.clear) } } : {
           anchor: c.anchor, aim: c.aim,
           points: c.points.map((p) => ({ t: r2(p.t), position: p.position.map(r2), look: p.look.map(r2), lens: p.lens })),
         }),
         ...(c.shake ? { shake: c.shake } : {}),
-      })),
-      shots: shotSpans(a).map((sp) => ({
-        name: sp.shot.name, start: r2(sp.start), end: r2(sp.end),
-        camera: a.cameras?.find((c) => c.id === sp.shot.camera)?.name ?? 'still camera', ...(sp.shot.blend ? { blend: sp.shot.blend } : {}),
-      })),
-    } : null,
-    still_camera: s.animation ? undefined : s.view,
+      };
+    }),
     style: store.getState().settings.style,
     joint_limits: store.getState().settings.limits,
   };
@@ -332,10 +335,10 @@ export const TOOLS: AgentTool[] = [
       store.setTime(Math.max(0, Math.min(a.duration, Number(i.time))));
       const span = spanAt(a, store.getState().time);
       if (typeof i.camera === 'string') {
-        const named = a.cameras?.find((c) => c.name.toLowerCase() === String(i.camera).toLowerCase());
+        const named = store.scene.cameras.find((c) => c.name.toLowerCase() === String(i.camera).toLowerCase());
         if (i.camera === 'new') addCamera(store);
         else if (named) editShot(store, span.shot.id, { camera: named.id });
-        else throw new Error(`No camera called ${i.camera}. Cameras: ${(a.cameras ?? []).map((c) => c.name).join(', ') || 'none'}`);
+        else throw new Error(`No camera called ${i.camera}. Cameras: ${store.scene.cameras.map((c) => c.name).join(', ')}`);
       }
       editShot(store, span.shot.id, {
         ...(typeof i.name === 'string' ? { name: i.name.slice(0, 80) } : {}),
@@ -343,15 +346,15 @@ export const TOOLS: AgentTool[] = [
         ...(typeof i.blend === 'number' ? { blend: i.blend } : {}),
       });
       const now = shotSpans(store.scene.animation!).find((x) => x.shot.id === span.shot.id)!;
-      return `${now.shot.name}: ${now.start.toFixed(2)}–${now.end.toFixed(2)} s, filmed by ${store.scene.animation!.cameras?.find((c) => c.id === now.shot.camera)?.name ?? 'the still camera'}${now.shot.blend ? `, blending in over ${now.shot.blend} s` : ', cut in'}.`;
+      return `${now.shot.name}: ${now.start.toFixed(2)}–${now.end.toFixed(2)} s, filmed by ${store.scene.cameras.find((c) => c.id === now.shot.camera)?.name}${now.shot.blend ? `, blending in over ${now.shot.blend} s` : ', cut in'}.`;
     },
   },
   {
     name: 'edit_camera',
-    description: `A camera: by name, or the one filming at a time. Whom it films (a figure, or null for everyone). Its shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}), where the subject sits (centre, left or right third) and lens (mm, full frame: 14 wide … 50 normal … 200 telephoto). How it moves: path (through keyed points; size and lens then key a point at the time, which must be in a shot it films), follow (keeps its angle and size on the subject every frame, turning with it if turn) or orbit (circles the subject); for follow and orbit, the angle (degrees from the subject's front, + from its left) and height (degrees above); for a path, anchor (world or subject: riding along) and aim (subject, point or path). Hand-held shake (0–1). It changes every shot it films. Null leaves a setting as it is.`,
+    description: `A camera of the scene: by name, or the one filming at a time (a still scene: its first). Whom it films (a figure, or null for everyone). Its shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}), where the subject sits (centre, left or right third) and lens (mm, full frame: 14 wide … 50 normal … 200 telephoto). How it moves: path (through keyed points; size and lens then key a point at the time, which must be in a shot it films), follow (keeps its angle and size on the subject every frame, turning with it if turn) or orbit (circles the subject); for follow and orbit, the angle (degrees from the subject's front, + from its left) and height (degrees above); for a path, anchor (world or subject: riding along) and aim (subject, point or path). Hand-held shake (0–1). It changes every shot it films. Null leaves a setting as it is.`,
     schema: obj({
       camera: opt(str('The camera\'s name (null: the one filming at time)')),
-      time: num('A time (s): which camera, if none is named; and where a path camera is keyed'),
+      time: num('A time (s): which camera, if none is named; and where a path camera is keyed (a still scene: 0)'),
       subject: opt(FIGURE),
       everyone: opt(bool('Film everyone (no subject)')),
       size: opt(str('Shot size', SHOT_SIZES.map((x) => x.id))),
@@ -367,23 +370,21 @@ export const TOOLS: AgentTool[] = [
     }),
     run: (store, i) => {
       const a = store.scene.animation;
-      if (!a) throw new Error('The scene is not animated');
-      store.setTime(Math.max(0, Math.min(a.duration, Number(i.time))));
-      const t = store.getState().time;
-      const named = typeof i.camera === 'string' ? a.cameras?.find((c) => c.name.toLowerCase() === String(i.camera).toLowerCase()) : null;
-      if (typeof i.camera === 'string' && !named) throw new Error(`No camera called ${i.camera}. Cameras: ${(a.cameras ?? []).map((c) => c.name).join(', ') || 'none'}`);
-      let id = named?.id ?? liveCamera(store.scene, t)?.id ?? null;
-      if (!id) id = ownCamera(store, spanAt(a, t).shot.id);
-      if (!id) throw new Error('No camera films at that time');
-      const cam = () => store.scene.animation!.cameras!.find((c) => c.id === id)!;
+      if (a) store.setTime(Math.max(0, Math.min(a.duration, Number(i.time))));
+      const t = a ? store.getState().time : 0;
+      const named = typeof i.camera === 'string' ? store.scene.cameras.find((c) => c.name.toLowerCase() === String(i.camera).toLowerCase()) : null;
+      if (typeof i.camera === 'string' && !named) throw new Error(`No camera called ${i.camera}. Cameras: ${store.scene.cameras.map((c) => c.name).join(', ')}`);
+      const id = named?.id ?? liveCamera(store.scene, t).id;
+      const cam = () => store.scene.cameras.find((c) => c.id === id)!;
       if (i.subject || i.everyone) editCamera(store, id, { subject: i.everyone ? '' : findFigure(store, i.subject).id });
       if (i.moves) setCameraBody(store, id, i.moves as 'path' | 'follow' | 'orbit');
       if (i.anchor || i.aim || typeof i.shake === 'number') {
-        editCamera(store, id, { ...(i.anchor ? { anchor: i.anchor as Camera['anchor'] } : {}), ...(i.aim ? { aim: i.aim as Camera['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
+        editCamera(store, id, { ...(i.anchor ? { anchor: i.anchor as PathCamera['anchor'] } : {}), ...(i.aim ? { aim: i.aim as PathCamera['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
       }
       const lens = typeof i.lens === 'number' ? Math.min(400, Math.max(8, i.lens)) : undefined;
       const place = (i.place as Placement | null) ?? undefined;
-      if (cam().rig) {
+      const c = cam();
+      if (c.kind === 'rig') {
         if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean' || i.size || place || lens) {
           editRig(store, id, {
             ...(typeof i.angle === 'number' ? { yaw: i.angle } : {}), ...(typeof i.height === 'number' ? { pitch: i.height } : {}), ...(typeof i.turn === 'boolean' ? { turn: i.turn } : {}),
@@ -398,9 +399,11 @@ export const TOOLS: AgentTool[] = [
           else if (lens) setLens(store, lens, 'size');
         }
       }
-      const c = cam();
-      const how = c.rig ? `${c.rig.body === 'follow' ? 'follows' : 'circles'} ${store.scene.figures.find((f) => f.id === c.subject)?.name ?? 'everyone'} at ${SHOT_SIZES.find((x) => x.id === c.rig!.size)?.name.toLowerCase()}, ${c.rig.lens}mm` : `a path of ${c.points.length} points`;
-      return `${c.name}: ${how}.`;
+      const now = cam();
+      const how = now.kind === 'rig'
+        ? `${now.rig.body === 'follow' ? 'follows' : 'circles'} ${store.scene.figures.find((f) => f.id === now.subject)?.name ?? 'everyone'} at ${SHOT_SIZES.find((x) => x.id === now.rig.size)?.name.toLowerCase()}, ${now.rig.lens}mm`
+        : `a path of ${now.points.length} point${now.points.length === 1 ? '' : 's'}`;
+      return `${now.name}: ${how}.`;
     },
   },
   {
@@ -683,15 +686,6 @@ export const TOOLS: AgentTool[] = [
     },
   },
   {
-    name: 'set_still_camera',
-    description: 'Camera for a still pose\'s thumbnail and export: yaw (0 = front, 90 = from the figure\'s left), pitch (positive looks down), lens fov in degrees.',
-    schema: obj({ yaw: num('Degrees'), pitch: num('Degrees, -30 to 85'), fov: num('Degrees, 10 to 60') }),
-    run: (store, i) => {
-      setSceneView(store, { yaw: Number(i.yaw), pitch: Math.max(-30, Math.min(85, Number(i.pitch))), fov: Math.max(10, Math.min(60, Number(i.fov))) });
-      return 'Camera set.';
-    },
-  },
-  {
     name: 'animate',
     description: 'Turn the open scene into an animation (if it is not one yet) and/or change its length and looping. Each figure holds its current pose from 0 s.',
     schema: obj({ duration: opt(num('Seconds')), loop: { type: ['boolean', 'null'] } }),
@@ -735,7 +729,7 @@ export const TOOLS: AgentTool[] = [
       if (!cast) throw new Error(`${c.name} needs ${c.roles.length} people`);
       const a = store.scene.animation!;
       const name = (id: string) => store.scene.figures.find((f) => f.id === id)?.name;
-      return `${c.name} (${c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ')}): ${shotSpans(a).map((s) => `${r2(s.start)} s ${a.cameras?.find((x) => x.id === s.shot.camera)?.name ?? 'still'}`).join(', ')}.`;
+      return `${c.name} (${c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ')}): ${shotSpans(a).map((s) => `${r2(s.start)} s ${store.scene.cameras.find((x) => x.id === s.shot.camera)?.name}`).join(', ')}.`;
     },
   },
   {

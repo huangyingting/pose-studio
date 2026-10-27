@@ -7,7 +7,8 @@ export type { Animation };
 
 /*
  * An animated scene's timing: every figure's actions (lib/types.ts Action; evaluated in
- * lib/evaluate.ts, edited in lib/track.ts), props' keys, its cameras and the shots cutting between them.
+ * lib/evaluate.ts, edited in lib/track.ts), props' keys, and the shots cutting between the scene's
+ * cameras.
  */
 
 export const DEFAULT_FPS = 24;
@@ -37,9 +38,9 @@ export function normalize(a: Animation, figures: Figure[]): Animation {
   return { ...rest, actions: [...actions].sort((p, q) => p.start - q.start || p.duration - q.duration), ...(props ? { props } : {}), ...(holds?.length ? { constraints: holds } : {}) };
 }
 
-/** A new animation: every figure holds its pose. */
+/** A new animation: every figure holds its pose, one shot filmed by the scene's first camera. */
 export function newAnimation(scene: Scene, duration = 2): Animation {
-  return { duration, fps: DEFAULT_FPS, loop: true, actions: scene.figures.map((f) => holdAction(f, 0)) };
+  return { duration, fps: DEFAULT_FPS, loop: true, actions: scene.figures.map((f) => holdAction(f, 0)), shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] };
 }
 
 /** Snap a time to the frame grid and the animation's range. */
@@ -48,8 +49,10 @@ export function snapTime(a: Pick<Animation, 'fps' | 'duration'>, t: number) {
   return Math.min(a.duration, Math.max(0, frame / a.fps));
 }
 
-/** Change the length, scaling the actions', props' keys', shots' and camera paths' times to fit. */
-export function setDuration(a: Animation, duration: number): Animation {
+/** Change a scene's animation's length, scaling the actions', props' keys', shots' and camera paths' times to fit. */
+export function setDuration(scene: Scene, duration: number): Scene {
+  const a = scene.animation;
+  if (!a) return scene;
   const d = Math.min(60, Math.max(0.2, duration));
   const s = d / a.duration;
   const snap = (t: number) => snapTime({ fps: a.fps, duration: d }, t * s);
@@ -65,9 +68,9 @@ export function setDuration(a: Animation, duration: number): Animation {
     return { ...x, start, duration: length };
   });
   const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.map((k) => ({ ...k, t: snap(k.t) }))]));
-  const shots = a.shots?.map((x) => ({ ...x, start: snap(x.start) }));
-  const cameras = a.cameras?.map((c) => ({ ...c, points: c.points.map((p) => ({ ...p, t: Math.round(p.t * s * 1000) / 1000 })) }));
-  return { ...a, duration: d, actions, ...(props ? { props } : {}), ...(shots ? { shots } : {}), ...(cameras ? { cameras } : {}) };
+  const shots = a.shots.map((x) => ({ ...x, start: snap(x.start) }));
+  const cameras = scene.cameras.map((c) => (c.kind === 'path' ? { ...c, points: c.points.map((p) => ({ ...p, t: Math.round(p.t * s * 1000) / 1000 })) } : c));
+  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots } };
 }
 
 /** Times of evenly spaced frames, for frame sheets and video. */
@@ -105,23 +108,23 @@ export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: 
     const target = 'figure' in c.target ? { ...c.target, figure: ids.get(c.target.figure)! } : 'prop' in c.target ? { ...c.target, prop: propIds.get(c.target.prop)! } : c.target;
     return [{ ...structuredClone(c), id: uid('hold'), figure: ids.get(c.figure)!, target }];
   });
-  const cameras = a.cameras?.map((c) => {
-    const { subject, also, rig, ...rest } = structuredClone(c);
-    const { toward, clear, ...r } = rig ?? ({} as CameraRig);
+  return { ...a, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}) };
+}
+
+/** A scene's cameras and coverage with figure ids replaced (after copying a scene with fresh ids). */
+export function remapCameras(scene: Pick<Scene, 'cameras' | 'coverage'>, ids: Map<string, string>): Pick<Scene, 'cameras' | 'coverage'> {
+  const figure = (id: string | undefined) => (id && ids.has(id) ? ids.get(id)! : undefined);
+  const cameras = scene.cameras.map((c): Camera => {
+    const { subject, also, ...rest } = structuredClone(c);
     const others = also?.filter((f) => ids.has(f)).map((f) => ids.get(f)!);
-    const figure = (id: string | undefined) => (id && ids.has(id) ? ids.get(id)! : undefined);
-    const bound = { ...r, ...(figure(toward) ? { toward: figure(toward) } : {}), ...(figure(clear) ? { clear: figure(clear) } : {}) };
-    return {
-      ...rest, ...(subject && ids.has(subject) ? { subject: ids.get(subject)! } : {}), ...(others?.length ? { also: others } : {}),
-      ...(rig ? { rig: bound } : {}),
-    };
+    const cam = { ...rest, ...(figure(subject) ? { subject: figure(subject) } : {}), ...(others?.length ? { also: others } : {}) } as Camera;
+    if (cam.kind !== 'rig') return cam;
+    const { toward, clear, ...r } = cam.rig;
+    return { ...cam, rig: { ...r, ...(figure(toward) ? { toward: figure(toward) } : {}), ...(figure(clear) ? { clear: figure(clear) } : {}) } };
   });
-  const { coverage, ...rest } = a;
+  const coverage = scene.coverage;
   const roles = coverage && Object.entries(coverage.roles).filter(([, f]) => ids.has(f)).map(([r, f]) => [r, ids.get(f)!]);
-  return {
-    ...rest, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}), ...(cameras ? { cameras } : {}),
-    ...(coverage && roles!.length === Object.keys(coverage.roles).length ? { coverage: { id: coverage.id, roles: Object.fromEntries(roles!) } } : {}),
-  };
+  return { cameras, ...(coverage && roles!.length === Object.keys(coverage.roles).length ? { coverage: { id: coverage.id, roles: Object.fromEntries(roles!) } } : {}) };
 }
 
 /**
@@ -152,29 +155,13 @@ export function placeAnimation(a: Animation, deg: number, place: (x: number, z: 
 
 const SIZES: ShotSize[] = ['ews', 'ws', 'fs', 'mws', 'ms', 'mcu', 'cu', 'ecu'];
 
-/** An animation's shots and cameras. */
-export function parseShots(rawShots: unknown, rawCameras: unknown, duration: number): Pick<Animation, 'shots' | 'cameras'> {
-  const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : '');
-  const num = (x: unknown, fallback: number, min: number, max: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback);
+const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : '');
+const num = (x: unknown, fallback: number, min: number, max: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback);
+const objects = (v: unknown, max: number) => (Array.isArray(v) ? v.slice(0, max) : []).filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null);
+
+/** A scene's cameras, from storage or a file (a path camera needs a point; one that is not well made is left out). */
+export function parseCameras(raw: unknown): Camera[] {
   const vec = (x: unknown): Vec3 => (Array.isArray(x) ? [0, 1, 2].map((i) => num(x[i], 0, -1000, 1000)) : [0, 0, 0]) as Vec3;
-  const objects = (v: unknown, max: number) => (Array.isArray(v) ? v.slice(0, max) : []).filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null);
-  const camera = (x: Record<string, unknown>, id: string, name: string): Camera => ({
-    id, name,
-    ...(typeof x.subject === 'string' && x.subject ? { subject: x.subject.slice(0, 40) } : {}),
-    ...(Array.isArray(x.also) && x.also.length ? { also: x.also.filter((f): f is string => typeof f === 'string').slice(0, 8).map((f) => f.slice(0, 40)) } : {}),
-    ...(typeof x.made === 'string' && x.made ? { made: x.made.slice(0, 40) } : {}),
-    anchor: x.anchor === 'subject' ? 'subject' : 'world',
-    aim: x.aim === 'point' || x.aim === 'path' ? x.aim : 'subject',
-    points: objects(x.points, 500)
-      .map((p) => ({
-        t: Math.round(num(p.t, 0, 0, duration) * 1000) / 1000, position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
-        ...(typeof p.roll === 'number' && Number.isFinite(p.roll) && p.roll ? { roll: num(p.roll, 0, -180, 180) } : {}),
-      }))
-      .sort((p, q) => p.t - q.t),
-    ...(x.ease === 'linear' ? { ease: 'linear' as const } : {}),
-    ...(typeof x.shake === 'number' && x.shake > 0 ? { shake: num(x.shake, 0, 0, 1) } : {}),
-    ...(typeof x.rig === 'object' && x.rig !== null ? { rig: rigOf(x.rig as Record<string, unknown>) } : {}),
-  });
   const rigOf = (r: Record<string, unknown>): CameraRig => ({
     body: r.body === 'orbit' ? 'orbit' : 'follow',
     yaw: wrapDeg(num(r.yaw, 0, -1e4, 1e4)),
@@ -188,23 +175,48 @@ export function parseShots(rawShots: unknown, rawCameras: unknown, duration: num
     lens: num(r.lens, 35, 4, 1200),
     ...(typeof r.smooth === 'number' && r.smooth > 0 ? { smooth: num(r.smooth, 0, 0, 10) } : {}),
   });
-  const cameras = objects(rawCameras, 100).map((x, i) => camera(x, str(x.id, 40) || `cam${i}`, str(x.name, 80) || `Camera ${i + 1}`));
-  const ids = new Set(cameras.map((c) => c.id));
-  const shots: Shot[] = objects(rawShots, 200)
-    .map((x, i) => {
-      const cam = typeof x.camera === 'string' && ids.has(x.camera) ? x.camera : undefined;
-      return {
-        id: str(x.id, 40) || `shot${i}`,
-        start: num(x.start, 0, 0, duration),
-        name: str(x.name, 80) || `Shot ${i + 1}`,
-        ...(typeof x.caption === 'string' && x.caption ? { caption: x.caption.slice(0, 500) } : {}),
-        ...(cam ? { camera: cam } : {}),
-        ...(typeof x.blend === 'number' && x.blend > 0 ? { blend: num(x.blend, 0, 0, 10) } : {}),
-      };
-    })
+  const ids = new Set<string>();
+  return objects(raw, 100).flatMap((x, i): Camera[] => {
+    let id = str(x.id, 40) || uid('cam');
+    if (ids.has(id)) id = uid('cam');
+    ids.add(id);
+    const base = {
+      id, name: str(x.name, 80) || `Camera ${i + 1}`,
+      ...(typeof x.subject === 'string' && x.subject ? { subject: x.subject.slice(0, 40) } : {}),
+      ...(Array.isArray(x.also) && x.also.length ? { also: x.also.filter((f): f is string => typeof f === 'string').slice(0, 8).map((f) => f.slice(0, 40)) } : {}),
+      ...(typeof x.made === 'string' && x.made ? { made: x.made.slice(0, 40) } : {}),
+      ...(typeof x.shake === 'number' && x.shake > 0 ? { shake: num(x.shake, 0, 0, 1) } : {}),
+    };
+    if (x.kind === 'rig' && typeof x.rig === 'object' && x.rig !== null) return [{ ...base, kind: 'rig', rig: rigOf(x.rig as Record<string, unknown>) }];
+    const points = objects(x.points, 500)
+      .map((p) => ({
+        t: Math.round(num(p.t, 0, 0, 60) * 1000) / 1000, position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
+        ...(typeof p.roll === 'number' && Number.isFinite(p.roll) && p.roll ? { roll: num(p.roll, 0, -180, 180) } : {}),
+      }))
+      .sort((p, q) => p.t - q.t);
+    if (x.kind !== 'path' || !points.length) return [];
+    return [{
+      ...base, kind: 'path', anchor: x.anchor === 'subject' ? 'subject' : 'world', aim: x.aim === 'point' || x.aim === 'path' ? x.aim : 'subject',
+      points, ...(x.ease === 'linear' ? { ease: 'linear' as const } : {}),
+    }];
+  });
+}
+
+/** An animation's shots, each filmed by one of `cameras` (the first, when its own is not there); at least one. */
+export function parseShots(raw: unknown, duration: number, cameras: string[]): Shot[] {
+  const shots: Shot[] = objects(raw, 200)
+    .map((x, i) => ({
+      id: str(x.id, 40) || `shot${i}`,
+      start: num(x.start, 0, 0, duration),
+      name: str(x.name, 80) || `Shot ${i + 1}`,
+      camera: typeof x.camera === 'string' && cameras.includes(x.camera) ? x.camera : cameras[0],
+      ...(typeof x.caption === 'string' && x.caption ? { caption: x.caption.slice(0, 500) } : {}),
+      ...(typeof x.blend === 'number' && x.blend > 0 ? { blend: num(x.blend, 0, 0, 10) } : {}),
+    }))
     .sort((p, q) => p.start - q.start);
-  if (shots.length) shots[0].start = 0;
-  return { ...(shots.length ? { shots } : {}), ...(cameras.length ? { cameras } : {}) };
+  if (!shots.length) return [{ id: 'main', start: 0, name: 'Shot 1', camera: cameras[0] }];
+  shots[0].start = 0;
+  return shots;
 }
 
 /** A prop's place as a key at time t (held props: relative to the hand). */

@@ -11,9 +11,9 @@ export function sharedRenderer() {
 const cache = new Map<string, string>();
 const MAX = 400;
 
-/** PNG data URL for a scene; cached by content so unchanged scenes are not re-rendered. */
+/** PNG data URL for a scene as its first camera films it; cached by content so unchanged scenes are not re-rendered. */
 export function thumbnail(scene: Scene): string {
-  const key = JSON.stringify([scene.figures, scene.props, scene.view]);
+  const key = JSON.stringify([scene.figures, scene.props, scene.cameras, scene.animation?.actions, scene.animation?.shots]);
   let url = cache.get(key);
   if (!url) {
     url = sharedRenderer().thumbnail(scene);

@@ -1,5 +1,5 @@
 import { placeAnimation, normalize } from './animation';
-import { duplicateScene } from './doc';
+import { duplicateScene, ensureCamera } from './doc';
 import { MOTIONS, highJump } from './motions';
 import { facing, withFacing } from './relations';
 import { STAGINGS } from './stagings';
@@ -60,7 +60,7 @@ export const SHOOT_PRESETS: ShootPreset[] = [
 export function templatesOf(lib: Library): SceneTemplate[] {
   return [
     ...SCENE_TEMPLATES,
-    ...(lib.templates ?? []).map((t) => ({ id: t.id, name: t.name, group: 'Mine' as const, people: t.scene.figures.length, build: () => ({ ...duplicateScene(t.scene), name: t.name }) })),
+    ...(lib.templates ?? []).map((t) => ({ id: t.id, name: t.name, group: 'Mine' as const, people: t.scene.figures.length, build: () => ensureCamera({ ...duplicateScene(t.scene), name: t.name }) })),
   ];
 }
 
@@ -81,19 +81,22 @@ export function placeScene(scene: Scene, deg: number, x: number, z: number): Sce
   return { ...scene, figures, props, ...(scene.animation ? { animation: placeAnimation(scene.animation, deg, place) } : {}) };
 }
 
-/** A scene as a template: no cameras or cuts, its people around the stage origin (where they stand at the start). */
+/**
+ * A scene as a template: no cameras, coverage or cuts (a scene made from it is given a camera),
+ * its people around the stage origin (where they stand at the start).
+ */
 export function asTemplate(scene: Scene, name: string): TemplateAsset {
   const shown = scene.figures.length ? scene.figures : [{ position: [0, 0, 0] }];
   const cx = shown.reduce((s, f) => s + f.position[0], 0) / shown.length;
   const cz = shown.reduce((s, f) => s + f.position[2], 0) / shown.length;
-  let animation: Animation | undefined;
-  if (scene.animation) {
-    const { cameras: _c, shots: _s, coverage: _v, target: _t, frame: _f, ...rest } = scene.animation;
-    void [_c, _s, _v, _t, _f];
-    animation = rest;
+  const { coverage: _v, animation: a, ...rest } = structuredClone(scene);
+  void _v;
+  const bare: Scene = { ...rest, cameras: [] };
+  if (a) {
+    const { target: _t, frame: _f, ...timing } = a;
+    void [_t, _f];
+    bare.animation = { ...timing, shots: [] };
   }
-  const bare: Scene = { ...structuredClone({ ...scene, animation: undefined }), ...(animation ? { animation: structuredClone(animation) } : {}) };
-  if (!animation) delete bare.animation;
   return { id: uid('tpl'), name, scene: { ...placeScene(bare, 0, -cx, -cz), name } };
 }
 
@@ -135,7 +138,7 @@ export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: n
     const holds = moved.constraints?.map((c) => ({ ...c, figure: remap(c.figure), ...('figure' in c.target ? { target: { ...c.target, figure: remap(c.target.figure) } } : {}) }));
     const end = t0 + placed.animation.duration;
     // What the figures cast did from t0 on gives way to the template's.
-    let base: Animation = scene.animation ?? { duration: end, fps: placed.animation.fps, loop: placed.animation.loop, actions: [] };
+    let base: Animation = scene.animation ?? { duration: end, fps: placed.animation.fps, loop: placed.animation.loop, actions: [], shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] };
     for (const id of taken) if (scene.animation && scene.figures.some((f) => f.id === id)) base = clear({ ...scene, animation: base }, id, t0, 60);
     animation = {
       ...base,

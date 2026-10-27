@@ -17,7 +17,7 @@ export function buildOtio(scene: Scene, mediaUrl: string) {
   const rate = a.fps;
   const frames = (s: number) => Math.round(s * rate);
   const target = videoModel(a.target);
-  const clips = shotSpans(a).map((span) => ({ span, camera: cameraById(a, span.shot.camera) })).map(({ span, camera }) => ({
+  const clips = shotSpans(a).map((span) => ({ span, camera: cameraById(scene, span.shot.camera) })).map(({ span, camera }) => ({
     OTIO_SCHEMA: 'Clip.2',
     name: span.shot.name,
     source_range: {

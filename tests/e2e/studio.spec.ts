@@ -4,7 +4,7 @@ import { builtInPoses, poseScene } from '../../lib/poses';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
 import { keyTimesOf, moments } from '../../lib/track';
-import type { Animation, Scene } from '../../lib/types';
+import type { Animation, Camera, PathCamera, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
 
@@ -14,7 +14,7 @@ const refScenes = () => builtInPoses().map((p) => poseScene(p));
 type Hook = {
   store: {
     getState(): {
-      library: { scenes: { id: string; name: string; figures: { id: string; name: string; bones: Bones; body: { sex: number; height: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[] }[] };
+      library: { scenes: { id: string; name: string; figures: { id: string; name: string; bones: Bones; body: { sex: number; height: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[]; cameras: { name: string }[] }[] };
       sceneIndex: number;
       activeFigure: string;
       selection: unknown;
@@ -437,6 +437,8 @@ test('poses a figure from a photo', async ({ page }) => {
   const s = await state(page);
   expect(s.library.scenes).toHaveLength(21);
   expect(s.scene.name).toBe('From photo');
+  // Its camera looks as the photo did.
+  expect(s.scene.cameras.map((c) => c.name)).toEqual(['Photo camera']);
   // The fixture is a lunge with arms pushing forward.
   expect(angle(s.scene.figures[0].bones, 'leftLowerLeg')[0]).toBeGreaterThan(20);
   await expect(page.locator('img.reference')).toBeVisible();
@@ -471,6 +473,10 @@ test('mobile layout uses drawers', async ({ page }) => {
 
 test('exports a turnaround of the current pose', async ({ page }) => {
   await page.keyboard.press('Control+e');
+  // Stills film through the scene's cameras: the editor's view made into one, and picked.
+  await page.getByRole('button', { name: 'New camera from the editor view' }).click();
+  expect((await state(page)).scene.cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2']);
+  await expect(page.getByRole('combobox', { name: 'Camera', exact: true })).toHaveText('Camera 2');
   await page.getByRole('radio', { name: 'Turnaround', exact: true }).click();
   await choose(page, 'Style', 'Silhouette');
   await expect(page.getByText('2400 × 640 px')).toBeVisible();
@@ -650,7 +656,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await page.getByRole('region', { name: 'Shoot presets' }).getByRole('button', { name: /^Interview/ }).click();
   const shoot = (await live(page)).scene;
   expect(shoot.name).toBe('Interview');
-  expect(shoot.animation!.cameras!.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
+  expect(shoot.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
 });
 
 test('placement fields move and turn the figure, and faces can be hidden', async ({ page }) => {
@@ -671,8 +677,9 @@ test('placement fields move and turn the figure, and faces can be hidden', async
 
 type Anim = Animation;
 const anim = async (page: Page) => page.evaluate(() => {
-  const s = (window as unknown as { __poseStudio: { store: { getState(): { time: number; sceneIndex: number; library: { scenes: { animation?: unknown }[] } } } } }).__poseStudio.store.getState();
-  return { time: s.time, animation: s.library.scenes[s.sceneIndex].animation as Anim | undefined };
+  const s = (window as unknown as { __poseStudio: { store: { getState(): { time: number; sceneIndex: number; library: { scenes: { animation?: unknown; cameras: unknown }[] } } } } }).__poseStudio.store.getState();
+  const scene = s.library.scenes[s.sceneIndex];
+  return { time: s.time, animation: scene.animation as Anim | undefined, cameras: scene.cameras as Camera[] };
 });
 
 test('a library motion plays, takes keys and is filmed by a shot camera', async ({ page }) => {
@@ -702,8 +709,8 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
-  const filmed = (await anim(page)).animation!;
-  expect(filmed.cameras!.find((c) => c.id === filmed.shots![0].camera)!.points).toHaveLength(9);
+  const filmed = await anim(page);
+  expect(filmed.cameras.find((c) => c.id === filmed.animation!.shots[0].camera)).toMatchObject({ kind: 'path', points: Array(9).fill(expect.anything()) });
 
   // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
   await page.keyboard.press('Control+e');
@@ -720,15 +727,16 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
   await page.locator('.tl-shot').first().click();
   const inspector = page.getByRole('complementary', { name: 'Inspector' });
-  // The camera the shot films with (framing it gives it one).
+  // The camera the shot films with, moving along a path.
   const shot = async () => {
-    const a = (await anim(page)).animation!;
-    return a.cameras!.find((c) => c.id === a.shots![0].camera)!;
+    const { animation, cameras } = await anim(page);
+    return cameras.find((c) => c.id === animation!.shots[0].camera) as PathCamera;
   };
+  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Along a path' }).click();
   // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
   await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true }).click();
   let s = await shot();
-  expect(s.points).toHaveLength(1);
+  expect(s.points[0].t).toBe(0);
   const near = Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]));
   const lens = s.points[0].lens;
   await choose(page, 'Lens', '85 mm');
@@ -764,7 +772,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   // Following its subject instead: the shot size is a rule, kept every frame.
   await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Follows' }).click();
   await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MCU', exact: true }).click();
-  expect((await shot()).rig).toMatchObject({ body: 'follow', size: 'mcu' });
+  expect(await shot()).toMatchObject({ kind: 'rig', rig: { body: 'follow', size: 'mcu' } });
 });
 
 test('a still scene can be animated with auto-keys', async ({ page }) => {
@@ -1188,16 +1196,14 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.locator('.tl-shot').first().click();
   await choose(page, 'Camera subject', second.name);
   s = await live(page);
-  const a = s.scene.animation!;
-  expect(a.cameras!.find((c) => c.id === a.shots![0].camera)!.subject).toBe(second.id);
+  expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.subject).toBe(second.id);
   // Or filmed with a coverage of the two: a master, over-the-shoulder shots and singles.
   await openSection(page, 'Library');
   await libraryShows(page, 'Camera');
   await page.getByRole('region', { name: 'Coverage' }).getByRole('button', { name: /Two-person dialogue/ }).click();
   s = await live(page);
-  const covered = s.scene.animation!;
-  expect(covered.cameras!.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
-  expect(covered.cameras!.find((c) => c.id === covered.shots![0].camera)!.name).toBe('Master');
+  expect(s.scene.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
+  expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.name).toBe('Master');
 
   // Dusk light, kept with the scene.
   await page.getByRole('button', { name: 'Render style' }).click();

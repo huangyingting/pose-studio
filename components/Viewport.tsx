@@ -13,7 +13,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
-import { cameraAt, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
+import { angleAt, cameraAt, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
@@ -24,6 +24,8 @@ import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObject
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
   getView(): View;
+  /** The editor camera as it stands, to make a scene camera from. */
+  editorCamera(): CameraView;
   /** Where a figure's pelvis currently is (including auto-grounding). */
   rootPosition(figure: string): Vec3 | null;
   /** Screen (client) coordinates of a joint, for tests and tooling. */
@@ -113,6 +115,9 @@ export default function Viewport({
   // sliders; figures and props turn by their floor ring. (Rotation rings around a joint crossed
   // the parts next to it and caught the drags meant for them.)
   const handles = settings.showHandles && !shotMode;
+  // A scene is first shown from where its camera films it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const openAngle = useMemo(() => angleAt(scene, 0), [scene.id]);
   let target: THREE.Object3D | null = null;
   let mode: 'translate' | 'scale' = 'translate';
   let showY = true;
@@ -233,7 +238,7 @@ export default function Viewport({
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
-        {handles && !!scene.animation?.cameras?.some((c) => c.points.length || c.rig) && (
+        {handles && (
           <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} />
         )}
         <Bridge
@@ -241,7 +246,7 @@ export default function Viewport({
           apiRef={apiRef}
           frameRequest={frameRequest}
           sceneId={scene.id}
-          sceneView={scene.view}
+          sceneView={openAngle}
           shotMode={shotMode}
           capture={() => captureRef.current?.() ?? null}
         />
@@ -413,6 +418,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     };
     apiRef.current = {
       getView: () => viewFromCamera(camera, controls?.target ?? new THREE.Vector3(0, 1, 0)),
+      editorCamera: () => ({ position: camera.position.clone(), target: (controls?.target ?? new THREE.Vector3(0, 1, 0)).clone(), fov: camera.fov, lens: fovLens(camera.fov), roll: 0 }),
       rootPosition: (id) => sv.figures.get(id)?.read().position ?? null,
       project: (id, joint) => {
         const m = sv.figures.get(id);
@@ -454,7 +460,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     });
   };
 
-  // Switching to another pose shows it from its export angle (the shot camera takes over in shot mode).
+  // Switching to another scene shows it from its camera's angle (the shot camera takes over in shot mode).
   const shotRef = useRef(shotMode);
   useEffect(() => { shotRef.current = shotMode; }, [shotMode]);
   useEffect(() => {
@@ -494,19 +500,20 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
 let drags = 0;
 
 function CameraRig({ store, scene, clock, time, selection }: { store: Store; scene: Scene; clock: Clock; time: number; selection: Selection }) {
-  const a = scene.animation!;
+  const a = scene.animation;
+  const fps = a?.fps ?? 24;
   const get = useThree((s) => s.get);
   const dot = useRef<THREE.Mesh>(null);
   const [three] = useState(() => new THREE.PerspectiveCamera(30, frameAspect(scene)));
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
-  const cameras = useMemo(() => (a.cameras ?? []).filter((c) => c.points.length || c.rig), [a]);
-  // (Worked out again when the animation changes, not as the playhead moves the figures.)
+  const cameras = scene.cameras;
+  // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const trails = useMemo(() => cameras.map((c) => cameraTrail(scene, c)), [cameras]);
-  const markers = useMemo(() => cameras.flatMap((c) => c.points.map((p) => {
+  const trails = useMemo(() => cameras.map((c) => cameraTrail(scene, c)), [cameras, a]);
+  const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect(scene));
-    return { t: p.t, cam: c, position: three.position.clone(), quaternion: three.quaternion.clone(), target: view.target.clone(), aimed: c.aim === 'point' };
+    return { t: p.t, cam: c, position: three.position.clone(), quaternion: three.quaternion.clone(), target: view.target.clone(), aimed: c.kind === 'path' && c.aim === 'point' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [cameras, three]);
   const lastDot = useRef(NaN);
@@ -570,22 +577,22 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   const addPoint = (camera: string, times: number[]) => (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     const i = Math.min(times.length - 2, Math.max(0, Math.floor(((e as unknown as { faceIndex?: number }).faceIndex ?? 0))));
-    const t = Math.round(((times[i] + times[i + 1]) / 2) * a.fps) / a.fps;
+    const t = Math.round(((times[i] + times[i + 1]) / 2) * fps) / fps;
     store.setTime(t);
     store.select({ kind: 'camera', camera });
     addCameraPoint(store, camera, t);
   };
 
   const now = clock.playing ? clock.time : time;
-  const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a.shots?.find((x) => x.id === selection.shot)?.camera : null;
+  const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
   let n = 0;
   return (
     <group>
       {trails.map((trail, i) => trail.points.length > 1 && (
-        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked ? 3 : 1.5} transparent opacity={0.7} dashed={!!cameras[i].rig} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].rig ? undefined : addPoint(cameras[i].id, trail.times)} />
+        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked ? 3 : 1.5} transparent opacity={0.7} dashed={cameras[i].kind === 'rig'} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].kind === 'rig' ? undefined : addPoint(cameras[i].id, trail.times)} />
       ))}
       {markers.map((m) => {
-        const on = Math.abs(m.t - now) < 0.5 / a.fps && liveCamera(scene, now)?.id === m.cam.id;
+        const on = Math.abs(m.t - now) < 0.5 / fps && liveCamera(scene, now).id === m.cam.id;
         const color = on ? '#3b6cff' : '#27272a';
         const k = n++;
         const l = m.aimed ? n++ : -1;

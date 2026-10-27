@@ -10,7 +10,7 @@ import { cameraAt, liveCamera, placeCamera, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import { Store } from '@/lib/store';
 import { SCENE_TEMPLATES } from '@/lib/templates';
-import type { Camera } from '@/lib/types';
+import type { Camera, RigCamera } from '@/lib/types';
 import { MemoryStorage } from '../fixtures/scenes';
 
 /*
@@ -54,11 +54,11 @@ describe('every scene template × coverage × body is clean', () => {
             const [x, y] = [now.find((f) => f.id === p)!, now.find((f) => f.id === q)!];
             return Math.hypot(x.position[0] - y.position[0], x.position[2] - y.position[2]);
           };
-          for (const cam of a.cameras!.filter((x) => x.rig?.clear)) {
+          for (const cam of store.scene.cameras.filter((x): x is RigCamera => x.kind === 'rig' && !!x.rig.clear)) {
             for (const at of [0, a.duration / 2, a.duration]) {
               // (A close-up holds the head; the chest may be at the frame's edge.)
               expect(inFrame(store, at, cam.subject!, cam, 'head'), `${what}: ${cam.name} at ${at}`).toBe(true);
-              if (apart(at, cam.subject!, cam.rig!.clear!) > 1) expect(inFrame(store, at, cam.rig!.clear!, cam), `${what}: ${cam.name} clean at ${at}`).toBe(false);
+              if (apart(at, cam.subject!, cam.rig.clear!) > 1) expect(inFrame(store, at, cam.rig.clear!, cam), `${what}: ${cam.name} clean at ${at}`).toBe(false);
             }
           }
           for (const span of shotSpans(store.scene.animation!)) {

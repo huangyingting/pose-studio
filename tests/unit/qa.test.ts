@@ -13,7 +13,7 @@ import { angle, bonesOf, withAngles } from '../../lib/pose';
 function animate(keys: [number, Figure[]][], duration = 1, loop = false): Scene {
   const scene = newScene('Test', keys[0][1]);
   const actions = keys[0][1].map((f) => keysAction(f.id, keys.flatMap(([t, figs]) => figs.filter((x) => x.id === f.id).map((x) => ({ t, pose: x })))));
-  return { ...scene, animation: { duration, fps: 24, loop, actions } };
+  return { ...scene, animation: { duration, fps: 24, loop, actions, shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] } };
 }
 
 const kinds = (s: Scene) => checkMotion(s).map((i) => i.kind);

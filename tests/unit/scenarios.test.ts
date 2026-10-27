@@ -14,7 +14,7 @@ import { withFacing } from '@/lib/relations';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { CMU, bvh } from '../fixtures/bvh';
-import { audit, body, expectClean, figureAt, fresh, motionScene } from '../fixtures/scenes';
+import { audit, body, expectClean, figureAt, fresh, motionScene, seenFrom } from '../fixtures/scenes';
 
 /*
  * Whole scenes made the way a user makes them (the same actions as the menus), for the use case of
@@ -149,7 +149,7 @@ describe('scenes from the use case', () => {
 
   it('basketball: dribbling up court on the run, then a shot that drops through the hoop', () => {
     const { store, a } = fresh();
-    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 40 } }));
+    seenFrom(store, { yaw: 90, pitch: 6, fov: 40 });
     addProp(store, 'sphere', [0.5, 0, 0.5]);
     const ball = store.scene.props[0].id;
     moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
@@ -184,7 +184,7 @@ describe('scenes from the use case', () => {
 
   it('basketball: a shot off the rim bounces back out towards the shooter', () => {
     const { store, a } = fresh();
-    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 40 } }));
+    seenFrom(store, { yaw: 90, pitch: 6, fov: 40 });
     addProp(store, 'sphere', [0.5, 0, 0.5]);
     const ball = store.scene.props[0].id;
     moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
