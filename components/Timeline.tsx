@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  Activity, Camera, ChevronDown, ChevronUp, Clapperboard, Diamond, Scissors, TriangleAlert, X, Ellipsis, Ghost, MoveHorizontal, Pause, Play, Repeat, Repeat1,
-  Grid3x3, StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
+  Activity, Camera, ChevronDown, ChevronUp, Diamond, Scissors, TriangleAlert, X, Ellipsis, MoveHorizontal, Pause, Play, Repeat, Repeat1,
+  StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import {
   addKeyframe, cutShot, deleteCameraPoint, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, retimeCameraPoint, rippleKeys, setAnimationOptions,
@@ -42,10 +42,8 @@ const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
  * (auto-key). It zooms (Ctrl + wheel, the buttons) and scrolls (Shift + wheel, the bar under it),
  * folds down to its toolbar, and its top edge drags to make it taller.
  */
-export default function Timeline({ clock, onion, setOnion, captureShot, notify, notifyUndo }: {
+export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
   clock: Clock;
-  onion: boolean;
-  setOnion(on: boolean): void;
   captureShot(): CameraView | null;
   notify: Notify;
   notifyUndo(text: string): void;
@@ -56,7 +54,6 @@ export default function Timeline({ clock, onion, setOnion, captureShot, notify, 
   const time = usePlayhead(clock);
   const folded = useStudio((s) => s.settings.timelineFolded);
   const height = useStudio((s) => s.settings.timelineHeight);
-  const guides = useStudio((s) => s.settings.guides);
   const track = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const [laneWidth, setLaneWidth] = useState(600);
@@ -449,7 +446,6 @@ export default function Timeline({ clock, onion, setOnion, captureShot, notify, 
             <span className="tl-sep" />
           </span>
         )}
-        <IconButton icon={Clapperboard} label="Look through the shot camera" tipSide="top" active={!!through && !through.camera} pressed={!!through && !through.camera} onClick={() => store.lookThrough(through && !through.camera ? null : {})} />
         <IconButton
           icon={Camera}
           label={`${onCamKey ? 'Update' : 'Set'} ${rowCam.name}${rowCam.kind === 'path' ? '’s point' : ''} from the view`}
@@ -477,8 +473,6 @@ export default function Timeline({ clock, onion, setOnion, captureShot, notify, 
               '-' as const,
             ] : []),
             { label: 'Loop the animation', icon: Repeat, checked: a.loop, onSelect: () => setAnimationOptions(store, { loop: !a.loop }) },
-            { label: 'Onion skin (ghosts of the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) },
-            { label: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: guides, onSelect: () => store.setSettings({ guides: !guides }) },
             '-',
             { label: `Delete ${rowCam.name}’s point`, icon: Trash2, disabled: !onCamKey || camTimes.length <= 1, onSelect: () => deleteCameraPoint(store, time, rowCam.id) },
             { label: 'Remove animation', icon: Trash2, danger: true, onSelect: () => { pause(); removeAnimation(store); } },

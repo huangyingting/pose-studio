@@ -10,10 +10,11 @@ import { anglesOf, bonesOf } from '@/lib/pose';
 const dir = mkdtempSync(join(tmpdir(), 'pose-studio-'));
 const file = join(dir, 'test.db');
 process.env.DATABASE_URL = `file:${file}`;
+process.env.ASSETS_DIR = join(dir, 'assets');
 let user: string | null = null;
 vi.mock('@/lib/server/auth', () => ({ currentUserId: async () => user }));
 
-type Routes = { library: typeof import('@/app/api/library/route.server'); ai: typeof import('@/app/api/ai/route.server') };
+type Routes = { library: typeof import('@/app/api/library/route.server'); ai: typeof import('@/app/api/ai/route.server'); asset: typeof import('@/app/api/assets/[id]/route.server') };
 let routes: Routes;
 
 beforeAll(async () => {
@@ -23,7 +24,7 @@ beforeAll(async () => {
   }
   db.prepare("insert into User (id, email, createdAt) values ('u1', 'a@test', 0), ('u2', 'b@test', 0)").run();
   db.close();
-  routes = { library: await import('@/app/api/library/route.server'), ai: await import('@/app/api/ai/route.server') };
+  routes = { library: await import('@/app/api/library/route.server'), ai: await import('@/app/api/ai/route.server'), asset: await import('@/app/api/assets/[id]/route.server') };
 });
 
 afterEach(() => {
@@ -67,6 +68,24 @@ describe('library API', () => {
     expect(saved.scenes[0].name).toBe('Junk');
     expect(saved.scenes[0].evil).toBeUndefined();
     expect(anglesOf(saved.scenes[0].figures[0].bones)).toEqual({ leftLowerLeg: [30, 0, 0] });
+  });
+});
+
+describe('assets API', () => {
+  const at = (id: string) => ({ params: Promise.resolve({ id }) });
+  const putAsset = (id: string, body: Uint8Array, type: string) => routes.asset.PUT(new Request(`http://x/api/assets/${id}`, { method: 'PUT', headers: { 'Content-Type': type }, body: new Blob([body as BlobPart]) }), at(id));
+
+  it('keeps a reference image (PNG, JPEG or WebP, known by its bytes) and gives it back as one', async () => {
+    user = 'u1';
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    expect((await putAsset('ref-1', png, 'image/png')).status).toBe(200);
+    const got = await routes.asset.GET(new Request('http://x/api/assets/ref-1'), at('ref-1'));
+    expect(got.headers.get('Content-Type')).toBe('image/png');
+    expect(new Uint8Array(await got.arrayBuffer())).toEqual(png);
+    // Not an image, whatever it says; and not someone else's.
+    expect((await putAsset('ref-2', new TextEncoder().encode('<svg onload=alert(1)>'), 'image/svg+xml')).status).toBe(400);
+    user = 'u2';
+    expect((await routes.asset.GET(new Request('http://x/api/assets/ref-1'), at('ref-1'))).status).toBe(404);
   });
 });
 

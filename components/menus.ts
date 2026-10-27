@@ -115,6 +115,7 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
     ...hands,
     ...takes,
     ...(p.hold ? [{ label: store.scene.animation ? 'Let go (it falls)' : 'Let go', icon: ArrowDownToLine, onSelect: () => holdProp(store, id, null) }] : []),
+    ...(!p.hold && p.position[1] > 1e-3 ? [{ label: 'Drop to floor', icon: ArrowDownToLine, onSelect: () => store.updateProp(id, (x) => ({ ...x, position: [x.position[0], 0, x.position[2]] })) }] : []),
     // Thrown to someone else, caught in a hand; tossed up and caught; a ball dribbled or shot.
     ...(p.hold ? store.scene.figures.filter((x) => x.id !== p.hold!.figure).flatMap((x) => (['R', 'L'] as const).map((hand): MenuItem => ({
       label: `Throw to ${x.name}'s ${hand === 'L' ? 'left' : 'right'} hand`, icon: Send, onSelect: () => throwProp(store, id, { figure: x.id, hand }),
@@ -181,7 +182,7 @@ export function cameraMenu(store: Store, id: string, { notifyUndo }: Pick<MenuUi
     ] : []),
     { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
     { label: 'Look through it', icon: Eye, checked: through, onSelect: () => store.lookThrough(through ? null : { camera: id }) },
-    { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl+D', onSelect: () => duplicateCamera(store, id) },
+    { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCamera(store, id) },
     '-',
     {
       label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, disabled: store.scene.cameras.length <= 1,

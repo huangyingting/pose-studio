@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Camera as CameraIcon, Eye, Trash2 } from 'lucide-react';
-import { deleteCamera, deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens, setShotSubject } from '@/lib/actions';
+import { deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens, setShotSubject } from '@/lib/actions';
 import { LENSES, SHOT_SIZES, cameraById, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
 import type { Camera, CameraRig, PathCamera, Placement, RigCamera, ShotSize } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
+import { cameraMenu, type MenuUi } from './menus';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome } from './ui';
 
 /** Inspector for a selected camera: its name, the shots it films, its settings and path. */
-export default function CameraInspector({ id, chrome }: { id: string; chrome?: HeaderChrome }) {
+export default function CameraInspector({ id, chrome, ui }: { id: string; chrome?: HeaderChrome; ui: MenuUi }) {
   const store = useStore();
   const scene = useScene();
   const a = scene.animation;
@@ -19,9 +20,8 @@ export default function CameraInspector({ id, chrome }: { id: string; chrome?: H
   const first = scene.cameras[0].id === id;
   return (
     <>
-      <NameHeader chrome={chrome} lead={<CameraIcon size={15} aria-hidden />} name={cam.name} label="Camera name" onRename={(name) => editCamera(store, id, { name })}>
+      <NameHeader chrome={chrome} lead={<CameraIcon size={15} aria-hidden />} name={cam.name} label="Camera name" onRename={(name) => editCamera(store, id, { name })} menu={cameraMenu(store, id, ui)}>
         <IconButton icon={Eye} label="Look through this camera" active={through} pressed={through} onClick={() => store.lookThrough(through ? null : { camera: id })} />
-        {scene.cameras.length > 1 && <IconButton icon={Trash2} label="Delete camera" shortcut="Del" onClick={() => deleteCamera(store, id)} />}
       </NameHeader>
       <Section title="Films">
         {!a ? (

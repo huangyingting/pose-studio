@@ -133,8 +133,17 @@ export interface Scene {
   coverage?: { id: string; roles: Record<string, string> };
   /** The scene's key light (lib/lighting.ts DEFAULT_LIGHT without one). */
   light?: Light;
+  /** A photo or drawing over the canvas to pose against (not filmed). */
+  reference?: Reference;
   /** Optional keyframe animation (see lib/animation.ts). */
   animation?: Animation;
+}
+
+/** A reference image: its file (kept as an asset, lib/assetstore.ts), how strongly it shows, whether it does. */
+export interface Reference {
+  image: string;
+  opacity: number;
+  visible: boolean;
 }
 
 /* ---------- animation (see lib/evaluate.ts) ---------- */
@@ -500,7 +509,6 @@ export type Selection =
   /** A camera of the animation (picked in the outline or on the canvas). */
   | { kind: 'camera'; camera: string }
   /** The scene itself: its light, look and reference image. */
-  | { kind: 'scene' }
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */

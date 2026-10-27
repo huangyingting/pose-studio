@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ChevronDown, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, Eye, FilePlus2, FileUp, Focus, FolderOpen,
-  Hand, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
+  Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
   addKeyframe, addMotions, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
@@ -21,6 +21,9 @@ import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';
 import { VIEW_PRESETS } from '@/lib/views';
+
+/** The editor's line weights (exports set their own). */
+const LINE_WEIGHTS = [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }];
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 // Accounts, library sync and AI: the server edition only (null in the static build).
@@ -29,6 +32,7 @@ import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext } from './Inspector';
 import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
+import { useReferenceUrl } from './reference';
 import { StoreContext, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
 import { Clock, startPlayback } from './clock';
@@ -73,11 +77,11 @@ export default function Studio() {
 }
 
 type Dialog = null | 'export' | 'photo' | 'help' | 'practice' | 'board';
-type Reference = { url: string | null; opacity: number; visible: boolean };
 
 function App() {
   const store = useStore();
   const scene = useScene();
+  const referenceUrl = useReferenceUrl(scene.reference?.image);
   const selection = useStudio((s) => s.selection);
   const activeFigure = useStudio((s) => s.activeFigure);
   const settings = useStudio((s) => s.settings);
@@ -87,7 +91,6 @@ function App() {
   const toggleInspector = () => store.setSettings({ inspector: !store.getState().settings.inspector });
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [reference, setReferenceState] = useState<Reference>({ url: null, opacity: 0.45, visible: true });
   const [frameRequest, setFrameRequest] = useState<FrameRequest>({ view: { yaw: 0, pitch: 4 }, n: 0 });
   const [drawer, setDrawer] = useState<null | 'library' | 'inspector'>(null);
   const apiRef = useRef<ViewportApi | null>(null);
@@ -143,13 +146,6 @@ function App() {
     const cur = apiRef.current?.getView();
     frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time));
   }, [frame, store]);
-
-  const setReference = useCallback((patch: Partial<Reference>) => {
-    setReferenceState((r) => {
-      if ('url' in patch && r.url && r.url !== patch.url) URL.revokeObjectURL(r.url);
-      return { ...r, ...patch };
-    });
-  }, []);
 
   // Open a shared pose from the URL fragment.
   useEffect(() => {
@@ -344,8 +340,6 @@ function App() {
     rootPosition: (id) => apiRef.current?.rootPosition(id) ?? null,
     notify,
     notifyUndo,
-    reference,
-    setReference,
   };
 
   // Move works on any figure; Scale only on props.
@@ -400,17 +394,37 @@ function App() {
                 { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
               ]}
             />
+            {settings.gizmo === 'rotate' && (
+              // The Pose tool's option: joints bend only as far as a body's do (dragging, IK, sliders).
+              <IconButton
+                icon={settings.limits ? Lock : LockOpen}
+                label="Natural joint limits"
+                pressed={settings.limits}
+                active={settings.limits}
+                onClick={() => store.setSettings({ limits: !settings.limits })}
+              />
+            )}
             <span className="tb-sep" />
             <Menu
               label="View"
               className="btn ghost"
-              tip="Camera angle and what the canvas shows"
+              tip="The angle, what to look through and what the canvas shows"
               items={[
-                { group: 'Camera' },
-                ...VIEW_PRESETS.map((v) => ({ label: v.label, shortcut: v.key, onSelect: () => frame(v) })),
+                { group: 'Angle' },
+                ...VIEW_PRESETS.map((v) => ({ label: v.label, shortcut: v.key, onSelect: () => { store.lookThrough(null); frame(v); } })),
+                { group: 'Look through' },
+                { label: 'The editor’s view', checked: !through, onSelect: () => store.lookThrough(null) },
+                { label: 'The shot camera (the cut)', checked: !!through && !through.camera, onSelect: () => store.lookThrough({}) },
+                ...scene.cameras.map((c) => ({ label: c.name, icon: Video, checked: through?.camera === c.id, onSelect: () => store.lookThrough({ camera: c.id }) })),
                 { group: 'Show' },
                 { label: 'Drag handles', shortcut: 'H', checked: settings.showHandles, onSelect: () => store.setSettings({ showHandles: !settings.showHandles }) },
                 { label: 'Floor grid', checked: settings.showGrid, onSelect: () => store.setSettings({ showGrid: !settings.showGrid }) },
+                ...(scene.animation ? [{ label: 'Onion skin (the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) }] : []),
+                { label: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: settings.guides, onSelect: () => store.setSettings({ guides: !settings.guides }) },
+                ...(style.outline ? [
+                  { group: 'Line weight' },
+                  ...LINE_WEIGHTS.map((w) => ({ label: w.label, checked: Math.abs(settings.editorLine - w.px) < 0.05, onSelect: () => store.setSettings({ editorLine: w.px }) })),
+                ] : []),
               ]}
             >
               <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
@@ -510,15 +524,13 @@ function App() {
             <button type="button" className="btn subtle" onClick={() => store.setSettings({ tips: false })}>Got it</button>
           </section>
         )}
-        {reference.url && reference.visible && (
+        {referenceUrl && scene.reference?.visible && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="reference" src={reference.url} alt="" style={{ opacity: reference.opacity }} />
+          <img className="reference" src={referenceUrl} alt="" style={{ opacity: scene.reference.opacity }} />
         )}
         {scene.animation && (
           <Timeline
             clock={clock}
-            onion={onion}
-            setOnion={setOnion}
             captureShot={() => apiRef.current?.captureShot() ?? null}
             notify={notify}
             notifyUndo={notifyUndo}
@@ -539,7 +551,6 @@ function App() {
         <PhotoDialog
           onClose={() => setDialog(null)}
           notify={notify}
-          onReference={(url) => setReference({ url, visible: true })}
         />
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}

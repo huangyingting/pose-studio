@@ -38,7 +38,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
     <div className="side-section outline">
       <div className="side-head">
         <h2>Scene</h2>
-        <IconButton icon={SunMedium} label="Light and look of the scene" size={15} active={selection?.kind === 'scene'} onClick={() => store.select({ kind: 'scene' })} />
+        <IconButton icon={SunMedium} label="Light and look of the scene" size={15} active={!selection} onClick={() => store.select(null)} />
       </div>
       <div className="side-scroll">
         <div className="outline-group">

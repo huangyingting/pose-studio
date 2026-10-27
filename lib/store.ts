@@ -43,6 +43,12 @@ export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
 
 export type SaveStatus = 'saved' | 'pending' | 'error';
 
+/** What is selected when a scene opens: its first figure (nothing in a scene without one). */
+export const openingSelection = (scene: Scene | undefined): Selection => {
+  const f = scene?.figures.find((x) => !x.hidden) ?? scene?.figures[0];
+  return f ? { kind: 'figure', figure: f.id } : null;
+};
+
 /** What the canvas looks through: the editor's own view (null), the cut (what the shots show), or one camera. */
 export type Through = { camera?: string } | null;
 
@@ -145,7 +151,7 @@ export class Store {
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
-      library, sceneIndex, selection: null, activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null,
+      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null,
     });
     // An animated pose opens at its first frame.
     this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
@@ -387,7 +393,7 @@ export class Store {
   /* ---------- UI state (not undoable) ---------- */
 
   setSceneIndex(sceneIndex: number) {
-    this.set({ sceneIndex, selection: null, activeFigure: null, time: 0, library: this.withFrame(this.state.library, sceneIndex, 0) });
+    this.set({ sceneIndex, selection: openingSelection(this.state.library.scenes[sceneIndex]), activeFigure: null, time: 0, library: this.withFrame(this.state.library, sceneIndex, 0) });
   }
 
   /** Move the animation playhead; the figures take the pose for that time (not an undo step). */

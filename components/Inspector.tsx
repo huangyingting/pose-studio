@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import {
-  ArrowDownToLine, ArrowLeftRight, ChevronRight, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Hand, ImagePlus, Mars, Navigation,
+  ArrowLeftRight, ChevronRight, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Hand, ImagePlus, Mars, Navigation,
   PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
-  reachFor, renameFigure, renameProp, resetPose, setDistance, setFrameShape, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, setTargetModel, symmetrizePose,
+  arrange, copyPose, editReference, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
+  reachFor, renameFigure, renameProp, resetPose, setDistance, setFrameShape, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, setReferenceImage, setTargetModel, symmetrizePose,
 } from '@/lib/actions';
 import { VIDEO_MODELS } from '@/lib/shots';
 import { travelAt } from '@/lib/evaluate';
@@ -28,6 +28,7 @@ import CameraInspector from './CameraInspector';
 import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
+import { figureMenu, propMenu, sceneMenu, type MenuUi } from './menus';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
 
 export interface InspectorContext {
@@ -37,8 +38,6 @@ export interface InspectorContext {
   notify: Notify;
   /** Toast with an Undo button. */
   notifyUndo(text: string): void;
-  reference: { url: string | null; opacity: number; visible: boolean };
-  setReference(r: Partial<{ url: string | null; opacity: number; visible: boolean }>): void;
 }
 
 /**
@@ -54,7 +53,7 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   const hide = <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut="I" className="panel-hide hide-mobile" size={15} onClick={onHide} />;
   const chrome: HeaderChrome = {
     before: (
-      <button type="button" className="crumb" data-tip="The scene: its light and look" onClick={() => store.select({ kind: 'scene' })}>
+      <button type="button" className="crumb" data-tip="The scene: its light and look" onClick={() => store.select(null)}>
         Scene <ChevronRight size={12} aria-hidden />
       </button>
     ),
@@ -62,12 +61,13 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   };
 
   let content;
-  if (selection?.kind === 'prop' && scene.props.some((p) => p.id === selection.prop)) content = <PropEditor id={selection.prop} chrome={chrome} />;
-  else if (selection?.kind === 'shot') content = <ShotInspector id={selection.shot} notify={ctx.notify} chrome={chrome} />;
-  else if (selection?.kind === 'camera' && scene.cameras.some((c) => c.id === selection.camera)) content = <CameraInspector id={selection.camera} chrome={chrome} />;
+  if (selection?.kind === 'prop' && scene.props.some((p) => p.id === selection.prop)) content = <PropEditor id={selection.prop} chrome={chrome} ui={ctx} />;
+  else if (selection?.kind === 'shot') content = <ShotInspector id={selection.shot} ui={ctx} chrome={chrome} />;
+  else if (selection?.kind === 'camera' && scene.cameras.some((c) => c.id === selection.camera)) content = <CameraInspector id={selection.camera} chrome={chrome} ui={ctx} />;
   else if (selection?.kind === 'action') content = <ActionInspector id={selection.action} figure={selection.figure} chrome={chrome} />;
-  else if (selection?.kind === 'scene' || !figure) content = <SceneInspector ctx={ctx} chrome={{ after: hide }} />;
-  else content = <FigureInspector figure={figure} ctx={ctx} chrome={chrome} />;
+  else if ((selection?.kind === 'figure' || selection?.kind === 'joint') && figure) content = <FigureInspector figure={figure} ctx={ctx} chrome={chrome} />;
+  // With nothing selected, the scene itself (as design tools show the document).
+  else content = <SceneInspector ctx={ctx} chrome={{ after: hide }} />;
 
   return (
     <aside className="panel" aria-label="Inspector">
@@ -80,7 +80,7 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
 
 const POSTURE_LABELS: Record<Posture, string> = { stand: 'Stand', sit: 'Sit', lie: 'Lie' };
 
-function FigureHeader({ figure, chrome }: { figure: Figure; chrome: HeaderChrome }) {
+function FigureHeader({ figure, chrome, ui }: { figure: Figure; chrome: HeaderChrome; ui: MenuUi }) {
   const store = useStore();
   const Icon = figure.proxy ? UserRound : PersonStanding;
   return (
@@ -90,6 +90,7 @@ function FigureHeader({ figure, chrome }: { figure: Figure; chrome: HeaderChrome
       name={figure.name}
       label="Figure name"
       onRename={(name) => renameFigure(store, figure.id, name)}
+      menu={figureMenu(store, figure.id, ui)}
     >
       {figure.hidden && <span className="title-note">Hidden</span>}
     </NameHeader>
@@ -104,7 +105,7 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
   if (figure.proxy) {
     return (
       <>
-        <FigureHeader figure={figure} chrome={chrome} />
+        <FigureHeader figure={figure} chrome={chrome} ui={ctx} />
         <Section title="Stand-in">
           <Segmented<Posture>
             label="Posture"
@@ -124,7 +125,7 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
 
   return (
     <>
-      <FigureHeader figure={figure} chrome={chrome} />
+      <FigureHeader figure={figure} chrome={chrome} ui={ctx} />
       {joint && <JointSection figure={figure} joint={joint} />}
       <PoseSection ctx={ctx} />
       {!joint && <JointPicker figure={figure} />}
@@ -193,7 +194,6 @@ function JointPicker({ figure }: { figure: Figure }) {
 
 function PoseSection({ ctx }: { ctx: InspectorContext }) {
   const store = useStore();
-  const limits = useStudio((s) => s.settings.limits);
   return (
     <Section title="Pose">
       <div className="toolrow">
@@ -206,7 +206,6 @@ function PoseSection({ ctx }: { ctx: InspectorContext }) {
         <span className="toolrow-sep" />
         <IconButton icon={RotateCcw} label="Reset pose" onClick={() => resetPose(store)} />
       </div>
-      <Toggle label="Natural joint limits" checked={limits} onChange={(l) => store.setSettings({ limits: l })} />
     </Section>
   );
 }
@@ -502,7 +501,7 @@ function BodySection({ figure }: { figure: Figure }) {
 
 /* ---------------- Prop ---------------- */
 
-function PropEditor({ id, chrome }: { id: string; chrome: HeaderChrome }) {
+function PropEditor({ id, chrome, ui }: { id: string; chrome: HeaderChrome; ui: MenuUi }) {
   const store = useStore();
   const scene = useScene();
   const prop = scene.props.find((p) => p.id === id)!;
@@ -537,13 +536,8 @@ function PropEditor({ id, chrome }: { id: string; chrome: HeaderChrome }) {
         name={prop.name}
         label={`${PROP_LABELS[prop.kind]} name`}
         onRename={(name) => renameProp(store, id, name)}
-      >
-        <IconButton
-          icon={ArrowDownToLine}
-          label={prop.hold ? 'Let go' : 'Drop to floor'}
-          onClick={() => (prop.hold ? holdProp(store, id, null) : store.updateProp(id, (p) => ({ ...p, position: [p.position[0], 0, p.position[2]] })))}
-        />
-      </NameHeader>
+        menu={propMenu(store, id, ui)}
+      />
       {(HOLDABLE.includes(prop.kind) || prop.hold) && (
         <Section title="Held by">
           <Select
@@ -594,15 +588,17 @@ const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label).join(', ');
 /** The scene itself: its light (saved with it, used by its exports), how it is drawn, a reference image. */
 function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: HeaderChrome }) {
   const store = useStore();
+  const sceneIndex = useStudio((s) => s.sceneIndex);
   const scene = useScene();
   const settings = useStudio((s) => s.settings);
   const def = styleDef(settings.style);
   const light = scene.light ?? DEFAULT_LIGHT;
+  const reference = scene.reference;
   const setLight = (patch: Partial<Light>, key = 'light') => setSceneLight(store, { ...light, ...patch }, key);
   const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
   return (
     <>
-      <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={scene.name} label="Scene name" onRename={(name) => renameScene(store, name)} />
+      <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={scene.name} label="Scene name" onRename={(name) => renameScene(store, name)} menu={sceneMenu(store, sceneIndex, ctx)} />
       {scene.animation && (
         <Section title="Film">
           <div className="field">
@@ -660,32 +656,21 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
           checked={settings.faces}
           onChange={(faces) => store.setSettings({ faces })}
         />
-        {def.outline && (
-          <Slider
-            label="Line weight"
-            min={0.5}
-            max={4}
-            step={0.1}
-            value={settings.editorLine}
-            display={`${settings.editorLine.toFixed(1)} px`}
-            onChange={(editorLine) => store.setSettings({ editorLine })}
-          />
-        )}
         <p className="hint-text">{def.label}: {def.description.toLowerCase()}. Switch styles in the top bar (<kbd>L</kbd>).</p>
       </Section>
       <Section
         id="reference"
         title="Reference image"
         collapsible
-        defaultOpen={!!ctx.reference.url}
-        actions={ctx.reference.url && (
+        defaultOpen={!!reference}
+        actions={reference && (
           <>
             <IconButton
-              icon={ctx.reference.visible ? Eye : EyeOff}
-              label={ctx.reference.visible ? 'Hide reference' : 'Show reference'}
-              onClick={() => ctx.setReference({ visible: !ctx.reference.visible })}
+              icon={reference.visible ? Eye : EyeOff}
+              label={reference.visible ? 'Hide reference' : 'Show reference'}
+              onClick={() => editReference(store, { visible: !reference.visible })}
             />
-            <IconButton icon={Trash2} label="Remove reference" onClick={() => ctx.setReference({ url: null })} />
+            <IconButton icon={Trash2} label="Remove reference" onClick={() => editReference(store, null)} />
           </>
         )}
       >
@@ -695,23 +680,24 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
             accept="image/*"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) ctx.setReference({ url: URL.createObjectURL(file), visible: true });
+              if (file) void setReferenceImage(store, file);
               e.target.value = '';
             }}
           />
-          <ImagePlus size={14} aria-hidden /> {ctx.reference.url ? 'Replace image…' : 'Overlay a photo or drawing…'}
+          <ImagePlus size={14} aria-hidden /> {reference ? 'Replace image…' : 'Overlay a photo or drawing…'}
         </label>
-        {ctx.reference.url && (
+        {reference && (
           <Slider
             label="Opacity"
             min={0.05}
             max={1}
             step={0.01}
-            value={ctx.reference.opacity}
-            display={`${Math.round(ctx.reference.opacity * 100)}%`}
-            onChange={(opacity) => ctx.setReference({ opacity })}
+            value={reference.opacity}
+            display={`${Math.round(reference.opacity * 100)}%`}
+            onChange={(opacity) => editReference(store, { opacity }, 'reference')}
           />
         )}
+        <p className="hint-text">Saved with the scene; it is not filmed or exported.</p>
       </Section>
     </>
   );

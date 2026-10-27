@@ -1,14 +1,14 @@
-import { ClipboardCopy, Copy, Scissors, TriangleAlert, Video } from 'lucide-react';
-import { addCamera, editShot, ownCamera, removeShotCut } from '@/lib/actions';
+import { Copy, TriangleAlert, Video } from 'lucide-react';
+import { addCamera, editShot, ownCamera } from '@/lib/actions';
 import { cameraById } from '@/lib/cameras';
-import { describeSpan } from '@/lib/prompt';
 import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { CameraSettings } from './CameraInspector';
 import { useScene, useStore } from './store-context';
-import { IconButton, NameHeader, NumberField, Section, Segmented, Select, type HeaderChrome, type Notify } from './ui';
+import { shotMenu, type MenuUi } from './menus';
+import { NameHeader, NumberField, Section, Segmented, Select, type HeaderChrome } from './ui';
 
 /** Inspector for a selected shot: what it is called and shows, how long, what it is cut for, the camera filming it. */
-export default function ShotInspector({ id, notify, chrome }: { id: string; notify: Notify; chrome?: HeaderChrome }) {
+export default function ShotInspector({ id, ui, chrome }: { id: string; ui: MenuUi; chrome?: HeaderChrome }) {
   const store = useStore();
   const scene = useScene();
   const a = scene.animation;
@@ -19,17 +19,7 @@ export default function ShotInspector({ id, notify, chrome }: { id: string; noti
 
   return (
     <>
-      <NameHeader chrome={chrome} lead={<span className="shot-no">{span.index + 1}</span>} name={span.shot.name} label="Shot name" onRename={(name) => editShot(store, id, { name })}>
-        <IconButton
-          icon={ClipboardCopy}
-          label="Copy description (for AI video tools)"
-          onClick={() => {
-            const text = describeSpan(scene, span);
-            navigator.clipboard?.writeText(text).then(() => notify('Shot description copied (for AI video tools)'), () => notify(text));
-          }}
-        />
-        {span.index > 0 && <IconButton icon={Scissors} label="Remove cut" shortcut="Del" onClick={() => { removeShotCut(store, id); store.select(null); }} />}
-      </NameHeader>
+      <NameHeader chrome={chrome} lead={<span className="shot-no">{span.index + 1}</span>} name={span.shot.name} label="Shot name" onRename={(name) => editShot(store, id, { name })} menu={shotMenu(store, id, ui)} />
       <Section title="Shot">
         <label className="field">
           <span>What happens</span>

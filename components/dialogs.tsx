@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/evaluate';
-import { addCamera, addFigures, appendScenes } from '@/lib/actions';
+import { addCamera, addFigures, appendScenes, setReferenceImage } from '@/lib/actions';
 import { cameraFrom, newFigure, newScene } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
@@ -372,15 +372,12 @@ function poseFigures(people: DetectedPerson[], body: BodyParams): { figures: Fig
   return { figures, skipped: [...skipped] };
 }
 
-export function PhotoDialog({ onClose, notify, onReference }: {
-  onClose(): void;
-  notify: Notify;
-  onReference(url: string): void;
-}) {
+export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
   const store = useStore();
   const activeFigure = useStudio((s) => s.activeFigure);
   const scene = useScene();
   const [url, setUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [people, setPeople] = useState<DetectedPerson[]>([]);
@@ -392,6 +389,7 @@ export function PhotoDialog({ onClose, notify, onReference }: {
   const pick = async (file: File) => {
     const src = URL.createObjectURL(file);
     setUrl(src);
+    setPhotoFile(file);
     setPeople([]);
     setStatus('loading');
     setMessage('Loading the pose model (first time only)…');
@@ -450,7 +448,8 @@ export function PhotoDialog({ onClose, notify, onReference }: {
       });
       if (rest.length) addFigures(store, rest);
     }
-    if (asReference && url) onReference(url);
+    // Over the scene posed (the new one, or this one), saved with it.
+    if (asReference && photoFile) void setReferenceImage(store, photoFile);
     notify(skipped.length ? `Posed. Not visible in the photo: ${skipped.join(', ')}` : 'Pose applied from photo');
     onClose();
   };

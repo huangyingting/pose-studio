@@ -2,7 +2,7 @@ import { hasClip, putClips } from './assets';
 import type { Clip } from './types';
 
 /*
- * Where imported clips and models are kept, apart from the library (which only lists them):
+ * Where imported clips, models and reference images are kept, apart from the library (which only lists them):
  * IndexedDB in the browser, as big as the browser allows (not the few megabytes of localStorage).
  * Signed in, the server keeps them too, as files (lib/cloud.ts, app/api/assets). Without
  * IndexedDB (tests), in memory.
@@ -11,16 +11,17 @@ import type { Clip } from './types';
 const DB = 'pose-studio-assets';
 const CLIPS = 'clips';
 const MODELS = 'models';
+const IMAGES = 'images';
 
 let db: Promise<IDBDatabase> | null = null;
-const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>() };
+const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>() };
 
 function open(): Promise<IDBDatabase> | null {
   if (typeof indexedDB === 'undefined') return null;
   db ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 2);
+    const req = indexedDB.open(DB, 3);
     req.onupgradeneeded = () => {
-      for (const name of [CLIPS, MODELS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
+      for (const name of [CLIPS, MODELS, IMAGES]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -71,4 +72,26 @@ export async function saveModelFile(id: string, data: ArrayBuffer) {
 export async function loadModelFile(id: string): Promise<ArrayBuffer | null> {
   const got = run<{ id: string; data: ArrayBuffer } | undefined>(MODELS, 'readonly', (s) => s.get(id));
   return got ? (await got)?.data ?? null : memory.models.get(id) ?? null;
+}
+
+const imageListeners = new Set<(id: string) => void>();
+
+/** Be told when a reference image is kept (its id); returns the way to stop. */
+export function onImage(f: (id: string) => void) {
+  imageListeners.add(f);
+  return () => { imageListeners.delete(f); };
+}
+
+/** Keep a reference image. */
+export async function saveImage(id: string, image: Blob) {
+  const done = run(IMAGES, 'readwrite', (s) => s.put({ id, image }));
+  if (done) await done;
+  else memory.images.set(id, image);
+  for (const f of imageListeners) f(id);
+}
+
+/** A kept reference image, or null if it is not kept here. */
+export async function loadImage(id: string): Promise<Blob | null> {
+  const got = run<{ id: string; image: Blob } | undefined>(IMAGES, 'readonly', (s) => s.get(id));
+  return got ? (await got)?.image ?? null : memory.images.get(id) ?? null;
 }

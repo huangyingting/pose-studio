@@ -10,7 +10,7 @@ import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { SHOOT_PRESETS, asTemplate, putTemplate, templatesOf } from './templates';
 import { clipInfo, keysClip, partKeys } from './clip';
-import { saveClips } from './assetstore';
+import { saveClips, saveImage } from './assetstore';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -28,23 +28,23 @@ import {
 import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
 import { bonesOf, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
-import type { Store } from './store';
+import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Scene, Side, Travel, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Reference, Scene, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
 export function addScene(store: Store, scene: Scene = newScene(`Scene ${store.getState().library.scenes.length + 1}`)) {
   const at = store.getState().sceneIndex + 1;
   store.commit((lib) => ({ ...lib, scenes: [...lib.scenes.slice(0, at), scene, ...lib.scenes.slice(at)] }), '', {
-    sceneIndex: at, selection: null, activeFigure: null,
+    sceneIndex: at, selection: openingSelection(scene), activeFigure: null,
   });
 }
 
 export function appendScenes(store: Store, scenes: Scene[]) {
   const at = store.getState().library.scenes.length;
-  store.commit((lib) => ({ ...lib, scenes: [...lib.scenes, ...scenes] }), '', { sceneIndex: at, selection: null, activeFigure: null });
+  store.commit((lib) => ({ ...lib, scenes: [...lib.scenes, ...scenes] }), '', { sceneIndex: at, selection: openingSelection(scenes[0]), activeFigure: null });
 }
 
 /** Duplicate a scene (the open one by default); the copy opens next to it. */
@@ -69,6 +69,7 @@ export function deleteScene(store: Store, index = store.getState().sceneIndex) {
   store.commit((lib) => ({ ...lib, scenes: lib.scenes.filter((_, i) => i !== index) }), '', {
     sceneIndex: index <= sceneIndex ? Math.max(0, sceneIndex - 1) : sceneIndex, selection: null,
   });
+  store.select(openingSelection(store.scene));
   return true;
 }
 
@@ -85,7 +86,7 @@ export function moveScene(store: Store, from: number, to: number) {
 
 
 export function replaceLibrary(store: Store, scenes: Scene[], board?: Panel[]) {
-  store.commit((lib) => ({ ...lib, scenes, board }), '', { sceneIndex: 0, selection: null, activeFigure: null });
+  store.commit((lib) => ({ ...lib, scenes, board }), '', { sceneIndex: 0, selection: openingSelection(scenes[0]), activeFigure: null });
 }
 
 export function renameScene(store: Store, name: string) {
@@ -95,6 +96,31 @@ export function renameScene(store: Store, name: string) {
 /** Light the open scene. */
 export function setSceneLight(store: Store, light: Light, key = '') {
   store.updateScene((s) => ({ ...s, light }), key);
+}
+
+/** An image as PNG, JPEG or WebP (what is kept and synced): others (GIF, BMP…) are drawn into a PNG. */
+async function webImage(image: Blob): Promise<Blob> {
+  if (/^image\/(png|jpeg|webp)$/.test(image.type)) return image;
+  const bitmap = await createImageBitmap(image);
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+  return canvas.convertToBlob({ type: 'image/png' });
+}
+
+/** A photo or drawing over the open scene (kept as an asset, saved with the scene), shown. */
+export async function setReferenceImage(store: Store, image: Blob) {
+  const id = uid('ref');
+  await saveImage(id, await webImage(image));
+  store.updateScene((s) => ({ ...s, reference: { image: id, opacity: s.reference?.opacity ?? 0.45, visible: true } }));
+}
+
+/** How the scene's reference image shows (null: none). */
+export function editReference(store: Store, patch: Partial<Omit<Reference, 'image'>> | null, key = '') {
+  store.updateScene((s) => {
+    if (!s.reference) return s;
+    const { reference, ...rest } = s;
+    return patch ? { ...s, reference: { ...reference, ...patch } } : rest;
+  }, key);
 }
 
 /* Figures */

@@ -257,6 +257,9 @@ export function parseScene(v: unknown, i = 0): Scene {
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     cameras: parseCameras(v.cameras),
     ...(isObj(v.light) ? { light: clampLight(v.light as Partial<Light>) } : {}),
+    ...(isObj(v.reference) && typeof v.reference.image === 'string' && /^[\w-]{1,80}$/.test(v.reference.image)
+      ? { reference: { image: v.reference.image, opacity: Math.min(1, Math.max(0.05, num(v.reference.opacity, 0.45))), visible: v.reference.visible !== false } }
+      : {}),
   };
   if (!scene.cameras.length) scene.cameras = [defaultCamera()];
   if (isObj(v.coverage) && typeof v.coverage.id === 'string' && isObj(v.coverage.roles)) {

@@ -447,7 +447,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         for (const { object } of rigRef.current ? ray.intersectObject(rigRef.current, true) : []) {
           let o: THREE.Object3D | null = object;
           while (o && !o.userData.camera) o = o.parent;
-          if (o) return { ...hit, camera: o.userData.camera as string, ...(o.userData.point !== undefined ? { point: o.userData.point as number } : {}) };
+          if (o?.visible) return { ...hit, camera: o.userData.camera as string, ...(o.userData.point !== undefined ? { point: o.userData.point as number } : {}) };
         }
         for (const { object } of ray.intersectObject(sv.root, true)) {
           let o: THREE.Object3D | null = object;
@@ -536,6 +536,8 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   useEffect(() => { lastDot.current = NaN; }, [trails]);
   // Every camera where it is at the playhead (a path camera's points have their own glyphs).
   const nowGlyphs = useRef<(THREE.Object3D | null)[]>([]);
+  // Those at one of their path's points now (hidden there: the point's glyph is the one to drag).
+  const onPoint = useRef<boolean[]>([]);
 
   const glyphs = useRef<(THREE.Object3D | null)[]>([]);
   useFrame((state) => {
@@ -558,11 +560,11 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
         placeCamera(three, viewOf(scene, c, a ? t : 0), frameAspect(scene));
         g.position.copy(three.position);
         g.quaternion.copy(three.quaternion);
-        g.userData.onPoint = c.kind === 'path' && c.points.some((p) => Math.abs(p.t - t) < 0.5 / fps);
+        onPoint.current[i] = c.kind === 'path' && c.points.some((p) => Math.abs(p.t - t) < 0.5 / fps);
       });
     }
     scale(dot.current);
-    for (const g of nowGlyphs.current) if (g) { scale(g); g.visible &&= !g.userData.onPoint; }
+    nowGlyphs.current.forEach((g, i) => { if (g) { scale(g); g.visible &&= !onPoint.current[i]; } });
   });
 
   /** Follow the pointer across a plane through `from` (level, or upright facing the view with Shift). */
@@ -622,7 +624,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
             key={`now:${c.id}`}
             ref={(g) => { nowGlyphs.current[i] = g; }}
             userData={{ camera: c.id }}
-            onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
+            onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
           >
             <mesh>
               <boxGeometry args={[0.14, 0.1, 0.12]} />

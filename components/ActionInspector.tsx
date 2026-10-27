@@ -1,8 +1,8 @@
 'use client';
 
-import { Diamond, Film, Footprints, Layers, Trash2, TriangleAlert, Users } from 'lucide-react';
+import { Diamond, Ellipsis, Film, Footprints, Layers, TriangleAlert, Users } from 'lucide-react';
 import {
-  deleteAction, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel,
+  fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel,
 } from '@/lib/actions';
 import { clipById } from '@/lib/assets';
 import { overWarp } from '@/lib/evaluate';
@@ -10,7 +10,8 @@ import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { actionLabel } from '@/lib/track';
 import type { Action, Scene, Travel } from '@/lib/types';
 import { useScene, useStore } from './store-context';
-import { IconButton, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome } from './ui';
+import { actionMenu } from './menus';
+import { Menu, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome } from './ui';
 
 const JUMP_HEIGHTS = [0.3, 0.5, 0.8, 1.2];
 
@@ -37,7 +38,9 @@ export default function ActionInspector({ id, figure, chrome }: { id: string; fi
         {chrome.before}
         <Icon size={16} strokeWidth={1.75} aria-hidden />
         <span className="title-static" aria-label="Action">{label}</span>
-        <IconButton icon={Trash2} label={`Remove ${label}`} shortcut="Del" onClick={() => { deleteAction(store, id); store.select(null); }} />
+        <Menu label={`${label} menu`} className="ibtn" align="end" tip="More" items={actionMenu(store, id, figure)}>
+          <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+        </Menu>
         {chrome.after}
       </div>
       <Section title="Timing">

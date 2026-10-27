@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, X, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, Ellipsis, X, type LucideIcon } from 'lucide-react';
 
 const FOCUSABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
 
@@ -217,13 +217,15 @@ export interface HeaderChrome {
   after?: ReactNode;
 }
 
-export function NameHeader({ lead, name, label, onRename, children, chrome }: {
+/** An inspector's header: the thing's name (to rename it) and its menu (as its right-click menu). */
+export function NameHeader({ lead, name, label, onRename, children, chrome, menu }: {
   lead: ReactNode;
   name: string;
   label: string;
   onRename(name: string): void;
   children?: ReactNode;
   chrome?: HeaderChrome;
+  menu?: MenuItem[];
 }) {
   return (
     <div className="panel-title">
@@ -231,6 +233,11 @@ export function NameHeader({ lead, name, label, onRename, children, chrome }: {
       {lead}
       <TitleInput key={name} name={name} label={label} onRename={onRename} />
       {children}
+      {menu && menu.length > 0 && (
+        <Menu label={`${name} menu`} className="ibtn" align="end" tip="More" items={menu}>
+          <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+        </Menu>
+      )}
       {chrome?.after}
     </div>
   );

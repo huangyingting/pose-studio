@@ -67,6 +67,12 @@ async function choose(page: Page, select: string, option: string | RegExp) {
   await page.getByRole('listbox', { name: select }).getByRole('option', { name: option }).click();
 }
 
+/** Pick an item of the top bar's View menu. */
+async function viewMenu(page: Page, item: string | RegExp) {
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('menu', { name: 'View' }).getByRole('menuitemradio', { name: item }).or(page.getByRole('menu', { name: 'View' }).getByRole('menuitem', { name: item })).click();
+}
+
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 /** Pick what the Library lists (the drop-down beside its title). */
 async function libraryShows(page: Page, what: 'Templates' | 'Characters' | 'Poses' | 'Motions' | 'Camera') {
@@ -363,7 +369,10 @@ test('figures, props, body and hand presets', async ({ page }) => {
   expect(s.figures[1].body.sex).toBe(0);
   expect(s.figures[0].body.sex).toBe(1);
 
+  // Escape selects nothing: the inspector shows the scene; the figure is picked again for its hands.
   await page.keyboard.press('Escape');
+  await expect(page.getByRole('textbox', { name: 'Scene name' }).last()).toBeVisible();
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
   await page.getByRole('button', { name: 'Hands', exact: true }).click();
   await page.getByRole('button', { name: 'Fist' }).click();
   s = (await state(page)).scene;
@@ -445,6 +454,10 @@ test('poses a figure from a photo', async ({ page }) => {
   // MediaPipe's usage logging is answered locally instead of reaching Google (or the CSP).
   const status = await page.evaluate(() => fetch('https://odml.pa.googleapis.com/v1/log', { method: 'POST' }).then((r) => r.status));
   expect(status).toBe(204);
+  // The photo is the scene's reference image, kept with it: there again after a reload.
+  await page.waitForFunction(() => (window as unknown as { __poseStudio: { store: { getState(): { saveStatus: string } } } }).__poseStudio.store.getState().saveStatus === 'saved');
+  await page.reload();
+  await expect(page.locator('img.reference')).toBeVisible();
 });
 
 test('mobile layout uses drawers', async ({ page }) => {
@@ -705,7 +718,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active, 'correction')).toHaveLength(1);
 
-  await page.getByRole('button', { name: 'Look through the shot camera' }).click();
+  await viewMenu(page, 'The shot camera (the cut)');
   await expect(page.locator('.letterbox')).toBeVisible();
   // The shot's camera move: from its inspector to the library's camera moves.
   await openSection(page, 'Scene');
@@ -748,11 +761,10 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   expect(Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]))).toBeCloseTo((near * 85) / lens, 1);
   await expect(inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true })).toHaveAttribute('aria-pressed', 'true');
   // Looking through it with framing guides: the frame's thirds and safe areas.
-  await page.getByRole('button', { name: 'Look through the shot camera' }).click();
-  await page.getByRole('button', { name: 'Animation options' }).click();
-  await page.getByRole('menuitemradio', { name: /Framing guides/ }).click();
+  await viewMenu(page, 'The shot camera (the cut)');
+  await viewMenu(page, /Framing guides/);
   await expect(page.locator('.letterbox .third')).toHaveCount(4);
-  await page.getByRole('button', { name: 'Look through the shot camera' }).click();
+  await viewMenu(page, 'The editor’s view');
   // A close-up through a wide lens (the camera near the figure); seen from above and aside, the
   // shot's camera is dragged across the floor, its height kept.
   await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'CU', exact: true }).click();
