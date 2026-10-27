@@ -394,6 +394,7 @@ export function fitBody(f: Figure, target: Proportions): BodyParams {
 const infos = new Map<string, ModelInfo>();
 const templates = new Map<string, THREE.Object3D>();
 const loading = new Set<string>();
+const unreachable = new Set<string>();
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((f) => f());
 for (const m of BUILT_IN_CHARACTERS) infos.set(m.id, m);
@@ -416,13 +417,18 @@ export function onModels(f: () => void) {
 export function modelTemplate(id: string): THREE.Object3D | null {
   const hit = templates.get(id);
   const info = infos.get(id);
-  if (hit || !info || loading.has(id)) return hit ?? null;
+  if (hit || !info || loading.has(id) || unreachable.has(id)) return hit ?? null;
   loading.add(id);
-  // A built-in character's file comes with the app; an imported one's is kept as an asset.
-  const file = isBuiltInCharacter(id) ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : null)) : loadModelFile(id);
+  // A built-in character's file comes with the app (not asked for again this visit if it does
+  // not come: offline); an imported one's is kept as an asset (it may come later, synced).
+  const builtIn = isBuiltInCharacter(id);
+  const file = builtIn ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : null), () => null) : loadModelFile(id);
   void file
     .then(async (data) => {
-      if (!data) return;
+      if (!data) {
+        if (builtIn) unreachable.add(id);
+        return;
+      }
       templates.set(id, await parseModel(info.format, data));
       changed();
     })

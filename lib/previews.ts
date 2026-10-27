@@ -32,6 +32,8 @@ export interface PreviewJob {
 }
 
 const done = new Map<string, string[]>();
+/** How long a preview waits for what it shows (a character's file) before giving up. */
+const WAIT_MS = 15_000;
 
 /**
  * Render a preview's frames, a frame per task, handing them over as they come (all at once if
@@ -47,10 +49,12 @@ export function runPreview(job: PreviewJob, onFrames: (frames: string[]) => void
   let stopped = false;
   // When the page is idle: playback, dragging and typing come first.
   const later = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 200 }) : setTimeout(fn, 0));
+  const since = Date.now();
   const step = () => {
     if (stopped) return;
     if (job.ready && !job.ready()) {
-      later(step);
+      // Waited for long enough (a file that does not come: offline): no preview.
+      if (Date.now() - since < WAIT_MS) later(() => setTimeout(step, 250));
       return;
     }
     frames.push(job.frame(frames.length));
