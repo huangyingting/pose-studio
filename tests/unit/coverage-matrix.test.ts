@@ -6,26 +6,27 @@ import { COVERAGES } from '@/lib/coverage';
 import { sceneAt } from '@/lib/evaluate';
 import { checkShots } from '@/lib/qa';
 import { Rig } from '@/lib/relations';
-import { cameraAt, liveCamera, placeCamera } from '@/lib/shot';
+import { cameraAt, liveCamera, placeCamera, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import { Store } from '@/lib/store';
 import { SCENE_TEMPLATES } from '@/lib/templates';
+import type { Camera } from '@/lib/types';
 import { MemoryStorage } from '../fixtures/scenes';
 
 /*
  * Acceptance (issue #3): any scene template filmed with any coverage that fits it, its people of
- * every build, is clean: no camera through anyone or anything, nobody hidden from a shot, and every
- * shot's camera has its subject in frame.
+ * every build, is clean: no camera through anyone or anything, nobody hidden from a shot, every
+ * shot's camera has its subject in frame, and a single has nobody else in it.
  */
 
 const rig = new Rig();
 
-/** Whether a figure's chest is in frame of the camera filming at t. */
-function inFrame(store: Store, t: number, figure: string) {
+/** Whether a figure's chest (or head) is in frame of the camera filming at t (or of a given camera). */
+function inFrame(store: Store, t: number, figure: string, camera?: Camera, joint: 'chest' | 'head' = 'chest') {
   const f = sceneAt(store.scene, t).figures.find((x) => x.id === figure)!;
-  const chest = rig.model(f).joints.chest.getWorldPosition(new THREE.Vector3());
+  const chest = rig.model(f).joints[joint].getWorldPosition(new THREE.Vector3());
   const cam = new THREE.PerspectiveCamera(30, 16 / 9);
-  placeCamera(cam, cameraAt(store.scene, t), 16 / 9);
+  placeCamera(cam, camera ? viewOf(store.scene, camera, t) : cameraAt(store.scene, t), 16 / 9);
   const p = chest.project(cam);
   return Math.abs(p.x) < 1 && Math.abs(p.y) < 1 && p.z < 1;
 }
@@ -45,9 +46,24 @@ describe('every scene template × coverage × body is clean', () => {
           const what = `${t.id} × ${c.id} × ${preset.name}`;
           expect(cast, what).toBeTruthy();
           expect(checkShots(store.scene).map((i) => i.message), what).toEqual([]);
+          // Every single, cut to or not, has its subject in it, and is clean (the other person out of
+          // it) unless the two touch (a handshake, hand in hand: no single leaves the other out).
+          const a = store.scene.animation!;
+          const apart = (t: number, p: string, q: string) => {
+            const now = sceneAt(store.scene, t).figures;
+            const [x, y] = [now.find((f) => f.id === p)!, now.find((f) => f.id === q)!];
+            return Math.hypot(x.position[0] - y.position[0], x.position[2] - y.position[2]);
+          };
+          for (const cam of a.cameras!.filter((x) => x.rig?.clear)) {
+            for (const at of [0, a.duration / 2, a.duration]) {
+              // (A close-up holds the head; the chest may be at the frame's edge.)
+              expect(inFrame(store, at, cam.subject!, cam, 'head'), `${what}: ${cam.name} at ${at}`).toBe(true);
+              if (apart(at, cam.subject!, cam.rig!.clear!) > 1) expect(inFrame(store, at, cam.rig!.clear!, cam), `${what}: ${cam.name} clean at ${at}`).toBe(false);
+            }
+          }
           for (const span of shotSpans(store.scene.animation!)) {
-            const subject = liveCamera(store.scene, span.start)?.subject;
-            for (const at of [span.start, (span.start + span.end) / 2]) if (subject) expect(inFrame(store, at, subject), `${what}: ${span.shot.name} at ${at.toFixed(2)}`).toBe(true);
+            const cam = liveCamera(store.scene, span.start);
+            for (const at of [span.start, (span.start + span.end) / 2]) if (cam?.subject) expect(inFrame(store, at, cam.subject), `${what}: ${span.shot.name} at ${at.toFixed(2)}`).toBe(true);
           }
         }
       }

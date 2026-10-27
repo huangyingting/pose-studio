@@ -130,10 +130,15 @@ type Happening = { t: number; kind: 'key'; key: PropKey } | ByHand;
 /** A catch: who, with which hand, when, and how far the hand has to go to meet the prop then. */
 export interface Catch { t: number; figure: string; hand: Side; reach: Vec3 }
 
+/** How a prop of a kind bounces and grips, unless set for it. */
+export const defaultPhysics = (kind: Prop['kind']) => (kind === 'sphere' ? { bounce: 0.7, friction: 0.15 } : { bounce: 0.3, friction: 0.6 });
+
+/** How a prop bounces and grips when it flies free (0–1). */
+export const physicsOf = (p: Prop) => p.physics ?? defaultPhysics(p.kind);
+
 /** What a prop is, to fly: its body, and where its centre is in its own frame. */
 function bodyOf(p: Prop): { body: Body; centre: THREE.Vector3 } {
-  const bounce = p.physics?.bounce ?? (p.kind === 'sphere' ? 0.7 : 0.3);
-  const friction = p.physics?.friction ?? (p.kind === 'sphere' ? 0.15 : 0.6);
+  const { bounce, friction } = physicsOf(p);
   if (p.kind === 'sphere') {
     const r = p.scale[0] / 2;
     return { body: { shape: 'ball', size: [r, r, r], bounce, friction }, centre: new THREE.Vector3(0, r, 0) };

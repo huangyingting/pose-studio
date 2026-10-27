@@ -5,7 +5,7 @@ import { mixamoRig } from './rig';
  * A character as a glTF file: the Mixamo-named skeleton (tests/fixtures/rig.ts) as a skin, with a
  * small mesh bound to its hips. Written by hand (three's exporter needs a browser).
  */
-export function characterGltf(aPose = false): string {
+export function characterGltf(aPose = false, tall = false): string {
   const rig = mixamoRig(aPose);
   const bones: THREE.Object3D[] = [];
   rig.traverse((o) => { if ((o as THREE.Bone).isBone) bones.push(o); });
@@ -15,8 +15,10 @@ export function characterGltf(aPose = false): string {
     translation: [b.position.x / 100, b.position.y / 100, b.position.z / 100],
     ...(b.children.length ? { children: b.children.map((c) => index.get(c)!) } : {}),
   }));
-  // A triangle at the hips, all its weight on the first bone; inverse binds from the rest pose.
-  const positions = new Float32Array([0, 1, 0, 0.1, 1, 0, 0, 1.1, 0]);
+  // A triangle at the hips (or, `tall`, from the floor to over the head), all its weight on the
+  // first bone; inverse binds from the rest pose.
+  const [y0, y1] = tall ? [0, 1.85] : [1, 1.1];
+  const positions = new Float32Array([0, y0, 0, 0.1, y0, 0, 0, y1, 0]);
   const joints = new Uint16Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   const weights = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]);
   rig.scale.setScalar(0.01);
@@ -34,7 +36,7 @@ export function characterGltf(aPose = false): string {
     meshes: [{ primitives: [{ attributes: { POSITION: 0, JOINTS_0: 1, WEIGHTS_0: 2 } }] }],
     skins: [{ joints: bones.map((_, i) => i), inverseBindMatrices: 3, skeleton: 0 }],
     accessors: [
-      { bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [0, 1, 0], max: [0.1, 1.1, 0] },
+      { bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [0, y0, 0], max: [0.1, y1, 0] },
       { bufferView: 1, componentType: 5123, count: 3, type: 'VEC4' },
       { bufferView: 2, componentType: 5126, count: 3, type: 'VEC4' },
       { bufferView: 3, componentType: 5126, count: bones.length, type: 'MAT4' },

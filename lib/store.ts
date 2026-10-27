@@ -35,7 +35,7 @@ export interface Settings {
   guides: boolean;
 }
 
-export const LIBRARY_TABS = ['poses', 'motions', 'models', 'templates', 'camera'] as const;
+export const LIBRARY_TABS = ['templates', 'characters', 'poses', 'motions', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export const SIDE_SECTIONS = ['scene', 'library', 'ai'] as const;
@@ -124,6 +124,8 @@ export class Store {
   private past: HistoryEntry[] = [];
   private future: HistoryEntry[] = [];
   private lastKey = '';
+  /** Inside `group`: whether its first edit has been recorded (the rest join it). */
+  private grouped: boolean | null = null;
   private lastTime = 0;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** Pose copied with Ctrl+C. */
@@ -242,7 +244,8 @@ export class Store {
     if (next === prev) return;
     next = this.autoKey(prev, next);
     const now = Date.now();
-    const merge = key && key === this.lastKey && now - this.lastTime < MERGE_MS && this.past.length > 0;
+    const merge = (this.grouped === true && this.past.length > 0) || (key && key === this.lastKey && now - this.lastTime < MERGE_MS && this.past.length > 0);
+    if (this.grouped === false) this.grouped = true;
     if (!merge) {
       this.past.push({ library: prev, index: prevIndex, after: prevIndex });
       if (this.past.length > HISTORY_LIMIT) this.past.shift();
@@ -286,6 +289,18 @@ export class Store {
     const s = lib.scenes[index];
     if (!s?.animation) return lib;
     return { ...lib, scenes: lib.scenes.map((x, j) => (j === index ? sceneAt(x, time) : x)) };
+  }
+
+  /** Edits made by `fn` (an action made of several) undo as one step. */
+  group<T>(fn: () => T): T {
+    if (this.grouped !== null) return fn();
+    this.grouped = false;
+    try {
+      return fn();
+    } finally {
+      this.grouped = null;
+      this.lastKey = '';
+    }
   }
 
   updateScene(fn: (s: Scene) => Scene, key = '') {

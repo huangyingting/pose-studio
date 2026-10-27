@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { liveCamera } from '@/lib/shot';
+import { liveCamera } from '@/lib/cameras';
 import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
 import { Store } from '@/lib/store';
@@ -151,6 +151,11 @@ describe('assistant tools', () => {
     run(store, 'animate', { duration: 8, loop: false });
     expect(run(store, 'film_coverage', { coverage: 'dialogue', a: b.name, b: a.name })).toMatch(new RegExp(`^Two-person dialogue \\(A: ${b.name}, B: ${a.name}\\): 0 s Master, 3 s ${b.name} single`));
     expect(runTool(store, 'film_coverage', { coverage: 'sports', a: a.name, b: a.name }).ok).toBe(false);
+    // A shot and a camera, each edited on its own.
+    expect(run(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Master', size: 'ws', lens: 28 })).toMatch(/^Master: follows .* at wide, 28mm\.$/);
+    expect(run(store, 'edit_shot', { time: 0, name: null, caption: 'They meet', camera: null, blend: null })).toMatch(/^Shot 1: 0\.00–3\.00 s, filmed by Master, cut in\.$/);
+    expect(store.scene.animation!.shots![0].caption).toBe('They meet');
+    expect(runTool(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Nobody' }).ok).toBe(false);
     expect(run(store, 'new_scene', { template: 'shoot-bout', name: null })).toMatch(/^Opened "The bout", filmed in \d+ shots/);
   });
 

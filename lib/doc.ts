@@ -451,7 +451,10 @@ function parseModelInfo(v: unknown): ModelInfo | null {
   if (!isObj(v) || typeof v.id !== 'string' || !v.id || !isObj(v.bones)) return null;
   const bones: ModelInfo['bones'] = {};
   for (const b of BONES) if (typeof v.bones[b] === 'string') bones[b] = (v.bones[b] as string).slice(0, 200);
-  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones };
+  const p = isObj(v.proportions) ? v.proportions : null;
+  const share = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x > 0 && x < 1 ? x : null);
+  const proportions = p && share(p.legs) && share(p.head) && share(p.shoulders) ? { legs: p.legs as number, head: p.head as number, shoulders: p.shoulders as number } : null;
+  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones, ...(proportions ? { proportions } : {}) };
 }
 
 function parseClipInfo(v: unknown): ClipInfo | null {

@@ -1,7 +1,7 @@
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { poseScene } from './poses';
-import { cameraAt, filmWith, subjectAt, type CameraMove } from './shot';
+import { cameraAt, filmWith, subjectAt, type CameraMove } from './cameras';
 import { newCamera, newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { PoseAsset, Scene, Style } from './types';

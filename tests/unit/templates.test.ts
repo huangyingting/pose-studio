@@ -102,5 +102,11 @@ describe('scene templates: what is filmed, without how', () => {
       // Neither holds the other: the template has no cameras, the coverage no people.
       expect(SCENE_TEMPLATES.find((t) => t.id === p.template)!.build().animation?.cameras).toBeUndefined();
     }
+    // Opened in one step: one undo goes back to before it.
+    const store = new Store(new MemoryStorage());
+    const before = store.getState().library;
+    newShoot(store, 'shoot-interview');
+    store.undo();
+    expect(store.getState().library).toBe(before);
   }, 120_000);
 });

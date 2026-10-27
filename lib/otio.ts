@@ -1,5 +1,5 @@
 import { describeSpan } from './prompt';
-import { cameraById } from './shot';
+import { cameraById } from './cameras';
 import { shotSpans, videoModel } from './shots';
 import type { Scene } from './types';
 

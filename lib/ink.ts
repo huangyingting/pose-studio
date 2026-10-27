@@ -15,10 +15,16 @@ function createOutlineMaterial(uniforms: Ink['uniforms']) {
       uniform float thickness;
       uniform float jitter;
       uniform vec2 resolution;
+      #include <skinning_pars_vertex>
       ${NOISE_GLSL}
       void main() {
-        vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        vec3 n = normalize(normalMatrix * normal);
+        #include <beginnormal_vertex>
+        #include <skinbase_vertex>
+        #include <skinnormal_vertex>
+        #include <begin_vertex>
+        #include <skinning_vertex>
+        vec4 clip = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+        vec3 n = normalize(normalMatrix * objectNormal);
         vec2 dir = (projectionMatrix * vec4(n, 0.0)).xy * resolution;
         float len = length(dir);
         if (len > 1e-6) dir /= len;
@@ -49,7 +55,14 @@ export function encodeId(id: number) {
   return new THREE.Vector3((n % 16) / 15, (Math.floor(n / 16) % 16) / 15, (Math.floor(n / 256) % 16) / 15);
 }
 
-const ID_VERT = 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const ID_VERT = /* glsl */ `
+  #include <skinning_pars_vertex>
+  void main() {
+    #include <skinbase_vertex>
+    #include <begin_vertex>
+    #include <skinning_vertex>
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+  }`;
 const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }';
 
 interface StyleMaterials {

@@ -1,5 +1,5 @@
 import { propStretchesOf } from './evaluate';
-import { cameraById } from './shot';
+import { cameraById } from './cameras';
 import { newCamera, newShot, shotSpans } from './shots';
 import type { Animation, Camera, CameraRig, Scene, Shot } from './types';
 
@@ -7,7 +7,7 @@ import type { Animation, Camera, CameraRig, Scene, Shot } from './types';
  * Coverage: how to film a scene, as a set of cameras on roles (A, B) and rules for cutting
  * between them, the way a director plans coverage: a master, singles and over-the-shoulder shots,
  * a tracking camera. The cameras place themselves from the figures playing the roles (rigs,
- * lib/shot.ts), their angles from the line between A and B, all on one side of it (the line of
+ * lib/cameras.ts), their angles from the line between A and B, all on one side of it (the line of
  * action), so the coverage works in any scene. The cuts fall on what happens: someone setting off
  * or starting a motion, a prop let go of or caught, or on a beat when nothing does.
  */
@@ -21,7 +21,7 @@ interface CoverageCamera {
   name: string;
   subject: CoverageRole;
   also?: CoverageRole;
-  rig: Omit<CameraRig, 'toward'> & { toward?: CoverageRole };
+  rig: Omit<CameraRig, 'toward' | 'clear'> & { toward?: CoverageRole; clear?: CoverageRole };
 }
 
 /** When to cut to a camera: at the start, when a role sets off or starts a motion, lets go of or catches a prop, or on a beat. */
@@ -53,8 +53,8 @@ export const COVERAGES: Coverage[] = [
       { key: 'master', name: 'Master', subject: 'A', also: 'B', rig: { body: 'follow', yaw: 90, pitch: 5, toward: 'B', size: 'fs', lens: 35, smooth: 1 } },
       { key: 'ots-a', name: '{A} over {B}’s shoulder', subject: 'A', rig: { body: 'follow', yaw: 18, pitch: 3, toward: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.8 } },
       { key: 'ots-b', name: '{B} over {A}’s shoulder', subject: 'B', rig: { body: 'follow', yaw: -18, pitch: 3, toward: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.8 } },
-      { key: 'single-a', name: '{A} single', subject: 'A', rig: { body: 'follow', yaw: 30, pitch: 2, toward: 'B', size: 'mcu', place: 'right', lens: 85, smooth: 0.8 } },
-      { key: 'single-b', name: '{B} single', subject: 'B', rig: { body: 'follow', yaw: -30, pitch: 2, toward: 'A', size: 'mcu', place: 'left', lens: 85, smooth: 0.8 } },
+      { key: 'single-a', name: '{A} single', subject: 'A', rig: { body: 'follow', yaw: 30, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 85, smooth: 0.8 } },
+      { key: 'single-b', name: '{B} single', subject: 'B', rig: { body: 'follow', yaw: -30, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 85, smooth: 0.8 } },
     ],
     cuts: [
       { on: 'start', camera: 'master' },
@@ -88,8 +88,8 @@ export const COVERAGES: Coverage[] = [
     roles: ['A', 'B'],
     cameras: [
       { key: 'wide', name: 'Wide', subject: 'A', also: 'B', rig: { body: 'follow', yaw: 90, pitch: 12, toward: 'B', size: 'ws', lens: 28, smooth: 1 } },
-      { key: 'single-a', name: '{A}', subject: 'A', rig: { body: 'follow', yaw: 25, pitch: 3, toward: 'B', size: 'ms', place: 'right', lens: 70, smooth: 0.6 } },
-      { key: 'single-b', name: '{B}', subject: 'B', rig: { body: 'follow', yaw: -25, pitch: 3, toward: 'A', size: 'ms', place: 'left', lens: 70, smooth: 0.6 } },
+      { key: 'single-a', name: '{A}', subject: 'A', rig: { body: 'follow', yaw: 25, pitch: 3, toward: 'B', clear: 'B', size: 'ms', place: 'right', lens: 70, smooth: 0.6 } },
+      { key: 'single-b', name: '{B}', subject: 'B', rig: { body: 'follow', yaw: -25, pitch: 3, toward: 'A', clear: 'A', size: 'ms', place: 'left', lens: 70, smooth: 0.6 } },
       { key: 'track-a', name: 'Tracking {A}', subject: 'A', rig: { body: 'follow', yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 0.8 } },
     ],
     cuts: [
@@ -107,10 +107,10 @@ export const coverageById = (id: string) => COVERAGES.find((c) => c.id === id) ?
 /** The camera a coverage makes for one of its cameras, with these figures in its roles. */
 function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): Omit<Camera, 'id'> {
   const name = cc.name.replace(/\{(A|B)\}/g, (_, r: string) => roles[`name:${r}`] ?? r);
-  const { toward, ...rig } = cc.rig;
+  const { toward, clear, ...rig } = cc.rig;
   return {
     name, subject: roles[cc.subject], ...(cc.also ? { also: [roles[cc.also]] } : {}), made: `${c.id}:${cc.key}`,
-    anchor: 'world', aim: 'subject', points: [], rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}) },
+    anchor: 'world', aim: 'subject', points: [], rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}), ...(clear ? { clear: roles[clear] } : {}) },
   };
 }
 
@@ -177,8 +177,9 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
 /**
  * Film a scene with a coverage, with these figures in its roles: its cameras and its cuts over
  * the whole animation. Applied again, it cuts anew and puts back the cameras it made, except
- * those edited by hand since (they are left as they are, and still cut to); the scene's other
- * cameras are left alone. Captions stay with shots that still start where they did.
+ * those edited by hand since (they are left as they are, and still cut to). Applied over another
+ * coverage, that one's cameras go, except those edited by hand; cameras made otherwise are left
+ * alone. Captions stay with shots that still start where they did.
  */
 export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRole, string> | Record<'A', string>): Scene {
   const c = coverageById(id);
@@ -187,6 +188,13 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   const named = (rs: Record<string, string>) => ({ ...rs, ...Object.fromEntries(Object.entries(rs).map(([r, f]) => [`name:${r}`, scene.figures.find((x) => x.id === f)?.name ?? r])) });
   const before = a.coverage?.id === id ? named(a.coverage.roles) : null;
   let anim: Animation = { ...a, cameras: [...(a.cameras ?? [])] };
+  // Over another coverage: its cameras go, except those edited by hand since.
+  const last = a.coverage && a.coverage.id !== id ? coverageById(a.coverage.id) : null;
+  if (last) {
+    const was = named(a.coverage!.roles);
+    const untouched = new Set(last.cameras.map((cc) => made(last, cc, was)).map(rule));
+    anim = { ...anim, cameras: anim.cameras!.filter((x) => !x.made?.startsWith(`${last.id}:`) || !untouched.has(rule(x))) };
+  }
   const ids = new Map<string, string>();
   for (const cc of c.cameras) {
     const want = made(c, cc, named(roles));

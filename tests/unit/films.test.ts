@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { liveCamera } from '@/lib/shot';
+import { liveCamera } from '@/lib/cameras';
 import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, holdHandle, holdProp, lieOn, moveProp,
   addModel, retime, setShotSubject, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,

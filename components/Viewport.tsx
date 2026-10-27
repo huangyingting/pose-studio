@@ -13,7 +13,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
-import { cameraAt, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/shot';
+import { cameraAt, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
@@ -85,7 +85,8 @@ export default function Viewport({
   useLayoutEffect(() => {
     sv.sync(scene);
   }, [sv, scene, models]);
-  useLayoutEffect(() => sv.setSelection(selection), [sv, selection, scene]);
+  // Through the shot camera the picture is shown as filmed: no selection, no handles.
+  useLayoutEffect(() => sv.setSelection(shotMode ? null : selection), [sv, selection, scene, shotMode]);
   useLayoutEffect(() => sv.setStyle(settings.style), [sv, settings.style]);
   useLayoutEffect(() => sv.setFaces(settings.faces), [sv, settings.faces]);
   useEffect(() => () => sv.dispose(), [sv]);
@@ -111,6 +112,7 @@ export default function Viewport({
   // Scale (R: props). Joints are posed by dragging the body (Shift-drag twists) and the inspector's
   // sliders; figures and props turn by their floor ring. (Rotation rings around a joint crossed
   // the parts next to it and caught the drags meant for them.)
+  const handles = settings.showHandles && !shotMode;
   let target: THREE.Object3D | null = null;
   let mode: 'translate' | 'scale' = 'translate';
   let showY = true;
@@ -180,7 +182,7 @@ export default function Viewport({
           />
         )}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
-        {target && (
+        {target && !shotMode && (
           <TransformControls
             object={target}
             mode={mode}
@@ -192,7 +194,7 @@ export default function Viewport({
             onObjectChange={onGizmoChange}
           />
         )}
-        {settings.showHandles && active && activeDoc && !activeDoc.proxy && (
+        {handles && active && activeDoc && !activeDoc.proxy && (
           <IKHandles
             key={`${activeDoc.id}:${version}`}
             m={active}
@@ -201,7 +203,7 @@ export default function Viewport({
             onCommit={(read) => store.updateFigure(activeDoc.id, (f) => ({ ...f, ...read }), 'ik')}
           />
         )}
-        {settings.showHandles && (
+        {handles && (
           <FigureMarkers
             sv={sv}
             scene={scene}
@@ -212,11 +214,11 @@ export default function Viewport({
           />
         )}
         {!shotMode && <SeeThrough sv={sv} figureId={selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure} />}
-        {settings.showHandles && !shotMode && scene.animation && activeFigure && scene.figures.some((f) => f.id === activeFigure && !f.hidden) && (
+        {handles && scene.animation && activeFigure && scene.figures.some((f) => f.id === activeFigure && !f.hidden) && (
           <RouteOverlay store={store} scene={scene} figureId={activeFigure} time={time} />
         )}
-        {settings.showHandles && !shotMode && scene.animation?.constraints && <HoldPins sv={sv} scene={scene} time={time} />}
-        {settings.showHandles && selection?.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold && (
+        {handles && scene.animation?.constraints && <HoldPins sv={sv} scene={scene} time={time} />}
+        {handles && selection?.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold && (
           <PropRing
             sv={sv}
             id={selection.prop}
@@ -231,7 +233,7 @@ export default function Viewport({
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
-        {settings.showHandles && !shotMode && !!scene.animation?.cameras?.some((c) => c.points.length || c.rig) && (
+        {handles && !!scene.animation?.cameras?.some((c) => c.points.length || c.rig) && (
           <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} />
         )}
         <Bridge

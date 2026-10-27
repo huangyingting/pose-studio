@@ -1,5 +1,5 @@
 import type { Scene } from './types';
-import { angleOf, cameraAt, cameraById, sizeOf, type CameraView, type ShotSize } from './shot';
+import { angleOf, cameraAt, cameraById, sizeOf, type CameraView, type ShotSize } from './cameras';
 import { newShot, shotSpans, type ShotSpan } from './shots';
 
 /*

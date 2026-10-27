@@ -15,7 +15,7 @@ import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
 import { PREVIEW_SIZE, cameraPreview, motionPreview, posePreview, runPreview, templatePreview, type PreviewJob } from '@/lib/previews';
-import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/shot';
+import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
 import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
@@ -44,13 +44,19 @@ export default function LibrarySection(props: SectionProps) {
             label="Library section"
             value={tab}
             onChange={(t) => { preview.hide(); setTab(t); }}
-            options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'models', label: 'Models' }, { value: 'templates', label: 'Templates' }, { value: 'camera', label: 'Camera' }]}
+            options={[
+              { value: 'templates', label: 'Templates', hint: 'A new scene, or into this one around the selected figure' },
+              { value: 'characters', label: 'Characters', hint: 'Who the selected figure is drawn as' },
+              { value: 'poses', label: 'Poses', hint: 'On the selected figure' },
+              { value: 'motions', label: 'Motions', hint: 'On the selected figure, at the playhead' },
+              { value: 'camera', label: 'Camera', hint: 'Coverage of the scene; a move for the selected shot' },
+            ]}
           />
         </div>
       </div>
       {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
       {tab === 'motions' && <Motions {...props} preview={preview.bind} />}
-      {tab === 'models' && <Models {...props} />}
+      {tab === 'characters' && <Characters {...props} />}
       {tab === 'templates' && <Templates {...props} preview={preview.bind} />}
       {tab === 'camera' && <CameraMoves {...props} preview={preview.bind} />}
       {preview.card}
@@ -358,7 +364,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
 }
 
 /** Characters to draw figures as: the mannequin, or one imported (a glTF/GLB or FBX with a skeleton). */
-function Models({ notify, notifyUndo }: SectionProps) {
+function Characters({ notify, notifyUndo }: SectionProps) {
   const store = useStore();
   const figure = useActiveFigure();
   const mine = useStudio((s) => s.library.models) ?? [];
@@ -392,13 +398,13 @@ function Models({ notify, notifyUndo }: SectionProps) {
         <span className="side-list-name">{name}</span>
         {usable && (figure.model ?? null) === id && <em>{figure.name}</em>}
       </button>
-      {id && <IconButton icon={Trash2} label={`Delete my model ${name}`} className="row-delete" size={13} onClick={() => { deleteModel(store, id); notifyUndo(`Deleted “${name}”`); }} />}
+      {id && <IconButton icon={Trash2} label={`Delete my character ${name}`} className="row-delete" size={13} onClick={() => { deleteModel(store, id); notifyUndo(`Deleted “${name}”`); }} />}
     </li>
   );
   return (
     <div className="side-scroll">
       <Target>
-        {usable ? <>Click a model to draw <strong>{figure.name}</strong> as it.</> : 'Select a figure to draw it as a character.'}
+        {usable ? <>Click a character to draw <strong>{figure.name}</strong> as it.</> : 'Select a figure to draw it as a character.'}
       </Target>
       <div className="library-row">
         <button
@@ -423,9 +429,9 @@ function Models({ notify, notifyUndo }: SectionProps) {
           }}
         />
       </div>
-      <section aria-label="Models">
+      <section aria-label="Characters">
         <Group title="Built in" count={1}>{row(null, 'Mannequin')}</Group>
-        {mine.length > 0 && <Group title="My models" count={mine.length}>{mine.map((m) => row(m.id, m.name))}</Group>}
+        {mine.length > 0 && <Group title="My characters" count={mine.length}>{mine.map((m) => row(m.id, m.name))}</Group>}
       </section>
       {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
     </div>
@@ -455,7 +461,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
       </Target>
       <div className="library-row">
         <button type="button" className="btn subtle library-import" onClick={save} data-tip="Its cast, set, actions and light, without cameras or cuts">
-          <BookmarkPlus size={14} aria-hidden /> Save this scene as a template…
+          <BookmarkPlus size={14} aria-hidden /> Save scene as template…
         </button>
       </div>
       <section aria-label="Shoot presets">

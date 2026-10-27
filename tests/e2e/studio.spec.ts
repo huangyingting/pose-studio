@@ -14,7 +14,7 @@ const refScenes = () => builtInPoses().map((p) => poseScene(p));
 type Hook = {
   store: {
     getState(): {
-      library: { scenes: { id: string; name: string; figures: { id: string; name: string; bones: Bones; body: { sex: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[] }[] };
+      library: { scenes: { id: string; name: string; figures: { id: string; name: string; bones: Bones; body: { sex: number; height: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[] }[] };
       sceneIndex: number;
       activeFigure: string;
       selection: unknown;
@@ -69,7 +69,7 @@ async function choose(page: Page, select: string, option: string | RegExp) {
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 /** Pick what the Library lists (the drop-down beside its title). */
-async function libraryShows(page: Page, what: 'Poses' | 'Motions' | 'Models' | 'Templates' | 'Camera') {
+async function libraryShows(page: Page, what: 'Templates' | 'Characters' | 'Poses' | 'Motions' | 'Camera') {
   await page.getByRole('combobox', { name: 'Library section' }).click();
   await page.getByRole('option', { name: what, exact: true }).click();
 }
@@ -585,12 +585,15 @@ test('render styles switch from the toolbar; the scene inspector shows the look'
   expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('shaded');
 });
 
-test('male and female presets change the body', async ({ page }) => {
+test('body presets change the body', async ({ page }) => {
   await page.getByRole('button', { name: 'Body & colour' }).click();
-  await page.getByRole('radio', { name: 'Male', exact: true }).click();
-  expect((await state(page)).scene.figures[0].body.sex).toBe(0);
-  await page.getByRole('radio', { name: 'Female', exact: true }).click();
-  expect((await state(page)).scene.figures[0].body.sex).toBe(1);
+  const types = page.getByRole('group', { name: 'Body type' });
+  await types.getByRole('button', { name: 'Male', exact: true }).click();
+  expect((await state(page)).scene.figures[0].body).toMatchObject({ sex: 0, height: 1.8 });
+  await types.getByRole('button', { name: 'Child', exact: true }).click();
+  expect((await state(page)).scene.figures[0].body.height).toBe(1.25);
+  // One control per setting: no separate male / female switch.
+  await expect(page.getByRole('radiogroup', { name: 'Sex' })).toHaveCount(0);
 });
 
 type Fig = { id: string; position: number[]; bones: Bones };
@@ -630,7 +633,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await openSection(page, 'Library');
   await libraryShows(page, 'Templates');
   page.once('dialog', (d) => d.accept('Close talk'));
-  await page.getByRole('button', { name: 'Save this scene as a template…' }).click();
+  await page.getByRole('button', { name: 'Save scene as template…' }).click();
   const templates = page.getByRole('region', { name: 'Scene templates' });
   await expect(templates.getByRole('list', { name: 'My templates' }).getByRole('button', { name: /^Close talk/ })).toBeVisible();
   await templates.getByRole('button', { name: /^Group photo/ }).click();
@@ -1235,7 +1238,7 @@ test('a motion file is imported into My motions and given to the figure', async 
 
 test('a character is imported and the figure drawn as it; bones it cannot name are matched by hand', async ({ page }) => {
   await openSection(page, 'Library');
-  await libraryShows(page, 'Models');
+  await libraryShows(page, 'Characters');
   // Its left hand has a name nobody uses: matched by hand in the dialog.
   const odd = characterGltf(true).replaceAll('mixamorig:LeftHand"', 'mixamorig:Paw"');
   await page.getByLabel('Character file').setInputFiles({ name: 'Hero.gltf', mimeType: 'model/gltf+json', buffer: Buffer.from(odd) });
@@ -1247,7 +1250,7 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
     await page.getByRole('option', { name, exact: true }).click();
   }
   await dialog.getByRole('button', { name: 'Import' }).click();
-  const models = page.getByRole('list', { name: 'My models' });
+  const models = page.getByRole('list', { name: 'My characters' });
   await expect(models.getByRole('button', { name: /^Hero/ })).toBeVisible();
   const figure = () => page.evaluate(() => {
     const store = (window as unknown as { __poseStudio: { store: { figure: { model?: string } | null; getState(): { library: { models?: { id: string; bones: Record<string, string> }[] } } } } }).__poseStudio.store;
@@ -1262,7 +1265,7 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await page.getByRole('button', { name: 'Body & colour' }).click();
-  await page.getByRole('combobox', { name: 'Model' }).click();
+  await page.getByRole('combobox', { name: 'Character' }).click();
   await page.getByRole('option', { name: 'Hero' }).click();
   f = await figure();
   expect(f.model).toBe(f.models[0].id);

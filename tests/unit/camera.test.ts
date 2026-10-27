@@ -8,7 +8,7 @@ import { Rig } from '@/lib/relations';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { videoSize } from '@/lib/render';
-import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/shot';
+import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import type { Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';

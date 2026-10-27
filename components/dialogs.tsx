@@ -13,7 +13,7 @@ import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
   canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, videoSize, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
-import { cameraAt, frameAspect } from '@/lib/shot';
+import { cameraAt, frameAspect } from '@/lib/cameras';
 import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';

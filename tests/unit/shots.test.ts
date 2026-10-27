@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { applyCameraMove, cutShot, editShot, moveCameraPoint, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
-import { cameraAt, liveCamera } from '@/lib/shot';
+import { cameraAt, liveCamera } from '@/lib/cameras';
 import type { Scene } from '@/lib/types';
 import { parseScene } from '@/lib/doc';
 import { buildOtio } from '@/lib/otio';

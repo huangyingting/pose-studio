@@ -7,7 +7,7 @@ import {
   setFigureHidden, startAnimation,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
-import { liveCamera } from '@/lib/shot';
+import { liveCamera } from '@/lib/cameras';
 import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';

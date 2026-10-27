@@ -15,15 +15,16 @@ import { IconButton, Menu, NumberField, Select, Toggle, type Notify } from './ui
 const PREVIEW = { width: 320, height: 180 };
 const previewCache = new Map<string, string>();
 
-/** A small 16:9 frame of a scene through its shot camera (cached by content). */
-function preview(scene: Scene, style: Style) {
-  const key = JSON.stringify([style, scene.figures, scene.props, scene.view, scene.animation?.actions, scene.animation?.shots?.[0]]);
+/** A small 16:9 frame of a scene through the camera filming its start (cached by everything it shows). */
+function preview(scene: Scene, style: Style, faces: boolean) {
+  const a = scene.animation;
+  const key = JSON.stringify([style, faces, scene.figures, scene.props, scene.view, scene.light, a?.actions, a?.props, a?.constraints, a?.shots, a?.cameras, a?.frame]);
   let url = previewCache.get(key);
   if (!url) {
     const c = document.createElement('canvas');
     c.width = PREVIEW.width;
     c.height = PREVIEW.height;
-    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, faces: true });
+    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, faces });
     url = c.toDataURL('image/png');
     if (previewCache.size > 200) previewCache.delete(previewCache.keys().next().value!);
     previewCache.set(key, url);
@@ -52,12 +53,12 @@ export default function Board({ onClose, notify }: { onClose(): void; notify: No
       const next: Record<string, string> = {};
       for (const p of panels) {
         const s = scenes.get(p.sceneId);
-        if (s) next[p.id] = preview(s, style);
+        if (s) next[p.id] = preview(s, style, settings.faces);
       }
       setThumbs(next);
     }, 60);
     return () => clearTimeout(t);
-  }, [panels, scenes, style]);
+  }, [panels, scenes, style, settings.faces]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

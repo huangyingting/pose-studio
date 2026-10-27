@@ -1,5 +1,5 @@
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, ownCamera, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
   setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
@@ -17,7 +17,7 @@ import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { anglesOf, withAngles, type Angles } from '../pose';
-import { CAMERA_MOVES, SHOT_SIZES, cameraAt, liveCamera, sizeOf, type Placement, type ShotSize } from '../shot';
+import { CAMERA_MOVES, SHOT_SIZES, liveCamera, type Placement, type ShotSize } from '../cameras';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, templatesOf } from '../templates';
@@ -317,35 +317,14 @@ export const TOOLS: AgentTool[] = [
     },
   },
   {
-    name: 'shot_subject',
-    description: 'Make the shot playing at a time about one figure (its camera frames and aims at them; a camera of its own if another shot shares it), or with figure null everyone again. Cut shots first (cut_shot) to give each its subject.',
-    schema: obj({ time: num('A time inside the shot (s)'), figure: opt(FIGURE) }),
-    run: (store, i) => {
-      const a = store.scene.animation;
-      if (!a) throw new Error('The scene is not animated');
-      const span = spanAt(a, Number(i.time));
-      const f = i.figure ? findFigure(store, i.figure) : null;
-      setShotSubject(store, span.shot.id, f?.id ?? '');
-      return `${span.shot.name} frames ${f ? f.name : 'everyone'}.`;
-    },
-  },
-  {
-    name: 'shot_camera',
-    description: `The camera of the shot playing at a time. Which camera films the shot: one of the scene's cameras by name, "new" (a new camera where the view is now) or "still"; and how long the shot blends in from the one before (s; 0 cuts). At that time: frame its subject at a shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}) and/or change the lens (mm, full frame: 14 wide … 50 normal … 200 telephoto; keeping the subject's size unless a size is given), with the subject in the centre or on the left/right third. For the shot's camera (its own, if another shot shares it): how it moves (path: through keyed points; follow: keeps its angle and shot size on the subject every frame as it moves, turning with it if turn; orbit: circles the subject), for follow and orbit the angle (degrees from the subject's front, + from its left) and height (degrees above); for a path, anchor (world: a fixed path; subject: the path rides along with the subject) and aim (subject, point or path); hand-held shake (0–1). Null leaves a setting as it is.`,
+    name: 'edit_shot',
+    description: 'A shot (the one playing at a time): its name and caption, which camera films it (one of the scene\'s cameras by name, or "new": a new camera from where the view is now), and how long it blends in from the shot before (s; 0 cuts). Cut shots first (cut_shot). Null leaves a setting as it is.',
     schema: obj({
       time: num('A time inside the shot (s)'),
-      camera: opt(str('The camera filming the shot: a camera\'s name, "new" or "still"')),
-      blend: opt(num('Seconds the shot blends in from the one before (0: a cut)')),
-      size: opt(str('Shot size', SHOT_SIZES.map((x) => x.id))),
-      lens: opt(num('Focal length (mm)')),
-      place: opt(str('Where the subject sits in the frame', ['center', 'left', 'right'])),
-      anchor: opt(str('Where the path is', ['world', 'subject'])),
-      aim: opt(str('What the camera looks at', ['subject', 'point', 'path'])),
-      shake: opt(num('Hand-held shake, 0–1')),
-      moves: opt(str('How the camera moves', ['path', 'follow', 'orbit'])),
-      angle: opt(num('Follow/orbit: degrees around from the subject\'s front, + from its left')),
-      height: opt(num('Follow/orbit: degrees above the subject')),
-      turn: opt(bool('Follow: turn as the subject turns')),
+      name: opt(str('Name')),
+      caption: opt(str('What happens in it')),
+      camera: opt(str('The camera filming it: a camera\'s name, or "new"')),
+      blend: opt(num('Seconds it blends in from the shot before (0: a cut)')),
     }),
     run: (store, i) => {
       const a = store.scene.animation;
@@ -355,24 +334,73 @@ export const TOOLS: AgentTool[] = [
       if (typeof i.camera === 'string') {
         const named = a.cameras?.find((c) => c.name.toLowerCase() === String(i.camera).toLowerCase());
         if (i.camera === 'new') addCamera(store);
-        else if (i.camera === 'still' || named) editShot(store, span.shot.id, { camera: named?.id ?? null });
-        else throw new Error(`No camera called ${i.camera}`);
+        else if (named) editShot(store, span.shot.id, { camera: named.id });
+        else throw new Error(`No camera called ${i.camera}. Cameras: ${(a.cameras ?? []).map((c) => c.name).join(', ') || 'none'}`);
       }
-      if (typeof i.blend === 'number') editShot(store, span.shot.id, { blend: i.blend });
-      if (i.moves) setCameraBody(store, ownCamera(store, span.shot.id)!, i.moves as 'path' | 'follow' | 'orbit');
-      if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean') {
-        const cam = liveCamera(store.scene, store.getState().time);
-        if (!cam?.rig) throw new Error('Angles are for a camera that follows or circles its subject (moves: follow or orbit)');
-        editRig(store, cam.id, { ...(typeof i.angle === 'number' ? { yaw: i.angle } : {}), ...(typeof i.height === 'number' ? { pitch: i.height } : {}), ...(typeof i.turn === 'boolean' ? { turn: i.turn } : {}) });
-      }
+      editShot(store, span.shot.id, {
+        ...(typeof i.name === 'string' ? { name: i.name.slice(0, 80) } : {}),
+        ...(typeof i.caption === 'string' ? { caption: i.caption.slice(0, 500) } : {}),
+        ...(typeof i.blend === 'number' ? { blend: i.blend } : {}),
+      });
+      const now = shotSpans(store.scene.animation!).find((x) => x.shot.id === span.shot.id)!;
+      return `${now.shot.name}: ${now.start.toFixed(2)}–${now.end.toFixed(2)} s, filmed by ${store.scene.animation!.cameras?.find((c) => c.id === now.shot.camera)?.name ?? 'the still camera'}${now.shot.blend ? `, blending in over ${now.shot.blend} s` : ', cut in'}.`;
+    },
+  },
+  {
+    name: 'edit_camera',
+    description: `A camera: by name, or the one filming at a time. Whom it films (a figure, or null for everyone). Its shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}), where the subject sits (centre, left or right third) and lens (mm, full frame: 14 wide … 50 normal … 200 telephoto). How it moves: path (through keyed points; size and lens then key a point at the time, which must be in a shot it films), follow (keeps its angle and size on the subject every frame, turning with it if turn) or orbit (circles the subject); for follow and orbit, the angle (degrees from the subject's front, + from its left) and height (degrees above); for a path, anchor (world or subject: riding along) and aim (subject, point or path). Hand-held shake (0–1). It changes every shot it films. Null leaves a setting as it is.`,
+    schema: obj({
+      camera: opt(str('The camera\'s name (null: the one filming at time)')),
+      time: num('A time (s): which camera, if none is named; and where a path camera is keyed'),
+      subject: opt(FIGURE),
+      everyone: opt(bool('Film everyone (no subject)')),
+      size: opt(str('Shot size', SHOT_SIZES.map((x) => x.id))),
+      place: opt(str('Where the subject sits in the frame', ['center', 'left', 'right'])),
+      lens: opt(num('Focal length (mm)')),
+      moves: opt(str('How it moves', ['path', 'follow', 'orbit'])),
+      angle: opt(num('Follow/orbit: degrees around from the subject\'s front, + from its left')),
+      height: opt(num('Follow/orbit: degrees above the subject')),
+      turn: opt(bool('Follow: turn as the subject turns')),
+      anchor: opt(str('Path: where it is', ['world', 'subject'])),
+      aim: opt(str('Path: what it looks at', ['subject', 'point', 'path'])),
+      shake: opt(num('Hand-held shake, 0–1')),
+    }),
+    run: (store, i) => {
+      const a = store.scene.animation;
+      if (!a) throw new Error('The scene is not animated');
+      store.setTime(Math.max(0, Math.min(a.duration, Number(i.time))));
+      const t = store.getState().time;
+      const named = typeof i.camera === 'string' ? a.cameras?.find((c) => c.name.toLowerCase() === String(i.camera).toLowerCase()) : null;
+      if (typeof i.camera === 'string' && !named) throw new Error(`No camera called ${i.camera}. Cameras: ${(a.cameras ?? []).map((c) => c.name).join(', ') || 'none'}`);
+      let id = named?.id ?? liveCamera(store.scene, t)?.id ?? null;
+      if (!id) id = ownCamera(store, spanAt(a, t).shot.id);
+      if (!id) throw new Error('No camera films at that time');
+      const cam = () => store.scene.animation!.cameras!.find((c) => c.id === id)!;
+      if (i.subject || i.everyone) editCamera(store, id, { subject: i.everyone ? '' : findFigure(store, i.subject).id });
+      if (i.moves) setCameraBody(store, id, i.moves as 'path' | 'follow' | 'orbit');
       if (i.anchor || i.aim || typeof i.shake === 'number') {
-        editCamera(store, ownCamera(store, span.shot.id)!, { ...(i.anchor ? { anchor: i.anchor as Camera['anchor'] } : {}), ...(i.aim ? { aim: i.aim as Camera['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
+        editCamera(store, id, { ...(i.anchor ? { anchor: i.anchor as Camera['anchor'] } : {}), ...(i.aim ? { aim: i.aim as Camera['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
       }
       const lens = typeof i.lens === 'number' ? Math.min(400, Math.max(8, i.lens)) : undefined;
-      if (i.size) frameShot(store, i.size as ShotSize, { lens, place: (i.place as Placement | null) ?? undefined });
-      else if (lens) setLens(store, lens, 'size');
-      const v = cameraAt(store.scene, store.getState().time);
-      return `${span.shot.name} at ${r2(store.getState().time)} s: ${SHOT_SIZES.find((x) => x.id === sizeOf(store.scene, liveCamera(store.scene, store.getState().time), store.getState().time, v))?.name.toLowerCase()} shot, ${Math.round(v.lens)}mm.`;
+      const place = (i.place as Placement | null) ?? undefined;
+      if (cam().rig) {
+        if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean' || i.size || place || lens) {
+          editRig(store, id, {
+            ...(typeof i.angle === 'number' ? { yaw: i.angle } : {}), ...(typeof i.height === 'number' ? { pitch: i.height } : {}), ...(typeof i.turn === 'boolean' ? { turn: i.turn } : {}),
+            ...(i.size ? { size: i.size as ShotSize } : {}), ...(place ? { place } : {}), ...(lens ? { lens } : {}),
+          });
+        }
+      } else {
+        if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean') throw new Error('Angles are for a camera that follows or circles its subject (moves: follow or orbit)');
+        if (i.size || lens) {
+          if (liveCamera(store.scene, t)?.id !== id) throw new Error(`${cam().name} does not film at ${r2(t)} s: give a time in a shot it films`);
+          if (i.size) frameShot(store, i.size as ShotSize, { lens, place });
+          else if (lens) setLens(store, lens, 'size');
+        }
+      }
+      const c = cam();
+      const how = c.rig ? `${c.rig.body === 'follow' ? 'follows' : 'circles'} ${store.scene.figures.find((f) => f.id === c.subject)?.name ?? 'everyone'} at ${SHOT_SIZES.find((x) => x.id === c.rig!.size)?.name.toLowerCase()}, ${c.rig.lens}mm` : `a path of ${c.points.length} points`;
+      return `${c.name}: ${how}.`;
     },
   },
   {

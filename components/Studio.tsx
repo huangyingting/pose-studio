@@ -16,7 +16,7 @@ import { Store, type SaveStatus } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
-import { frameAspect } from '@/lib/shot';
+import { frameAspect } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';

@@ -2,7 +2,7 @@ import { sceneAt } from './evaluate';
 import { buildOtio } from './otio';
 import { describeShot, describeSpan } from './prompt';
 import { canvasToBlob, safeFilename, type Pass } from './render';
-import { cameraAt, cameraPath } from './shot';
+import { cameraAt, cameraPath } from './cameras';
 import { newShot, shotSpans, type ShotSpan } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { Scene, Style } from './types';

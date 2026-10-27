@@ -1,5 +1,5 @@
 import { sceneAt } from './evaluate';
-import { cameraAt } from './shot';
+import { cameraAt } from './cameras';
 import { styleDef } from './styles';
 import { sharedRenderer } from './thumbnails';
 import type { Pass } from './render';

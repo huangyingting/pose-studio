@@ -12,19 +12,20 @@ import { SHOOT_PRESETS, asTemplate, putTemplate, templatesOf } from './templates
 import { clipInfo, keysClip, partKeys } from './clip';
 import { saveClips } from './assetstore';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
-import { putPropKey, setPropKey } from './propmotion';
+import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
   actionLabel, addTravel, addUpper, insertClip, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
+import { fitBody } from './model';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleOf, cameraAt, cameraById, capturePoint, filmWith, fovLens, frameAspect, framePoint, lensFov, liveCamera, restate, rigFrom, viewOf, withCamera, type Placement, type ShotSize } from './shot';
+import { angleOf, cameraAt, cameraById, capturePoint, filmWith, fovLens, frameAspect, framePoint, lensFov, liveCamera, restate, rigFrom, viewOf, withCamera, type Placement, type ShotSize } from './cameras';
 import { bonesOf, withAngles } from './pose';
 import { cutAt, movePoint, newCamera, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import type { Store } from './store';
@@ -417,6 +418,18 @@ export function duplicateProp(store: Store, id: string) {
   const copy: Prop = { ...structuredClone(src), id: uid('p'), name: nextName(src.name, store.scene.props.map((p) => p.name)), position: [src.position[0] + 0.3, src.position[1], src.position[2] + 0.3] };
   store.updateScene((s) => ({ ...s, props: [...s.props, copy] }));
   store.select({ kind: 'prop', prop: copy.id });
+}
+
+/** How a prop bounces and grips when it flies free (null: its kind's own); its flights are worked out again. */
+export function setPropPhysics(store: Store, id: string, patch: Partial<{ bounce: number; friction: number }> | null, key = '') {
+  store.updateProp(id, (p) => {
+    const { physics: _old, ...rest } = p;
+    void _old;
+    if (!patch) return rest;
+    const now = physicsOf(p);
+    const clamp = (v: number) => Math.min(1, Math.max(0, Math.round(v * 100) / 100));
+    return { ...rest, physics: { bounce: clamp(patch.bounce ?? now.bounce), friction: clamp(patch.friction ?? now.friction) } };
+  }, key);
 }
 
 export function deleteProp(store: Store, id: string) {
@@ -822,7 +835,7 @@ export function setAnimationOptions(store: Store, patch: { duration?: number; lo
   store.setTime(store.getState().time);
 }
 
-/* Cameras: objects in the scene with paths (lib/shot.ts); shots film with them */
+/* Cameras: objects in the scene with paths (lib/cameras.ts); shots film with them */
 
 /** The shot playing at the playhead, and the time (on a frame). */
 function shotHere(store: Store) {
@@ -1016,7 +1029,7 @@ export function editRig(store: Store, id: string, patch: Partial<Omit<CameraRig,
     if (patch.smooth !== undefined) rig.smooth = Math.min(10, Math.max(0, patch.smooth));
     if (patch.lens !== undefined) rig.lens = Math.min(1200, Math.max(4, patch.lens));
     if (rig.place === 'center') delete rig.place;
-    for (const k of ['turn', 'spin', 'toward', 'smooth'] as const) if (!rig[k]) delete rig[k];
+    for (const k of ['turn', 'spin', 'toward', 'clear', 'smooth'] as const) if (!rig[k]) delete rig[k];
     return withCamera(s, { ...cam, rig });
   }, key);
 }
@@ -1070,6 +1083,10 @@ export function deleteCamera(store: Store, id: string) {
  * do. The figures cast, or null if there are too few people for it.
  */
 export function coverScene(store: Store, id: string, roles?: Record<string, string>): Record<string, string> | null {
+  return store.group(() => cover(store, id, roles));
+}
+
+function cover(store: Store, id: string, roles?: Record<string, string>): Record<string, string> | null {
   const c = coverageById(id);
   if (!c) return null;
   if (!store.scene.animation) startAnimation(store, 4);
@@ -1206,12 +1223,16 @@ export function sceneFromTemplate(store: Store, id: string) {
 
 /** A shoot preset (lib/templates.ts): its template as a new scene, filmed with its coverage. */
 export function newShoot(store: Store, id: string) {
+  return store.group(() => shoot(store, id));
+}
+
+function shoot(store: Store, id: string) {
   const p = SHOOT_PRESETS.find((x) => x.id === id);
   const t = p && templatesOf(store.getState().library).find((x) => x.id === p.template);
   if (!p || !t) return false;
   addScene(store, { ...t.build(), name: p.name });
   if (!store.scene.animation) startAnimation(store, p.duration ?? 6);
-  return !!coverScene(store, p.coverage);
+  return !!cover(store, p.coverage);
 }
 
 /**
@@ -1277,11 +1298,14 @@ export function deleteModel(store: Store, id: string) {
 }
 
 /** Draw a figure as an imported character, or (null) as the mannequin. */
+/** Draw a figure as a character (null: the mannequin), the mannequin under it fitted to the character's build. */
 export function setFigureModel(store: Store, figureId: string, model: string | null) {
+  const proportions = model ? store.getState().library.models?.find((m) => m.id === model)?.proportions : undefined;
   store.updateFigure(figureId, (f) => {
     const { model: _old, ...rest } = f;
     void _old;
-    return model ? { ...rest, model } : rest;
+    if (!model) return rest;
+    return { ...rest, model, ...(proportions ? { body: fitBody(f, proportions) } : {}) };
   });
 }
 

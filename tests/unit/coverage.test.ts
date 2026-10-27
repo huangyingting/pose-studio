@@ -4,9 +4,9 @@ import { addFigure, addProp, arrange, coverScene, editRig, holdProp, moveProp, r
 import { parseScene } from '@/lib/doc';
 import { sceneAt } from '@/lib/evaluate';
 import { describeSpan } from '@/lib/prompt';
-import { checkMotion } from '@/lib/qa';
+import { checkMotion, checkShots } from '@/lib/qa';
 import { Rig } from '@/lib/relations';
-import { SHOT_ASPECT, cameraAt, placeCamera, sizeOf, viewOf } from '@/lib/shot';
+import { SHOT_ASPECT, cameraAt, placeCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import type { Camera, Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
@@ -112,5 +112,26 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     expect(byKey(store.scene, 'single-b')).toEqual(before[4]);
     expect(shotSpans(store.scene.animation!)).toHaveLength(4);
     expect(cameraAt(store.scene, 4).position.distanceTo(viewOf(store.scene, byKey(store.scene, 'single-a'), 4).position)).toBeLessThan(1e-9);
+    // Another coverage over it: the dialogue's cameras go, but the one edited by hand stays.
+    coverScene(store, 'follow');
+    const names = store.scene.animation!.cameras!.map((c) => c.made);
+    expect(names.filter((m) => m?.startsWith('dialogue:'))).toEqual(['dialogue:single-a']);
+    expect(names.filter((m) => m?.startsWith('follow:'))).toHaveLength(4);
+  });
+
+  it('reports the other person of a two-shot hidden behind a prop', () => {
+    const { store, a, b } = twoPeople();
+    startAnimation(store, 2);
+    store.select({ kind: 'figure', figure: a });
+    coverScene(store, 'dialogue');
+    const master = byKey(store.scene, 'master');
+    const from = viewOf(store.scene, master, 0).position;
+    const fb = store.scene.figures.find((f) => f.id === b)!;
+    // A wall half way from the master camera to B (not to A).
+    const mid = from.clone().lerp(new THREE.Vector3(fb.position[0], 0, fb.position[2]), 0.5);
+    addProp(store, 'box', [mid.x, 0, mid.z]);
+    const wall = store.scene.props.at(-1)!.id;
+    moveProp(store, wall, { scale: [0.6, 2.2, 0.6] });
+    expect(checkShots(store.scene).filter((i) => i.kind === 'hidden').map((i) => i.figure)).toContain(b);
   });
 });

@@ -8,7 +8,7 @@ import { Rig, capsules, type Capsule } from './relations';
 import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
-import { cameraAt, cameraById, frameAspect, placeCamera, subjectAt } from './shot';
+import { cameraAt, cameraById, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
 import { shotSpans } from './shots';
 import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
@@ -378,8 +378,8 @@ export function checkMotion(scene: Scene): Issue[] {
 export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), ...cameraInside(scene)];
 
 /**
- * Who a shot cannot see: seen through each shot's own camera, a figure (the shot's subject, or
- * everyone) is hidden when a prop blocks the line of sight to at least two of its head, chest and
+ * Who a shot cannot see: seen through each shot's own camera, a figure (the shot's subject and
+ * whoever it frames with them, or everyone) is hidden when a prop blocks the line of sight to at least two of its head, chest and
  * hips.
  */
 function hiddenInShots(scene: Scene): Issue[] {
@@ -396,11 +396,12 @@ function hiddenInShots(scene: Scene): Issue[] {
       const t = span.start + ((span.end - span.start) * i) / samples;
       const now = sceneAt(scene, t);
       view.sync(now);
-      const subject = subjectAt(scene, t);
+      // The shot's subject and whoever it frames with them (a two-shot), or everyone.
+      const framed = cameraFigures(scene, liveCamera(scene, t));
       placeCamera(cam, cameraAt(scene, t), frameAspect(scene));
       const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name })));
       if (!blockers.length) continue;
-      for (const f of now.figures.filter((x) => !x.hidden && (!subject || x.id === subject))) {
+      for (const f of now.figures.filter((x) => !x.hidden && (!framed || framed.includes(x.id)))) {
         const m = view.figures.get(f.id);
         if (!m) continue;
         let blocked = 0;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, holdProp, moveProp, startAnimation, throwProp } from '@/lib/actions';
+import { addFigure, addProp, holdProp, moveProp, setPropPhysics, startAnimation, throwProp } from '@/lib/actions';
 import { figurePoseAt, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { duplicateScene, parseLibrary } from '@/lib/doc';
 import { handPosition } from '@/lib/propmotion';
@@ -49,6 +49,21 @@ describe('props over time: carried, thrown, caught, dropped', () => {
     expect(land[2]).toBeCloseTo(1, 1);
     expect(land[1]).toBeCloseTo(0, 1);
     expect(store.getState().time).toBeCloseTo(span.to, 3);
+  });
+
+  it('bounces and grips as set for it', () => {
+    const { store, ball } = thrower();
+    const span = throwProp(store, ball, { at: [2, 1] })!;
+    const after = span.to + 0.25;
+    setPropPhysics(store, ball, { bounce: 0 });
+    expect(store.scene.props[0].physics).toEqual({ bounce: 0, friction: 0.15 });
+    const dead = where(store.scene, ball, after)[1];
+    setPropPhysics(store, ball, { bounce: 0.95, friction: 2 });
+    expect(store.scene.props[0].physics).toEqual({ bounce: 0.95, friction: 1 });
+    // A lively ball is back up off the floor a moment after it lands; a dead one is not.
+    expect(where(store.scene, ball, after)[1]).toBeGreaterThan(dead + 0.05);
+    setPropPhysics(store, ball, null);
+    expect(store.scene.props[0].physics).toBeUndefined();
   });
 
   it('passes to another figure, who catches it in a hand', () => {

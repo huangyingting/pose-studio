@@ -2,7 +2,7 @@ import type { Animation, Camera, CameraPoint, Shot } from './types';
 
 /*
  * Shots: the cuts along an animation's timeline. Each shot runs from its start to the next shot's
- * start (or the end), films with one of the animation's cameras (lib/shot.ts), cutting or blending
+ * start (or the end), films with one of the animation's cameras (lib/cameras.ts), cutting or blending
  * in from the one before, and can carry a caption. A shot list can be cut for a target video
  * model, whose clip length is the limit for each shot. Cameras' path points are in the
  * animation's time: cutting between cameras leaves their paths as they are.

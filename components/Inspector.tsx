@@ -7,12 +7,13 @@ import {
 } from 'lucide-react';
 import {
   arrange, copyPose, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
-  reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, symmetrizePose,
+  reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, symmetrizePose,
 } from '@/lib/actions';
 import { travelAt } from '@/lib/evaluate';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
+import { physicsOf } from '@/lib/propmotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { angle } from '@/lib/pose';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
@@ -21,7 +22,8 @@ import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ActionInspector from './ActionInspector';
-import ShotInspector, { CameraInspector } from './ShotInspector';
+import CameraInspector from './CameraInspector';
+import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
@@ -255,11 +257,11 @@ function holdLabel(c: Constraint, scene: Scene) {
 function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
   const store = useStore();
   const scene = useScene();
-  const others = scene.figures.filter((f) => f.id !== figure.id);
+  // People to act with: not hidden ones.
+  const others = scene.figures.filter((f) => f.id !== figure.id && !f.hidden);
   const [otherId, setOtherId] = useState(others[0]?.id ?? '');
   const [side, setSide] = useState<Side>('R');
   const [contact, setContact] = useState<Contact>('leftUpperArm');
-  const watchable = others.filter((f) => !f.hidden);
   if (!others.length && !scene.props.length) return null;
   const other = others.find((f) => f.id === otherId) ?? others[0];
   const gaze = !figure.gaze ? 'free' : 'figure' in figure.gaze ? `f:${figure.gaze.figure}` : `p:${figure.gaze.prop}`;
@@ -276,7 +278,7 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
             onChange={(v) => setGaze(store, figure.id, v === 'free' ? null : v.startsWith('f:') ? { figure: v.slice(2) } : { prop: v.slice(2) })}
             options={[
               { value: 'free', label: 'Free (as posed)' },
-              ...watchable.map((f) => ({ value: `f:${f.id}`, label: f.name })),
+              ...others.map((f) => ({ value: `f:${f.id}`, label: f.name })),
               ...scene.props.map((p) => ({ value: `p:${p.id}`, label: p.name })),
             ]}
           />
@@ -306,7 +308,7 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
             typeable
             onChange={(v) => setDistance(store, figure.id, other.id, v, `dist:${figure.id}`)}
           />
-          {!figure.proxy && (
+          {!figure.proxy && !other.proxy && (
             <div className="reach">
               <span className="reach-label">Reach</span>
               <Segmented<Side> label="Hand" value={side} onChange={setSide} options={[{ value: 'L', label: 'Left hand' }, { value: 'R', label: 'Right hand' }]} full />
@@ -410,19 +412,19 @@ function HandsSection({ hands }: { hands: Record<Side, HandPose> }) {
   );
 }
 
-/** Who the figure is: its colour in the scene, sex, body type and proportions (folded until wanted). */
+/** Who the figure is: drawn as the mannequin or a character, its colour in the scene, its body (folded until wanted). */
 function BodySection({ figure }: { figure: Figure }) {
   const store = useStore();
   const body = figure.body;
   const setBody = (patch: Partial<typeof body>, key = '') => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...f.body, ...patch } }), key);
-  const sexField = BODY_FIELDS.find((f) => f.key === 'sex')!;
+  const heightField = BODY_FIELDS.find((f) => f.key === 'height')!;
   const models = useStudio((s) => s.library.models) ?? [];
   return (
     <Section id="body" title="Body & colour" collapsible defaultOpen={false}>
       <div className="field">
         <span>Drawn as</span>
         <Select<string>
-          label="Model"
+          label="Character"
           value={figure.model && models.some((m) => m.id === figure.model) ? figure.model : ''}
           onChange={(v) => setFigureModel(store, figure.id, v || null)}
           options={[{ value: '', label: 'Mannequin' }, ...models.map((m) => ({ value: m.id, label: m.name }))]}
@@ -443,54 +445,54 @@ function BodySection({ figure }: { figure: Figure }) {
           />
         ))}
       </div>
-      <div className="sex-switch" role="radiogroup" aria-label="Sex">
-        <button type="button" role="radio" aria-checked={body.sex < 0.5} className={body.sex < 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 0, bust: 0 })}>
-          <Mars size={18} strokeWidth={1.75} aria-hidden /> Male
-        </button>
-        <button type="button" role="radio" aria-checked={body.sex >= 0.5} className={body.sex >= 0.5 ? 'on' : ''} onClick={() => setBody({ sex: 1, bust: body.bust || 0.5 })}>
-          <Venus size={18} strokeWidth={1.75} aria-hidden /> Female
-        </button>
-      </div>
-      <Slider
-        label="Masculine ↔ Feminine"
-        min={sexField.min}
-        max={sexField.max}
-        step={sexField.step}
-        value={body.sex}
-        display={sexField.format(body.sex)}
-        onChange={(sex) => setBody({ sex }, 'body:sex')}
-      />
-      <div className="preset-grid" role="group" aria-label="Body type">
-        {BODY_PRESETS.map((p) => {
-          const on = (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]);
-          return (
-            <button
-              key={p.name}
-              type="button"
-              className={on ? 'preset on' : 'preset'}
-              aria-label={p.name}
-              onClick={() => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...p.body } }))}
-            >
-              {p.body.sex < 0.5 ? <Mars size={14} aria-hidden /> : <Venus size={14} aria-hidden />}
-              {p.name}
-            </button>
-          );
-        })}
-      </div>
-      <div className="stack">
-        {BODY_FIELDS.filter((f) => f.key !== 'sex').map((f) => (
+      {figure.model && models.some((m) => m.id === figure.model) ? (
+        <>
           <Slider
-            key={f.key}
-            label={f.label}
-            min={f.min}
-            max={f.max}
-            step={f.step}
-            value={body[f.key]}
-            display={f.format(body[f.key])}
-            onChange={(v) => setBody({ [f.key]: v }, `body:${f.key}`)}
+            label="Height"
+            min={heightField.min}
+            max={heightField.max}
+            step={heightField.step}
+            value={body.height}
+            display={heightField.format(body.height)}
+            onChange={(height) => setBody({ height }, 'body:height')}
           />
-        ))}
-      </div>
+          <p className="hint-text">The character sets the rest of the body: the mannequin under it, which picking, contacts and the motion check use, is fitted to its build.</p>
+        </>
+      ) : (
+        <>
+          <div className="preset-grid" role="group" aria-label="Body type">
+            {BODY_PRESETS.map((p) => {
+              const on = (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]);
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  className={on ? 'preset on' : 'preset'}
+                  aria-label={p.name}
+                  onClick={() => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...p.body } }))}
+                >
+                  {p.body.sex < 0.5 ? <Mars size={14} aria-hidden /> : <Venus size={14} aria-hidden />}
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+          <div className="stack">
+            {BODY_FIELDS.map((f) => (
+              <Slider
+                key={f.key}
+                label={f.label}
+                min={f.min}
+                max={f.max}
+                step={f.step}
+                value={body[f.key]}
+                display={f.format(body[f.key])}
+                onChange={(v) => setBody({ [f.key]: v }, `body:${f.key}`)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </Section>
   );
 }
@@ -550,9 +552,20 @@ function PropEditor({ id, chrome }: { id: string; chrome: HeaderChrome }) {
             }}
             options={[
               { value: 'none', label: 'Nobody: it stands on the floor' },
-              ...scene.figures.flatMap((f) => (['R', 'L'] as const).map((hand) => ({ value: `${f.id}:${hand}`, label: `${f.name}: ${hand === 'L' ? 'left' : 'right'} hand` }))),
+              // Hands to hold it: not stand-ins' (they have none) or hidden figures'; whoever holds it now stays listed.
+              ...scene.figures.filter((f) => (!f.hidden && !f.proxy) || f.id === prop.hold?.figure).flatMap((f) => (['R', 'L'] as const).map((hand) => ({ value: `${f.id}:${hand}`, label: `${f.name}: ${hand === 'L' ? 'left' : 'right'} hand` }))),
             ]}
           />
+        </Section>
+      )}
+      {(HOLDABLE.includes(prop.kind) || prop.physics) && (
+        <Section
+          title="Physics"
+          actions={prop.physics && <IconButton icon={RotateCcw} label={`Reset to the default for ${PROP_LABELS[prop.kind].toLowerCase()}s`} onClick={() => setPropPhysics(store, id, null)} />}
+        >
+          <Slider label="Bounce" min={0} max={1} step={0.01} value={physicsOf(prop).bounce} display={`${Math.round(physicsOf(prop).bounce * 100)}%`} onChange={(bounce) => setPropPhysics(store, id, { bounce }, `physics:${id}:bounce`)} />
+          <Slider label="Grip" min={0} max={1} step={0.01} value={physicsOf(prop).friction} display={`${Math.round(physicsOf(prop).friction * 100)}%`} onChange={(friction) => setPropPhysics(store, id, { friction }, `physics:${id}:grip`)} />
+          <p className="hint-text">How it bounces off the floor and grips it when it flies free: thrown, passed, dropped or let go.</p>
         </Section>
       )}
       <Section title="Transform">

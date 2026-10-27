@@ -15,7 +15,7 @@ import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, pointTimes, shotSpans, videoModel } from '@/lib/shots';
-import { cameraById, liveCamera, type CameraView } from '@/lib/shot';
+import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';

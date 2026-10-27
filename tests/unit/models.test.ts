@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { HAND_PRESETS } from '@/lib/hands';
 import { loadModelFile } from '@/lib/assetstore';
 import { Fitted, MissingBones, ModelRig, importModel, mapBones, missingBones } from '@/lib/model';
+import { Ink } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
+import { setFigureModel } from '@/lib/actions';
 import { withAngles } from '@/lib/pose';
 import { Rig } from '@/lib/relations';
 import { newFigure } from '@/lib/doc';
@@ -45,7 +47,7 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     it(`poses a ${aPose ? 'A' : 'T'}-posed character as the mannequin is posed, at its place and size`, () => {
       const rig = mixamoRig(aPose);
       const info: ModelInfo = { id: 'm', name: 'Character', format: 'glb', bones: mapBones(rig) };
-      const model = new ModelRig(rig, info);
+      const model = new ModelRig(rig, info, new Ink());
       const f = { ...newFigure(), position: [1, 0.95, 2] as [number, number, number], bones: withAngles(newFigure().bones, { leftUpperArm: [-60, 20, 40], leftLowerArm: [-70, 0, 0], rightUpperLeg: [-50, 0, -10], rightLowerLeg: [80, 0, 0], spine: [15, 10, 0], hips: [0, 35, 0] }) };
       const mannequin = new Rig().model(f);
       const hips = mannequin.joints.hips.getWorldPosition(new THREE.Vector3());
@@ -63,7 +65,7 @@ describe('models: characters from other tools fitted to the skeleton', () => {
 
   it('curls a character\'s fingers as the hand presets have them', () => {
     const rig = mixamoRig();
-    const model = new ModelRig(rig, { id: 'm', name: 'C', format: 'glb', bones: mapBones(rig) });
+    const model = new ModelRig(rig, { id: 'm', name: 'C', format: 'glb', bones: mapBones(rig) }, new Ink());
     const tip = (hand: string) => {
       const f = newFigure();
       const fig = { ...f, hands: { ...f.hands, L: HAND_PRESETS.find((p) => p.name === hand)!.hand } };
@@ -97,7 +99,58 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(info.bones.hips).toBe('mixamorigHips');
     expect(rig.object.getObjectByName(info.bones.hips!)!.getWorldPosition(new THREE.Vector3()).distanceTo(hips)).toBeLessThan(1e-3);
     expect(Math.abs(rig.object.getObjectByName(info.bones.leftFoot!)!.getWorldPosition(new THREE.Vector3()).y - sv.figures.get(f.id)!.joints.leftFoot.getWorldPosition(new THREE.Vector3()).y)).toBeLessThan(0.05);
+    // Drawn in the scene's style as the mannequin is (not in the file's materials), outlined; in
+    // the line pass, each of its meshes a part of its own, without its outline.
+    const meshes: THREE.Mesh[] = [];
+    rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material !== sv.ink.outline) meshes.push(o as THREE.Mesh); });
+    const hulls: THREE.Mesh[] = [];
+    rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material === sv.ink.outline) hulls.push(o as THREE.Mesh); });
+    expect(meshes.length).toBeGreaterThan(0);
+    expect(hulls).toHaveLength(meshes.length);
+    for (const style of ['sketch', 'ink', 'silhouette'] as const) {
+      sv.setStyle(style);
+      expect(meshes.every((m) => m.material === sv.ink.materialsFor(style).body), style).toBe(true);
+    }
+    expect(hulls.every((h) => h.visible)).toBe(true);
+    sv.setStyle('shaded');
+    sv.setIdMode(true);
+    expect(new Set(meshes.map((m) => m.material)).size).toBe(meshes.length);
+    expect(hulls.some((h) => h.visible)).toBe(false);
+    sv.setIdMode(false);
+    expect(meshes.every((m) => m.material === sv.ink.materialsFor('shaded').body)).toBe(true);
     sv.dispose();
+  });
+
+  it('fits the mannequin under a character to its build, so contacts and checks are on the body that shows', async () => {
+    const data = new TextEncoder().encode(characterGltf(true, true)).buffer as ArrayBuffer;
+    const info = await importModel('Hero.gltf', data);
+    const p = info.proportions!;
+    expect(p.legs).toBeGreaterThan(0.3);
+    expect(p.legs).toBeLessThan(0.7);
+    const store = new Store(new MemoryStorage());
+    store.commit((lib) => ({ ...lib, models: [info] }));
+    const f = store.figure!;
+    const t0 = performance.now();
+    setFigureModel(store, f.id, info.id);
+    expect(performance.now() - t0).toBeLessThan(1500);
+    const fitted = store.figure!;
+    expect(fitted.model).toBe(info.id);
+    expect(fitted.body.height).toBe(f.body.height);
+    expect(fitted.body.sex).toBe(f.body.sex);
+    // The mannequin's own build now comes as near the character's as its settings allow.
+    const rig = new Rig();
+    const m = rig.model({ ...fitted, bones: {}, position: [0, 0, 0] });
+    let top = -Infinity;
+    m.forEachPoint((q) => { top = Math.max(top, q.y); });
+    const at = (j: 'hips' | 'leftFoot' | 'rightFoot') => m.joints[j].getWorldPosition(new THREE.Vector3());
+    const floor = Math.min(at('leftFoot').y, at('rightFoot').y);
+    const legs = (at('hips').y - floor) / (top - floor);
+    const before = rig.model({ ...f, bones: {}, position: [0, 0, 0] });
+    let top0 = -Infinity;
+    before.forEachPoint((q) => { top0 = Math.max(top0, q.y); });
+    const legs0 = (before.joints.hips.getWorldPosition(new THREE.Vector3()).y - floor) / (top0 - floor);
+    expect(Math.abs(legs - p.legs)).toBeLessThanOrEqual(Math.abs(legs0 - p.legs) + 1e-6);
+    rig.dispose();
   });
 
   it('says which bones it could not find, to map them by hand', async () => {

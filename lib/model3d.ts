@@ -3,7 +3,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { frameTimes } from './animation';
 import { sceneAt } from './evaluate';
 import { SceneView } from './sceneview';
-import { cameraAt, frameAspect, placeCamera } from './shot';
+import { cameraAt, frameAspect, placeCamera } from './cameras';
 import type { Scene } from './types';
 
 /*

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
-import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/shot';
+import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
 
 describe('the library in groups', () => {
   it('puts every pose, motion and camera move in a group, and every group has some', () => {

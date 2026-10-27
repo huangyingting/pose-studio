@@ -291,7 +291,7 @@ export interface Animation {
   constraints?: Constraint[];
   /** Keys of props that move (by id, in time order). */
   props?: Record<string, PropKey[]>;
-  /** The scene's cameras (lib/shot.ts). */
+  /** The scene's cameras (lib/cameras.ts). */
   cameras?: Camera[];
   /** The coverage its cameras and cuts were made with, and the figures playing its roles (lib/coverage.ts). */
   coverage?: { id: string; roles: Record<string, string> };
@@ -351,7 +351,7 @@ export interface Camera {
   rig?: CameraRig;
 }
 
-/** How much of the body a shot holds: extreme wide … extreme close-up (lib/shot.ts SHOT_SIZES). */
+/** How much of the body a shot holds: extreme wide … extreme close-up (lib/cameras.ts SHOT_SIZES). */
 export type ShotSize = 'ews' | 'ws' | 'fs' | 'mws' | 'ms' | 'mcu' | 'cu' | 'ecu';
 
 /** Where the subject sits in the frame: in the middle, or on the left or right third. */
@@ -375,6 +375,8 @@ export interface CameraRig {
   spin?: number;
   /** Angles from the direction towards this figure, rather than from the subject's facing. */
   toward?: string;
+  /** Keep this figure out of the frame (a clean single): the camera comes round further, away from it, as far as that takes. */
+  clear?: string;
   size: ShotSize;
   place?: Placement;
   /** Focal length (mm, full frame). */
@@ -432,6 +434,15 @@ export interface ModelInfo {
   name: string;
   format: 'glb' | 'fbx';
   bones: Partial<Record<Bone, string>>;
+  /** Its build as shares of its height (to fit the mannequin under it, which contacts and checks use). */
+  proportions?: Proportions;
+}
+
+/** A body's build as shares of its height: hips above the feet, the head above its joint, the shoulders' width. */
+export interface Proportions {
+  legs: number;
+  head: number;
+  shoulders: number;
 }
 
 /** An imported clip as the library lists it: its name, length and people (the frames are an asset). */

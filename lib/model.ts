@@ -1,10 +1,14 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadModelFile, saveModelFile } from './assetstore';
+import { BODY_FIELDS } from './body';
 import { legsOf } from './locomotion';
+import { Rig } from './relations';
 import { setWorldQuaternion } from './mannequin';
 import { fingerBones, PARENT, worldTurns } from './skeleton';
-import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo } from './types';
+import type { Ink } from './ink';
+import { styleDef } from './styles';
+import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Proportions, type Style } from './types';
 import { uid } from './uid';
 
 /*
@@ -236,12 +240,57 @@ export class ModelRig {
   readonly object = new THREE.Group();
   private fitted: Fitted;
   private size = '';
+  /** Its meshes, drawn in the scene's style as the mannequin is (not in the file's own materials). */
+  private meshes: THREE.Mesh[] = [];
+  /** Their outline hulls (posed with them). */
+  private hulls: THREE.Mesh[] = [];
 
-  constructor(template: THREE.Object3D, readonly info: ModelInfo) {
+  constructor(template: THREE.Object3D, readonly info: ModelInfo, private ink: Ink) {
     const copy = cloneSkinned(template);
     this.fitted = new Fitted(copy, info.bones);
     this.object.add(this.fitted.frame);
-    copy.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+    copy.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      this.meshes.push(mesh);
+    });
+    for (const mesh of this.meshes) {
+      const skinned = mesh as THREE.SkinnedMesh;
+      let hull: THREE.Mesh;
+      if (skinned.isSkinnedMesh) {
+        const h = new THREE.SkinnedMesh(mesh.geometry, ink.outline);
+        h.bindMode = skinned.bindMode;
+        h.bind(skinned.skeleton, skinned.bindMatrix);
+        hull = h;
+      } else {
+        hull = new THREE.Mesh(mesh.geometry, ink.outline);
+      }
+      hull.frustumCulled = false;
+      hull.raycast = () => {};
+      mesh.add(hull);
+      this.hulls.push(hull);
+    }
+  }
+
+  /** Draw it in a style, its body tinted as the figure's colour. */
+  setLook(style: Style, tint: string | null) {
+    const m = this.ink.materialsFor(style, tint ?? undefined);
+    for (const mesh of this.meshes) mesh.material = m.body;
+    for (const h of this.hulls) h.visible = !!styleDef(style).outline;
+  }
+
+  /** Flat per-part colours for the line pass (as the mannequin's parts); returns the next free id. */
+  setIdMode(on: boolean, firstId: number, style: Style, tint: string | null) {
+    if (!on) {
+      this.setLook(style, tint);
+      return firstId;
+    }
+    this.meshes.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
+    for (const h of this.hulls) h.visible = false;
+    return firstId + this.meshes.length;
   }
 
   /** Pose it as the figure is; `hips`: where the mannequin's hips are (it rests on what it stands on). */
@@ -264,9 +313,78 @@ export class ModelRig {
     this.object.scale.setScalar((legs.rootY - legs.ankleY) / this.fitted.hipHeight);
   }
 
-  /** (Its meshes and materials are the model's, shared by every figure drawn as it.) */
+  /** (Its geometry is the model's, shared by every figure drawn as it.) */
   dispose() {
     this.object.clear();
+  }
+}
+
+/* ---------- the mannequin fitted to a character ---------- */
+
+const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
+
+/** Proportions from where a body's joints are and the top of its head. */
+function proportionsFrom(at: (b: 'hips' | 'head' | 'leftUpperArm' | 'rightUpperArm' | 'leftFoot' | 'rightFoot') => THREE.Vector3, top: number): Proportions {
+  const floor = Math.min(at('leftFoot').y, at('rightFoot').y);
+  const height = Math.max(1e-6, top - floor);
+  return {
+    legs: r4((at('hips').y - floor) / height),
+    head: r4((top - at('head').y) / height),
+    shoulders: r4(at('leftUpperArm').distanceTo(at('rightUpperArm')) / height),
+  };
+}
+
+/**
+ * A character's proportions, stood up at rest (a copy: the file's scene is left as it is). None
+ * when its meshes do not reach over its head bone (nothing to measure the head by).
+ */
+export function characterProportions(root: THREE.Object3D, map: BoneMap): Proportions | undefined {
+  const fitted = new Fitted(cloneSkinned(root), map);
+  fitted.frame.updateMatrixWorld(true);
+  // At rest the meshes are as they were bound: their vertices where the file has them.
+  let top = -Infinity;
+  const v = new THREE.Vector3();
+  fitted.frame.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const pos = mesh.isMesh ? mesh.geometry.attributes.position : null;
+    for (let i = 0; pos && i < pos.count; i++) top = Math.max(top, v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).y);
+  });
+  if (!(top > fitted.at('head')!.y)) return undefined;
+  return proportionsFrom((b) => fitted.at(b)!, top);
+}
+
+/** The mannequin's proportions with a body. */
+function mannequinProportions(rig: Rig, f: Figure): Proportions {
+  const m = rig.model({ ...f, bones: {}, position: [0, 0, 0], grounded: true });
+  let top = -Infinity;
+  m.forEachPoint((p) => { top = Math.max(top, p.y); });
+  return proportionsFrom((b) => m.joints[b].getWorldPosition(new THREE.Vector3()), top);
+}
+
+/**
+ * A body for the mannequin under a character: as tall as it was, of the same sex, with the
+ * character's legs, head and shoulders, so that picking, contacts and the motion check are on the
+ * body that shows. Each setting mostly moves one share (leg length the legs, head size the head,
+ * build the shoulders), so each is found from the shares at its two ends, twice over.
+ */
+export function fitBody(f: Figure, target: Proportions): BodyParams {
+  const rig = new Rig();
+  try {
+    let body: BodyParams = { ...f.body };
+    const settings: [keyof Proportions, 'legs' | 'head' | 'build'][] = [['legs', 'legs'], ['head', 'head'], ['shoulders', 'build']];
+    for (let round = 0; round < 2; round++) {
+      for (const [share, key] of settings) {
+        const field = BODY_FIELDS.find((x) => x.key === key)!;
+        const lo = mannequinProportions(rig, { ...f, body: { ...body, [key]: field.min } })[share];
+        const hi = mannequinProportions(rig, { ...f, body: { ...body, [key]: field.max } })[share];
+        if (Math.abs(hi - lo) < 1e-6) continue;
+        const u = Math.min(1, Math.max(0, (target[share] - lo) / (hi - lo)));
+        body = { ...body, [key]: Math.round((field.min + (field.max - field.min) * u) * 100) / 100 };
+      }
+    }
+    return body;
+  } finally {
+    rig.dispose();
   }
 }
 
@@ -332,7 +450,11 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   const bones = map ?? mapBones(root);
   const missing = missingBones(bones);
   if (missing.length) throw new MissingBones(rigBones(root).map((o) => o.name), bones, missing);
-  const info: ModelInfo = { id: uid('model'), name: name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80) || 'Character', format, bones };
+  const info: ModelInfo = {
+    id: uid('model'), name: name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80) || 'Character', format, bones,
+  };
+  const proportions = characterProportions(root, bones);
+  if (proportions) info.proportions = proportions;
   await saveModelFile(info.id, data);
   infos.set(info.id, info);
   templates.set(info.id, root);

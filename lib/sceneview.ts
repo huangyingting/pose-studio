@@ -20,6 +20,8 @@ export class SceneView {
   readonly props = new Map<string, PropObject>();
   /** Figures drawn as imported characters (the mannequin stays, unseen, to pick and pose them by). */
   readonly models = new Map<string, ModelRig>();
+  /** Each figure's colour (characters are tinted with it too). */
+  private tints = new Map<string, string | null>();
   /** Bumped whenever objects are created/destroyed/rebuilt (joint references change). */
   version = 0;
   private style: Style = 'line';
@@ -86,12 +88,14 @@ export class SceneView {
         changed = true;
       }
       if (template && !rig) {
-        rig = new ModelRig(template, modelInfo(f.model!)!);
+        rig = new ModelRig(template, modelInfo(f.model!)!, this.ink);
         this.models.set(f.id, rig);
         this.root.add(rig.object);
         changed = true;
       }
       m.object.visible = !rig;
+      this.tints.set(f.id, f.color ?? null);
+      rig?.setLook(this.style, f.color ?? null);
       rig?.apply(f, m.joints.hips.getWorldPosition(new THREE.Vector3()));
     }
     for (const [id, rig] of this.models) {
@@ -165,6 +169,7 @@ export class SceneView {
     this.ink.setStyle(style);
     for (const m of this.figures.values()) m.setStyle(style);
     for (const p of this.props.values()) p.setStyle(style);
+    for (const [id, r] of this.models) r.setLook(style, this.tints.get(id) ?? null);
   }
 
   /** Show or hide the simple face details on every figure. */
@@ -201,6 +206,7 @@ export class SceneView {
     let id = 0;
     for (const m of this.figures.values()) id = m.setIdMode(on, id);
     for (const p of this.props.values()) id = p.setIdMode(on, id);
+    for (const [fid, r] of this.models) id = r.setIdMode(on, id, this.style, this.tints.get(fid) ?? null);
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void, figuresOnly = false) {

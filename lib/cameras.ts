@@ -327,11 +327,16 @@ const SPAN: Record<ShotSize, [number, number]> = {
 };
 
 /** A body as a camera frames it: the middle of it on the floor, the top of the head, the height, and which way it faces (degrees). */
-interface Body { x: number; z: number; top: number; height: number; facing: number }
+interface Body {
+  x: number; z: number; top: number; height: number; facing: number;
+  /** Where its head joint is, and its standing height (a lying body is low, but a close-up still holds its head). */
+  head: { x: number; y: number; z: number };
+  stature: number;
+}
 
 let rig: Rig | null = null;
 // Each figure is measured once per animation (or still cast) and time.
-const boxes = new WeakMap<object, Map<string, { box: THREE.Box3; facing: number }>>();
+const boxes = new WeakMap<object, Map<string, { box: THREE.Box3; facing: number; head: { x: number; y: number; z: number }; stature: number }>>();
 
 /** A figure's extent at t (every few vertices of its solid parts are plenty), and which way it faces. */
 function extent(scene: Scene, id: string, t: number) {
@@ -350,7 +355,8 @@ function extent(scene: Scene, id: string, t: number) {
       const pos = mesh.geometry.attributes.position;
       for (let i = 0; i < pos.count; i += 4) box.expandByPoint(p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
     }
-    e = { box, facing: f ? facingOf(f.bones) : 0 };
+    const head = f ? rig.model(f).joints.head.getWorldPosition(new THREE.Vector3()) : box.getCenter(new THREE.Vector3());
+    e = { box, facing: f ? facingOf(f.bones) : 0, head: { x: head.x, y: head.y, z: head.z }, stature: f?.body.height ?? 1.7 };
     if (cache.size > 20000) cache.clear();
     cache.set(key, e);
   }
@@ -364,7 +370,11 @@ function measure(scene: Scene, ids: string[] | undefined, t: number): Body {
   for (const e of each) box.union(e.box);
   if (box.isEmpty()) box.set(new THREE.Vector3(-0.3, 0, -0.3), new THREE.Vector3(0.3, 1.8, 0.3));
   const middle = box.getCenter(new THREE.Vector3());
-  return { x: middle.x, z: middle.z, top: box.max.y, height: Math.max(0.3, box.max.y - Math.max(0, box.min.y)), facing: ids && each[0] ? each[0].facing : 0 };
+  return {
+    x: middle.x, z: middle.z, top: box.max.y, height: Math.max(0.3, box.max.y - Math.max(0, box.min.y)), facing: ids && each[0] ? each[0].facing : 0,
+    head: ids && each[0] ? each[0].head : { x: middle.x, y: box.max.y - 0.2, z: middle.z },
+    stature: ids && each[0] ? each[0].stature : Math.max(0.3, box.max.y - Math.max(0, box.min.y)),
+  };
 }
 
 /** A camera's subject's body at t (with those it frames with it; everyone: all of them). */
@@ -378,7 +388,7 @@ function smoothBody(scene: Scene, ids: string[] | undefined, t: number, window: 
   const a = scene.animation;
   if (!a || window <= 0) return measure(scene, ids, t);
   const half = window / 2;
-  const sum = { x: 0, z: 0, top: 0, height: 0, sin: 0, cos: 0, w: 0 };
+  const sum = { x: 0, z: 0, top: 0, height: 0, sin: 0, cos: 0, hx: 0, hy: 0, hz: 0, stature: 0, w: 0 };
   for (let i = Math.ceil((t - half) * a.fps); i <= Math.floor((t + half) * a.fps); i++) {
     const at = Math.min(a.duration, Math.max(0, i / a.fps));
     const w = 1 - Math.abs(i / a.fps - t) / half;
@@ -386,6 +396,10 @@ function smoothBody(scene: Scene, ids: string[] | undefined, t: number, window: 
     const b = measure(scene, ids, at);
     sum.x += b.x * w;
     sum.z += b.z * w;
+    sum.hx += b.head.x * w;
+    sum.hy += b.head.y * w;
+    sum.hz += b.head.z * w;
+    sum.stature += b.stature * w;
     sum.top += b.top * w;
     sum.height += b.height * w;
     sum.sin += Math.sin(b.facing * D2R) * w;
@@ -393,18 +407,28 @@ function smoothBody(scene: Scene, ids: string[] | undefined, t: number, window: 
     sum.w += w;
   }
   if (!sum.w) return measure(scene, ids, t);
-  return { x: sum.x / sum.w, z: sum.z / sum.w, top: sum.top / sum.w, height: sum.height / sum.w, facing: Math.atan2(sum.sin, sum.cos) * R2D };
+  return {
+    x: sum.x / sum.w, z: sum.z / sum.w, top: sum.top / sum.w, height: sum.height / sum.w, facing: Math.atan2(sum.sin, sum.cos) * R2D,
+    head: { x: sum.hx / sum.w, y: sum.hy / sum.w, z: sum.hz / sum.w }, stature: sum.stature / sum.w,
+  };
 }
 
 /** Where a camera looks from and at to hold a body at a shot size from an angle (world yaw, pitch) through a lens. */
 function compose(body: Body, size: ShotSize, yaw: number, pitch: number, lens: number, place: Placement | undefined, aspect: number) {
   const [a, b] = SPAN[size];
-  const top = body.top - a * body.height;
-  const bottom = body.top - b * body.height;
+  // A close shot is measured from the head and the standing height, a wide one from the whole
+  // body as it is (standing, the two agree; lying, the close-up still holds the head).
+  const near = ({ ews: 0, ws: 0, fs: 0, mws: 0.25, ms: 0.5, mcu: 1, cu: 1, ecu: 1 } as Record<ShotSize, number>)[size];
+  const crown = body.head.y + 0.13 * body.stature;
+  const head = body.top + (crown - body.top) * near;
+  const height = body.height + (body.stature - body.height) * near;
+  const top = head - a * height;
+  const bottom = head - b * height;
   const tanV = Math.tan((lensFov(lens, aspect) * D2R) / 2);
   const dist = (top - bottom) / 2 / tanV;
   const dir = viewDirection({ yaw, pitch });
-  const look = new THREE.Vector3(body.x, (top + bottom) / 2, body.z);
+  // Across the floor too, a close shot centres on the head, a wide one on the whole body.
+  const look = new THREE.Vector3(body.x + (body.head.x - body.x) * near, (top + bottom) / 2, body.z + (body.head.z - body.z) * near);
   if (place && place !== 'center') {
     // On a third: the subject a sixth of the frame's width off the middle.
     const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
@@ -434,12 +458,60 @@ function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Bo
 }
 
 /** Where a rig camera is at t, worked out from its subject's body. */
+// Where a clean single puts its subject, once worked out (per animation, camera and rig).
+const placements = new WeakMap<object, Map<string, Placement | undefined>>();
+
 function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: number) {
-  const body = smoothBody(scene, cameraFigures(scene, cam), t, r.smooth ?? 0);
-  const spin = r.body === 'orbit' ? (r.spin ?? 0) * (t - firstFilmed(scene, cam)) : 0;
-  const yaw = rigHeading(scene, cam, r, t, body) + r.yaw + spin;
-  const { position, look } = compose(body, r.size, yaw, r.pitch, r.lens, r.place, aspect);
-  return { position, target: look, lens: r.lens };
+  const subject = cameraFigures(scene, cam);
+  const other = r.clear && r.clear !== cam.subject && scene.figures.some((f) => f.id === r.clear && !f.hidden) ? r.clear : null;
+  const solve = (time: number, place: Placement | undefined) => {
+    const body = smoothBody(scene, subject, time, r.smooth ?? 0);
+    const spin = r.body === 'orbit' ? (r.spin ?? 0) * (time - firstFilmed(scene, cam)) : 0;
+    const yaw = rigHeading(scene, cam, r, time, body) + r.yaw + spin;
+    const at = (extra: number) => compose(body, r.size, yaw + extra, r.pitch, r.lens, place, aspect);
+    const them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null;
+    if (!them || !seen(at(0), them, r.lens, aspect)) return { shot: at(0), clear: true };
+    // Round, away from the other, by the least angle that leaves them out (found by halving; it
+    // moves smoothly as they do).
+    const away = r.yaw < 0 ? -1 : 1;
+    let [lo, hi] = [0, 70];
+    if (seen(at(away * hi), them, r.lens, aspect)) return { shot: at(away * hi), clear: false };
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + hi) / 2;
+      if (seen(at(away * mid), them, r.lens, aspect)) lo = mid;
+      else hi = mid;
+    }
+    return { shot: at(away * hi), clear: true };
+  };
+  // Where the subject sits: as asked, unless that leaves no room to keep the other out (they
+  // stand too close), then centred, then on the other third; chosen once, at the camera's first
+  // shot, so it does not jump about.
+  let place = r.place;
+  if (other) {
+    const owner: object = scene.animation ?? scene.figures;
+    let known = placements.get(owner);
+    if (!known) placements.set(owner, (known = new Map()));
+    const key = `${cam.id}:${JSON.stringify(r)}:${aspect}`;
+    if (!known.has(key)) {
+      const t0 = firstFilmed(scene, cam);
+      const flip: Placement | undefined = r.place === 'left' ? 'right' : r.place === 'right' ? 'left' : undefined;
+      known.set(key, [r.place, undefined, flip].find((p) => solve(t0, p).clear) ?? flip);
+    }
+    place = known.get(key);
+  }
+  const { shot } = solve(t, place);
+  return { position: shot.position, target: shot.look, lens: r.lens };
+}
+
+/** Whether any of a body (its chest, give or take its shoulders) is in a camera's frame. */
+function seen(shot: { position: THREE.Vector3; look: THREE.Vector3 }, body: Body, lens: number, aspect: number) {
+  const forward = shot.look.clone().sub(shot.position).normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+  const to = new THREE.Vector3(body.x, body.top - body.height * 0.3, body.z).sub(shot.position);
+  const depth = to.dot(forward);
+  if (depth <= 0.05) return false;
+  const tanH = Math.tan((lensFov(lens, aspect) * D2R) / 2) * aspect;
+  return Math.abs(to.dot(right)) - 0.25 < tanH * depth;
 }
 
 /** The rig that films as a camera view does at t (its angle from the subject, its size and lens). */
