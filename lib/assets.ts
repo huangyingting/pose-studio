@@ -3,7 +3,7 @@ import { keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
 import { HANDLING, MOTIONS } from './motions';
-import { CAMERA_MOVES } from './shot';
+import { filmWith } from './shot';
 import { uid } from './uid';
 import type { Action, Clip, Library, Scene } from './types';
 
@@ -61,7 +61,5 @@ export function clipScene(clip: Clip): Scene {
   const scene = newScene(clip.name, figures);
   const base = { ...newAnimation(scene, Math.max(0.2, clip.duration)), loop: clip.loop };
   const play: Action = { id: uid('act'), start: 0, duration: clip.duration, roles: figures.map((f) => ({ figure: f.id })), source: { kind: 'clip', clip: clip.id } };
-  const animation = { ...base, actions: [...base.actions, play] };
-  const move = CAMERA_MOVES.find((m) => m.id === 'static')!;
-  return { ...scene, animation: { ...animation, camera: { keys: move.keys(animation, scene.view), follow: true, shake: 0 } } };
+  return filmWith({ ...scene, animation: { ...base, actions: [...base.actions, play] } }, 'static', { follow: true });
 }

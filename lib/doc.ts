@@ -1,6 +1,7 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
-import { DEFAULT_FPS, mirrorAnimation, normalize, parseCamera, parseShots, remapAnimation } from './animation';
+import { DEFAULT_FPS, mirrorAnimation, normalize, parseOldCamera, parseShots, remapAnimation } from './animation';
+import { shotsFromKeys } from './shot';
 import { clipInfo, keysClip } from './clip';
 import { parseBoard } from './board';
 import { uid } from './uid';
@@ -264,6 +265,9 @@ export function parseScene(v: unknown, i = 0): Scene {
   };
   const animation = parseAnimation(v.animation, ids, new Set(scene.props.map((p) => p.id)));
   if (animation) scene.animation = normalize(animation, figures);
+  // One-time converter: a camera key track from before shots had paths.
+  const old = scene.animation && isObj(v.animation) ? parseOldCamera(v.animation.camera, scene.animation.duration) : undefined;
+  if (old) scene.animation = { ...scene.animation!, shots: shotsFromKeys(scene, old.keys, old.follow, old.shake) };
   return scene;
 }
 
@@ -448,8 +452,6 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   if (!actions.length && !Object.keys(props).length) return undefined;
   const holds = (Array.isArray(v.constraints) ? v.constraints.slice(0, 500) : []).map((c) => parseConstraint(c, figures, propIds, duration)).filter((c): c is Constraint => c !== null);
   const anim: Animation = { duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}) };
-  const cam = parseCamera(v.camera, duration);
-  if (cam) anim.camera = cam;
   const shots = parseShots(v.shots, duration);
   if (shots) anim.shots = shots;
   if (typeof v.target === 'string' && v.target.length <= 40) anim.target = v.target;

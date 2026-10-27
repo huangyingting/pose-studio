@@ -95,7 +95,7 @@ describe('assistant tools', () => {
     run(store, 'set_joints', { figure: fig, joints: [{ joint: 'leftUpperArm', x: -120, y: 0, z: 10 }] });
     expect(keyTimesOf(store.scene.animation!, fig)).toEqual([0, 1]);
     run(store, 'camera_move', { move: 'orbit90' });
-    expect(store.scene.animation!.camera!.keys.length).toBeGreaterThan(1);
+    expect(store.scene.animation!.shots![0].points.length).toBeGreaterThan(1);
     expect(run(store, 'check_motion')).toBe('No problems found.');
     expect(run(store, 'describe_shot')).toMatch(/arcs/);
 

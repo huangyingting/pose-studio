@@ -1,7 +1,8 @@
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { poseScene } from './poses';
-import { shotAt, shotFramer, subjectAt, type CameraMove } from './shot';
+import { cameraAt, filmWith, type CameraMove } from './shot';
+import { newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { PoseAsset, Scene, Style } from './types';
 
@@ -58,18 +59,14 @@ export function runPreview(job: PreviewJob, onFrames: (frames: string[]) => void
 /** Frames of an animated scene through its shot camera, evenly over its length. */
 function filmed(key: string, make: () => Scene, style: Style): PreviewJob {
   let scene: Scene | null = null;
-  let framing: ReturnType<typeof shotFramer> | null = null;
   return {
     key,
     count: FRAMES,
     frame(i) {
       scene ??= make();
-      framing ??= shotFramer(scene);
       const a = scene.animation!;
       const t = (a.duration * i) / (a.loop ? FRAMES : FRAMES - 1);
-      return sharedRenderer().renderShot(sceneAt(scene, t), W, H, LINE, {
-        style, faces: true, shot: shotAt(scene, t), framing: framing(t), follow: !!a.camera?.follow, shake: a.camera?.shake ?? 0, subject: subjectAt(scene, t),
-      }).toDataURL('image/png');
+      return sharedRenderer().renderShot(sceneAt(scene, t), W, H, LINE, { style, faces: true, camera: cameraAt(scene, t, W / H) }).toDataURL('image/png');
     },
   };
 }
@@ -96,9 +93,9 @@ export function cameraPreview(move: CameraMove, scene: Scene, style: Style): Pre
   if (!sceneIds.has(scene)) sceneIds.set(scene, nextScene++);
   return filmed(`camera:${style}:${move.id}:${sceneIds.get(scene)}`, () => {
     const anim = scene.animation ?? { ...newAnimation(scene, 3), loop: false };
-    // One shot over the whole animation, filmed by this move.
-    const { shots: _cuts, ...whole } = anim;
-    void _cuts;
-    return { ...scene, animation: { ...whole, camera: { keys: move.keys(anim, scene.view), follow: move.follow ?? false, shake: move.shake ?? 0 } } };
+    // One shot over the whole animation (about the subject of the shot at its start), filmed by this move.
+    const { shots, ...whole } = anim;
+    const subject = shots?.[0]?.subject;
+    return filmWith({ ...scene, animation: { ...whole, shots: [{ ...newShot(0, 'Shot 1', 'main'), ...(subject ? { subject } : {}) }] } }, move.id);
   }, style);
 }

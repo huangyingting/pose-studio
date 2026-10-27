@@ -1,6 +1,6 @@
 import {
-  addScene, addFigures, applyMotion, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
-  editShot, holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
+  addScene, addFigures, applyMotion, frameShot, setLens, setShotCamera, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
   setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
@@ -16,11 +16,11 @@ import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { anglesOf, withAngles, type Angles } from '../pose';
-import { CAMERA_MOVES } from '../shot';
+import { CAMERA_MOVES, SHOT_SIZES, cameraAt, fovLens, sizeOf, type Placement, type ShotSize } from '../shot';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { TEMPLATES, buildTemplate } from '../templates';
-import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Style, type Vec3 } from '../types';
+import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Shot, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -103,8 +103,13 @@ function sceneSummary(store: Store) {
         ...(x.prop ? { prop: s.props.find((p) => p.id === x.prop)?.name } : {}),
       })),
       holds: (a.constraints ?? []).map((c) => ({ id: c.id, figure: s.figures.find((f) => f.id === c.figure)?.name, part: c.bone, start: r2(c.start), end: r2(c.end) })),
-      camera_keys: (a.camera?.keys ?? []).map((k) => ({ t: r2(k.t), yaw: r1(k.yaw), pitch: r1(k.pitch), fov: r1(k.fov), zoom: r2(k.zoom) })),
-      shots: shotSpans(a).map((sp) => ({ name: sp.shot.name, start: r2(sp.start), end: r2(sp.end) })),
+      // Each shot's camera: what it frames, its path's points (time in the shot, place, look point, lens in mm).
+      shots: shotSpans(a).map((sp) => ({
+        name: sp.shot.name, start: r2(sp.start), end: r2(sp.end),
+        subject: sp.shot.subject ? s.figures.find((f) => f.id === sp.shot.subject)?.name : 'everyone',
+        anchor: sp.shot.anchor, aim: sp.shot.aim, ...(sp.shot.shake ? { shake: sp.shot.shake } : {}),
+        points: sp.shot.points.map((p) => ({ t: r2(p.t), position: p.position.map(r2), look: p.look.map(r2), lens: p.lens })),
+      })),
     } : null,
     still_camera: s.animation ? undefined : s.view,
     style: store.getState().settings.style,
@@ -298,15 +303,42 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'shot_subject',
-    description: 'Make the shot playing at a time about one figure: the camera frames just them (and with the camera\'s follow on, tracks them), or with figure null everyone again. Cut shots first (cut_shot) to give each its subject.',
+    description: 'Make the shot playing at a time about one figure (the camera frames and aims at them), or with figure null everyone again. Cut shots first (cut_shot) to give each its subject.',
     schema: obj({ time: num('A time inside the shot (s)'), figure: opt(FIGURE) }),
     run: (store, i) => {
       const a = store.scene.animation;
       if (!a) throw new Error('The scene is not animated');
       const span = spanAt(a, Number(i.time));
       const f = i.figure ? findFigure(store, i.figure) : null;
-      editShot(store, span.shot.id, { subject: f?.id });
+      setShotCamera(store, span.shot.id, { subject: f?.id ?? '' });
       return `${span.shot.name} frames ${f ? f.name : 'everyone'}.`;
+    },
+  },
+  {
+    name: 'shot_camera',
+    description: `The camera of the shot playing at a time. At that time: frame its subject at a shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}) and/or change the lens (mm, full frame: 14 wide … 50 normal … 200 telephoto; keeping the subject's size unless a size is given), with the subject in the centre or on the left/right third. For the whole shot: anchor (world: a fixed camera path; subject: the path rides along with the subject, a tracking shot), aim (subject, point or path) and hand-held shake (0–1). Null leaves a setting as it is.`,
+    schema: obj({
+      time: num('A time inside the shot (s)'),
+      size: opt(str('Shot size', SHOT_SIZES.map((x) => x.id))),
+      lens: opt(num('Focal length (mm)')),
+      place: opt(str('Where the subject sits in the frame', ['center', 'left', 'right'])),
+      anchor: opt(str('Where the path is', ['world', 'subject'])),
+      aim: opt(str('What the camera looks at', ['subject', 'point', 'path'])),
+      shake: opt(num('Hand-held shake, 0–1')),
+    }),
+    run: (store, i) => {
+      const a = store.scene.animation;
+      if (!a) throw new Error('The scene is not animated');
+      store.setTime(Math.max(0, Math.min(a.duration, Number(i.time))));
+      const span = spanAt(a, store.getState().time);
+      if (i.anchor || i.aim || typeof i.shake === 'number') {
+        setShotCamera(store, span.shot.id, { ...(i.anchor ? { anchor: i.anchor as Shot['anchor'] } : {}), ...(i.aim ? { aim: i.aim as Shot['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
+      }
+      const lens = typeof i.lens === 'number' ? Math.min(400, Math.max(8, i.lens)) : undefined;
+      if (i.size) frameShot(store, i.size as ShotSize, { lens, place: (i.place as Placement | null) ?? undefined });
+      else if (lens) setLens(store, lens, 'size');
+      const v = cameraAt(store.scene, store.getState().time);
+      return `${span.shot.name} at ${r2(store.getState().time)} s: ${SHOT_SIZES.find((x) => x.id === sizeOf(store.scene, spanAt(store.scene.animation!, store.getState().time).shot, store.getState().time, v))?.name.toLowerCase()} shot, ${Math.round(fovLens(v.fov))}mm.`;
     },
   },
   {

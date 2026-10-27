@@ -680,7 +680,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
-  expect((await anim(page)).animation!.camera!.keys).toHaveLength(4);
+  expect((await anim(page)).animation!.shots![0].points).toHaveLength(9);
 
   // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
   await page.keyboard.press('Control+e');
@@ -690,6 +690,40 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   expect(json.animations.map((x) => x.name)).toEqual([s.scene.figures[0].name, 'Camera']);
   expect(json.animations[0].channels.length).toBeGreaterThan(17);
   expect(json.cameras).toHaveLength(1);
+});
+
+test('a shot is framed by size and lens, and its camera path edited on the canvas', async ({ page }) => {
+  await openSection(page, 'Scene');
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await page.locator('.tl-shot').first().click();
+  const inspector = page.getByRole('complementary', { name: 'Inspector' });
+  const shot = async () => (await anim(page)).animation!.shots![0];
+  // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
+  await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true }).click();
+  let s = await shot();
+  expect(s.points).toHaveLength(1);
+  const near = Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]));
+  const lens = s.points[0].lens;
+  await choose(page, 'Lens', '85 mm');
+  s = await shot();
+  expect(s.points[0].lens).toBe(85);
+  expect(Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]))).toBeCloseTo((near * 85) / lens, 1);
+  await expect(inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // A close-up through a wide lens (the camera near the figure); seen from above and aside, the
+  // shot's camera is dragged across the floor, its height kept.
+  await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'CU', exact: true }).click();
+  await choose(page, 'Lens', '24 mm');
+  s = await shot();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('6');
+  await page.waitForTimeout(600);
+  const before = s.points[0].position;
+  const at = await projectPoint(page, before);
+  await drag(page, at, { x: at.x + 60, y: at.y });
+  s = await shot();
+  const after = s.points[0].position;
+  expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeGreaterThan(0.1);
+  expect(after[1]).toBeCloseTo(before[1], 2);
 });
 
 test('a still scene can be animated with auto-keys', async ({ page }) => {

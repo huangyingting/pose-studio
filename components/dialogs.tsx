@@ -13,7 +13,7 @@ import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
   canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
-import { framingFor, shotAt } from '@/lib/shot';
+import { cameraAt } from '@/lib/shot';
 import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
@@ -84,7 +84,7 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
       let small: HTMLCanvasElement;
       if (filmed) {
         const r = sharedRenderer().renderShot(sceneAt(scene, 0), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
-          style: o.style, faces, pass, shot: shotAt(scene, 0), framing: framingFor(scene), follow: !!scene.animation?.camera?.follow, shake: 0,
+          style: o.style, faces, pass, camera: cameraAt(scene, 0, width / height),
         });
         small = document.createElement('canvas');
         small.width = r.width;

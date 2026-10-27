@@ -2,8 +2,8 @@ import { sceneAt } from './evaluate';
 import { buildOtio } from './otio';
 import { describeShot, describeSpan } from './prompt';
 import { canvasToBlob, safeFilename, type Pass } from './render';
-import { cameraPath, shotAt, shotFramer, subjectAt } from './shot';
-import { shotSpans, type ShotSpan } from './shots';
+import { cameraAt, cameraPath } from './shot';
+import { newShot, shotSpans, type ShotSpan } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { Scene, Style } from './types';
 import { recordVideo, videoSupported } from './video';
@@ -42,18 +42,17 @@ and the prompt, so it follows the blocking instead of guessing.
 
 export async function keyframePack(scene: Scene, o: PackOptions, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
   const a = scene.animation;
-  const spans: ShotSpan[] = a ? shotSpans(a) : [{ shot: { id: 'main', start: 0, name: scene.name }, index: 0, start: 0, end: 0 }];
+  const spans: ShotSpan[] = a ? shotSpans(a) : [{ shot: newShot(0, scene.name, 'main'), index: 0, start: 0, end: 0 }];
   const greybox = !!a && o.greybox && videoSupported();
   const entries: ZipEntry[] = [{ name: 'README.txt', data: README }, { name: 'prompt.txt', data: describeShot(scene) + '\n' }];
   if (a) entries.push({ name: 'cutlist.otio', data: JSON.stringify(buildOtio(scene, 'video.mp4'), null, 2) });
   const renderer = sharedRenderer();
-  const frameAt = shotFramer(scene);
   const steps = spans.length * (greybox ? 7 : 6);
   let done = 0;
   const tick = () => onProgress?.(++done / steps);
   const png = async (t: number, pass: Pass) => {
     const c = renderer.renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
-      style: o.style, faces: o.faces, pass, shot: shotAt(scene, t), framing: frameAt(t), follow: !!a?.camera?.follow, shake: 0, subject: subjectAt(scene, t),
+      style: o.style, faces: o.faces, pass, camera: cameraAt(scene, t, o.width / o.height),
     });
     const blob = await canvasToBlob(c, 'png');
     return new Uint8Array(await blob.arrayBuffer());

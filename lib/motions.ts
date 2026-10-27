@@ -6,7 +6,7 @@ import { HAND_PRESETS, cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
-import { CAMERA_MOVES } from './shot';
+import { filmWith } from './shot';
 import { buildTemplate, waltzHold } from './templates';
 import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
 import { keysAction } from './track';
@@ -81,10 +81,13 @@ function animated(name: string, keys: Key[], o: { duration: number; loop: boolea
     return { id: uid('act'), start: 0, duration: o.duration, roles: [{ figure: f.id }], source: { kind: 'keys', clip: keysClip(mine, true, o.duration) } };
   });
   const animation: Animation = { duration: o.duration, fps: 24, loop: o.loop, actions };
-  const move = CAMERA_MOVES.find((m) => m.id === (o.camera ?? 'static'));
-  if (move) animation.camera = { keys: move.keys(animation, o.view), follow: o.follow ?? move.follow ?? false, shake: move.shake ?? 0 };
+  // Filmed when it is opened as a scene (buildMotion), not when only its motion is wanted.
+  filming.set(name, { move: o.camera ?? 'static', follow: !!o.follow });
   return { ...scene, animation };
 }
+
+/** How each motion's scene is filmed (by its name): its camera move, riding along with its people or not. */
+const filming = new Map<string, { move: string; follow: boolean }>();
 
 /**
  * A figure's keys from t0 to t1 walked, run or jumped instead (its steps generated): the keys in
@@ -824,8 +827,12 @@ export const MOTIONS: Motion[] = [
   },
 ];
 
+/** A motion as a scene of its own, filmed with its camera move. */
 export function buildMotion(id: string): Scene | null {
-  return MOTIONS.find((m) => m.id === id)?.build() ?? null;
+  const scene = MOTIONS.find((m) => m.id === id)?.build();
+  const how = scene && filming.get(scene.name);
+  if (!scene || !how) return scene ?? null;
+  return filmWith(scene, how.move, { follow: how.follow });
 }
 
 /* ---------- handling props ---------- */

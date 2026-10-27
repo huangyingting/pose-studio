@@ -1,5 +1,5 @@
 import { describeSpan } from './prompt';
-import { keysInShot, shotSpans, videoModel } from './shots';
+import { shotSpans, videoModel } from './shots';
 import type { Scene } from './types';
 
 /*
@@ -39,7 +39,7 @@ export function buildOtio(scene: Scene, mediaUrl: string) {
       pose_studio: {
         caption: span.shot.caption ?? '',
         prompt: describeSpan(scene, span),
-        camera: keysInShot(a, span),
+        camera: { anchor: span.shot.anchor, aim: span.shot.aim, points: span.shot.points, ...(span.shot.shake ? { shake: span.shot.shake } : {}) },
         ...(target ? { cut_for: target.name, over_limit: span.end - span.start > target.max } : {}),
       },
     },

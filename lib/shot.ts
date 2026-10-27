@@ -1,48 +1,53 @@
 import * as THREE from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { frameTimes, sampleCamera } from './animation';
-import { sceneAt } from './evaluate';
+import { frameTimes } from './animation';
+import { hermite } from './clip';
+import { figurePoseAt, sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
+import { Rig } from './relations';
 import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';
-import { spanAt } from './shots';
-import type { Animation, CameraKey, Scene } from './types';
+import { shotSpans, spanAt, type ShotSpan } from './shots';
+import type { Animation, CameraPoint, Scene, Shot, Vec3, View } from './types';
 
 /*
- * The shot camera: how a "director" films the figures. A shot is an orbit around the subject
- * (yaw, pitch, lens), a zoom relative to a frame that fits everything, and a pan. Camera keys
- * on the animation's camera track are interpolated like poses, so moves such as a push-in,
- * an orbit or a crane shot play back smoothly.
+ * The shot camera: how a "director" films the figures. Each shot of an animation has a camera
+ * path: points the camera passes through in time, each with where it looks and its lens (mm,
+ * full frame). A path is fixed in the world (a track, a crane), or rides along with the shot's
+ * subject (a tracking shot); the camera looks at the subject, at a point, or along the way. A
+ * still scene (or a shot without a path) is filmed from its view (angle and lens), everyone in
+ * frame. Shot sizes (wide … close-up) and camera moves make paths; they can be edited after.
  */
 
 /** Video frame shape used for shot framing and the letterbox. */
 export const SHOT_ASPECT = 16 / 9;
 
-/** The shot at time t: the camera track, or the pose's export camera when there is none. */
-export function shotAt(scene: Scene, t: number): CameraKey {
-  const a = scene.animation;
-  const key = a ? sampleCamera(a, t) : null;
-  return key ?? { t, yaw: scene.view.yaw, pitch: scene.view.pitch, fov: scene.view.fov, zoom: 1, pan: [0, 0] };
+const D2R = Math.PI / 180;
+const R2D = 180 / Math.PI;
+
+/* ---------- lens ---------- */
+
+/** Common focal lengths (mm). */
+export const LENSES = [14, 18, 24, 35, 50, 85, 135, 200];
+
+/** The frame's height on a full-frame (36 × 24 mm) sensor for a frame shape (mm). */
+const sensorHeight = (aspect: number) => (aspect >= 1.5 ? 36 / aspect : 24);
+
+/** The vertical field of view (degrees) of a lens, for a frame of this shape. */
+export function lensFov(mm: number, aspect = SHOT_ASPECT) {
+  return 2 * Math.atan(sensorHeight(aspect) / 2 / Math.max(1, mm)) * R2D;
 }
+
+/** The lens (mm) with this vertical field of view (degrees). */
+export function fovLens(fov: number, aspect = SHOT_ASPECT) {
+  return sensorHeight(aspect) / 2 / Math.tan((THREE.MathUtils.clamp(fov, 1, 170) * D2R) / 2);
+}
+
+/* ---------- what is in frame ---------- */
 
 export interface Framing {
-  /** The figures over the whole animation, so the frame stays steady. */
+  /** The figures over the stretch of time, so the frame stays steady. */
   points: THREE.Vector3[];
-  /** Average pelvis position over the animation (reference for follow shots). */
-  center: THREE.Vector3;
-}
-
-/** Average pelvis position of the figures shown in a view (or just `only`'s, if shown). */
-export function figuresCenter(view: SceneView, only?: string) {
-  const c = new THREE.Vector3();
-  const one = only ? view.figures.get(only) : undefined;
-  if (one) return one.joints.hips.getWorldPosition(c);
-  let n = 0;
-  for (const m of view.figures.values()) {
-    c.add(m.joints.hips.getWorldPosition(new THREE.Vector3()));
-    n++;
-  }
-  return n ? c.divideScalar(n) : c.set(0, 1, 0);
 }
 
 /**
@@ -69,12 +74,11 @@ function hull(points: THREE.Vector3[]) {
 
 /**
  * What a shot frames: everyone, sampled over the animation (or just the pose); or one figure
- * (`only`) over the shot's own stretch of time.
+ * (`only`) over a stretch of time.
  */
 export function framingFor(scene: Scene, samples = 12, only?: { figure: string; from: number; to: number }): Framing {
   const view = new SceneView();
   const points: THREE.Vector3[] = [];
-  const center = new THREE.Vector3();
   const times = !scene.animation ? [0] : only
     ? Array.from({ length: samples }, (_, i) => only.from + ((only.to - only.from) * i) / Math.max(1, samples - 1))
     : frameTimes(scene.animation, samples);
@@ -85,114 +89,258 @@ export function framingFor(scene: Scene, samples = 12, only?: { figure: string; 
     const subject = only ? view.figures.get(only.figure) : undefined;
     if (subject) subject.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); });
     else view.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); }, true);
-    center.add(figuresCenter(view, only?.figure));
   }
   view.dispose();
   if (!points.length) points.push(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.8, 0));
-  return { points: hull(points), center: center.divideScalar(times.length) };
+  return { points: hull(points) };
+}
+
+/** The figure a shot is about, if it has one and the figure is there. */
+export function shotSubject(scene: Scene, shot: Shot): string | undefined {
+  return shot.subject && scene.figures.some((f) => f.id === shot.subject && !f.hidden) ? shot.subject : undefined;
 }
 
 /** The figure the shot playing at t is about, if it has one (and the figure is there). */
 export function subjectAt(scene: Scene, t: number): string | undefined {
   const a = scene.animation;
-  if (!a?.shots?.length) return undefined;
-  const id = spanAt(a, t).shot.subject;
-  return id && scene.figures.some((f) => f.id === id && !f.hidden) ? id : undefined;
+  return a?.shots?.length ? shotSubject(scene, spanAt(a, t).shot) : undefined;
 }
 
-/**
- * The framing for whatever shot plays at a time: its subject over the shot, or everyone over
- * the animation. Computed when first asked for, once per shot.
- */
-export function shotFramer(scene: Scene) {
-  let all: Framing | null = null;
-  const bySubject = new Map<string, Framing>();
-  return (t: number): Framing => {
-    const a = scene.animation;
-    const subject = subjectAt(scene, t);
-    if (!a || !subject) return (all ??= framingFor(scene));
-    const span = spanAt(a, t);
-    const key = `${span.shot.id}:${subject}`;
-    let f = bySubject.get(key);
-    if (!f) {
-      f = framingFor(scene, 8, { figure: subject, from: span.start, to: span.end });
-      bySubject.set(key, f);
-    }
-    return f;
-  };
+// Framings are worked out once per animation (or still cast) and shot.
+const framings = new WeakMap<object, Map<string, Framing>>();
+
+/** The framing of a stretch of a scene: its subject over the shot, or everyone over the animation. */
+function framingOf(scene: Scene, span: ShotSpan | null): Framing {
+  const owner: object = scene.animation ?? scene.figures;
+  let cache = framings.get(owner);
+  if (!cache) framings.set(owner, (cache = new Map()));
+  const subject = span ? shotSubject(scene, span.shot) : undefined;
+  const key = subject ? `${span!.start}:${span!.end}:${subject}` : 'all';
+  let f = cache.get(key);
+  if (!f) {
+    // While a scene is being edited (a new animation every moment of a drag), the framing of a
+    // moment ago does: it is worked out again once the edits pause.
+    const id = `${scene.id}:${key}`;
+    const now = Date.now();
+    f = recent?.id === id && now - recent.at < 300 ? recent.framing : framingFor(scene, subject ? 8 : 12, subject ? { figure: subject, from: span!.start, to: span!.end } : undefined);
+    if (recent?.id !== id || recent.framing !== f) recent = { id, framing: f, at: now };
+    cache.set(key, f);
+  }
+  return f;
+}
+
+let recent: { id: string; framing: Framing; at: number } | null = null;
+
+/** Where a shot's subject is at t, on the floor under its hips (everyone: the middle of them). */
+export function subjectPlace(scene: Scene, shot: Shot, t: number): THREE.Vector3 {
+  const id = shotSubject(scene, shot);
+  const ids = id ? [id] : scene.figures.filter((f) => !f.hidden).map((f) => f.id);
+  const c = new THREE.Vector3();
+  let n = 0;
+  for (const f of ids) {
+    const p = scene.animation ? figurePoseAt(scene, f, t)?.position : scene.figures.find((x) => x.id === f)?.position;
+    if (!p) continue;
+    c.x += p[0];
+    c.z += p[2];
+    n++;
+  }
+  return n ? c.divideScalar(n) : c;
+}
+
+/* ---------- the camera at a time ---------- */
+
+/** Where the camera is, where it looks, its field of view (vertical, degrees) and roll. */
+export interface CameraView {
+  position: THREE.Vector3;
+  target: THREE.Vector3;
+  fov: number;
+  roll: number;
+}
+
+/** The still camera: everyone (or the shot's subject) in frame from the scene's view. */
+function stillView(scene: Scene, span: ShotSpan | null, aspect: number): CameraView {
+  const cam = new THREE.PerspectiveCamera(scene.view.fov, aspect);
+  const f = framingOf(scene, span);
+  const target = fitCamera(cam, { forEachPoint: (cb) => f.points.forEach(cb) }, scene.view, 0.1);
+  return { position: cam.position.clone(), target: target.clone(), fov: scene.view.fov, roll: 0 };
 }
 
 /** Smooth pseudo-random wobble in [-1, 1] for hand-held shake. */
 function wobble(t: number, seed: number) {
-  return (Math.sin(t * 1.7 + seed) * 0.5 + Math.sin(t * 3.3 + seed * 2.1) * 0.3 + Math.sin(t * 7.9 + seed * 0.7) * 0.2);
+  return Math.sin(t * 1.7 + seed) * 0.5 + Math.sin(t * 3.3 + seed * 2.1) * 0.3 + Math.sin(t * 7.9 + seed * 0.7) * 0.2;
 }
 
-/**
- * Put `camera` where the shot says. `follow` is the centre of the figures in this frame
- * (tracking shot); without it the frame stays fixed on the whole animation.
- * Returns the point the camera looks at.
- */
-export function placeShot(
-  camera: THREE.PerspectiveCamera,
-  f: Framing,
-  key: CameraKey,
-  aspect: number,
-  opts: { follow?: THREE.Vector3 | null; shake?: number; t?: number } = {},
-) {
-  const shake = opts.shake ?? 0;
-  const t = opts.t ?? key.t;
-  const yaw = key.yaw + shake * 1.6 * wobble(t, 1);
-  const pitch = key.pitch + shake * 1.1 * wobble(t, 4);
-  const view = { yaw, pitch, fov: key.fov };
+/** A path's point at time u (from the shot's start), and which way it is going. */
+export function samplePath(points: CameraPoint[], u: number, ease: Shot['ease'] = 'smooth'): CameraPoint & { velocity: THREE.Vector3 } {
+  const n = points.length;
+  const vec = (v: Vec3) => new THREE.Vector3(...v);
+  if (n === 1) return { ...points[0], t: u, velocity: new THREE.Vector3() };
+  const times = points.map((p) => p.t);
+  const time = THREE.MathUtils.clamp(u, times[0], times[n - 1]);
+  let k = 0;
+  while (k < n - 2 && times[k + 1] <= time) k++;
+  const i = [Math.max(0, k - 1), k, k + 1, Math.min(n - 1, k + 2)];
+  const [t1, t2] = [times[k], times[k + 1]];
+  const t0 = k > 0 ? times[k - 1] : t1 - (t2 - t1);
+  const t3 = k + 2 < n ? times[k + 2] : t2 + (t2 - t1);
+  const at = (x: number) => {
+    if (ease === 'linear') {
+      const s = t2 - t1 > 1e-9 ? (x - t1) / (t2 - t1) : 0;
+      return (f: (p: CameraPoint) => number) => f(points[k]) + (f(points[k + 1]) - f(points[k])) * s;
+    }
+    return (f: (p: CameraPoint) => number) => hermite(f(points[i[0]]), f(points[i[1]]), f(points[i[2]]), f(points[i[3]]), t0, t1, t2, t3, x);
+  };
+  const v = at(time);
+  const vec3 = (g: (p: CameraPoint) => Vec3, x = v) => [0, 1, 2].map((c) => x((p) => g(p)[c])) as Vec3;
+  const position = vec3((p) => p.position);
+  const ahead = vec3((p) => p.position, at(Math.min(t2, time + 0.02)));
+  const behind = vec3((p) => p.position, at(Math.max(t1, time - 0.02)));
+  return {
+    t: u,
+    position,
+    look: vec3((p) => p.look),
+    lens: Math.max(4, v((p) => p.lens)),
+    roll: v((p) => p.roll ?? 0),
+    velocity: vec(ahead).sub(vec(behind)),
+  };
+}
+
+/** The camera filming a scene at time t (an animation's shot, or the still camera). */
+export function cameraAt(scene: Scene, t: number, aspect = SHOT_ASPECT): CameraView {
+  const a = scene.animation;
+  const span = a ? spanAt(a, t) : null;
+  const shot = span?.shot;
+  if (!span || !shot?.points.length) return stillView(scene, span, aspect);
+  const u = THREE.MathUtils.clamp(t - span.start, 0, span.end - span.start);
+  const p = samplePath(shot.points, u, shot.ease);
+  const place = shot.anchor === 'subject' || shot.aim === 'subject' ? subjectPlace(scene, shot, t) : null;
+  const position = new THREE.Vector3(...p.position);
+  if (shot.anchor === 'subject') position.add(place!);
+  let target: THREE.Vector3;
+  if (shot.aim === 'subject') target = new THREE.Vector3(...p.look).add(place!);
+  else if (shot.aim === 'point') target = new THREE.Vector3(...p.look).add(shot.anchor === 'subject' ? place! : new THREE.Vector3());
+  else target = p.velocity.lengthSq() > 1e-10 ? position.clone().add(p.velocity.clone().normalize()) : new THREE.Vector3(...p.look);
+  const shake = shot.shake ?? 0;
+  if (shake > 0) {
+    // A hand-held camera wanders about where it looks.
+    const d = target.clone().sub(position);
+    d.applyAxisAngle(new THREE.Vector3(0, 1, 0), shake * 1.6 * D2R * wobble(t, 1));
+    const side = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 1, 0)).normalize();
+    if (side.lengthSq() > 0) d.applyAxisAngle(side, shake * 1.1 * D2R * wobble(t, 4));
+    target = position.clone().add(d);
+  }
+  return { position, target, fov: lensFov(p.lens, aspect), roll: p.roll ?? 0 };
+}
+
+/** Put a three.js camera where a camera view says. */
+export function placeCamera(camera: THREE.PerspectiveCamera, view: CameraView, aspect: number) {
   camera.aspect = aspect;
-  const fit = fitCamera(camera, { forEachPoint: (cb) => f.points.forEach(cb) }, view, 0.1);
-  const target = fit.clone();
-  if (opts.follow) target.add(opts.follow.clone().sub(f.center));
-  const dist = fit.distance / Math.max(0.1, key.zoom);
-  const dir = viewDirection(view);
-  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-  const up = new THREE.Vector3().crossVectors(dir, right);
-  const tanV = Math.tan(THREE.MathUtils.degToRad(key.fov) / 2);
-  target.addScaledVector(right, key.pan[0] * dist * tanV * aspect).addScaledVector(up, key.pan[1] * dist * tanV);
-  camera.position.copy(target).addScaledVector(dir, dist);
-  camera.up.set(0, 1, 0);
-  camera.lookAt(target);
+  camera.fov = view.fov;
+  camera.position.copy(view.position);
+  const dir = view.target.clone().sub(view.position).normalize();
+  // Rolled about the line of sight.
+  camera.up.set(0, 1, 0).applyAxisAngle(dir, -view.roll * D2R);
+  camera.lookAt(view.target);
+  const dist = view.position.distanceTo(view.target);
   camera.near = Math.max(0.01, dist * 0.02);
   camera.far = dist + 200;
   camera.updateProjectionMatrix();
-  return target;
+  camera.updateMatrixWorld();
 }
 
-/** The shot that reproduces an editor camera (position + orbit target): for "set camera key". */
-export function captureShot(
-  camera: THREE.PerspectiveCamera,
-  target: THREE.Vector3,
-  f: Framing,
-  aspect: number,
-  follow?: THREE.Vector3 | null,
-): Omit<CameraKey, 't'> {
-  const d = camera.position.clone().sub(target);
-  const dist = d.length();
-  d.normalize();
-  const yaw = THREE.MathUtils.radToDeg(Math.atan2(d.x, d.z));
-  const pitch = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(d.y, -1, 1)));
-  const fov = camera.fov;
-  const scratch = new THREE.PerspectiveCamera(fov, aspect);
-  const base = placeShot(scratch, f, { t: 0, yaw, pitch, fov, zoom: 1, pan: [0, 0] }, aspect, { follow });
-  const baseDist = scratch.position.distanceTo(base);
-  const dir = viewDirection({ yaw, pitch });
-  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-  const up = new THREE.Vector3().crossVectors(dir, right);
-  const tanV = Math.tan(THREE.MathUtils.degToRad(fov) / 2);
-  const delta = target.clone().sub(base);
-  const r = (v: number, step = 0.01) => Math.round(v / step) * step || 0;
+/* ---------- shot sizes ---------- */
+
+export const SHOT_SIZES = [
+  { id: 'ews', name: 'Extreme wide', short: 'EWS' },
+  { id: 'ws', name: 'Wide', short: 'WS' },
+  { id: 'fs', name: 'Full', short: 'FS' },
+  { id: 'mws', name: 'Medium wide', short: 'MWS' },
+  { id: 'ms', name: 'Medium', short: 'MS' },
+  { id: 'mcu', name: 'Medium close-up', short: 'MCU' },
+  { id: 'cu', name: 'Close-up', short: 'CU' },
+  { id: 'ecu', name: 'Extreme close-up', short: 'ECU' },
+] as const;
+export type ShotSize = (typeof SHOT_SIZES)[number]['id'];
+
+/** How much of the body each shot size holds: from and to, as shares of the body's height down from the top of the head. */
+const SPAN: Record<ShotSize, [number, number]> = {
+  ews: [-1.6, 2.6], ws: [-0.45, 1.45], fs: [-0.08, 1.06], mws: [-0.07, 0.74],
+  ms: [-0.06, 0.55], mcu: [-0.06, 0.4], cu: [-0.05, 0.27], ecu: [0.02, 0.14],
+};
+
+let rig: Rig | null = null;
+
+/** The subject's body at t: the middle of it on the floor, the top of the head, the height (everyone: all of them). */
+function bodyAt(scene: Scene, shot: Shot, t: number) {
+  rig ??= new Rig();
+  const id = shotSubject(scene, shot);
+  const now = scene.animation ? sceneAt(scene, t) : scene;
+  const figures = now.figures.filter((f) => !f.hidden && (!id || f.id === id));
+  const box = new THREE.Box3();
+  for (const f of figures) rig.model(f).forEachPoint((p) => box.expandByPoint(p));
+  if (box.isEmpty()) box.set(new THREE.Vector3(-0.3, 0, -0.3), new THREE.Vector3(0.3, 1.8, 0.3));
+  const middle = box.getCenter(new THREE.Vector3());
+  return { x: middle.x, z: middle.z, top: box.max.y, height: Math.max(0.3, box.max.y - Math.max(0, box.min.y)) };
+}
+
+/** Where the subject sits in the frame: in the middle, or on the left or right third. */
+export type Placement = 'center' | 'left' | 'right';
+
+/**
+ * A point of a shot's path framing its subject at t at a shot size: the camera looking from
+ * `yaw` and `pitch` (as a View: 0 = from the front, + from its left; + from above) through
+ * `lens`, as far away as that size takes. In the shot's own terms (anchor and aim).
+ */
+export function framePoint(scene: Scene, shot: Shot, start: number, t: number, size: ShotSize, o: { yaw: number; pitch: number; lens: number; place?: Placement; aspect?: number }): CameraPoint {
+  const aspect = o.aspect ?? SHOT_ASPECT;
+  const body = bodyAt(scene, shot, t);
+  const [a, b] = SPAN[size];
+  const top = body.top - a * body.height;
+  const bottom = body.top - b * body.height;
+  const tanV = Math.tan((lensFov(o.lens, aspect) * D2R) / 2);
+  const dist = (top - bottom) / 2 / tanV;
+  const dir = viewDirection({ yaw: o.yaw, pitch: o.pitch });
+  const look = new THREE.Vector3(body.x, (top + bottom) / 2, body.z);
+  if (o.place && o.place !== 'center') {
+    // On a third: the subject a sixth of the frame's width off the middle.
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+    look.addScaledVector(right, (o.place === 'left' ? 1 : -1) * (dist * tanV * aspect) / 3);
+  }
+  return pointIn(scene, shot, t - start, t, look.clone().addScaledVector(dir, dist), look, o.lens);
+}
+
+/** A camera position and look point in the world → a path point in a shot's own terms. */
+export function pointIn(scene: Scene, shot: Shot, u: number, t: number, position: THREE.Vector3, look: THREE.Vector3, lens: number, roll = 0): CameraPoint {
+  const place = subjectPlace(scene, shot, t);
+  const p = shot.anchor === 'subject' ? position.clone().sub(place) : position;
+  const l = shot.aim === 'subject' || (shot.aim === 'point' && shot.anchor === 'subject') ? look.clone().sub(place) : look;
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
   return {
-    yaw: r(yaw, 0.1),
-    pitch: r(pitch, 0.1),
-    fov: r(fov, 0.1),
-    zoom: r(baseDist / Math.max(1e-6, dist), 0.001),
-    pan: [r(delta.dot(right) / (dist * tanV * aspect), 0.001), r(delta.dot(up) / (dist * tanV), 0.001)],
+    t: Math.round(u * 1000) / 1000,
+    position: p.toArray().map(r3) as Vec3,
+    look: l.toArray().map(r3) as Vec3,
+    lens: Math.round(lens * 10) / 10,
+    ...(roll ? { roll: Math.round(roll * 10) / 10 } : {}),
   };
+}
+
+/** The shot size a camera view holds its subject at (the nearest). */
+export function sizeOf(scene: Scene, shot: Shot, t: number, view: CameraView): ShotSize {
+  const body = bodyAt(scene, shot, t);
+  const dist = view.position.distanceTo(view.target);
+  const seen = 2 * dist * Math.tan((view.fov * D2R) / 2) / body.height;
+  let best: ShotSize = 'fs';
+  for (const s of SHOT_SIZES) {
+    const [a, b] = SPAN[s.id];
+    if (Math.abs(Math.log(seen / (b - a))) < Math.abs(Math.log(seen / (SPAN[best][1] - SPAN[best][0])))) best = s.id;
+  }
+  return best;
+}
+
+/** The camera's angle onto its target (as a View's yaw and pitch). */
+export function angleOf(view: CameraView): { yaw: number; pitch: number } {
+  const d = view.position.clone().sub(view.target).normalize();
+  return { yaw: Math.atan2(d.x, d.z) * R2D, pitch: Math.asin(THREE.MathUtils.clamp(d.y, -1, 1)) * R2D };
 }
 
 /* ---------- camera moves ---------- */
@@ -200,86 +348,218 @@ export function captureShot(
 /** Groups of the camera moves: where the camera goes. */
 export const CAMERA_GROUPS = ['Fixed', 'Towards & away', 'Around & up', 'Following'] as const;
 
+/** What a move works from: the shot, its time span, and the angle and lens to start from. */
+export interface MoveContext {
+  scene: Scene;
+  shot: Shot;
+  start: number;
+  end: number;
+  base: View;
+}
+
 export interface CameraMove {
   id: string;
   name: string;
   group: (typeof CAMERA_GROUPS)[number];
   description: string;
-  follow?: boolean;
-  shake?: number;
-  keys(a: Animation, base: { yaw: number; pitch: number; fov: number }): CameraKey[];
+  /** The shot's camera for this move: where its path is, what it looks at, its points. */
+  apply(c: MoveContext): Pick<Shot, 'anchor' | 'aim' | 'points' | 'shake'>;
 }
 
-const key = (t: number, yaw: number, pitch: number, fov: number, zoom = 1, pan: [number, number] = [0, 0]): CameraKey => ({ t, yaw: wrapDeg(yaw), pitch, fov, zoom, pan });
+/** Everyone the shot frames over its time in view from an angle, `zoom` times closer: a point. */
+function fitPoint(c: MoveContext, shot: Shot, t: number, yaw: number, pitch: number, fov: number, zoom = 1, rise = 0): CameraPoint {
+  const cam = new THREE.PerspectiveCamera(fov, SHOT_ASPECT);
+  const f = framingOf(c.scene, { shot: c.shot, index: 0, start: c.start, end: c.end });
+  const view = { yaw, pitch, fov };
+  const target = fitCamera(cam, { forEachPoint: (cb) => f.points.forEach(cb) }, view, 0.1);
+  const dist = target.distance / zoom;
+  // A closer view looks a little higher (at the upper body).
+  target.y += rise;
+  return pointIn(c.scene, shot, t - c.start, t, target.clone().addScaledVector(viewDirection(view), dist), target, fovLens(fov));
+}
 
-/** Ready-made shots, applied over the whole animation. */
+const world = (c: MoveContext): Shot => ({ ...c.shot, anchor: 'world', aim: 'point' });
+
+/** Ready-made camera moves, each over a shot's time. */
 export const CAMERA_MOVES: CameraMove[] = [
   {
     id: 'static', group: 'Fixed', name: 'Locked-off wide', description: 'A fixed camera that shows everything',
-    keys: (_, b) => [key(0, b.yaw, b.pitch, b.fov)],
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: [fitPoint(c, world(c), c.start, c.base.yaw, c.base.pitch, c.base.fov)] }),
   },
   {
     id: 'push', group: 'Towards & away', name: 'Push in', description: 'Slowly dolly towards the figures',
-    keys: (a, b) => [key(0, b.yaw, b.pitch, b.fov, 1), key(a.duration, b.yaw, b.pitch, b.fov, 1.8, [0, 0.25])],
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: [fitPoint(c, world(c), c.start, c.base.yaw, c.base.pitch, c.base.fov), fitPoint(c, world(c), c.end, c.base.yaw, c.base.pitch, c.base.fov, 1.8, 0.3)] }),
   },
   {
     id: 'pull', group: 'Towards & away', name: 'Pull out', description: 'Start close and reveal the whole scene',
-    keys: (a, b) => [key(0, b.yaw, b.pitch, b.fov, 1.9, [0, 0.3]), key(a.duration, b.yaw, b.pitch, b.fov, 1)],
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: [fitPoint(c, world(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.9, 0.35), fitPoint(c, world(c), c.end, c.base.yaw, c.base.pitch, c.base.fov)] }),
   },
   {
     id: 'orbit90', group: 'Around & up', name: 'Arc 90°', description: 'Circle a quarter of the way around',
-    keys: (a, b) => [key(0, b.yaw - 45, b.pitch + 4, b.fov, 1.1), key(a.duration, b.yaw + 45, b.pitch + 4, b.fov, 1.1)],
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: [-45, 0, 45].map((d, i) => fitPoint(c, world(c), c.start + ((c.end - c.start) * i) / 2, c.base.yaw + d, c.base.pitch + 4, c.base.fov, 1.1)) }),
   },
   {
     id: 'orbit360', group: 'Around & up', name: 'Orbit 360°', description: 'A full turntable around the figures',
-    keys: (a, b) => {
-      const n = 4;
-      const keys = Array.from({ length: n }, (_, i) => key((a.duration * i) / n, b.yaw + (360 * i) / n, b.pitch + 6, b.fov));
-      return a.loop ? keys : [...keys, key(a.duration, b.yaw + 360, b.pitch + 6, b.fov)];
-    },
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: Array.from({ length: 9 }, (_, i) => fitPoint(c, world(c), c.start + ((c.end - c.start) * i) / 8, c.base.yaw + 45 * i, c.base.pitch + 6, c.base.fov)) }),
   },
   {
     id: 'crane', group: 'Around & up', name: 'Crane up', description: 'Rise from eye level to a high angle',
-    keys: (a, b) => [key(0, b.yaw, -2, b.fov, 1.15), key(a.duration, b.yaw + 15, 48, b.fov, 0.95)],
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: [fitPoint(c, world(c), c.start, c.base.yaw, -2, c.base.fov, 1.15), fitPoint(c, world(c), c.end, c.base.yaw + 15, 48, c.base.fov, 0.95)] }),
   },
   {
     id: 'hero', group: 'Fixed', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens',
-    keys: (a, b) => [key(0, b.yaw - 15, -14, 38, 1.25, [0, 0.12]), key(a.duration, b.yaw + 10, -8, 34, 1.4, [0, 0.18])],
+    apply: (c) => ({ anchor: 'world', aim: 'point', points: [fitPoint(c, world(c), c.start, c.base.yaw - 15, -14, 38, 1.25, 0.15), fitPoint(c, world(c), c.end, c.base.yaw + 10, -8, 34, 1.4, 0.2)] }),
   },
   {
-    id: 'tracking', group: 'Following', name: 'Tracking shot', description: 'Follow alongside, keeping the figures in frame', follow: true,
-    keys: (_, b) => [key(0, b.yaw + 90, 3, 30, 1.35, [0, 0.15])],
+    id: 'tracking', group: 'Following', name: 'Tracking shot', description: 'Follow alongside, keeping the figures in frame',
+    apply: (c) => {
+      const shot: Shot = { ...c.shot, anchor: 'subject', aim: 'subject' };
+      return { anchor: 'subject', aim: 'subject', points: [framePoint(c.scene, shot, c.start, c.start, 'mws', { yaw: c.base.yaw + 90, pitch: 3, lens: 50 })] };
+    },
   },
   {
     id: 'vertigo', group: 'Towards & away', name: 'Dolly zoom', description: 'The “Vertigo” effect: the lens widens while the figures keep their size',
-    keys: (a, b) => [key(0, b.yaw, b.pitch, 14, 1.05), key(a.duration, b.yaw, b.pitch, 62, 1.05)],
+    apply: (c) => {
+      const shot: Shot = { ...c.shot, anchor: 'world', aim: 'subject' };
+      const at = (t: number, lens: number) => framePoint(c.scene, shot, c.start, t, 'fs', { yaw: c.base.yaw, pitch: c.base.pitch, lens });
+      return { anchor: 'world', aim: 'subject', points: [at(c.start, 85), at(c.end, 20)] };
+    },
   },
   {
-    id: 'handheld', group: 'Following', name: 'Hand-held', description: 'A close, slightly shaky documentary feel', shake: 0.6,
-    keys: (a, b) => [key(0, b.yaw + 10, b.pitch + 2, 32, 1.35, [0, 0.22]), key(a.duration, b.yaw - 5, b.pitch, 32, 1.45, [0, 0.26])],
+    id: 'handheld', group: 'Following', name: 'Hand-held', description: 'A close, slightly shaky documentary feel',
+    apply: (c) => {
+      const shot: Shot = { ...c.shot, anchor: 'world', aim: 'subject' };
+      const at = (t: number, yaw: number, size: ShotSize) => framePoint(c.scene, shot, c.start, t, size, { yaw, pitch: c.base.pitch + 2, lens: 40 });
+      return { anchor: 'world', aim: 'subject', shake: 0.6, points: [at(c.start, c.base.yaw + 10, 'mws'), at(c.end, c.base.yaw - 5, 'ms')] };
+    },
   },
 ];
+
+/**
+ * A shot's path in other terms (riding along with the subject or fixed in the world; looking at
+ * the subject, at a point or along the way; about another subject): the camera stays where it
+ * was at each point (`span`: the shot as it is in the scene).
+ */
+export function restate(scene: Scene, span: ShotSpan, patch: Partial<Pick<Shot, 'anchor' | 'aim' | 'subject'>>): Shot {
+  const shot = span.shot;
+  const next: Shot = { ...shot, ...patch };
+  const points = shot.points.map((p) => {
+    const v = cameraAt(scene, span.start + p.t);
+    return pointIn(scene, next, p.t, span.start + p.t, v.position, v.target, p.lens, p.roll);
+  });
+  return { ...next, points };
+}
+
+/**
+ * Film a shot of a scene (by its index; the first by default) with a camera move, from the scene's
+ * view; `follow`: its path then rides along with the shot's subject (or everyone).
+ */
+export function filmWith(scene: Scene, moveId: string, o: { index?: number; follow?: boolean } = {}): Scene {
+  const a = scene.animation;
+  const move = CAMERA_MOVES.find((m) => m.id === moveId);
+  if (!a || !move) return scene;
+  const spans = shotSpans(a);
+  const span = spans[Math.min(o.index ?? 0, spans.length - 1)];
+  const made = move.apply({ scene, shot: span.shot, start: span.start, end: span.end, base: scene.view });
+  const shot: Shot = { ...span.shot, ...made };
+  if (!made.shake) delete shot.shake;
+  const filmed = { ...scene, animation: { ...a, shots: spans.map((s) => (s === span ? shot : s.shot)) } };
+  if (!o.follow) return filmed;
+  const now = shotSpans(filmed.animation)[span.index];
+  return { ...filmed, animation: { ...filmed.animation, shots: shotSpans(filmed.animation).map((s) => (s === now ? restate(filmed, now, { anchor: 'subject', aim: 'subject' }) : s.shot)) } };
+}
+
+/* ---------- capture and export ---------- */
+
+/** A view as a path point of the shot playing at t (for "set camera point from the view"). */
+export function capturePoint(scene: Scene, t: number, position: THREE.Vector3, look: THREE.Vector3, fov: number, aspect = SHOT_ASPECT): CameraPoint | null {
+  const a = scene.animation;
+  if (!a) return null;
+  const span = spanAt(a, t);
+  return pointIn(scene, span.shot, t - span.start, t, position, look, fovLens(fov, aspect));
+}
 
 /** World camera pose for every frame of a time range (for camera.json in keyframe packs). */
 export function cameraPath(scene: Scene, start: number, end: number, aspect: number) {
   const a = scene.animation;
   const fps = a?.fps ?? 24;
-  const frameAt = shotFramer(scene);
-  const view = new SceneView();
-  const cam = new THREE.PerspectiveCamera(30, aspect);
-  const frames: { frame: number; time: number; position: number[]; target: number[]; fov: number }[] = [];
+  const frames: { frame: number; time: number; position: number[]; target: number[]; fov: number; lens: number; roll: number }[] = [];
   const n = a ? Math.max(1, Math.round((end - start) * fps)) : 1;
   const r = (v: number) => Math.round(v * 10000) / 10000;
   for (let i = 0; i < n; i++) {
     const t = start + i / fps;
-    let follow: THREE.Vector3 | null = null;
-    if (a?.camera?.follow) {
-      view.sync(sceneAt(scene, t));
-      follow = figuresCenter(view, subjectAt(scene, t));
-    }
-    const target = placeShot(cam, frameAt(t), shotAt(scene, t), aspect, { follow, shake: a?.camera?.shake ?? 0, t });
-    frames.push({ frame: Math.round(t * fps), time: r(t), position: cam.position.toArray().map(r), target: target.toArray().map(r), fov: r(cam.fov) });
+    const v = cameraAt(scene, t, aspect);
+    frames.push({ frame: Math.round(t * fps), time: r(t), position: v.position.toArray().map(r), target: v.target.toArray().map(r), fov: r(v.fov), lens: r(fovLens(v.fov, aspect)), roll: r(v.roll) });
   }
-  view.dispose();
-  return { units: 'metres, +Y up, floor at y = 0', aspect: r(aspect), fps, frames };
+  return { units: 'metres, +Y up, floor at y = 0; lens in mm (full frame)', aspect: r(aspect), fps, frames };
+}
+
+/** The path a shot's camera takes (world points every tenth of a second), for drawing it. */
+export function shotPath(scene: Scene, span: ShotSpan, aspect = SHOT_ASPECT): THREE.Vector3[] {
+  const n = Math.max(2, Math.ceil((span.end - span.start) * 10));
+  return Array.from({ length: n + 1 }, (_, i) => cameraAt(scene, Math.min(span.end - 1e-3, span.start + ((span.end - span.start) * i) / n), aspect).position);
+}
+
+/* ---------- one-time converter (remove in a later release) ---------- */
+
+/** A camera key as saved before shots had paths: an orbit around the framing, a zoom and a pan. */
+export interface OldCameraKey { t: number; yaw: number; pitch: number; fov: number; zoom: number; pan: [number, number] }
+
+/**
+ * Shots saved before they had camera paths (a camera key track over them, following the figures
+ * or not, shaking or not) → shots with paths that put the camera where it was at each key (and,
+ * on a turning move, every quarter of a second in between).
+ */
+export function shotsFromKeys(scene: Scene, keys: OldCameraKey[], follow: boolean, shake: number): Shot[] {
+  const a = scene.animation as Animation;
+  const cam = new THREE.PerspectiveCamera(30, SHOT_ASPECT);
+  // How the old keys played back: interpolated within each shot.
+  const sample = (list: OldCameraKey[], t: number): OldCameraKey => {
+    if (list.length === 1 || t <= list[0].t) return list[0];
+    if (t >= list[list.length - 1].t) return list[list.length - 1];
+    let k = 0;
+    while (k < list.length - 2 && list[k + 1].t <= t) k++;
+    const c = [list[Math.max(0, k - 1)], list[k], list[k + 1], list[Math.min(list.length - 1, k + 2)]];
+    const ts = [k > 0 ? c[0].t : c[1].t - (c[2].t - c[1].t), c[1].t, c[2].t, k + 2 < list.length ? c[3].t : c[2].t + (c[2].t - c[1].t)];
+    const num = (f: (x: OldCameraKey) => number) => hermite(f(c[0]), f(c[1]), f(c[2]), f(c[3]), ts[0], ts[1], ts[2], ts[3], t);
+    const y1 = c[1].yaw;
+    const y2 = y1 + wrapDeg(c[2].yaw - y1);
+    return {
+      t, yaw: wrapDeg(hermite(y1 + wrapDeg(c[0].yaw - y1), y1, y2, y2 + wrapDeg(c[3].yaw - c[2].yaw), ts[0], ts[1], ts[2], ts[3], t)),
+      pitch: num((x) => x.pitch), fov: num((x) => x.fov), zoom: Math.max(0.1, num((x) => x.zoom)), pan: [num((x) => x.pan[0]), num((x) => x.pan[1])],
+    };
+  };
+  return shotSpans(a).map((span) => {
+    const last = span.end >= a.duration - 1e-6;
+    const mine = keys.filter((k) => k.t >= span.start - 1e-6 && (k.t < span.end - 1e-6 || (last && k.t <= span.end + 1e-6)));
+    const shot: Shot = { ...span.shot, anchor: follow ? 'subject' : 'world', aim: follow ? 'subject' : 'point', points: [], ...(shake ? { shake } : {}) };
+    if (!mine.length) return shot;
+    const f = framingOf(scene, span);
+    const middle = new THREE.Vector3();
+    if (follow) {
+      // The old frame followed the subject's (or everyone's) middle, from where it was on average.
+      const times = frameTimes(a, 12);
+      for (const t of times) middle.add(subjectPlace(scene, shot, t));
+      middle.divideScalar(times.length);
+    }
+    const times = new Set(mine.map((k) => k.t));
+    for (let i = 1; i < mine.length; i++) {
+      const turn = Math.abs(wrapDeg(mine[i].yaw - mine[i - 1].yaw));
+      if (turn > 10) for (let t = mine[i - 1].t + 0.25; t < mine[i].t - 0.1; t += 0.25) times.add(Math.round(t * 1000) / 1000);
+    }
+    const points = [...times].sort((p, q) => p - q).map((t) => {
+      const k = sample(mine, t);
+      const view = { yaw: k.yaw, pitch: k.pitch, fov: k.fov };
+      const target = fitCamera(cam, { forEachPoint: (cb) => f.points.forEach(cb) }, view, 0.1);
+      const dist = target.distance / Math.max(0.1, k.zoom);
+      const dir = viewDirection(view);
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+      const up = new THREE.Vector3().crossVectors(dir, right);
+      const tanV = Math.tan((k.fov * D2R) / 2);
+      const look = target.clone().addScaledVector(right, k.pan[0] * dist * tanV * SHOT_ASPECT).addScaledVector(up, k.pan[1] * dist * tanV);
+      if (follow) look.add(subjectPlace(scene, shot, t).sub(middle));
+      return pointIn(scene, shot, t - span.start, t, look.clone().addScaledVector(dir, dist), look, fovLens(k.fov));
+    });
+    return { ...shot, points };
+  });
 }

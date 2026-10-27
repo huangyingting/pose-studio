@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
-import { editCameraKey } from '@/lib/actions';
+import { Trash2 } from 'lucide-react';
+import { deleteCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint } from '@/lib/actions';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
@@ -12,14 +13,12 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
-import { SHOT_ASPECT, captureShot, figuresCenter, placeShot, shotAt, shotFramer, subjectAt, type Framing } from '@/lib/shot';
-
-/** The framing for whatever shot plays at a time (lib/shot.ts shotFramer). */
-type Framer = (t: number) => Framing;
-import { shotSpans } from '@/lib/shots';
+import { SHOT_ASPECT, cameraAt, placeCamera, shotPath, type CameraView } from '@/lib/shot';
+import { shotSpans, type ShotSpan } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
-import type { CameraKey, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import { openContextMenu } from './ContextMenu';
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
 
@@ -32,8 +31,8 @@ export interface ViewportApi {
   project(figure: string, joint: JointName): { x: number; y: number } | null;
   /** Screen (client) coordinates of a world point. */
   projectPoint(p: Vec3): { x: number; y: number };
-  /** The shot (camera key) that reproduces the current view. */
-  captureShot(): Omit<CameraKey, 't'> | null;
+  /** The camera of the current view (looking through the shot camera: as the shot frames it). */
+  captureShot(): CameraView | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
   pick(x: number, y: number): CanvasHit;
 }
@@ -74,7 +73,7 @@ function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
 export default function Viewport({
   store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, shotMode, onion, onMenu,
 }: Props) {
-  const captureRef = useRef<(() => Omit<CameraKey, 't'> | null) | null>(null);
+  const captureRef = useRef<(() => CameraView | null) | null>(null);
   const sv = useMemo(() => new SceneView(), []);
   // Re-render when sync() replaces three.js objects, so the gizmo/handles get the new joints.
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
@@ -93,21 +92,6 @@ export default function Viewport({
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
-  // What the shot camera frames: the figures over the animation (camera keys do not change it).
-  // Only needed to look through the shot camera or to show its path; computed after edits settle.
-  const anim = scene.animation;
-  const needFrame = shotMode || (settings.showHandles && !!anim?.camera?.keys.length);
-  const [framed, setFramed] = useState<{ id: string; frame: Framer } | null>(null);
-  const frame = framed?.id === scene.id ? framed.frame : null;
-  const sceneRef = useRef(scene);
-  useLayoutEffect(() => { sceneRef.current = scene; });
-  const hasFrame = !!frame;
-  useEffect(() => {
-    if (!needFrame) return;
-    const id = setTimeout(() => setFramed({ id: sceneRef.current.id, frame: shotFramer(sceneRef.current) }), hasFrame ? 250 : 0);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anim?.actions, anim?.duration, anim?.loop, scene.figures, scene.id, needFrame]);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
@@ -247,9 +231,9 @@ export default function Viewport({
         <OrbitControls makeDefault onChange={keepCameraAboveFloor} />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
-        <ShotDriver sv={sv} scene={scene} frame={needFrame ? frame : null} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
-        {frame && settings.showHandles && !shotMode && !!scene.animation?.camera?.keys.length && (
-          <CameraRig store={store} scene={scene} frame={frame} clock={clock} time={time} />
+        <ShotDriver store={store} scene={scene} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
+        {settings.showHandles && !shotMode && !!scene.animation?.shots?.some((x) => x.points.length) && (
+          <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} />
         )}
         <Bridge
           sv={sv}
@@ -326,55 +310,59 @@ function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: 
 }
 
 /**
- * Look through the shot camera: follow the camera track while playing or scrubbing. In between,
- * the view can be orbited freely to compose the next camera key.
+ * Look through the shot camera: follow it while playing or scrubbing. In between, the view can be
+ * orbited, panned and dollied freely: letting go sets the shot's camera point at the playhead
+ * (through the lens, as posing sets a figure's key).
  */
-function ShotDriver({ sv, scene, frame, clock, time, enabled, captureRef }: {
-  sv: SceneView;
+function ShotDriver({ store, scene, clock, time, enabled, captureRef }: {
+  store: Store;
   scene: Scene;
-  frame: Framer | null;
   clock: Clock;
   time: number;
   enabled: boolean;
-  captureRef: RefObject<(() => Omit<CameraKey, 't'> | null) | null>;
+  captureRef: RefObject<(() => CameraView | null) | null>;
 }) {
   const get = useThree((s) => s.get);
   const size = useThree((s) => s.size);
   const dirty = useRef(true);
-  useEffect(() => { dirty.current = true; }, [time, scene, enabled, size, frame]);
+  useEffect(() => { dirty.current = true; }, [time, scene, enabled, size]);
 
   const stageAspect = size.width / Math.max(1, size.height);
-  /** Vertical lens for the editor so the 16:9 letterbox shows exactly the shot. */
-  const displayFov = (fov: number) =>
-    stageAspect < SHOT_ASPECT ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov) / 2) * (SHOT_ASPECT / stageAspect))) : fov;
+  /** Vertical lens for the editor so the 16:9 letterbox shows exactly the shot (and back). */
+  const widen = (fov: number, k: number) => THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov) / 2) * k));
+  const displayFov = (fov: number) => (stageAspect < SHOT_ASPECT ? widen(fov, SHOT_ASPECT / stageAspect) : fov);
 
   useEffect(() => {
     captureRef.current = () => {
       const { camera, controls } = get() as unknown as { camera: THREE.PerspectiveCamera; controls: Controls };
       if (!controls) return null;
-      const cam = camera.clone();
-      if (enabled && stageAspect < SHOT_ASPECT) {
-        cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (stageAspect / SHOT_ASPECT)));
-      }
-      const follow = scene.animation?.camera?.follow ? figuresCenter(sv, subjectAt(scene, time)) : null;
-      return captureShot(cam, controls.target, (frame ?? shotFramer(scene))(time), SHOT_ASPECT, follow);
+      const fov = enabled && stageAspect < SHOT_ASPECT ? widen(camera.fov, stageAspect / SHOT_ASPECT) : camera.fov;
+      return { position: camera.position.clone(), target: controls.target.clone(), fov, roll: 0 };
     };
   });
+
+  // Through the lens: a change of view, once let go of, is the camera point at the playhead.
+  useEffect(() => {
+    const controls = get().controls as unknown as { addEventListener(type: 'end', f: () => void): void; removeEventListener(type: 'end', f: () => void): void } | null;
+    if (!enabled || !controls || !scene.animation) return;
+    const end = () => {
+      if (clock.playing) return;
+      const v = captureRef.current?.();
+      if (v) setCameraPoint(store, v.position, v.target, v.fov);
+    };
+    controls.addEventListener('end', end);
+    return () => controls.removeEventListener('end', end);
+  }, [enabled, get, store, clock, captureRef, scene.animation]);
 
   useFrame((state) => {
     const camera = state.camera as THREE.PerspectiveCamera;
     const controls = state.controls as unknown as Controls;
-    if (!enabled || !controls || !frame) return;
+    if (!enabled || !controls) return;
     if (!clock.playing && !dirty.current) return;
     dirty.current = false;
-    const t = clock.playing ? clock.time : time;
-    const shot = shotAt(scene, t);
-    const track = scene.animation?.camera;
-    const target = placeShot(camera, frame(t), shot, SHOT_ASPECT, { follow: track?.follow ? figuresCenter(sv, subjectAt(scene, t)) : null, shake: track?.shake, t });
-    camera.aspect = stageAspect;
-    camera.fov = displayFov(shot.fov);
-    camera.updateProjectionMatrix();
-    controls.target.copy(target);
+    const view = cameraAt(scene, clock.playing ? clock.time : time);
+    placeCamera(camera, { ...view, fov: displayFov(view.fov) }, stageAspect);
+    controls.target.copy(view.target);
     controls.update();
   }, -1);
   return null;
@@ -404,7 +392,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   sceneId: string;
   sceneView: View;
   shotMode: boolean;
-  capture(): Omit<CameraKey, 't'> | null;
+  capture(): CameraView | null;
 }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const controls = useThree((s) => s.controls) as unknown as Controls;
@@ -494,84 +482,77 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
 }
 
 /**
- * The shot camera's path through the set (one line per shot) and a camera at each key. Drag a
- * camera around the figures to change that key: its direction sets the angle, its distance the zoom.
+ * The shot cameras' paths through the set (one line per shot), a camera at each point of them and,
+ * for a shot looking at a point, that point. Drag a camera to move it across the floor (Shift: up
+ * and down), a look point to aim the camera; double-click a path to add a point there; right-click
+ * a camera to delete it.
  */
-function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: Scene; frame: Framer; clock: Clock; time: number }) {
+/** Each drag of a camera is one undo step. */
+let drags = 0;
+
+function CameraRig({ store, scene, clock, time, selection }: { store: Store; scene: Scene; clock: Clock; time: number; selection: Selection }) {
   const a = scene.animation!;
-  const keys = a.camera!.keys;
   const get = useThree((s) => s.get);
   const dot = useRef<THREE.Mesh>(null);
   const [cam] = useState(() => new THREE.PerspectiveCamera(30, SHOT_ASPECT));
-  // The path only depends on the camera track (not on the playhead or the poses).
-  const track = a.camera;
-  const paths = useMemo(() => {
-    const s = { ...scene, animation: a };
-    return shotSpans(a).map((span) => {
-      const n = Math.max(2, Math.ceil((span.end - span.start) * 10));
-      return Array.from({ length: n + 1 }, (_, i) => {
-        const at = Math.min(span.end - 1e-3, span.start + ((span.end - span.start) * i) / n);
-        placeShot(cam, frame(at), shotAt(s, at), SHOT_ASPECT);
-        return cam.position.clone();
-      });
-    });
+  // The paths and cameras only depend on the shots and the motion, not on the playhead.
+  const spans = useMemo(() => shotSpans(a), [a]);
+  // (Worked out again when the animation changes, not as the playhead moves the figures.)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const paths = useMemo(() => spans.map((span) => (span.shot.points.length ? shotPath(scene, span) : [])), [spans]);
+  const markers = useMemo(() => spans.flatMap((span) => span.shot.points.map((p) => {
+    const t = span.start + p.t;
+    const view = cameraAt(scene, t);
+    placeCamera(cam, view, SHOT_ASPECT);
+    return { t, span, position: cam.position.clone(), quaternion: cam.quaternion.clone(), target: view.target.clone(), aimed: span.shot.aim === 'point' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [track, a.shots, a.duration, a.loop, frame, cam]);
+  })), [spans, cam]);
   const lastDot = useRef(NaN);
   useEffect(() => { lastDot.current = NaN; }, [paths]);
-  const markers = useMemo(() => keys.map((k) => {
-    const target = placeShot(cam, frame(k.t), k, SHOT_ASPECT);
-    return { key: k, position: cam.position.clone(), quaternion: cam.quaternion.clone(), target };
-  }), [keys, frame, cam]);
 
-  const glyphs = useRef<(THREE.Group | null)[]>([]);
+  const glyphs = useRef<(THREE.Object3D | null)[]>([]);
   useFrame((state) => {
     // Keep the cameras a constant size on screen, however far they are.
-    const scale = (o: THREE.Object3D) => {
+    const scale = (o: THREE.Object3D, k = 0.12) => {
       const d = state.camera.position.distanceTo(o.position);
-      // Proportional to the distance: the same size on screen however near or far.
       o.visible = d > 0.3;
-      o.scale.setScalar(d * 0.12);
+      o.scale.setScalar(d * k);
     };
-    for (const g of glyphs.current) if (g) scale(g);
+    for (const g of glyphs.current) if (g) scale(g, g.userData.look ? 0.03 : 0.12);
     // The playhead's camera position (placed again only when the time changes).
     if (!dot.current) return;
     const t = clock.playing ? clock.time : time;
     if (t !== lastDot.current) {
       lastDot.current = t;
-      placeShot(cam, frame(t), shotAt(scene, t), SHOT_ASPECT);
-      dot.current.position.copy(cam.position);
+      dot.current.position.copy(cameraAt(scene, t).position);
     }
     scale(dot.current);
   });
 
-  const drag = (m: (typeof markers)[number]) => (e: ThreeEvent<PointerEvent>) => {
+  /** Follow the pointer across a plane through `from` (level, or upright facing the view with Shift). */
+  const dragOn = (e: ThreeEvent<PointerEvent>, from: THREE.Vector3, t: number, apply: (p: THREE.Vector3, key: string) => void) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     clock.pause();
-    store.setTime(m.key.t);
+    store.setTime(t);
     const controls = get().controls as unknown as Controls;
     if (controls) controls.enabled = false;
     const canvas = get().gl.domElement;
     canvas.setPointerCapture(e.pointerId);
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -m.position.y);
+    const view = get().camera;
+    const upright = e.nativeEvent.shiftKey;
+    const normal = upright ? view.getWorldDirection(new THREE.Vector3()).setY(0).normalize() : new THREE.Vector3(0, 1, 0);
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, from);
     const hit = new THREE.Vector3();
     const ray = new THREE.Raycaster();
-    const pitch = THREE.MathUtils.degToRad(m.key.pitch);
-    const id = `camdrag:${m.key.t}:${performance.now()}`;
+    const key = `camdrag:${t}:${drags++}`;
     const move = (ev: PointerEvent) => {
       const r = canvas.getBoundingClientRect();
-      ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), get().camera);
+      ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), view);
       if (!ray.ray.intersectPlane(plane, hit)) return;
-      const d = hit.clone().sub(m.target);
-      const flat = Math.hypot(d.x, d.z);
-      if (flat < 0.2) return;
-      const yaw = Math.round(THREE.MathUtils.radToDeg(Math.atan2(d.x, d.z)) * 10) / 10;
-      // Distance at zoom 1 for this angle, then the zoom that puts the camera under the pointer.
-      const t1 = placeShot(cam, frame(m.key.t), { ...m.key, yaw, zoom: 1 }, SHOT_ASPECT);
-      const fit = cam.position.distanceTo(t1);
-      const zoom = Math.round(THREE.MathUtils.clamp(fit / (flat / Math.max(0.2, Math.cos(pitch))), 0.2, 6) * 100) / 100;
-      editCameraKey(store, m.key.t, { yaw, zoom }, id);
+      // Level: across the floor at its height; upright: only up and down.
+      const to = upright ? new THREE.Vector3(from.x, Math.max(0.05, hit.y), from.z) : new THREE.Vector3(hit.x, from.y, hit.z);
+      apply(to, key);
     };
     const up = () => {
       canvas.removeEventListener('pointermove', move);
@@ -582,23 +563,65 @@ function CameraRig({ store, scene, frame, clock, time }: { store: Store; scene: 
     canvas.addEventListener('pointerup', up);
   };
 
+  /** A double-click on a shot's path: a point there, the camera as it is then. */
+  const addPoint = (span: ShotSpan) => (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    const n = Math.max(2, Math.ceil((span.end - span.start) * 10));
+    const i = Math.min(n - 1, Math.max(0, Math.floor(((e as unknown as { faceIndex?: number }).faceIndex ?? 0))));
+    const t = Math.round((span.start + ((span.end - span.start) * (i + 0.5)) / n) * a.fps) / a.fps;
+    store.setTime(t);
+    const view = cameraAt(store.scene, t);
+    setCameraPoint(store, view.position, view.target, view.fov);
+  };
+
   const now = clock.playing ? clock.time : time;
+  const picked = selection?.kind === 'shot' ? selection.shot : null;
+  let n = 0;
   return (
     <group>
-      {paths.map((pts, i) => <Line key={i} points={pts} color="#3b6cff" lineWidth={1.5} transparent opacity={0.7} />)}
-      {markers.map((m, i) => {
-        const on = Math.abs(m.key.t - now) < 0.5 / a.fps;
+      {paths.map((pts, i) => pts.length > 1 && (
+        <Line key={i} points={pts} color="#3b6cff" lineWidth={spans[i].shot.id === picked ? 3 : 1.5} transparent opacity={0.7} onDoubleClick={addPoint(spans[i])} />
+      ))}
+      {markers.map((m) => {
+        const on = Math.abs(m.t - now) < 0.5 / a.fps;
+        const color = on ? '#3b6cff' : '#27272a';
+        const k = n++;
+        const l = m.aimed ? n++ : -1;
         return (
-          <group key={m.key.t} ref={(g) => { glyphs.current[i] = g; }} position={m.position} quaternion={m.quaternion} onPointerDown={drag(m)}>
-            {/* A small camera: body and lens, looking down its −Z axis. */}
-            <mesh>
-              <boxGeometry args={[0.14, 0.1, 0.12]} />
-              <meshBasicMaterial color={on ? '#3b6cff' : '#27272a'} />
-            </mesh>
-            <mesh position={[0, 0, -0.1]} rotation={[Math.PI / 2, 0, 0]}>
-              <coneGeometry args={[0.06, 0.09, 12, 1, true]} />
-              <meshBasicMaterial color={on ? '#3b6cff' : '#27272a'} side={THREE.DoubleSide} />
-            </mesh>
+          <group key={`${m.span.shot.id}:${m.t}`}>
+            <group
+              ref={(g) => { glyphs.current[k] = g; }}
+              position={m.position}
+              quaternion={m.quaternion}
+              onPointerDown={(e) => dragOn(e, m.position, m.t, (p, key) => moveCameraPoint(store, m.t, p, key))}
+              onContextMenu={(e) => {
+                e.stopPropagation();
+                openContextMenu(e.nativeEvent, [{ label: 'Delete camera point', icon: Trash2, danger: true, onSelect: () => deleteCameraPoint(store, m.t) }], `${m.span.shot.name} · ${m.t.toFixed(2)} s`);
+              }}
+            >
+              {/* A small camera: body and lens, looking down its −Z axis. */}
+              <mesh>
+                <boxGeometry args={[0.14, 0.1, 0.12]} />
+                <meshBasicMaterial color={color} />
+              </mesh>
+              <mesh position={[0, 0, -0.1]} rotation={[Math.PI / 2, 0, 0]}>
+                <coneGeometry args={[0.06, 0.09, 12, 1, true]} />
+                <meshBasicMaterial color={color} side={THREE.DoubleSide} />
+              </mesh>
+            </group>
+            {m.aimed && (
+              <>
+                <Line points={[m.position, m.target]} color="#3b6cff" lineWidth={1} dashed dashSize={0.1} gapSize={0.08} transparent opacity={0.5} />
+                <mesh
+                  ref={(g) => { glyphs.current[l] = g; if (g) g.userData.look = true; }}
+                  position={m.target}
+                  onPointerDown={(e) => dragOn(e, m.target, m.t, (p, key) => moveCameraLook(store, m.t, p, key))}
+                >
+                  <sphereGeometry args={[1, 14, 10]} />
+                  <meshBasicMaterial color={on ? '#3b6cff' : '#60616a'} />
+                </mesh>
+              </>
+            )}
           </group>
         );
       })}

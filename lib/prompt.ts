@@ -1,18 +1,16 @@
 import type { Scene } from './types';
-import { shotAt } from './shot';
-import { keysInShot, shotSpans, type ShotSpan } from './shots';
+import { angleOf, cameraAt, fovLens, sizeOf, type CameraView, type ShotSize } from './shot';
+import { newShot, shotSpans, type ShotSpan } from './shots';
 
 /*
  * A plain-language description of a shot (framing, angle, lens, camera move, cast, action),
  * ready to paste into an AI video tool alongside a rendered clip or first frame.
  */
 
-function framing(zoom: number) {
-  if (zoom < 1.2) return 'wide shot, full body';
-  if (zoom < 1.6) return 'medium-wide shot';
-  if (zoom < 2.2) return 'medium shot';
-  return 'close-up';
-}
+const FRAMING: Record<ShotSize, string> = {
+  ews: 'extreme wide shot', ws: 'wide shot, full body', fs: 'full shot', mws: 'medium-wide shot',
+  ms: 'medium shot', mcu: 'medium close-up', cu: 'close-up', ecu: 'extreme close-up',
+};
 
 function angle(pitch: number) {
   if (pitch > 60) return 'top-down view';
@@ -22,9 +20,8 @@ function angle(pitch: number) {
 }
 
 function lens(fov: number) {
-  if (fov < 20) return 'telephoto lens';
-  if (fov > 45) return 'wide-angle lens';
-  return 'normal lens';
+  const mm = Math.round(fovLens(fov));
+  return `${mm}mm ${mm < 28 ? 'wide-angle lens' : mm > 70 ? 'telephoto lens' : 'lens'}`;
 }
 
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
@@ -43,39 +40,39 @@ function cast(scene: Scene) {
 }
 
 function movement(scene: Scene, span: ShotSpan) {
-  const a = scene.animation;
+  const shot = span.shot;
   const moves: string[] = [];
-  if (a) {
-    const cut = (a.shots?.length ?? 0) > 1;
-    const keys = keysInShot(a, span);
-    if (keys.length > 1) {
-      const first = shotAt(scene, span.start);
-      const last = shotAt(scene, Math.min(span.end - 1e-3, keys[keys.length - 1].t));
-      const step = (p: number, q: number) => Math.abs(((q - p + 540) % 360) - 180);
-      // A loop (without cuts) also turns from its last key back to the first.
-      const turned = keys.reduce((sum, k, i) => (i ? sum + step(keys[i - 1].yaw, k.yaw) : 0), 0)
-        + (a.loop && !cut ? step(keys[keys.length - 1].yaw, keys[0].yaw) : 0);
-      if (Math.abs(last.fov - first.fov) > 20 && Math.abs(last.zoom - first.zoom) < 0.2) moves.push('dolly zoom (the background stretches while the subject keeps its size)');
-      else if (last.zoom - first.zoom > 0.2) moves.push('slow push in');
-      else if (first.zoom - last.zoom > 0.2) moves.push('pull out to reveal the scene');
-      if (turned >= 300) moves.push('a full 360° orbit around the subject');
-      else if (turned > 25) moves.push(`the camera arcs about ${Math.round(turned / 5) * 5}° around the subject`);
-      if (last.pitch - first.pitch > 20) moves.push('crane up');
-      else if (first.pitch - last.pitch > 20) moves.push('crane down');
-    }
-    if (a.camera?.follow) moves.push('tracking shot that follows the subject');
-    if ((a.camera?.shake ?? 0) > 0) moves.push('hand-held camera');
+  if (scene.animation && shot.points.length > 1) {
+    // The camera over the shot, a few times: how near it is, its lens, angle and height.
+    const n = 8;
+    const views = Array.from({ length: n + 1 }, (_, i) => cameraAt(scene, span.start + ((span.end - 1e-3 - span.start) * i) / n));
+    const first = views[0];
+    const last = views[n];
+    const near = (v: CameraView) => v.position.distanceTo(v.target) * Math.tan(((v.fov * Math.PI) / 180) / 2);
+    const step = (p: number, q: number) => Math.abs(((q - p + 540) % 360) - 180);
+    const turned = views.reduce((sum, v, i) => (i ? sum + step(angleOf(views[i - 1]).yaw, angleOf(v).yaw) : 0), 0);
+    const tighter = near(first) / near(last);
+    if (Math.abs(fovLens(last.fov) / fovLens(first.fov) - 1) > 0.5 && Math.abs(tighter - 1) < 0.2) moves.push('dolly zoom (the background stretches while the subject keeps its size)');
+    else if (tighter > 1.2) moves.push('slow push in');
+    else if (tighter < 1 / 1.2) moves.push('pull out to reveal the scene');
+    if (turned >= 300) moves.push('a full 360° orbit around the subject');
+    else if (turned > 25) moves.push(`the camera arcs about ${Math.round(turned / 5) * 5}° around the subject`);
+    const rise = angleOf(last).pitch - angleOf(first).pitch;
+    if (rise > 20) moves.push('crane up');
+    else if (rise < -20) moves.push('crane down');
   }
+  if (scene.animation && shot.anchor === 'subject') moves.push('tracking shot that follows the subject');
+  if ((shot.shake ?? 0) > 0) moves.push('hand-held camera');
   return moves.length ? moves.join(', ') : 'static camera';
 }
 
 /** One shot of a scene (the whole pose or animation without cuts). */
 export function describeSpan(scene: Scene, span: ShotSpan) {
-  const shot = shotAt(scene, span.start);
+  const view = cameraAt(scene, span.start);
   const a = scene.animation;
   const c = cast(scene);
   const parts = [
-    `${framing(shot.zoom)}, ${angle(shot.pitch)}, ${lens(shot.fov)}.`,
+    `${FRAMING[sizeOf(scene, span.shot, span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view.fov)}.`,
     `Camera: ${movement(scene, span)}.`,
     `${c[0].toUpperCase()}${c.slice(1)}: ${(span.shot.caption || scene.name).toLowerCase()}.`,
   ];
@@ -89,7 +86,7 @@ export function describeSpan(scene: Scene, span: ShotSpan) {
 /** The whole scene: one line per shot when it has cuts. */
 export function describeShot(scene: Scene) {
   const a = scene.animation;
-  if (!a) return describeSpan(scene, { shot: { id: 'main', start: 0, name: scene.name }, index: 0, start: 0, end: 0 });
+  if (!a) return describeSpan(scene, { shot: newShot(0, scene.name, 'main'), index: 0, start: 0, end: 0 });
   const spans = shotSpans(a);
   if (spans.length === 1) return describeSpan(scene, spans[0]);
   return spans.map((s) => `${s.shot.name} (${s.start.toFixed(1)}–${s.end.toFixed(1)} s): ${describeSpan(scene, s)}`).join('\n');

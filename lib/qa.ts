@@ -8,7 +8,7 @@ import { Rig, capsules, type Capsule } from './relations';
 import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
-import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
+import { SHOT_ASPECT, cameraAt, placeCamera, subjectAt } from './shot';
 import { shotSpans } from './shots';
 import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
@@ -383,7 +383,6 @@ function hiddenInShots(scene: Scene): Issue[] {
   if (!a || !scene.props.some((p) => !p.hold)) return [];
   const view = new SceneView();
   const cam = new THREE.PerspectiveCamera(30, SHOT_ASPECT);
-  const frameAt = shotFramer(scene);
   const ray = new THREE.Raycaster();
   const issues: Issue[] = [];
   for (const span of shotSpans(a)) {
@@ -394,8 +393,7 @@ function hiddenInShots(scene: Scene): Issue[] {
       const now = sceneAt(scene, t);
       view.sync(now);
       const subject = subjectAt(scene, t);
-      placeShot(cam, frameAt(t), shotAt(scene, t), SHOT_ASPECT, { follow: a.camera?.follow ? figuresCenter(view, subject) : null, t });
-      cam.updateMatrixWorld();
+      placeCamera(cam, cameraAt(scene, t), SHOT_ASPECT);
       const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name })));
       if (!blockers.length) continue;
       for (const f of now.figures.filter((x) => !x.hidden && (!subject || x.id === subject))) {

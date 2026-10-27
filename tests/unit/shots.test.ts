@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { sampleCamera } from '@/lib/animation';
-import { applyCameraMove, cutShot, editCameraKey, editShot, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
+import * as THREE from 'three';
+import { applyCameraMove, cutShot, editShot, moveCameraPoint, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
+import { cameraAt } from '@/lib/shot';
+import type { Scene } from '@/lib/types';
 import { parseScene } from '@/lib/doc';
 import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
@@ -24,24 +26,22 @@ function animatedStore() {
 }
 
 describe('shots and cuts', () => {
-  it('cuts at the playhead and frames each shot with its own camera keys', () => {
+  it('cuts at the playhead and films each shot with its own camera path', () => {
     const store = animatedStore();
     applyCameraMove(store, 'orbit90');
     store.setTime(2);
     cutShot(store);
     const a = store.scene.animation!;
     expect(shotSpans(a).map((s) => [s.start, s.end, s.shot.name])).toEqual([[0, 2, 'Shot 1'], [2, 4, 'Shot 2']]);
-    // The new shot holds the framing it was cut on.
-    const before = sampleCamera(a, 1.99)!;
-    const after = sampleCamera(a, 2.01)!;
-    expect(Math.abs(after.yaw - sampleCamera(a, 2)!.yaw)).toBeLessThan(0.5);
-    expect(Math.abs(after.yaw - before.yaw)).toBeLessThan(5);
+    // Both sides of the cut film as before it: the earlier shot ends where the path was, the new one starts from there.
+    const at = (s: Scene, t: number) => cameraAt(s, t).position;
+    expect(at(store.scene, 1.99).distanceTo(at(store.scene, 2.01))).toBeLessThan(0.1);
     // A move on shot 2 leaves shot 1 alone.
+    const before = store.scene;
     applyCameraMove(store, 'push');
-    const b = store.scene.animation!;
-    expect(sampleCamera(b, 1)!.yaw).toBeCloseTo(sampleCamera(a, 1)!.yaw, 3);
-    expect(sampleCamera(b, 3.99)!.zoom).toBeGreaterThan(1.5);
-    expect(sampleCamera(b, 1)!.zoom).toBeCloseTo(1.1, 2);
+    expect(at(store.scene, 1).distanceTo(at(before, 1))).toBeLessThan(1e-6);
+    const far = (s: Scene, t: number) => cameraAt(s, t).position.distanceTo(cameraAt(s, t).target);
+    expect(far(store.scene, 3.99)).toBeLessThan(far(store.scene, 2) * 0.7);
   });
 
   it('names, captions, removes cuts and survives save/load', () => {
@@ -95,16 +95,17 @@ describe('keyframe pack pieces', () => {
     expect(describeShot(waltz)).toMatch(/\(a man and a woman\)/);
   });
 
-  it('edits one camera key (dragged in the viewport) as one undo step', () => {
+  it('moves one camera point (dragged on the canvas) as one undo step', () => {
     const store = animatedStore();
     applyCameraMove(store, 'orbit90');
-    const keys = () => store.scene.animation!.camera!.keys;
-    const [first, last] = [keys()[0], keys()[keys().length - 1]];
-    editCameraKey(store, last.t, { yaw: 120, zoom: 1.5 }, 'drag');
-    editCameraKey(store, last.t, { yaw: 130, zoom: 1.8 }, 'drag');
-    expect(keys().at(-1)).toMatchObject({ t: last.t, yaw: 130, zoom: 1.8, pitch: last.pitch });
-    expect(keys()[0]).toEqual(first);
+    const points = () => store.scene.animation!.shots![0].points;
+    const [first, last] = [points()[0], points()[points().length - 1]];
+    moveCameraPoint(store, last.t, new THREE.Vector3(3, 2, 4), 'drag');
+    moveCameraPoint(store, last.t, new THREE.Vector3(4, 2, 4), 'drag');
+    expect(points().at(-1)).toMatchObject({ t: last.t, position: [4, 2, 4], lens: last.lens });
+    expect(points()[0]).toEqual(first);
     store.undo();
-    expect(keys().at(-1)).toEqual(last);
+    expect(points().at(-1)).toEqual(last);
   });
+
 });

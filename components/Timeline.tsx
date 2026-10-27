@@ -6,16 +6,17 @@ import {
   StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import {
-  addKeyframe, cutShot, deleteCameraKey, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, rippleKeys, setAnimationOptions, setBlend,
-  setCameraKey,
+  addKeyframe, cutShot, deleteCameraPoint, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, retimeCameraPoint, rippleKeys, setAnimationOptions,
+  setBlend, setCameraPoint,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
-import { overLimit, shotSpans, videoModel } from '@/lib/shots';
-import type { Action, Animation, CameraKey, Scene } from '@/lib/types';
+import { overLimit, pointTimes, shotSpans, videoModel } from '@/lib/shots';
+import type { CameraView } from '@/lib/shot';
+import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { actionMenu, figureMenu, shotMenu, travelMenu } from './menus';
@@ -36,7 +37,7 @@ const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
 
 /**
  * Keyframe timeline under the canvas: transport, the shots, a key track per figure (and per prop
- * that moves), and the shot camera's keys. Editing a figure at any time records a key there
+ * that moves), and the shot camera's path points. Editing a figure at any time records a key there
  * (auto-key). It zooms (Ctrl + wheel, the buttons) and scrolls (Shift + wheel, the bar under it),
  * folds down to its toolbar, and its top edge drags to make it taller.
  */
@@ -46,7 +47,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   setShotMode(on: boolean): void;
   onion: boolean;
   setOnion(on: boolean): void;
-  captureShot(): Omit<CameraKey, 't'> | null;
+  captureShot(): CameraView | null;
   notify: Notify;
   notifyUndo(text: string): void;
 }) {
@@ -109,9 +110,9 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const stops = active ? moments(a, active.id) : moments(a);
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
-  const cam = a.camera;
   const spans = shotSpans(a);
-  const onCamKey = !!cam?.keys.some((k) => Math.abs(k.t - time) < 0.5 / a.fps);
+  const camTimes = pointTimes(a);
+  const onCamKey = camTimes.some(near);
   // Motion check results, valid until the animation changes.
   const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
   const [qaOpen, setQaOpen] = useState(false);
@@ -192,7 +193,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     const others = [
       ...figures.filter((f) => f.id !== figureId).flatMap((f) => moments(a, f.id)),
       ...Object.values(a.props ?? {}).flatMap((keys) => keys.map((k) => k.t)),
-      ...(a.camera?.keys.map((k) => k.t) ?? []),
+      ...camTimes,
       ...(a.shots?.map((x) => x.start) ?? []),
     ].filter((x) => Math.abs(x - t) > 1e-6);
     const move = (ev: PointerEvent) => {
@@ -240,6 +241,28 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
       store.select({ kind: 'action', action: act.id, figure: figureId });
       seek(act.start);
     };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  /** Drag a camera path point along its shot to retime it; a click goes to it. */
+  const dragPoint = (t: number) => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    seek(t);
+    let from = t;
+    const key = `campoint:${t}`;
+    const move = (ev: PointerEvent) => {
+      const to = snapTime(a, timeAt(ev.clientX));
+      if (Math.abs(to - from) < 1e-6) return;
+      retimeCameraPoint(store, from, to, key);
+      const now = pointTimes(store.scene.animation!).find((x) => Math.abs(x - to) < 0.5 / a.fps);
+      if (now !== undefined) {
+        from = now;
+        store.setTime(now);
+      }
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
@@ -404,15 +427,15 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
         <IconButton icon={Clapperboard} label="Look through the shot camera" tipSide="top" active={shotMode} pressed={shotMode} onClick={() => setShotMode(!shotMode)} />
         <IconButton
           icon={Camera}
-          label={onCamKey ? 'Update camera key' : 'Set camera key from the view'}
+          label={onCamKey ? 'Update camera point' : 'Set camera point from the view'}
           tipSide="top"
           active={onCamKey}
           onClick={() => {
             const shot = captureShot();
             if (!shot) return;
-            setCameraKey(store, shot);
+            setCameraPoint(store, shot.position, shot.target, shot.fov);
             if (!shotMode) setShotMode(true);
-            notify('Camera key set');
+            notify('Camera point set');
           }}
         />
         <Menu
@@ -431,7 +454,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             { label: 'Loop the animation', icon: Repeat, checked: a.loop, onSelect: () => setAnimationOptions(store, { loop: !a.loop }) },
             { label: 'Onion skin (ghosts of the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) },
             '-',
-            { label: 'Delete camera key', icon: Trash2, disabled: !onCamKey, onSelect: () => deleteCameraKey(store) },
+            { label: 'Delete camera point', icon: Trash2, disabled: !onCamKey, onSelect: () => deleteCameraPoint(store) },
             { label: 'Remove animation', icon: Trash2, danger: true, onSelect: () => { pause(); removeAnimation(store); } },
           ]}
         >
@@ -646,22 +669,23 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 </div>
               );
             })}
-            <div className="tl-row camera" aria-label="Camera keyframes">
-              {cam?.keys.map((k) => (
+            <div className="tl-row camera" aria-label="Camera points">
+              {camTimes.map((t) => (
                 <button
-                  key={k.t}
+                  key={t}
                   type="button"
-                  className={`tl-key cam${Math.abs(k.t - time) < 0.5 / a.fps ? ' on' : ''}`}
-                  style={{ left: pct(k.t) }}
-                  aria-label={`Camera key at ${k.t.toFixed(2)} s`}
-                  onPointerDown={(e) => { e.stopPropagation(); seek(k.t); }}
+                  className={`tl-key cam${near(t) ? ' on' : ''}`}
+                  style={{ left: pct(t) }}
+                  aria-label={`Camera point at ${t.toFixed(2)} s`}
+                  title="A point of the shot's camera path: drag to retime it"
+                  onPointerDown={dragPoint(t)}
                   onContextMenu={(e) => {
-                    seek(k.t);
-                    openContextMenu(e, [{ label: 'Delete camera key', icon: Trash2, danger: true, onSelect: () => deleteCameraKey(store) }], `Camera · ${k.t.toFixed(2)} s`);
+                    seek(t);
+                    openContextMenu(e, [{ label: 'Delete camera point', icon: Trash2, danger: true, onSelect: () => deleteCameraPoint(store, t) }], `Camera · ${t.toFixed(2)} s`);
                   }}
                 />
               ))}
-              {!cam?.keys.length && <span className="tl-empty">No camera moves yet: frame a view and press the camera key, or pick a move</span>}
+              {!camTimes.length && <span className="tl-empty">No camera moves yet: frame a view and press the camera button, or pick a move</span>}
             </div>
             {flights.length > 0 && (
               <svg className="tl-flights" aria-hidden>

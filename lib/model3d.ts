@@ -3,7 +3,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { frameTimes } from './animation';
 import { sceneAt } from './evaluate';
 import { SceneView } from './sceneview';
-import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
+import { SHOT_ASPECT, cameraAt, placeCamera } from './shot';
 import type { Scene } from './types';
 
 /*
@@ -103,7 +103,6 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
       const rot = new Map<THREE.Object3D, number[]>();
       const pos = new Map<THREE.Object3D, number[]>();
       const cam = { pos: [] as number[], rot: [] as number[] };
-      const frameAt = shotFramer(scene);
       for (const t of times) {
         const now = sceneAt(scene, t);
         sv.sync(now);
@@ -120,11 +119,12 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
           pos.set(x.node, [...(pos.get(x.node) ?? []), ...p.toArray()]);
           rot.set(x.node, [...(rot.get(x.node) ?? []), q.x, q.y, q.z, q.w]);
         }
-        placeShot(camera, frameAt(t), shotAt(scene, t), SHOT_ASPECT, { follow: a.camera?.follow ? figuresCenter(sv, subjectAt(scene, t)) : null, shake: a.camera?.shake, t });
-        camera.updateMatrixWorld();
+        placeCamera(camera, cameraAt(scene, t), SHOT_ASPECT);
         cam.pos.push(...camera.position.toArray());
         cam.rot.push(camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w);
       }
+      // (The lens a file keeps is the first frame's.)
+      placeCamera(camera, cameraAt(scene, 0), SHOT_ASPECT);
       const tracks = (nodes: THREE.Object3D[]) => nodes.flatMap((node) => [
         ...(rot.has(node) ? [new THREE.QuaternionKeyframeTrack(`${node.name}.quaternion`, times, rot.get(node)!)] : []),
         ...(pos.has(node) ? [new THREE.VectorKeyframeTrack(`${node.name}.position`, times, pos.get(node)!)] : []),

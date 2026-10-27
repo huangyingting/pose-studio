@@ -1,14 +1,14 @@
-import { hermite, keysClip, mirrorClip, segment } from './clip';
+import { keysClip, mirrorClip } from './clip';
 import { mirrorJointName, wrapDeg } from './joints';
-import { keysInShot, spanAt } from './shots';
 import { uid } from './uid';
-import type { Action, Animation, CameraKey, CameraTrack, Constraint, Figure, Mark, Prop, PropKey, PropTarget, Scene, Shot, Vec3 } from './types';
+import type { OldCameraKey } from './shot';
+import type { Action, Animation, Constraint, Figure, Mark, Prop, PropKey, PropTarget, Scene, Shot, Vec3 } from './types';
 
 export type { Animation };
 
 /*
  * An animated scene's timing: every figure's actions (lib/types.ts Action; evaluated in
- * lib/evaluate.ts, edited in lib/track.ts), props' keys, and the shot camera's keys and cuts.
+ * lib/evaluate.ts, edited in lib/track.ts), props' keys, and the camera's shots.
  */
 
 export const DEFAULT_FPS = 24;
@@ -49,7 +49,7 @@ export function snapTime(a: Pick<Animation, 'fps' | 'duration'>, t: number) {
   return Math.min(a.duration, Math.max(0, frame / a.fps));
 }
 
-/** Change the length, scaling the actions' (and props' keys') times to fit. */
+/** Change the length, scaling the actions', props' keys' and shots' times to fit. */
 export function setDuration(a: Animation, duration: number): Animation {
   const d = Math.min(60, Math.max(0.2, duration));
   const s = d / a.duration;
@@ -66,38 +66,8 @@ export function setDuration(a: Animation, duration: number): Animation {
     return { ...x, start, duration: length };
   });
   const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.map((k) => ({ ...k, t: snap(k.t) }))]));
-  return { ...a, duration: d, actions, ...(props ? { props } : {}) };
-}
-
-/** Shot camera at time t (the track's keys interpolated), or null without a camera track. */
-export function sampleCamera(a: Animation, t: number): CameraKey | null {
-  let keys = a.camera?.keys;
-  if (!keys?.length) return null;
-  let loop = a.loop;
-  // With cuts, only the shot's own keys frame it, and it does not wrap around.
-  if (a.shots && a.shots.length > 1) {
-    const span = spanAt(a, t);
-    keys = keysInShot(a, span);
-    if (!keys.length) return null;
-    loop = false;
-    t = Math.min(span.end, Math.max(span.start, t));
-  }
-  const seg = segment(keys.map((k) => k.t), t, a.duration, loop);
-  const c = seg.i.map((i) => keys[i]);
-  if (seg.t[2] - seg.t[1] <= 1e-9) return { ...c[1], t };
-  const num = (f: (k: CameraKey) => number) => hermite(f(c[0]), f(c[1]), f(c[2]), f(c[3]), seg.t[0], seg.t[1], seg.t[2], seg.t[3], seg.time);
-  // Angles: neighbours unwrapped relative to the key before, so a turn from 170° to -170° goes the short way.
-  const y1 = c[1].yaw;
-  const y2 = y1 + wrapDeg(c[2].yaw - y1);
-  const yaw = wrapDeg(hermite(y1 + wrapDeg(c[0].yaw - y1), y1, y2, y2 + wrapDeg(c[3].yaw - c[2].yaw), seg.t[0], seg.t[1], seg.t[2], seg.t[3], seg.time));
-  return {
-    t,
-    yaw,
-    pitch: Math.min(89, Math.max(-89, num((k) => k.pitch))),
-    fov: Math.min(90, Math.max(5, num((k) => k.fov))),
-    zoom: Math.max(0.1, num((k) => k.zoom)),
-    pan: [num((k) => k.pan[0]), num((k) => k.pan[1])],
-  };
+  const shots = a.shots?.map((x) => ({ ...x, start: snap(x.start), points: x.points.map((p) => ({ ...p, t: Math.round(p.t * s * 1000) / 1000 })) }));
+  return { ...a, duration: d, actions, ...(props ? { props } : {}), ...(shots ? { shots } : {}) };
 }
 
 /** Times of evenly spaced frames, for frame sheets and video. */
@@ -135,7 +105,11 @@ export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: 
     const target = 'figure' in c.target ? { ...c.target, figure: ids.get(c.target.figure)! } : 'prop' in c.target ? { ...c.target, prop: propIds.get(c.target.prop)! } : c.target;
     return [{ ...structuredClone(c), id: uid('hold'), figure: ids.get(c.figure)!, target }];
   });
-  return { ...a, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}) };
+  const shots = a.shots?.map((s) => {
+    const { subject, ...rest } = structuredClone(s);
+    return subject && ids.has(subject) ? { ...rest, subject: ids.get(subject)! } : rest;
+  });
+  return { ...a, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}), ...(shots ? { shots } : {}) };
 }
 
 /** An animation mirrored left ↔ right (across the plane x = 0). */
@@ -156,14 +130,14 @@ export function mirrorAnimation(a: Animation): Animation {
     rotation: [k.rotation[0], -k.rotation[1] || 0, -k.rotation[2] || 0] as PropKey['rotation'],
     ...(k.hold ? { hold: { ...k.hold, hand: k.hold.hand === 'L' ? 'R' as const : 'L' as const } } : {}),
   }))]));
-  const camera = a.camera && { ...a.camera, keys: a.camera.keys.map((k) => ({ ...k, yaw: -k.yaw, pan: [-k.pan[0], k.pan[1]] as [number, number] })) };
   const flipped = (v: Vec3): Vec3 => [-v[0] || 0, v[1], v[2]];
+  const shots = a.shots?.map((s) => ({ ...s, points: s.points.map((p) => ({ ...p, position: flipped(p.position), look: flipped(p.look), ...(p.roll ? { roll: -p.roll } : {}) })) }));
   const constraints = a.constraints?.map((c) => ({
     ...c,
     bone: mirrorJointName(c.bone) as Constraint['bone'],
     target: 'figure' in c.target ? { ...c.target, bone: mirrorJointName(c.target.bone), at: flipped(c.target.at) } : 'prop' in c.target ? { ...c.target, at: flipped(c.target.at) } : { point: flipped(c.target.point) },
   }));
-  return { ...a, actions, ...(props ? { props } : {}), ...(camera ? { camera } : {}), ...(constraints ? { constraints } : {}) };
+  return { ...a, actions, ...(props ? { props } : {}), ...(shots ? { shots } : {}), ...(constraints ? { constraints } : {}) };
 }
 
 /* ---------- validation of untrusted data ---------- */
@@ -171,15 +145,28 @@ export function mirrorAnimation(a: Animation): Animation {
 export function parseShots(v: unknown, duration: number): Shot[] | undefined {
   if (!Array.isArray(v)) return undefined;
   const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : '');
+  const num = (x: unknown, fallback: number, min: number, max: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback);
+  const vec = (x: unknown): Vec3 => (Array.isArray(x) ? [0, 1, 2].map((i) => num(x[i], 0, -1000, 1000)) : [0, 0, 0]) as Vec3;
   const shots: Shot[] = v
     .slice(0, 200)
     .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
     .map((x, i) => ({
       id: str(x.id, 40) || `shot${i}`,
-      start: typeof x.start === 'number' && Number.isFinite(x.start) ? Math.min(duration, Math.max(0, x.start)) : 0,
+      start: num(x.start, 0, 0, duration),
       name: str(x.name, 80) || `Shot ${i + 1}`,
       ...(typeof x.caption === 'string' && x.caption ? { caption: x.caption.slice(0, 500) } : {}),
       ...(typeof x.subject === 'string' && x.subject ? { subject: x.subject.slice(0, 40) } : {}),
+      anchor: x.anchor === 'subject' ? 'subject' as const : 'world' as const,
+      aim: x.aim === 'point' || x.aim === 'path' ? x.aim as 'point' | 'path' : 'subject' as const,
+      points: (Array.isArray(x.points) ? x.points.slice(0, 500) : [])
+        .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+        .map((p) => ({
+          t: num(p.t, 0, 0, 60), position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
+          ...(typeof p.roll === 'number' && Number.isFinite(p.roll) && p.roll ? { roll: num(p.roll, 0, -180, 180) } : {}),
+        }))
+        .sort((p, q) => p.t - q.t),
+      ...(x.ease === 'linear' ? { ease: 'linear' as const } : {}),
+      ...(typeof x.shake === 'number' && x.shake > 0 ? { shake: num(x.shake, 0, 0, 1) } : {}),
     }))
     .sort((p, q) => p.start - q.start);
   if (!shots.length) return undefined;
@@ -187,12 +174,13 @@ export function parseShots(v: unknown, duration: number): Shot[] | undefined {
   return shots;
 }
 
-export function parseCamera(v: unknown, duration: number): CameraTrack | undefined {
+/** One-time converter: the camera key track saved before shots had paths (lib/shot.ts shotsFromKeys). */
+export function parseOldCamera(v: unknown, duration: number): { keys: OldCameraKey[]; follow: boolean; shake: number } | undefined {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
   const o = v as Record<string, unknown>;
   const num = (x: unknown, fallback: number, min: number, max: number) =>
     typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback;
-  const keys: CameraKey[] = (Array.isArray(o.keys) ? o.keys.slice(0, 600) : [])
+  const keys: OldCameraKey[] = (Array.isArray(o.keys) ? o.keys.slice(0, 600) : [])
     .filter((k): k is Record<string, unknown> => typeof k === 'object' && k !== null)
     .map((k) => ({
       t: num(k.t, 0, 0, duration),
@@ -203,7 +191,7 @@ export function parseCamera(v: unknown, duration: number): CameraTrack | undefin
       pan: [num(Array.isArray(k.pan) ? k.pan[0] : 0, 0, -5, 5), num(Array.isArray(k.pan) ? k.pan[1] : 0, 0, -5, 5)] as [number, number],
     }))
     .sort((p, q) => p.t - q.t);
-  return { keys, follow: o.follow === true, shake: num(o.shake, 0, 0, 1) };
+  return keys.length ? { keys, follow: o.follow === true, shake: num(o.shake, 0, 0, 1) } : undefined;
 }
 
 /** A prop's place as a key at time t (held props: relative to the hand). */

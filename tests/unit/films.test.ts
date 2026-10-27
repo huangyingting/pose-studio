@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, editShot, holdHandle, holdProp, lieOn, moveProp,
-  addModel, retime, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
+  addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, holdHandle, holdProp, lieOn, moveProp,
+  addModel, retime, setShotCamera, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
 } from '@/lib/actions';
 import { actionsOf, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { importMotion } from '@/lib/importmotion';
@@ -44,12 +44,12 @@ function shoot(store: Store, cuts: number[], moves: string[], subjects: (string 
   expect(spans).toHaveLength(moves.length);
   for (const [i, span] of spans.entries()) {
     store.setTime(span.start);
+    if (subjects[i]) setShotCamera(store, span.shot.id, { subject: subjects[i] });
     applyCameraMove(store, moves[i]);
-    if (subjects[i]) editShot(store, span.shot.id, { subject: subjects[i] });
   }
 }
 
-/** What every film must be: clean, lit as set, cut into shots each with its own camera keys, and each shot described (for AI video tools) with its cast. */
+/** What every film must be: clean, lit as set, cut into shots each with its own camera path, and each shot described (for AI video tools) with its cast. */
 function expectFilm(store: Store, lightId: string, people: number) {
   const scene = store.scene;
   expectClean(scene);
@@ -58,7 +58,7 @@ function expectFilm(store: Store, lightId: string, people: number) {
   const spans = shotSpans(a);
   expect(spans.length).toBeGreaterThan(1);
   for (const span of spans) {
-    expect(a.camera!.keys.some((k) => k.t >= span.start - 1e-6 && k.t <= span.end + 1e-6), `${span.shot.name} ${span.start}-${span.end}: ${a.camera!.keys.map((k) => k.t).join(',')}`).toBe(true);
+    expect(span.shot.points.length, `${span.shot.name} ${span.start}-${span.end}`).toBeGreaterThan(0);
     const text = describeSpan(scene, span);
     expect(text, span.shot.name).toMatch(new RegExp(`${['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'][people - 1]} mannequin figure`, 'i'));
   }

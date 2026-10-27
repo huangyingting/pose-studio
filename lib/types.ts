@@ -283,23 +283,6 @@ export interface PropKey {
  * A shot camera key: an orbit around the (auto-framed) subject.
  * zoom 1 frames everything; > 1 moves closer. pan shifts the frame (fractions of half the frame).
  */
-export interface CameraKey {
-  t: number;
-  yaw: number;
-  pitch: number;
-  fov: number;
-  zoom: number;
-  pan: [number, number];
-}
-
-export interface CameraTrack {
-  keys: CameraKey[];
-  /** Re-centre on the figures every frame (tracking shot) instead of a fixed frame. */
-  follow: boolean;
-  /** Hand-held camera shake, 0–1. */
-  shake: number;
-}
-
 export interface Animation {
   /** Length in seconds. */
   duration: number;
@@ -311,16 +294,17 @@ export interface Animation {
   constraints?: Constraint[];
   /** Keys of props that move (by id, in time order). */
   props?: Record<string, PropKey[]>;
-  camera?: CameraTrack;
   /**
-   * Shots (cuts) along the timeline, sorted by start; each runs until the next one. The camera
-   * does not move smoothly across a cut: every shot is framed by its own camera keys.
+   * The camera's track: its shots, sorted by start; each runs until the next one starts (a cut)
+   * or the animation ends. Each films with its own camera path (lib/shot.ts). None: one shot,
+   * the still camera's.
    */
   shots?: Shot[];
   /** Video model the shots are cut for (see lib/shots.ts), which limits a shot's length. */
   target?: string;
 }
 
+/** A shot: a block on the camera's track, with its own camera path. */
 export interface Shot {
   id: string;
   /** Seconds from the start of the animation. */
@@ -328,8 +312,32 @@ export interface Shot {
   name: string;
   /** What happens in the shot (used in prompts, storyboards and cut lists). */
   caption?: string;
-  /** The figure the shot is about: the camera frames (and follows) just them. */
+  /** The figure the shot is about (none: everyone). */
   subject?: string;
+  /** Where its path is: fixed in the world, or riding along with its subject. */
+  anchor: 'world' | 'subject';
+  /** Where the camera looks: at its subject, at a point, or along its path. */
+  aim: 'subject' | 'point' | 'path';
+  /** The path's points in time order (none: the still camera's view of everyone). */
+  points: CameraPoint[];
+  /** How the camera goes from point to point: easing through them, or at an even pace. */
+  ease?: 'smooth' | 'linear';
+  /** Hand-held shake, 0–1. */
+  shake?: number;
+}
+
+/** A point of a shot's camera path. */
+export interface CameraPoint {
+  /** Seconds from the shot's start. */
+  t: number;
+  /** Where the camera is: in the world, or (anchored to the subject) from the subject's place on the floor. */
+  position: Vec3;
+  /** Where it looks: aiming at the subject, from the subject's place; at a point, as the position is. */
+  look: Vec3;
+  /** Focal length (mm, on a full-frame sensor). */
+  lens: number;
+  /** Turn about the line of sight (degrees, + clockwise as seen through it). */
+  roll?: number;
 }
 
 export interface Library {

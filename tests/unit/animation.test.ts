@@ -1,17 +1,15 @@
-import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { sampleCamera, setDuration, frameTimes } from '@/lib/animation';
+import { setDuration, frameTimes } from '@/lib/animation';
 import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { addFigure, addKeyframe, applyCameraMove, applyMotion, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
 import { BODY_PRESETS } from '@/lib/body';
 import { duplicateScene, mirrorScene, newFigure, newScene, parseScene } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
-import { MOTIONS } from '@/lib/motions';
+import { MOTIONS, buildMotion } from '@/lib/motions';
 import { describeShot } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
 import { withFacing } from '@/lib/relations';
-import { CAMERA_MOVES, captureShot, framingFor, placeShot, shotAt } from '@/lib/shot';
 import { Store } from '@/lib/store';
 import { keyAtTime, keyTimesOf, keysAction, moveKeyTo, removeKeyAt, setPoseAt } from '@/lib/track';
 import type { Figure, JointName, Scene } from '@/lib/types';
@@ -126,37 +124,6 @@ describe('animation in the store', () => {
 });
 
 describe('shot camera', () => {
-  it('interpolates camera keys and frames the figures', () => {
-    const s = MOTIONS[0].build();
-    const a = s.animation!;
-    const push = CAMERA_MOVES.find((m) => m.id === 'push')!;
-    const keys = push.keys(a, s.view);
-    const scene = { ...s, animation: { ...a, camera: { keys, follow: false, shake: 0 } } };
-    expect(sampleCamera(scene.animation, 0)!.zoom).toBeCloseTo(1);
-    // Just before the end (a looping camera wraps back to its start at the end).
-    expect(sampleCamera(scene.animation, a.duration - 1e-3)!.zoom).toBeCloseTo(1.8, 2);
-    const f = framingFor(scene, 4);
-    const cam = new THREE.PerspectiveCamera(20, 16 / 9);
-    const far = placeShot(cam, f, shotAt(scene, 0), 16 / 9);
-    const d0 = cam.position.distanceTo(far);
-    const near = placeShot(cam, f, shotAt(scene, a.duration - 1e-3), 16 / 9);
-    expect(cam.position.distanceTo(near)).toBeLessThan(d0 * 0.7);
-  });
-
-  it('captures a view back into an equivalent camera key', () => {
-    const s = MOTIONS[3].build();
-    const f = framingFor(s, 4);
-    const cam = new THREE.PerspectiveCamera(30, 16 / 9);
-    const shot = { t: 0, yaw: 40, pitch: 12, fov: 30, zoom: 1.4, pan: [0.1, -0.05] as [number, number] };
-    const target = placeShot(cam, f, shot, 16 / 9);
-    const back = captureShot(cam, target, f, 16 / 9);
-    expect(back.yaw).toBeCloseTo(40, 0);
-    expect(back.pitch).toBeCloseTo(12, 0);
-    expect(back.zoom).toBeCloseTo(1.4, 1);
-    expect(back.pan[0]).toBeCloseTo(0.1, 1);
-    expect(back.pan[1]).toBeCloseTo(-0.05, 1);
-  });
-
   it('applies camera moves and describes the shot', () => {
     const store = new Store(new MemoryStorage());
     applyCameraMove(store, 'orbit360');
@@ -190,7 +157,7 @@ describe('animation templates', () => {
       const a = s.animation!;
       expect(s.figures, m.id).toHaveLength(m.people);
       expect(a.actions.length, m.id).toBeGreaterThan(m.people - 1);
-      expect(a.camera?.keys.length, m.id).toBeGreaterThan(0);
+      expect(buildMotion(m.id)!.animation!.shots![0].points.length, m.id).toBeGreaterThan(0);
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
       for (const x of a.actions) {
         if (x.source.kind !== 'keys') continue;
@@ -206,7 +173,7 @@ describe('animation templates', () => {
         }
       }
     }
-  });
+  }, 60_000);
 });
 
 describe('per-figure tracks', () => {

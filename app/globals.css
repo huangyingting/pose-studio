@@ -1460,6 +1460,14 @@ button.psec-title svg { color: var(--text-3); }
 .layers li.here .shot-no { background: var(--text-2); color: #fff; }
 .layers li.on .shot-no { background: var(--accent); color: #fff; }
 
+.shot-sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-bottom: 6px; }
+.shot-sizes .btn { height: 26px; padding: 0; font: 600 11px var(--mono); }
+.shot-sizes .btn.on { background: var(--accent); color: #fff; }
+.lens-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 6px; margin-bottom: 6px; }
+.camera-points { margin: 4px -8px 8px; }
+.camera-points li { display: flex; align-items: center; gap: 2px; }
+.camera-points li > button:first-child { flex: 1; min-width: 0; }
+.side-list.camera-points .row-delete { flex: none; width: 26px; height: 26px; padding: 0; justify-content: center; color: var(--text-3); }
 .library-pick { flex: 1; min-width: 0; max-width: 150px; }
 .library-target { margin: 0 14px 8px; color: var(--text-2); font-size: 11px; line-height: 1.45; }
 .library-target strong { color: var(--text); font-weight: 600; }

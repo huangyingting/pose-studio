@@ -1,5 +1,5 @@
 import { sceneAt } from './evaluate';
-import { shotAt, shotFramer, subjectAt, type Framing } from './shot';
+import { cameraAt } from './shot';
 import { styleDef } from './styles';
 import { sharedRenderer } from './thumbnails';
 import type { Pass } from './render';
@@ -63,16 +63,10 @@ export interface VideoOptions {
   range?: [number, number];
 }
 
-/**
- * Draw one frame of a scene through its shot camera at time t (`clock` drives hand-held shake).
- * `framing` is fixed, or per time (a shot about one figure frames just them).
- */
-export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>, framing: Framing | ((t: number) => Framing), clock = t) {
-  const cam = scene.animation?.camera;
+/** Draw one frame of a scene through its shot camera at time t. */
+export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>) {
   const src = sharedRenderer().renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
-    style: o.style, faces: o.faces, pass: o.pass,
-    shot: { ...shotAt(scene, t), t: clock }, framing: typeof framing === 'function' ? framing(t) : framing,
-    follow: !!cam?.follow, shake: cam?.shake ?? 0, subject: subjectAt(scene, t),
+    style: o.style, faces: o.faces, pass: o.pass, camera: cameraAt(scene, t, o.width / o.height),
   });
   ctx.fillStyle = styleDef(o.style).background;
   ctx.fillRect(0, 0, o.width, o.height);
@@ -83,7 +77,6 @@ export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (f
   const a = scene.animation;
   if (!a) throw new Error('This pose has no animation');
   const enc = await createEncoder(o.width, o.height, a.fps);
-  const framing = shotFramer(scene);
   const perLoop = Math.max(1, Math.round(a.duration * a.fps));
   const [r0, r1] = o.range ?? [0, a.duration];
   const total = o.range ? Math.max(1, Math.round((r1 - r0) * a.fps)) : perLoop * o.loops + (a.loop ? 0 : 1);
@@ -93,7 +86,7 @@ export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (f
       throw new Error('Cancelled');
     }
     const t = o.range ? r0 + i / a.fps : a.loop ? (i % perLoop) / a.fps : Math.min(a.duration, (i % (perLoop + 1)) / a.fps);
-    drawShot(enc.ctx, scene, t, o, framing, o.range ? t : i / a.fps);
+    drawShot(enc.ctx, scene, t, o);
     await enc.add(i / a.fps, 1 / a.fps);
     onProgress?.((i + 1) / total);
   }

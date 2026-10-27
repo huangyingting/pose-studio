@@ -6,7 +6,6 @@ import { addToBoard, editPanel, moveOnBoard, removeFromBoard } from '@/lib/actio
 import { boardDuration, boardPanels } from '@/lib/board';
 import { boardSheet, recordAnimatic } from '@/lib/boardExport';
 import { canvasToBlob, downloadBlob } from '@/lib/render';
-import { framingFor } from '@/lib/shot';
 import { STYLE_LIST } from '@/lib/styles';
 import type { Panel, Scene, Style } from '@/lib/types';
 import { drawShot, videoSupported } from '@/lib/video';
@@ -18,13 +17,13 @@ const previewCache = new Map<string, string>();
 
 /** A small 16:9 frame of a scene through its shot camera (cached by content). */
 function preview(scene: Scene, style: Style) {
-  const key = JSON.stringify([style, scene.figures, scene.props, scene.view, scene.animation?.actions, scene.animation?.camera?.keys[0]]);
+  const key = JSON.stringify([style, scene.figures, scene.props, scene.view, scene.animation?.actions, scene.animation?.shots?.[0]]);
   let url = previewCache.get(key);
   if (!url) {
     const c = document.createElement('canvas');
     c.width = PREVIEW.width;
     c.height = PREVIEW.height;
-    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, faces: true }, framingFor(scene, 4));
+    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, faces: true });
     url = c.toDataURL('image/png');
     if (previewCache.size > 200) previewCache.delete(previewCache.keys().next().value!);
     previewCache.set(key, url);

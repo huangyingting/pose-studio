@@ -6,8 +6,8 @@ import { DEFAULT_LIGHT, LightRig } from './lighting';
 import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
-import { figuresCenter, placeShot, type Framing } from './shot';
-import { STYLES, type CameraKey, type Scene, type Style, type View } from './types';
+import { placeCamera, type CameraView } from './shot';
+import { STYLES, type Scene, type Style, type View } from './types';
 
 const D2R = Math.PI / 180;
 
@@ -289,10 +289,10 @@ export class SceneRenderer {
     return this.draw(line, opts);
   }
 
-  /** One frame of a shot: the scene filmed by the shot camera (see lib/shot.ts). */
-  renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { shot: CameraKey; framing: Framing; follow: boolean; shake: number; subject?: string }) {
+  /** One frame of a shot: the scene filmed by its camera (see lib/shot.ts cameraAt). */
+  renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { camera: CameraView }) {
     this.setup(doc, w, h, line, opts);
-    placeShot(this.camera, opts.framing, opts.shot, w / h, { follow: opts.follow ? figuresCenter(this.view, opts.subject) : null, shake: opts.shake, t: opts.shot.t });
+    placeCamera(this.camera, opts.camera, w / h);
     return this.draw(line, opts);
   }
 

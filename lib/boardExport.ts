@@ -1,5 +1,4 @@
 import { boardDuration } from './board';
-import { framingFor, shotFramer } from './shot';
 import type { Panel, Scene, Style } from './types';
 import { createEncoder, drawShot } from './video';
 
@@ -59,7 +58,7 @@ export function boardSheet(panels: Panel[], resolve: Resolve, o: BoardOptions, c
     const x = pad + (i % columns) * (cellW + gap);
     const y = pad + Math.floor(i / columns) * (cellH + textH + gap);
     if (scene) {
-      drawShot(fctx, scene, 0, { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, faces: o.faces }, framingFor(scene, 6));
+      drawShot(fctx, scene, 0, { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, faces: o.faces });
       ctx.drawImage(frame, x, y);
     }
     ctx.strokeStyle = '#1d1d1f';
@@ -107,12 +106,11 @@ export async function recordAnimatic(panels: Panel[], resolve: Resolve, o: Board
     const scene = resolve(p);
     if (!scene) continue;
     const a = scene.animation;
-    const framing = shotFramer(scene);
     const opts = { width: o.width, height: o.height, style: o.style, lineWidth: 2.2 * (o.height / 640), faces: o.faces };
     if (!a) {
       // A still panel is one frame held for the whole duration.
       if (signal?.aborted) break;
-      drawShot(enc.ctx, scene, 0, opts, framing);
+      drawShot(enc.ctx, scene, 0, opts);
       caption(p);
       await enc.add(time, p.hold);
       time += p.hold;
@@ -123,7 +121,7 @@ export async function recordAnimatic(panels: Panel[], resolve: Resolve, o: Board
     for (let i = 0; i < n; i++) {
       if (signal?.aborted) break;
       const local = a.loop ? (i / fps) % a.duration : Math.min(a.duration, i / fps);
-      drawShot(enc.ctx, scene, local, opts, framing, i / fps);
+      drawShot(enc.ctx, scene, local, opts);
       caption(p);
       await enc.add(time + i / fps, 1 / fps);
       onProgress?.((time + i / fps) / total);
