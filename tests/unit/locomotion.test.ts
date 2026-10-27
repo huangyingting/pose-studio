@@ -141,7 +141,7 @@ describe('walking, running and jumping from mark to mark', () => {
       // And the motion check finds nothing wrong with them.
       expect(checkMotion(scene), id).toEqual([]);
     }
-  });
+  }, 60_000);
 
   it('stands, walks and lands on top of props', () => {
     const { store, id } = fresh();

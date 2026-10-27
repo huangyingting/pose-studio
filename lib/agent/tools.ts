@@ -1,7 +1,7 @@
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
-  editFilm, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, editFilm, motionProblem, nearestPartners, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
@@ -570,6 +570,9 @@ export const TOOLS: AgentTool[] = [
       if (!motion) throw new Error(`No motion "${i.motion}"`);
       const partners = i.partner ? [findFigure(store, i.partner).id] : undefined;
       const from = store.scene.animation ? store.getState().time : 0;
+      const cast = [f.id, ...(partners ?? nearestPartners(store, f.id, (MOTIONS.find((m) => m.id === motion.id)?.people ?? 1) - 1))];
+      const why = motionProblem(store, motion.id, cast);
+      if (why) throw new Error(why);
       if (!applyMotion(store, f.id, motion.id, partners)) throw new Error(`${motion.name} needs another figure in the scene`);
       const a = store.scene.animation!;
       return `${f.name}: ${motion.name} from ${r2(from)} s (animation ${a.duration} s).`;
@@ -653,6 +656,8 @@ export const TOOLS: AgentTool[] = [
       }
       const p = findProp(store, i.prop);
       if (i.kind === 'other_end') {
+        const why = carryProblem(store, f.id, p.id);
+        if (why) throw new Error(why);
         if (!holdHandle(store, f.id, p.id, side)) throw new Error(`${p.name} has no ends to carry it by (a long box does)`);
         return `${f.name} takes the other end of ${p.name}.`;
       }

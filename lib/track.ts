@@ -488,17 +488,22 @@ function goTo(scene: Scene, figure: string, spot: Mark, t: number): Animation {
   const free = Math.max(...actionsOf(a, figure).filter((x) => x.start < t - EPS).map(end), 0);
   const heading = Math.atan2(spot.at[0] - here.position[0], spot.at[1] - here.position[2]) * (180 / Math.PI);
   const off = Math.abs(wrapDeg(heading - spot.facing));
-  const strafe = off > 90;
-  const side = strafe ? Math.abs(Math.sin((off * Math.PI) / 180)) : 0;
-  // Walking, leaving in time to get there (briskly, if short of time; side steps can be quick);
-  // well short of time for walking ahead, running (at once, if need be).
-  const leaving = (mode: Travel) => {
-    const need = travelTime(mode, d, f.body, undefined, side);
+  const side = Math.abs(Math.sin((off * Math.PI) / 180));
+  // Walking, leaving in time to get there (briskly, if short of time); well short of time,
+  // running (at once, if need be).
+  const leaving = (mode: Travel, sideways = 0) => {
+    const need = travelTime(mode, d, f.body, undefined, sideways);
     return { mode, need, leave: Math.max(Math.round(free * a.fps) / a.fps, Math.round((t - need) * a.fps) / a.fps) };
   };
-  const walk = leaving('walk');
-  const { mode, leave } = !strafe && t - walk.leave < walk.need * 0.7 ? leaving('run') : walk;
-  if (d >= 0.3 && t - leave >= 0.4) {
+  // Stepping over facing the partner, backwards or sideways (a long turn at the end of a walk
+  // would twist the legs), if there is time for the steps; else walking there facing the way.
+  const steps = leaving('walk', side);
+  const strafe = off > 90 && t - steps.leave >= steps.need * 0.6;
+  const walk = strafe ? steps : leaving('walk');
+  const { mode, leave, need } = !strafe && t - walk.leave < walk.need * 0.7 ? leaving('run') : walk;
+  // Not even a run gets there in time after what it does before: that travel goes there instead.
+  const retarget = mode === 'run' && t - leave < need * 0.7 && !!prev && !isKeys(prev) && prev.source.kind === 'travel';
+  if (d >= 0.3 && t - leave >= 0.4 && !retarget) {
     const s = { ...scene, animation: splitAt(scene, figure, leave).a };
     let b = s.animation!;
     for (const x of actionsOf(b, figure)) if (x.start > leave + EPS && x.start < t - EPS) b = replace(b, x, []);

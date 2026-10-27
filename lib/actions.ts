@@ -616,10 +616,22 @@ function addHold(store: Store, figure: string, bone: Constraint['bone'], target:
 }
 
 /** Take the other end of a prop someone carries: a hand held on its last handle (two people carrying a stretcher). */
+/**
+ * Why a figure cannot take the other end of a prop someone carries, if it cannot: the one at the
+ * back much taller than the one in front tips it so far that what lies on it hits them
+ * (measured on every pair of builds).
+ */
+export function carryProblem(store: Store, figure: string, prop: string): string | null {
+  const p = store.scene.props.find((x) => x.id === prop);
+  const back = store.scene.figures.find((f) => f.id === figure);
+  const front = store.scene.figures.find((f) => f.id === p?.hold?.figure);
+  return back && front && back.body.height - front.body.height > 0.45 ? `${back.name} is too tall to carry ${p!.name} level with ${front.name}` : null;
+}
+
 export function holdHandle(store: Store, figure: string, prop: string, hand: Side) {
   const p = store.scene.props.find((x) => x.id === prop);
   const handles = p ? handlesOf(p) : [];
-  if (!handles.length) return null;
+  if (!handles.length || carryProblem(store, figure, prop)) return null;
   return addHold(store, figure, sided('Hand', hand) as Constraint['bone'], { prop, at: handles[handles.length - 1] });
 }
 
@@ -1392,6 +1404,13 @@ export function deleteMotion(store: Store, id: string) {
 }
 
 /** The figures nearest to one (posable ones, shown), nearest first: partners for a motion of several people. */
+/** Why these figures (the lead first) cannot do a motion of several people together, if they cannot. */
+export function motionProblem(store: Store, motionId: string, cast: string[]): string | null {
+  const motion = MOTIONS.find((m) => m.id === motionId);
+  const figures = cast.map((id) => store.scene.figures.find((f) => f.id === id)!);
+  return motion?.fit && figures.every(Boolean) ? motion.fit(figures) : null;
+}
+
 export function nearestPartners(store: Store, figureId: string, count: number) {
   const f = store.scene.figures.find((x) => x.id === figureId);
   if (!f) return [];
@@ -1448,7 +1467,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string, pa
     return true;
   }
   const cast = [figureId, ...(motion.people > 1 ? partners ?? nearestPartners(store, figureId, motion.people - 1) : [])];
-  if (cast.length < motion.people) return false;
+  if (cast.length < motion.people || motionProblem(store, motionId, cast)) return false;
   store.updateScene((s) => insertClip(s, cast, BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;

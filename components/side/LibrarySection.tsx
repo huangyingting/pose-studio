@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type 
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Clapperboard, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import {
-  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel,
+  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, newShoot, motionProblem, placeTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel,
 } from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
@@ -256,6 +256,8 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
     return p.length === people - 1 ? p : null;
   };
   const together = (id: string, name: string, partners: string[]) => {
+    const why = usable ? motionProblem(store, id, [figure.id, ...partners]) : null;
+    if (why) { notify(why); return; }
     if (!usable || !applyMotion(store, figure.id, id, partners)) return;
     notifyUndo(`${[figure.name, ...partners.map(nameOf)].join(' and ')}: ${name}`);
     onPick?.();

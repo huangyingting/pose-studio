@@ -6,7 +6,7 @@ import { clampRotation } from './joints';
 import { feetOf, plantFeet } from './locomotion';
 import { IK_CHAINS, rotateWorld } from './mannequin';
 import { angleToQuat, fromQuat, quatToAngle, toQuat } from './pose';
-import { Rig, reach } from './relations';
+import { Rig } from './relations';
 import type { Clip, ClipContact, Figure, Holder, JointName } from './types';
 
 /*
@@ -132,7 +132,12 @@ function reachLeast(m: ReturnType<Rig['model']>, chain: readonly [JointName, Joi
   const B = mid.getWorldPosition(new THREE.Vector3());
   const C = e.getWorldPosition(new THREE.Vector3());
   const [a, b] = [A.distanceTo(B), B.distanceTo(C)];
-  const d = THREE.MathUtils.clamp(target.distanceTo(A), Math.abs(a - b) + 1e-3, a + b - 1e-3);
+  // Near full stretch the reach saturates smoothly, so a limb going straight (a target out of
+  // reach) does not stop bending all at once.
+  const full = a + b - 1e-3;
+  const knee0 = full * 0.9;
+  const want = target.distanceTo(A);
+  const d = THREE.MathUtils.clamp(want > knee0 ? knee0 + (full - knee0) * (1 - Math.exp(-(want - knee0) / (full - knee0))) : want, Math.abs(a - b) + 1e-3, full);
   const inner = (len: number) => Math.acos(THREE.MathUtils.clamp((a * a + b * b - len * len) / (2 * a * b), -1, 1));
   const knee = chain[0].endsWith('UpperLeg');
   // Elbows bend with a negative turn about their own x axis, knees with a positive one.
@@ -178,10 +183,14 @@ export function solveHolds(rig: Rig, f: Figure, holds: Hold[], limits = true): P
       const [from, to] = [plantFeet(rig, fig, [here]).bones, plantFeet(rig, fig, [{ ...here, p: h.at }]).bones];
       solved = Object.fromEntries(chain.map((j) => [j, toQuat(fromQuat(fig.bones[j]).multiply(fromQuat(from[j]).invert().multiply(fromQuat(to[j]))))]));
     } else if (foot) solved = plantFeet(rig, fig, [{ ...here, p: h.at }]).bones;
-    else if (h.relative) {
-      reachLeast(m, chain, h.at);
+    else {
+      // A hand turns its arm by the least it takes (continuous as the target moves, from the pose
+      // the arm is in); a hand held on a spot has its palm there, its wrist a little before it.
+      const shoulder = m.joints[chain[0]].getWorldPosition(new THREE.Vector3());
+      const wrist = h.relative ? h.at : h.at.clone().add(shoulder.sub(h.at).normalize().multiplyScalar(0.07 * (fig.body.height / 1.8)));
+      reachLeast(m, chain, wrist);
       solved = m.read().bones;
-    } else solved = reach(rig, fig, side, h.at, limits).bones;
+    }
     const bones = { ...fig.bones };
     for (const j of chain) {
       let q = toQuat(fromQuat(fig.bones[j]).slerp(fromQuat(solved[j]), Math.min(1, h.weight)));

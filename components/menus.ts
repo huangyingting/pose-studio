@@ -2,7 +2,7 @@ import {
   ArrowDownToLine, ArrowLeftRight, Camera, Link, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
+  addCamera, addFigure, carryProblem, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
   dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, saveTemplate, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
@@ -84,7 +84,7 @@ function gazeItems(store: Store, f: Figure): MenuItem[] {
   ];
 }
 
-export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): MenuItem[] {
+export function propMenu(store: Store, id: string, { notify, notifyUndo }: MenuUi): MenuItem[] {
   // As it is at the playhead: in whose hand (after a catch, say).
   const p = propNow(store, id);
   if (!p) return [];
@@ -107,7 +107,10 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
   // A long prop carried by two (the other one holds its other end), lain on.
   const others = store.scene.figures.filter((x) => x.id !== p.hold?.figure && !x.proxy);
   const carried: MenuItem[] = [
-    ...(p.hold && handlesOf(p).length > 1 ? others.map((x): MenuItem => ({ label: `${x.name} takes the other end`, icon: Hand, onSelect: () => holdHandle(store, x.id, id, 'R') })) : []),
+    ...(p.hold && handlesOf(p).length > 1 ? others.map((x): MenuItem => ({
+      label: `${x.name} takes the other end`, icon: Hand,
+      onSelect: () => { const why = carryProblem(store, x.id, id); if (why) notify(why, 'error'); else holdHandle(store, x.id, id, 'R'); },
+    })) : []),
     ...(p.kind === 'box' || p.kind === 'mat' ? others.map((x): MenuItem => ({ label: `${x.name} lies on it`, icon: BedSingle, onSelect: () => lieOn(store, x.id, id) })) : []),
   ];
   return [

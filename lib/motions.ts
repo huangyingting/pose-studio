@@ -34,6 +34,8 @@ export interface Motion {
   travel?: { kind: Travel; distance: number };
   /** When a hand lets a prop go or takes hold of it (motions that handle props). */
   events?: ClipEvent[];
+  /** Why these people (the lead first) cannot do it together, if they cannot (their builds too far apart). */
+  fit?(cast: Figure[]): string | null;
 }
 
 type Joints = Angles;
@@ -332,6 +334,11 @@ export const MOTIONS: Motion[] = [
     name: 'Waltz turn',
     group: 'Together',
     people: 2,
+    // The lead's arm goes round the partner's back, the partner's hand on the lead's shoulder:
+    // the lead may be a good deal taller, but not much shorter (measured on every pair of builds).
+    fit: ([lead, partner]) => (partner.body.height - lead.body.height > 0.3
+      ? `${lead.name} is too short to lead ${partner.name} in a waltz hold`
+      : lead.body.height - partner.body.height > 0.55 ? `${lead.name} is too tall to hold ${partner.name} in a waltz hold` : null),
     build: () => withRig((rig) => {
       const hold = buildStaging('waltz')!;
       const [a, b] = hold.figures;

@@ -1198,6 +1198,15 @@ test('a two-person motion goes on the selected figure and the one next to it', a
   const together = s.scene.animation!.actions.find((x) => x.source.kind === 'clip');
   expect(together?.roles.map((r) => r.figure)).toEqual([second.id, first.id]);
   await expect(page.getByText(`${second.name} and ${first.name}: Boxing exchange`)).toBeVisible();
+  // A child cannot lead an adult in a waltz hold: declined, with the reason.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: new RegExp(`^${second.name}`) }).first().click();
+  await page.getByRole('button', { name: 'Body & colour' }).click();
+  await page.getByRole('group', { name: 'Body type' }).getByRole('button', { name: 'Child', exact: true }).click();
+  await openSection(page, 'Library');
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Waltz turn/ }).click();
+  await expect(page.getByText(`${second.name} is too short to lead ${first.name} in a waltz hold`)).toBeVisible();
+  expect((await live(page)).scene.animation!.actions.filter((x) => x.source.kind === 'clip')).toHaveLength(1);
 });
 
 test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ribbon; the high jump set-up', async ({ page }) => {
