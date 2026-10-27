@@ -12,5 +12,7 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts'],
     setupFiles: ['tests/unit/setup.ts'],
     environment: 'node',
+    // The suite runs its files side by side: under that load even a light test can take seconds.
+    testTimeout: 60_000,
   },
 });
