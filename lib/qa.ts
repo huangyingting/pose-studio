@@ -371,8 +371,11 @@ export function checkMotion(scene: Scene): Issue[] {
     kind: 'miss', figure: m.figure, start: m.t, end: m.t, hint: HINTS.miss,
     message: `${names.get(m.figure) ?? 'Someone'} misses ${scene.props.find((p) => p.id === m.prop)?.name ?? 'the prop'}`,
   }));
-  return [...ranges.finish(), ...hiddenInShots(scene), ...cameraInside(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+  return [...ranges.finish(), ...checkShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }
+
+/** What the shots' cameras get wrong: someone hidden behind a prop, the camera going through someone or something. */
+export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), ...cameraInside(scene)];
 
 /**
  * Who a shot cannot see: seen through each shot's own camera, a figure (the shot's subject, or
