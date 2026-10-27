@@ -3,7 +3,7 @@ import {
 } from 'lucide-react';
 import {
   addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  dribbleProp, duplicateProp, holdProp, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
+  dribbleProp, duplicateProp, holdProp, propNow, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
@@ -80,7 +80,8 @@ function gazeItems(store: Store, f: Figure): MenuItem[] {
 }
 
 export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): MenuItem[] {
-  const p = store.scene.props.find((x) => x.id === id);
+  // As it is at the playhead: in whose hand (after a catch, say).
+  const p = propNow(store, id);
   if (!p) return [];
   // Hold it in the active figure's hand (or the holder's other hand), or let it go.
   const figure = store.scene.figures.find((f) => f.id === p.hold?.figure) ?? store.figure;

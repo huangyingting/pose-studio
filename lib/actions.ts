@@ -5,8 +5,8 @@ import {
 } from './doc';
 import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
-import { figureKeyTimes, figurePoseAt, keyAt, moveKey, newAnimation, poseOf, removeKey, samplePose, setDuration as setAnimDuration, setKey, setPropKey, snapTime } from './animation';
-import { handPosition, rimOf, throwTime, worldOfProp } from './propmotion';
+import { figureKeyTimes, figurePoseAt, keyAt, moveKey, newAnimation, poseOf, removeKey, samplePose, sceneAt, setDuration as setAnimDuration, setKey, setPropKey, snapTime } from './animation';
+import { handPosition, propKeyTimes, rimOf, throwTime, worldOfProp } from './propmotion';
 import { RIM } from './props';
 import { groundOf } from './surfaces';
 import { JUMP_PREP, flightTime, travelTime } from './locomotion';
@@ -290,6 +290,16 @@ export function addProp(store: Store, kind: PropKind, at?: Vec3) {
   store.select({ kind: 'prop', prop: prop.id });
 }
 
+/** A prop as it is at the playhead (in whose hand, where), not where it was put at the start. */
+export function propNow(store: Store, id: string): Prop | undefined {
+  const s = store.scene;
+  const p = (s.animation ? sceneAt(s, store.getState().time).props : s.props).find((x) => x.id === id);
+  if (!p) return undefined;
+  const { trail: _, ...prop } = p;
+  void _;
+  return prop;
+}
+
 /**
  * Throw a prop from the hand holding it at the playhead: to a floor point, into a figure's hand
  * (caught there; into the thrower's own hand it is tossed up two metres, as a gymnast's hoop), or
@@ -300,7 +310,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const scene = store.scene;
   const a = scene.animation!;
-  const prop = scene.props.find((p) => p.id === id);
+  const prop = propNow(store, id);
   if (!prop?.hold) return null;
   let t0 = snapTime(a, store.getState().time);
   // A shot is shot: the ball up in front of the face, then the arm up and out to the hoop, and a
@@ -312,7 +322,8 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
     const [hand, other] = prop.hold.hand === 'R' ? ['R', 'L'] : ['L', 'R'];
     const s = hand === 'L' ? 1 : -1;
     const frame = 1 / a.fps;
-    const before = figureKeyTimes(a, shooter.id).filter((t) => t < t0 + 1e-6).at(-1);
+    // After the shooter's last key and the ball's (a catch, say), so neither is overwritten.
+    const before = [...figureKeyTimes(a, shooter.id), ...propKeyTimes(a, id)].filter((t) => t < t0 + 1e-6).sort((p, q) => p - q).at(-1);
     if (before !== undefined) t0 = Math.min(60, Math.max(t0, Math.round((before + 16 * frame) * a.fps) / a.fps));
     const shot: [number, Partial<Figure['joints']>][] = [
       [t0 - 8 * frame, { [`shoulder${hand}`]: [-110, 0, 20 * s], [`elbow${hand}`]: [-100, 0, 0], [`shoulder${other}`]: [-70, 0, -10 * s], [`elbow${other}`]: [-90, 0, 0] }],
@@ -393,7 +404,6 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
     for (const k of after) anim = putPropKey(anim, k.t, id, k.key);
     return {
       ...s,
-      props: s.props.map((p) => (p.id === id ? free : p)),
       animation: { ...anim, duration: Math.min(60, Math.max(anim.duration, settled)) },
     };
   });
@@ -413,7 +423,7 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const scene = store.scene;
   const a = scene.animation!;
-  const prop = scene.props.find((p) => p.id === id);
+  const prop = propNow(store, id);
   const hold = prop?.hold;
   const holder = scene.figures.find((f) => f.id === hold?.figure);
   if (!prop || !hold || !holder) return null;
@@ -463,7 +473,6 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
     }
     return {
       ...sc,
-      props: sc.props.map((p) => (p.id === id ? free : p)),
       animation: { ...next, duration: Math.min(60, Math.max(next.duration, t1)) },
     };
   });
@@ -882,7 +891,8 @@ export function applyCameraMove(store: Store, id: string) {
     const span = spanAt(a, t);
     const cuts = (a.shots?.length ?? 0) > 1;
     const local = { ...a, duration: span.end - span.start, loop: cuts ? false : a.loop };
-    const keys = move.keys(local, s.view).map((k) => ({ ...k, t: Math.round((k.t + span.start) * 1000) / 1000 }));
+    // On frames, inside the shot (a key a hair before a cut would belong to the shot before).
+    const keys = move.keys(local, s.view).map((k) => ({ ...k, t: Math.min(span.end, Math.max(span.start, Math.round((k.t + span.start) * a.fps) / a.fps)) }));
     const others = cuts ? keysOutside(a, span) : [];
     return { ...s, animation: { ...a, camera: { keys: [...others, ...keys].sort((p, q) => p.t - q.t), follow: move.follow ?? false, shake: move.shake ?? 0 } } };
   });
