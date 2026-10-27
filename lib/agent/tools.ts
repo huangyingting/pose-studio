@@ -21,7 +21,7 @@ import { anglesOf, withAngles, type Angles } from '../pose';
 import { CAMERA_MOVES, SHOT_SIZES, liveCamera, type Placement, type ShotSize } from '../cameras';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
-import { SCENE_TEMPLATES, SHOOT_PRESETS, templatesOf } from '../templates';
+import { SCENE_TEMPLATES, SHOOT_PRESETS, shootsOf, templatesOf } from '../templates';
 import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
 
 /*
@@ -520,12 +520,14 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'new_scene',
-    description: `Start a new scene in the project and open it: blank, or from a scene template (a cast, a set and what they do, no cameras): ${SCENE_TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}; or one of the user's saved templates by name; or a shoot preset, a template already filmed with a coverage (cameras and cuts): ${SHOOT_PRESETS.map((p) => `${p.id} = ${p.name}`).join(', ')}.`,
-    schema: obj({ template: str('"blank", a template or shoot preset id, or a saved template\'s name'), name: opt(str('Name for the scene')) }),
+    description: `Start a new scene in the project and open it: blank, or from a scene template (a cast, a set and what they do, no cameras): ${SCENE_TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}; or one of the user's saved templates by name; or a shoot preset, a template already filmed with a coverage (cameras and cuts): ${SHOOT_PRESETS.map((p) => `${p.id} = ${p.name}`).join(', ')}, or one of the user's own shoot presets by name.`,
+    schema: obj({ template: str('"blank", a template or shoot preset id, or a saved template\'s or shoot preset\'s name'), name: opt(str('Name for the scene')) }),
     run: (store, i) => {
       const id = String(i.template);
-      if (SHOOT_PRESETS.some((p) => p.id === id)) {
-        newShoot(store, id);
+      const shoots = shootsOf(store.getState().library);
+      const preset = shoots.find((p) => p.id === id) ?? shoots.find((p) => p.name.toLowerCase() === id.trim().toLowerCase());
+      if (preset) {
+        newShoot(store, preset.id);
         if (i.name) store.updateScene((s) => ({ ...s, name: String(i.name).slice(0, 80) }));
         return `Opened "${store.scene.name}", filmed in ${shotSpans(store.scene.animation!).length} shots. ${JSON.stringify(sceneSummary(store))}`;
       }

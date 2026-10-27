@@ -479,9 +479,19 @@ export function parseLibrary(data: unknown): Library {
     name: typeof t.name === 'string' && t.name ? t.name.slice(0, 80) : `Template ${i + 1}`,
     scene: bareTemplate(parseScene(t.scene, i)),
   }));
+  // Shoot presets: a template and a coverage, by id (lib/templates.ts shootsOf leaves out those missing).
+  const shoots = (Array.isArray(data.shoots) ? data.shoots : []).slice(0, 200).filter(isObj)
+    .filter((p) => typeof p.template === 'string' && typeof p.coverage === 'string')
+    .map((p, i) => ({
+      id: typeof p.id === 'string' && p.id ? p.id.slice(0, 40) : uid('shoot'),
+      name: typeof p.name === 'string' && p.name ? p.name.slice(0, 80) : `Shoot ${i + 1}`,
+      template: (p.template as string).slice(0, 40),
+      coverage: (p.coverage as string).slice(0, 40),
+      ...(typeof p.duration === 'number' && Number.isFinite(p.duration) ? { duration: Math.min(60, Math.max(1, p.duration)) } : {}),
+    }));
   return {
     version: 3, scenes, ...(board ? { board } : {}), ...(film ? { film } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
-    ...(templates.length ? { templates } : {}),
+    ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}),
   };
 }
 

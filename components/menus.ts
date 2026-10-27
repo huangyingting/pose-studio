@@ -1,9 +1,9 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, Camera, Link, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, Camera, Clapperboard, Link, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addCamera, addFigure, carryProblem, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
-  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, saveTemplate, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
+  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, saveAsShoot, savePose, saveTemplate, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { handlesOf } from '@/lib/props';
@@ -231,6 +231,14 @@ export function sceneMenu(store: Store, index: number, { notify, notifyUndo }: M
     },
     { label: 'Add to storyboard', icon: LayoutPanelTop, onSelect: () => { addToBoard(store, s.id); notifyUndo(`Added “${s.name}” to the storyboard (B)`); } },
     { label: 'Save as template…', icon: BookmarkPlus, onSelect: () => { store.setSceneIndex(index); saveAsTemplate(store, { notifyUndo }); } },
+    // Filmed with a coverage: kept as a template and a shoot preset filming it so.
+    ...(s.coverage ? [{
+      label: 'Save as shoot preset…', icon: Clapperboard, onSelect: () => {
+        store.setSceneIndex(index);
+        const name = window.prompt('Shoot preset name', s.name)?.trim();
+        if (name && saveAsShoot(store, name)) notifyUndo(`Saved “${name}” to My presets (and My templates)`);
+      },
+    }] : []),
     '-',
     {
       label: 'Delete', icon: Trash2, danger: true, disabled: library.scenes.length <= 1,

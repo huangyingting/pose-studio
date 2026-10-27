@@ -8,7 +8,7 @@ import { boardPanels, insertPanel, movePanel, newPanel, withBoard } from './boar
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
-import { SHOOT_PRESETS, asTemplate, putTemplate, templatesOf } from './templates';
+import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, keysClip, partKeys } from './clip';
 import { saveClips, saveImage } from './assetstore';
 import { filmOf } from './film';
@@ -32,7 +32,7 @@ import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setP
 import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, Side, Travel, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1312,7 +1312,7 @@ export function newShoot(store: Store, id: string) {
 }
 
 function shoot(store: Store, id: string) {
-  const p = SHOOT_PRESETS.find((x) => x.id === id);
+  const p = shootsOf(store.getState().library).find((x) => x.id === id);
   const t = p && templatesOf(store.getState().library).find((x) => x.id === p.template);
   if (!p || !t) return false;
   addScene(store, { ...t.build(), name: p.name });
@@ -1343,12 +1343,43 @@ export function saveTemplate(store: Store, name: string) {
   return t;
 }
 
-export function deleteTemplate(store: Store, id: string) {
+/** Delete one of my templates, and my shoot presets that film it (their names). */
+export function deleteTemplate(store: Store, id: string): string[] {
+  const gone = (store.getState().library.shoots ?? []).filter((p) => p.template === id).map((p) => p.name);
   store.commit((lib) => {
     const templates = (lib.templates ?? []).filter((t) => t.id !== id);
-    const { templates: _old, ...rest } = lib;
+    const shoots = (lib.shoots ?? []).filter((p) => p.template !== id);
+    const { templates: _t, shoots: _s, ...rest } = lib;
+    void [_t, _s];
+    return { ...rest, ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}) };
+  });
+  return gone;
+}
+
+/** Keep a shoot preset of my own: a template filmed with a coverage (and, for a still template, for how long). */
+export function saveShoot(store: Store, p: Omit<ShootPreset, 'id'>): ShootPreset {
+  const preset: ShootPreset = { ...p, id: uid('shoot'), name: p.name.trim().slice(0, 80) || 'Shoot' };
+  store.commit((lib) => ({ ...lib, shoots: [...(lib.shoots ?? []), preset] }));
+  return preset;
+}
+
+/** The open scene, filmed with a coverage, kept as a template and a shoot preset filming it so, in one step. */
+export function saveAsShoot(store: Store, name: string): ShootPreset | null {
+  const s = store.scene;
+  if (!s.coverage) return null;
+  const coverage = s.coverage.id;
+  return store.group(() => {
+    const t = saveTemplate(store, name);
+    return saveShoot(store, { name, template: t.id, coverage, ...(s.animation ? {} : { duration: 6 }) });
+  });
+}
+
+export function deleteShoot(store: Store, id: string) {
+  store.commit((lib) => {
+    const shoots = (lib.shoots ?? []).filter((p) => p.id !== id);
+    const { shoots: _old, ...rest } = lib;
     void _old;
-    return templates.length ? { ...rest, templates } : rest;
+    return shoots.length ? { ...rest, shoots } : rest;
   });
 }
 

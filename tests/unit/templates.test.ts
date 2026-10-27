@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, arrange, coverScene, newShoot, placeTemplate, saveTemplate, sceneFromTemplate, startAnimation, travelTo } from '@/lib/actions';
+import { addFigure, addProp, arrange, coverScene, deleteTemplate, newShoot, placeTemplate, saveAsShoot, saveShoot, saveTemplate, sceneFromTemplate, startAnimation, travelTo } from '@/lib/actions';
 import { parseLibrary } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
@@ -7,7 +7,7 @@ import { checkMotion, checkShots } from '@/lib/qa';
 import { facing, withFacing } from '@/lib/relations';
 import { shotSpans } from '@/lib/shots';
 import { Store } from '@/lib/store';
-import { SCENE_TEMPLATES, SHOOT_PRESETS, TEMPLATE_GROUPS } from '@/lib/templates';
+import { SCENE_TEMPLATES, SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf } from '@/lib/templates';
 import { MemoryStorage, fresh } from '../fixtures/scenes';
 
 const apart = (p: number[], q: number[]) => Math.hypot(p[0] - q[0], p[2] - q[2]);
@@ -116,4 +116,39 @@ describe('scene templates: what is filmed, without how', () => {
     store.undo();
     expect(store.getState().library).toBe(before);
   }, 120_000);
+
+  it('keeps shoot presets of my own: made, saved from a filmed scene, opened in one step, kept, gone with their template', () => {
+    const store = new Store(new MemoryStorage());
+    // From a template and a coverage (a still template filmed for a length of its own).
+    const mine = saveShoot(store, { name: 'Talk', template: 'conversation', coverage: 'dialogue', duration: 5 });
+    expect(shootsOf(store.getState().library).map((p) => p.name)).toContain('Talk');
+    const before = store.getState().library.scenes.length;
+    expect(newShoot(store, mine.id)).toBe(true);
+    expect(store.scene.name).toBe('Talk');
+    expect(store.scene.animation!.duration).toBe(5);
+    expect(store.scene.coverage?.id).toBe('dialogue');
+    store.undo();
+    expect(store.getState().library.scenes).toHaveLength(before);
+
+    // From a scene filmed with a coverage: a template of it, and a preset filming it so.
+    const { store: other, a } = fresh();
+    addFigure(other, [1.2, 0, 0]);
+    arrange(other, a, other.getState().activeFigure!, 'faceEachOther');
+    startAnimation(other, 4);
+    other.select({ kind: 'figure', figure: a });
+    coverScene(other, 'dialogue');
+    const saved = saveAsShoot(other, 'Across the table')!;
+    const lib = other.getState().library;
+    expect(lib.templates!.map((t) => t.id)).toEqual([saved.template]);
+    expect(saved).toMatchObject({ coverage: 'dialogue' });
+    expect(saved.duration).toBeUndefined();
+    // Kept in the library file, and read back as it was.
+    expect(parseLibrary(JSON.parse(JSON.stringify(lib))).shoots).toEqual(lib.shoots);
+    expect(newShoot(other, saved.id)).toBe(true);
+    expect(checkShots(other.scene).map((i) => i.message)).toEqual([]);
+    // Deleting the template takes the preset with it.
+    expect(deleteTemplate(other, saved.template)).toEqual(['Across the table']);
+    expect(other.getState().library.shoots).toBeUndefined();
+    expect(shootsOf(other.getState().library)).toEqual(SHOOT_PRESETS);
+  }, 60_000);
 });

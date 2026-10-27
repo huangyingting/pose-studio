@@ -33,6 +33,15 @@ describe('library sync merge', () => {
     expect(mergeLibraries({ ...lib([a, b, c]), film: wide }, { ...lib([a, b, c]), film: tall }, agreed).film).toEqual(wide);
   });
 
+  it('keeps shoot presets from both sides, except one deleted since they agreed', () => {
+    const talk = { id: 'p1', name: 'Talk', template: 'conversation', coverage: 'dialogue' };
+    const dance = { id: 'p2', name: 'Dance', template: 'waltz-turn', coverage: 'follow' };
+    const merged = mergeLibraries({ ...lib([a, b, c]), shoots: [talk] }, { ...lib([a, b, c]), shoots: [dance] }, base);
+    expect(merged.shoots?.map((p) => p.name)).toEqual(['Talk', 'Dance']);
+    const agreed = syncBase({ ...lib([a, b, c]), shoots: [talk, dance] });
+    expect(mergeLibraries({ ...lib([a, b, c]), shoots: [talk, dance] }, { ...lib([a, b, c]), shoots: [talk] }, agreed).shoots?.map((p) => p.name)).toEqual(['Talk']);
+  });
+
   it('applies deletions from either side, unless the other side edited the pose', () => {
     // Deleted here (B), deleted there (C): both go. Deleted there but edited here (A): kept.
     const server = lib([b]);

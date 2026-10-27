@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type 
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Clapperboard, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import {
-  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, newShoot, motionProblem, placeTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel,
+  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate, newShoot, saveShoot, motionProblem, placeTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel,
 } from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
-import { SHOOT_PRESETS, TEMPLATE_GROUPS, templatesOf } from '@/lib/templates';
+import { SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf, templatesOf } from '@/lib/templates';
 import { newScene } from '@/lib/doc';
 import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
@@ -19,10 +19,11 @@ import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
 import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
+import type { ShootPreset } from '@/lib/types';
 import { useFilm, useScene, useStore, useStudio } from '../store-context';
 import { saveAsTemplate } from '../menus';
 import BoneMapDialog from '../BoneMapDialog';
-import { IconButton, Select } from '../ui';
+import { Field, IconButton, Modal, NumberField, Select } from '../ui';
 import type { SectionProps } from './sections';
 
 /**
@@ -450,6 +451,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
   const style = useFilm().style;
   const all = templatesOf(library);
   const groups = [...TEMPLATE_GROUPS, 'Mine'] as const;
+  const [making, setMaking] = useState(false);
   return (
     <div className="side-scroll">
       <Target>
@@ -462,25 +464,34 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
         </button>
       </div>
       <section aria-label="Shoot presets">
-        <Group title="Ready to shoot" count={SHOOT_PRESETS.length}>
-          {SHOOT_PRESETS.map((p) => {
-            const t = all.find((x) => x.id === p.template)!;
-            const how = COVERAGES.find((c) => c.id === p.coverage)!;
-            return (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => { if (newShoot(store, p.id)) { notifyUndo(`${p.name}: ${t.name}, filmed as ${how.name.toLowerCase()}`); onPick?.(); } }}
-                  {...preview(p.name, `${t.name}, filmed as ${how.name.toLowerCase()}: opens as a new scene, cameras and cuts made`, () => templatePreview(t.id, t.build, style))}
-                >
-                  <Clapperboard size={14} aria-hidden />
-                  <span className="side-list-name">{p.name}</span>
-                  <em>{how.name}</em>
-                </button>
-              </li>
-            );
-          })}
-        </Group>
+        {[{ title: 'Ready to shoot', list: SHOOT_PRESETS, mine: false }, { title: 'My presets', list: shootsOf(library).filter((p) => !SHOOT_PRESETS.includes(p)), mine: true }].map((g) => g.list.length > 0 && (
+          <Group key={g.title} title={g.title} count={g.list.length}>
+            {g.list.map((p) => {
+              const t = all.find((x) => x.id === p.template)!;
+              const how = COVERAGES.find((c) => c.id === p.coverage)!;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => { if (newShoot(store, p.id)) { notifyUndo(`${p.name}: ${t.name}, filmed as ${how.name.toLowerCase()}`); onPick?.(); } }}
+                    {...preview(p.name, `${t.name}, filmed as ${how.name.toLowerCase()}: opens as a new scene, cameras and cuts made`, () => templatePreview(t.id, t.build, style))}
+                  >
+                    <Clapperboard size={14} aria-hidden />
+                    <span className="side-list-name">{p.name}</span>
+                    <em>{how.name}</em>
+                  </button>
+                  {g.mine && <IconButton icon={Trash2} label={`Delete the shoot preset ${p.name}`} className="row-action" size={13} onClick={() => { deleteShoot(store, p.id); notifyUndo(`Deleted the shoot preset ${p.name}`); }} />}
+                </li>
+              );
+            })}
+          </Group>
+        ))}
+        <div className="library-row">
+          <button type="button" className="btn subtle library-import" onClick={() => setMaking(true)} data-tip="A template filmed with a coverage, opened in one go">
+            <Clapperboard size={14} aria-hidden /> New shoot preset…
+          </button>
+        </div>
+        {making && <ShootDialog onClose={() => setMaking(false)} onMade={(p) => notifyUndo(`Made the shoot preset ${p.name}`)} />}
       </section>
       <section aria-label="Scene templates">
         {groups.map((g) => {
@@ -506,7 +517,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
                     size={13}
                     onClick={() => { if (placeTemplate(store, t.id)) { notifyUndo(`${t.name} put into ${scene.name}`); onPick?.(); } }}
                   />
-                  {g === 'Mine' && <IconButton icon={Trash2} label={`Delete the template ${t.name}`} className="row-action" size={13} onClick={() => { deleteTemplate(store, t.id); notifyUndo(`Deleted the template ${t.name}`); }} />}
+                  {g === 'Mine' && <IconButton icon={Trash2} label={`Delete the template ${t.name}`} className="row-action" size={13} onClick={() => { const gone = deleteTemplate(store, t.id); notifyUndo(`Deleted the template ${t.name}${gone.length ? ` and the shoot presets filming it (${gone.join(', ')})` : ''}`); }} />}
                 </li>
               ))}
             </Group>
@@ -514,6 +525,59 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
         })}
       </section>
     </div>
+  );
+}
+
+/** Make a shoot preset: a name, a template, a coverage that fits its cast and (a still template) a length. */
+function ShootDialog({ onClose, onMade }: { onClose(): void; onMade(p: ShootPreset): void }) {
+  const store = useStore();
+  const library = useStudio((s) => s.library);
+  const all = templatesOf(library);
+  const [name, setName] = useState('');
+  const [template, setTemplate] = useState(all[0].id);
+  const chosen = all.some((x) => x.id === template) ? template : all[0].id;
+  const t = all.find((x) => x.id === chosen)!;
+  const fitting = COVERAGES.filter((c) => c.roles.length <= t.people);
+  const [coverage, setCoverage] = useState(fitting[0]?.id ?? '');
+  const how = fitting.find((c) => c.id === coverage) ?? fitting[0];
+  // A template that does not move is filmed for a length of its own (worked out as one is picked).
+  const isStill = (id: string) => !all.find((x) => x.id === id)?.build().animation;
+  const [still, setStill] = useState(() => isStill(chosen));
+  const [length, setLength] = useState(6);
+  const make = () => {
+    if (!how) return;
+    const p = saveShoot(store, { name: name || `${t.name}, ${how.name.toLowerCase()}`, template: t.id, coverage: how.id, ...(still ? { duration: length } : {}) });
+    onMade(p);
+    onClose();
+  };
+  return (
+    <Modal
+      title="New shoot preset"
+      icon={Clapperboard}
+      onClose={onClose}
+      footer={<button type="button" className="btn primary" disabled={!how} onClick={make}>Make preset</button>}
+    >
+      <div className="form">
+        <label className="field">
+          <span>Name</span>
+          <input type="text" value={name} placeholder={how ? `${t.name}, ${how.name.toLowerCase()}` : t.name} aria-label="Preset name" onChange={(e) => setName(e.target.value)} data-autofocus />
+        </label>
+        <Field label="Template">
+          <Select<string> label="Template" value={t.id} onChange={(id) => { setTemplate(id); setStill(isStill(id)); }} options={all.map((x) => ({ value: x.id, label: `${x.name}${x.group === 'Mine' ? ' (mine)' : ''}`, hint: x.people === 1 ? '1 person' : `${x.people} people` }))} />
+        </Field>
+        <Field label="Coverage">
+          {fitting.length
+            ? <Select<string> label="Coverage" value={how.id} onChange={setCoverage} options={fitting.map((c) => ({ value: c.id, label: c.name }))} />
+            : <p className="hint-text">No coverage films one person alone yet.</p>}
+        </Field>
+        {still && (
+          <Field label="Length">
+            <NumberField prefix="s" label="Length (seconds)" value={length} step={1} min={1} max={60} digits={0} onChange={setLength} />
+          </Field>
+        )}
+        <p className="hint-text">It keeps the template and the coverage by reference: open it from Ready to shoot as a new scene, already filmed.</p>
+      </div>
+    </Modal>
   );
 }
 

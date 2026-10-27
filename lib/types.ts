@@ -439,6 +439,18 @@ export interface Library {
   models?: ModelInfo[];
   /** Scene templates the user saved (lib/templates.ts). */
   templates?: TemplateAsset[];
+  /** Shoot presets the user made: a template paired with a coverage (lib/templates.ts). */
+  shoots?: ShootPreset[];
+}
+
+/** A shoot preset: a template (by id) filmed with a coverage (by id); it holds no scene and no cameras. */
+export interface ShootPreset {
+  id: string;
+  name: string;
+  template: string;
+  coverage: string;
+  /** Seconds, for a template that does not move. */
+  duration?: number;
 }
 
 /** A scene saved as a template: its cast, set, actions and light, around the stage origin; no cameras or cuts. */

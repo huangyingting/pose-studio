@@ -5,7 +5,8 @@ import { facing, withFacing } from './relations';
 import { STAGINGS } from './stagings';
 import { clear } from './track';
 import { uid } from './uid';
-import type { Animation, Figure, Library, Scene, TemplateAsset } from './types';
+import { COVERAGES } from './coverage';
+import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset } from './types';
 
 /*
  * Scene templates: what is filmed, without how it is filmed. A template is a cast (its roles:
@@ -39,15 +40,6 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
  * the other). Picking one opens the template as a new scene and films it; a still template is
  * given an animation this long first.
  */
-export interface ShootPreset {
-  id: string;
-  name: string;
-  template: string;
-  coverage: string;
-  /** Seconds, for a template that does not move. */
-  duration?: number;
-}
-
 export const SHOOT_PRESETS: ShootPreset[] = [
   { id: 'shoot-interview', name: 'Interview', template: 'conversation', coverage: 'dialogue', duration: 9 },
   { id: 'shoot-deal', name: 'Closing the deal', template: 'handshake', coverage: 'dialogue', duration: 6 },
@@ -55,6 +47,12 @@ export const SHOOT_PRESETS: ShootPreset[] = [
   { id: 'shoot-dance', name: 'First dance', template: 'waltz-turn', coverage: 'follow' },
   { id: 'shoot-jump', name: 'Over the bar', template: 'high-jump', coverage: 'follow' },
 ];
+
+/** The shoot presets there are: the built-in ones and the library's (those whose template and coverage are there). */
+export function shootsOf(lib: Library): ShootPreset[] {
+  const templates = new Set(templatesOf(lib).map((t) => t.id));
+  return [...SHOOT_PRESETS, ...(lib.shoots ?? []).filter((p) => templates.has(p.template) && COVERAGES.some((c) => c.id === p.coverage))];
+}
 
 /** The templates there are: the built-in ones and the library's (fresh ids each time one is built). */
 export function templatesOf(lib: Library): SceneTemplate[] {

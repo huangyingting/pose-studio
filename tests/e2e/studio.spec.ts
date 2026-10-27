@@ -677,6 +677,17 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   const shoot = (await live(page)).scene;
   expect(shoot.name).toBe('Interview');
   expect(shoot.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
+  // A preset of my own: a template and a coverage that fits it, opened the same way.
+  await page.getByRole('button', { name: 'New shoot preset…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New shoot preset' });
+  await dialog.getByRole('textbox', { name: 'Preset name' }).fill('Small talk');
+  await choose(page, 'Template', /^Handshake/);
+  await choose(page, 'Coverage', 'Two-person dialogue');
+  await dialog.getByRole('button', { name: 'Make preset' }).click();
+  await page.getByRole('region', { name: 'Shoot presets' }).getByRole('button', { name: /^Small talk/ }).click();
+  const small = (await live(page)).scene;
+  expect(small.name).toBe('Small talk');
+  expect(small.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
 });
 
 test('placement fields move and turn the figure, and faces can be hidden', async ({ page }) => {

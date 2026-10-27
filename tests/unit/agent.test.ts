@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { saveShoot } from '@/lib/actions';
 import { liveCamera } from '@/lib/cameras';
 import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
@@ -200,4 +201,10 @@ describe('assistant tools', () => {
     await expect(assistantTurn(null, 'Hi', store, { onText: () => {}, onTool: () => {} }, new AbortController().signal)).rejects.toThrow('Daily assistant limit reached');
   });
 
+  it('opens one of the user\'s shoot presets by name', () => {
+    const store = new Store(new MemoryStorage());
+    saveShoot(store, { name: 'Talk', template: 'conversation', coverage: 'dialogue', duration: 5 });
+    expect(run(store, 'new_scene', { template: 'talk' })).toMatch(/^Opened "Talk", filmed in \d+ shots/);
+    expect(store.scene.coverage?.id).toBe('dialogue');
+  });
 });
