@@ -5,7 +5,7 @@ import { ChevronDown, Ellipsis, FilePlus2, Search, UsersRound } from 'lucide-rea
 import { addScene, moveScene } from '@/lib/actions';
 import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
-import { sceneMenu } from './menus';
+import { sceneMenu, type MenuUi } from './menus';
 import { useStore, useStudio } from './store-context';
 import { Menu } from './ui';
 
@@ -15,7 +15,7 @@ const COLUMNS = 3;
  * The project's scenes, from the top bar: switch scene (search, thumbnails; drag or Alt+arrows
  * to reorder), start a new one; rename, duplicate, delete or storyboard one (its menu, or right-click).
  */
-export default function ScenePicker({ notifyUndo }: { notifyUndo(text: string): void }) {
+export default function ScenePicker({ ui }: { ui: MenuUi }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const scenes = useStudio((s) => s.library.scenes);
@@ -46,14 +46,14 @@ export default function ScenePicker({ notifyUndo }: { notifyUndo(text: string): 
       </button>
       {open && (
         <div className="scene-popover" role="dialog" aria-label="Scenes">
-          <SceneGrid onPick={() => setOpen(false)} notifyUndo={notifyUndo} />
+          <SceneGrid onPick={() => setOpen(false)} ui={ui} />
         </div>
       )}
     </div>
   );
 }
 
-function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: string): void }) {
+function SceneGrid({ onPick, ui }: { onPick(): void; ui: MenuUi }) {
   const store = useStore();
   const scenes = useStudio((s) => s.library.scenes);
   const index = useStudio((s) => s.sceneIndex);
@@ -123,7 +123,7 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
             className="ibtn"
             align="end"
             tip="More"
-            items={sceneMenu(store, index, { notifyUndo })}
+            items={sceneMenu(store, index, ui)}
           >
             <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
           </Menu>
@@ -148,7 +148,7 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
               className="thumb"
               onClick={() => { store.setSceneIndex(i); onPick(); }}
               onKeyDown={(e) => onThumbKey(e, pos, i)}
-              onContextMenu={(e) => openContextMenu(e, sceneMenu(store, i, { notifyUndo }), s.name)}
+              onContextMenu={(e) => openContextMenu(e, sceneMenu(store, i, ui), s.name)}
               aria-current={i === index}
               title={`${s.name} — Alt+arrow keys to reorder`}
             >

@@ -236,7 +236,7 @@ test('things have names and right-click menus; Del, Ctrl+D and F2 act on the sel
 test('tooltips stay inside the window, with the shortcut apart', async ({ page }) => {
   await page.getByRole('button', { name: 'Export', exact: true }).hover();
   const tip = page.getByRole('tooltip');
-  await expect(tip).toContainText('Export image');
+  await expect(tip).toContainText('Export');
   await expect(tip.locator('kbd')).toHaveText('Ctrl E');
   const box = (await tip.boundingBox())!;
   const width = page.viewportSize()!.width;
@@ -343,8 +343,9 @@ test('Shift-drag twists a part; handheld props go in the hand; the scene exports
   expect(prop.hold?.hand).toBe('R');
   expect((await figure()).hands.R.curl[1]).toBeGreaterThan(0.4);
   await expect(page.getByRole('combobox', { name: 'Held by' })).toContainText('right hand');
-  // Let go: it lands on the floor.
-  await page.getByRole('button', { name: 'Let go' }).click();
+  // Let go (the prop's menu, in its inspector's header): it lands on the floor.
+  await page.getByRole('button', { name: 'Phone menu' }).click();
+  await page.getByRole('menuitem', { name: /^Let go/ }).click();
   expect(((await state(page)).scene.props[0] as unknown as { hold?: unknown; position: number[] }).hold).toBeUndefined();
 
   // The posed scene as a binary glTF file.
@@ -397,7 +398,9 @@ test('exports the pose library as a 2400×3200 Pose.jpg sheet', async ({ page })
 test('share links open as a new scene', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await (await openScenes(page)).locator('.thumbs li').nth(4).locator('button').click();
-  await page.getByRole('button', { name: 'Main menu' }).click();
+  // From the scene's menu (in the scene picker).
+  await openScenes(page);
+  await page.getByRole('button', { name: 'Scene actions' }).click();
   await page.getByRole('menuitem', { name: 'Copy share link' }).click();
   await expect(page.getByText('Share link copied')).toBeVisible();
   const url = await page.evaluate(() => navigator.clipboard.readText());
@@ -413,11 +416,11 @@ test('share links open as a new scene', async ({ page, context }) => {
 
 test('saves and re-imports the library as JSON', async ({ page }) => {
   await page.getByRole('button', { name: 'Main menu' }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save library (.json)' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save project (.json)' }).click()]);
   const path = (await download.path())!;
   await page.getByRole('button', { name: 'Main menu' }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Import scenes…' }).click();
+  await page.getByRole('menuitem', { name: 'Import scenes from a project…' }).click();
   await (await chooser).setFiles(path);
   await expect(page.getByText('Loaded 20 scenes')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(40);
@@ -992,8 +995,8 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   // Edits follow a moment later.
   await page.getByLabel('Scene name').fill('Synced scene');
   await expect.poll(async () => (await server()).library?.scenes.map((s) => s.name), { timeout: 30_000 }).toContain('Synced scene');
-  await page.locator('.avatar').click();
-  await expect(page.getByRole('menuitem', { name: /Library synced/ })).toBeVisible();
+  // One indicator: saved here, then synced to the account.
+  await expect(page.locator('.save-status')).toHaveText(/Synced/);
 });
 
 test('the AI assistant runs on the server and its tools on the open pose', async ({ page }) => {

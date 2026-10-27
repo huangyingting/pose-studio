@@ -250,6 +250,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   cursor: pointer;
 }
 .segmented button:hover { color: var(--text); }
+.segmented button.off { opacity: 0.4; cursor: default; }
 .segmented button.on { background: #fff; color: var(--text); box-shadow: 0 0 0 1px rgba(16, 16, 24, 0.05), 0 1px 3px rgba(16, 16, 24, 0.1); }
 
 .select { position: relative; }
@@ -371,6 +372,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .save-status { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: 11px; white-space: nowrap; }
 .save-status.saved svg { color: var(--ok); }
 .save-status.error { color: var(--danger); font-weight: 600; }
+.save-status.offline svg { color: var(--warn, #b45309); }
 .only-mobile { display: none !important; }
 
 /* Popover menus */

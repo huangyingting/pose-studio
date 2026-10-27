@@ -1,5 +1,5 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, Camera, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, Camera, Link, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
   addCamera, addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
@@ -8,6 +8,7 @@ import {
 import { HOLDABLE } from '@/lib/hold';
 import { handlesOf } from '@/lib/props';
 import { describeSpan } from '@/lib/prompt';
+import { shareUrl } from '@/lib/share';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Figure, type Travel, type Vec3 } from '@/lib/types';
@@ -200,7 +201,7 @@ export function saveAsTemplate(store: Store, { notifyUndo }: Pick<MenuUi, 'notif
 }
 
 /** A scene in the scene picker. */
-export function sceneMenu(store: Store, index: number, { notifyUndo }: Pick<MenuUi, 'notifyUndo'>): MenuItem[] {
+export function sceneMenu(store: Store, index: number, { notify, notifyUndo }: MenuUi): MenuItem[] {
   const { library } = store.getState();
   const s = library.scenes[index];
   if (!s) return [];
@@ -214,6 +215,16 @@ export function sceneMenu(store: Store, index: number, { notifyUndo }: Pick<Menu
       },
     },
     { label: 'Duplicate', icon: Copy, onSelect: () => duplicateCurrentScene(store, index) },
+    {
+      label: 'Copy share link', icon: Link, onSelect: async () => {
+        try {
+          const url = await shareUrl(s);
+          await navigator.clipboard.writeText(url).then(() => notify('Share link copied to the clipboard'), () => prompt('Copy this link:', url));
+        } catch (err) {
+          notify(`Could not create a link: ${(err as Error).message}`, 'error');
+        }
+      },
+    },
     { label: 'Add to storyboard', icon: LayoutPanelTop, onSelect: () => { addToBoard(store, s.id); notifyUndo(`Added “${s.name}” to the storyboard (B)`); } },
     { label: 'Save as template…', icon: BookmarkPlus, onSelect: () => { store.setSceneIndex(index); saveAsTemplate(store, { notifyUndo }); } },
     '-',

@@ -2,9 +2,11 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { SessionProvider, getProviders, signIn, signOut, useSession } from 'next-auth/react';
-import { Cloud, CloudAlert, CloudOff, LogIn, LogOut, RefreshCw } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
 import { CloudSync } from '@/lib/cloud';
 import { withBase } from '@/lib/paths';
+import type { SaveStatus } from '@/lib/store';
+import SaveIndicator from '../SaveIndicator';
 import { useStore } from '../store-context';
 import { Menu, type MenuItem } from '../ui';
 
@@ -84,11 +86,16 @@ function ago(t: number | null) {
   return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Top bar: sign in, or the account with its sync status and sign out. */
+/** The save indicator, with the account's sync after the browser's save when signed in. */
+export function SyncedSaveIndicator({ status }: { status: SaveStatus }) {
+  const cloud = useCloudStatus();
+  return <SaveIndicator status={status} cloud={cloud ? { status: cloud.status, when: ago(cloud.lastSynced) } : undefined} />;
+}
+
+/** Top bar: sign in, or the account and sign out. */
 export function Account() {
   const { data, status } = useSession();
   const providers = useProviders();
-  const cloud = useCloudStatus();
   if (status === 'loading') return null;
   const user = data?.user;
 
@@ -107,18 +114,13 @@ export function Account() {
     );
   }
 
-  const s = cloud?.status ?? 'syncing';
-  const SyncIcon = s === 'synced' ? Cloud : s === 'offline' ? CloudOff : s === 'error' ? CloudAlert : RefreshCw;
-  const syncText = s === 'synced' ? `Library synced ${ago(cloud?.lastSynced ?? null)}` : s === 'offline' ? 'Offline: changes sync when you are back' : s === 'error' ? 'Sync failed: retrying on your next change' : 'Syncing library…';
   const items: MenuItem[] = [
     { group: user.email ?? user.name ?? 'Signed in' },
-    { label: syncText, icon: SyncIcon, disabled: true, onSelect: () => {} },
-    '-',
     { label: 'Sign out', icon: LogOut, onSelect: () => void signOut() },
   ];
   const initial = (user.name || user.email || '?').trim()[0]?.toUpperCase();
   return (
-    <Menu label="Account" align="end" className={`avatar${s === 'error' || s === 'offline' ? ' warn' : ''}`} tip={syncText} items={items}>
+    <Menu label="Account" align="end" className="avatar" tip={user.email ?? user.name ?? 'Account'} items={items}>
       {user.image
         // Provider avatars come from their CDNs: next/image would need their hosts configured.
         // eslint-disable-next-line @next/next/no-img-element

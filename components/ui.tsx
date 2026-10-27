@@ -411,6 +411,8 @@ export interface SegmentOption<T extends string> {
   label: string;
   icon?: LucideIcon;
   title?: string;
+  /** Offered but not usable now (its tip says why). */
+  disabled?: boolean;
 }
 
 /** Radio group drawn as a segmented control. `iconOnly` shows just the icons (with tooltips). */
@@ -432,11 +434,12 @@ export function Segmented<T extends string>({ value, options, onChange, label, i
           role="radio"
           aria-checked={o.value === value}
           aria-label={iconOnly ? o.label : undefined}
-          className={o.value === value ? 'on' : ''}
+          aria-disabled={o.disabled || undefined}
+          className={`${o.value === value ? 'on' : ''}${o.disabled ? ' off' : ''}`}
           title={iconOnly ? undefined : o.title}
           data-tip={iconOnly ? (o.title ?? o.label) : undefined}
           data-tip-side="top"
-          onClick={() => onChange(o.value)}
+          onClick={() => { if (!o.disabled) onChange(o.value); }}
         >
           {o.icon && <o.icon size={15} strokeWidth={1.75} aria-hidden />}
           {!iconOnly && <span>{o.label}</span>}

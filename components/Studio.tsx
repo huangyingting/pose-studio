@@ -2,17 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, CircleHelp, Cloud, CloudCheck, CloudOff, Copy, Download, Eye, FilePlus2, FileUp, Focus, FolderOpen,
-  Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
+  ChevronDown, Download, Eye, FileUp, Focus, FolderOpen,
+  Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
-  addKeyframe, addMotions, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addMotions, appendScenes, cutShot, copyPose, deleteSelection, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
-import { decodeScene, sceneParam, shareUrl } from '@/lib/share';
-import { Store, type SaveStatus } from '@/lib/store';
+import { decodeScene, sceneParam } from '@/lib/share';
+import { Store } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
@@ -27,7 +27,8 @@ const LINE_WEIGHTS = [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { 
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 // Accounts, library sync and AI: the server edition only (null in the static build).
-import { Account, ServerRoot } from '@edition/server';
+import { Account, SaveState, ServerRoot } from '@edition/server';
+import SaveIndicator from './SaveIndicator';
 import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext } from './Inspector';
 import ScenePicker from './ScenePicker';
@@ -181,7 +182,7 @@ function App() {
   useEffect(() => {
     if (saveStatus === 'error' && !warnedRef.current) {
       warnedRef.current = true;
-      notify('Could not save to browser storage. Use File → Save library to keep a copy.', 'error');
+      notify('Could not save to browser storage. Use Save project in the main menu to keep a copy.', 'error');
     }
     if (saveStatus === 'saved') warnedRef.current = false;
   }, [saveStatus, notify]);
@@ -194,20 +195,6 @@ function App() {
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [store, notify]);
-
-  const share = useCallback(async () => {
-    try {
-      const url = await shareUrl(store.scene);
-      try {
-        await navigator.clipboard.writeText(url);
-        notify('Share link copied to the clipboard');
-      } catch {
-        prompt('Copy this link:', url);
-      }
-    } catch (err) {
-      notify(`Could not create a link: ${(err as Error).message}`, 'error');
-    }
   }, [store, notify]);
 
   const saveFile = useCallback(() => {
@@ -266,7 +253,7 @@ function App() {
       switch (e.key) {
         case 'w': case 'W': return run(() => setGizmo('translate'));
         case 'e': case 'E': return run(() => setGizmo('rotate'));
-        case 'r': case 'R': return run(() => setGizmo('scale'));
+        case 'r': case 'R': return store.getState().selection?.kind === 'prop' ? run(() => setGizmo('scale')) : undefined;
         case 'f': case 'F': return run(frameCurrent);
         case 'm': case 'M': return run(() => mirrorPose(store));
         case 'h': case 'H': return run(() => store.setSettings({ showHandles: !store.getState().settings.showHandles }));
@@ -363,18 +350,11 @@ function App() {
             label="Main menu"
             className="brand"
             items={[
-              { label: 'New scene', icon: FilePlus2, onSelect: () => addScene(store) },
-              { label: 'Duplicate scene', icon: Copy, onSelect: () => duplicateCurrentScene(store) },
+              { label: 'Save project (.json)', icon: Save, shortcut: 'Ctrl S', onSelect: saveFile },
+              { label: 'Import scenes from a project…', icon: FileUp, onSelect: () => openFilePicker('append') },
+              { label: 'Open project (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
               '-',
-              { label: 'Save library (.json)', icon: Save, shortcut: 'Ctrl S', onSelect: saveFile },
-              { label: 'Import scenes…', icon: FileUp, onSelect: () => openFilePicker('append') },
-              { label: 'Open library (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
-              '-',
-              { label: 'Pose from photo…', icon: ScanFace, onSelect: () => setDialog('photo') },
-              { label: 'Copy share link', icon: Link, onSelect: share },
-              { label: 'Storyboard', icon: LayoutPanelTop, shortcut: 'B', onSelect: () => setDialog('board') },
               { label: 'Gesture practice', icon: Timer, shortcut: 'P', onSelect: () => setDialog('practice') },
-              { label: 'Keyboard shortcuts', icon: Keyboard, shortcut: '?', onSelect: () => setDialog('help') },
             ]}
           >
             <Logo />
@@ -391,7 +371,7 @@ function App() {
               options={[
                 { value: 'rotate', label: 'Pose', icon: Hand, title: 'Pose: drag parts (Shift twists), floor rings turn  E' },
                 { value: 'translate', label: 'Move', icon: Move3d, title: 'Move figure or prop  W' },
-                { value: 'scale', label: 'Scale', icon: Scale3d, title: 'Scale prop  R' },
+                { value: 'scale', label: 'Scale', icon: Scale3d, title: selection?.kind === 'prop' ? 'Scale the prop  R' : 'Scale a prop (select one first)  R', disabled: selection?.kind !== 'prop' },
               ]}
             />
             {settings.gizmo === 'rotate' && (
@@ -452,16 +432,16 @@ function App() {
             aria-label="Scene name"
             spellCheck={false}
           />
-          <ScenePicker notifyUndo={notifyUndo} />
-          <SaveIndicator status={saveStatus} />
+          <ScenePicker ui={{ notify, notifyUndo }} />
+          {SaveState ? <SaveState status={saveStatus} /> : <SaveIndicator status={saveStatus} />}
         </div>
         <div className="tb-right">
           <IconButton icon={Undo2} label="Undo" shortcut="Ctrl Z" onClick={() => store.undo()} disabled={!canUndo} />
           <IconButton icon={Redo2} label="Redo" shortcut="Ctrl Shift Z" onClick={() => store.redo()} disabled={!canRedo} />
           <span className="tb-sep hide-mobile" />
-          <IconButton icon={CircleHelp} label="Help" shortcut="?" onClick={() => setDialog('help')} className="hide-mobile" />
+          <IconButton icon={Keyboard} label="Keyboard shortcuts" shortcut="?" onClick={() => setDialog('help')} className="hide-mobile" />
           {Account && <Account />}
-          <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export image  Ctrl E">
+          <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export  Ctrl E">
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>
           <IconButton
@@ -573,20 +553,6 @@ function Logo() {
   );
 }
 
-function SaveIndicator({ status }: { status: SaveStatus }) {
-  const text = status === 'saved' ? 'Saved' : status === 'pending' ? 'Saving…' : 'Not saved';
-  const Icon = status === 'error' ? CloudOff : status === 'saved' ? CloudCheck : Cloud;
-  return (
-    <span
-      className={`save-status ${status}`}
-      title={status === 'error' ? 'Browser storage is full or blocked. Use Save library in the main menu.' : 'Poses are saved in this browser automatically'}
-    >
-      <Icon size={14} aria-hidden />
-      <span className="hide-sm">{text}</span>
-    </span>
-  );
-}
-
 /** Over a motion or a walk, edits to the figure correct it: this says which (and that it is a correction). */
 function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: string | null; time: number }) {
   const a = scene.animation!;
@@ -599,7 +565,6 @@ function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: st
   return <div className="correcting" role="status">Posing here corrects {what}</div>;
 }
 
-/** The shot's frame over the canvas (its shape), with rule-of-thirds lines and safe areas if asked for. */
 /** The shot's frame over the canvas, and (looking through one camera) its name. */
 function Letterbox({ aspect, guides, name }: { aspect: number; guides: boolean; name?: string }) {
   return (

@@ -88,8 +88,8 @@ On the server edition the AI assistant does any of these from a description ("tw
 - **Export**: the current scene, a sheet of all scenes, the **pose library** as a reference sheet, a **turnaround** of the current scene from 4 or 8 evenly spaced angles, a **frame sheet** of an animation (a motion study), a **video** of the animation filmed by its shot camera (MP4 or WebM, 720p, 1080p, square or vertical), or a **keyframe pack** for AI video tools: a zip with the first and last frame of every shot (plus depth and normal passes for ControlNet-style conditioning), each shot's description and the camera's path over it, a greybox clip per shot and an OpenTimelineIO cut list. Single images can be exported as depth or normal passes too, and the scene as a **3D model** (`.glb`) for Blender, game engines and other 3D tools: an animated scene comes with an animation per person, one for the props and one for the shot camera. Sheets are JPG or PNG, in any of the seven styles. Columns, cell size, line weight, padding, captions, same-scale cells and transparent backgrounds are configurable. The pose library sheet reproduces `Pose.jpg` (2400 × 3200, 4 × 5 cells of 600 × 640).
 - **Gesture practice** (`P`): a timed full-screen slideshow for figure-drawing warm-ups. 15 s to 10 min per pose (or untimed), shuffle, random camera angles, random mirroring, pause/skip with the keyboard. Practice a single pose from random angles, too.
 - **Exports film through the scene's cameras**: a still is taken by the camera filming at the playhead (a still scene: its first camera), or another camera picked in the Export dialog (with a live preview); "New camera from the editor view" makes the view you are looking from into a camera.
-- **Share links** (main menu): one scene, compressed into the URL fragment. Nothing is sent to a server.
-- **Save / import** the whole project (scenes, storyboard, saved poses, imported motions) as JSON.
+- **Share links** (the scene's ⋯ menu, in the scene picker): one scene, compressed into the URL fragment. Nothing is sent to a server.
+- **Save project / import scenes from a project / open a project** (main menu): the whole project (scenes, storyboard, saved poses, templates, imported motions) as JSON. The save indicator by the scene name says it is saved in this browser and, signed in, synced to your account.
 
 **AI assistant** (server edition)
 - An **AI assistant** in the left rail (server edition): describe a pose, a scene or a shot ("two people shaking hands from a low angle", "animate a short jump and check it") and the assistant poses figures, places them, relates them, reaches hands to bodies, adds props and stand-ins, gives figures actions (walks, motions, passes, shots, holds) and edits them as you would on the timeline (retime, move, blend, move a mark), picks camera moves and runs the motion check, using the same tools as you; every change can be undone.
@@ -254,5 +254,3 @@ The figure faces +Z, and its left is +X. Poses are stored as each bone's turn (a
 
 - Pose detection needs photos of real people. Line drawings, including the reference sheet itself, are not recognised.
 - Hands are posed with curl/spread controls; per-knuckle rotation comes only from imported motions.
-- Characters are drawn in their own materials, not in the line-art styles.
-- The reference-image overlay is not saved with the pose.
