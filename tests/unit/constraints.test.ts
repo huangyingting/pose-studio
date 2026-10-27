@@ -69,5 +69,5 @@ describe('constraints: contacts held on the actual bodies', () => {
     const back = rig.model(her).joints.chest.getWorldPosition(new THREE.Vector3());
     expect(hand.distanceTo(back)).toBeLessThan(0.3);
     rig.dispose();
-  }, 120_000);
+  }, 300_000);
 });

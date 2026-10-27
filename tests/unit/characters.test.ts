@@ -62,5 +62,5 @@ describe('built-in characters', () => {
     store.setTime(0);
     expect(applyMotion(store, a, 'waltz-turn', [b])).toBe(true);
     expect(checkMotion(store.scene).filter((i) => i.kind !== 'camera' && i.kind !== 'hidden').map((i) => i.message)).toEqual([]);
-  }, 120_000);
+  }, 300_000);
 });

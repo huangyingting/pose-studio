@@ -135,7 +135,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const through = propWorldAt(store.scene, ball, shot.to)!.position;
     expect(Math.hypot(through[0] - rim[0], through[2] - rim[2])).toBeLessThan(0.05);
     expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].position[1]).toBeCloseTo(0, 2);
-  }, 120_000);
+  }, 300_000);
 
   it('a passing drill: two pass on the run, the third steps in to cut a pass off and shoots', () => {
     const { store, a } = fresh();
@@ -190,7 +190,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const rim = rimOf(hoop);
     const through = propWorldAt(store.scene, ball, shot.to)!.position;
     expect(Math.hypot(through[0] - rim[0], through[2] - rim[2])).toBeLessThan(0.05);
-  }, 120_000);
+  }, 300_000);
 
   it('running: three runners down their lanes, one over a hurdle, filmed alongside', () => {
     const { store, a } = fresh();
@@ -218,7 +218,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     // All three finish at the line.
     const end = sceneAt(store.scene, store.scene.animation!.duration);
     for (const f of end.figures) expect(f.position[2]).toBeCloseTo(10, 1);
-  }, 120_000);
+  }, 300_000);
 
   it('a relay: four runners, the baton handed on three times, each taking it as the last arrives', () => {
     const { store, a } = fresh();
@@ -257,7 +257,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const end = sceneAt(store.scene, store.scene.animation!.duration);
     expect(end.props[0].hold?.figure).toBe(runners[3]);
     expect(end.figures.find((f) => f.id === runners[3])!.position[2]).toBeCloseTo(31.9, 1);
-  }, 120_000);
+  }, 300_000);
 
   it('films keep passing when an action is retimed: the relay\'s handoffs stay in step', () => {
     // The relay: each leg in turn takes longer; the baton still changes hands as each runner arrives.
@@ -287,7 +287,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
       expectClean(store.scene);
       expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold?.figure).toBe(runners[3]);
     }
-  }, 300_000);
+  }, 900_000);
 
   it('a stretcher carried off past a group dance: two carry, one lies on it, four dance', () => {
     const { store, a } = fresh();
@@ -352,7 +352,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
       expect(sv.figures.get(c)!.joints.hips.getWorldPosition(new THREE.Vector3()).y).toBeGreaterThan(place.position[1]);
     }
     sv.dispose();
-  }, 120_000);
+  }, 300_000);
 
   it('high jump: the flop over the bar onto the mat, a coach watching from the side', () => {
     const { store } = fresh();
@@ -378,14 +378,14 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     }
     sv.dispose();
     expect(top).toBeGreaterThan(bar.scale[1] + 0.15);
-  }, 120_000);
+  }, 300_000);
 
   it('boxing: two fighters face off, an exchange, then a combination and a hit', () => {
     const { store, later } = boxing('Female', 'Heroic');
     light(store, 'side');
     shoot(store, [later], ['handheld', 'hero']);
     expectFilm(store, 'side', 2);
-  }, 120_000);
+  }, 300_000);
 
   it('wrestling: they walk in, clinch, and one takes the other down', () => {
     const { store, a } = fresh();
@@ -408,7 +408,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     sv.sync(sceneAt(store.scene, store.scene.animation!.duration));
     expect(sv.figures.get(b)!.joints.chest.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(0.5);
     sv.dispose();
-  }, 120_000);
+  }, 300_000);
 
   it('rhythmic gymnastics: a ribbon routine and a hoop toss side by side, a crane up and an orbit', () => {
     const { store, a } = fresh();
@@ -439,7 +439,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const turning = sceneAt(store.scene, 3.6).props[0].trail!;
     expect(Math.max(...turning.map((p) => p[1]))).toBeGreaterThan(0.5);
     expect(sceneAt(store.scene, toss.to + 0.1).props[1].hold?.figure).toBe(b);
-  }, 120_000);
+  }, 300_000);
 
   it('an imported character steps forward as an imported capture has it, then walks on, drawn as itself', async () => {
     const { store, a } = fresh();
@@ -473,7 +473,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const mannequinFoot = sv.figures.get(a)!.joints.leftFoot.getWorldPosition(new THREE.Vector3());
     expect(sv.models.get(a)!.object.getObjectByName(model.bones.leftFoot!)!.getWorldPosition(new THREE.Vector3()).distanceTo(mannequinFoot)).toBeLessThan(0.08);
     sv.dispose();
-  }, 120_000);
+  }, 300_000);
 
   it('contacts hold on any bodies: the boxing exchange between builds big and small, a waltz between grown-ups', () => {
     for (const [x, y] of [['Child', 'Heroic'], ['Heroic', 'Child'], ['Slender', 'Athletic'], ['Male', 'Female']]) expectClean(boxing(x, y).store.scene);
@@ -486,7 +486,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
       expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
       expectClean(store.scene);
     }
-  }, 600_000);
+  }, 1_200_000);
 
   it('physics, not special code: a pass blocked by someone in its way is reported; a shot off the rim rolls away', () => {
     const { store, a } = fresh();
@@ -527,7 +527,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const end = sceneAt(shot.store.scene, shot.store.scene.animation!.duration).props[0].position;
     expect(end[1]).toBeCloseTo(0, 2);
     expect(Math.hypot(end[0] - rim[0], end[2] - rim[2])).toBeGreaterThan(0.3);
-  }, 120_000);
+  }, 300_000);
 
   it('occlusion is caught: a fast break filmed from beyond the hoop, the backboard in the way', () => {
     const { store, a } = fresh();

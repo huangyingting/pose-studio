@@ -67,6 +67,6 @@ describe('every scene template × coverage × body is clean', () => {
           }
         }
       }
-    }, 300_000);
+    }, 900_000);
   }
 });

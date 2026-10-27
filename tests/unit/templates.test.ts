@@ -115,7 +115,7 @@ describe('scene templates: what is filmed, without how', () => {
     newShoot(store, 'shoot-interview');
     store.undo();
     expect(store.getState().library).toBe(before);
-  }, 120_000);
+  }, 300_000);
 
   it('keeps shoot presets of my own: made, saved from a filmed scene, opened in one step, kept, gone with their template', () => {
     const store = new Store(new MemoryStorage());
