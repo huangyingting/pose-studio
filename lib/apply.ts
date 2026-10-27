@@ -12,10 +12,10 @@ import type { Animation, Figure, PoseAsset, PoseKey, Scene, Vec3 } from './types
 
 /** The figure in the given pose (joints and hands), still facing the same way. */
 export function withPose(f: Figure, p: PoseAsset): Figure {
-  const r = p.joints.root ?? [0, 0, 0];
+  const r = p.joints.hips ?? [0, 0, 0];
   return {
     ...f,
-    joints: { ...structuredClone(p.joints), root: [r[0], facing(f), r[2]] },
+    joints: { ...structuredClone(p.joints), hips: [r[0], facing(f), r[2]] },
     hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) },
   };
 }
@@ -68,10 +68,10 @@ export function insertMotion(scene: Scene, cast: string | string[], motion: Scen
     const figureId = target!.id;
     const retarget = (p: PoseKey): PoseKey => {
       const [dx, dz] = turn((p.position[0] - leadSrc.position[0]) * size, (p.position[2] - leadSrc.position[2]) * size, turnBy);
-      const root = p.joints.root ?? [0, 0, 0];
+      const root = p.joints.hips ?? [0, 0, 0];
       const y = p.grounded ? lead.position[1] : r3(hipsOf(target!) + (p.position[1] - hipsOf(src)) * size);
       return {
-        joints: { ...structuredClone(p.joints), root: [root[0], r3(wrapDeg(root[1] + turnBy)), root[2]] },
+        joints: { ...structuredClone(p.joints), hips: [root[0], r3(wrapDeg(root[1] + turnBy)), root[2]] },
         position: [r3(lead.position[0] + dx), y, r3(lead.position[2] + dz)] as Vec3,
         hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) },
         grounded: p.grounded,
@@ -124,7 +124,7 @@ function lockFeet(src: Figure, target: Figure, from: PoseKey[], to: PoseKey[]): 
       const touch = rig.model(as(src, from[i])).lowest();
       if (touch > 0.05) return p;
       const m = rig.model(as(target, p));
-      const y = m.joints.root.position.y - Math.max(0, m.lowest() - touch);
+      const y = m.joints.hips.position.y - Math.max(0, m.lowest() - touch);
       return { ...p, position: [p.position[0], Math.round(y * 1000) / 1000, p.position[2]] };
     });
     const source = from.map((p) => feetOf(rig, as(src, p)));

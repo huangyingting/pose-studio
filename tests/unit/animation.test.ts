@@ -22,7 +22,7 @@ class MemoryStorage implements Storage {
   setItem(k: string, v: string) { this.m.set(k, v); }
 }
 
-const withKnee = (f: Figure, deg: number): Figure => ({ ...f, joints: { ...f.joints, kneeL: [deg, 0, 0] } });
+const withKnee = (f: Figure, deg: number): Figure => ({ ...f, joints: { ...f.joints, leftLowerLeg: [deg, 0, 0] } });
 
 function twoKeyScene(loop = false) {
   const f = newFigure();
@@ -36,19 +36,19 @@ describe('keyframe sampling', () => {
   it('passes exactly through the keys and in between', () => {
     const s = twoKeyScene();
     const id = s.figures[0].id;
-    expect(samplePose(s.animation!, id, 0)!.joints.kneeL?.[0] ?? 0).toBe(0);
-    expect(samplePose(s.animation!, id, 1)!.joints.kneeL![0]).toBe(60);
-    const mid = samplePose(s.animation!, id, 0.5)!.joints.kneeL![0];
+    expect(samplePose(s.animation!, id, 0)!.joints.leftLowerLeg?.[0] ?? 0).toBe(0);
+    expect(samplePose(s.animation!, id, 1)!.joints.leftLowerLeg![0]).toBe(60);
+    const mid = samplePose(s.animation!, id, 0.5)!.joints.leftLowerLeg![0];
     expect(mid).toBeGreaterThan(20);
     expect(mid).toBeLessThan(40);
     // Holds the last key after it (no loop).
-    expect(samplePose(s.animation!, id, 1.8)!.joints.kneeL![0]).toBe(60);
+    expect(samplePose(s.animation!, id, 1.8)!.joints.leftLowerLeg![0]).toBe(60);
   });
 
   it('loops smoothly back to the first key', () => {
     const s = twoKeyScene(true);
     const id = s.figures[0].id;
-    const at = (t: number) => samplePose(s.animation!, id, t)!.joints.kneeL?.[0] ?? 0;
+    const at = (t: number) => samplePose(s.animation!, id, t)!.joints.leftLowerLeg?.[0] ?? 0;
     expect(at(1.5)).toBeGreaterThan(10);
     expect(at(1.5)).toBeLessThan(50);
     expect(at(1.999)).toBeLessThan(2);
@@ -57,9 +57,9 @@ describe('keyframe sampling', () => {
 
   it('turns the short way across ±180°', () => {
     const f = newFigure();
-    const s = newScene('Turn', [{ ...f, joints: { root: [0, 170, 0] } }]);
-    const a = setKey(newAnimation(s, 2), 1, [{ ...f, joints: { root: [0, -170, 0] } }]);
-    const yaw = samplePose({ ...a, loop: false }, f.id, 0.5)!.joints.root![1];
+    const s = newScene('Turn', [{ ...f, joints: { hips: [0, 170, 0] } }]);
+    const a = setKey(newAnimation(s, 2), 1, [{ ...f, joints: { hips: [0, -170, 0] } }]);
+    const yaw = samplePose({ ...a, loop: false }, f.id, 0.5)!.joints.hips![1];
     expect(Math.abs(yaw)).toBeGreaterThan(170);
   });
 
@@ -82,7 +82,7 @@ describe('keyframe sampling', () => {
     const copy = duplicateScene(s);
     expect(Object.keys(copy.animation!.keys[1].poses)).toEqual([copy.figures[0].id]);
     const m = mirrorScene(s);
-    expect(m.animation!.keys[1].poses[s.figures[0].id].joints.kneeR![0]).toBe(60);
+    expect(m.animation!.keys[1].poses[s.figures[0].id].joints.rightLowerLeg![0]).toBe(60);
   });
 });
 
@@ -91,18 +91,18 @@ describe('animation in the store', () => {
     const store = new Store(new MemoryStorage());
     startAnimation(store);
     const id = store.scene.figures[0].id;
-    const knee0 = store.scene.figures[0].joints.kneeL?.[0] ?? 0;
+    const knee0 = store.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0;
     store.setTime(1);
     store.updateFigure(id, (f) => withKnee(f, 45));
     expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
     store.setTime(0);
-    expect(store.scene.figures[0].joints.kneeL?.[0] ?? 0).toBe(knee0);
+    expect(store.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0).toBe(knee0);
     store.setTime(1);
-    expect(store.scene.figures[0].joints.kneeL![0]).toBe(45);
+    expect(store.scene.figures[0].joints.leftLowerLeg![0]).toBe(45);
     // Undo removes the key and puts the figure back.
     store.undo();
     expect(store.scene.animation!.keys).toHaveLength(1);
-    expect(store.scene.figures[0].joints.kneeL?.[0] ?? 0).toBe(knee0);
+    expect(store.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0).toBe(knee0);
     addKeyframe(store);
     expect(store.scene.animation!.keys).toHaveLength(2);
   });
@@ -190,7 +190,7 @@ describe('animation templates', () => {
       for (const k of a.keys) {
         for (const p of Object.values(k.poses)) {
           for (const [j, r] of Object.entries(p.joints)) {
-            if (j === 'root') continue;
+            if (j === 'hips') continue;
             const lim = jointLimits(j as JointName);
             r!.forEach((v, i) => {
               expect(v, `${m.id} ${j}[${i}] at ${k.t}`).toBeGreaterThanOrEqual(lim[i][0] - 0.5);
@@ -212,7 +212,7 @@ describe('per-figure tracks', () => {
     return { store, a: a.id, b: b.id };
   }
   const keys = (store: Store, id: string) => store.scene.animation!.keys.filter((k) => k.poses[id]).map((k) => k.t);
-  const knee = (store: Store, id: string, t: number) => samplePose(store.scene.animation!, id, t)!.joints.kneeL?.[0] ?? 0;
+  const knee = (store: Store, id: string, t: number) => samplePose(store.scene.animation!, id, t)!.joints.leftLowerLeg?.[0] ?? 0;
   const bend = (store: Store, id: string, deg: number) => store.updateFigure(id, (f) => withKnee(f, deg));
 
   it('keys only the figure that was posed', () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals, type Highlight } from './ink';
-import { clampRotation, jointLimits, wrapDeg } from './joints';
+import { clampRotation, jointLimits, sided, wrapDeg, type LimbPart } from './joints';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
 } from './types';
@@ -10,18 +10,18 @@ const R2D = 180 / Math.PI;
 
 export type Chain = [JointName, JointName, JointName];
 
-export const IK_CHAINS: Record<'wristL' | 'wristR' | 'ankleL' | 'ankleR', Chain> = {
-  wristL: ['shoulderL', 'elbowL', 'wristL'],
-  wristR: ['shoulderR', 'elbowR', 'wristR'],
-  ankleL: ['hipL', 'kneeL', 'ankleL'],
-  ankleR: ['hipR', 'kneeR', 'ankleR'],
+export const IK_CHAINS: Record<'leftHand' | 'rightHand' | 'leftFoot' | 'rightFoot', Chain> = {
+  leftHand: ['leftUpperArm', 'leftLowerArm', 'leftHand'],
+  rightHand: ['rightUpperArm', 'rightLowerArm', 'rightHand'],
+  leftFoot: ['leftUpperLeg', 'leftLowerLeg', 'leftFoot'],
+  rightFoot: ['rightUpperLeg', 'rightLowerLeg', 'rightFoot'],
 };
 
-export const POLE_CHAINS: Record<'elbowL' | 'elbowR' | 'kneeL' | 'kneeR', Chain> = {
-  elbowL: IK_CHAINS.wristL,
-  elbowR: IK_CHAINS.wristR,
-  kneeL: IK_CHAINS.ankleL,
-  kneeR: IK_CHAINS.ankleR,
+export const POLE_CHAINS: Record<'leftLowerArm' | 'rightLowerArm' | 'leftLowerLeg' | 'rightLowerLeg', Chain> = {
+  leftLowerArm: IK_CHAINS.leftHand,
+  rightLowerArm: IK_CHAINS.rightHand,
+  leftLowerLeg: IK_CHAINS.leftFoot,
+  rightLowerLeg: IK_CHAINS.rightFoot,
 };
 
 /* ---------- world-space rotation helpers (also used by photo retargeting) ---------- */
@@ -237,7 +237,7 @@ export class Mannequin {
       const g = new THREE.Group();
       g.name = name;
       g.position.set(x, y, 0);
-      g.rotation.order = name === 'root' ? 'YXZ' : 'XZY';
+      g.rotation.order = name === 'hips' ? 'YXZ' : 'XZY';
       parent.add(g);
       this.joints[name] = g;
       return g;
@@ -248,14 +248,14 @@ export class Mannequin {
     };
     const ball = (r: number) => new THREE.SphereGeometry(r, 24, 16);
 
-    const root = joint('root', this.object, 0, 1);
+    const root = joint('hips', this.object, 0, 1);
     const pv = P.pelvis;
     const pelvis = egg(pv.rx, pv.ry, pv.rz, pv.taper);
     // Glutes: rounder and fuller on female figures.
     for (const s of [1, -1]) {
       bulge(pelvis, [s * 0.056 * P.torso, -0.035 * k, -pv.rz * 0.85], [0.07 * P.torso, 0.08 * k, 0.09 * P.torso], 0.026 * P.hips * P.torso);
     }
-    part('root', smoothNormals(pelvis), [0, -0.04 * k, 0], [meridian(pv.ry, pv.rz, pv.taper)]);
+    part('hips', smoothNormals(pelvis), [0, -0.04 * k, 0], [meridian(pv.ry, pv.rz, pv.taper)]);
 
     const spine = joint('spine', root, 0, 0.07 * k);
     const w = P.waist;
@@ -297,37 +297,37 @@ export class Mannequin {
     const mus = P.muscle;
     for (const side of ['L', 'R'] as const) {
       const s = side === 'L' ? 1 : -1;
-      const n = (base: string) => `${base}${side}` as JointName;
+      const n = (part: LimbPart) => sided(part, side);
 
-      const shoulder = joint(n('shoulder'), chest, P.shoulderX * s, 0.235 * k);
-      part(n('shoulder'), ball((0.054 + 0.01 * mus) * R)); // deltoid
+      const shoulder = joint(n('UpperArm'), chest, P.shoulderX * s, 0.235 * k);
+      part(n('UpperArm'), ball((0.054 + 0.01 * mus) * R)); // deltoid
       const upper = limb(0.27 * k, 0.047 * R, 0.036 * R, (0.004 + 0.007 * mus) * R, 0.35);
-      part(n('shoulder'), upper.geometry, undefined, [upper.ring(0.5)]);
+      part(n('UpperArm'), upper.geometry, undefined, [upper.ring(0.5)]);
 
-      const elbow = joint(n('elbow'), shoulder, 0, -0.28 * k);
-      part(n('elbow'), ball(0.042 * R));
+      const elbow = joint(n('LowerArm'), shoulder, 0, -0.28 * k);
+      part(n('LowerArm'), ball(0.042 * R));
       const fore = limb(0.23 * k, 0.038 * R, 0.026 * R, (0.005 + 0.006 * mus) * R, 0.22);
-      part(n('elbow'), fore.geometry, undefined, [fore.ring(0.5)]);
+      part(n('LowerArm'), fore.geometry, undefined, [fore.ring(0.5)]);
 
-      const wrist = joint(n('wrist'), elbow, 0, -0.245 * k);
-      part(n('wrist'), ball(0.029 * R));
-      this.hands[side] = this.standIn ? { segments: [], side: s } : this.buildHand(wrist, n('wrist'), s, k * P.extremity);
+      const wrist = joint(n('Hand'), elbow, 0, -0.245 * k);
+      part(n('Hand'), ball(0.029 * R));
+      this.hands[side] = this.standIn ? { segments: [], side: s } : this.buildHand(wrist, n('Hand'), s, k * P.extremity);
 
-      const hip = joint(n('hip'), root, P.hipX * s, -0.07 * k);
-      part(n('hip'), ball(0.08 * R));
+      const hip = joint(n('UpperLeg'), root, P.hipX * s, -0.07 * k);
+      part(n('UpperLeg'), ball(0.08 * R));
       // Fuller upper thighs on female figures, more taper on male ones.
       const thigh = limb(0.4 * P.legs, 0.085 * R * (0.92 + 0.12 * P.hips), 0.05 * R, (0.006 + 0.008 * P.hips) * R, 0.28);
-      part(n('hip'), thigh.geometry, undefined, [thigh.ring(0.45)]);
+      part(n('UpperLeg'), thigh.geometry, undefined, [thigh.ring(0.45)]);
 
-      const knee = joint(n('knee'), hip, 0, -0.43 * P.legs);
-      part(n('knee'), ball(0.057 * R));
+      const knee = joint(n('LowerLeg'), hip, 0, -0.43 * P.legs);
+      part(n('LowerLeg'), ball(0.057 * R));
       const shin = limb(0.37 * P.legs, 0.05 * R, 0.031 * R, (0.01 + 0.007 * mus) * R, 0.3); // calf
-      part(n('knee'), shin.geometry, undefined, [shin.ring(0.4)]);
+      part(n('LowerLeg'), shin.geometry, undefined, [shin.ring(0.4)]);
 
-      joint(n('ankle'), knee, 0, -0.4 * P.legs);
-      part(n('ankle'), ball(0.036 * R));
+      joint(n('Foot'), knee, 0, -0.4 * P.legs);
+      part(n('Foot'), ball(0.036 * R));
       const fk = k * P.extremity;
-      part(n('ankle'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
+      part(n('Foot'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
     }
     if (this.standIn) this.buildStandIn(P, { rx: hx, ry: hy, rz: hz, taper: ht });
   }
@@ -340,18 +340,18 @@ export class Mannequin {
       this.parts.add(this.joints[j], geo, { joint: j, figure: this.id }, pos, rings);
     const up = (len: number, r1: number, r2: number) => limb(len, r1, r2, 0, 0.35, 24).geometry.rotateZ(Math.PI);
     const torso = up(0.6 * k, 0.15 * P.torso, mix(0.17, 0.14, P.female) * P.torso).scale(1, 1, 0.68);
-    add('root', torso, [0, -0.12 * k, 0]);
+    add('hips', torso, [0, -0.12 * k, 0]);
     add('head', egg(head.rx, head.ry, head.rz, head.taper), [0, 0.1 * P.head, 0.01 * P.head], [meridian(head.ry, head.rz, head.taper)]);
     for (const side of ['L', 'R'] as const) {
-      add(`shoulder${side}`, limb(0.28 * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
-      add(`elbow${side}`, limb(0.34 * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
-      add(`hip${side}`, limb(0.43 * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
-      add(`knee${side}`, limb(0.4 * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
+      add(sided('UpperArm', side), limb(0.28 * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
+      add(sided('LowerArm', side), limb(0.34 * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
+      add(sided('UpperLeg', side), limb(0.43 * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
+      add(sided('LowerLeg', side), limb(0.4 * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
       // Round joints keep bent limbs smooth where the capsules meet.
-      add(`elbow${side}`, new THREE.SphereGeometry(0.044 * R, 20, 14));
-      add(`knee${side}`, new THREE.SphereGeometry(0.058 * R, 20, 14));
+      add(sided('LowerArm', side), new THREE.SphereGeometry(0.044 * R, 20, 14));
+      add(sided('LowerLeg', side), new THREE.SphereGeometry(0.058 * R, 20, 14));
       const fk = k * P.extremity;
-      add(`ankle${side}`, ellipsoid(0.045 * R, 0.035 * fk, 0.11 * fk), [0, -0.04 * k, 0.05 * fk]);
+      add(sided('Foot', side), ellipsoid(0.045 * R, 0.035 * fk, 0.11 * fk), [0, -0.04 * k, 0.05 * fk]);
     }
   }
 
@@ -471,7 +471,7 @@ export class Mannequin {
     this.setHand('L', fig.hands.L);
     this.setHand('R', fig.hands.R);
     this.grounded = fig.grounded;
-    this.joints.root.position.set(...fig.position);
+    this.joints.hips.position.set(...fig.position);
     this.ground();
   }
 
@@ -482,7 +482,7 @@ export class Mannequin {
       const v = stableEuler(this.joints[name].rotation, this.last[name] ?? [0, 0, 0]);
       if (v.some((a) => a !== 0)) joints[name] = v;
     }
-    const p = this.joints.root.position;
+    const p = this.joints.hips.position;
     const r = (x: number) => Math.round(x * 1000) / 1000 || 0;
     return { joints, position: [r(p.x), r(p.y), r(p.z)] };
   }
@@ -490,7 +490,7 @@ export class Mannequin {
   /** Clamp the given joints to their anatomical ranges. */
   constrain(names: readonly JointName[]) {
     for (const name of names) {
-      if (name === 'root') continue;
+      if (name === 'hips') continue;
       const obj = this.joints[name];
       const cur = stableEuler(obj.rotation, this.last[name] ?? [0, 0, 0]);
       const lim = jointLimits(name);
@@ -513,7 +513,7 @@ export class Mannequin {
   liftAboveFloor() {
     const min = this.lowest();
     if (min >= 0) return;
-    this.joints.root.position.y -= min;
+    this.joints.hips.position.y -= min;
     this.object.updateMatrixWorld(true);
   }
 
@@ -534,7 +534,7 @@ export class Mannequin {
       else this.liftAboveFloor();
       return;
     }
-    const root = this.joints.root;
+    const root = this.joints.hips;
     root.position.y = 1;
     this.object.updateMatrixWorld(true);
     let min = Infinity;
@@ -542,7 +542,7 @@ export class Mannequin {
     root.position.y -= min;
     if (this.surface) {
       // Standing on a box or a step: up onto the highest top under either foot.
-      const on = Math.max(...(['ankleL', 'ankleR'] as const).map((j) => {
+      const on = Math.max(...(['leftFoot', 'rightFoot'] as const).map((j) => {
         const p = this.joints[j].getWorldPosition(new THREE.Vector3());
         return this.surface!(p.x, p.z);
       }));
@@ -575,7 +575,7 @@ export class Mannequin {
 
     // Bend direction: where the elbow/knee currently points, biased by its natural direction
     // (elbows go back, knees go forward) so a straight limb still bends the right way.
-    const isLeg = chain[0].startsWith('hip');
+    const isLeg = chain[0].endsWith('UpperLeg');
     const natural = new THREE.Vector3(0, 0, isLeg ? 1 : -1).applyQuaternion(u.getWorldQuaternion(new THREE.Quaternion()));
     const pole = B.clone().sub(A).addScaledVector(natural, 0.02 * a);
     pole.addScaledVector(dir, -pole.dot(dir));

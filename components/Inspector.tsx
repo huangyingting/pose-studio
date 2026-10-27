@@ -167,7 +167,7 @@ function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
               />
             );
           })}
-          {joint === 'root' && <p className="hint-text">To move the whole figure drag its torso; to turn it, the ring on the floor.</p>}
+          {joint === 'hips' && <p className="hint-text">To move the whole figure drag its torso; to turn it, the ring on the floor.</p>}
         </div>
       </div>
     </Section>
@@ -249,7 +249,7 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
   const others = scene.figures.filter((f) => f.id !== figure.id);
   const [otherId, setOtherId] = useState(others[0]?.id ?? '');
   const [side, setSide] = useState<Side>('R');
-  const [contact, setContact] = useState<Contact>('shoulderL');
+  const [contact, setContact] = useState<Contact>('leftUpperArm');
   const watchable = others.filter((f) => !f.hidden);
   if (!others.length && !scene.props.length) return null;
   const other = others.find((f) => f.id === otherId) ?? others[0];

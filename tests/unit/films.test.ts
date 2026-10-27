@@ -141,7 +141,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     addFigure(store, [2.5, 0, 4]);
     const coach = store.getState().activeFigure!;
     name(store, coach, 'Coach');
-    store.updateFigure(coach, (f) => ({ ...f, joints: { ...f.joints, root: [0, -90, 0] } }));
+    store.updateFigure(coach, (f) => ({ ...f, joints: { ...f.joints, hips: [0, -90, 0] } }));
     setGaze(store, coach, { figure: jumper });
     light(store, 'noon');
     shoot(store, [1.5], ['tracking', 'static'], [jumper]);
@@ -152,7 +152,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     let top = 0;
     for (let t = 0; t <= store.scene.animation!.duration; t += 1 / 24) {
       sv.sync(sceneAt(store.scene, t));
-      const hips = sv.figures.get(jumper)!.joints.root.getWorldPosition(new THREE.Vector3());
+      const hips = sv.figures.get(jumper)!.joints.hips.getWorldPosition(new THREE.Vector3());
       if (Math.abs(hips.z - bar.position[2]) < 0.2) top = Math.max(top, hips.y);
     }
     sv.dispose();

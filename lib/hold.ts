@@ -60,7 +60,7 @@ export function released(prop: Prop, scene: Scene): Prop {
   if (!figure || !hold) return free;
   const rig = new Rig();
   try {
-    const wrist = rig.model(figure).joints[hold.hand === 'L' ? 'wristL' : 'wristR'];
+    const wrist = rig.model(figure).joints[hold.hand === 'L' ? 'leftHand' : 'rightHand'];
     wrist.updateWorldMatrix(true, false);
     const local = new THREE.Matrix4().compose(
       new THREE.Vector3(...prop.position),

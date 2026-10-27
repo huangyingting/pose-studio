@@ -46,7 +46,7 @@ export function audit(scene: Scene) {
     for (const f of s.figures) {
       const m = sv.figures.get(f.id)!;
       lowest = Math.min(lowest, m.lowest());
-      const root = m.joints.root.getWorldPosition(new THREE.Vector3());
+      const root = m.joints.hips.getWorldPosition(new THREE.Vector3());
       const prev = last.get(f.id);
       if (prev) rootStep = Math.max(rootStep, prev.distanceTo(root));
       last.set(f.id, root);

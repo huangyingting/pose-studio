@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clampRotation, wrapDeg } from './joints';
+import { clampRotation, sided, wrapDeg } from './joints';
 import { Rig } from './relations';
 import type { Animation, BodyParams, Figure, JointName, PoseKey, Travel, Vec3 } from './types';
 
@@ -78,10 +78,10 @@ export function legsOf(body: BodyParams): Legs {
       hands: { L: { curl: [0, 0, 0, 0, 0], spread: 0 }, R: { curl: [0, 0, 0, 0, 0], spread: 0 } },
     });
     const at = (j: JointName) => m.joints[j].getWorldPosition(m.joints[j].position.clone());
-    const root = at('root');
-    const hip = at('hipL');
-    const knee = at('kneeL');
-    const ankle = at('ankleL');
+    const root = at('hips');
+    const hip = at('leftUpperLeg');
+    const knee = at('leftLowerLeg');
+    const ankle = at('leftFoot');
     legs = {
       thigh: hip.distanceTo(knee),
       shin: knee.distanceTo(ankle),
@@ -107,11 +107,11 @@ function keyedFeet(body: BodyParams, pose: PoseKey) {
   const rig = new Rig();
   try {
     const m = rig.model({ id: 'feet', name: '', body, joints: pose.joints, position: pose.position, hands: pose.hands, grounded: pose.grounded });
-    const at = (j: 'ankleL' | 'ankleR') => {
+    const at = (j: 'leftFoot' | 'rightFoot') => {
       const p = m.joints[j].getWorldPosition(m.joints[j].position.clone());
       return [p.x, p.y, p.z] as [number, number, number];
     };
-    feet = { L: at('ankleL'), R: at('ankleR') };
+    feet = { L: at('leftFoot'), R: at('rightFoot') };
   } finally {
     rig.dispose();
   }
@@ -156,7 +156,7 @@ export function chainAt(a: Animation, id: string, t: number): Chain | null {
     start: track[s].pose,
     end: track[e].pose,
     path: (kind === 'jump' ? [keys[0], keys[keys.length - 1]] : keys).map((k) => [k.pose.position[0], k.pose.position[2]]),
-    yaws: (kind === 'jump' ? [keys[0], keys[keys.length - 1]] : keys).map((k) => k.pose.joints.root?.[1] ?? 0),
+    yaws: (kind === 'jump' ? [keys[0], keys[keys.length - 1]] : keys).map((k) => k.pose.joints.hips?.[1] ?? 0),
     inner: keys.length - 2,
   };
 }
@@ -274,7 +274,7 @@ interface Generated {
 /** Write a generated root and legs (and arm swing) into a pose. */
 function compose(pose: PoseKey, legs: Legs, g: Generated): PoseKey {
   const joints: Record<string, Vec3> = { ...(structuredClone(pose.joints) as Record<string, Vec3>) };
-  joints.root = [r1(wrapDeg(g.pitch)), r1(wrapDeg(g.yaw)), r1(g.roll)];
+  joints.hips = [r1(wrapDeg(g.pitch)), r1(wrapDeg(g.yaw)), r1(g.roll)];
   for (const side of ['L', 'R'] as const) {
     const s = side === 'L' ? 1 : -1;
     const foot = g.feet[side];
@@ -297,18 +297,18 @@ function compose(pose: PoseKey, legs: Legs, g: Generated): PoseKey {
         }
       }
       const ik = legAngles(legs, target, 'world' in foot ? g.pitch : 0);
-      joints[`hip${side}`] = ik.hip.map(r1) as Vec3;
-      joints[`knee${side}`] = [r1(ik.knee), 0, 0];
+      joints[sided('UpperLeg', side)] = ik.hip.map(r1) as Vec3;
+      joints[sided('LowerLeg', side)] = [r1(ik.knee), 0, 0];
       // Planted: level with the floor (or up on its toes). Swinging or in the air: the foot follows
       // the shin, toes down a little.
       const tiptoe = heel > 0 ? Math.asin(clamp(heel / legs.foot, 0, 1)) * R2D : 0;
       const ankle = 'world' in foot ? lerp(ik.ankle[0] + tiptoe, 12, foot.swing) : foot.point;
-      joints[`ankle${side}`] = [r1(clamp(ankle, -40, 60)), 0, r1('world' in foot ? ik.ankle[2] * (1 - foot.swing) : 0)];
+      joints[sided('Foot', side)] = [r1(clamp(ankle, -40, 60)), 0, r1('world' in foot ? ik.ankle[2] * (1 - foot.swing) : 0)];
     }
-    const sh = joints[`shoulder${side}`] ?? [0, 0, 0];
-    joints[`shoulder${side}`] = [r1(sh[0] + s * g.swing + g.raise), sh[1], sh[2]];
-    const el = joints[`elbow${side}`] ?? [0, 0, 0];
-    joints[`elbow${side}`] = [r1(el[0] + g.elbows), el[1], el[2]];
+    const sh = joints[sided('UpperArm', side)] ?? [0, 0, 0];
+    joints[sided('UpperArm', side)] = [r1(sh[0] + s * g.swing + g.raise), sh[1], sh[2]];
+    const el = joints[sided('LowerArm', side)] ?? [0, 0, 0];
+    joints[sided('LowerArm', side)] = [r1(el[0] + g.elbows), el[1], el[2]];
   }
   const clean = Object.fromEntries(Object.entries(joints).filter(([, v]) => v.some((x) => x !== 0))) as Figure['joints'];
   return { ...pose, joints: clean, position: g.position.map((v) => Math.round(v * 1000) / 1000) as Vec3, grounded: false };
@@ -360,8 +360,8 @@ function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
     ? clamp(1.15 * leg * Math.sqrt(v / (SPEED.run * scale)), 0.6 * leg, 2 * leg)
     : clamp(0.72 * leg * Math.sqrt(v / (SPEED.walk * scale)), 0.25 * leg, 1 * leg);
   const stance = run ? 0.38 : 0.62;
-  const startYaw = c.start.joints.root?.[1] ?? 0;
-  const endYaw = c.end.joints.root?.[1] ?? 0;
+  const startYaw = c.start.joints.hips?.[1] ?? 0;
+  const endYaw = c.end.joints.hips?.[1] ?? 0;
   const strafe = !!c.end.strafe;
   // Which way the body faces at a point of the path: along it, or (strafing) turning from each
   // mark's keyed facing to the next's over the way between them.
@@ -455,7 +455,7 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   // Facing: where it goes (turning from the start key, and to the end key's facing at the end),
   // or, strafing, the keyed facing all the way.
   const turn = Math.min(0.35, dur / 3);
-  const keyedYaw = pose.joints.root?.[1] ?? 0;
+  const keyedYaw = pose.joints.hips?.[1] ?? 0;
   const yaw = D < 0.05
     ? keyedYaw
     : plan.strafe
@@ -465,8 +465,8 @@ function gait(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   // Lean into the way it goes (forwards, or to the side or back when strafing).
   const heading = D > 0.05 ? yawOf(line.direction(s)) : yaw;
   const lean = (run ? 9 : 3) * w;
-  const pitch = (pose.joints.root?.[0] ?? 0) + lean * Math.cos((heading - yaw) * D2R);
-  const roll = (pose.joints.root?.[2] ?? 0) - lean * 0.6 * Math.sin((heading - yaw) * D2R);
+  const pitch = (pose.joints.hips?.[0] ?? 0) + lean * Math.cos((heading - yaw) * D2R);
+  const roll = (pose.joints.hips?.[2] ?? 0) - lean * 0.6 * Math.sin((heading - yaw) * D2R);
 
   const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
   // The level each foot stands on, or is stepping to (eased over the swing, without its lift).
@@ -558,10 +558,10 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   const y1 = gb + legs.rootY - soft;
   const vy = (y1 - y0) / flight + (GRAVITY * flight) / 2;
   const vLand = vy - GRAVITY * flight;
-  const startYaw = c.start.joints.root?.[1] ?? 0;
-  const endYaw = c.end.joints.root?.[1] ?? 0;
-  const startPitch = c.start.joints.root?.[0] ?? 0;
-  const endPitch = c.end.joints.root?.[0] ?? 0;
+  const startYaw = c.start.joints.hips?.[1] ?? 0;
+  const endYaw = c.end.joints.hips?.[1] ?? 0;
+  const startPitch = c.start.joints.hips?.[0] ?? 0;
+  const endPitch = c.end.joints.hips?.[0] ?? 0;
   const leg = legs.thigh + legs.shin;
   const apex = Math.max(0, (vy * vy) / (2 * GRAVITY));
   const crouch = Math.min(0.3 * leg, 0.1 + apex * 0.25);
@@ -574,7 +574,7 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
   let y: number;
   let yaw: number;
   let pitch: number;
-  let roll = pose.joints.root?.[2] ?? 0;
+  let roll = pose.joints.hips?.[2] ?? 0;
   // The arms: wound back in the crouch, swung up through the take-off (overhead at the top, or to
   // the keyed arms of a posed jump), brought down forward into the landing and relaxed. Each swing starts and ends at rest and
   // takes enough frames not to snap.
@@ -616,8 +616,8 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
     y = y0 + vy * ft - (GRAVITY * ft * ft) / 2;
     // Turns in the air: the keyed facing plus whole spins and flips, eased in and out.
     const turnU = smoother(u);
-    yaw = (posed ? (pose.joints.root?.[1] ?? 0) : lerpAngle(startYaw, endYaw, turnU)) + 360 * spin * turnU;
-    pitch = (posed ? (pose.joints.root?.[0] ?? 0) : lerp(startPitch, endPitch, turnU)) + 360 * flip * turnU;
+    yaw = (posed ? (pose.joints.hips?.[1] ?? 0) : lerpAngle(startYaw, endYaw, turnU)) + 360 * spin * turnU;
+    pitch = (posed ? (pose.joints.hips?.[0] ?? 0) : lerp(startPitch, endPitch, turnU)) + 360 * flip * turnU;
     if (!posed) {
       // Knees up at the top (tighter in a flip), legs reaching down again for the landing.
       const tuck = bump(u) * clamp(apex / 0.35, 0.35, 1) * (flip ? 1.25 : 1);
@@ -647,7 +647,7 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
     y = u < 0.4
       ? hermite01(y1, vLand * land * 0.4, y1 - crouch * 0.9, 0, u / 0.4)
       : hermite01(y1 - crouch * 0.9, 0, y1 + soft, 0, (u - 0.4) / 0.6);
-    roll = c.end.joints.root?.[2] ?? 0;
+    roll = c.end.joints.hips?.[2] ?? 0;
     planted('end', gb);
   }
   return compose(pose, legs, { position: [x, y, z], yaw, pitch, roll, feet, swing: 0, raise, elbows: raise < 0 ? 0.12 * raise : 0 });
@@ -659,7 +659,7 @@ function jump(c: Chain, legs: Legs, t: number, pose: PoseKey, ground: Ground, bo
 export function feetOf(rig: Rig, f: Figure, sides: ('L' | 'R')[] = ['L', 'R']) {
   const m = rig.model(f);
   return sides.map((side) => {
-    const j = m.joints[side === 'L' ? 'ankleL' : 'ankleR'];
+    const j = m.joints[side === 'L' ? 'leftFoot' : 'rightFoot'];
     return { side, p: j.getWorldPosition(new THREE.Vector3()), q: j.getWorldQuaternion(new THREE.Quaternion()) };
   });
 }
@@ -679,21 +679,21 @@ export function plantFeet(rig: Rig, pose: Figure, ref: Figure | ReturnType<typeo
     let m = rig.model(f);
     const joints = { ...f.joints };
     for (const w of want) {
-      const hip = m.joints[w.side === 'L' ? 'hipL' : 'hipR'];
+      const hip = m.joints[w.side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'];
       const frame = hip.parent!.getWorldQuaternion(new THREE.Quaternion()).invert();
       const t = w.p.clone().sub(hip.getWorldPosition(new THREE.Vector3())).applyQuaternion(frame);
       const ik = legAngles(legs, [t.x, t.y, t.z], 0);
-      joints[w.side === 'L' ? 'hipL' : 'hipR'] = [r1(ik.hip[0]), 0, r1(ik.hip[2])];
-      joints[w.side === 'L' ? 'kneeL' : 'kneeR'] = [r1(ik.knee), 0, 0];
+      joints[w.side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'] = [r1(ik.hip[0]), 0, r1(ik.hip[2])];
+      joints[w.side === 'L' ? 'leftLowerLeg' : 'rightLowerLeg'] = [r1(ik.knee), 0, 0];
     }
     m = rig.model({ ...f, joints });
     // The foot turned as wanted, from the shin it hangs on.
     for (const w of want) {
-      const ankle = m.joints[w.side === 'L' ? 'ankleL' : 'ankleR'];
+      const ankle = m.joints[w.side === 'L' ? 'leftFoot' : 'rightFoot'];
       const local = ankle.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(w.q);
       const e = new THREE.Euler().setFromQuaternion(local, 'XZY');
       // Within the ankle's range: past it (a deep squat) the heel lifts, as people's do.
-      const name = w.side === 'L' ? 'ankleL' : 'ankleR';
+      const name = w.side === 'L' ? 'leftFoot' : 'rightFoot';
       joints[name] = clampRotation(name, [r1(e.x * R2D), r1(e.y * R2D), r1(e.z * R2D)]);
     }
     f = { ...f, joints };

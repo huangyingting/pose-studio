@@ -28,11 +28,11 @@ export function poseScene(p: PoseAsset, body?: Figure['body']): Scene {
 
 /** A figure's pose (facing forward), to save in the library. */
 export function poseFromFigure(f: Figure, name: string, view: View = DEFAULT_VIEW): PoseAsset {
-  const r = f.joints.root ?? [0, 0, 0];
+  const r = f.joints.hips ?? [0, 0, 0];
   return {
     id: uid('pose'),
     name: name.trim().slice(0, 80) || 'My pose',
-    joints: { ...structuredClone(f.joints), root: [r[0], 0, r[2]] },
+    joints: { ...structuredClone(f.joints), hips: [r[0], 0, r[2]] },
     hands: { L: cloneHand(f.hands.L), R: cloneHand(f.hands.R) },
     view: { ...view },
   };

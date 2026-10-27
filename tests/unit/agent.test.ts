@@ -45,10 +45,10 @@ describe('assistant tools', () => {
     const store = new Store(new MemoryStorage());
     const scene = JSON.parse(run(store, 'get_scene'));
     const id = scene.figures[0].id;
-    expect(run(store, 'set_joints', { figure: scene.figures[0].name, joints: [{ joint: 'kneeL', x: -30, y: 0, z: 0 }, { joint: 'shoulderR', x: -90, y: 0, z: -10 }] }))
-      .toMatch(/Clamped to natural limits: kneeL/);
-    expect(store.figure!.joints.kneeL).toEqual([0, 0, 0]);
-    expect(store.figure!.joints.shoulderR).toEqual([-90, 0, -10]);
+    expect(run(store, 'set_joints', { figure: scene.figures[0].name, joints: [{ joint: 'leftLowerLeg', x: -30, y: 0, z: 0 }, { joint: 'rightUpperArm', x: -90, y: 0, z: -10 }] }))
+      .toMatch(/Clamped to natural limits: leftLowerLeg/);
+    expect(store.figure!.joints.leftLowerLeg).toEqual([0, 0, 0]);
+    expect(store.figure!.joints.rightUpperArm).toEqual([-90, 0, -10]);
 
     run(store, 'add_figure', { kind: 'figure', name: 'Ben', body: 'Male', posture: null, x: 1.5, z: null });
     run(store, 'relate', { figure: 'Ben', other: id, action: 'face_each_other', distance: null });
@@ -74,12 +74,12 @@ describe('assistant tools', () => {
     run(store, 'set_joints', {
       figure: id,
       joints: [
-        { joint: 'root', x: 30, y: 0, z: 0 }, { joint: 'spine', x: 15, y: 0, z: 0 }, { joint: 'hipR', x: -100, y: 0, z: 0 }, { joint: 'kneeR', x: 95, y: 0, z: 0 },
-        { joint: 'hipL', x: -10, y: 0, z: 0 }, { joint: 'kneeL', x: 100, y: 0, z: 0 },
+        { joint: 'hips', x: 30, y: 0, z: 0 }, { joint: 'spine', x: 15, y: 0, z: 0 }, { joint: 'rightUpperLeg', x: -100, y: 0, z: 0 }, { joint: 'rightLowerLeg', x: 95, y: 0, z: 0 },
+        { joint: 'leftUpperLeg', x: -10, y: 0, z: 0 }, { joint: 'leftLowerLeg', x: 100, y: 0, z: 0 },
       ],
     });
-    expect(run(store, 'reach', { figure: id, hand: 'right', other: id, target: 'kneeR' })).toMatch(/hand is on its own kneeR/);
-    expect(run(store, 'reach', { figure: id, hand: 'left', other: id, target: 'hipL' })).toMatch(/hand is on its own hipL/);
+    expect(run(store, 'reach', { figure: id, hand: 'right', other: id, target: 'rightLowerLeg' })).toMatch(/hand is on its own rightLowerLeg/);
+    expect(run(store, 'reach', { figure: id, hand: 'left', other: id, target: 'leftUpperLeg' })).toMatch(/hand is on its own leftUpperLeg/);
   });
 
   it('animate with keys at the playhead, then check the motion', () => {
@@ -87,7 +87,7 @@ describe('assistant tools', () => {
     const fig = store.figure!.id;
     run(store, 'animate', { duration: 2, loop: false });
     run(store, 'set_time', { seconds: 1 });
-    run(store, 'set_joints', { figure: fig, joints: [{ joint: 'shoulderL', x: -120, y: 0, z: 10 }] });
+    run(store, 'set_joints', { figure: fig, joints: [{ joint: 'leftUpperArm', x: -120, y: 0, z: 10 }] });
     expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
     run(store, 'camera_move', { move: 'orbit90' });
     expect(store.scene.animation!.camera!.keys.length).toBeGreaterThan(1);
@@ -97,7 +97,7 @@ describe('assistant tools', () => {
     // Staging moves the figure in every key; animate_move keys the new place at the playhead only.
     run(store, 'place_figure', { figure: fig, x: 1, z: null, facing: 90, animate_move: null });
     expect(store.scene.animation!.keys.map((k) => k.poses[fig].position[0])).toEqual([1, 1]);
-    expect(store.scene.animation!.keys.map((k) => k.poses[fig].joints.root![1])).toEqual([90, 90]);
+    expect(store.scene.animation!.keys.map((k) => k.poses[fig].joints.hips![1])).toEqual([90, 90]);
     run(store, 'place_figure', { figure: fig, x: 2, z: null, facing: null, animate_move: true });
     expect(store.scene.animation!.keys.map((k) => k.poses[fig].position[0])).toEqual([1, 2]);
   });

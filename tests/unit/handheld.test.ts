@@ -38,7 +38,7 @@ describe('props in the hand', () => {
     const sv = new SceneView();
     sv.sync(store.scene);
     const stick = sv.props.get(store.scene.props[0].id)!;
-    expect(stick.object.parent).toBe(sv.figures.get(store.figure!.id)!.joints.wristR);
+    expect(stick.object.parent).toBe(sv.figures.get(store.figure!.id)!.joints.rightHand);
     sv.dispose();
   });
 

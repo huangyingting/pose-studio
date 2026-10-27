@@ -276,7 +276,7 @@ export function samplePose(a: Animation, id: string, t: number): PoseKey | null 
       const inside = (x: number) => x >= lim[c][0] && x <= lim[c][1];
       // Within a joint's range the direct path is the anatomical one (an arm swings forward over
       // the top rather than back through the shoulder); the body turns, and the rest, take the short way.
-      const x = j !== 'root' && inside(p1) && inside(p2) ? num(p0, p1, p2, p3) : ang(p0, p1, p2, p3);
+      const x = j !== 'hips' && inside(p1) && inside(p2) ? num(p0, p1, p2, p3) : ang(p0, p1, p2, p3);
       return Math.round(x * 10) / 10 || 0;
     }) as Vec3;
     if (v.some((x) => x !== 0)) joints[j] = v;

@@ -3,7 +3,7 @@ import { RELAXED_HAND, cloneHand } from './hands';
 import { mapPoses, parseAnimation, remapAnimation } from './animation';
 import { parseBoard } from './board';
 import { uid } from './uid';
-import { mirrorJointName, wrapDeg } from './joints';
+import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { clampLight } from './lighting';
 import {
   FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
@@ -15,7 +15,7 @@ export { uid };
 export const DEFAULT_VIEW: View = { yaw: 0, pitch: 4, fov: 20 };
 
 export const NEUTRAL_JOINTS: Figure['joints'] = {
-  shoulderL: [0, 0, 10], shoulderR: [0, 0, -10], elbowL: [-8, 0, 0], elbowR: [-8, 0, 0], hipL: [0, 0, 3], hipR: [0, 0, -3],
+  leftUpperArm: [0, 0, 10], rightUpperArm: [0, 0, -10], leftLowerArm: [-8, 0, 0], rightLowerArm: [-8, 0, 0], leftUpperLeg: [0, 0, 3], rightUpperLeg: [0, 0, -3],
 };
 
 export function newFigure(partial: Partial<Figure> = {}): Figure {
@@ -33,20 +33,20 @@ export function newFigure(partial: Partial<Figure> = {}): Figure {
 
 /** Joint angles of each stand-in posture (the root's turn is kept). */
 export const POSTURE_JOINTS: Record<Posture, Figure['joints']> = {
-  stand: { shoulderL: [0, 0, 8], shoulderR: [0, 0, -8] },
+  stand: { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8] },
   sit: {
-    hipL: [-88, 0, 4], hipR: [-88, 0, -4], kneeL: [88, 0, 0], kneeR: [88, 0, 0],
-    shoulderL: [-22, 0, 8], shoulderR: [-22, 0, -8], elbowL: [-45, 0, 0], elbowR: [-45, 0, 0],
+    leftUpperLeg: [-88, 0, 4], rightUpperLeg: [-88, 0, -4], leftLowerLeg: [88, 0, 0], rightLowerLeg: [88, 0, 0],
+    leftUpperArm: [-22, 0, 8], rightUpperArm: [-22, 0, -8], leftLowerArm: [-45, 0, 0], rightLowerArm: [-45, 0, 0],
   },
-  lie: { root: [-90, 0, 0], shoulderL: [0, 0, 8], shoulderR: [0, 0, -8] },
+  lie: { hips: [-90, 0, 0], leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8] },
 };
 
 /** A capsule stand-in for blocking, in a posture. */
 export function withPosture(f: Figure, posture: Posture): Figure {
   const p = POSTURE_JOINTS[posture];
-  const yaw = f.joints.root?.[1] ?? 0;
-  const root = p.root ?? [0, 0, 0];
-  return { ...f, proxy: posture, joints: { ...structuredClone(p), ...(root[0] || yaw ? { root: [root[0], yaw, root[2]] } : {}) } };
+  const yaw = f.joints.hips?.[1] ?? 0;
+  const root = p.hips ?? [0, 0, 0];
+  return { ...f, proxy: posture, joints: { ...structuredClone(p), ...(root[0] || yaw ? { hips: [root[0], yaw, root[2]] } : {}) } };
 }
 
 export function newScene(name = 'New scene', figures: Figure[] = [newFigure()]): Scene {
@@ -137,14 +137,14 @@ export function mirrorScene(s: Scene): Scene {
 export function symmetrize(f: Figure, from: Side): Figure {
   const joints = { ...f.joints };
   for (const j of JOINTS) {
-    if (!j.endsWith(from)) continue;
+    if (sideOf(j) !== from) continue;
     const r = f.joints[j];
     const other = mirrorJointName(j);
     if (r) joints[other] = mirrorVec(r);
     else delete joints[other];
   }
   // Centre joints become symmetric too.
-  for (const j of ['root', 'spine', 'chest', 'neck', 'head'] as const) {
+  for (const j of ['hips', 'spine', 'chest', 'neck', 'head'] as const) {
     const r = f.joints[j];
     if (r) joints[j] = [r[0], 0, 0];
   }
@@ -161,7 +161,17 @@ const vec3 = (v: unknown, fallback: Vec3): Vec3 =>
 const str = (v: unknown, fallback: string) => (typeof v === 'string' && v.length <= 200 ? v : fallback);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/**
+ * One-time converter (remove in a later release): documents saved before the VRM bone names
+ * used the mannequin's own joint names.
+ */
+const OLD_JOINT_NAMES: Record<string, JointName> = {
+  root: 'hips', shoulderL: 'leftUpperArm', elbowL: 'leftLowerArm', wristL: 'leftHand', shoulderR: 'rightUpperArm', elbowR: 'rightLowerArm', wristR: 'rightHand',
+  hipL: 'leftUpperLeg', kneeL: 'leftLowerLeg', ankleL: 'leftFoot', hipR: 'rightUpperLeg', kneeR: 'rightLowerLeg', ankleR: 'rightFoot',
+};
+
 function parseJoints(v: unknown): Figure['joints'] {
+  if (isObj(v)) v = Object.fromEntries(Object.entries(v).map(([k, r]) => [OLD_JOINT_NAMES[k] ?? k, r]));
   const out: Figure['joints'] = {};
   if (!isObj(v)) return out;
   for (const j of JOINTS) if (v[j] !== undefined) out[j] = vec3(v[j], [0, 0, 0]).map(wrapDeg) as Vec3;

@@ -33,7 +33,7 @@ describe('library assets applied to the scene', () => {
     const posed = withPose(f, builtInPoses()[0]);
     expect(posed.position).toEqual([2, 0, 1]);
     expect(facing(posed)).toBe(90);
-    expect(posed.joints.shoulderR).toEqual(builtInPoses()[0].joints.shoulderR);
+    expect(posed.joints.rightUpperArm).toEqual(builtInPoses()[0].joints.rightUpperArm);
   });
 
   it('saves, applies and deletes my poses (one undo step each)', () => {
@@ -44,14 +44,14 @@ describe('library assets applied to the scene', () => {
     expect(allPoses(store.getState().library).at(-1)!.name).toBe('Leaning copy');
     applyPose(store, id, builtInPoses()[0].id);
     applyPose(store, id, mine.id);
-    expect(store.figure!.joints.kneeL).toEqual(builtInPoses()[3].joints.kneeL);
+    expect(store.figure!.joints.leftLowerLeg).toEqual(builtInPoses()[3].joints.leftLowerLeg);
     store.undo();
-    expect(store.figure!.joints.shoulderR).toEqual(builtInPoses()[0].joints.shoulderR);
+    expect(store.figure!.joints.rightUpperArm).toEqual(builtInPoses()[0].joints.rightUpperArm);
     deletePose(store, mine.id);
     expect(store.getState().library.poses).toBeUndefined();
     // Saved poses travel with the library file.
-    const lib = parseLibrary({ version: 2, scenes: [newScene()], poses: [{ ...mine, joints: { kneeL: [30, 0, 0], evil: [1, 2, 3] } }] });
-    expect(lib.poses![0].joints).toEqual({ kneeL: [30, 0, 0] });
+    const lib = parseLibrary({ version: 2, scenes: [newScene()], poses: [{ ...mine, joints: { leftLowerLeg: [30, 0, 0], evil: [1, 2, 3] } }] });
+    expect(lib.poses![0].joints).toEqual({ leftLowerLeg: [30, 0, 0] });
   });
 
   it('puts a motion on one figure\'s track, from where it stands and facing its way', () => {
@@ -65,7 +65,7 @@ describe('library assets applied to the scene', () => {
     expect(a.keys.filter((k) => k.poses[anna.id]).map((k) => k.t)).toEqual([0]);
     const first = samplePose(a, ben.id, 0)!;
     expect(first.position[0]).toBeCloseTo(2);
-    expect(first.joints.root![1]).toBeCloseTo(90 + (walk.figures[0].joints.root?.[1] ?? 0) - facing(walk.figures[0]), 0);
+    expect(first.joints.hips![1]).toBeCloseTo(90 + (walk.figures[0].joints.hips?.[1] ?? 0) - facing(walk.figures[0]), 0);
     // A loop ends where it began: one full cycle.
     expect(a.keys.at(-1)!.t).toBeCloseTo(a.duration);
   });

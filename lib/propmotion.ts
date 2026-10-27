@@ -60,7 +60,7 @@ export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: numbe
       const f = figureAt(figure, at);
       if (!f) wrists.set(key, null);
       else {
-        const j = rig!.model(f).joints[hand === 'L' ? 'wristL' : 'wristR'];
+        const j = rig!.model(f).joints[hand === 'L' ? 'leftHand' : 'rightHand'];
         j.updateWorldMatrix(true, false);
         wrists.set(key, j.matrixWorld.clone());
       }
@@ -168,7 +168,7 @@ export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: (fid:
     if (steady) {
       const f = figureAt(steady.figure, Math.max(0, at));
       if (!f) return null;
-      const j = rig!.model(f).joints[steady.hand === 'L' ? 'wristL' : 'wristR'];
+      const j = rig!.model(f).joints[steady.hand === 'L' ? 'leftHand' : 'rightHand'];
       j.updateWorldMatrix(true, false);
       return new THREE.Vector3(0, RIBBON.stick, 0).applyMatrix4(j.matrixWorld.clone().multiply(local));
     }
@@ -225,7 +225,7 @@ export function rimOf(hoop: Prop): Vec3 {
 export function handPosition(f: Figure, hand: Side, props?: Prop[]): Vec3 {
   rig ??= new Rig();
   rig.ground = props ? groundOf(props) : null;
-  const p = rig.model(f).joints[hand === 'L' ? 'wristL' : 'wristR'].getWorldPosition(new THREE.Vector3());
+  const p = rig.model(f).joints[hand === 'L' ? 'leftHand' : 'rightHand'].getWorldPosition(new THREE.Vector3());
   return [p.x, p.y, p.z];
 }
 
@@ -238,7 +238,7 @@ export function worldOfProp(scene: Scene, id: string, figureAt: (fid: string, at
   rig.ground = groundOf(scene.props);
   const f = figureAt(p.hold.figure, t);
   if (!f) return { position: p.position, rotation: p.rotation };
-  const j = rig.model(f).joints[p.hold.hand === 'L' ? 'wristL' : 'wristR'];
+  const j = rig.model(f).joints[p.hold.hand === 'L' ? 'leftHand' : 'rightHand'];
   j.updateWorldMatrix(true, false);
   return decompose(j.matrixWorld.clone().multiply(compose(p.position, p.rotation)));
 }

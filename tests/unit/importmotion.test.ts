@@ -38,7 +38,7 @@ describe('importing motions from other tools', () => {
       const start = pose(0);
       start.object.updateMatrixWorld(true);
       expect(start.lowest()).toBeCloseTo(0, 1);
-      expect(Math.abs(figure.joints.root?.[1] ?? 0)).toBeLessThan(5);
+      expect(Math.abs(figure.joints.hips?.[1] ?? 0)).toBeLessThan(5);
       // 40 cm of travel on a ~92 cm hip height lands near 0.4 m on the mannequin.
       const end = sceneAt(scene, a.duration).figures[0];
       expect(end.position[2]).toBeGreaterThan(0.3);
@@ -46,8 +46,8 @@ describe('importing motions from other tools', () => {
       expect(Math.abs(end.position[0])).toBeLessThan(0.02);
       // The left foot swung forward of the right.
       const m = pose(a.duration);
-      const z = (j: 'ankleL' | 'ankleR') => m.joints[j].getWorldPosition(new THREE.Vector3()).z;
-      expect(z('ankleL') - z('ankleR')).toBeGreaterThan(0.2);
+      const z = (j: 'leftFoot' | 'rightFoot') => m.joints[j].getWorldPosition(new THREE.Vector3()).z;
+      expect(z('leftFoot') - z('rightFoot')).toBeGreaterThan(0.2);
       model.dispose();
     });
   }

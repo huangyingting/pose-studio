@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BODY_PRESETS, DEFAULT_BODY } from './body';
 import { newFigure, newScene } from './doc';
+import { sided } from './joints';
 import { HAND_PRESETS, cloneHand } from './hands';
 import {
   Rig, backToBack, besides, contactPoint, faceEachOther, forward, headPoint, leftward, lookAt, reach, withFacing,
@@ -30,9 +31,9 @@ function person(name: string, b: BodyParams, x: number, z: number, yaw = 0, join
 
 /** Merge joint angles into a figure, keeping its facing. */
 function pose(f: Figure, joints: Figure['joints']): Figure {
-  const yaw = f.joints.root?.[1] ?? 0;
+  const yaw = f.joints.hips?.[1] ?? 0;
   const next = { ...f, joints: { ...f.joints, ...joints } };
-  return joints.root ? withFacing(next, yaw + joints.root[1]) : next;
+  return joints.hips ? withFacing(next, yaw + joints.hips[1]) : next;
 }
 
 function withHands(f: Figure, l: Hand, r: Hand = l): Figure {
@@ -83,9 +84,9 @@ export function waltzHold(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
   const [blx, blz] = leftward(b);
   a = reachTo(rig, a, 'R', blade.add(new THREE.Vector3(blx * 0.09, -0.03, blz * 0.09)));
   // Follower's left hand on the lead's right shoulder.
-  b = reachTo(rig, b, 'L', contactPoint(rig.model(a), a, 'shoulderR').add(new THREE.Vector3(0, -0.02, 0)));
+  b = reachTo(rig, b, 'L', contactPoint(rig.model(a), a, 'rightUpperArm').add(new THREE.Vector3(0, -0.02, 0)));
   // Joined hands out to the lead's left, at eye level.
-  const joined = local(rig, a, 'shoulderL', [0.3, 0.02, 0.16]);
+  const joined = local(rig, a, 'leftUpperArm', [0.3, 0.02, 0.16]);
   a = reachTo(rig, a, 'L', joined.clone().add(new THREE.Vector3(0, 0, -0.02)));
   b = reachTo(rig, b, 'R', joined.clone().add(new THREE.Vector3(0, 0, 0.02)));
   a = withHands(a, hand('Grip'), hand('Flat'));
@@ -96,7 +97,7 @@ export function waltzHold(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
   return [a, b];
 }
 
-const RELAXED_ARMS: Figure['joints'] = { shoulderL: [0, 0, 8], shoulderR: [0, 0, -8], elbowL: [-10, 0, 0], elbowR: [-10, 0, 0] };
+const RELAXED_ARMS: Figure['joints'] = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
 
 export const TEMPLATES: Template[] = [
   {
@@ -105,13 +106,13 @@ export const TEMPLATES: Template[] = [
     people: 2,
     build: () => withRig((rig) => {
       let a = person('Anna', body('Female'), -0.55, 0, 0, {
-        hipL: [0, 0, 5], hipR: [-4, 0, -7], kneeR: [10, 0, 0],
-        shoulderL: [0, 0, 8], elbowL: [-12, 0, 0],
-        shoulderR: [-38, 10, -14], elbowR: [-78, 0, 0], wristR: [-20, 0, 10],
+        leftUpperLeg: [0, 0, 5], rightUpperLeg: [-4, 0, -7], rightLowerLeg: [10, 0, 0],
+        leftUpperArm: [0, 0, 8], leftLowerArm: [-12, 0, 0],
+        rightUpperArm: [-38, 10, -14], rightLowerArm: [-78, 0, 0], rightHand: [-20, 0, 10],
       });
       let b = person('Ben', body('Male'), 0.55, 0, 0, {
-        hipL: [-3, 0, 6], kneeL: [8, 0, 0], hipR: [0, 0, -4],
-        shoulderL: [8, -20, 40], elbowL: [-105, 0, 0], shoulderR: [0, 0, -8], elbowR: [-12, 0, 0],
+        leftUpperLeg: [-3, 0, 6], leftLowerLeg: [8, 0, 0], rightUpperLeg: [0, 0, -4],
+        leftUpperArm: [8, -20, 40], leftLowerArm: [-105, 0, 0], rightUpperArm: [0, 0, -8], rightLowerArm: [-12, 0, 0],
       });
       [a, b] = faceEachOther(a, b);
       a = withHands(a, hand('Relaxed'), hand('Open'));
@@ -142,11 +143,11 @@ export const TEMPLATES: Template[] = [
     people: 2,
     build: () => withRig((rig) => {
       const b = person('Ben', body('Athletic'), 0.3, 0, -8, {
-        shoulderL: [6, -25, 38], elbowL: [-100, 0, 0], shoulderR: [0, 0, -10], elbowR: [-15, 0, 0], hipL: [0, 0, 6], hipR: [-3, 0, -3],
+        leftUpperArm: [6, -25, 38], leftLowerArm: [-100, 0, 0], rightUpperArm: [0, 0, -10], rightLowerArm: [-15, 0, 0], leftUpperLeg: [0, 0, 6], rightUpperLeg: [-3, 0, -3],
       });
       let a = besides(person('Anna', body('Female'), 0, 0, 0, RELAXED_ARMS), b, 'R', 0.58);
-      a = pose(a, { root: [0, 8, 0], hipR: [-3, 0, -6], kneeR: [6, 0, 0] });
-      a = reachTo(rig, a, 'L', contactPoint(rig.model(b), b, 'shoulderR'));
+      a = pose(a, { hips: [0, 8, 0], rightUpperLeg: [-3, 0, -6], rightLowerLeg: [6, 0, 0] });
+      a = reachTo(rig, a, 'L', contactPoint(rig.model(b), b, 'rightUpperArm'));
       a = withHands(a, hand('Relaxed'));
       return scene('Hand on shoulder', [a, b], { yaw: 0, pitch: 5, fov: 22 });
     }),
@@ -157,13 +158,13 @@ export const TEMPLATES: Template[] = [
     people: 2,
     build: () => withRig((rig) => {
       const stride = (lead: Side): Figure['joints'] => {
-        const [f, r] = lead === 'L' ? ['L', 'R'] : ['R', 'L'];
+        const [f, r]: [Side, Side] = lead === 'L' ? ['L', 'R'] : ['R', 'L'];
         const s = (side: string) => (side === 'L' ? 1 : -1);
         return {
-          [`hip${f}`]: [-20, 0, 2 * s(f)], [`knee${f}`]: [8, 0, 0], [`ankle${f}`]: [-8, 0, 0],
-          [`hip${r}`]: [16, 0, -2 * s(f)], [`knee${r}`]: [26, 0, 0], [`ankle${r}`]: [14, 0, 0],
-          [`shoulder${f}`]: [16, 0, 8 * s(f)], [`elbow${f}`]: [-12, 0, 0],
-          [`shoulder${r}`]: [-18, 0, 8 * s(r)], [`elbow${r}`]: [-22, 0, 0],
+          [sided('UpperLeg', f)]: [-20, 0, 2 * s(f)], [sided('LowerLeg', f)]: [8, 0, 0], [sided('Foot', f)]: [-8, 0, 0],
+          [sided('UpperLeg', r)]: [16, 0, -2 * s(f)], [sided('LowerLeg', r)]: [26, 0, 0], [sided('Foot', r)]: [14, 0, 0],
+          [sided('UpperArm', f)]: [16, 0, 8 * s(f)], [sided('LowerArm', f)]: [-12, 0, 0],
+          [sided('UpperArm', r)]: [-18, 0, 8 * s(r)], [sided('LowerArm', r)]: [-22, 0, 0],
           spine: [4, 0, 0],
         } as Figure['joints'];
       };
@@ -194,11 +195,11 @@ export const TEMPLATES: Template[] = [
     people: 2,
     build: () => withRig((rig) => {
       const folded = (f: Figure) => {
-        let g = reachTo(rig, f, 'L', local(rig, f, 'elbowR', [0.02, 0.02, 0.1]));
-        g = reachTo(rig, g, 'R', local(rig, g, 'elbowL', [-0.02, -0.03, 0.12]));
+        let g = reachTo(rig, f, 'L', local(rig, f, 'rightLowerArm', [0.02, 0.02, 0.1]));
+        g = reachTo(rig, g, 'R', local(rig, g, 'leftLowerArm', [-0.02, -0.03, 0.12]));
         return g;
       };
-      let a = person('Anna', body('Female'), 0, 0.15, 0, { ...RELAXED_ARMS, hipL: [0, 0, 6], hipR: [-2, 0, -4] });
+      let a = person('Anna', body('Female'), 0, 0.15, 0, { ...RELAXED_ARMS, leftUpperLeg: [0, 0, 6], rightUpperLeg: [-2, 0, -4] });
       let b = backToBack(person('Ben', body('Heroic'), 0, 0, 0, RELAXED_ARMS), a, 0.32);
       a = folded(a);
       b = folded(b);
@@ -213,9 +214,9 @@ export const TEMPLATES: Template[] = [
     people: 2,
     build: () => withRig((rig) => {
       const stance: Figure['joints'] = {
-        root: [6, 25, 0], spine: [6, -12, 0], chest: [4, -10, 0],
-        hipL: [-26, 0, 8], kneeL: [26, 0, 0], ankleL: [-6, 0, 0],
-        hipR: [16, 0, -12], kneeR: [24, 0, 0], ankleR: [6, 0, 0],
+        hips: [6, 25, 0], spine: [6, -12, 0], chest: [4, -10, 0],
+        leftUpperLeg: [-26, 0, 8], leftLowerLeg: [26, 0, 0], leftFoot: [-6, 0, 0],
+        rightUpperLeg: [16, 0, -12], rightLowerLeg: [24, 0, 0], rightFoot: [6, 0, 0],
       };
       let a = person('Ben', body('Athletic'), -0.62, 0, 0, RELAXED_ARMS);
       let b = person('Kai', body('Male'), 0.62, 0, 0, RELAXED_ARMS);
@@ -239,17 +240,17 @@ export const TEMPLATES: Template[] = [
     build: () => withRig((rig) => {
       let mid = person('Mia', body('Female'), 0, 0, 0, RELAXED_ARMS);
       let left = besides(person('Ben', body('Male'), 0, 0, 0, {
-        shoulderL: [0, 0, 8], elbowL: [-12, 0, 0], shoulderR: [6, 20, -40], elbowR: [-100, 0, 0], hipL: [-2, 0, 5],
+        leftUpperArm: [0, 0, 8], leftLowerArm: [-12, 0, 0], rightUpperArm: [6, 20, -40], rightLowerArm: [-100, 0, 0], leftUpperLeg: [-2, 0, 5],
       }), mid, 'R', 0.47);
       let right = besides(person('Ava', body('Slender'), 0, 0, 0, {
-        shoulderR: [0, 0, -8], elbowR: [-12, 0, 0], shoulderL: [-10, 0, 150], elbowL: [-60, 0, 0], hipR: [-3, 0, -6], kneeR: [8, 0, 0],
+        rightUpperArm: [0, 0, -8], rightLowerArm: [-12, 0, 0], leftUpperArm: [-10, 0, 150], leftLowerArm: [-60, 0, 0], rightUpperLeg: [-3, 0, -6], rightLowerLeg: [8, 0, 0],
       }), mid, 'L', 0.45);
       left = withFacing(left, 10);
       right = withFacing(right, -10);
       right = withHands(right, hand('Relaxed'), hand('Open'));
       // Arms around the neighbours: hands on the far side of their near shoulders.
-      mid = reachTo(rig, mid, 'L', local(rig, right, 'shoulderR', [0.05, 0.05, -0.04]));
-      mid = reachTo(rig, mid, 'R', local(rig, left, 'shoulderL', [-0.05, 0.05, -0.04]));
+      mid = reachTo(rig, mid, 'L', local(rig, right, 'rightUpperArm', [0.05, 0.05, -0.04]));
+      mid = reachTo(rig, mid, 'R', local(rig, left, 'leftUpperArm', [-0.05, 0.05, -0.04]));
       return scene('Group photo', [left, mid, right], { yaw: 0, pitch: 5, fov: 26 });
     }),
   },

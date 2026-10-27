@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_BODY } from '@/lib/body';
 import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
+import { sided } from '@/lib/joints';
 import { Mannequin, worldPos } from '@/lib/mannequin';
 import { builtInPoses, poseScene } from '@/lib/poses';
 
@@ -21,25 +22,24 @@ function landmarksFrom(m: Mannequin) {
   set(LM.earL, at('head', [0.085, 0.1, 0]));
   set(LM.earR, at('head', [-0.085, 0.1, 0]));
   for (const s of ['L', 'R'] as const) {
-    const n = (b: string) => `${b}${s}` as JointName;
-    set(LM[`shoulder${s}`], at(n('shoulder')));
-    set(LM[`elbow${s}`], at(n('elbow')));
-    set(LM[`wrist${s}`], at(n('wrist')));
-    set(LM[`index${s}`], at(n('wrist'), [0, -0.15, 0.03]));
-    set(LM[`pinky${s}`], at(n('wrist'), [0, -0.13, -0.03]));
-    set(LM[`hip${s}`], at(n('hip')));
-    set(LM[`knee${s}`], at(n('knee')));
-    set(LM[`ankle${s}`], at(n('ankle')));
-    set(LM[`heel${s}`], at(n('ankle'), [0, -0.06, -0.04]));
-    set(LM[`toe${s}`], at(n('ankle'), [0, -0.06, 0.16]));
+    set(LM[`shoulder${s}`], at(sided('UpperArm', s)));
+    set(LM[`elbow${s}`], at(sided('LowerArm', s)));
+    set(LM[`wrist${s}`], at(sided('Hand', s)));
+    set(LM[`index${s}`], at(sided('Hand', s), [0, -0.15, 0.03]));
+    set(LM[`pinky${s}`], at(sided('Hand', s), [0, -0.13, -0.03]));
+    set(LM[`hip${s}`], at(sided('UpperLeg', s)));
+    set(LM[`knee${s}`], at(sided('LowerLeg', s)));
+    set(LM[`ankle${s}`], at(sided('Foot', s)));
+    set(LM[`heel${s}`], at(sided('Foot', s), [0, -0.06, -0.04]));
+    set(LM[`toe${s}`], at(sided('Foot', s), [0, -0.06, 0.16]));
   }
   // Into MediaPipe's frame: x right, y down, z away from the camera.
   return pts.map((p) => ({ x: p.x, y: -p.y, z: -p.z, visibility: 1 }));
 }
 
 const BONES: [JointName, JointName][] = [
-  ['shoulderL', 'elbowL'], ['elbowL', 'wristL'], ['shoulderR', 'elbowR'], ['elbowR', 'wristR'],
-  ['hipL', 'kneeL'], ['kneeL', 'ankleL'], ['hipR', 'kneeR'], ['kneeR', 'ankleR'],
+  ['leftUpperArm', 'leftLowerArm'], ['leftLowerArm', 'leftHand'], ['rightUpperArm', 'rightLowerArm'], ['rightLowerArm', 'rightHand'],
+  ['leftUpperLeg', 'leftLowerLeg'], ['leftLowerLeg', 'leftFoot'], ['rightUpperLeg', 'rightLowerLeg'], ['rightLowerLeg', 'rightFoot'],
 ];
 
 describe('retarget', () => {
@@ -65,7 +65,7 @@ describe('retarget', () => {
     const target = new Mannequin(new Ink(), DEFAULT_BODY);
     source.apply(refScenes()[12].figures[0]); // deep squat
     const { joints } = retarget(target, fromMediaPipe(landmarksFrom(source)));
-    for (const j of ['elbowL', 'elbowR', 'kneeL', 'kneeR'] as const) {
+    for (const j of ['leftLowerArm', 'rightLowerArm', 'leftLowerLeg', 'rightLowerLeg'] as const) {
       const r = joints[j] ?? [0, 0, 0];
       expect(Math.abs(r[1]) + Math.abs(r[2]), j).toBeLessThan(0.5);
     }

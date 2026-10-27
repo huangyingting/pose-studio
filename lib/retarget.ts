@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sideOf } from './joints';
 import { Mannequin, rotateToward, rotateWorld, setWorldQuaternion, worldPos } from './mannequin';
 import { JOINTS, type Figure, type JointName } from './types';
 
@@ -48,7 +49,7 @@ const VISIBLE = 0.35;
  */
 export function retarget(m: Mannequin, lm: Landmark3D[]): { joints: Figure['joints']; skipped: string[] } {
   for (const j of JOINTS) m.joints[j].rotation.set(0, 0, 0);
-  m.joints.root.position.set(0, 1, 0);
+  m.joints.hips.position.set(0, 1, 0);
   m.object.updateMatrixWorld(true);
   const skipped: string[] = [];
   const P = (i: number) => lm[i].p.clone();
@@ -57,7 +58,7 @@ export function retarget(m: Mannequin, lm: Landmark3D[]): { joints: Figure['join
 
   // Torso: pelvis from the hip line, chest from the shoulder line, both sharing the spine "up".
   const up = mid(LM.shoulderL, LM.shoulderR).sub(mid(LM.hipL, LM.hipR));
-  setWorldQuaternion(m.joints.root, basis(P(LM.hipL).sub(P(LM.hipR)), up));
+  setWorldQuaternion(m.joints.hips, basis(P(LM.hipL).sub(P(LM.hipR)), up));
   splitBetween(m.joints.spine, m.joints.chest, basis(P(LM.shoulderL).sub(P(LM.shoulderR)), up));
 
   // Head: up from the shoulders to the ears, forward towards the nose.
@@ -75,7 +76,7 @@ export function retarget(m: Mannequin, lm: Landmark3D[]): { joints: Figure['join
 
   const limb = (upper: JointName, middle: JointName, a: number, b: number, c: number, isLeg: boolean) => {
     if (!seen(a, b, c)) {
-      skipped.push(upper.replace(/^(shoulder|hip)/, isLeg ? 'leg ' : 'arm ').replace(/L$/, '(left)').replace(/R$/, '(right)'));
+      skipped.push(`${isLeg ? 'leg' : 'arm'} (${sideOf(upper) === 'L' ? 'left' : 'right'})`);
       return false;
     }
     const u = m.joints[upper];
@@ -96,20 +97,20 @@ export function retarget(m: Mannequin, lm: Landmark3D[]): { joints: Figure['join
     return true;
   };
 
-  if (limb('shoulderL', 'elbowL', LM.shoulderL, LM.elbowL, LM.wristL, false) && seen(LM.indexL, LM.pinkyL)) {
-    const w = m.joints.wristL;
+  if (limb('leftUpperArm', 'leftLowerArm', LM.shoulderL, LM.elbowL, LM.wristL, false) && seen(LM.indexL, LM.pinkyL)) {
+    const w = m.joints.leftHand;
     rotateToward(w, new THREE.Vector3(0, -1, 0).applyQuaternion(w.getWorldQuaternion(new THREE.Quaternion())), mid(LM.indexL, LM.pinkyL).sub(P(LM.wristL)));
   }
-  if (limb('shoulderR', 'elbowR', LM.shoulderR, LM.elbowR, LM.wristR, false) && seen(LM.indexR, LM.pinkyR)) {
-    const w = m.joints.wristR;
+  if (limb('rightUpperArm', 'rightLowerArm', LM.shoulderR, LM.elbowR, LM.wristR, false) && seen(LM.indexR, LM.pinkyR)) {
+    const w = m.joints.rightHand;
     rotateToward(w, new THREE.Vector3(0, -1, 0).applyQuaternion(w.getWorldQuaternion(new THREE.Quaternion())), mid(LM.indexR, LM.pinkyR).sub(P(LM.wristR)));
   }
-  if (limb('hipL', 'kneeL', LM.hipL, LM.kneeL, LM.ankleL, true) && seen(LM.heelL, LM.toeL)) {
-    const a = m.joints.ankleL;
+  if (limb('leftUpperLeg', 'leftLowerLeg', LM.hipL, LM.kneeL, LM.ankleL, true) && seen(LM.heelL, LM.toeL)) {
+    const a = m.joints.leftFoot;
     rotateToward(a, new THREE.Vector3(0, 0, 1).applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion())), P(LM.toeL).sub(P(LM.heelL)));
   }
-  if (limb('hipR', 'kneeR', LM.hipR, LM.kneeR, LM.ankleR, true) && seen(LM.heelR, LM.toeR)) {
-    const a = m.joints.ankleR;
+  if (limb('rightUpperLeg', 'rightLowerLeg', LM.hipR, LM.kneeR, LM.ankleR, true) && seen(LM.heelR, LM.toeR)) {
+    const a = m.joints.rightFoot;
     rotateToward(a, new THREE.Vector3(0, 0, 1).applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion())), P(LM.toeR).sub(P(LM.heelR)));
   }
 

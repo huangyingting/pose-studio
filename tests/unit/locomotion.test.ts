@@ -30,8 +30,8 @@ function track(scene: Scene, id: string) {
   const frames = frameTimes(scene.animation!).map((t) => {
     sv.sync(sceneAt(scene, t));
     const m = sv.figures.get(id)!;
-    const at = (j: 'ankleL' | 'ankleR' | 'root') => m.joints[j].getWorldPosition(new THREE.Vector3());
-    return { t, L: at('ankleL'), R: at('ankleR'), root: at('root'), low: m.lowest(), yaw: sceneAt(scene, t).figures.find((f) => f.id === id)!.joints.root?.[1] ?? 0 };
+    const at = (j: 'leftFoot' | 'rightFoot' | 'hips') => m.joints[j].getWorldPosition(new THREE.Vector3());
+    return { t, L: at('leftFoot'), R: at('rightFoot'), root: at('hips'), low: m.lowest(), yaw: sceneAt(scene, t).figures.find((f) => f.id === id)!.joints.hips?.[1] ?? 0 };
   });
   sv.dispose();
   return frames;
@@ -118,12 +118,12 @@ describe('walking, running and jumping from mark to mark', () => {
     const keys = store.scene.animation!.keys.map((k) => k.t);
     setTravel(store, id, keys.at(-1)!, 'jump', { spin: 1 });
     const half = (keys[0] + keys.at(-1)!) / 2;
-    const yaw = sceneAt(store.scene, half).figures[0].joints.root?.[1] ?? 0;
+    const yaw = sceneAt(store.scene, half).figures[0].joints.hips?.[1] ?? 0;
     expect(Math.abs(yaw)).toBeGreaterThan(120);
   });
 
   it('generates smooth motion: no joint snaps, even sampled ten times finer than the frame rate', () => {
-    const legs = ['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'root'] as const;
+    const legs = ['leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot', 'hips'] as const;
     for (const id of ['walk', 'run', 'jump']) {
       const scene = buildMotion(id)!;
       let worst = 0;

@@ -13,6 +13,11 @@ describe('parseLibrary', () => {
     expect(parseLibrary(JSON.parse(JSON.stringify(lib)))).toEqual(lib);
   });
 
+  it('reads documents saved with the old joint names (one-time converter)', () => {
+    const s = parseScene({ figures: [{ joints: { root: [10, 20, 0], shoulderL: [0, 0, 30], kneeR: [45, 0, 0] } }] });
+    expect(s.figures[0].joints).toEqual({ hips: [10, 20, 0], leftUpperArm: [0, 0, 30], rightLowerLeg: [45, 0, 0] });
+  });
+
   it('accepts only library files', () => {
     expect(() => parseLibrary(refScenes()[3])).toThrow('Not a Pose Studio library');
     expect(() => parseLibrary({ scenes: [] })).toThrow('no scenes');
@@ -28,7 +33,7 @@ describe('parseLibrary', () => {
     const s = parseScene({
       name: 'x'.repeat(500),
       figures: [{
-        joints: { hipL: [Number.NaN, 400, 'a'], bogus: [1, 2, 3] },
+        joints: { leftUpperLeg: [Number.NaN, 400, 'a'], bogus: [1, 2, 3] },
         body: { height: 99, sex: -3 },
         hands: { L: { curl: [2, -1, 0.5], spread: 7 } },
       }],
@@ -36,7 +41,7 @@ describe('parseLibrary', () => {
       view: { yaw: 900, pitch: 200, fov: 0 },
     });
     const f = s.figures[0];
-    expect(f.joints).toEqual({ hipL: [0, 40, 0] });
+    expect(f.joints).toEqual({ leftUpperLeg: [0, 40, 0] });
     expect(f.body.height).toBe(2.2);
     expect(f.body.sex).toBe(0);
     expect(f.hands.L.curl.slice(0, 3)).toEqual([1, 0, 0.5]);
@@ -61,16 +66,16 @@ describe('pose operations', () => {
   });
 
   it('mirroring swaps sides and negates twist/spread', () => {
-    const f = newFigure({ joints: { shoulderL: [-10, 90, 150] } });
+    const f = newFigure({ joints: { leftUpperArm: [-10, 90, 150] } });
     const m = mirrorFigure(f);
-    expect(m.joints.shoulderR).toEqual([-10, -90, -150]);
-    expect(m.joints.shoulderL).toBeUndefined();
+    expect(m.joints.rightUpperArm).toEqual([-10, -90, -150]);
+    expect(m.joints.leftUpperArm).toBeUndefined();
   });
 
   it('symmetrize copies one side onto the other', () => {
-    const f = newFigure({ joints: { hipL: [-40, 10, 20], hipR: [5, 0, 0], chest: [10, 20, 5] } });
+    const f = newFigure({ joints: { leftUpperLeg: [-40, 10, 20], rightUpperLeg: [5, 0, 0], chest: [10, 20, 5] } });
     const s = symmetrize(f, 'L');
-    expect(s.joints.hipR).toEqual([-40, -10, -20]);
+    expect(s.joints.rightUpperLeg).toEqual([-40, -10, -20]);
     expect(s.joints.chest).toEqual([10, 0, 0]);
   });
 

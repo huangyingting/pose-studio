@@ -49,11 +49,11 @@ describe('posing against another figure', () => {
     const rig = new Rig();
     const a = at(-0.3, 0);
     const b = at(0.3, 0);
-    const target = contactPoint(rig.model(b), b, 'shoulderR');
+    const target = contactPoint(rig.model(b), b, 'rightUpperArm');
     const res = reach(rig, a, 'L', target);
     expect(res.reached).toBe(true);
     const m = rig.model({ ...a, joints: res.joints });
-    const palm = m.joints.wristL.localToWorld(new THREE.Vector3(0, -0.06 * (a.body.height / 1.8), 0));
+    const palm = m.joints.leftHand.localToWorld(new THREE.Vector3(0, -0.06 * (a.body.height / 1.8), 0));
     expect(palm.distanceTo(target)).toBeLessThan(0.05);
     rig.dispose();
   });
@@ -104,7 +104,7 @@ describe('multi-person templates', () => {
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
       for (const f of s.figures) {
         for (const [j, r] of Object.entries(f.joints)) {
-          if (j === 'root') continue;
+          if (j === 'hips') continue;
           const lim = jointLimits(j as never);
           r!.forEach((v, i) => {
             expect(v, `${t.id} ${f.name} ${j}[${i}]`).toBeGreaterThanOrEqual(lim[i][0] - 0.5);
@@ -121,8 +121,8 @@ describe('multi-person templates', () => {
     const s = buildTemplate('handshake')!;
     const rig = new Rig();
     const [a, b] = s.figures;
-    const pa = contactPoint(rig.model(a), a, 'wristR');
-    const pb = contactPoint(rig.model(b), b, 'wristR');
+    const pa = contactPoint(rig.model(a), a, 'rightHand');
+    const pb = contactPoint(rig.model(b), b, 'rightHand');
     expect(pa.distanceTo(pb)).toBeLessThan(0.1);
     rig.dispose();
   });
@@ -132,8 +132,8 @@ describe('multi-person templates', () => {
     const s = buildTemplate('shoulder')!;
     const rig = new Rig();
     const [a, b] = s.figures;
-    const palm = contactPoint(rig.model(a), a, 'wristL');
-    expect(palm.distanceTo(contactPoint(rig.model(b), b, 'shoulderR'))).toBeLessThan(0.06);
+    const palm = contactPoint(rig.model(a), a, 'leftHand');
+    expect(palm.distanceTo(contactPoint(rig.model(b), b, 'rightUpperArm'))).toBeLessThan(0.06);
     rig.dispose();
   });
 });

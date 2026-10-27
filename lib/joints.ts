@@ -1,4 +1,16 @@
-import type { JointName, Vec3 } from './types';
+import type { JointName, Side, Vec3 } from './types';
+
+/** The parts of a limb, as in VRM bone names (`leftUpperArm`, `rightFoot`, …). */
+export type LimbPart = 'UpperArm' | 'LowerArm' | 'Hand' | 'UpperLeg' | 'LowerLeg' | 'Foot';
+
+/** A limb's bone on one side: `sided('UpperArm', 'L')` is `leftUpperArm`. */
+export const sided = (part: LimbPart, side: Side) => `${side === 'L' ? 'left' : 'right'}${part}` as JointName;
+
+/** Which side a bone is on (null for the spine and head). */
+export const sideOf = (j: JointName): Side | null => (j.startsWith('left') ? 'L' : j.startsWith('right') ? 'R' : null);
+
+/** Which part of a limb a bone is (null for the spine and head). */
+export const partOf = (j: JointName): LimbPart | null => (sideOf(j) ? (j.replace(/^(left|right)/, '') as LimbPart) : null);
 
 /*
  * Rotation conventions (figure faces +Z, its left side is +X):
@@ -9,31 +21,33 @@ import type { JointName, Vec3 } from './types';
  */
 
 export const JOINT_LABELS: Record<JointName, string> = {
-  root: 'Pelvis', spine: 'Waist', chest: 'Chest', neck: 'Neck', head: 'Head',
-  shoulderL: 'Left upper arm', elbowL: 'Left forearm', wristL: 'Left hand',
-  shoulderR: 'Right upper arm', elbowR: 'Right forearm', wristR: 'Right hand',
-  hipL: 'Left thigh', kneeL: 'Left shin', ankleL: 'Left foot',
-  hipR: 'Right thigh', kneeR: 'Right shin', ankleR: 'Right foot',
+  hips: 'Pelvis', spine: 'Waist', chest: 'Chest', neck: 'Neck', head: 'Head',
+  leftUpperArm: 'Left upper arm', leftLowerArm: 'Left forearm', leftHand: 'Left hand',
+  rightUpperArm: 'Right upper arm', rightLowerArm: 'Right forearm', rightHand: 'Right hand',
+  leftUpperLeg: 'Left thigh', leftLowerLeg: 'Left shin', leftFoot: 'Left foot',
+  rightUpperLeg: 'Right thigh', rightLowerLeg: 'Right shin', rightFoot: 'Right foot',
 };
 
 export const SHORT_LABELS: Record<JointName, string> = {
-  root: 'Pelvis', spine: 'Waist', chest: 'Chest', neck: 'Neck', head: 'Head',
-  shoulderL: 'L arm', elbowL: 'L forearm', wristL: 'L hand',
-  shoulderR: 'R arm', elbowR: 'R forearm', wristR: 'R hand',
-  hipL: 'L thigh', kneeL: 'L shin', ankleL: 'L foot',
-  hipR: 'R thigh', kneeR: 'R shin', ankleR: 'R foot',
+  hips: 'Pelvis', spine: 'Waist', chest: 'Chest', neck: 'Neck', head: 'Head',
+  leftUpperArm: 'L arm', leftLowerArm: 'L forearm', leftHand: 'L hand',
+  rightUpperArm: 'R arm', rightLowerArm: 'R forearm', rightHand: 'R hand',
+  leftUpperLeg: 'L thigh', leftLowerLeg: 'L shin', leftFoot: 'L foot',
+  rightUpperLeg: 'R thigh', rightLowerLeg: 'R shin', rightFoot: 'R foot',
 };
 
 export function axisLabels(j: JointName): [string, string, string] {
-  if (j === 'root') return ['Pitch (+ forward)', 'Turn (+ left)', 'Roll (+ right)'];
+  if (j === 'hips') return ['Pitch (+ forward)', 'Turn (+ left)', 'Roll (+ right)'];
   if (j === 'spine' || j === 'chest' || j === 'neck' || j === 'head') return ['Bend (+ forward)', 'Twist (+ left)', 'Tilt (+ right)'];
-  const out = j.endsWith('L') ? '+' : '−';
-  if (j.startsWith('shoulder')) return ['Swing (− forward)', 'Twist', `Raise (${out} out)`];
-  if (j.startsWith('hip')) return ['Swing (− forward)', 'Twist', `Spread (${out} out)`];
-  if (j.startsWith('elbow')) return ['Bend (−)', 'Twist', 'Side'];
-  if (j.startsWith('knee')) return ['Bend (+)', 'Twist', 'Side'];
-  if (j.startsWith('ankle')) return ['Point (+) / flex (−)', 'Twist', 'Roll'];
-  return ['Flex', 'Twist', 'Side'];
+  const out = sideOf(j) === 'L' ? '+' : '−';
+  switch (partOf(j)) {
+    case 'UpperArm': return ['Swing (− forward)', 'Twist', `Raise (${out} out)`];
+    case 'UpperLeg': return ['Swing (− forward)', 'Twist', `Spread (${out} out)`];
+    case 'LowerArm': return ['Bend (−)', 'Twist', 'Side'];
+    case 'LowerLeg': return ['Bend (+)', 'Twist', 'Side'];
+    case 'Foot': return ['Point (+) / flex (−)', 'Twist', 'Roll'];
+    default: return ['Flex', 'Twist', 'Side'];
+  }
 }
 
 type Range = [number, number];
@@ -48,19 +62,18 @@ const LEFT_LIMITS: Partial<Record<JointName, Limits>> = {
   chest: [[-35, 45], sym(40), sym(30)],
   neck: [[-45, 55], sym(65), sym(40)],
   head: [[-45, 45], sym(55), sym(35)],
-  shoulderL: [[-180, 75], sym(100), [-35, 180]],
-  elbowL: [[-155, 0], sym(90), sym(15)],
-  wristL: [[-85, 85], sym(40), sym(45)],
-  hipL: [[-155, 50], sym(75), [-40, 95]],
-  kneeL: [[0, 160], sym(35), sym(8)],
-  ankleL: [[-45, 85], sym(35), sym(35)],
+  leftUpperArm: [[-180, 75], sym(100), [-35, 180]],
+  leftLowerArm: [[-155, 0], sym(90), sym(15)],
+  leftHand: [[-85, 85], sym(40), sym(45)],
+  leftUpperLeg: [[-155, 50], sym(75), [-40, 95]],
+  leftLowerLeg: [[0, 160], sym(35), sym(8)],
+  leftFoot: [[-45, 85], sym(35), sym(35)],
 };
 
 export function jointLimits(j: JointName): Limits {
-  if (j === 'root') return [FREE, FREE, FREE];
-  const left = (j.endsWith('R') ? j.slice(0, -1) + 'L' : j) as JointName;
-  const l = LEFT_LIMITS[left]!;
-  if (!j.endsWith('R')) return l;
+  if (j === 'hips') return [FREE, FREE, FREE];
+  const l = LEFT_LIMITS[sideOf(j) === 'R' ? mirrorJointName(j) : j]!;
+  if (sideOf(j) !== 'R') return l;
   // Mirroring negates Y and Z.
   return [l[0], [-l[1][1], -l[1][0]], [-l[2][1], -l[2][0]]];
 }
@@ -71,9 +84,8 @@ export function clampRotation(j: JointName, r: Vec3): Vec3 {
 }
 
 export function mirrorJointName(j: JointName): JointName {
-  if (j.endsWith('L')) return (j.slice(0, -1) + 'R') as JointName;
-  if (j.endsWith('R')) return (j.slice(0, -1) + 'L') as JointName;
-  return j;
+  const side = sideOf(j);
+  return side ? sided(partOf(j)!, side === 'L' ? 'R' : 'L') : j;
 }
 
 /** Wrap an angle into (-180, 180]. */

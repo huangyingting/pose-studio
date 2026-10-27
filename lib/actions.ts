@@ -1,5 +1,5 @@
 import { cloneHand } from './hands';
-import { wrapDeg } from './joints';
+import { sided, wrapDeg } from './joints';
 import {
   NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
@@ -319,16 +319,16 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   let anim0 = a;
   const shooter = scene.figures.find((f) => f.id === prop.hold!.figure);
   if ('hoop' in target && shooter) {
-    const [hand, other] = prop.hold.hand === 'R' ? ['R', 'L'] : ['L', 'R'];
+    const [hand, other]: [Side, Side] = prop.hold.hand === 'R' ? ['R', 'L'] : ['L', 'R'];
     const s = hand === 'L' ? 1 : -1;
     const frame = 1 / a.fps;
     // After the shooter's last key and the ball's (a catch, say), so neither is overwritten.
     const before = [...figureKeyTimes(a, shooter.id), ...propKeyTimes(a, id)].filter((t) => t < t0 + 1e-6).sort((p, q) => p - q).at(-1);
     if (before !== undefined) t0 = Math.min(60, Math.max(t0, Math.round((before + 16 * frame) * a.fps) / a.fps));
     const shot: [number, Partial<Figure['joints']>][] = [
-      [t0 - 8 * frame, { [`shoulder${hand}`]: [-110, 0, 20 * s], [`elbow${hand}`]: [-100, 0, 0], [`shoulder${other}`]: [-70, 0, -10 * s], [`elbow${other}`]: [-90, 0, 0] }],
-      [t0, { [`shoulder${hand}`]: [-155, 0, 10 * s], [`elbow${hand}`]: [-15, 0, 0], [`shoulder${other}`]: [-95, 0, -20 * s], [`elbow${other}`]: [-60, 0, 0] }],
-      [t0 + 8 * frame, { [`shoulder${hand}`]: [-145, 0, 10 * s], [`elbow${hand}`]: [-20, 0, 0], [`shoulder${other}`]: [-75, 0, -20 * s], [`elbow${other}`]: [-50, 0, 0] }],
+      [t0 - 8 * frame, { [sided('UpperArm', hand)]: [-110, 0, 20 * s], [sided('LowerArm', hand)]: [-100, 0, 0], [sided('UpperArm', other)]: [-70, 0, -10 * s], [sided('LowerArm', other)]: [-90, 0, 0] }],
+      [t0, { [sided('UpperArm', hand)]: [-155, 0, 10 * s], [sided('LowerArm', hand)]: [-15, 0, 0], [sided('UpperArm', other)]: [-95, 0, -20 * s], [sided('LowerArm', other)]: [-60, 0, 0] }],
+      [t0 + 8 * frame, { [sided('UpperArm', hand)]: [-145, 0, 10 * s], [sided('LowerArm', hand)]: [-20, 0, 0], [sided('UpperArm', other)]: [-75, 0, -20 * s], [sided('LowerArm', other)]: [-50, 0, 0] }],
     ];
     const onFrame = (t: number) => Math.round(t * a.fps) / a.fps;
     const times = shot.map(([t]) => onFrame(t));
@@ -439,8 +439,8 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   const s = hold.hand === 'L' ? 1 : -1;
   const arm = (up: boolean): Partial<Figure['joints']> => ({
-    [`shoulder${hold.hand}`]: up ? [-22, 0, 24 * s] : [-30, 0, 22 * s],
-    [`elbow${hold.hand}`]: up ? [-50, 0, 0] : [-15, 0, 0],
+    [sided('UpperArm', hold.hand)]: up ? [-22, 0, 24 * s] : [-30, 0, 22 * s],
+    [sided('LowerArm', hold.hand)]: up ? [-50, 0, 0] : [-15, 0, 0],
   });
   // The arm first: where the hand is depends on it.
   let anim = a;
@@ -1079,7 +1079,7 @@ function walkIn(before: Scene, after: Scene, partners: string[], start: number):
     // Facing about the way it goes, it walks there and turns; otherwise it steps there facing its
     // partner (turning on the spot at the end of a walk would twist the legs).
     const heading = Math.atan2(to[0] - from.position[0], to[2] - from.position[2]) * (180 / Math.PI);
-    const off = Math.abs(wrapDeg(heading - (keys[at].poses[id].joints.root?.[1] ?? 0)));
+    const off = Math.abs(wrapDeg(heading - (keys[at].poses[id].joints.hips?.[1] ?? 0)));
     const strafe = off > 90;
     const sideways = strafe ? Math.abs(Math.sin((off * Math.PI) / 180)) : 0;
     keys = keys.map((k, i) => (i === at ? { ...k, poses: { ...k.poses, [id]: { ...k.poses[id], travel: 'walk' as const, ...(strafe && { strafe: true }) } } } : k));

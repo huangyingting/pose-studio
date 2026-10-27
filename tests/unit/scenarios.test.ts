@@ -227,7 +227,7 @@ describe('scenes from the use case', () => {
     for (const t of frameTimes(store.scene.animation!)) {
       sv.sync(sceneAt(store.scene, t));
       const m = sv.figures.get(jumper)!;
-      const hips = m.joints.root.getWorldPosition(new THREE.Vector3());
+      const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
       if (Math.abs(hips.z - bar.position[2]) < 0.15) {
         over++;
         expect(hips.y).toBeGreaterThan(bar.scale[1] + 0.15);

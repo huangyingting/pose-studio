@@ -35,10 +35,10 @@ export interface Framing {
 export function figuresCenter(view: SceneView, only?: string) {
   const c = new THREE.Vector3();
   const one = only ? view.figures.get(only) : undefined;
-  if (one) return one.joints.root.getWorldPosition(c);
+  if (one) return one.joints.hips.getWorldPosition(c);
   let n = 0;
   for (const m of view.figures.values()) {
-    c.add(m.joints.root.getWorldPosition(new THREE.Vector3()));
+    c.add(m.joints.hips.getWorldPosition(new THREE.Vector3()));
     n++;
   }
   return n ? c.divideScalar(n) : c.set(0, 1, 0);

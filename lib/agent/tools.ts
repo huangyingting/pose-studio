@@ -121,7 +121,7 @@ export const TOOLS: AgentTool[] = [
       for (const j of i.joints as { joint: JointName; x: number; y: number; z: number }[]) {
         if (!JOINTS.includes(j.joint)) throw new Error(`Unknown joint "${j.joint}"`);
         const v: Vec3 = [j.x, j.y, j.z].map(r1) as Vec3;
-        const c = limits && j.joint !== 'root' ? clampRotation(j.joint, v) : v;
+        const c = limits && j.joint !== 'hips' ? clampRotation(j.joint, v) : v;
         if (c.some((x, k) => x !== v[k])) clamped.push(`${j.joint} → [${c.join(', ')}]`);
         joints[j.joint] = c;
       }
@@ -184,8 +184,8 @@ export const TOOLS: AgentTool[] = [
           ...s,
           animation: mapPoses(s.animation!, (pose, id) => {
             if (id !== f.id) return pose;
-            const r = pose.joints.root ?? [0, 0, 0];
-            return { ...pose, position: [pose.position[0] + dx, pose.position[1], pose.position[2] + dz], joints: { ...pose.joints, root: [r[0], r[1] + dyaw, r[2]] } };
+            const r = pose.joints.hips ?? [0, 0, 0];
+            return { ...pose, position: [pose.position[0] + dx, pose.position[1], pose.position[2] + dz], joints: { ...pose.joints, hips: [r[0], r[1] + dyaw, r[2]] } };
           }),
         }));
         store.setTime(store.getState().time);
@@ -526,8 +526,8 @@ Space: metres, +Y up, the floor is y = 0. A figure at facing 0 faces +Z (towards
 Joint angles are degrees, Euler X/Y/Z:
 - root (pelvis): X+ pitch forward, Y = facing (use place_figure), Z+ lean to its own right
 - spine, chest, neck, head: X+ bend forward, Y+ twist to its left, Z+ tilt to its right
-- shoulderL/R, hipL/R: X− swings the limb forward/up, X+ back; Z spreads it out sideways (+ for L, − for R); Y twists. shoulder X −90 = arm straight forward, −180 = straight up; shoulderL Z +90 = arm out to the side.
-- elbowL/R: X− bends (to −150). kneeL/R: X+ bends (to 160). ankleL/R: X+ points the toes. wrists: X flex, Z sideways.
+- leftUpperArm/R, leftUpperLeg/R: X− swings the limb forward/up, X+ back; Z spreads it out sideways (+ for L, − for R); Y twists. shoulder X −90 = arm straight forward, −180 = straight up; leftUpperArm Z +90 = arm out to the side.
+- leftLowerArm/R: X− bends (to −150). leftLowerLeg/R: X+ bends (to 160). leftFoot/R: X+ points the toes. wrists: X flex, Z sideways.
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
 Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures around with move_to: walk, run or jump from mark to mark; apply_pose or apply_motion from the library for actions on the spot; then refine), then shoot (camera_move, check_motion).

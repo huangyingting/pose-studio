@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
+import { sided } from './joints';
 import { IK_CHAINS, Mannequin, setWorldQuaternion, worldPos } from './mannequin';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
@@ -18,12 +19,12 @@ const round = (v: number, step = 0.001) => Math.round(v / step) * step || 0; // 
 const wrap = (a: number) => ((((a + 180) % 360) + 360) % 360) - 180;
 
 export function facing(f: Figure) {
-  return f.joints.root?.[1] ?? 0;
+  return f.joints.hips?.[1] ?? 0;
 }
 
 export function withFacing(f: Figure, yaw: number): Figure {
-  const r = f.joints.root ?? [0, 0, 0];
-  return { ...f, joints: { ...f.joints, root: [r[0], round(wrap(yaw), 0.1), r[2]] } };
+  const r = f.joints.hips ?? [0, 0, 0];
+  return { ...f, joints: { ...f.joints, hips: [r[0], round(wrap(yaw), 0.1), r[2]] } };
 }
 
 export function withPosition(f: Figure, x: number, z: number): Figure {
@@ -123,22 +124,22 @@ export class Rig {
 }
 
 /** Parts of a figure a hand can reach for (another figure's, or its own: hands on hips or knees). */
-export const CONTACTS = ['head', 'shoulderL', 'shoulderR', 'chest', 'back', 'waist', 'hipL', 'hipR', 'kneeL', 'kneeR', 'wristL', 'wristR'] as const;
+export const CONTACTS = ['head', 'leftUpperArm', 'rightUpperArm', 'chest', 'back', 'waist', 'leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftHand', 'rightHand'] as const;
 export type Contact = (typeof CONTACTS)[number];
 
 export const CONTACT_LABELS: Record<Contact, string> = {
   head: 'Head',
-  shoulderL: 'Left shoulder',
-  shoulderR: 'Right shoulder',
+  leftUpperArm: 'Left shoulder',
+  rightUpperArm: 'Right shoulder',
   chest: 'Chest',
   back: 'Upper back',
   waist: 'Waist',
-  hipL: 'Left hip',
-  hipR: 'Right hip',
-  kneeL: 'Left knee',
-  kneeR: 'Right knee',
-  wristL: 'Left hand',
-  wristR: 'Right hand',
+  leftUpperLeg: 'Left hip',
+  rightUpperLeg: 'Right hip',
+  leftLowerLeg: 'Left knee',
+  rightLowerLeg: 'Right knee',
+  leftHand: 'Left hand',
+  rightHand: 'Right hand',
 };
 
 /** World position of a contact point on a posed figure (on the surface, not inside). */
@@ -148,27 +149,27 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
   switch (c) {
     case 'head': return at('head', [0, 0.17 * k, 0]);
     // On top of the shoulder in the chest's frame, so it stays put when the arm is raised.
-    case 'shoulderL': case 'shoulderR': {
+    case 'leftUpperArm': case 'rightUpperArm': {
       const s = m.joints[c].position;
       return at(m.joints[c].parent!.name as JointName, [s.x, s.y + 0.06 * k, s.z]);
     }
     case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k]);
     case 'back': return at('chest', [0, 0.13 * k, -0.15 * k]);
     case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);
-    case 'hipL': return at('root', [0.17 * k, 0.01 * k, 0]);
-    case 'hipR': return at('root', [-0.17 * k, 0.01 * k, 0]);
-    case 'kneeL': case 'kneeR': {
+    case 'leftUpperLeg': return at('hips', [0.17 * k, 0.01 * k, 0]);
+    case 'rightUpperLeg': return at('hips', [-0.17 * k, 0.01 * k, 0]);
+    case 'leftLowerLeg': case 'rightLowerLeg': {
       // The kneecap: out along the bend (thigh direction minus shin direction), or the front of a straight leg.
-      const side = c === 'kneeL' ? 'L' : 'R';
-      const hip = m.joints[`hip${side}`].getWorldPosition(new THREE.Vector3());
-      const knee = m.joints[`knee${side}`].getWorldPosition(new THREE.Vector3());
-      const ankle = m.joints[`ankle${side}`].getWorldPosition(new THREE.Vector3());
+      const side = c === 'leftLowerLeg' ? 'L' : 'R';
+      const hip = m.joints[sided('UpperLeg', side)].getWorldPosition(new THREE.Vector3());
+      const knee = m.joints[sided('LowerLeg', side)].getWorldPosition(new THREE.Vector3());
+      const ankle = m.joints[sided('Foot', side)].getWorldPosition(new THREE.Vector3());
       const out = knee.clone().sub(hip).normalize().sub(ankle.clone().sub(knee).normalize());
-      if (out.length() < 0.3) out.copy(at(`knee${side}`, [0, 0, 1]).sub(knee));
+      if (out.length() < 0.3) out.copy(at(sided('LowerLeg', side), [0, 0, 1]).sub(knee));
       return knee.addScaledVector(out.normalize(), 0.065 * k);
     }
-    case 'wristL': return at('wristL', [0, -0.06 * k, 0]);
-    case 'wristR': return at('wristR', [0, -0.06 * k, 0]);
+    case 'leftHand': return at('leftHand', [0, -0.06 * k, 0]);
+    case 'rightHand': return at('rightHand', [0, -0.06 * k, 0]);
   }
 }
 
@@ -179,17 +180,17 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
 export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, limits = true) {
   const m = rig.model(f);
   const k = f.body.height / 1.8;
-  const shoulder = worldPos(m.joints[`shoulder${side}`]);
+  const shoulder = worldPos(m.joints[sided('UpperArm', side)]);
   const wristTarget = target.clone().add(shoulder.clone().sub(target).normalize().multiplyScalar(0.07 * k));
-  const wrist = m.joints[`wrist${side}`];
+  const wrist = m.joints[sided('Hand', side)];
   const solve = () => {
-    m.solveIK(IK_CHAINS[`wrist${side}`], wristTarget, undefined, limits);
+    m.solveIK(IK_CHAINS[sided('Hand', side) as 'leftHand' | 'rightHand'], wristTarget, undefined, limits);
     // Point the hand at the target.
     const dir = target.clone().sub(worldPos(wrist)).normalize();
     const parentQ = wrist.parent!.getWorldQuaternion(new THREE.Quaternion());
     const handDown = new THREE.Vector3(0, -1, 0).applyQuaternion(parentQ);
     setWorldQuaternion(wrist, new THREE.Quaternion().setFromUnitVectors(handDown, dir).multiply(parentQ));
-    if (limits) m.constrain([`wrist${side}`]);
+    if (limits) m.constrain([sided('Hand', side)]);
     return worldPos(wrist).distanceTo(wristTarget);
   };
   m.setGroundLock(true);
@@ -199,8 +200,8 @@ export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, li
     // again from a relaxed arm hanging at the side, and keep whichever gets closer.
     const first = m.read().joints;
     const s = side === 'L' ? 1 : -1;
-    m.joints[`shoulder${side}`].rotation.set(0, 0, s * 10 * THREE.MathUtils.DEG2RAD);
-    m.joints[`elbow${side}`].rotation.set(-8 * THREE.MathUtils.DEG2RAD, 0, 0);
+    m.joints[sided('UpperArm', side)].rotation.set(0, 0, s * 10 * THREE.MathUtils.DEG2RAD);
+    m.joints[sided('LowerArm', side)].rotation.set(-8 * THREE.MathUtils.DEG2RAD, 0, 0);
     wrist.rotation.set(0, 0, 0);
     m.object.updateMatrixWorld(true);
     const again = solve();

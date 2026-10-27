@@ -23,8 +23,8 @@ import type { Figure, JointName, Scene } from '@/lib/types';
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
 const DRAG_PX = 4;
-const TORSO: readonly JointName[] = ['root', 'spine', 'chest'];
-const ENDS: Partial<Record<JointName, keyof typeof IK_CHAINS>> = { wristL: 'wristL', wristR: 'wristR', ankleL: 'ankleL', ankleR: 'ankleR' };
+const TORSO: readonly JointName[] = ['hips', 'spine', 'chest'];
+const ENDS: Partial<Record<JointName, keyof typeof IK_CHAINS>> = { leftHand: 'leftHand', rightHand: 'rightHand', leftFoot: 'leftFoot', rightFoot: 'rightFoot' };
 
 type Controls = { enabled: boolean } | null;
 
@@ -99,7 +99,7 @@ type Plan = { begin(): void; move(ray: THREE.Ray, dx: number): void; end(): void
 /** What a press on a part would move. */
 type Target =
   | { kind: 'prop'; prop: string }
-  | { kind: 'held'; prop: string; figure: string; wrist: 'wristL' | 'wristR' }
+  | { kind: 'held'; prop: string; figure: string; wrist: 'leftHand' | 'rightHand' }
   | { kind: 'body'; figure: string }
   | { kind: 'end' | 'swing'; figure: string; joint: JointName };
 
@@ -129,7 +129,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
       if (sv.props.get(prop)?.parts.faded) return null;
       const hold = scene.props.find((p) => p.id === prop)?.hold;
       return hold && sv.figures.has(hold.figure)
-        ? { kind: 'held', prop, figure: hold.figure, wrist: hold.hand === 'L' ? 'wristL' : 'wristR' }
+        ? { kind: 'held', prop, figure: hold.figure, wrist: hold.hand === 'L' ? 'leftHand' : 'rightHand' }
         : { kind: 'prop', prop };
     }
     const figure = o.userData.figure as string;
@@ -183,7 +183,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     };
 
     if (t.kind === 'body') {
-      const root = m.joints.root;
+      const root = m.joints.hips;
       const start = root.position.clone();
       const yaw = root.rotation.y;
       return {
@@ -409,7 +409,7 @@ export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
       const g = groups.current[f.id];
       const m = sv.figures.get(f.id);
       if (!g || !m) continue;
-      const root = m.joints.root;
+      const root = m.joints.hips;
       root.getWorldPosition(tmp.p);
       g.position.set(tmp.p.x, 0.004, tmp.p.z);
       tmp.f.set(0, 0, 1).applyQuaternion(root.getWorldQuaternion(tmp.q));
@@ -436,7 +436,7 @@ export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
               hit={on && !!m}
               onDown={(e) => {
                 if (!m) return;
-                const root = m.joints.root;
+                const root = m.joints.hips;
                 turn(e, root.getWorldPosition(new THREE.Vector3()), root.rotation.y * R2D, (yaw) => {
                   root.rotation.y = yaw * D2R;
                   m.object.updateMatrixWorld(true);
@@ -481,19 +481,19 @@ export function PropRing({ sv, id, version, onTurn }: { sv: SceneView; id: strin
   );
 }
 
-type HandleId = 'wristL' | 'wristR' | 'ankleL' | 'ankleR' | 'root' | 'elbowL' | 'elbowR' | 'kneeL' | 'kneeR';
+type HandleId = 'leftHand' | 'rightHand' | 'leftFoot' | 'rightFoot' | 'hips' | 'leftLowerArm' | 'rightLowerArm' | 'leftLowerLeg' | 'rightLowerLeg';
 
 /** Size on the body (r, metres for a 1.8 m figure), and at least this many pixels on screen (px), easier to hit (hit). */
 const HANDLES: { id: HandleId; color: string; r: number; px: number; hit: number }[] = [
-  { id: 'wristL', color: '#f97316', r: 0.034, px: 7, hit: 15 },
-  { id: 'wristR', color: '#f97316', r: 0.034, px: 7, hit: 15 },
-  { id: 'ankleL', color: '#10b981', r: 0.038, px: 7, hit: 15 },
-  { id: 'ankleR', color: '#10b981', r: 0.038, px: 7, hit: 15 },
-  { id: 'root', color: '#8b5cf6', r: 0.045, px: 8, hit: 16 },
-  { id: 'elbowL', color: '#fdba74', r: 0.024, px: 5, hit: 11 },
-  { id: 'elbowR', color: '#fdba74', r: 0.024, px: 5, hit: 11 },
-  { id: 'kneeL', color: '#6ee7b7', r: 0.026, px: 5, hit: 11 },
-  { id: 'kneeR', color: '#6ee7b7', r: 0.026, px: 5, hit: 11 },
+  { id: 'leftHand', color: '#f97316', r: 0.034, px: 7, hit: 15 },
+  { id: 'rightHand', color: '#f97316', r: 0.034, px: 7, hit: 15 },
+  { id: 'leftFoot', color: '#10b981', r: 0.038, px: 7, hit: 15 },
+  { id: 'rightFoot', color: '#10b981', r: 0.038, px: 7, hit: 15 },
+  { id: 'hips', color: '#8b5cf6', r: 0.045, px: 8, hit: 16 },
+  { id: 'leftLowerArm', color: '#fdba74', r: 0.024, px: 5, hit: 11 },
+  { id: 'rightLowerArm', color: '#fdba74', r: 0.024, px: 5, hit: 11 },
+  { id: 'leftLowerLeg', color: '#6ee7b7', r: 0.026, px: 5, hit: 11 },
+  { id: 'rightLowerLeg', color: '#6ee7b7', r: 0.026, px: 5, hit: 11 },
 ];
 
 const isPole = (id: HandleId): id is keyof typeof POLE_CHAINS => id in POLE_CHAINS;
@@ -505,7 +505,7 @@ interface Drag {
   start: THREE.Vector3;
   rootStart: THREE.Vector3;
   endQ: THREE.Quaternion;
-  feet: { id: 'ankleL' | 'ankleR'; pos: THREE.Vector3; q: THREE.Quaternion }[];
+  feet: { id: 'leftFoot' | 'rightFoot'; pos: THREE.Vector3; q: THREE.Quaternion }[];
 }
 
 /**
@@ -553,9 +553,9 @@ export function IKHandles({ m, figure, limits, onCommit }: {
       plane,
       start,
       grab: start.clone().sub(hit),
-      rootStart: m.joints.root.position.clone(),
+      rootStart: m.joints.hips.position.clone(),
       endQ: m.joints[endJoint].getWorldQuaternion(new THREE.Quaternion()),
-      feet: (['ankleL', 'ankleR'] as const).map((f) => ({
+      feet: (['leftFoot', 'rightFoot'] as const).map((f) => ({
         id: f,
         pos: m.joints[f].getWorldPosition(new THREE.Vector3()),
         q: m.joints[f].getWorldQuaternion(new THREE.Quaternion()),
@@ -572,8 +572,8 @@ export function IKHandles({ m, figure, limits, onCommit }: {
     const hit = e.ray.intersectPlane(d.plane, new THREE.Vector3());
     if (!hit) return;
     const target = hit.add(d.grab);
-    if (d.id === 'root') {
-      const root = m.joints.root;
+    if (d.id === 'hips') {
+      const root = m.joints.hips;
       const plant = () => {
         m.object.updateMatrixWorld(true);
         for (const f of d.feet) m.solveIK(IK_CHAINS[f.id], f.pos, f.q, limits);
@@ -735,7 +735,7 @@ export function SeeThrough({ sv, figureId }: { sv: SceneView; figureId: string |
       // Props standing in the scene (not ones carried in a hand).
       const standing = [...sv.props.entries()].filter(([, p]) => p.object.parent === sv.root);
       const meshes = standing.flatMap(([id, p]) => p.parts.bodies.map((mesh) => ({ mesh, id })));
-      for (const j of ['head', 'chest', 'root'] as const) {
+      for (const j of ['head', 'chest', 'hips'] as const) {
         const point = m.joints[j].getWorldPosition(new THREE.Vector3());
         const d = point.sub(camera.position);
         const dist = d.length();

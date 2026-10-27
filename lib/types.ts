@@ -1,9 +1,9 @@
 export type Vec3 = [number, number, number];
 
 export const JOINTS = [
-  'root', 'spine', 'chest', 'neck', 'head',
-  'shoulderL', 'elbowL', 'wristL', 'shoulderR', 'elbowR', 'wristR',
-  'hipL', 'kneeL', 'ankleL', 'hipR', 'kneeR', 'ankleR',
+  'hips', 'spine', 'chest', 'neck', 'head',
+  'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+  'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
 ] as const;
 export type JointName = (typeof JOINTS)[number];
 

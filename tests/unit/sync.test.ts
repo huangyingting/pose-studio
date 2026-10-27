@@ -40,8 +40,8 @@ describe('library sync merge', () => {
   it('ignores where the playhead is in an animated pose', () => {
     const s = newScene('Anim', [newFigure()]);
     const f = s.figures[0];
-    const anim: Scene = { ...s, animation: setKey(newAnimation(s, 2), 1, [{ ...f, joints: { ...f.joints, kneeL: [60, 0, 0] as [number, number, number] } }]) };
-    const atHalf: Scene = { ...anim, figures: [{ ...f, joints: { ...f.joints, kneeL: [30, 0, 0] as [number, number, number] } }] };
+    const anim: Scene = { ...s, animation: setKey(newAnimation(s, 2), 1, [{ ...f, joints: { ...f.joints, leftLowerLeg: [60, 0, 0] as [number, number, number] } }]) };
+    const atHalf: Scene = { ...anim, figures: [{ ...f, joints: { ...f.joints, leftLowerLeg: [30, 0, 0] as [number, number, number] } }] };
     expect(sceneHash(canonical(lib([anim])).scenes[0])).toBe(sceneHash(canonical(lib([atHalf])).scenes[0]));
   });
 

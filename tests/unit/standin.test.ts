@@ -24,11 +24,11 @@ describe('stand-ins', () => {
     setPlacement(store, id, { yaw: 90 });
     setPosture(store, id, 'lie');
     expect(store.figure!.proxy).toBe('lie');
-    expect(store.figure!.joints.root![0]).toBe(-90);
+    expect(store.figure!.joints.hips![0]).toBe(-90);
     expect(facing(store.figure!)).toBeCloseTo(90);
     setPosture(store, id, null);
     expect(store.figure!.proxy).toBeUndefined();
-    expect(store.figure!.joints.root![0]).toBe(-90);
+    expect(store.figure!.joints.hips![0]).toBe(-90);
   });
 
   it('round-trip through files and are named in shot descriptions', () => {

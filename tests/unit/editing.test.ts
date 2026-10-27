@@ -67,7 +67,7 @@ describe('names, selection and editing', () => {
     expect(store.scene.props.map((p) => p.name)).toEqual(['Stool']);
 
     // A joint: duplicate copies its figure; delete does nothing (it is not the whole figure).
-    store.select({ kind: 'joint', figure: first, joint: 'elbowL' });
+    store.select({ kind: 'joint', figure: first, joint: 'leftLowerArm' });
     expect(deleteSelection(store)).toBeNull();
     expect(duplicateSelection(store)).toBe(true);
     expect(store.scene.figures).toHaveLength(2);

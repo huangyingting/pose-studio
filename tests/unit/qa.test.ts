@@ -53,11 +53,11 @@ describe('motion QA', () => {
     expect(kinds(animate([[0, [f]]]))).not.toContain('slide');
 
     const g = newFigure();
-    const hyper = { ...g, joints: { ...g.joints, kneeL: [-40, 0, 0] as [number, number, number] } };
+    const hyper = { ...g, joints: { ...g.joints, leftLowerLeg: [-40, 0, 0] as [number, number, number] } };
     const limit = checkMotion(animate([[0, [hyper]]]));
-    expect(limit.map((i) => [i.kind, i.joint])).toEqual([['limit', 'kneeL']]);
+    expect(limit.map((i) => [i.kind, i.joint])).toEqual([['limit', 'leftLowerLeg']]);
 
-    const snap = { ...g, joints: { ...g.joints, shoulderR: [-100, 0, 0] as [number, number, number] } };
+    const snap = { ...g, joints: { ...g.joints, rightUpperArm: [-100, 0, 0] as [number, number, number] } };
     expect(kinds(animate([[0, [g]], [0.5, [g]], [0.54, [snap]], [1, [snap]]]))).toContain('pop');
   });
 
@@ -75,11 +75,11 @@ describe('motion QA', () => {
 
   it('swings a limited joint through its range, not the short way round', () => {
     const f = newFigure();
-    const down = { ...f, joints: { shoulderL: [50, 0, 0] as [number, number, number] } };
-    const up = { ...f, joints: { shoulderL: [-160, 0, 0] as [number, number, number] } };
+    const down = { ...f, joints: { leftUpperArm: [50, 0, 0] as [number, number, number] } };
+    const up = { ...f, joints: { leftUpperArm: [-160, 0, 0] as [number, number, number] } };
     const a = animate([[0, [down]], [1, [up]]]).animation!;
     // Halfway the arm points forward (about −55°), not straight up behind the back (about 145°).
-    expect(samplePose(a, f.id, 0.5)!.joints.shoulderL![0]).toBeCloseTo(-55, 0);
+    expect(samplePose(a, f.id, 0.5)!.joints.leftUpperArm![0]).toBeCloseTo(-55, 0);
   });
 
   it('measures the distance between segments', () => {

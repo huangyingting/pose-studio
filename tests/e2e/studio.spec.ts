@@ -166,7 +166,7 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
   await expect(page.getByText('Figure: Hand on head')).toBeVisible();
-  expect((await state(page)).scene.figures[0].joints.shoulderR).toEqual(refScenes()[0].figures[0].joints.shoulderR);
+  expect((await state(page)).scene.figures[0].joints.rightUpperArm).toEqual(refScenes()[0].figures[0].joints.rightUpperArm);
 });
 
 test('things have names and right-click menus; Del, Ctrl+D and F2 act on the selection', async ({ page }) => {
@@ -234,44 +234,44 @@ test('tooltips stay inside the window, with the shortcut apart', async ({ page }
 });
 
 test('clicking a body part selects it and the sliders edit it', async ({ page }) => {
-  const p = await project(page, 'kneeL');
-  const hip = await project(page, 'hipL');
+  const p = await project(page, 'leftLowerLeg');
+  const hip = await project(page, 'leftUpperLeg');
   await page.mouse.click((p.x + hip.x) / 2, (p.y + hip.y) / 2);
   await expect(page.locator('.panel h3').first()).toHaveText('Left thigh');
 
-  const before = (await state(page)).scene.figures[0].joints.hipL;
+  const before = (await state(page)).scene.figures[0].joints.leftUpperLeg;
   const slider = page.locator('.slider input').first();
   await slider.focus();
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('ArrowLeft');
-  const after = (await state(page)).scene.figures[0].joints.hipL;
+  const after = (await state(page)).scene.figures[0].joints.leftUpperLeg;
   expect(after[0]).toBe(before[0] - 2);
 
   await page.keyboard.press('Escape');
   // Two quick steps merge into one undo step; on a slow machine they may be two.
   await page.keyboard.press('Control+z');
-  if ((await state(page)).scene.figures[0].joints.hipL[0] !== before[0]) await page.keyboard.press('Control+z');
-  expect((await state(page)).scene.figures[0].joints.hipL).toEqual(before);
+  if ((await state(page)).scene.figures[0].joints.leftUpperLeg[0] !== before[0]) await page.keyboard.press('Control+z');
+  expect((await state(page)).scene.figures[0].joints.leftUpperLeg).toEqual(before);
 });
 
 test('dragging a hand moves the arm with IK', async ({ page }) => {
-  const wrist = await project(page, 'wristR');
+  const wrist = await project(page, 'rightHand');
   const target = { x: wrist.x - 90, y: wrist.y - 110 };
   await drag(page, wrist, target);
-  const now = await project(page, 'wristR');
+  const now = await project(page, 'rightHand');
   expect(Math.hypot(now.x - target.x, now.y - target.y)).toBeLessThan(12);
 });
 
 test('dragging the hips down bends the knees and keeps the feet planted', async ({ page }) => {
   await page.keyboard.press('1');
   await page.waitForTimeout(300);
-  const ankle = await project(page, 'ankleL');
-  const root = await project(page, 'root');
+  const ankle = await project(page, 'leftFoot');
+  const root = await project(page, 'hips');
   await drag(page, root, { x: root.x, y: root.y + 70 });
   await page.waitForTimeout(200);
-  const ankleAfter = await project(page, 'ankleL');
+  const ankleAfter = await project(page, 'leftFoot');
   expect(Math.hypot(ankleAfter.x - ankle.x, ankleAfter.y - ankle.y)).toBeLessThan(6);
-  expect((await state(page)).scene.figures[0].joints.kneeL[0]).toBeGreaterThan(30);
+  expect((await state(page)).scene.figures[0].joints.leftLowerLeg[0]).toBeGreaterThan(30);
 });
 
 test('figures and props move by dragging them and turn by their floor ring', async ({ page }) => {
@@ -286,15 +286,15 @@ test('figures and props move by dragging them and turn by their floor ring', asy
   await drag(page, { x: chest.x, y: chest.y - 20 }, { x: chest.x + 100, y: chest.y - 20 });
   let f = await figure();
   expect(f.position[0]).toBeGreaterThan(before.position[0] + 0.1);
-  expect(f.joints.shoulderR).toEqual(before.joints.shoulderR);
+  expect(f.joints.rightUpperArm).toEqual(before.joints.rightUpperArm);
   expect((await state(page)).selection).toMatchObject({ kind: 'figure' });
 
   // Drag its floor ring around a quarter turn, with Shift: whole 15° steps.
   const [x, , z] = f.position;
   await drag(page, await projectPoint(page, [x, 0, z + 0.3]), await projectPoint(page, [x + 0.3, 0, z]), 'Shift');
   f = await figure();
-  expect(f.joints.root[1] % 15).toBe(0);
-  expect(f.joints.root[1]).not.toBe(before.joints.root?.[1] ?? 0);
+  expect(f.joints.hips[1] % 15).toBe(0);
+  expect(f.joints.hips[1]).not.toBe(before.joints.hips?.[1] ?? 0);
 
   // A prop moves the same way; one undo step per drag.
   await addLayer(page, 'Box');
@@ -414,7 +414,7 @@ test('keyboard shortcuts navigate, mirror and undo', async ({ page }) => {
   const before = (await state(page)).scene.figures[0].joints;
   await page.keyboard.press('m');
   const mirrored = (await state(page)).scene.figures[0].joints;
-  expect(mirrored.shoulderR).toEqual([before.shoulderL[0], -before.shoulderL[1], -before.shoulderL[2]]);
+  expect(mirrored.rightUpperArm).toEqual([before.leftUpperArm[0], -before.leftUpperArm[1], -before.leftUpperArm[2]]);
   await page.keyboard.press('Control+z');
   expect((await state(page)).scene.figures[0].joints).toEqual(before);
 });
@@ -431,7 +431,7 @@ test('poses a figure from a photo', async ({ page }) => {
   expect(s.library.scenes).toHaveLength(21);
   expect(s.scene.name).toBe('From photo');
   // The fixture is a lunge with arms pushing forward.
-  expect(s.scene.figures[0].joints.kneeL?.[0] ?? 0).toBeGreaterThan(20);
+  expect(s.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0).toBeGreaterThan(20);
   await expect(page.locator('img.reference')).toBeVisible();
   // MediaPipe's usage logging is answered locally instead of reaching Google (or the CSP).
   const status = await page.evaluate(() => fetch('https://odml.pa.googleapis.com/v1/log', { method: 'POST' }).then((r) => r.status));
@@ -510,13 +510,13 @@ test('typing an exact joint angle', async ({ page }) => {
   await page.keyboard.press('Control+a');
   await page.keyboard.type('-42.5');
   await page.keyboard.press('Enter');
-  expect((await state(page)).scene.figures[0].joints.hipL?.[0]).toBe(-42.5);
+  expect((await state(page)).scene.figures[0].joints.leftUpperLeg?.[0]).toBe(-42.5);
   // Out-of-range values are clamped to the joint limits.
   await page.getByRole('button', { name: /^Swing \(− forward\): .*Click to type a value$/ }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type('400');
   await page.keyboard.press('Enter');
-  expect((await state(page)).scene.figures[0].joints.hipL?.[0]).toBe(50);
+  expect((await state(page)).scene.figures[0].joints.leftUpperLeg?.[0]).toBe(50);
 });
 
 test('scene picker keyboard navigation and reordering', async ({ page }) => {
@@ -541,7 +541,7 @@ test('figures can be hidden without deleting them', async ({ page }) => {
   expect(s.figures).toHaveLength(2);
   expect((s.figures[1] as { hidden?: boolean }).hidden).toBe(true);
   expect(await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(
-    (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().library.scenes[0].figures[1].id, 'root',
+    (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().library.scenes[0].figures[1].id, 'hips',
   ))).toBeNull();
   await page.getByRole('button', { name: 'Show Figure 2' }).click();
   s = (await state(page)).scene;
@@ -595,12 +595,12 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Handshake' }).click();
   expect((await state(page)).scene.name).toBe('Handshake');
   let [a, b] = await figs(page);
-  expect(Math.abs(a.joints.root[1] - b.joints.root[1])).toBeCloseTo(180, 0);
+  expect(Math.abs(a.joints.hips[1] - b.joints.hips[1])).toBeCloseTo(180, 0);
 
   await page.getByRole('button', { name: 'Back to back' }).click();
   [a, b] = await figs(page);
   expect(Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2])).toBeCloseTo(0.32, 2);
-  expect(Math.abs(Math.abs(a.joints.root[1] - b.joints.root[1]) - 180)).toBeLessThan(0.5);
+  expect(Math.abs(Math.abs(a.joints.hips[1] - b.joints.hips[1]) - 180)).toBeLessThan(0.5);
 
   await page.getByRole('button', { name: 'Face each other' }).click();
   await page.getByRole('slider', { name: 'Distance' }).fill('1.5');
@@ -612,9 +612,9 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await page.getByRole('button', { name: 'Reach' }).click();
   await expect(page.getByText('Out of reach')).toBeVisible();
   await page.getByRole('slider', { name: 'Distance' }).fill('0.6');
-  const before = (await figs(page))[0].joints.shoulderR;
+  const before = (await figs(page))[0].joints.rightUpperArm;
   await page.getByRole('button', { name: 'Reach' }).click();
-  expect((await figs(page))[0].joints.shoulderR).not.toEqual(before);
+  expect((await figs(page))[0].joints.rightUpperArm).not.toEqual(before);
 
   await page.getByRole('button', { name: 'Look at' }).click();
   expect((await figs(page))[0].joints.head).toBeTruthy();
@@ -629,7 +629,7 @@ test('placement fields move and turn the figure, and faces can be hidden', async
   await facingField.press('Enter');
   const [f] = await figs(page);
   expect(f.position[0]).toBe(0.5);
-  expect(f.joints.root[1]).toBe(90);
+  expect(f.joints.hips[1]).toBe(90);
 
   await page.locator('.crumb').click();
   await page.getByRole('switch', { name: 'Simple face features' }).uncheck();
@@ -796,7 +796,7 @@ test('stand-ins block a scene in a posture and can become posable figures', asyn
   let s = await state(page);
   const standIn = () => s.scene.figures.find((f) => f.id === s.activeFigure) as unknown as { proxy?: string; joints: Record<string, number[]> };
   expect(standIn().proxy).toBe('sit');
-  expect(standIn().joints.kneeL[0]).toBeGreaterThan(80);
+  expect(standIn().joints.leftLowerLeg[0]).toBeGreaterThan(80);
   // Not posed joint by joint: no IK handles, no joint panel.
   await expect(page.getByRole('button', { name: 'Joints' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Make it a posable figure' }).click();
@@ -888,7 +888,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   const [a, b] = await figs(page);
   // The selected (new) figure took the pose where it stands; the first one did not change.
   expect(b.id).toBe(second.id);
-  expect(b.joints).toMatchObject({ root: [refScenes()[10].figures[0].joints.root![0], 0, refScenes()[10].figures[0].joints.root![2]] });
+  expect(b.joints).toMatchObject({ hips: [refScenes()[10].figures[0].joints.hips![0], 0, refScenes()[10].figures[0].joints.hips![2]] });
   expect(a.joints).toEqual(refScenes()[0].figures[0].joints);
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();

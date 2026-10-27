@@ -38,7 +38,7 @@ describe('Mannequin', () => {
   it('keeps its height when not grounded', () => {
     const m = make();
     m.apply(newFigure({ grounded: false, position: [0, 1.5, 0] }));
-    expect(m.joints.root.position.y).toBe(1.5);
+    expect(m.joints.hips.position.y).toBe(1.5);
   });
 
   it('scales with the height setting', () => {
@@ -55,10 +55,10 @@ describe('Mannequin', () => {
   it('solves two-bone IK to a reachable target and keeps the hand orientation', () => {
     const m = make();
     m.apply(newFigure());
-    const wrist = m.joints.wristL;
+    const wrist = m.joints.leftHand;
     const q0 = wrist.getWorldQuaternion(new THREE.Quaternion());
-    const target = worldPos(m.joints.shoulderL).add(new THREE.Vector3(0.25, 0.1, 0.2));
-    m.solveIK(IK_CHAINS.wristL, target, q0);
+    const target = worldPos(m.joints.leftUpperArm).add(new THREE.Vector3(0.25, 0.1, 0.2));
+    m.solveIK(IK_CHAINS.leftHand, target, q0);
     expect(worldPos(wrist).distanceTo(target)).toBeLessThan(1e-3);
     expect(wrist.getWorldQuaternion(new THREE.Quaternion()).angleTo(q0)).toBeLessThan(1e-4);
   });
@@ -66,10 +66,10 @@ describe('Mannequin', () => {
   it('stretches towards an unreachable target without breaking', () => {
     const m = make();
     m.apply(newFigure());
-    const shoulder = worldPos(m.joints.shoulderL);
+    const shoulder = worldPos(m.joints.leftUpperArm);
     const target = shoulder.clone().add(new THREE.Vector3(5, 0, 0));
-    m.solveIK(IK_CHAINS.wristL, target);
-    const wrist = worldPos(m.joints.wristL);
+    m.solveIK(IK_CHAINS.leftHand, target);
+    const wrist = worldPos(m.joints.leftHand);
     expect(wrist.clone().sub(shoulder).normalize().dot(new THREE.Vector3(1, 0, 0))).toBeGreaterThan(0.99);
     for (const v of Object.values(m.read().joints)) v!.forEach((a) => expect(Number.isFinite(a)).toBe(true));
   });
@@ -77,39 +77,39 @@ describe('Mannequin', () => {
   it('bends knees forward when the hips are lowered', () => {
     const m = make();
     m.apply(newFigure());
-    const ankle = worldPos(m.joints.ankleL);
-    m.joints.root.position.y -= 0.2;
+    const ankle = worldPos(m.joints.leftFoot);
+    m.joints.hips.position.y -= 0.2;
     m.object.updateMatrixWorld(true);
-    m.solveIK(IK_CHAINS.ankleL, ankle);
-    expect(worldPos(m.joints.ankleL).distanceTo(ankle)).toBeLessThan(1e-3);
-    expect(worldPos(m.joints.kneeL).z).toBeGreaterThan(worldPos(m.joints.hipL).z);
+    m.solveIK(IK_CHAINS.leftFoot, ankle);
+    expect(worldPos(m.joints.leftFoot).distanceTo(ankle)).toBeLessThan(1e-3);
+    expect(worldPos(m.joints.leftLowerLeg).z).toBeGreaterThan(worldPos(m.joints.leftUpperLeg).z);
   });
 
   it('swivels the elbow without moving the hand', () => {
     const m = make();
-    m.apply(newFigure({ joints: { shoulderL: [-40, 0, 20], elbowL: [-90, 0, 0] } }));
-    const wrist = worldPos(m.joints.wristL);
-    const pole = worldPos(m.joints.elbowL).add(new THREE.Vector3(1, 0, 0));
-    m.swivel(POLE_CHAINS.elbowL, pole);
-    expect(worldPos(m.joints.wristL).distanceTo(wrist)).toBeLessThan(1e-4);
+    m.apply(newFigure({ joints: { leftUpperArm: [-40, 0, 20], leftLowerArm: [-90, 0, 0] } }));
+    const wrist = worldPos(m.joints.leftHand);
+    const pole = worldPos(m.joints.leftLowerArm).add(new THREE.Vector3(1, 0, 0));
+    m.swivel(POLE_CHAINS.leftLowerArm, pole);
+    expect(worldPos(m.joints.leftHand).distanceTo(wrist)).toBeLessThan(1e-4);
   });
 
   it('clamps joints to their limits', () => {
     const m = make();
-    m.apply(newFigure({ joints: { kneeL: [-60, 0, 0], elbowR: [40, 0, 0] } }));
-    m.constrain(['kneeL', 'elbowR']);
+    m.apply(newFigure({ joints: { leftLowerLeg: [-60, 0, 0], rightLowerArm: [40, 0, 0] } }));
+    m.constrain(['leftLowerLeg', 'rightLowerArm']);
     const j = m.read().joints;
-    expect(j.kneeL).toBeUndefined(); // clamped to [0, 0, 0]
-    expect(j.elbowR).toBeUndefined();
+    expect(j.leftLowerLeg).toBeUndefined(); // clamped to [0, 0, 0]
+    expect(j.rightLowerArm).toBeUndefined();
   });
 
   it('reads raised arms back without Euler flips', () => {
     const m = make();
-    m.apply(newFigure({ joints: { shoulderL: [-10, 90, 150] } }));
+    m.apply(newFigure({ joints: { leftUpperArm: [-10, 90, 150] } }));
     // Disturb the quaternion slightly, as a gizmo drag would.
-    const s = m.joints.shoulderL;
+    const s = m.joints.leftUpperArm;
     s.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.001));
-    const r = m.read().joints.shoulderL!;
+    const r = m.read().joints.leftUpperArm!;
     expect(Math.abs(r[2] - 150)).toBeLessThan(1);
     expect(Math.abs(r[1] - 90)).toBeLessThan(1);
   });
@@ -124,7 +124,7 @@ describe('Mannequin', () => {
     const m = make();
     const tipOf = () => {
       const box = new THREE.Box3();
-      m.parts.bodies.filter((b) => b.userData.joint === 'wristL').forEach((b) => box.expandByObject(b));
+      m.parts.bodies.filter((b) => b.userData.joint === 'leftHand').forEach((b) => box.expandByObject(b));
       return box;
     };
     m.apply(newFigure({ joints: {} }));
@@ -137,11 +137,11 @@ describe('Mannequin', () => {
 });
 
 describe('sex characteristics', () => {
-  const width = (m: Mannequin, a: 'shoulderL' | 'hipL') => m.joints[a].getWorldPosition(new THREE.Vector3()).x * 2;
+  const width = (m: Mannequin, a: 'leftUpperArm' | 'leftUpperLeg') => m.joints[a].getWorldPosition(new THREE.Vector3()).x * 2;
   it('gives male figures broader shoulders than hips, and female figures the reverse ratio', () => {
     const male = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 0, bust: 0 });
     const female = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 1 });
-    const ratio = (m: Mannequin) => width(m, 'shoulderL') / width(m, 'hipL');
+    const ratio = (m: Mannequin) => width(m, 'leftUpperArm') / width(m, 'leftUpperLeg');
     expect(ratio(male)).toBeGreaterThan(ratio(female) * 1.4);
     // Pectoral contour lines on the male chest, breasts as separate forms on the female one.
     const chestParts = (m: Mannequin) => m.parts.bodies.filter((b) => b.userData.joint === 'chest').length;

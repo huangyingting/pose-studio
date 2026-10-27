@@ -53,7 +53,7 @@ const GLIDE_STEP = 0.008;
 const LIMIT_SLACK = 4;
 /** A pop is a sudden change of speed from one frame to the next (fast but smooth is fine). */
 const POP_STEP = 25;
-const LEGS = new Set<string>(['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR']);
+const LEGS = new Set<string>(['leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot']);
 const POP_ROOT = 0.12;
 /** Capsules closer than this fraction of their radii overlap clearly (resting on each other is fine). */
 const OVERLAP = 0.5;
@@ -65,21 +65,21 @@ interface Bone { a: JointName; b: JointName | null; r: number; from?: number; to
  * holding hands and a hand on a shoulder are contact, not overlap.
  */
 const BONES: Bone[] = [
-  { a: 'root', b: 'neck', r: 0.1 },
+  { a: 'hips', b: 'neck', r: 0.1 },
   { a: 'head', b: null, r: 0.09 },
-  { a: 'shoulderL', b: 'elbowL', r: 0.045, from: 0.2 }, { a: 'elbowL', b: 'wristL', r: 0.035, to: 0.7 },
-  { a: 'shoulderR', b: 'elbowR', r: 0.045, from: 0.2 }, { a: 'elbowR', b: 'wristR', r: 0.035, to: 0.7 },
-  { a: 'hipL', b: 'kneeL', r: 0.07 }, { a: 'kneeL', b: 'ankleL', r: 0.045 },
-  { a: 'hipR', b: 'kneeR', r: 0.07 }, { a: 'kneeR', b: 'ankleR', r: 0.045 },
+  { a: 'leftUpperArm', b: 'leftLowerArm', r: 0.045, from: 0.2 }, { a: 'leftLowerArm', b: 'leftHand', r: 0.035, to: 0.7 },
+  { a: 'rightUpperArm', b: 'rightLowerArm', r: 0.045, from: 0.2 }, { a: 'rightLowerArm', b: 'rightHand', r: 0.035, to: 0.7 },
+  { a: 'leftUpperLeg', b: 'leftLowerLeg', r: 0.07 }, { a: 'leftLowerLeg', b: 'leftFoot', r: 0.045 },
+  { a: 'rightUpperLeg', b: 'rightLowerLeg', r: 0.07 }, { a: 'rightLowerLeg', b: 'rightFoot', r: 0.045 },
 ];
 
 const BONE_LABELS: Record<string, string> = {
-  root: 'body', head: 'head', shoulderL: 'left upper arm', elbowL: 'left forearm', shoulderR: 'right upper arm', elbowR: 'right forearm',
-  hipL: 'left thigh', kneeL: 'left shin', hipR: 'right thigh', kneeR: 'right shin',
+  hips: 'body', head: 'head', leftUpperArm: 'left upper arm', leftLowerArm: 'left forearm', rightUpperArm: 'right upper arm', rightLowerArm: 'right forearm',
+  leftUpperLeg: 'left thigh', leftLowerLeg: 'left shin', rightUpperLeg: 'right thigh', rightLowerLeg: 'right shin',
 };
 
 /** Arms crossing arms is usually a hold, and the capsules are roughest there: not checked. */
-const ARMS = new Set<JointName>(['shoulderL', 'elbowL', 'shoulderR', 'elbowR']);
+const ARMS = new Set<JointName>(['leftUpperArm', 'leftLowerArm', 'rightUpperArm', 'rightLowerArm']);
 
 interface Capsule { p: THREE.Vector3; q: THREE.Vector3; r: number; bone: JointName }
 
@@ -212,9 +212,9 @@ export function checkMotion(scene: Scene): Issue[] {
   const ranges = new Ranges(stamps, (key, worst, d) => {
     switch (d.kind) {
       case 'hidden': return null; // found shot by shot (hiddenInShots)
-      case 'slide': return worst >= SLIDE_MIN ? `${who(d.figure)}${d.joint === 'ankleL' ? 'Left' : 'Right'} foot slides ${cm(worst)} while planted` : null;
+      case 'slide': return worst >= SLIDE_MIN ? `${who(d.figure)}${d.joint === 'leftFoot' ? 'Left' : 'Right'} foot slides ${cm(worst)} while planted` : null;
       case 'limit': return `${who(d.figure)}${JOINT_LABELS[d.joint!]} bends ${Math.round(worst)}° past its natural range`;
-      case 'pop': return d.joint === 'root' && key.endsWith(':move')
+      case 'pop': return d.joint === 'hips' && key.endsWith(':move')
         ? `${who(d.figure)}Body jerks (${cm(worst)} more in one frame)`
         : `${who(d.figure)}${JOINT_LABELS[d.joint!]} snaps (${Math.round(worst)}° more in one frame)`;
       case 'overlap': {
@@ -251,7 +251,7 @@ export function checkMotion(scene: Scene): Issue[] {
     for (const f of s.figures) {
       if (!figures.some((x) => x.id === f.id)) continue;
       const m = rig.model(f);
-      for (const k of ['ankleL', 'ankleR'] as const) {
+      for (const k of ['leftFoot', 'rightFoot'] as const) {
         const y = m.joints[k].getWorldPosition(point).y;
         minAnkle.set(f.id + k, Math.min(minAnkle.get(f.id + k) ?? Infinity, y));
       }
@@ -279,7 +279,7 @@ export function checkMotion(scene: Scene): Issue[] {
       // Foot slide: a planted foot (at its floor level and slow) should not drift, and a figure
       // should not glide along with both feet on the floor (in a step only one foot moves).
       // Stand-ins glide from place to place by design: no foot slide or joint limits for them.
-      const feet = (f.proxy ? [] : (['ankleL', 'ankleR'] as const)).map((k) => {
+      const feet = (f.proxy ? [] : (['leftFoot', 'rightFoot'] as const)).map((k) => {
         const p = m.joints[k].getWorldPosition(new THREE.Vector3());
         const prev = prevAnkle.get(f.id + k);
         const floor = minAnkle.get(f.id + k)!;
@@ -297,13 +297,13 @@ export function checkMotion(scene: Scene): Issue[] {
       const generated = !!chainAt(a, f.id, times[i]) || generatedBefore.has(f.id);
       if (chainAt(a, f.id, times[i])) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
       for (const j of JOINTS) {
-        if (generated && (LEGS.has(j) || j === 'root')) {
+        if (generated && (LEGS.has(j) || j === 'hips')) {
           prevStep.delete(f.id + j);
           prevQ.delete(f.id + j);
           continue;
         }
         const r = f.joints[j] ?? [0, 0, 0];
-        euler.set(r[0] * THREE.MathUtils.DEG2RAD, r[1] * THREE.MathUtils.DEG2RAD, r[2] * THREE.MathUtils.DEG2RAD, j === 'root' ? 'YXZ' : 'XZY');
+        euler.set(r[0] * THREE.MathUtils.DEG2RAD, r[1] * THREE.MathUtils.DEG2RAD, r[2] * THREE.MathUtils.DEG2RAD, j === 'hips' ? 'YXZ' : 'XZY');
         const q = new THREE.Quaternion().setFromEuler(euler);
         const pq = prevQ.get(f.id + j);
         if (pq) {
@@ -312,17 +312,17 @@ export function checkMotion(scene: Scene): Issue[] {
         }
         prevQ.set(f.id + j, q);
       }
-      const root = m.joints.root.getWorldPosition(new THREE.Vector3());
+      const root = m.joints.hips.getWorldPosition(new THREE.Vector3());
       const pr = generated ? undefined : prevRoot.get(f.id);
       if (generated) prevStep.delete(`${f.id}:move`);
       const jump = pr ? pop(`${f.id}:move`, root.distanceTo(pr), POP_ROOT) : 0;
-      if (jump) ranges.hit(`pop:${f.id}:root:move`, step, jump, { kind: 'pop', figure: f.id, joint: 'root' });
+      if (jump) ranges.hit(`pop:${f.id}:hips:move`, step, jump, { kind: 'pop', figure: f.id, joint: 'hips' });
       prevRoot.set(f.id, root);
       if (wrap) continue;
 
       // Joint limits.
       for (const j of JOINTS) {
-        if (j === 'root' || f.proxy) continue;
+        if (j === 'hips' || f.proxy) continue;
         const r = f.joints[j] ?? [0, 0, 0];
         const lim = jointLimits(j);
         const over = Math.max(...r.map((v, k) => {
@@ -339,7 +339,7 @@ export function checkMotion(scene: Scene): Issue[] {
       // the frame before (a leg swung through a thin bar between two frames).
       // A ball on the move (thrown, bounced) through the body or legs; not while it is at a hand
       // (being let go of, or caught), and arms catch and hold it.
-      const hands = (['wristL', 'wristR'] as const).map((j) => rig.model(f).joints[j].getWorldPosition(new THREE.Vector3()));
+      const hands = (['leftHand', 'rightHand'] as const).map((j) => rig.model(f).joints[j].getWorldPosition(new THREE.Vector3()));
       for (const ball of flying) {
         if (hands.some((h) => h.distanceTo(ball.c) < 0.4)) continue;
         for (const cap of c) {
@@ -420,7 +420,7 @@ function hiddenInShots(scene: Scene): Issue[] {
         if (!m) continue;
         let blocked = 0;
         let behind = '';
-        for (const j of ['head', 'chest', 'root'] as const) {
+        for (const j of ['head', 'chest', 'hips'] as const) {
           const p = m.joints[j].getWorldPosition(new THREE.Vector3());
           const d = p.clone().sub(cam.position);
           const dist = d.length();

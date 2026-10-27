@@ -93,7 +93,7 @@ export class SceneView {
       }
       // A held prop rides on its holder's wrist (re-attached when the figure is rebuilt), hidden with it.
       const holder = p.hold ? this.figures.get(p.hold.figure) : undefined;
-      const parent = holder && p.hold ? holder.joints[p.hold.hand === 'L' ? 'wristL' : 'wristR'] : this.root;
+      const parent = holder && p.hold ? holder.joints[p.hold.hand === 'L' ? 'leftHand' : 'rightHand'] : this.root;
       if (o.object.parent !== parent) {
         parent.add(o.object);
         changed = true;

@@ -133,7 +133,7 @@ export default function Viewport({
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
     if (m && doc) {
-      target = m.joints.root;
+      target = m.joints.hips;
       showY = !doc.grounded;
       onGizmoChange = () => store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}`);
     }
