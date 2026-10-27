@@ -1,65 +1,57 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Download, Film, Image as ImageIcon, LayoutPanelTop, Plus, Trash2, X } from 'lucide-react';
-import { addToBoard, editPanel, moveOnBoard, removeFromBoard } from '@/lib/actions';
-import { boardDuration, boardPanels } from '@/lib/board';
-import { boardSheet, recordAnimatic } from '@/lib/boardExport';
-import { canvasToBlob, downloadBlob } from '@/lib/render';
-import { STYLE_LIST } from '@/lib/styles';
-import type { Panel, Scene, Style } from '@/lib/types';
-import { drawShot, videoSupported } from '@/lib/video';
-import { useStore, useStudio } from './store-context';
-import { IconButton, Menu, NumberField, Select, Toggle, type Notify } from './ui';
+import { ArrowUpRight, Download, LayoutPanelTop, Plus, Trash2, X } from 'lucide-react';
+import { addToBoard, moveOnBoard, removeFromBoard, setCaption, setHold } from '@/lib/actions';
+import { boardPanels, storyLength, storyShots, type StoryShot } from '@/lib/board';
+import { panelLabel, panelTime } from '@/lib/boardExport';
+import { frameAspect } from '@/lib/cameras';
+import { thumbnail } from '@/lib/thumbnails';
+import type { Scene, Style } from '@/lib/types';
+import { drawShot } from '@/lib/video';
+import { useFilm, useStore, useStudio } from './store-context';
+import { IconButton, NumberField } from './ui';
 import { KEYS } from './shortcuts';
 
-const PREVIEW = { width: 320, height: 180 };
 const previewCache = new Map<string, string>();
 
-/** A small 16:9 frame of a scene through the camera filming its start (cached by everything it shows). */
-function preview(scene: Scene, style: Style, faces: boolean) {
+/** A small frame of a shot of a scene at t, in the project's frame (cached by everything it shows). */
+function preview(scene: Scene, t: number, style: Style, faces: boolean, aspect: number) {
   const a = scene.animation;
-  const key = JSON.stringify([style, faces, scene.figures, scene.props, scene.cameras, scene.light, a?.actions, a?.props, a?.constraints, a?.shots, a?.frame]);
+  const key = JSON.stringify([t, style, faces, aspect, scene.figures, scene.props, scene.cameras, scene.light, a?.actions, a?.props, a?.constraints, a?.shots]);
   let url = previewCache.get(key);
   if (!url) {
     const c = document.createElement('canvas');
-    c.width = PREVIEW.width;
-    c.height = PREVIEW.height;
-    drawShot(c.getContext('2d')!, scene, 0, { ...PREVIEW, style, lineWidth: 1.2, faces });
+    c.width = aspect >= 1 ? 320 : 180;
+    c.height = Math.round(c.width / aspect);
+    drawShot(c.getContext('2d')!, scene, t, { width: c.width, height: c.height, style, lineWidth: 1.2, faces });
     url = c.toDataURL('image/png');
-    if (previewCache.size > 200) previewCache.delete(previewCache.keys().next().value!);
+    if (previewCache.size > 300) previewCache.delete(previewCache.keys().next().value!);
     previewCache.set(key, url);
   }
   return url;
 }
 
 /**
- * Storyboard: the story as a row of panels, each a scene of the project with a caption and
- * how long it stays on screen. Export a board sheet or an animatic.
+ * Storyboard: the story as panels, shot by shot. The project's scenes in story order: an animated
+ * scene shows a panel per shot (through its camera, with its caption and length), a still one a
+ * panel held for its time. Its export is the Export dialog's ("Storyboard", "Story video"…).
  */
-export default function Board({ onClose, notify }: { onClose(): void; notify: Notify }) {
+export default function Board({ onClose, onExport }: { onClose(): void; onExport(): void }) {
   const store = useStore();
   const library = useStudio((s) => s.library);
-  const settings = useStudio((s) => s.settings);
-  const panels = useMemo(() => boardPanels(library), [library]);
-  const scenes = useMemo(() => new Map(library.scenes.map((s) => [s.id, s])), [library]);
-  const [style, setStyle] = useState<Style>('line');
-  const [captions, setCaptions] = useState(true);
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const film = useFilm();
+  const aspect = frameAspect();
+  const shots = useMemo(() => storyShots(library), [library]);
+  const entries = useMemo(() => boardPanels(library).map((p) => p.id), [library]);
+  const [thumbs, setThumbs] = useState<string[]>([]);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      const next: Record<string, string> = {};
-      for (const p of panels) {
-        const s = scenes.get(p.sceneId);
-        if (s) next[p.id] = preview(s, style, settings.faces);
-      }
-      setThumbs(next);
-    }, 60);
+    const t = setTimeout(() => setThumbs(shots.map((x) => preview(x.scene, panelTime(x), film.style, film.faces, aspect))), 60);
     return () => clearTimeout(t);
-  }, [panels, scenes, style, settings.faces]);
+  }, [shots, film.style, film.faces, aspect]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -69,122 +61,100 @@ export default function Board({ onClose, notify }: { onClose(): void; notify: No
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const resolve = (p: Panel) => scenes.get(p.sceneId);
-  const opts = { style, faces: settings.faces, captions };
-
-  const exportSheet = async () => {
-    setBusy('sheet');
-    await new Promise((r) => setTimeout(r, 30));
-    try {
-      const canvas = boardSheet(panels, resolve, opts);
-      downloadBlob(await canvasToBlob(canvas, 'png'), 'Storyboard.png');
-      notify(`Saved Storyboard.png (${canvas.width} × ${canvas.height})`);
-    } catch (err) {
-      notify(`Export failed: ${(err as Error).message}`, 'error');
-    } finally {
-      setBusy(null);
+  /** Open a panel's scene at its shot. */
+  const open = (x: StoryShot) => {
+    const i = library.scenes.findIndex((s) => s.id === x.scene.id);
+    if (i < 0) return;
+    store.setSceneIndex(i);
+    if (x.span) {
+      store.setTime(x.span.start);
+      store.select({ kind: 'shot', shot: x.span.shot.id });
     }
-  };
-
-  const exportAnimatic = async () => {
-    setBusy('animatic');
-    try {
-      const { blob, ext } = await recordAnimatic(panels, resolve, { ...opts, width: 1280, height: 720 }, (f) => setBusy(`animatic ${Math.round(f * 100)}%`));
-      downloadBlob(blob, `Animatic.${ext}`);
-      notify(`Saved Animatic.${ext} (${boardDuration(panels).toFixed(1)} s)`);
-    } catch (err) {
-      notify(`Export failed: ${(err as Error).message}`, 'error');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const open = (sceneId: string) => {
-    const i = library.scenes.findIndex((s) => s.id === sceneId);
-    if (i >= 0) store.setSceneIndex(i);
     onClose();
   };
+
+  const scenes = library.scenes.length;
+  const addList = adding && (
+    <ul className="board-add-list" aria-label="Scenes to add">
+      {library.scenes.map((s) => (
+        <li key={s.id}>
+          <button type="button" onClick={() => { addToBoard(store, s.id); setAdding(false); }}>
+            {/* Generated data: URLs, so next/image does not apply. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={thumbnail(s)} alt="" />
+            <span>{s.name}{s.animation ? ` · ${s.animation.shots.length} ${s.animation.shots.length === 1 ? 'shot' : 'shots'}` : ''}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <div className="board" role="dialog" aria-modal="true" aria-label="Storyboard">
       <header className="board-head">
         <h2><LayoutPanelTop size={18} aria-hidden /> Storyboard</h2>
-        <span className="muted">{panels.length} {panels.length === 1 ? 'panel' : 'panels'} · {boardDuration(panels).toFixed(1)} s</span>
+        <span className="muted">{entries.length} {entries.length === 1 ? 'scene' : 'scenes'} · {shots.length} {shots.length === 1 ? 'shot' : 'shots'} · {storyLength(shots).toFixed(1)} s</span>
         <span className="spacer" />
-        <div className="board-style">
-          <Select<Style> label="Board style" value={style} onChange={setStyle} options={STYLE_LIST.map((s) => ({ value: s.id, label: s.label }))} />
-        </div>
-        <Toggle label="Captions" checked={captions} onChange={setCaptions} />
-        <button type="button" className="btn subtle" onClick={() => addToBoard(store)}>
-          <Plus size={15} aria-hidden /> Add “{store.scene.name}”
+        <button type="button" className="btn subtle" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+          <Plus size={15} aria-hidden /> Add a scene
         </button>
-        <Menu
-          label="Export storyboard"
-          align="end"
-          className="btn primary"
-          items={[
-            { label: 'Board sheet (PNG)', icon: ImageIcon, disabled: !panels.length, onSelect: exportSheet },
-            { label: 'Animatic (video)', icon: Film, disabled: !panels.length || !videoSupported(), onSelect: exportAnimatic },
-          ]}
-        >
-          <Download size={15} aria-hidden /> {busy ? (busy.startsWith('animatic') ? `Recording ${busy.split(' ')[1] ?? ''}` : 'Rendering…') : 'Export'}
-        </Menu>
+        <button type="button" className="btn primary" disabled={!shots.length} onClick={onExport}>
+          <Download size={15} aria-hidden /> Export
+        </button>
         <IconButton icon={X} label="Close storyboard" shortcut={KEYS.deselect} onClick={onClose} />
       </header>
-      {panels.length ? (
+      {addList}
+      {shots.length ? (
         <ol className="board-grid">
-          {panels.map((p, i) => {
-            const s = scenes.get(p.sceneId)!;
+          {shots.map((x, i) => {
+            const entry = entries.indexOf(x.panel.id);
+            const first = i === 0 || shots[i - 1].panel.id !== x.panel.id;
             return (
               <li
-                key={p.id}
-                className={`panel-card${dragFrom === i ? ' dragging' : ''}`}
+                key={`${x.panel.id}:${x.span?.shot.id ?? ''}`}
+                className={`panel-card${dragFrom === entry ? ' dragging' : ''}${first ? ' first' : ''}`}
                 draggable
-                onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; }}
+                onDragStart={(e) => { setDragFrom(entry); e.dataTransfer.effectAllowed = 'move'; }}
                 onDragOver={(e) => { if (dragFrom !== null) e.preventDefault(); }}
-                onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) moveOnBoard(store, dragFrom, i); setDragFrom(null); }}
+                onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) moveOnBoard(store, dragFrom, entry); setDragFrom(null); }}
                 onDragEnd={() => setDragFrom(null)}
               >
-                <div className="panel-frame">
+                <div className="panel-frame" style={{ aspectRatio: aspect }}>
                   {/* Generated data: URLs, so next/image does not apply. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {thumbs[p.id] ? <img src={thumbs[p.id]} alt="" draggable={false} /> : <div className="ph" />}
+                  {thumbs[i] ? <img src={thumbs[i]} alt="" draggable={false} /> : <div className="ph" />}
                   <span className="panel-no">{i + 1}</span>
                   <div className="panel-actions">
-                    <IconButton icon={ArrowUpRight} label={`Open ${s.name}`} onClick={() => open(p.sceneId)} size={14} />
-                    <IconButton icon={Trash2} label={`Remove panel ${i + 1}`} onClick={() => removeFromBoard(store, p.id)} size={14} />
+                    <IconButton icon={ArrowUpRight} label={`Open ${x.scene.name}${x.span ? ` at ${x.span.shot.name}` : ''}`} onClick={() => open(x)} size={14} />
+                    <IconButton icon={Trash2} label={`Take ${x.scene.name} out of the story`} onClick={() => removeFromBoard(store, x.panel.id)} size={14} />
                   </div>
                 </div>
                 <div className="panel-meta">
-                  <span className="panel-name">{s.name}{s.animation ? ' · animated' : ''}</span>
-                  <div className="panel-hold">
-                    <NumberField prefix="⏱" label={`Panel ${i + 1} hold (seconds)`} value={p.hold} step={0.1} min={0.2} max={60} digits={1} onChange={(hold) => editPanel(store, p.id, { hold })} />
-                  </div>
+                  <span className="panel-name" title={panelLabel(x)}>{x.scene.name}{x.span ? ` · ${x.span.shot.name}` : ''}</span>
+                  {x.span ? <span className="muted">{x.length.toFixed(1)} s</span> : (
+                    <div className="panel-hold">
+                      <NumberField prefix="⏱" label={`${x.scene.name}: seconds on screen`} value={x.panel.hold} step={0.1} min={0.2} max={60} digits={1} onChange={(hold) => setHold(store, x.panel.id, hold)} />
+                    </div>
+                  )}
                 </div>
                 <textarea
                   className="panel-caption"
-                  value={p.caption ?? ''}
+                  value={x.caption}
                   placeholder="What happens…"
                   aria-label={`Panel ${i + 1} caption`}
                   rows={2}
-                  onChange={(e) => editPanel(store, p.id, { caption: e.target.value })}
+                  onChange={(e) => setCaption(store, x.scene.id, x.span?.shot.id ?? null, e.target.value)}
                 />
               </li>
             );
           })}
-          <li className="panel-add">
-            <button type="button" onClick={() => addToBoard(store)}>
-              <Plus size={20} aria-hidden />
-              <span>Add the open scene</span>
-            </button>
-          </li>
         </ol>
       ) : (
         <div className="board-empty">
           <LayoutPanelTop size={28} strokeWidth={1.5} aria-hidden />
-          <h3>Tell a story, one panel at a time</h3>
-          <p className="muted">Each panel is one of your scenes, framed by its camera, with a caption and how long it stays on screen.</p>
-          <button type="button" className="btn primary" onClick={() => addToBoard(store)}><Plus size={15} aria-hidden /> Add “{store.scene.name}”</button>
+          <h3>Tell a story, one scene at a time</h3>
+          <p className="muted">A scene shows as a panel per shot, each through its camera with its caption; a still scene as one panel, on screen for as long as you set. {scenes > 1 ? 'Add the scenes in story order.' : ''}</p>
+          {!adding && <button type="button" className="btn primary" onClick={() => setAdding(true)}><Plus size={15} aria-hidden /> Add a scene</button>}
         </div>
       )}
     </div>

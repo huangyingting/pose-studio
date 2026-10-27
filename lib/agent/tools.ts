@@ -1,11 +1,12 @@
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
-  setAnimationOptions, setDistance, setPlacement, startAnimation,
+  editFilm, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
+import { filmOf } from '../film';
 import { HAND_PRESETS, cloneHand } from '../hands';
 import { actionsOf, marksOf, missedCatchesOf, overWarp } from '../evaluate';
 import { actionLabel, restage } from '../track';
@@ -122,7 +123,7 @@ function sceneSummary(store: Store) {
         ...(c.shake ? { shake: c.shake } : {}),
       };
     }),
-    style: store.getState().settings.style,
+    film: filmOf(store.getState().library),
     joint_limits: store.getState().settings.limits,
   };
 }
@@ -678,10 +679,10 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'set_style',
-    description: 'Render style of the viewport and exports.',
+    description: 'Render style of the project (the film\'s look: the canvas, the storyboard and exports).',
     schema: obj({ style: str('Style', STYLES) }),
     run: (store, i) => {
-      store.setSettings({ style: i.style as Style });
+      editFilm(store, { style: i.style as Style });
       return `Style: ${i.style}.`;
     },
   },

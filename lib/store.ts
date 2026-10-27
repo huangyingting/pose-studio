@@ -1,24 +1,23 @@
 import { normalize, propKeyOf } from './animation';
 import { clipIdsOf } from './assets';
 import { loadClips } from './assetstore';
+import { setFilm } from './film';
 import { setModels } from './model';
 import { newScene, parseLibrary } from './doc';
 import { sceneAt } from './evaluate';
 import { keepProps, setPropKey } from './propmotion';
 import { setPoseAt } from './track';
 import { shotSpans } from './shots';
-import { STYLES, type Figure, type GizmoMode, type Library, type Pose, type Prop, type Scene, type Selection, type Style } from './types';
+import type { Figure, GizmoMode, Library, Pose, Prop, Scene, Selection } from './types';
 
+/** The device's preferences (the project's look is its film's: lib/film.ts). */
 export interface Settings {
-  style: Style;
   showHandles: boolean;
   showGrid: boolean;
   limits: boolean;
   gizmo: GizmoMode;
   /** Outline width in the editor (CSS px). */
   editorLine: number;
-  /** Simple face details (nose, ears, eyes, brows, mouth). */
-  faces: boolean;
   /** The left side panel's open section, or 'none' when it is collapsed to the rail. */
   side: SideSection;
   /** The library's open tab. */
@@ -68,7 +67,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  style: 'line', showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, faces: true, side: 'scene', libraryTab: 'poses', tips: true, inspector: true, timelineFolded: false, timelineHeight: 0, guides: false,
+  showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, side: 'scene', libraryTab: 'poses', tips: true, inspector: true, timelineFolded: false, timelineHeight: 0, guides: false,
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -106,13 +105,11 @@ function loadSettings(storage: Storage | null): Settings {
     if (raw) {
       const s = JSON.parse(raw) as Partial<Settings>;
       return {
-        style: STYLES.includes(s.style as Style) ? (s.style as Style) : 'line',
         showHandles: s.showHandles !== false,
         showGrid: s.showGrid !== false,
         limits: s.limits !== false,
         gizmo: s.gizmo === 'translate' || s.gizmo === 'scale' ? s.gizmo : 'rotate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
-        faces: s.faces !== false,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
         libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',
         tips: s.tips !== false,
@@ -148,6 +145,7 @@ export class Store {
   constructor(private storage: Storage | null = typeof localStorage === 'undefined' ? null : localStorage) {
     const library = loadLibrary(storage);
     setModels(library.models);
+    setFilm(library.film);
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
@@ -210,6 +208,7 @@ export class Store {
 
   private set(patch: Partial<State>, persist = true) {
     if (patch.library && patch.library.models !== this.state.library.models) setModels(patch.library.models);
+    if (patch.library && patch.library.film !== this.state.library.film) setFilm(patch.library.film);
     const pending = persist && this.storage !== null;
     this.state = this.normalize({ ...this.state, ...patch, ...(pending ? { saveStatus: 'pending' as const } : {}) });
     if (pending) this.scheduleSave();

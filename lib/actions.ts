@@ -4,13 +4,14 @@ import { sided, wrapDeg } from './joints';
 import {
   NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
-import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
+import { boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { SHOOT_PRESETS, asTemplate, putTemplate, templatesOf } from './templates';
 import { clipInfo, keysClip, partKeys } from './clip';
 import { saveClips, saveImage } from './assetstore';
+import { filmOf } from './film';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -31,7 +32,7 @@ import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setP
 import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Reference, Scene, Side, Travel, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -882,7 +883,7 @@ export function setCameraPoint(store: Store, position: THREE.Vector3, look: THRE
   store.updateScene((s) => {
     const cam = (camera && cameraById(s, camera)) || liveCamera(s, t);
     if (cam.kind === 'rig') {
-      const view = { position, target: look, fov, lens: fovLens(fov, frameAspect(s)), roll: 0 };
+      const view = { position, target: look, fov, lens: fovLens(fov, frameAspect()), roll: 0 };
       return withCamera(s, { ...cam, rig: rigFrom(s, cam, view, t, cam.rig.body, { size: cam.rig.size, lens: Math.round(view.lens) }) });
     }
     return withCamera(s, setPointAt(cam, fps, t, capturePoint(s, cam, t, position, look, fov)));
@@ -975,7 +976,7 @@ export function setLens(store: Store, mm: number, keep: 'size' | 'place' = 'size
     const position = keep === 'size'
       ? view.target.clone().add(view.position.clone().sub(view.target).multiplyScalar(lens / view.lens))
       : view.position;
-    const point = capturePoint(s, cam, t, position, view.target, lensFov(lens, frameAspect(s)));
+    const point = capturePoint(s, cam, t, position, view.target, lensFov(lens, frameAspect()));
     return withCamera(s, setPointAt(cam, fps, t, { ...point, lens, ...(view.roll ? { roll: view.roll } : {}) }));
   }, key);
 }
@@ -1133,16 +1134,6 @@ function cover(store: Store, id: string, roles?: Record<string, string>): Record
   return cast;
 }
 
-/** The frame shape the scene's shots are filmed in (16:9, 9:16, 1:1, 2.39:1). */
-export function setFrameShape(store: Store, frame: FrameShape) {
-  store.updateScene((s) => {
-    if (!s.animation) return s;
-    const { frame: _old, ...rest } = s.animation;
-    void _old;
-    return { ...s, animation: frame === '16:9' ? rest : { ...rest, frame } };
-  });
-}
-
 /** Give the current shot (the whole animation without cuts) a ready-made camera move, or reshape one camera (`camera`) with it. */
 export function applyCameraMove(store: Store, id: string, camera?: string) {
   const t = store.getState().time;
@@ -1186,13 +1177,14 @@ export function editShot(store: Store, id: string, patch: { name?: string; capti
   }, `shot:${id}`);
 }
 
-/** Cut the shots for a video model (its clip length becomes each shot's limit), or clear it. */
-export function setTargetModel(store: Store, target: string | null) {
-  store.updateScene((s) => {
-    if (!s.animation) return s;
-    const { target: _old, ...rest } = s.animation;
-    void _old;
-    return { ...s, animation: target ? { ...rest, target } : rest };
+/**
+ * The project's film settings: its frame shape (16:9, 9:16, 1:1, 2.39:1), the video model its
+ * shots are cut for (null: none; its clip length becomes each shot's limit), its style and faces.
+ */
+export function editFilm(store: Store, patch: Partial<Omit<Film, 'target'>> & { target?: string | null }) {
+  store.commit((lib) => {
+    const { target, ...rest } = { ...filmOf(lib), ...patch };
+    return { ...lib, film: { ...rest, ...(target ? { target } : {}) } };
   });
 }
 
@@ -1206,10 +1198,9 @@ function updateBoard(store: Store, fn: (board: Panel[]) => Panel[], key = '') {
   }, key);
 }
 
-/** Add a pose (the open one by default) to the end of the storyboard. */
+/** Add a scene (the open one by default) to the end of the story. */
 export function addToBoard(store: Store, sceneId = store.scene.id) {
-  const a = store.getState().library.scenes.find((s) => s.id === sceneId)?.animation;
-  updateBoard(store, (b) => insertPanel(b, newPanel(sceneId, a ? Math.round(a.duration * 10) / 10 : DEFAULT_HOLD)));
+  updateBoard(store, (b) => insertPanel(b, newPanel(sceneId)));
 }
 
 export function removeFromBoard(store: Store, id: string) {
@@ -1220,8 +1211,24 @@ export function moveOnBoard(store: Store, from: number, to: number) {
   updateBoard(store, (b) => movePanel(b, from, to));
 }
 
-export function editPanel(store: Store, id: string, patch: { caption?: string; hold?: number }) {
-  updateBoard(store, (b) => b.map((p) => (p.id === id ? { ...p, ...patch } : p)), `panel:${id}:${Object.keys(patch).join()}`);
+/** How long a still scene stays on screen in the story. */
+export function setHold(store: Store, id: string, hold: number) {
+  updateBoard(store, (b) => b.map((p) => (p.id === id ? { ...p, hold: Math.min(60, Math.max(0.2, hold)) } : p)), `panel:${id}:hold`);
+}
+
+/** What happens in a shot (`shot`) of any scene of the project, or in a still scene. */
+export function setCaption(store: Store, sceneId: string, shot: string | null, caption: string) {
+  const text = caption.slice(0, 500);
+  store.commit((lib) => ({
+    ...lib,
+    scenes: lib.scenes.map((s) => {
+      if (s.id !== sceneId) return s;
+      if (shot && s.animation) return { ...s, animation: updateShot(s.animation, shot, { caption: text || undefined }) };
+      const { caption: _old, ...rest } = s;
+      void _old;
+      return text ? { ...rest, caption: text } : rest;
+    }),
+  }), `caption:${sceneId}:${shot}`);
 }
 
 /* Library assets applied to the scene */

@@ -19,7 +19,7 @@ import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
 import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
-import { useScene, useStore, useStudio } from '../store-context';
+import { useFilm, useScene, useStore, useStudio } from '../store-context';
 import { saveAsTemplate } from '../menus';
 import BoneMapDialog from '../BoneMapDialog';
 import { IconButton, Select } from '../ui';
@@ -82,7 +82,7 @@ type Bind = (title: string, note: string | undefined, job: () => PreviewJob) => 
  * touch: a tap uses the item.
  */
 function usePreview() {
-  const style = useStudio((s) => s.settings.style);
+  const style = useFilm().style;
   const [shown, setShown] = useState<Shown | null>(null);
   const timer = useRef(0);
   const stop = useRef<() => void>(() => {});
@@ -173,7 +173,7 @@ function Poses({ notifyUndo, onPick, preview }: Listed) {
   const store = useStore();
   const figure = useActiveFigure();
   const mine = useStudio((s) => s.library.poses) ?? [];
-  const style = useStudio((s) => s.settings.style);
+  const style = useFilm().style;
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const match = (name: string) => !q || name.toLowerCase().includes(q);
@@ -240,7 +240,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   const store = useStore();
   const figure = useActiveFigure();
   const mine = useStudio((s) => s.library.clips) ?? [];
-  const style = useStudio((s) => s.settings.style);
+  const style = useFilm().style;
   const fileRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
   const usable = !!figure && !figure.proxy;
@@ -445,7 +445,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
   const scene = useScene();
   const figure = useActiveFigure();
   const library = useStudio((s) => s.library);
-  const style = useStudio((s) => s.settings.style);
+  const style = useFilm().style;
   const all = templatesOf(library);
   const groups = [...TEMPLATE_GROUPS, 'Mine'] as const;
   return (
@@ -518,7 +518,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
 function CameraMoves({ notify, onPick, preview }: Listed) {
   const store = useStore();
   const scene = useScene();
-  const style = useStudio((s) => s.settings.style);
+  const style = useFilm().style;
   const selection = useStudio((s) => s.selection);
   const time = useStudio((s) => s.time);
   const a = scene.animation;

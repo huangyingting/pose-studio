@@ -92,11 +92,7 @@ export function asTemplate(scene: Scene, name: string): TemplateAsset {
   const { coverage: _v, animation: a, ...rest } = structuredClone(scene);
   void _v;
   const bare: Scene = { ...rest, cameras: [] };
-  if (a) {
-    const { target: _t, frame: _f, ...timing } = a;
-    void [_t, _f];
-    bare.animation = { ...timing, shots: [] };
-  }
+  if (a) bare.animation = { ...a, shots: [] };
   return { id: uid('tpl'), name, scene: { ...placeScene(bare, 0, -cx, -cz), name } };
 }
 

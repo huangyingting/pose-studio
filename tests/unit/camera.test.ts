@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, applyCameraMove, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, setFrameShape, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, applyCameraMove, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, editFilm, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
 import { newScene, parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
@@ -119,13 +119,14 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     startAnimation(store, 2);
     frameShot(store, 'fs', { lens: 50 });
     expect(cameraAt(store.scene, 0).fov).toBeCloseTo(lensFov(50, 16 / 9), 3);
-    setFrameShape(store, '9:16');
-    expect(store.scene.animation!.frame).toBe('9:16');
+    // The project's frame (its film).
+    editFilm(store, { frame: '9:16' });
+    expect(store.getState().library.film!.frame).toBe('9:16');
     // The same lens on a tall frame sees more height (the sensor's 24 mm).
     expect(cameraAt(store.scene, 0).fov).toBeCloseTo(lensFov(50, 9 / 16), 3);
-    expect(videoSize('1080p', frameAspect(store.scene))).toMatchObject({ width: 1080, height: 1920 });
+    expect(videoSize('1080p', frameAspect())).toMatchObject({ width: 1080, height: 1920 });
     expect(videoSize('720p', ASPECTS['2.39:1'])).toMatchObject({ width: 1720, height: 720 });
-    expect(parseScene(JSON.parse(JSON.stringify(store.scene))).animation!.frame).toBe('9:16');
+    editFilm(store, { frame: '16:9' });
   });
 
   it('reports the camera going through someone', () => {

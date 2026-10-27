@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clampLight, DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
 import { newAnimation } from '@/lib/animation';
+import { parseFilm } from '@/lib/film';
 import { angleAt } from '@/lib/cameras';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
 import { builtInPoses, poseScene } from '@/lib/poses';
@@ -30,7 +31,8 @@ describe('export options', () => {
     expect(o.columns).toBe(12);
     expect(o.cellWidth).toBe(100);
     expect(o.lineWidth).toBe(DEFAULT_EXPORT.lineWidth);
-    expect(o.style).toBe('silhouette');
+    // A style picked for one export is not remembered: the film's is used.
+    expect(o.style).toBeUndefined();
     expect(o.angles).toBe(8);
     expect(o.labels).toBe(true);
     expect(parseExportOptions(null)).toEqual(DEFAULT_EXPORT);
@@ -123,7 +125,7 @@ describe('lighting settings', () => {
     expect(clampLight({ azimuth: 500, elevation: -20, shadows: false, intensity: 0, warmth: -3 })).toEqual({ azimuth: 180, elevation: 5, shadows: false, intensity: 0.2, warmth: -1 });
   });
 
-  it('loads settings with an unknown style', () => {
+  it('loads settings, ignoring what is not a setting of the device', () => {
     const storage = new Map<string, string>();
     const fake = {
       getItem: (k: string) => storage.get(k) ?? null,
@@ -133,12 +135,11 @@ describe('lighting settings', () => {
       key: () => null,
       length: 0,
     } as Storage;
-    storage.set('pose-studio-settings', JSON.stringify({ style: 'neon', showGrid: false }));
+    storage.set('pose-studio-settings', JSON.stringify({ style: 'neon', showGrid: false, gizmo: 'fly' }));
     const s = new Store(fake).getState().settings;
-    expect(s.style).toBe('line');
+    expect('style' in s).toBe(false);
     expect(s.showGrid).toBe(false);
-    storage.set('pose-studio-settings', JSON.stringify({ style: 'silhouette' }));
-    expect(new Store(fake).getState().settings.style).toBe('silhouette');
+    expect(s.gizmo).toBe('rotate');
   });
 });
 
@@ -160,9 +161,9 @@ describe('render styles', () => {
     expect(new Set(STYLE_LIST.map((s) => s.label)).size).toBe(STYLES.length);
   });
 
-  it('accepts the new styles in stored export and practice options', () => {
-    expect(parseExportOptions({ style: 'ink' }).style).toBe('ink');
-    expect(parseExportOptions({ style: 'watercolour' }).style).toBe('line');
+  it('accepts the new styles in stored practice options and film settings', () => {
+    expect(parseFilm({ style: 'ink' })!.style).toBe('ink');
+    expect(parseFilm({ style: 'watercolour', frame: '4:3' })).toEqual({ frame: '16:9', style: 'line', faces: true });
     expect(parsePracticeOptions({ style: 'anime' }).style).toBe('anime');
   });
 

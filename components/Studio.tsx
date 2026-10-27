@@ -6,8 +6,9 @@ import {
   Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
-  addKeyframe, addMotions, appendScenes, cutShot, copyPose, deleteSelection, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addMotions, appendScenes, editFilm, cutShot, copyPose, deleteSelection, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
+import { filmOf } from '@/lib/film';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
@@ -34,7 +35,7 @@ import Inspector, { type InspectorContext } from './Inspector';
 import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
 import { useReferenceUrl } from './reference';
-import { StoreContext, useScene, useStore, useStudio } from './store-context';
+import { StoreContext, useFilm, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
 import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
@@ -78,7 +79,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'photo' | 'help' | 'practice' | 'board';
+type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board';
 
 function App() {
   const store = useStore();
@@ -87,6 +88,7 @@ function App() {
   const selection = useStudio((s) => s.selection);
   const activeFigure = useStudio((s) => s.activeFigure);
   const settings = useStudio((s) => s.settings);
+  const film = useFilm();
   const canUndo = useStudio((s) => s.canUndo);
   const canRedo = useStudio((s) => s.canRedo);
 
@@ -260,8 +262,8 @@ function App() {
         case 'h': case 'H': return run(() => store.setSettings({ showHandles: !store.getState().settings.showHandles }));
         case 'i': case 'I': return run(() => store.setSettings({ inspector: !store.getState().settings.inspector }));
         case 'l': case 'L': return run(() => {
-          const style = store.getState().settings.style;
-          store.setSettings({ style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] });
+          const style = filmOf(store.getState().library).style;
+          editFilm(store, { style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] });
         });
         case 'p': case 'P': return run(() => setDialog('practice'));
         case 'b': case 'B': return run(() => { stopPlayback(); setDialog('board'); });
@@ -336,8 +338,8 @@ function App() {
     fileRef.current!.dataset.mode = mode;
     fileRef.current!.click();
   };
-  const style = styleDef(settings.style);
-  const StyleIcon = STYLE_ICONS[settings.style];
+  const style = styleDef(film.style);
+  const StyleIcon = STYLE_ICONS[film.style];
 
   return (
     <div
@@ -417,7 +419,7 @@ function App() {
               className="btn ghost"
               tip={withKey('Render style', 'style')}
               items={STYLE_LIST.map((s) => ({
-                label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === settings.style, onSelect: () => store.setSettings({ style: s.id }),
+                label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === film.style, onSelect: () => editFilm(store, { style: s.id }),
               }))}
             >
               <StyleIcon size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={13} aria-hidden />
@@ -492,7 +494,7 @@ function App() {
           onion={onion}
           onMenu={openCanvasMenu}
         />
-        {through && <Letterbox aspect={frameAspect(scene)} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
+        {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
         {scene.animation && !through && <CorrectionBadge scene={scene} figureId={activeFigure} time={time} />}
         {settings.tips && (
           <section className="tips" aria-label="Tips">
@@ -525,8 +527,8 @@ function App() {
       <Inspector ctx={ctx} onHide={toggleInspector} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
-      {dialog === 'export' && (
-        <ExportDialog onClose={() => setDialog(null)} notify={notify} editorCamera={ctx.editorCamera} />
+      {(dialog === 'export' || dialog === 'export-story') && (
+        <ExportDialog onClose={() => setDialog(null)} notify={notify} editorCamera={ctx.editorCamera} initial={dialog === 'export-story' ? 'board' : undefined} />
       )}
       {dialog === 'photo' && (
         <PhotoDialog
@@ -536,7 +538,7 @@ function App() {
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
-      {dialog === 'board' && <Board onClose={() => setDialog(null)} notify={notify} />}
+      {dialog === 'board' && <Board onClose={() => setDialog(null)} onExport={() => setDialog('export-story')} />}
       <ContextMenuHost />
       <TooltipHost />
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />

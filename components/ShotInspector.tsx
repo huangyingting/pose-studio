@@ -3,7 +3,7 @@ import { addCamera, editShot, ownCamera } from '@/lib/actions';
 import { cameraById } from '@/lib/cameras';
 import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { CameraSettings } from './CameraInspector';
-import { useScene, useStore } from './store-context';
+import { useFilm, useScene, useStore } from './store-context';
 import { shotMenu, type MenuUi } from './menus';
 import { NameHeader, NumberField, Section, Segmented, Select, type HeaderChrome } from './ui';
 
@@ -11,11 +11,12 @@ import { NameHeader, NumberField, Section, Segmented, Select, type HeaderChrome 
 export default function ShotInspector({ id, ui, chrome }: { id: string; ui: MenuUi; chrome?: HeaderChrome }) {
   const store = useStore();
   const scene = useScene();
+  const film = useFilm();
   const a = scene.animation;
   const span = a ? shotSpans(a).find((sp) => sp.shot.id === id) : undefined;
   if (!a || !span) return null;
-  const over = overLimit(a, span);
-  const model = videoModel(a.target);
+  const over = overLimit(span);
+  const model = videoModel(film.target);
 
   return (
     <>

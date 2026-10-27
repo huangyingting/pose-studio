@@ -590,21 +590,22 @@ test('changes made in another tab are picked up', async ({ page, context }) => {
   await other.close();
 });
 
-test('render styles switch from the toolbar; the scene inspector shows the look', async ({ page }) => {
+test('render styles switch from the toolbar: the project\'s look, shown in the scene inspector\'s Film section', async ({ page }) => {
+  const style = async () => (await state(page) as unknown as { library: { film?: { style: string } } }).library.film?.style;
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Ink wash' }).click();
-  expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('ink');
+  expect(await style()).toBe('ink');
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Anime' }).click();
-  expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('anime');
-  // The scene (the crumb in the inspector's header): its light and look.
+  expect(await style()).toBe('anime');
+  // The scene (the crumb in the inspector's header): its light, and the film's settings.
   await page.locator('.crumb').click();
   await expect(page.getByRole('group', { name: 'Lighting presets' })).toBeVisible();
-  await expect(page.getByText(/^Anime: /)).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Film style' })).toHaveText('Anime');
   // L cycles through every style.
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('l');
-  expect((await state(page) as unknown as { settings: { style: string } }).settings.style).toBe('shaded');
+  expect(await style()).toBe('shaded');
 });
 
 test('body presets change the body', async ({ page }) => {
@@ -691,7 +692,7 @@ test('placement fields move and turn the figure, and faces can be hidden', async
 
   await page.locator('.crumb').click();
   await page.getByRole('switch', { name: 'Simple face features' }).uncheck();
-  expect(((await state(page)) as unknown as { settings: { faces: boolean } }).settings.faces).toBe(false);
+  expect(((await state(page)) as unknown as { library: { film: { faces: boolean } } }).library.film.faces).toBe(false);
 });
 
 type Anim = Animation;
@@ -892,42 +893,54 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   expect(text).toContain('she waves back');
 });
 
-test('storyboard: panels with captions, reordering, board sheet export and persistence', async ({ page }) => {
-  test.setTimeout(120_000);
+test('storyboard: the story shot by shot, captions, reordering, exported from the Export dialog, kept', async ({ page }) => {
+  test.setTimeout(150_000);
+  const first = (await state(page)).scene.name;
   await page.keyboard.press('b');
   const board = page.getByRole('dialog', { name: 'Storyboard' });
-  await expect(board.getByText('Tell a story, one panel at a time')).toBeVisible();
-  await board.getByRole('button', { name: /^Add “/ }).first().click();
+  await expect(board.getByText('Tell a story, one scene at a time')).toBeVisible();
+  // Any scene of the project, from the board's list.
+  await board.getByRole('button', { name: 'Add a scene' }).first().click();
+  await board.getByRole('list', { name: 'Scenes to add' }).getByRole('button', { name: first, exact: true }).click();
   await board.getByRole('button', { name: 'Close storyboard' }).click();
 
-  // A second scene, added from the scene picker's actions.
+  // A second scene, animated and cut into two shots, added from the scene picker's actions.
   await (await openScenes(page)).locator('.thumbs li').nth(3).click();
   const second = (await state(page)).scene.name;
   await openScenes(page);
   await page.getByRole('button', { name: 'Scene actions' }).click();
   await page.getByRole('menuitem', { name: 'Add to storyboard' }).click();
   await closeScenes(page);
+  await openSection(page, 'Scene');
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
+  await page.keyboard.press('c');
   await page.keyboard.press('b');
-  await expect(board.locator('.panel-card')).toHaveCount(2);
-  await expect(board.getByText('2 panels · 4.0 s')).toBeVisible();
-  await board.getByRole('textbox', { name: 'Panel 2 caption' }).fill('A sudden turn');
+  // A panel per shot: the still scene, then the animated one's two shots.
+  await expect(board.locator('.panel-card')).toHaveCount(3);
+  await expect(board.getByText('2 scenes · 3 shots · 4.0 s')).toBeVisible();
+  await expect(board.locator('.panel-name').nth(2)).toHaveText(`${second} · Shot 2`);
+  // A shot's caption is the shot's own.
+  await board.getByRole('textbox', { name: 'Panel 3 caption' }).fill('A sudden turn');
+  expect((await state(page) as unknown as { scene: { animation: { shots: { caption?: string }[] } } }).scene.animation.shots[1].caption).toBe('A sudden turn');
 
+  // Moving a scene moves all of its shots.
   await board.locator('.panel-card').nth(1).dragTo(board.locator('.panel-card').nth(0));
-  await expect(board.locator('.panel-name').first()).toHaveText(second);
-  await expect(board.getByRole('textbox', { name: 'Panel 1 caption' })).toHaveValue('A sudden turn');
+  await expect(board.locator('.panel-name').first()).toHaveText(`${second} · Shot 1`);
+  await expect(board.getByRole('textbox', { name: 'Panel 2 caption' })).toHaveValue('A sudden turn');
 
-  await board.getByRole('button', { name: 'Export storyboard' }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Board sheet (PNG)' }).click()]);
-  expect(download.suggestedFilename()).toBe('Storyboard.png');
-  const png = readFileSync((await download.path())!);
-  expect(png.readUInt32BE(16)).toBeGreaterThan(1000);
+  // Exported from the Export dialog, the story chosen.
+  await board.getByRole('button', { name: 'Export', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Storyboard' })).toHaveAttribute('aria-checked', 'true');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download', exact: true }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^Storyboard\.(jpg|png)$/);
+  expect(readFileSync((await download.path())!).length).toBeGreaterThan(5000);
 
-  await page.keyboard.press('Escape');
-  await expect(board).toBeHidden();
+  await page.waitForFunction(() => (window as unknown as { __poseStudio: { store: { getState(): { saveStatus: string } } } }).__poseStudio.store.getState().saveStatus === 'saved');
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await page.keyboard.press('b');
-  await expect(board.getByRole('textbox', { name: 'Panel 1 caption' })).toHaveValue('A sudden turn');
+  await expect(board.getByRole('textbox', { name: 'Panel 2 caption' })).toHaveValue('A sudden turn');
 });
 
 test('motion check flags foot sliding and jumps to it', async ({ page }) => {
@@ -1007,7 +1020,7 @@ test('the AI assistant runs on the server and its tools on the open pose', async
   await page.keyboard.press('Enter');
   await expect(page.getByText(/Switched to anime/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.assistant-tool code')).toHaveText('set_style');
-  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { settings: { style: string } } } } }).__poseStudio.store.getState().settings.style)).toBe('anime');
+  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { library: { film?: { style: string } } } } } }).__poseStudio.store.getState().library.film?.style)).toBe('anime');
   await expect(page.locator('.assistant-usage')).toContainText('/ 1000');
 });
 

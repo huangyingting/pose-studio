@@ -386,7 +386,7 @@ function hiddenInShots(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a || !scene.props.some((p) => !p.hold)) return [];
   const view = new SceneView();
-  const cam = new THREE.PerspectiveCamera(30, frameAspect(scene));
+  const cam = new THREE.PerspectiveCamera(30, frameAspect());
   const ray = new THREE.Raycaster();
   const issues: Issue[] = [];
   for (const span of shotSpans(a)) {
@@ -398,7 +398,7 @@ function hiddenInShots(scene: Scene): Issue[] {
       view.sync(now);
       // The shot's subject and whoever it frames with them (a two-shot), or everyone.
       const framed = cameraFigures(scene, liveCamera(scene, t));
-      placeCamera(cam, cameraAt(scene, t), frameAspect(scene));
+      placeCamera(cam, cameraAt(scene, t), frameAspect());
       const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name })));
       if (!blockers.length) continue;
       for (const f of now.figures.filter((x) => !x.hidden && (!framed || framed.includes(x.id)))) {

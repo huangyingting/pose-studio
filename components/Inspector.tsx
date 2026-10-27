@@ -6,8 +6,8 @@ import {
   PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, editReference, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
-  reachFor, renameFigure, renameProp, resetPose, setDistance, setFrameShape, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, setReferenceImage, setTargetModel, symmetrizePose,
+  arrange, copyPose, editFilm, editReference, setCaption, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
+  reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, setReferenceImage, symmetrizePose,
 } from '@/lib/actions';
 import { VIDEO_MODELS } from '@/lib/shots';
 import { travelAt } from '@/lib/evaluate';
@@ -21,13 +21,13 @@ import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import type { CameraView } from '@/lib/cameras';
-import { FIGURE_COLORS, FINGERS, FRAME_SHAPES, POSTURES, type FrameShape, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, FRAME_SHAPES, POSTURES, type FrameShape, type Style, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ActionInspector from './ActionInspector';
 import CameraInspector from './CameraInspector';
 import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
-import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
+import { useActiveFigure, useFilm, useScene, useStore, useStudio } from './store-context';
 import { figureMenu, propMenu, sceneMenu, type MenuUi } from './menus';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
 import { KEYS } from './shortcuts';
@@ -591,8 +591,8 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
   const store = useStore();
   const sceneIndex = useStudio((s) => s.sceneIndex);
   const scene = useScene();
-  const settings = useStudio((s) => s.settings);
-  const def = styleDef(settings.style);
+  const film = useFilm();
+  const def = styleDef(film.style);
   const light = scene.light ?? DEFAULT_LIGHT;
   const reference = scene.reference;
   const setLight = (patch: Partial<Light>, key = 'light') => setSceneLight(store, { ...light, ...patch }, key);
@@ -600,29 +600,51 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
   return (
     <>
       <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={scene.name} label="Scene name" onRename={(name) => renameScene(store, name)} menu={sceneMenu(store, sceneIndex, ctx)} />
-      {scene.animation && (
-        <Section title="Film">
-          <div className="field">
-            <span>Frame</span>
-            <Select<FrameShape>
-              label="Frame"
-              value={scene.animation.frame ?? '16:9'}
-              onChange={(v) => setFrameShape(store, v)}
-              options={FRAME_SHAPES.map((f) => ({ value: f, label: FRAME_LABELS[f] }))}
+      {!scene.animation && (
+        <Section title="Scene">
+          <label className="field">
+            <span>What happens</span>
+            <textarea
+              value={scene.caption ?? ''}
+              aria-label="Scene caption"
+              rows={2}
+              placeholder="Its caption in the story (an animated scene's are its shots')"
+              onChange={(e) => setCaption(store, scene.id, null, e.target.value)}
             />
-          </div>
-          <div className="field">
-            <span>Cut for</span>
-            <Select
-              label="Cut for"
-              value={scene.animation.target ?? 'none'}
-              onChange={(v) => setTargetModel(store, v === 'none' ? null : v)}
-              options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
-            />
-          </div>
-          <p className="hint-text">For every shot: the letterbox, videos and keyframe packs take this frame; shots longer than the model allows are flagged.</p>
+          </label>
         </Section>
       )}
+      <Section title="Film">
+        <div className="field">
+          <span>Style</span>
+          <Select<Style> label="Film style" value={film.style} onChange={(style) => editFilm(store, { style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
+        </div>
+        <Toggle
+          label="Simple face features"
+          hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks"
+          checked={film.faces}
+          onChange={(faces) => editFilm(store, { faces })}
+        />
+        <div className="field">
+          <span>Frame</span>
+          <Select<FrameShape>
+            label="Frame"
+            value={film.frame}
+            onChange={(frame) => editFilm(store, { frame })}
+            options={FRAME_SHAPES.map((f) => ({ value: f, label: FRAME_LABELS[f] }))}
+          />
+        </div>
+        <div className="field">
+          <span>Cut for</span>
+          <Select
+            label="Cut for"
+            value={film.target ?? 'none'}
+            onChange={(v) => editFilm(store, { target: v === 'none' ? null : v })}
+            options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
+          />
+        </div>
+        <p className="hint-text">The project&apos;s, for every scene: {def.label} ({def.description.toLowerCase()}; <kbd>L</kbd> switches); the letterbox, the storyboard, videos and keyframe packs take this frame; shots longer than the model allows are flagged.</p>
+      </Section>
       <Section title="Light">
         <div className="chips" role="group" aria-label="Lighting presets">
           {LIGHT_PRESETS.map((p) => (
@@ -649,15 +671,6 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
         <p className="hint-text">
           Saved with the scene and used by its exports.{def.lit ? '' : ` It shows in the lit styles (${LIT}): pick one in the top bar.`}
         </p>
-      </Section>
-      <Section title="Look">
-        <Toggle
-          label="Simple face features"
-          hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks"
-          checked={settings.faces}
-          onChange={(faces) => store.setSettings({ faces })}
-        />
-        <p className="hint-text">{def.label}: {def.description.toLowerCase()}. Switch styles in the top bar (<kbd>L</kbd>).</p>
       </Section>
       <Section
         id="reference"

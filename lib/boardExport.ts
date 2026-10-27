@@ -1,19 +1,21 @@
-import { boardDuration } from './board';
-import type { Panel, Scene, Style } from './types';
+import { frameAspect } from './cameras';
+import { storyLength, type StoryShot } from './board';
+import type { Pass } from './render';
+import type { Style } from './types';
 import { createEncoder, drawShot } from './video';
 
 /*
- * Storyboard outputs: a board sheet (numbered 16:9 panels with captions underneath) and an
- * animatic (each panel on screen for its hold; animated poses play, captions as subtitles).
+ * The story's outputs: a board sheet (a numbered panel per shot, in the project's frame, with
+ * captions underneath) and a video of every scene's shots in story order (captions as subtitles).
  */
 
-export interface BoardOptions {
+export interface StoryOptions {
   style: Style;
   faces: boolean;
+  /** Captions under the panels, or as subtitles. */
   captions: boolean;
+  pass?: Pass;
 }
-
-type Resolve = (p: Panel) => Scene | undefined;
 
 /** Wrap text to lines that fit `width` (at most `max` lines, the last ellipsised). */
 function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, max: number) {
@@ -37,15 +39,30 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, max: n
   return lines;
 }
 
-export function boardSheet(panels: Panel[], resolve: Resolve, o: BoardOptions, columns = 3, cellW = 640) {
-  const cellH = Math.round((cellW * 9) / 16);
-  const textH = o.captions ? 96 : 40;
+/** When a shot is drawn on its panel: once it has blended in, so it is its own camera's view. */
+export const panelTime = (x: StoryShot) => (x.span ? Math.min(x.span.start + (x.span.shot.blend ?? 0), Math.max(x.span.start, x.span.end - 1e-3)) : 0);
+
+/** What a panel says under it: the scene, the shot and its length. */
+export const panelLabel = (x: StoryShot) => `${x.scene.name}${x.span ? ` · ${x.span.shot.name}` : ''} · ${x.length.toFixed(1)} s`;
+
+/** A board sheet's layout: its panels (in the project's frame), and its size. */
+export function boardSize(count: number, columns: number, captions: boolean) {
+  const aspect = frameAspect();
+  const cellW = aspect >= 1 ? 640 : 360;
+  const cellH = Math.round(cellW / aspect);
+  const cols = Math.max(1, Math.min(columns, count));
+  const textH = captions ? 96 : 40;
   const gap = 28;
   const pad = 40;
-  const rows = Math.max(1, Math.ceil(panels.length / columns));
+  const rows = Math.max(1, Math.ceil(count / cols));
+  return { cellW, cellH, cols, textH, gap, pad, width: pad * 2 + cols * cellW + (cols - 1) * gap, height: pad * 2 + rows * (cellH + textH) + (rows - 1) * gap };
+}
+
+export function boardSheet(shots: StoryShot[], o: StoryOptions & { columns: number }) {
+  const { cellW, cellH, cols: columns, textH, gap, pad, width, height } = boardSize(shots.length, o.columns, o.captions);
   const out = document.createElement('canvas');
-  out.width = pad * 2 + columns * cellW + (columns - 1) * gap;
-  out.height = pad * 2 + rows * (cellH + textH) + (rows - 1) * gap;
+  out.width = width;
+  out.height = height;
   const ctx = out.getContext('2d')!;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, out.width, out.height);
@@ -53,46 +70,42 @@ export function boardSheet(panels: Panel[], resolve: Resolve, o: BoardOptions, c
   frame.width = cellW;
   frame.height = cellH;
   const fctx = frame.getContext('2d')!;
-  panels.forEach((p, i) => {
-    const scene = resolve(p);
-    const x = pad + (i % columns) * (cellW + gap);
-    const y = pad + Math.floor(i / columns) * (cellH + textH + gap);
-    if (scene) {
-      drawShot(fctx, scene, 0, { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, faces: o.faces });
-      ctx.drawImage(frame, x, y);
-    }
+  shots.forEach((x, i) => {
+    const left = pad + (i % columns) * (cellW + gap);
+    const top = pad + Math.floor(i / columns) * (cellH + textH + gap);
+    drawShot(fctx, x.scene, panelTime(x), { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, faces: o.faces, pass: o.pass });
+    ctx.drawImage(frame, left, top);
     ctx.strokeStyle = '#1d1d1f';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+    ctx.strokeRect(left + 1, top + 1, cellW - 2, cellH - 2);
     ctx.fillStyle = '#1d1d1f';
     ctx.font = '600 22px system-ui, sans-serif';
     ctx.textBaseline = 'top';
-    ctx.fillText(String(i + 1), x, y + cellH + 12);
+    ctx.fillText(String(i + 1), left, top + cellH + 12);
     ctx.fillStyle = '#6b6b70';
     ctx.font = '500 16px system-ui, sans-serif';
-    const meta = `${scene?.name ?? ''} · ${p.hold.toFixed(1)} s`;
-    ctx.fillText(meta, x + 36, y + cellH + 16, cellW - 36);
-    if (o.captions && p.caption) {
+    ctx.fillText(panelLabel(x), left + 36, top + cellH + 16, cellW - 36);
+    if (o.captions && x.caption) {
       ctx.fillStyle = '#1d1d1f';
       ctx.font = '18px system-ui, sans-serif';
-      wrap(ctx, p.caption, cellW, 2).forEach((l, j) => ctx.fillText(l, x, y + cellH + 44 + j * 24));
+      wrap(ctx, x.caption, cellW, 2).forEach((l, j) => ctx.fillText(l, left, top + cellH + 44 + j * 24));
     }
   });
   return out;
 }
 
-/** The storyboard as a video: each panel for its hold, animated poses playing. */
-export async function recordAnimatic(panels: Panel[], resolve: Resolve, o: BoardOptions & { width: number; height: number }, onProgress?: (f: number) => void, signal?: AbortSignal) {
+/** The story as one video: every scene's shots in story order, a still scene held for its time. */
+export async function recordStory(shots: StoryShot[], o: StoryOptions & { width: number; height: number; lineWidth: number }, onProgress?: (f: number) => void, signal?: AbortSignal) {
   const fps = 24;
   const enc = await createEncoder(o.width, o.height, fps);
-  const total = boardDuration(panels);
+  const total = storyLength(shots);
   let time = 0;
-  const caption = (p: Panel) => {
-    if (!o.captions || !p.caption) return;
+  const caption = (text: string) => {
+    if (!o.captions || !text) return;
     const ctx = enc.ctx;
     const size = Math.round(o.height / 26);
     ctx.font = `500 ${size}px system-ui, sans-serif`;
-    const lines = wrap(ctx, p.caption, o.width * 0.8, 2);
+    const lines = wrap(ctx, text, o.width * 0.8, 2);
     const h = lines.length * size * 1.35 + size * 0.8;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(0, o.height - h - size * 0.6, o.width, h);
@@ -102,27 +115,23 @@ export async function recordAnimatic(panels: Panel[], resolve: Resolve, o: Board
     lines.forEach((l, j) => ctx.fillText(l, o.width / 2, o.height - h - size * 0.2 + j * size * 1.35));
     ctx.textAlign = 'start';
   };
-  for (const p of panels) {
-    const scene = resolve(p);
-    if (!scene) continue;
-    const a = scene.animation;
-    const opts = { width: o.width, height: o.height, style: o.style, lineWidth: 2.2 * (o.height / 640), faces: o.faces };
-    if (!a) {
-      // A still panel is one frame held for the whole duration.
-      if (signal?.aborted) break;
-      drawShot(enc.ctx, scene, 0, opts);
-      caption(p);
-      await enc.add(time, p.hold);
-      time += p.hold;
+  const draw = { width: o.width, height: o.height, style: o.style, lineWidth: o.lineWidth, faces: o.faces, pass: o.pass };
+  for (const x of shots) {
+    if (signal?.aborted) break;
+    if (!x.span) {
+      // A still scene is one frame held for its time.
+      drawShot(enc.ctx, x.scene, 0, draw);
+      caption(x.caption);
+      await enc.add(time, x.length);
+      time += x.length;
       onProgress?.(time / total);
       continue;
     }
-    const n = Math.max(1, Math.round(p.hold * fps));
+    const n = Math.max(1, Math.round(x.length * fps));
     for (let i = 0; i < n; i++) {
       if (signal?.aborted) break;
-      const local = a.loop ? (i / fps) % a.duration : Math.min(a.duration, i / fps);
-      drawShot(enc.ctx, scene, local, opts);
-      caption(p);
+      drawShot(enc.ctx, x.scene, x.span.start + i / fps, draw);
+      caption(x.caption);
       await enc.add(time + i / fps, 1 / fps);
       onProgress?.((time + i / fps) / total);
     }

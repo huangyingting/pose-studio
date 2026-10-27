@@ -1,6 +1,6 @@
 import { sceneAt } from './evaluate';
 import { newScene } from './doc';
-import type { Library, Panel, Scene } from './types';
+import type { Film, Library, Panel, Scene } from './types';
 
 /*
  * Library sync (server edition): a three-way merge of the server's library, this device's and the
@@ -12,6 +12,8 @@ import type { Library, Panel, Scene } from './types';
 export interface SyncBase {
   scenes: Record<string, string>;
   board: string;
+  /** The film settings both sides had. */
+  film?: string;
   /** Saved poses both sides had. */
   poses?: string[];
   /** Imported motions both sides had. */
@@ -45,10 +47,11 @@ function stable(v: unknown): string {
 
 export const sceneHash = (s: Scene) => hash(stable(s));
 const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
+const filmHash = (f: Film | undefined) => hash(stable(f ?? null));
 
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
-  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length || lib.models?.length || lib.templates?.length) return false;
+  if (lib.scenes.length !== 1 || lib.board?.length || lib.film || lib.poses?.length || lib.clips?.length || lib.models?.length || lib.templates?.length) return false;
   const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })), cameras: sc.cameras.map((c) => ({ ...c, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
@@ -60,7 +63,7 @@ export function canonical(lib: Library): Library {
 
 export function syncBase(lib: Library): SyncBase {
   return {
-    scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board),
+    scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board), film: filmHash(lib.film),
     poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id), models: (lib.models ?? []).map((m) => m.id), templates: (lib.templates ?? []).map((t) => t.id),
   };
 }
@@ -71,6 +74,7 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
   return lib.scenes.length === Object.keys(base.scenes).length
     && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s))
     && boardHash(lib.board) === base.board
+    && filmHash(lib.film) === base.film
     && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join()
     && (lib.clips ?? []).map((m) => m.id).join() === (base.clips ?? []).join()
     && (lib.models ?? []).map((m) => m.id).join() === (base.models ?? []).join()
@@ -118,6 +122,8 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     board = [...(server.board ?? []), ...(local.board ?? []).filter((p) => !known.has(p.id))];
   }
   board = board?.filter((p) => ids.has(p.sceneId));
+  // The film settings: this device's if only it changed them, else the account's.
+  const film = base && filmHash(local.film) !== base.film && filmHash(server.film) === base.film ? local.film : server.film ?? local.film;
   // Saved poses and imported motions: everything from both sides, except those one side deleted
   // since they last agreed.
   const poses = assets(server.poses, local.poses, base?.poses);
@@ -128,6 +134,7 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     ...server,
     scenes: out.length ? out : server.scenes,
     ...(board?.length ? { board } : { board: undefined }),
+    ...(film ? { film } : { film: undefined }),
     ...(poses.length ? { poses } : { poses: undefined }),
     ...(clips.length ? { clips } : { clips: undefined }),
     ...(models.length ? { models } : { models: undefined }),

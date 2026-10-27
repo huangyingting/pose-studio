@@ -133,6 +133,8 @@ export interface Scene {
   coverage?: { id: string; roles: Record<string, string> };
   /** The scene's key light (lib/lighting.ts DEFAULT_LIGHT without one). */
   light?: Light;
+  /** What happens in it (a still scene's caption in the story; an animated one's are its shots'). */
+  caption?: string;
   /** A photo or drawing over the canvas to pose against (not filmed). */
   reference?: Reference;
   /** Optional keyframe animation (see lib/animation.ts). */
@@ -311,10 +313,6 @@ export interface Animation {
    * (a cut) or the animation ends, filmed by one of the scene's cameras.
    */
   shots: Shot[];
-  /** Video model the shots are cut for (see lib/shots.ts), which limits a shot's length. */
-  target?: string;
-  /** The frame's shape the shots are filmed in (default 16:9). */
-  frame?: FrameShape;
 }
 
 /** Frame shapes the shots can be filmed in. */
@@ -426,8 +424,10 @@ export interface Library {
   version: 3;
   /** The project's scenes: each a set, a cast and their animation and shots. */
   scenes: Scene[];
-  /** Storyboard: panels in story order, each showing one scene (see lib/board.ts). */
+  /** The story: its scenes in order (see lib/board.ts); a scene shows as a panel per shot. */
   board?: Panel[];
+  /** The film the project is: its frame, the video model it is cut for, its look (lib/film.ts). */
+  film?: Film;
   /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
   poses?: PoseAsset[];
   /**
@@ -488,13 +488,21 @@ export interface PoseAsset {
   view: View;
 }
 
+/** A scene in the story: an animated one shows its shots; a still one is on screen for `hold` seconds. */
 export interface Panel {
   id: string;
-  /** The pose shown in this panel. */
   sceneId: string;
-  caption?: string;
-  /** Seconds on screen in the animatic. */
   hold: number;
+}
+
+/** The project as a film: one frame shape, one video model, one look. */
+export interface Film {
+  frame: FrameShape;
+  /** Video model the shots are cut for (lib/shots.ts VIDEO_MODELS), which limits a shot's length. */
+  target?: string;
+  style: Style;
+  /** Simple face features. */
+  faces: boolean;
 }
 
 export type Selection =

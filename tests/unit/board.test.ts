@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { addScene, addToBoard, deleteScene, editPanel, moveOnBoard, removeFromBoard, startAnimation } from '@/lib/actions';
-import { DEFAULT_HOLD, boardDuration, boardPanels, movePanel, newPanel, parseBoard } from '@/lib/board';
+import { addScene, addToBoard, cutShot, deleteScene, editFilm, moveOnBoard, removeFromBoard, setCaption, setHold, startAnimation } from '@/lib/actions';
+import { DEFAULT_HOLD, boardPanels, movePanel, newPanel, parseBoard, storyLength, storyShots } from '@/lib/board';
 import { parseLibrary } from '@/lib/doc';
+import { buildOtio } from '@/lib/otio';
 import { Store } from '@/lib/store';
 
 class MemoryStorage implements Storage {
@@ -17,33 +18,55 @@ class MemoryStorage implements Storage {
 const panels = (store: Store) => boardPanels(store.getState().library);
 
 describe('storyboard', () => {
-  it('adds, edits, reorders and removes panels with undo', () => {
+  it('is the story: scenes in order, an animated one as its shots, a still one held; one caption per shot', () => {
     const store = new Store(new MemoryStorage());
     const first = store.scene.id;
     addToBoard(store);
     addScene(store);
     startAnimation(store, 3);
+    store.setTime(1);
+    cutShot(store);
     addToBoard(store);
     expect(panels(store).map((p) => p.sceneId)).toEqual([first, store.scene.id]);
-    // A still pose holds for the default time, an animation for its length.
-    expect(panels(store).map((p) => p.hold)).toEqual([DEFAULT_HOLD, 3]);
-    expect(boardDuration(panels(store))).toBe(5);
+    const story = () => storyShots(store.getState().library);
+    // The still scene for its hold, then the animated one's two shots.
+    expect(story().map((x) => [x.scene.id, x.span?.shot.name ?? null, x.length])).toEqual([[first, null, DEFAULT_HOLD], [store.scene.id, 'Shot 1', 1], [store.scene.id, 'Shot 2', 2]]);
+    expect(storyLength(story())).toBe(DEFAULT_HOLD + 3);
+
+    // Captions are the shots' (and a still scene's own), typed as one undo step.
+    const shot = story()[2].span!.shot.id;
+    setCaption(store, store.scene.id, shot, 'She turns');
+    setCaption(store, store.scene.id, shot, 'She turns away');
+    expect(story()[2].caption).toBe('She turns away');
+    expect(store.scene.animation!.shots[1].caption).toBe('She turns away');
+    store.undo();
+    expect(story()[2].caption).toBe('');
+    setCaption(store, first, null, 'Opening');
+    expect(store.getState().library.scenes[0].caption).toBe('Opening');
+    setHold(store, panels(store)[0].id, 3.5);
+    expect(story()[0].length).toBe(3.5);
 
     const id = panels(store)[0].id;
-    editPanel(store, id, { caption: 'She turns' });
-    editPanel(store, id, { caption: 'She turns away' });
-    expect(panels(store)[0].caption).toBe('She turns away');
-    store.undo();
-    // Typing into one caption is one undo step.
-    expect(panels(store)[0].caption).toBeUndefined();
-    store.redo();
-
     moveOnBoard(store, 0, 1);
     expect(panels(store)[1].id).toBe(id);
     removeFromBoard(store, id);
     expect(panels(store)).toHaveLength(1);
     store.undo();
     expect(panels(store)).toHaveLength(2);
+  });
+
+  it('cuts the whole story into one OTIO cut list, shot after shot', () => {
+    const store = new Store(new MemoryStorage());
+    addToBoard(store);
+    addScene(store);
+    startAnimation(store, 3);
+    store.setTime(1);
+    cutShot(store);
+    addToBoard(store);
+    const otio = buildOtio(storyShots(store.getState().library), 'Story', 'story.mp4');
+    const clips = otio.tracks.children[0].children;
+    expect(clips.map((c) => [c.name, c.source_range.start_time.value, c.source_range.duration.value])).toEqual([['Scene 1', 0, 48], ['Shot 1', 48, 24], ['Shot 2', 72, 48]]);
+    expect(otio.metadata.pose_studio.duration).toBe(5);
   });
 
   it('drops panels whose pose was deleted', () => {
@@ -57,17 +80,18 @@ describe('storyboard', () => {
   it('round-trips through the library file and survives bad input', () => {
     const store = new Store(new MemoryStorage());
     addToBoard(store);
-    editPanel(store, panels(store)[0].id, { caption: 'Opening', hold: 3.5 });
+    setHold(store, panels(store)[0].id, 3.5);
+    editFilm(store, { frame: '9:16', target: 'veo', style: 'sketch', faces: false });
     const lib = parseLibrary(JSON.parse(JSON.stringify(store.getState().library)));
     expect(boardPanels(lib)).toEqual(panels(store));
+    // The film settings travel with the project.
+    expect(lib.film).toEqual({ frame: '9:16', target: 'veo', style: 'sketch', faces: false });
 
     const ids = new Set(['a']);
     expect(parseBoard('nope', ids)).toBeUndefined();
     expect(parseBoard([{ sceneId: 'missing' }], ids)).toBeUndefined();
-    const [p] = parseBoard([{ sceneId: 'a', hold: 1e9, caption: 5 }, null], ids)!;
-    expect(p.hold).toBe(60);
-    expect(p.caption).toBeUndefined();
-    expect(p.id).toBeTruthy();
+    const [p] = parseBoard([{ sceneId: 'a', hold: 1e9, caption: 'gone' }, null], ids)!;
+    expect(p).toEqual({ id: p.id, sceneId: 'a', hold: 60 });
   });
 
   it('moves panels within bounds only', () => {

@@ -7,7 +7,7 @@ import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
 import { angleAt, angleOf, cameraAt, cameraById, frameAspect, placeCamera, viewOf, type CameraView } from './cameras';
-import { STYLES, type Scene, type Style, type View } from './types';
+import type { Scene, Style, View } from './types';
 
 const D2R = Math.PI / 180;
 
@@ -75,10 +75,10 @@ export function fitCamera(camera: THREE.PerspectiveCamera, source: PointSource, 
 export interface ExportOptions {
   /**
    * What is exported. Stills: this scene, a turnaround of it, every scene (all), the pose
-   * library (poses), a sheet of an animation's frames. Film: a video, a keyframe pack. 3D: the
-   * scene as a model (.glb).
+   * library (poses), a sheet of an animation's frames, the story's board sheet. Film: a video, a
+   * keyframe pack, of this scene or of the whole story. 3D: the scene as a model (.glb).
    */
-  scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'video' | 'pack' | 'model';
+  scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'board' | 'video' | 'pack' | 'story-video' | 'story-pack' | 'model';
   /** The styled picture, or a depth / normal pass (for AI image and video tools). */
   pass: Pass;
   /** Keyframe packs: add a clay-shaded clip of each shot. */
@@ -96,7 +96,8 @@ export interface ExportOptions {
   /** Outline width in pixels at the exported size. */
   lineWidth: number;
   format: 'jpeg' | 'png';
-  style: Style;
+  /** Another style than the film's, for this export only (not remembered). */
+  style?: Style;
   /** PNG only. */
   transparent: boolean;
   labels: boolean;
@@ -120,7 +121,7 @@ export const VIDEO_SIZES: VideoSize[] = ['720p', '1080p'];
 
 /** Matches the layout of the original Pose.jpg: 4 × 5 cells of 600 × 640. */
 export const DEFAULT_EXPORT: ExportOptions = {
-  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg', style: 'line',
+  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
 
@@ -133,7 +134,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   return {
-    scope: ['all', 'poses', 'turnaround', 'frames', 'video', 'pack', 'model'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
+    scope: ['all', 'poses', 'turnaround', 'frames', 'board', 'video', 'pack', 'story-video', 'story-pack', 'model'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
     pass: o.pass === 'depth' || o.pass === 'normal' ? o.pass : 'beauty',
     greybox: o.greybox !== false,
     angles: o.angles === 8 ? 8 : 4,
@@ -145,7 +146,6 @@ export function parseExportOptions(raw: unknown): ExportOptions {
     cellHeight: int(o.cellHeight, d.cellHeight, 100, 4000),
     lineWidth: num(o.lineWidth, d.lineWidth, 0.5, 8),
     format: o.format === 'png' ? 'png' : 'jpeg',
-    style: STYLES.includes(o.style as Style) ? (o.style as Style) : d.style,
     transparent: o.transparent === true,
     labels: o.labels === true,
     sameScale: o.sameScale === true,
@@ -176,7 +176,7 @@ export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptio
   if (o.scope === 'all' || o.scope === 'poses') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}`, angle: angleAt(scene) }));
   const cam = camera ? cameraById(current, camera) : undefined;
   const look = (aspect: number) => (cam ? viewOf(current, cam, time, aspect) : cameraAt(current, time, aspect));
-  const front = look(frameAspect(current));
+  const front = look(frameAspect());
   const base: View = { ...angleOf(front), fov: front.fov };
   if ((o.scope === 'frames' || o.scope === 'video') && current.animation) {
     return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s`, angle: base }));
@@ -324,7 +324,7 @@ export class SceneRenderer {
   }
 
   /** Lay cells out in a grid, optionally captioned. */
-  sheet(cells: Cell[], o: ExportOptions, faces = true): HTMLCanvasElement {
+  sheet(cells: Cell[], o: ExportOptions & { style: Style }, faces = true): HTMLCanvasElement {
     const { cols, width, height } = sheetSize(cells.length, o);
     const labelH = o.labels ? LABEL_HEIGHT : 0;
     const transparent = o.transparent && o.format === 'png';

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useSyncExternalStore } from 'react';
+import { DEFAULT_FILM } from '@/lib/film';
 import type { State, Store } from '@/lib/store';
 
 export const StoreContext = createContext<Store | null>(null);
@@ -25,4 +26,9 @@ export function useActiveFigure() {
   const scene = useScene();
   const id = useStudio((s) => s.activeFigure);
   return scene.figures.find((f) => f.id === id) ?? null;
+}
+
+/** The project's film settings: its frame, the model it is cut for, its style and faces. */
+export function useFilm() {
+  return useStudio((s) => s.library.film) ?? DEFAULT_FILM;
 }

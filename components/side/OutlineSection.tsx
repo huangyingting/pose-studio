@@ -14,7 +14,7 @@ import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
 import { cameraMenu, figureMenu, propMenu, shotMenu } from '../menus';
 import { startRename, useRenaming } from '../rename';
-import { useScene, useStore, useStudio } from '../store-context';
+import { useFilm, useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Menu } from '../ui';
 import type { SectionProps } from './sections';
 import { KEYS } from '../shortcuts';
@@ -27,6 +27,8 @@ import { KEYS } from '../shortcuts';
 export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionProps) {
   const store = useStore();
   const scene = useScene();
+  // Shots are flagged as longer than the film's video model allows: follow it.
+  useFilm();
   const active = useStudio((s) => s.activeFigure);
   const selection = useStudio((s) => s.selection);
   const time = useStudio((s) => s.time);
@@ -205,7 +207,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
                       onClick={() => { store.setTime(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
                       onMenu={(e) => { store.select({ kind: 'shot', shot: sp.shot.id }); openContextMenu(e, shotMenu(store, sp.shot.id, ui), sp.shot.name); }}
                     >
-                      {overLimit(a, sp) && <TriangleAlert size={12} className="layer-tag warn" aria-label="Longer than the model allows" />}
+                      {overLimit(sp) && <TriangleAlert size={12} className="layer-tag warn" aria-label="Longer than the model allows" />}
                       <em>{(sp.end - sp.start).toFixed(1)} s</em>
                     </Row>
                   </li>

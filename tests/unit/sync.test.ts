@@ -24,6 +24,15 @@ describe('library sync merge', () => {
     expect(named(mergeLibraries(server, local, base))).toEqual(['A server', 'B local', 'C server', 'C local (this device)']);
   });
 
+  it('merges the film settings: this device\'s if only it changed them, else the account\'s', () => {
+    const tall = { frame: '9:16' as const, style: 'ink' as const, faces: true };
+    const wide = { frame: '2.39:1' as const, style: 'line' as const, faces: false };
+    expect(mergeLibraries(lib([a, b, c]), { ...lib([a, b, c]), film: tall }, base).film).toEqual(tall);
+    expect(mergeLibraries({ ...lib([a, b, c]), film: wide }, { ...lib([a, b, c]), film: tall }, base).film).toEqual(wide);
+    const agreed = syncBase({ ...lib([a, b, c]), film: tall });
+    expect(mergeLibraries({ ...lib([a, b, c]), film: wide }, { ...lib([a, b, c]), film: tall }, agreed).film).toEqual(wide);
+  });
+
   it('applies deletions from either side, unless the other side edited the pose', () => {
     // Deleted here (B), deleted there (C): both go. Deleted there but edited here (A): kept.
     const server = lib([b]);

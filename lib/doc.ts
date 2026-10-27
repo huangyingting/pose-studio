@@ -3,14 +3,15 @@ import { RELAXED_HAND, cloneHand } from './hands';
 import { DEFAULT_FPS, normalize, parseCameras, parseShots, remapAnimation, remapCameras } from './animation';
 import { clipInfo } from './clip';
 import { parseBoard } from './board';
+import { parseFilm } from './film';
 import { uid } from './uid';
 import * as THREE from 'three';
 import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bones, type Quat } from './pose';
 import { clampLight } from './lighting';
 import {
-  BONES, FINGERS, FRAME_SHAPES, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type FrameShape, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type PoseAsset,
+  BONES, FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -257,6 +258,7 @@ export function parseScene(v: unknown, i = 0): Scene {
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     cameras: parseCameras(v.cameras),
     ...(isObj(v.light) ? { light: clampLight(v.light as Partial<Light>) } : {}),
+    ...(typeof v.caption === 'string' && v.caption ? { caption: v.caption.slice(0, 500) } : {}),
     ...(isObj(v.reference) && typeof v.reference.image === 'string' && /^[\w-]{1,80}$/.test(v.reference.image)
       ? { reference: { image: v.reference.image, opacity: Math.min(1, Math.max(0.05, num(v.reference.opacity, 0.45))), visible: v.reference.visible !== false } }
       : {}),
@@ -444,8 +446,6 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
     duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}),
     shots: parseShots(v.shots, duration, cameras),
   };
-  if (typeof v.target === 'string' && v.target.length <= 40) anim.target = v.target;
-  if (FRAME_SHAPES.includes(v.frame as FrameShape) && v.frame !== '16:9') anim.frame = v.frame as FrameShape;
   return anim;
 }
 
@@ -469,6 +469,7 @@ export function parseLibrary(data: unknown): Library {
     ids.add(s.id);
   }
   const board = parseBoard(data.board, ids);
+  const film = parseFilm(data.film);
   const poses = parsePoses(data.poses);
   // What the imported clips are (a file has their frames too: clipsIn).
   const clips = (Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []);
@@ -479,7 +480,7 @@ export function parseLibrary(data: unknown): Library {
     scene: bareTemplate(parseScene(t.scene, i)),
   }));
   return {
-    version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
+    version: 3, scenes, ...(board ? { board } : {}), ...(film ? { film } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
     ...(templates.length ? { templates } : {}),
   };
 }

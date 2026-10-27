@@ -96,7 +96,7 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
 
     const animations: THREE.AnimationClip[] = [];
     if (a) {
-      const aspect = frameAspect(scene);
+      const aspect = frameAspect();
       const camera = new THREE.PerspectiveCamera(30, aspect, 0.05, 200);
       camera.name = unique('Shot camera');
       out.add(camera);

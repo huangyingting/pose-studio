@@ -1,10 +1,13 @@
+import { shotSpans, type ShotSpan } from './shots';
 import { uid } from './uid';
-import type { Library, Panel } from './types';
+import type { Library, Panel, Scene } from './types';
 
 /*
- * Storyboard: a sequence of panels, each showing one pose of the library with a caption and
- * a hold time. Exported as a board sheet (panels with numbers and captions) or an animatic
- * (each panel held on screen; animated poses play).
+ * The story: the project's scenes in story order (Library.board). An animated scene shows as its
+ * shots, each through its own camera with its caption and length; a still scene as one panel
+ * through its first camera, with its caption, on screen for its hold time. The board shows the
+ * story shot by shot, and it is exported (lib/boardExport.ts) as a board sheet, a video and a
+ * keyframe pack.
  */
 
 export const DEFAULT_HOLD = 2;
@@ -35,9 +38,31 @@ export function movePanel(board: Panel[], from: number, to: number): Panel[] {
   return next;
 }
 
-export function boardDuration(board: Panel[]) {
-  return board.reduce((sum, p) => sum + p.hold, 0);
+/** One shot of the story: a span of an animated scene, or a still scene held for its panel's time. */
+export interface StoryShot {
+  panel: Panel;
+  scene: Scene;
+  /** The shot's span of the scene's animation (null: a still scene). */
+  span: ShotSpan | null;
+  /** Seconds on screen. */
+  length: number;
+  caption: string;
 }
+
+/** A scene as the story shows it: its shots, or itself held for `panel.hold`. */
+export function sceneShots(scene: Scene, panel: Panel = newPanel(scene.id)): StoryShot[] {
+  const a = scene.animation;
+  if (!a) return [{ panel, scene, span: null, length: panel.hold, caption: scene.caption ?? '' }];
+  return shotSpans(a).map((span) => ({ panel, scene, span, length: span.end - span.start, caption: span.shot.caption ?? '' }));
+}
+
+/** The whole story, shot by shot. */
+export function storyShots(lib: Library): StoryShot[] {
+  const scenes = new Map(lib.scenes.map((s) => [s.id, s]));
+  return boardPanels(lib).flatMap((p) => sceneShots(scenes.get(p.sceneId)!, p));
+}
+
+export const storyLength = (shots: StoryShot[]) => shots.reduce((sum, x) => sum + x.length, 0);
 
 /** Validate panels from storage or a file, keeping only those whose pose exists. */
 export function parseBoard(v: unknown, sceneIds: Set<string>): Panel[] | undefined {
@@ -51,7 +76,6 @@ export function parseBoard(v: unknown, sceneIds: Set<string>): Panel[] | undefin
       id: typeof o.id === 'string' && o.id.length <= 40 ? o.id : uid('b'),
       sceneId: o.sceneId,
       hold: typeof o.hold === 'number' && Number.isFinite(o.hold) ? Math.min(60, Math.max(0.2, o.hold)) : DEFAULT_HOLD,
-      ...(typeof o.caption === 'string' && o.caption ? { caption: o.caption.slice(0, 500) } : {}),
     });
   }
   return panels.length ? panels : undefined;

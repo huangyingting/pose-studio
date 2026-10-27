@@ -1212,7 +1212,11 @@ button.psec-title svg { color: var(--text-3); }
 .board-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }
 .board-head h2 svg { color: var(--text-2); }
 .board-head .switch { color: var(--text-2); }
-.board-style { width: 128px; }
+.board-add-list { display: flex; gap: 10px; margin: 0; padding: 10px 16px; overflow-x: auto; list-style: none; border-bottom: 1px solid var(--border); background: var(--panel); }
+.board-add-list button { display: grid; gap: 4px; width: 132px; padding: 4px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.board-add-list button:hover { background: var(--panel-2); color: var(--text); }
+.board-add-list img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-s); box-shadow: inset 0 0 0 1px var(--border); }
+.board-add-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-grid {
   list-style: none;
   margin: 0;

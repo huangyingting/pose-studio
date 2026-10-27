@@ -20,7 +20,7 @@ import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { actionMenu, cameraMenu, figureMenu, shotMenu, travelMenu } from './menus';
-import { useScene, useStore, useStudio } from './store-context';
+import { useFilm, useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 import { KEYS, withKey } from './shortcuts';
 
@@ -109,6 +109,8 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
   const spans = shotSpans(a);
+  // Shots longer than the model the film is cut for are flagged.
+  const model = videoModel(useFilm().target);
   // The camera row: the selected camera, or the one filming at the playhead.
   const through = useStudio((st) => st.through);
   const picked = useStudio((st) => (st.selection?.kind === 'camera' ? st.selection.camera : null));
@@ -552,14 +554,14 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
             <div className="tl-row shots" aria-label="Shots">
               {spans.map((sp) => {
                 const on = time >= sp.start - 1e-6 && (time < sp.end - 1e-6 || sp.index === spans.length - 1);
-                const over = overLimit(a, sp);
+                const over = overLimit(sp);
                 return (
                   <button
                     key={sp.shot.id}
                     type="button"
                     className={`tl-shot${on ? ' on' : ''}${over ? ' over' : ''}`}
                     style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }}
-                    title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${videoModel(a.target)!.name} allows (${videoModel(a.target)!.max} s)` : ''}`}
+                    title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${model!.name} allows (${model!.max} s)` : ''}`}
                     onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
                     onContextMenu={(e) => {
                       store.select({ kind: 'shot', shot: sp.shot.id });

@@ -10,6 +10,7 @@ import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';
 import { defaultCamera } from './doc';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
+import { film } from './film';
 import type { Camera, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, RigCamera, Scene, ShotSize, Vec3, View } from './types';
 
 /*
@@ -28,8 +29,8 @@ export const SHOT_ASPECT = 16 / 9;
 /** The width over height of a frame shape. */
 export const ASPECTS: Record<FrameShape, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '2.39:1': 2.39 };
 
-/** The shape (width over height) a scene's shots are filmed in. */
-export const frameAspect = (scene: Scene) => ASPECTS[scene.animation?.frame ?? '16:9'];
+/** The width over the height of the project's frame (lib/film.ts). */
+export const frameAspect = () => ASPECTS[film().frame];
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
@@ -222,7 +223,7 @@ export function samplePath(points: CameraPoint[], t: number, ease: PathCamera['e
 }
 
 /** What a camera sees at time t, whatever is cut to then. */
-export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect(scene)): CameraView {
+export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect()): CameraView {
   if (cam.kind === 'rig') {
     const v = rigView(scene, cam, cam.rig, t, aspect);
     return shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: 0 });
@@ -255,7 +256,7 @@ function spanView(scene: Scene, span: ShotSpan, t: number, aspect: number): Came
 }
 
 /** The camera filming a scene at time t: the camera of the shot playing then (blending in from the one before); a still scene's first. */
-export function cameraAt(scene: Scene, t: number, aspect = frameAspect(scene)): CameraView {
+export function cameraAt(scene: Scene, t: number, aspect = frameAspect()): CameraView {
   const a = scene.animation;
   if (!a) return viewOf(scene, scene.cameras[0], 0, aspect);
   const span = spanAt(a, t);
@@ -534,7 +535,7 @@ export function rigFrom(scene: Scene, cam: Camera, view: CameraView, t: number, 
  * `lens`, as far away as that size takes. In the camera's own terms (anchor and aim).
  */
 export function framePoint(scene: Scene, cam: PathCamera, t: number, size: ShotSize, o: { yaw: number; pitch: number; lens: number; place?: Placement; aspect?: number }): CameraPoint {
-  const { position, look } = compose(bodyAt(scene, cam, t), size, o.yaw, o.pitch, o.lens, o.place, o.aspect ?? frameAspect(scene));
+  const { position, look } = compose(bodyAt(scene, cam, t), size, o.yaw, o.pitch, o.lens, o.place, o.aspect ?? frameAspect());
   return pointIn(scene, cam, t, position, look, o.lens);
 }
 
@@ -609,7 +610,7 @@ export const reform = (cam: Camera, form: CameraForm): Camera => ({ ...who(cam),
 
 /** Everyone the camera frames over the move's time in view from an angle, `zoom` times closer: a point. */
 function fitPoint(c: MoveContext, cam: PathCamera, t: number, yaw: number, pitch: number, fov: number, zoom = 1, rise = 0): CameraPoint {
-  const aspect = frameAspect(c.scene);
+  const aspect = frameAspect();
   const three = new THREE.PerspectiveCamera(fov, aspect);
   const subject = cameraSubject(c.scene, c.camera);
   const f = framingOf(c.scene, subject ? { figure: subject, from: c.start, to: c.end } : undefined);
@@ -716,7 +717,7 @@ export function newCamera(scene: Pick<Scene, 'cameras'>, patch: Partial<Pick<Cam
 }
 
 /** The angle and field of view a scene is filmed from at t (where moves start from, and sheets of it are drawn from). */
-export function angleAt(scene: Scene, t = 0, aspect = frameAspect(scene)): View {
+export function angleAt(scene: Scene, t = 0, aspect = frameAspect()): View {
   const v = cameraAt(scene, t, aspect);
   return { ...angleOf(v), fov: v.fov };
 }
@@ -760,7 +761,7 @@ export function reshapeCamera(scene: Scene, moveId: string, id: string): Scene {
 /* ---------- capture and export ---------- */
 
 /** A view as a path point of a camera at t (for "set camera point from the view"). */
-export function capturePoint(scene: Scene, cam: PathCamera, t: number, position: THREE.Vector3, look: THREE.Vector3, fov: number, aspect = frameAspect(scene)): CameraPoint {
+export function capturePoint(scene: Scene, cam: PathCamera, t: number, position: THREE.Vector3, look: THREE.Vector3, fov: number, aspect = frameAspect()): CameraPoint {
   return pointIn(scene, cam, t, position, look, fovLens(fov, aspect));
 }
 
@@ -783,7 +784,7 @@ export function cameraPath(scene: Scene, start: number, end: number, aspect: num
  * The path a camera takes (world points every tenth of a second, and their times), for drawing
  * it: over its points' time, and the time of the shots it films.
  */
-export function cameraTrail(scene: Scene, cam: Camera, aspect = frameAspect(scene)): { times: number[]; points: THREE.Vector3[] } {
+export function cameraTrail(scene: Scene, cam: Camera, aspect = frameAspect()): { times: number[]; points: THREE.Vector3[] } {
   const a = scene.animation;
   if (!a) return { times: [], points: [] };
   const spans = shotSpans(a).filter((s) => s.shot.camera === cam.id);

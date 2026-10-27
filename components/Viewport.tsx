@@ -18,6 +18,7 @@ import type { Settings, Store, Through } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
+import { useFilm } from './store-context';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -75,6 +76,7 @@ export default function Viewport({
   store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu,
 }: Props) {
   const captureRef = useRef<(() => CameraView | null) | null>(null);
+  const film = useFilm();
   const shotMode = !!through;
   const rigRef = useRef<THREE.Group>(null);
   const sv = useMemo(() => new SceneView(), []);
@@ -91,8 +93,8 @@ export default function Viewport({
   }, [sv, scene, models]);
   // Through the shot camera the picture is shown as filmed: no selection, no handles.
   useLayoutEffect(() => sv.setSelection(shotMode ? null : selection), [sv, selection, scene, shotMode]);
-  useLayoutEffect(() => sv.setStyle(settings.style), [sv, settings.style]);
-  useLayoutEffect(() => sv.setFaces(settings.faces), [sv, settings.faces]);
+  useLayoutEffect(() => sv.setStyle(film.style), [sv, film.style]);
+  useLayoutEffect(() => sv.setFaces(film.faces), [sv, film.faces]);
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
@@ -171,8 +173,8 @@ export default function Viewport({
           if (!moved && performance.now() - gizmoBusy.current > 250) store.select(null);
         }}
       >
-        <color attach="background" args={[styleDef(settings.style).background]} />
-        <Lights sv={sv} settings={settings} scene={scene} />
+        <color attach="background" args={[styleDef(film.style).background]} />
+        <Lights sv={sv} style={film.style} scene={scene} />
         {settings.showGrid && (
           // The floor goes on forever; the grid covers all of it, fading toward the horizon.
           <Grid
@@ -253,23 +255,23 @@ export default function Viewport({
           capture={() => captureRef.current?.() ?? null}
           rigRef={rigRef}
         />
-        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={settings.style} />
+        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
       </Canvas>
     </div>
   );
 }
 
 /** The shared key light + shadow floor, re-aimed when the scene or light changes. */
-function Lights({ sv, settings, scene }: { sv: SceneView; settings: Settings; scene: Scene }) {
+function Lights({ sv, style, scene }: { sv: SceneView; style: Style; scene: Scene }) {
   const rig = useMemo(() => new LightRig(), []);
   const stale = useRef(true);
   useEffect(() => () => rig.dispose(), [rig]);
-  useEffect(() => { stale.current = true; }, [scene, scene.light, settings.style]);
+  useEffect(() => { stale.current = true; }, [scene, scene.light, style]);
   // Aim at render time, after the scene has been synced.
   useFrame(() => {
     if (!stale.current) return;
     stale.current = false;
-    sv.ink.setLightDirection(rig.update(scene.light ?? DEFAULT_LIGHT, settings.style, sv.bounds()));
+    sv.ink.setLightDirection(rig.update(scene.light ?? DEFAULT_LIGHT, style, sv.bounds()));
   });
   return <primitive object={rig.object} />;
 }
@@ -339,7 +341,7 @@ function ShotDriver({ store, scene, clock, time, through, captureRef }: {
   useEffect(() => { dirty.current = true; }, [time, scene, through, size]);
 
   const stageAspect = size.width / Math.max(1, size.height);
-  const aspect = frameAspect(scene);
+  const aspect = frameAspect();
   /** Vertical lens for the editor so the letterbox (the shot's frame) shows exactly the shot (and back). */
   const widen = (fov: number, k: number) => THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov) / 2) * k));
   const displayFov = (fov: number) => (stageAspect < aspect ? widen(fov, aspect / stageAspect) : fov);
@@ -520,7 +522,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const fps = a?.fps ?? 24;
   const get = useThree((s) => s.get);
   const dot = useRef<THREE.Mesh>(null);
-  const [three] = useState(() => new THREE.PerspectiveCamera(30, frameAspect(scene)));
+  const [three] = useState(() => new THREE.PerspectiveCamera(30, frameAspect()));
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
   const cameras = scene.cameras;
   // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
@@ -528,7 +530,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const trails = useMemo(() => cameras.map((c) => cameraTrail(scene, c)), [cameras, a]);
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
-    placeCamera(three, view, frameAspect(scene));
+    placeCamera(three, view, frameAspect());
     return { t: p.t, cam: c, position: three.position.clone(), quaternion: three.quaternion.clone(), target: view.target.clone(), aimed: c.kind === 'path' && c.aim === 'point' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [cameras, three]);
@@ -557,7 +559,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
       cameras.forEach((c, i) => {
         const g = nowGlyphs.current[i];
         if (!g) return;
-        placeCamera(three, viewOf(scene, c, a ? t : 0), frameAspect(scene));
+        placeCamera(three, viewOf(scene, c, a ? t : 0), frameAspect());
         g.position.copy(three.position);
         g.quaternion.copy(three.quaternion);
         onPoint.current[i] = c.kind === 'path' && c.points.some((p) => Math.abs(p.t - t) < 0.5 / fps);

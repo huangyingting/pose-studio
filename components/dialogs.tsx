@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { Box, Clapperboard, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
+import { sceneShots, storyLength, storyShots } from '@/lib/board';
+import { boardSheet, boardSize, recordStory } from '@/lib/boardExport';
 import { sceneAt } from '@/lib/evaluate';
 import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
 import { newFigure } from '@/lib/doc';
@@ -19,7 +21,7 @@ import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
 import type { BodyParams, Figure, Style } from '@/lib/types';
-import { useScene, useStore, useStudio } from './store-context';
+import { useFilm, useScene, useStore, useStudio } from './store-context';
 import { SHORTCUTS } from './shortcuts';
 import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
@@ -38,15 +40,25 @@ function loadExportOptions(): ExportOptions {
 }
 
 
-export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): void; notify: Notify; editorCamera(): CameraView | null }) {
+export function ExportDialog({ onClose, notify, editorCamera, initial }: {
+  onClose(): void;
+  notify: Notify;
+  editorCamera(): CameraView | null;
+  /** What to export, when it is opened for something (the storyboard's Export: the story). */
+  initial?: ExportOptions['scope'];
+}) {
   const store = useStore();
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
-  const faces = useStudio((s) => s.settings.faces);
+  const film = useFilm();
+  const faces = film.faces;
   const scene = useScene();
   const time = useStudio((s) => s.time);
   const animated = !!scene.animation;
-  const [o, setO] = useState<ExportOptions>(loadExportOptions);
+  const story = useMemo(() => storyShots(library), [library]);
+  const [o, setO] = useState<ExportOptions>(() => ({ ...loadExportOptions(), ...(initial ? { scope: initial } : {}) }));
+  // The film's style, unless another is picked for this export.
+  const style = o.style ?? film.style;
   // The camera stills are taken through: '' is the one filming at the playhead (a still scene: its first).
   const [picked, setPicked] = useState('');
   const camera = scene.cameras.some((c) => c.id === picked) ? picked : '';
@@ -55,13 +67,16 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
   const abort = useRef<AbortController | null>(null);
   const preview = useRef<HTMLDivElement>(null);
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
-  // Animation outputs fall back to the single pose when the open pose is not animated.
-  const scope: ExportOptions['scope'] = (!animated && (o.scope === 'frames' || o.scope === 'video')) || (o.scope === 'all' && scenes.length < 2) ? 'current' : o.scope;
-  const video = scope === 'video';
-  const pack = scope === 'pack';
+  // Animation outputs fall back to the single scene when the open one is not animated; the story's, when there is none.
+  const scope: ExportOptions['scope'] = (!animated && (o.scope === 'frames' || o.scope === 'video')) || (o.scope === 'all' && scenes.length < 2)
+    || (!story.length && (o.scope === 'board' || o.scope === 'story-video' || o.scope === 'story-pack')) ? 'current' : o.scope;
+  const whole = scope === 'board' || scope === 'story-video' || scope === 'story-pack';
+  const video = scope === 'video' || scope === 'story-video';
+  const pack = scope === 'pack' || scope === 'story-pack';
   const model = scope === 'model';
-  // Video and keyframe packs are framed by the shot camera at a video size.
+  // Videos and keyframe packs are framed by the shot cameras at a video size.
   const filmed = video || pack;
+  const shots = whole ? story : sceneShots(scene);
   const canRecord = videoSupported();
 
   // The pose library sheet shows each pose on its own figure (the reference sheet layout).
@@ -70,7 +85,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
     () => exportCells(scope === 'poses' ? allPoses(library).map((p) => poseScene(p)) : scenes, scene, { ...o, scope }, time, camera || undefined),
     [o, scope, scenes, scene, library, time, camera],
   );
-  const size = filmed ? videoSize(o.videoSize, frameAspect(scene)) : sheetSize(cells.length, o);
+  const size = filmed ? videoSize(o.videoSize, frameAspect()) : scope === 'board' ? boardSize(story.length, o.columns, o.labels) : sheetSize(cells.length, o);
   const { width, height } = size;
   const tooBig = !filmed && !model && (width * height > 120_000_000 || width > 16384 || height > 16384);
   const pass = pack ? 'beauty' : o.pass;
@@ -79,7 +94,10 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
 
   useEffect(() => {
     try {
-      localStorage.setItem(EXPORT_KEY, JSON.stringify(o));
+      // The style picked is for this export only.
+      const { style: _once, ...kept } = o;
+      void _once;
+      localStorage.setItem(EXPORT_KEY, JSON.stringify(kept));
     } catch {
       // Not critical: the options just won't be remembered.
     }
@@ -88,16 +106,25 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
       const scale = Math.min(1, 360 / Math.max(width, height));
       let small: HTMLCanvasElement;
       if (filmed) {
-        const r = sharedRenderer().renderShot(sceneAt(scene, 0), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
-          style: o.style, faces, pass, camera: cameraAt(scene, 0, width / height),
+        const first = shots[0];
+        const at = first?.span?.start ?? 0;
+        const r = sharedRenderer().renderShot(sceneAt(first.scene, at), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
+          style, faces, pass, camera: cameraAt(first.scene, at, width / height),
         });
         small = document.createElement('canvas');
         small.width = r.width;
         small.height = r.height;
         small.getContext('2d')!.drawImage(r, 0, 0);
+      } else if (scope === 'board') {
+        const sheet = boardSheet(story, { style, faces, captions: o.labels, columns: o.columns, pass });
+        small = document.createElement('canvas');
+        small.width = Math.round(sheet.width * scale);
+        small.height = Math.round(sheet.height * scale);
+        small.getContext('2d')!.drawImage(sheet, 0, 0, small.width, small.height);
       } else {
         small = sharedRenderer().sheet(cells, {
           ...o,
+          style,
           scope,
           cellWidth: Math.max(24, Math.round(o.cellWidth * scale)),
           cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
@@ -109,7 +136,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, scope, filmed, pass, cells, width, height, faces, scene]);
+  }, [o, style, scope, filmed, pass, cells, width, height, faces, shots, story]);
 
   const run = async () => {
     setBusy(true);
@@ -123,12 +150,13 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
         onClose();
         return;
       }
+      const title = whole ? 'Story' : safeFilename(scene.name);
       if (pack) {
         abort.current = new AbortController();
-        const blob = await keyframePack(scene, {
-          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), faces, greybox: o.greybox,
+        const blob = await keyframePack(shots, whole ? 'Story' : scene.name, {
+          width, height, style, lineWidth: o.lineWidth * (height / 640), faces, greybox: o.greybox,
         }, setProgress, abort.current.signal);
-        const name = `${safeFilename(scene.name)}_keyframes.zip`;
+        const name = `${title}_keyframes.zip`;
         downloadBlob(blob, name);
         notify(`Saved ${name}`);
         onClose();
@@ -136,19 +164,22 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
       }
       if (video) {
         abort.current = new AbortController();
-        const { blob, ext } = await recordVideo(scene, {
-          width, height, style: o.style, lineWidth: o.lineWidth * (height / 640), loops: o.videoLoops, faces, pass,
-        }, setProgress, abort.current.signal);
-        const name = `${safeFilename(scene.name)}.${ext}`;
+        const look = { width, height, style, lineWidth: o.lineWidth * (height / 640), faces, pass };
+        const { blob, ext } = whole
+          ? await recordStory(story, { ...look, captions: o.labels }, setProgress, abort.current.signal)
+          : await recordVideo(scene, { ...look, loops: o.videoLoops }, setProgress, abort.current.signal);
+        const name = `${title}.${ext}`;
         downloadBlob(blob, name);
         notify(`Saved ${name} (${width} × ${height})`);
         onClose();
         return;
       }
-      const canvas = sharedRenderer().sheet(cells, { ...o, scope }, faces);
+      const canvas = scope === 'board'
+        ? boardSheet(story, { style, faces, captions: o.labels, columns: o.columns, pass })
+        : sharedRenderer().sheet(cells, { ...o, style, scope }, faces);
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
-      const base = scope === 'poses' ? 'Pose' : scope === 'all' ? 'Scenes' : safeFilename(scene.name);
+      const base = scope === 'poses' ? 'Pose' : scope === 'all' ? 'Scenes' : scope === 'board' ? 'Storyboard' : safeFilename(scene.name);
       const name = `${base}${scope === 'turnaround' ? '_turnaround' : scope === 'frames' ? '_frames' : ''}.${ext}`;
       downloadBlob(blob, name);
       notify(`Saved ${name} (${canvas.width} × ${canvas.height})`);
@@ -183,6 +214,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
         ...(scenes.length > 1 ? [{ value: 'all' as const, label: `${scenes.length} scenes`, icon: LayoutGrid, title: 'Every scene of the project' }] : []),
         { value: 'poses', label: `Poses ${poseCount}`, icon: Images, title: 'The pose library as a reference sheet' },
         ...(animated ? [{ value: 'frames' as const, label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' }] : []),
+        ...(story.length ? [{ value: 'board' as const, label: 'Storyboard', icon: LayoutPanelTop, title: 'The whole story: a panel per shot, in story order' }] : []),
       ],
     },
     {
@@ -190,6 +222,10 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
       options: [
         ...(animated ? [{ value: 'video' as const, label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' }] : []),
         { value: 'pack', label: 'Keyframe pack', icon: Package, title: 'First/last frames, depth, normals, camera, prompt (and greybox clips) per shot, for AI video models' },
+        ...(story.length ? [
+          { value: 'story-video' as const, label: 'Story video', icon: Clapperboard, title: 'The whole story: every scene\'s shots in story order' },
+          { value: 'story-pack' as const, label: 'Story keyframe pack', icon: Package, title: 'The whole story\'s shots, as a keyframe pack with one cut list' },
+        ] : []),
       ],
     },
     {
@@ -208,7 +244,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
         <>
           <span className={tooBig ? 'error-text' : 'muted'}>
             {model ? (scene.animation ? 'Animated: figures, props and the shot camera' : 'Posed as shown') : `${width} × ${height} px`}{tooBig ? ' — too large for most browsers' : ''}
-            {video && scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`}
+            {video && (whole ? ` · ${storyLength(story).toFixed(1)} s at 24 fps` : scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`)}
           </span>
           {!filmed && !model && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })} data-tip="4 columns of 600 × 640 cells, as the original Pose.jpg sheet">Default layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
@@ -291,11 +327,16 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
           )}
           {!model && <div className="row">
             <label>Style
-              <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
+              <Select<Style | ''>
+                label="Style"
+                value={o.style ?? ''}
+                onChange={(v) => set({ style: v || undefined })}
+                options={[{ value: '', label: `The film's (${styleDef(film.style).label})` }, ...STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))]}
+              />
             </label>
             {filmed ? (
               <label>Size
-                <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect(scene)).label} (${scene.animation?.frame ?? '16:9'})` }))} />
+                <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${film.frame})` }))} />
               </label>
             ) : (
               <label>Format
@@ -313,6 +354,23 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
               <p className="muted small">
                 Per shot: first and last frame with depth and normals, the camera for every frame and a prompt
                 {animated ? ', plus the cut list (OTIO)' : ''}. Give them to an AI video model so it follows your blocking.
+              </p>
+            </>
+          ) : scope === 'board' ? (
+            <>
+              <div className="row">
+                <label>Columns {num('columns', 1, 12)}</label>
+              </div>
+              <Toggle label="Captions under each panel" checked={o.labels} onChange={(labels) => set({ labels })} />
+              <p className="muted small">{story.length} panels, one per shot, in story order, in the film&apos;s {film.frame} frame.</p>
+            </>
+          ) : scope === 'story-video' ? (
+            <>
+              <Toggle label="Captions as subtitles" checked={o.labels} onChange={(labels) => set({ labels })} />
+              <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
+              <p className="muted small">
+                Every scene&apos;s shots in story order ({storyLength(story).toFixed(1)} s); a still scene stays on screen for its time on the storyboard.
+                {!canRecord && ' This browser cannot record video.'}
               </p>
             </>
           ) : video ? (
@@ -359,7 +417,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
               </div>
             </>
           )}
-          {styleDef(o.style).lit && <p className="muted small">Each scene is lit by its own light (select the scene in the inspector).</p>}
+          {styleDef(style).lit && <p className="muted small">Each scene is lit by its own light (select the scene in the inspector).</p>}
         </div>
         <div className="preview" ref={preview} aria-label="Preview" />
       </div>

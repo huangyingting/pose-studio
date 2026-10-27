@@ -3,7 +3,7 @@ import { buildOtio } from './otio';
 import { describeShot, describeSpan } from './prompt';
 import { canvasToBlob, safeFilename, type Pass } from './render';
 import { cameraAt, cameraPath } from './cameras';
-import { newShot, shotSpans, type ShotSpan } from './shots';
+import type { StoryShot } from './board';
 import { sharedRenderer } from './thumbnails';
 import type { Scene, Style } from './types';
 import { recordVideo, videoSupported } from './video';
@@ -35,22 +35,28 @@ Each shot folder holds:
   camera.json                       the camera for every frame: position, look-at target, vertical FOV
   prompt.txt                        the shot described for an AI video model
 
-prompt.txt and cutlist.otio at the top level cover the whole sequence.
+prompt.txt and cutlist.otio at the top level cover the whole sequence (the scene, or the story).
 Give a video model the first (and last) frame, the greybox clip as a motion/camera reference
 and the prompt, so it follows the blocking instead of guessing.
 `;
 
-export async function keyframePack(scene: Scene, o: PackOptions, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
-  const a = scene.animation;
-  const spans: ShotSpan[] = a ? shotSpans(a) : [{ shot: newShot(0, scene.name, 'main'), index: 0, start: 0, end: 0 }];
-  const greybox = !!a && o.greybox && videoSupported();
-  const entries: ZipEntry[] = [{ name: 'README.txt', data: README }, { name: 'prompt.txt', data: describeShot(scene) + '\n' }];
-  if (a) entries.push({ name: 'cutlist.otio', data: JSON.stringify(buildOtio(scene, 'video.mp4'), null, 2) });
+/** A keyframe pack of shots (a scene's, or the whole story's), named `name`. */
+export async function keyframePack(shots: StoryShot[], name: string, o: PackOptions, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
+  const animated = shots.some((x) => x.span);
+  const greybox = animated && o.greybox && videoSupported();
+  const scenes = new Set(shots.map((x) => x.scene.id)).size;
+  const entries: ZipEntry[] = [
+    { name: 'README.txt', data: README },
+    { name: 'prompt.txt', data: shots.map((x) => (x.span ? describeSpan(x.scene, x.span) : describeShot(x.scene))).join('\n\n') + '\n' },
+  ];
+  // The cut list points at the video of the same shots (one scene's is at its own rate; the story's at 24 fps).
+  const rate = scenes === 1 ? shots[0].scene.animation?.fps ?? 24 : 24;
+  if (animated) entries.push({ name: 'cutlist.otio', data: JSON.stringify(buildOtio(shots, name, 'video.mp4', rate), null, 2) });
   const renderer = sharedRenderer();
-  const steps = spans.length * (greybox ? 7 : 6);
+  const steps = shots.length * (greybox ? 7 : 6);
   let done = 0;
   const tick = () => onProgress?.(++done / steps);
-  const png = async (t: number, pass: Pass) => {
+  const png = async (scene: Scene, t: number, pass: Pass) => {
     const c = renderer.renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
       style: o.style, faces: o.faces, pass, camera: cameraAt(scene, t, o.width / o.height),
     });
@@ -58,23 +64,24 @@ export async function keyframePack(scene: Scene, o: PackOptions, onProgress?: (f
     return new Uint8Array(await blob.arrayBuffer());
   };
 
-  for (const span of spans) {
+  for (const [i, x] of shots.entries()) {
     if (signal?.aborted) throw new Error('Cancelled');
-    const dir = `${String(span.index + 1).padStart(2, '0')}_${safeFilename(span.shot.name, 'shot')}`;
-    const fps = a?.fps ?? 24;
-    const last = a ? Math.max(span.start, span.end - 1 / fps) : 0;
-    for (const [label, t] of [['first', span.start], ['last', last]] as const) {
-      entries.push({ name: `${dir}/${label}.png`, data: await png(t, 'beauty') });
+    const label = x.span ? (scenes > 1 ? `${x.scene.name} ${x.span.shot.name}` : x.span.shot.name) : x.scene.name;
+    const dir = `${String(i + 1).padStart(2, '0')}_${safeFilename(label, 'shot')}`;
+    const fps = x.scene.animation?.fps ?? 24;
+    const [first, last] = x.span ? [x.span.start, Math.max(x.span.start, x.span.end - 1 / fps)] : [0, 0];
+    for (const [which, t] of [['first', first], ['last', last]] as const) {
+      entries.push({ name: `${dir}/${which}.png`, data: await png(x.scene, t, 'beauty') });
       tick();
-      entries.push({ name: `${dir}/${label}_depth.png`, data: await png(t, 'depth') });
+      entries.push({ name: `${dir}/${which}_depth.png`, data: await png(x.scene, t, 'depth') });
       tick();
-      entries.push({ name: `${dir}/${label}_normal.png`, data: await png(t, 'normal') });
+      entries.push({ name: `${dir}/${which}_normal.png`, data: await png(x.scene, t, 'normal') });
       tick();
     }
-    entries.push({ name: `${dir}/prompt.txt`, data: describeSpan(scene, span) + '\n' });
-    entries.push({ name: `${dir}/camera.json`, data: JSON.stringify(cameraPath(scene, span.start, a ? span.end : 0, o.width / o.height), null, 2) });
-    if (greybox) {
-      const clip = await recordVideo(scene, { ...o, style: 'shaded', loops: 1, range: [span.start, span.end] }, undefined, signal);
+    entries.push({ name: `${dir}/prompt.txt`, data: (x.span ? describeSpan(x.scene, x.span) : describeShot(x.scene)) + '\n' });
+    entries.push({ name: `${dir}/camera.json`, data: JSON.stringify(cameraPath(x.scene, first, x.span ? x.span.end : 0, o.width / o.height), null, 2) });
+    if (greybox && x.span) {
+      const clip = await recordVideo(x.scene, { ...o, style: 'shaded', loops: 1, range: [x.span.start, x.span.end] }, undefined, signal);
       entries.push({ name: `${dir}/greybox.${clip.ext}`, data: new Uint8Array(await clip.blob.arrayBuffer()) });
       tick();
     }

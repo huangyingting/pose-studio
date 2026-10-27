@@ -1,3 +1,4 @@
+import { film } from './film';
 import type { Animation, CameraPoint, PathCamera, Scene, Shot } from './types';
 
 /*
@@ -54,9 +55,9 @@ export function spanAt(a: Animation, t: number): ShotSpan {
   return spans.find((s) => t >= s.start - 1e-6 && t < s.end - 1e-6) ?? spans[spans.length - 1];
 }
 
-/** Shots longer than the target model allows. */
-export function overLimit(a: Animation, span: ShotSpan) {
-  const m = videoModel(a.target);
+/** Shots longer than the video model the film is cut for allows (lib/film.ts). */
+export function overLimit(span: ShotSpan) {
+  const m = videoModel(film().target);
   return !!m && span.end - span.start > m.max + 1e-6;
 }
 
