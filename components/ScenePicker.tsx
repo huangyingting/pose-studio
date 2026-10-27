@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Clapperboard, ChevronDown, Ellipsis, FilePlus2, Search, Users, UsersRound } from 'lucide-react';
-import { addScene, moveScene, newShoot } from '@/lib/actions';
-import { SHOOT_PRESETS, templatesOf } from '@/lib/templates';
+import { ChevronDown, Ellipsis, FilePlus2, Search, UsersRound } from 'lucide-react';
+import { addScene, moveScene } from '@/lib/actions';
 import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
 import { sceneMenu } from './menus';
@@ -114,14 +113,7 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
             tip="New scene"
             items={[
               { label: 'Blank scene', icon: FilePlus2, onSelect: () => { addScene(store); onPick(); } },
-              { group: 'Ready to shoot' },
-              ...SHOOT_PRESETS.map((p) => ({ label: p.name, icon: Clapperboard, onSelect: () => { newShoot(store, p.id); onPick(); } })),
-              { group: 'From a template' },
-              ...templatesOf(store.getState().library).map((t) => ({
-                label: t.name,
-                icon: t.people > 2 ? Users : UsersRound,
-                onSelect: () => { addScene(store, t.build()); onPick(); },
-              })),
+              { label: 'From a template…', icon: UsersRound, onSelect: () => { store.setSettings({ side: 'library', libraryTab: 'templates' }); onPick(); } },
             ]}
           >
             <FilePlus2 size={14} strokeWidth={1.75} aria-hidden /> New

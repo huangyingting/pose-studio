@@ -734,7 +734,7 @@ export default function Timeline({ clock, onion, setOnion, captureShot, notify, 
                   onPointerDown={dragPoint(t)}
                   onContextMenu={(e) => {
                     seek(t);
-                    openContextMenu(e, [{ label: 'Delete point', icon: Trash2, danger: true, disabled: camTimes.length <= 1, onSelect: () => deleteCameraPoint(store, t, rowCam.id) }], `${rowCam.name} · ${t.toFixed(2)} s`);
+                    openContextMenu(e, cameraMenu(store, rowCam.id, { notifyUndo }, t), `${rowCam.name} · ${t.toFixed(2)} s`);
                   }}
                 />
               ))}

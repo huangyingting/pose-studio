@@ -742,6 +742,21 @@ export function filmWith(scene: Scene, moveId: string, o: { index?: number; foll
   return o.follow && cam.kind === 'path' ? withCamera(filmed, restate(filmed, cam, { anchor: 'subject', aim: 'subject' })) : filmed;
 }
 
+/**
+ * Reshape one camera with a camera move, over the time of the shots it films (none: the whole
+ * animation), from where it sees the scene as they start.
+ */
+export function reshapeCamera(scene: Scene, moveId: string, id: string): Scene {
+  const a = scene.animation;
+  const move = CAMERA_MOVES.find((m) => m.id === moveId);
+  const cam = cameraById(scene, id);
+  if (!a || !move || !cam) return scene;
+  const spans = shotSpans(a).filter((s) => s.shot.camera === id);
+  const [start, end] = spans.length ? [spans[0].start, spans[spans.length - 1].end] : [0, a.duration];
+  const view = viewOf(scene, cam, start);
+  return withCamera(scene, reform(cam, move.apply({ scene, camera: cam, start, end, base: { ...angleOf(view), fov: view.fov } })));
+}
+
 /* ---------- capture and export ---------- */
 
 /** A view as a path point of a camera at t (for "set camera point from the view"). */

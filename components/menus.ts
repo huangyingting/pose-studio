@@ -2,8 +2,8 @@ import {
   ArrowDownToLine, ArrowLeftRight, Camera, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
-  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
+  addCamera, addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
+  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, saveTemplate, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { handlesOf } from '@/lib/props';
@@ -169,12 +169,16 @@ export function shotMenu(store: Store, id: string, { notify, notifyUndo }: MenuU
   ];
 }
 
-/** A camera of the scene (in the outline, on the timeline, in its inspector). */
-export function cameraMenu(store: Store, id: string, { notifyUndo }: Pick<MenuUi, 'notifyUndo'>): MenuItem[] {
+/** A camera of the scene (in the outline, on the timeline, on the canvas: `point`, one of its path's points there). */
+export function cameraMenu(store: Store, id: string, { notifyUndo }: Pick<MenuUi, 'notifyUndo'>, point?: number): MenuItem[] {
   const cam = store.scene.cameras.find((c) => c.id === id);
   if (!cam) return [];
   const through = store.getState().through?.camera === id;
   return [
+    ...(point !== undefined && cam.kind === 'path' ? [
+      { label: `Delete the point at ${point.toFixed(2)} s`, icon: Trash2, danger: true, disabled: cam.points.length <= 1, onSelect: () => deleteCameraPoint(store, point, id) },
+      '-' as const,
+    ] : []),
     { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
     { label: 'Look through it', icon: Eye, checked: through, onSelect: () => store.lookThrough(through ? null : { camera: id }) },
     { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl+D', onSelect: () => duplicateCamera(store, id) },
@@ -184,6 +188,14 @@ export function cameraMenu(store: Store, id: string, { notifyUndo }: Pick<MenuUi
       onSelect: () => { deleteCamera(store, id); notifyUndo(`Deleted ${cam.name}`); },
     },
   ];
+}
+
+/** Save the open scene as a template of my own, under a name asked for. */
+export function saveAsTemplate(store: Store, { notifyUndo }: Pick<MenuUi, 'notifyUndo'>) {
+  const name = window.prompt('Template name', store.scene.name)?.trim();
+  if (!name) return;
+  saveTemplate(store, name);
+  notifyUndo(`Saved “${name}” to My templates`);
 }
 
 /** A scene in the scene picker. */
@@ -202,6 +214,7 @@ export function sceneMenu(store: Store, index: number, { notifyUndo }: Pick<Menu
     },
     { label: 'Duplicate', icon: Copy, onSelect: () => duplicateCurrentScene(store, index) },
     { label: 'Add to storyboard', icon: LayoutPanelTop, onSelect: () => { addToBoard(store, s.id); notifyUndo(`Added “${s.name}” to the storyboard (B)`); } },
+    { label: 'Save as template…', icon: BookmarkPlus, onSelect: () => { store.setSceneIndex(index); saveAsTemplate(store, { notifyUndo }); } },
     '-',
     {
       label: 'Delete', icon: Trash2, danger: true, disabled: library.scenes.length <= 1,

@@ -608,8 +608,11 @@ const figs = async (page: Page) => (await state(page)).scene.figures as unknown 
 test('multi-person set-ups and relation tools', async ({ page }) => {
   await openScenes(page);
   await page.getByRole('button', { name: 'New scene' }).click();
-  await page.getByRole('menuitem', { name: 'Handshake' }).click();
+  // The New menu leads to the templates in the library.
+  await page.getByRole('menuitem', { name: 'From a template…' }).click();
+  await page.getByRole('region', { name: 'Scene templates' }).getByRole('button', { name: /^Handshake/ }).click();
   expect((await state(page)).scene.name).toBe('Handshake');
+  await openSection(page, 'Scene');
   let [a, b] = await figs(page);
   expect(Math.abs(facingOf(a.bones) - facingOf(b.bones))).toBeCloseTo(180, 0);
 
@@ -839,9 +842,8 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
   await page.keyboard.press('Escape');
-  // Filmed square (the shot's frame): the video follows.
-  await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
+  // Filmed square (the film's frame, in the scene's inspector): the video follows.
+  await page.locator('.crumb').click();
   await choose(page, 'Frame', '1:1 square');
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video' }).click();
@@ -1233,6 +1235,10 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await choose(page, 'Camera subject', second.name);
   s = await live(page);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.subject).toBe(second.id);
+  // A two-shot: the other with them.
+  await page.getByRole('group', { name: 'Frames with' }).getByRole('button', { name: `with ${first.name}` }).click();
+  s = await live(page);
+  expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.also).toEqual([first.id]);
   // Or filmed with a coverage of the two: a master, over-the-shoulder shots and singles.
   await openSection(page, 'Library');
   await libraryShows(page, 'Camera');

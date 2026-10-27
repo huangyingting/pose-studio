@@ -1,9 +1,8 @@
 import { ClipboardCopy, Copy, Scissors, TriangleAlert, Video } from 'lucide-react';
-import { addCamera, editShot, ownCamera, removeShotCut, setFrameShape, setTargetModel } from '@/lib/actions';
+import { addCamera, editShot, ownCamera, removeShotCut } from '@/lib/actions';
 import { cameraById } from '@/lib/cameras';
 import { describeSpan } from '@/lib/prompt';
-import { VIDEO_MODELS, overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
-import { FRAME_SHAPES, type FrameShape } from '@/lib/types';
+import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { CameraSettings } from './CameraInspector';
 import { useScene, useStore } from './store-context';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, type HeaderChrome, type Notify } from './ui';
@@ -46,24 +45,6 @@ export default function ShotInspector({ id, notify, chrome }: { id: string; noti
           {span.start.toFixed(2)}–{span.end.toFixed(2)} s · <strong>{(span.end - span.start).toFixed(1)} s</strong>
           {over && model && <span className="warn"><TriangleAlert size={12} aria-hidden /> Longer than {model.name} allows ({model.max} s)</span>}
         </p>
-        <div className="field">
-          <span>Frame (all shots)</span>
-          <Select<FrameShape>
-            label="Frame"
-            value={a.frame ?? '16:9'}
-            onChange={(v) => setFrameShape(store, v)}
-            options={FRAME_SHAPES.map((f) => ({ value: f, label: { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' }[f] }))}
-          />
-        </div>
-        <div className="field">
-          <span>Cut for</span>
-          <Select
-            label="Cut for"
-            value={a.target ?? 'none'}
-            onChange={(v) => setTargetModel(store, v === 'none' ? null : v)}
-            options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
-          />
-        </div>
       </Section>
       <ShotFilming span={span} />
     </>

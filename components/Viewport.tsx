@@ -4,8 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
-import { Trash2 } from 'lucide-react';
-import { addCameraPoint, deleteCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint } from '@/lib/actions';
+import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint } from '@/lib/actions';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
@@ -17,7 +16,6 @@ import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveC
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
-import { openContextMenu } from './ContextMenu';
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
 
@@ -38,7 +36,8 @@ export interface ViewportApi {
   pick(x: number, y: number): CanvasHit;
 }
 
-export type CanvasHit = { figure?: string; prop?: string; floor?: Vec3 };
+/** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
+export type CanvasHit = { figure?: string; prop?: string; camera?: string; point?: number; floor?: Vec3 };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -77,6 +76,7 @@ export default function Viewport({
 }: Props) {
   const captureRef = useRef<(() => CameraView | null) | null>(null);
   const shotMode = !!through;
+  const rigRef = useRef<THREE.Group>(null);
   const sv = useMemo(() => new SceneView(), []);
   // Re-render when sync() replaces three.js objects, so the gizmo/handles get the new joints.
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
@@ -241,7 +241,7 @@ export default function Viewport({
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
-          <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} />
+          <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} groupRef={rigRef} />
         )}
         <Bridge
           sv={sv}
@@ -251,6 +251,7 @@ export default function Viewport({
           sceneView={openAngle}
           shotMode={shotMode}
           capture={() => captureRef.current?.() ?? null}
+          rigRef={rigRef}
         />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={settings.style} />
       </Canvas>
@@ -399,7 +400,7 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
   return null;
 }
 
-function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture }: {
+function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef }: {
   sv: SceneView;
   apiRef: Props['apiRef'];
   frameRequest: FrameRequest;
@@ -407,6 +408,8 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   sceneView: View;
   shotMode: boolean;
   capture(): CameraView | null;
+  /** The cameras drawn on the canvas, to pick them. */
+  rigRef: RefObject<THREE.Group | null>;
 }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const controls = useThree((s) => s.controls) as unknown as Controls;
@@ -440,6 +443,12 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const hit: CanvasHit = {};
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (floor) hit.floor = [floor.x, 0, floor.z];
+        // A camera (or one of its points) in front of everything: it is drawn over the scene.
+        for (const { object } of rigRef.current ? ray.intersectObject(rigRef.current, true) : []) {
+          let o: THREE.Object3D | null = object;
+          while (o && !o.userData.camera) o = o.parent;
+          if (o) return { ...hit, camera: o.userData.camera as string, ...(o.userData.point !== undefined ? { point: o.userData.point as number } : {}) };
+        }
         for (const { object } of ray.intersectObject(sv.root, true)) {
           let o: THREE.Object3D | null = object;
           let shown = true;
@@ -453,7 +462,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         return hit;
       },
     };
-  }, [apiRef, camera, controls, sv, gl]);
+  }, [apiRef, camera, controls, sv, gl, rigRef]);
 
   const frame = (view: FrameRequest['view']) => {
     if (!controls) return 0;
@@ -506,7 +515,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
 /** Each drag of a camera is one undo step. */
 let drags = 0;
 
-function CameraRig({ store, scene, clock, time, selection }: { store: Store; scene: Scene; clock: Clock; time: number; selection: Selection }) {
+function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: Store; scene: Scene; clock: Clock; time: number; selection: Selection; groupRef: RefObject<THREE.Group | null> }) {
   const a = scene.animation;
   const fps = a?.fps ?? 24;
   const get = useThree((s) => s.get);
@@ -525,6 +534,8 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   })), [cameras, three]);
   const lastDot = useRef(NaN);
   useEffect(() => { lastDot.current = NaN; }, [trails]);
+  // Every camera where it is at the playhead (a path camera's points have their own glyphs).
+  const nowGlyphs = useRef<(THREE.Object3D | null)[]>([]);
 
   const glyphs = useRef<(THREE.Object3D | null)[]>([]);
   useFrame((state) => {
@@ -541,8 +552,17 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
     if (t !== lastDot.current) {
       lastDot.current = t;
       dot.current.position.copy(cameraAt(scene, t).position);
+      cameras.forEach((c, i) => {
+        const g = nowGlyphs.current[i];
+        if (!g) return;
+        placeCamera(three, viewOf(scene, c, a ? t : 0), frameAspect(scene));
+        g.position.copy(three.position);
+        g.quaternion.copy(three.quaternion);
+        g.userData.onPoint = c.kind === 'path' && c.points.some((p) => Math.abs(p.t - t) < 0.5 / fps);
+      });
     }
     scale(dot.current);
+    for (const g of nowGlyphs.current) if (g) { scale(g); g.visible &&= !g.userData.onPoint; }
   });
 
   /** Follow the pointer across a plane through `from` (level, or upright facing the view with Shift). */
@@ -594,7 +614,27 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
   const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
   let n = 0;
   return (
-    <group>
+    <group ref={groupRef}>
+      {cameras.map((c, i) => {
+        const color = c.id === picked ? '#3b6cff' : '#60616a';
+        return (
+          <group
+            key={`now:${c.id}`}
+            ref={(g) => { nowGlyphs.current[i] = g; }}
+            userData={{ camera: c.id }}
+            onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
+          >
+            <mesh>
+              <boxGeometry args={[0.14, 0.1, 0.12]} />
+              <meshBasicMaterial color={color} transparent opacity={0.55} />
+            </mesh>
+            <mesh position={[0, 0, -0.1]} rotation={[Math.PI / 2, 0, 0]}>
+              <coneGeometry args={[0.06, 0.09, 12, 1, true]} />
+              <meshBasicMaterial color={color} transparent opacity={0.55} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+        );
+      })}
       {trails.map((trail, i) => trail.points.length > 1 && (
         <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked ? 3 : 1.5} transparent opacity={0.7} dashed={cameras[i].kind === 'rig'} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].kind === 'rig' ? undefined : addPoint(cameras[i].id, trail.times)} />
       ))}
@@ -609,11 +649,8 @@ function CameraRig({ store, scene, clock, time, selection }: { store: Store; sce
               ref={(g) => { glyphs.current[k] = g; }}
               position={m.position}
               quaternion={m.quaternion}
+              userData={{ camera: m.cam.id, point: m.t }}
               onPointerDown={(e) => dragOn(e, m.position, m.t, m.cam.id, (p, key) => moveCameraPoint(store, m.cam.id, m.t, p, key))}
-              onContextMenu={(e) => {
-                e.stopPropagation();
-                openContextMenu(e.nativeEvent, [{ label: 'Delete camera point', icon: Trash2, danger: true, onSelect: () => deleteCameraPoint(store, m.t, m.cam.id) }], `${m.cam.name} · ${m.t.toFixed(2)} s`);
-              }}
             >
               {/* A small camera: body and lens, looking down its −Z axis. */}
               <mesh>

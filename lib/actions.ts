@@ -25,7 +25,7 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
+import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
 import { bonesOf, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import type { Store } from './store';
@@ -1117,12 +1117,12 @@ export function setFrameShape(store: Store, frame: FrameShape) {
   });
 }
 
-/** Give the current shot (the whole animation without cuts) a ready-made camera move. */
-export function applyCameraMove(store: Store, id: string) {
+/** Give the current shot (the whole animation without cuts) a ready-made camera move, or reshape one camera (`camera`) with it. */
+export function applyCameraMove(store: Store, id: string, camera?: string) {
   const t = store.getState().time;
   store.updateScene((s) => {
     const animated = s.animation ? s : { ...s, animation: newAnimation(s, 4) };
-    return filmWith(animated, id, { index: spanAt(animated.animation!, t).index });
+    return camera ? reshapeCamera(animated, id, camera) : filmWith(animated, id, { index: spanAt(animated.animation!, t).index });
   });
 }
 

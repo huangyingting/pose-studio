@@ -10,7 +10,7 @@ import { facingOf } from '@/lib/pose';
 import { DEFAULT_EXPORT, exportCells, videoSize } from '@/lib/render';
 import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
-import type { RigCamera, Scene } from '@/lib/types';
+import type { PathCamera, RigCamera, Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
 /** Where on screen (−1 … 1, up +) a point is seen by the shot camera at t. */
@@ -310,5 +310,26 @@ describe('one camera model: stills and shots film through the scene\'s cameras',
     });
     expect(Object.keys(scene.cameras[0]).sort()).toEqual(['id', 'kind', 'name', 'rig']);
     expect(Object.keys(scene.cameras[1]).sort()).toEqual(['aim', 'anchor', 'id', 'kind', 'name', 'points']);
+  });
+});
+
+describe('camera moves on one camera', () => {
+  it('reshapes a selected camera over the shots it films, and nothing else', () => {
+    const { store, a } = fresh();
+    store.setTime(0);
+    travelTo(store, a, [0, 3], 'walk');
+    store.setTime(1);
+    cutShot(store);
+    const second = addCamera(store);
+    const shots = store.scene.animation!.shots;
+    const first = store.scene.cameras[0];
+    applyCameraMove(store, 'orbit90', second);
+    const cam = store.scene.cameras.find((c) => c.id === second)!;
+    expect(cam).toMatchObject({ kind: 'path' });
+    // Its points over the second shot only; the shots and the first camera as they were.
+    const points = (cam as PathCamera).points.map((p) => p.t);
+    expect(Math.min(...points)).toBeGreaterThanOrEqual(1 - 1e-9);
+    expect(store.scene.animation!.shots).toEqual(shots);
+    expect(store.scene.cameras[0]).toEqual(first);
   });
 });

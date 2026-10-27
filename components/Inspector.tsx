@@ -7,8 +7,9 @@ import {
 } from 'lucide-react';
 import {
   arrange, copyPose, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
-  reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, symmetrizePose,
+  reachFor, renameFigure, renameProp, resetPose, setDistance, setFrameShape, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, setTargetModel, symmetrizePose,
 } from '@/lib/actions';
+import { VIDEO_MODELS } from '@/lib/shots';
 import { travelAt } from '@/lib/evaluate';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
@@ -20,7 +21,7 @@ import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import type { CameraView } from '@/lib/cameras';
-import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, FRAME_SHAPES, POSTURES, type FrameShape, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ActionInspector from './ActionInspector';
 import CameraInspector from './CameraInspector';
@@ -586,6 +587,8 @@ function PropEditor({ id, chrome }: { id: string; chrome: HeaderChrome }) {
 
 /* ---------------- Scene ---------------- */
 
+const FRAME_LABELS: Record<FrameShape, string> = { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' };
+
 const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label).join(', ');
 
 /** The scene itself: its light (saved with it, used by its exports), how it is drawn, a reference image. */
@@ -600,6 +603,29 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
   return (
     <>
       <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={scene.name} label="Scene name" onRename={(name) => renameScene(store, name)} />
+      {scene.animation && (
+        <Section title="Film">
+          <div className="field">
+            <span>Frame</span>
+            <Select<FrameShape>
+              label="Frame"
+              value={scene.animation.frame ?? '16:9'}
+              onChange={(v) => setFrameShape(store, v)}
+              options={FRAME_SHAPES.map((f) => ({ value: f, label: FRAME_LABELS[f] }))}
+            />
+          </div>
+          <div className="field">
+            <span>Cut for</span>
+            <Select
+              label="Cut for"
+              value={scene.animation.target ?? 'none'}
+              onChange={(v) => setTargetModel(store, v === 'none' ? null : v)}
+              options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
+            />
+          </div>
+          <p className="hint-text">For every shot: the letterbox, videos and keyframe packs take this frame; shots longer than the model allows are flagged.</p>
+        </Section>
+      )}
       <Section title="Light">
         <div className="chips" role="group" aria-label="Lighting presets">
           {LIGHT_PRESETS.map((p) => (

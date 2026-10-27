@@ -38,7 +38,7 @@ import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
-import { canvasMenu, figureMenu, propMenu, renameInOutline } from './menus';
+import { cameraMenu, canvasMenu, figureMenu, propMenu, renameInOutline } from './menus';
 
 function webglAvailable() {
   try {
@@ -325,7 +325,10 @@ function App() {
   const openCanvasMenu = (e: { clientX: number; clientY: number }, hit: CanvasHit) => {
     const ui = { notify, notifyUndo };
     const sel = store.getState().selection;
-    if (hit.prop) {
+    if (hit.camera) {
+      store.select({ kind: 'camera', camera: hit.camera });
+      openContextMenu(e, cameraMenu(store, hit.camera, ui, hit.point), store.scene.cameras.find((c) => c.id === hit.camera)?.name);
+    } else if (hit.prop) {
       store.select({ kind: 'prop', prop: hit.prop });
       openContextMenu(e, propMenu(store, hit.prop, ui), store.scene.props.find((p) => p.id === hit.prop)?.name);
     } else if (hit.figure) {

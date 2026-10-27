@@ -157,6 +157,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
             <ul className="layers" aria-label="Cameras">
               {scene.cameras.map((c) => {
                 const on = selection?.kind === 'camera' && selection.camera === c.id;
+                const films = spans.filter((sp) => sp.shot.camera === c.id).map((sp) => sp.index + 1);
                 return (
                   <li key={c.id} className={on ? 'on' : liveCamera(scene, time).id === c.id ? 'here' : ''}>
                     <Row
@@ -168,7 +169,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
                       onClick={() => store.select({ kind: 'camera', camera: c.id })}
                       onMenu={(e) => { store.select({ kind: 'camera', camera: c.id }); openContextMenu(e, cameraMenu(store, c.id, { notifyUndo }), c.name); }}
                     >
-                      <em>{spans.filter((sp) => sp.shot.camera === c.id).map((sp) => sp.index + 1).join(', ')}</em>
+                      {films.length > 0 && <em>{films.length > 1 ? 'Shots' : 'Shot'} {films.join(', ')}</em>}
                     </Row>
                     {scene.cameras.length > 1 && (
                       <span className="layer-actions">

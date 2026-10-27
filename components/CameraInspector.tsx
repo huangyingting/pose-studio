@@ -65,18 +65,33 @@ export function CameraSettings({ cam, span }: { cam: Camera; span?: ShotSpan }) 
   const lens = rig ? Math.round(rig.lens) : view ? Math.round(view.lens) : null;
   const place = rig ? rig.place ?? 'center' : placed;
   const set = (patch: Parameters<typeof editCamera>[2]) => editCamera(store, cam.id, patch);
+  const shown = scene.figures.filter((f) => !f.hidden);
+  const subject = shown.some((f) => f.id === cam.subject) ? cam.subject : undefined;
   const frame = (to: ShotSize, at: Placement) => (rig ? editRig(store, cam.id, { size: to, place: at }) : frameShot(store, to, { place: at, camera: cam.id }));
   const setLensTo = (mm: number, key?: string) => (rig ? editRig(store, cam.id, { lens: mm }) : setLens(store, mm, zoom ? 'place' : 'size', key, cam.id));
   return (
     <Section title={cam.name}>
       <div className="field">
-        <span>Frames{cam.also?.length ? ` (with ${cam.also.map((id) => scene.figures.find((f) => f.id === id)?.name).filter(Boolean).join(', ')})` : ''}</span>
+        <span>Frames</span>
         <Select
           label="Camera subject"
-          value={cam.subject && scene.figures.some((f) => f.id === cam.subject) ? cam.subject : 'all'}
+          value={subject ?? 'all'}
           onChange={(v) => (span ? setShotSubject(store, span.shot.id, v === 'all' ? '' : v) : set({ subject: v === 'all' ? '' : v }))}
-          options={[{ value: 'all', label: 'Everyone' }, ...scene.figures.filter((f) => !f.hidden).map((f) => ({ value: f.id, label: f.name }))]}
+          options={[{ value: 'all', label: 'Everyone' }, ...shown.map((f) => ({ value: f.id, label: f.name }))]}
         />
+        {subject && shown.length > 1 && (
+          // A two-shot (or more): whom it frames with its subject.
+          <div className="chips" role="group" aria-label="Frames with">
+            {shown.filter((f) => f.id !== subject).map((f) => {
+              const on = !!cam.also?.includes(f.id);
+              return (
+                <button key={f.id} type="button" className={on ? 'chip on' : 'chip'} aria-pressed={on} onClick={() => set({ also: on ? cam.also!.filter((x) => x !== f.id) : [...(cam.also ?? []), f.id] })}>
+                  with {f.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       {size && lens ? (
         <>

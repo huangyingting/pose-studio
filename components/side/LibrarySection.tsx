@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type 
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Clapperboard, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import {
-  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, newShoot, placeTemplate, saveTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
+  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel,
 } from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
@@ -20,6 +20,7 @@ import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
 import { useScene, useStore, useStudio } from '../store-context';
+import { saveAsTemplate } from '../menus';
 import BoneMapDialog from '../BoneMapDialog';
 import { IconButton, Select } from '../ui';
 import type { SectionProps } from './sections';
@@ -447,12 +448,6 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
   const style = useStudio((s) => s.settings.style);
   const all = templatesOf(library);
   const groups = [...TEMPLATE_GROUPS, 'Mine'] as const;
-  const save = () => {
-    const name = window.prompt('Template name', scene.name)?.trim();
-    if (!name) return;
-    saveTemplate(store, name);
-    notifyUndo(`Saved “${name}” to My templates`);
-  };
   return (
     <div className="side-scroll">
       <Target>
@@ -460,7 +455,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
         {' '}{figure ? <>or put it here, its first role on <strong>{figure.name}</strong>.</> : 'or select a figure to put it into this scene around it.'}
       </Target>
       <div className="library-row">
-        <button type="button" className="btn subtle library-import" onClick={save} data-tip="Its cast, set, actions and light, without cameras or cuts">
+        <button type="button" className="btn subtle library-import" onClick={() => saveAsTemplate(store, { notifyUndo })} data-tip="Its cast, set, actions and light, without cameras or cuts">
           <BookmarkPlus size={14} aria-hidden /> Save scene as template…
         </button>
       </div>
@@ -529,6 +524,7 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
   const a = scene.animation;
   const selected = a && selection?.kind === 'shot' ? shotSpans(a).find((sp) => sp.shot.id === selection.shot) : undefined;
   const span = selected ?? (a ? spanAt(a, time) : undefined);
+  const cam = selection?.kind === 'camera' ? scene.cameras.find((c) => c.id === selection.camera) : undefined;
   const active = useStudio((s) => s.activeFigure);
   const name = (id: string | undefined) => scene.figures.find((f) => f.id === id)?.name ?? '?';
   return (
@@ -561,7 +557,7 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
         </Group>
       </section>
       <Target>
-        {span ? <>Moves apply to <strong>{span.shot.name}</strong>{a && shotSpans(a).length > 1 ? ' (select another shot in the Scene outline)' : ''}.</> : 'A move animates this still scene and films it.'}
+        {cam ? <>Moves reshape <strong>{cam.name}</strong>, over the shots it films.</> : span ? <>Moves apply to <strong>{span.shot.name}</strong>{a && shotSpans(a).length > 1 ? ' (select another shot in the Scene outline)' : ''}.</> : 'A move animates this still scene and films it.'}
       </Target>
       <section aria-label="Camera moves">
         {CAMERA_GROUPS.map((g) => (
@@ -571,9 +567,8 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!store.scene.animation) startAnimation(store);
-                    if (span) store.setTime(span.start);
-                    applyCameraMove(store, m.id);
+                    if (!cam && span) store.setTime(span.start);
+                    applyCameraMove(store, m.id, cam?.id);
                     notify(`${m.name}: ${m.description}`);
                     onPick?.();
                   }}
