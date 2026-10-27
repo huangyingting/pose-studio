@@ -971,7 +971,7 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
   await expect(page.locator('.tl-key.prop').first()).toBeVisible();
 });
 
-test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop; the high jump set-up', async ({ page }) => {
+test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ribbon; the high jump set-up', async ({ page }) => {
   await addLayer(page, 'Basketball hoop');
   await addLayer(page, 'Ball');
   const set = page.getByRole('list', { name: 'Set' });
@@ -987,10 +987,10 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop; the 
   const track = () => s.scene.animation!.keys.filter((k) => k.props?.[ball]).map((k) => k.props![ball]);
   expect(track().filter((k) => k.release)).toHaveLength(4);
   expect(s.time).toBeCloseTo(2, 2);
-  await propMenu('Ball', 'Shoot at Basketball hoop');
+  await propMenu('Ball', /^Shoot at Basketball hoop$/);
   s = await live(page);
-  expect(track().at(-1)).toMatchObject({ throw: true, release: true });
-  // The animation runs on while the ball drops from the rim to the floor.
+  // Through the rim, then down and bouncing on the floor: the animation runs on until it rests.
+  expect(track().slice(-4).every((k) => k.throw)).toBe(true);
   expect(s.scene.animation!.duration).toBeGreaterThan(s.time + 0.5);
 
   await addLayer(page, 'Gym hoop');
@@ -999,12 +999,19 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop; the 
   const ring = s.scene.props.find((p) => p.kind === 'ring')!.id;
   expect(s.scene.animation!.keys.filter((k) => k.props?.[ring]).at(-1)!.props![ring].hold).toBeTruthy();
 
+  // A ribbon goes in the other hand; it trails its stick as drawn (not kept in the scene).
+  await addLayer(page, 'Ribbon');
+  s = await live(page);
+  expect(s.scene.props.find((p) => p.kind === 'ribbon')!.hold).toBeTruthy();
+  expect(s.scene.props.some((p) => 'trail' in p)).toBe(false);
+
   await openSection(page, 'Library');
   await page.getByRole('radio', { name: 'Motions' }).click();
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^High jump/ }).click();
   s = await live(page);
   expect(s.scene.props.map((p) => p.kind).sort()).toEqual(['bar', 'mat']);
-  expect(s.scene.animation!.keys.some((k) => Object.values(k.poses).some((p) => p.travel === 'jump'))).toBe(true);
+  // A generated run-up, then the flop keyed frame by frame.
+  expect(s.scene.animation!.keys.some((k) => Object.values(k.poses).some((p) => p.travel === 'run'))).toBe(true);
 });
 
 test('eyes on another figure, figure colours, a shot subject and the scene light', async ({ page }) => {

@@ -7,7 +7,7 @@ import { wrapDeg } from './joints';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { CAMERA_MOVES } from './shot';
 import { buildTemplate, waltzHold } from './templates';
-import { feetOf, plantFeet, travelTime } from './locomotion';
+import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
 import type { Animation, BodyParams, Figure, Hand, JointName, PoseKey, Scene, Side, Travel, Vec3, View } from './types';
 
 /*
@@ -187,6 +187,9 @@ function inBetween(rig: Rig, a: Figure, b: Figure, count: number, ref: Figure, s
   });
 }
 
+
+/** Ease 0→1, slow at both ends. */
+const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };
 
 /**
  * Every key at the height it stands at (keyed, not left to the floor), so the hips' height blends
@@ -513,28 +516,105 @@ export const MOTIONS: Motion[] = [
     group: 'Sport & gymnastics',
     people: 1,
     setUp: true,
-    build: () => {
-      // A run-up to the bar (1.2 m), a jump over it with the legs tucked up, landing on the mat.
-      const f = { ...person('Jumper', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } };
-      const [take, bar, land] = [3.4, 4.3, 5.3];
-      const frame = (t: number) => Math.round(t * 24) / 24;
-      const t1 = frame(travelTime('run', take, f.body));
-      const t2 = frame(t1 + travelTime('jump', land - take, f.body, 0.9));
-      const scene = animated('High jump', [{ t: 0, figures: [f] }], { duration: frame(t2 + 0.7), loop: false, view: { yaw: 90, pitch: 4, fov: 40 } });
-      const a = scene.animation!;
-      const to = (z: number, travel: Travel): Record<string, PoseKey> => ({ [f.id]: { ...poseOf(f), position: [0, 0, z], travel } });
-      const animation: Animation = { ...a, keys: [...a.keys, { t: t1, poses: to(take, 'run') }, { t: t2, poses: to(land, 'jump') }] };
+    build: () => withRig((rig) => {
+      // The Fosbury flop: a run-up, a plant and a drive off the left foot, turning the back to the
+      // bar in the air; over it head first, face up, the back arched, the legs kicking up after
+      // the hips; the shoulders land first on the mat and the body rolls back flat on it.
+      const f = { ...person('Jumper', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
+      const [BAR, MAT] = [1.2, 0.8];
+      const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+      const at = (frame: number) => frame / 24;
+      const take = 3.6;
+      const tRun = Math.round(travelTime('run', take, f.body) * 24);
+      const stand = { ...posed(f, STAND), position: [0, 0, take] as Vec3 };
+      const load = plantFeet(rig, { ...adjusted(sink(stand, 30), { shoulderL: [25, 0, 20], shoulderR: [25, 0, -20], elbowL: [-30, 0, 0], elbowR: [-30, 0, 0], spine: [8, 0, 0] }), position: [0, 0, take + 0.08] }, stand);
+      // The right foot comes straight up off the floor first (it does not drag).
+      const liftR = feetOf(rig, load, ['R']).map((w) => ({ ...w, p: w.p.clone().add(new THREE.Vector3(0, 0.14, 0.04)) }));
+      const lifted = plantFeet(rig, plantFeet(rig, { ...adjusted(load, { shoulderL: [-45, 0, 18], shoulderR: [-45, 0, -18], elbowL: [-25, 0, 0], elbowR: [-25, 0, 0] }), position: [0, 0, take + 0.12] }, load, ['L']), liftR);
+      const lifting = adjusted(lifted, { ankleR: [10, 0, 0] });
+      // Up on the toes of the left foot, the right knee and the arms driving up.
+      const driveBase = adjusted(stand, { hipR: [-90, 0, -6], kneeR: [95, 0, 0], ankleR: [20, 0, 0], shoulderL: [-110, 0, 15], shoulderR: [-110, 0, -15], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], ankleL: [35, 0, 0], spine: [-6, 0, 0] });
+      const driveY = rig.model(driveBase).joints.root.position.y;
+      const drive = { ...driveBase, grounded: false, position: [0, r3(driveY + 0.05), r3(take + 0.22)] as Vec3 };
+      // Shapes in the air (joints but the root); the root turns as a whole.
+      const arch: Joints = { spine: [-25, 0, 0], chest: [-15, 0, 0], neck: [-20, 0, 0], head: [-10, 0, 0], shoulderL: [10, 0, 25], shoulderR: [10, 0, -25], elbowL: [-20, 0, 0], elbowR: [-20, 0, 0], hipL: [10, 0, 10], hipR: [10, 0, -10], kneeL: [70, 0, 0], kneeR: [70, 0, 0], ankleL: [20, 0, 0], ankleR: [20, 0, 0] };
+      const kick: Joints = { spine: [-5, 0, 0], neck: [20, 0, 0], shoulderL: [0, 0, 40], shoulderR: [0, 0, -40], hipL: [-80, 0, 8], hipR: [-80, 0, -8], kneeL: [10, 0, 0], kneeR: [10, 0, 0], ankleL: [20, 0, 0], ankleR: [20, 0, 0] };
+      const down: Joints = { neck: [25, 0, 0], shoulderL: [0, 0, 60], shoulderR: [0, 0, -60], hipL: [-60, 0, 10], hipR: [-60, 0, -10], kneeL: [30, 0, 0], kneeR: [30, 0, 0], ankleL: [10, 0, 0], ankleR: [10, 0, 0] };
+      const rest: Joints = { neck: [10, 0, 0], shoulderL: [0, 0, 60], shoulderR: [0, 0, -60], hipL: [-25, 0, 10], hipR: [-25, 0, -10], kneeL: [50, 0, 0], kneeR: [50, 0, 0] };
+      const mixJoints = (p: Joints, q: Joints, u: number): Joints => Object.fromEntries([...new Set([...Object.keys(p), ...Object.keys(q)])].map((j) => {
+        const x = p[j as JointName] ?? [0, 0, 0];
+        const y = q[j as JointName] ?? [0, 0, 0];
+        return [j, [0, 1, 2].map((c) => Math.round((x[c] + wrapDeg(y[c] - x[c]) * u) * 10) / 10 || 0) as Vec3];
+      }));
+      const { root: _r, ...driven } = drive.joints;
+      void _r;
+      // Turns (the root's lean, then turn): the back to the bar first (half a turn by the top), laid
+      // back face up over it, head down as the shoulders land; then rolled back flat.
+      const upright: Vec3 = [0, 0, 0];
+      const contact: Vec3 = [-115, 180, 0];
+      const flat: Vec3 = [-88, 180, 0];
+      const turnAt = (u: number): Vec3 => [r3(-115 * Math.sin((u * Math.PI) / 2)), r3(180 * smooth(u / 0.5)), 0];
+      const between = (p: Vec3, q: Vec3, u: number): Vec3 => [r3(p[0] + (q[0] - p[0]) * u), r3(p[1] + (q[1] - p[1]) * u), 0];
+      const posedIn = (joints: Joints, root: Vec3, position: Vec3): Figure => ({ ...f, grounded: false, joints: { ...joints, root }, position });
+      // On the mat: the pelvis this high above its top.
+      const pelvisOn = (joints: Joints, root: Vec3) => rig.model({ ...f, grounded: true, joints: { ...joints, root } }).joints.root.position.y;
+      const yFlat = MAT + pelvisOn(down, flat);
+      const yContact = MAT + pelvisOn(kick, contact);
+      const from = rig.model(drive).joints.root.getWorldPosition(new THREE.Vector3());
+      // The flight: up to the top (the hips well over the bar) and down to the contact.
+      const top = BAR + 0.3;
+      const tUp = Math.sqrt((2 * (top - from.y)) / GRAVITY);
+      const tDown = Math.sqrt((2 * (top - yContact)) / GRAVITY);
+      const AIR = Math.round((tUp + tDown) * 24);
+      const T = at(AIR);
+      const v = (yContact - from.y + (GRAVITY * T * T) / 2) / T;
+      const apex = v / GRAVITY / T;
+      const speed = 0.13;
+      const keys: Key[] = [
+        { t: 0, figures: [{ ...stand, position: [0, 0, 0] }] }, { t: at(tRun), figures: [stand] }, { t: at(tRun + 6), figures: [load] }, { t: at(tRun + 9), figures: [lifting] }, { t: at(tRun + 12), figures: [{ ...drive, joints: { ...drive.joints, root: upright } }] },
+      ];
+      const T0 = tRun + 12;
+      for (let i = 1; i <= AIR; i++) {
+        const u = i / AIR;
+        const time = at(i);
+        const y = from.y + v * time - (GRAVITY * time * time) / 2;
+        const shape = u <= apex ? mixJoints(driven, arch, smooth(u / apex)) : mixJoints(arch, kick, smooth((u - apex) / (1 - apex) / 0.7));
+        const q = turnAt(u);
+        keys.push({ t: at(T0 + i), figures: [posedIn(shape, q, [0, r3(y), r3(from.z + speed * 24 * time)])] });
+      }
+      // Down on the mat: the body rolls back flat, resting on it, sliding to a stop.
+      const zEnd = from.z + speed * AIR;
+      const ROLL = 8;
+      for (let i = 1; i <= ROLL; i++) {
+        const u = Math.min(1, i / 4);
+        const dz = speed * 4 * (u - (u * u) / 2);
+        const shape = mixJoints(kick, down, smooth(i / ROLL));
+        const q = between(contact, flat, smooth(i / ROLL));
+        keys.push({ t: at(T0 + AIR + i), figures: [posedIn(shape, q, [0, r3(MAT + pelvisOn(shape, q)), r3(zEnd + dz)])] });
+      }
+      const flatZ = r3(zEnd + speed * 2);
+      const lie = posedIn(rest, flat, [0, r3(yFlat), flatZ]);
+      keys.push({ t: at(T0 + AIR + ROLL + 12), figures: [lie] }, { t: at(T0 + AIR + ROLL + 24), figures: [lie] });
+      const end = at(T0 + AIR + ROLL + 24);
+      const to = { z: zEnd };
+      const scene = animated('High jump', keys, { duration: end, loop: false, view: { yaw: 90, pitch: 4, fov: 40 } });
+      const anim = scene.animation!;
+      // The run-up is generated: the key at the take-off mark is reached running.
+      const run = anim.keys.map((k) => (Math.abs(k.t - at(tRun)) < 1e-6 ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).map(([id, p]) => [id, { ...p, travel: 'run' as const }])) } : k));
+      const animation: Animation = { ...anim, keys: run };
       const move = CAMERA_MOVES.find((m) => m.id === 'static')!;
       animation.camera = { keys: move.keys(animation, scene.view), follow: true, shake: 0 };
+      // The bar where the hips are at the top of the flight; the mat beyond it.
+      const bar = r3(from.z + (to.z - from.z) * apex);
       return {
         ...scene,
         props: [
-          { ...newProp('bar', [0, 0, bar], 'Bar'), scale: [1, 1.2, 1] },
-          { ...newProp('mat', [0, 0, land + 0.3], 'Mat') },
+          { ...newProp('bar', [0, 0, bar], 'Bar'), scale: [1, BAR, 1] },
+          { ...newProp('mat', [0, 0, r3(bar + 1.3)], 'Mat'), scale: [1, MAT / 0.4, 1] },
         ],
         animation,
       };
-    },
+    }),
   },
   {
     id: 'cartwheel',

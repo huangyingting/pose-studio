@@ -28,6 +28,9 @@ function cylinder(radius: number, height: number, bevel = 0.012) {
 
 type Piece = [THREE.BufferGeometry, Vec3];
 
+/** A gymnastics ribbon: the stick (its tip this far along it), the ribbon's length and its cross-section, in segments. */
+export const RIBBON = { stick: 0.6, length: 4, width: 0.05, thickness: 0.004, segments: 20 };
+
 /** A basketball hoop's rim, in the prop's own frame: its centre and radius. */
 export const RIM = { at: [0, 3.05, 0.87] as Vec3, radius: 0.23 };
 
@@ -65,6 +68,8 @@ function pieces(kind: PropKind): Piece[] {
       return [post(-2), post(2), [cylinder(0.015, 4, 0.004).rotateZ(Math.PI / 2), [0, 1, 0]]];
     }
     // Handheld: drawn upright from their base, like the rest, so they also stand on the floor.
+    case 'ribbon': // the stick; the ribbon itself follows how the tip moves (setTrail)
+      return [[cylinder(0.008, RIBBON.stick, 0.004), [0, RIBBON.stick / 2, 0]]];
     case 'ring': // a rhythmic gymnastics hoop, hanging from its top
       return [[new THREE.TorusGeometry(0.4, 0.01, 8, 48), [0, -0.4, 0]]];
     case 'stick':
@@ -97,11 +102,73 @@ export class PropObject {
   private selected = false;
   private hovered = false;
 
+  /** A ribbon's ribbon (drawn, but not solid: nothing stands on it or bumps into it). */
+  private ribbon: THREE.Mesh | null = null;
+
   constructor(ink: Ink, readonly kind: PropKind, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
     for (const [geo, pos] of pieces(kind)) this.parts.add(this.object, geo, { prop: id }, pos);
+    if (kind === 'ribbon') {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((RIBBON.segments + 1) * 4 * 3), 3));
+      const index: number[] = [];
+      for (let i = 0; i < RIBBON.segments; i++) {
+        for (let k = 0; k < 4; k++) {
+          const [a, b, c, d] = [i * 4 + k, i * 4 + ((k + 1) % 4), (i + 1) * 4 + k, (i + 1) * 4 + ((k + 1) % 4)];
+          index.push(a, b, c, b, d, c);
+        }
+      }
+      const e = RIBBON.segments * 4;
+      index.push(0, 2, 1, 0, 3, 2, e, e + 1, e + 2, e, e + 2, e + 3);
+      geo.setIndex(index);
+      this.ribbon = this.parts.add(this.object, geo, { prop: id });
+      this.ribbon.castShadow = false;
+    }
     this.object.rotation.order = 'XYZ';
     this.refresh();
+    this.setTrail(null);
+  }
+
+  /** The parts that are solid: what stands on the floor, what is stood on, what bodies bump into. */
+  get solids() {
+    return this.parts.bodies.filter((m) => m !== this.ribbon);
+  }
+
+  /**
+   * Lay a ribbon along its line through the air (world points from the stick's tip, after the
+   * prop is placed), or, without one, let it hang from the tip and lie on along the floor.
+   */
+  setTrail(trail: Vec3[] | null) {
+    if (!this.ribbon) return;
+    this.object.updateMatrixWorld(true);
+    const tip = new THREE.Vector3(0, RIBBON.stick, 0).applyMatrix4(this.object.matrixWorld);
+    const seg = RIBBON.length / RIBBON.segments;
+    const world = trail ?? Array.from({ length: RIBBON.segments + 1 }, (_, i): Vec3 => {
+      const down = Math.min(i * seg, Math.max(0, tip.y - 0.005));
+      return [tip.x + (i * seg - down), tip.y - down, tip.z];
+    });
+    const inverse = this.object.matrixWorld.clone().invert();
+    const pts = world.map((p) => new THREE.Vector3(...p).applyMatrix4(inverse));
+    const pos = this.ribbon.geometry.attributes.position as THREE.BufferAttribute;
+    let side = new THREE.Vector3(1, 0, 0);
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let i = 0; i < pts.length; i++) {
+      const dir = (i < pts.length - 1 ? pts[i + 1].clone().sub(pts[i]) : pts[i].clone().sub(pts[i - 1])).normalize();
+      // Flat side on, as a ribbon lies (keeping its last side where it goes straight up or down).
+      const s = dir.clone().cross(up);
+      if (s.lengthSq() > 1e-4) side = s.normalize();
+      const normal = side.clone().cross(dir).normalize();
+      const w = side.clone().multiplyScalar(RIBBON.width / 2);
+      const h = normal.multiplyScalar(RIBBON.thickness / 2);
+      [w.clone().add(h), w.clone().sub(h), w.clone().negate().sub(h), w.clone().negate().add(h)].forEach((o, k) => {
+        const v = pts[i].clone().add(o);
+        pos.setXYZ(i * 4 + k, v.x, v.y, v.z);
+      });
+    }
+    pos.needsUpdate = true;
+    this.ribbon.geometry.computeVertexNormals();
+    this.ribbon.geometry.computeBoundingSphere();
+    this.ribbon.geometry.computeBoundingBox();
   }
 
   apply(p: Prop) {
@@ -115,7 +182,11 @@ export class PropObject {
   liftAboveFloor() {
     this.object.updateMatrixWorld(true);
     let min = Infinity;
-    this.parts.forEachPoint((p) => { if (p.y < min) min = p.y; });
+    const p = new THREE.Vector3();
+    for (const mesh of this.solids) {
+      const pos = mesh.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) min = Math.min(min, p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).y);
+    }
     if (min >= 0 || !Number.isFinite(min)) return;
     this.object.position.y -= min;
     this.object.updateMatrixWorld(true);

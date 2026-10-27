@@ -12,7 +12,7 @@ import type { Figure, Prop, PropKind, Scene, Side, Vec3 } from './types';
 const D2R = Math.PI / 180;
 
 /** Kinds that make sense in a hand (the handheld ones, a ball, a small box). */
-export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'phone', 'cup', 'book', 'sphere', 'box'];
+export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'sphere', 'box'];
 
 /** Where a kind sits in the hand of a figure `height` tall. */
 export function grip(kind: PropKind, hand: Side, height: number): Pick<Prop, 'position' | 'rotation'> & { scale?: Vec3 } {
@@ -22,6 +22,8 @@ export function grip(kind: PropKind, hand: Side, height: number): Pick<Prop, 'po
   switch (kind) {
     case 'stick': // through the fist, pointing forward
       return { position: at(0.02, -0.085, -0.12), rotation: [90, 0, 0] };
+    case 'ribbon': // the stick held at its end, pointing on from the hand
+      return { position: at(0.02, -0.085, -0.03), rotation: [90, 0, 0] };
     case 'phone': // flat on the palm, along the hand
       return { position: at(0.027, -0.04, 0), rotation: [180, 90, 0] };
     case 'book':

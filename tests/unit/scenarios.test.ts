@@ -222,9 +222,12 @@ describe('scenes from the use case', () => {
     const shot = throwProp(store, ball, { hoop })!;
     expectClean(store.scene);
     const at = figureAt(store.scene);
-    // Bouncing off the floor halfway through each dribble, back in the hand between.
-    expect(worldOfProp(store.scene, ball, at, 0.25)!.position[1]).toBeCloseTo(0, 2);
-    expect(sceneAt(store.scene, 0.45).props[0].hold?.figure).toBe(a);
+    // Pushed down, off the floor a third of the way through each dribble, met by the hand on its
+    // way up; the hand rides it to the top, lower as it lets go.
+    expect(worldOfProp(store.scene, ball, at, 4 / 24)!.position[1]).toBeCloseTo(0, 2);
+    expect(sceneAt(store.scene, 8 / 24).props[0].hold?.figure).toBe(a);
+    const wrist = (t: number) => handPosition(at(a, t)!, 'R', store.scene.props)[1];
+    expect(wrist(9 / 24) - wrist(12 / 24)).toBeGreaterThan(0.1);
     // Through the rim (its centre there), then down on the floor.
     const rim = rimOf(store.scene.props[1]);
     const through = worldOfProp(store.scene, ball, at, shot.to)!.position;
@@ -235,15 +238,63 @@ describe('scenes from the use case', () => {
     expect(end.position[1]).toBeCloseTo(0, 2);
   }, 60_000);
 
-  it('high jump: the set-up clears its bar onto the mat; a jump too low is caught going through the bar', () => {
+  it('basketball: a shot off the rim bounces back out towards the shooter', () => {
+    const { store, a } = fresh();
+    store.updateScene((s) => ({ ...s, view: { yaw: 90, pitch: 6, fov: 40 } }));
+    addProp(store, 'sphere', [0.5, 0, 0.5]);
+    const ball = store.scene.props[0].id;
+    moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
+    holdProp(store, ball, { figure: a, hand: 'R' });
+    addProp(store, 'hoop');
+    const hoop = store.scene.props[1];
+    // Put ahead of the figure, its board facing it.
+    expect(hoop.position[2]).toBeCloseTo(5, 3);
+    const shot = throwProp(store, ball, { hoop: hoop.id, miss: true })!;
+    expectClean(store.scene);
+    const at = figureAt(store.scene);
+    const rim = rimOf(hoop);
+    const hit = worldOfProp(store.scene, ball, at, shot.to)!.position;
+    // At the rim's front edge, not through its middle.
+    expect(rim[2] - hit[2]).toBeGreaterThan(0.25);
+    const end = sceneAt(store.scene, store.scene.animation!.duration).props[0];
+    expect(end.position[1]).toBeCloseTo(0, 2);
+    expect(end.position[2]).toBeLessThan(hit[2] - 1.5);
+  }, 60_000);
+
+  it('basketball: dribbling standing still, with the left hand', () => {
+    const { store, a } = fresh();
+    addProp(store, 'sphere', [0.5, 0, 0.5]);
+    const ball = store.scene.props[0].id;
+    moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
+    holdProp(store, ball, { figure: a, hand: 'L' });
+    dribbleProp(store, ball);
+    expectClean(store.scene);
+    expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold).toEqual({ figure: a, hand: 'L' });
+  }, 60_000);
+
+  it('high jump: the flop clears its bar, back first, onto the mat; a jump too low is caught going through the bar', () => {
     const { store } = fresh();
     addScene(store, buildMotion('high-jump')!);
     expectClean(store.scene);
     const jumper = store.scene.figures[0].id;
+    const [bar, mat] = store.scene.props;
     const sv = new SceneView();
+    // Over the bar: the hips above it, face up (the chest's front points up).
+    let over = 0;
+    for (const t of frameTimes(store.scene.animation!)) {
+      sv.sync(sceneAt(store.scene, t));
+      const m = sv.figures.get(jumper)!;
+      const hips = m.joints.root.getWorldPosition(new THREE.Vector3());
+      if (Math.abs(hips.z - bar.position[2]) < 0.15) {
+        over++;
+        expect(hips.y).toBeGreaterThan(bar.scale[1] + 0.15);
+        expect(new THREE.Vector3(0, 0, 1).applyQuaternion(m.joints.chest.getWorldQuaternion(new THREE.Quaternion())).y).toBeGreaterThan(0.5);
+      }
+    }
+    expect(over).toBeGreaterThan(0);
+    // Lying on the mat at the end.
     sv.sync(sceneAt(store.scene, store.scene.animation!.duration));
-    // Standing on the mat at the end.
-    expect(sv.figures.get(jumper)!.lowest()).toBeCloseTo(0.4, 1);
+    expect(sv.figures.get(jumper)!.lowest()).toBeCloseTo(mat.scale[1] * 0.4, 1);
     sv.dispose();
 
     const low = fresh();
@@ -276,6 +327,34 @@ describe('scenes from the use case', () => {
     applyMotion(store, a, 'cartwheel');
     expectClean(store.scene);
     expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold?.figure).toBe(a);
+  }, 60_000);
+
+  it('rhythmic gymnastics: a ribbon trails the stick through a pirouette, its own length, above the floor', () => {
+    const { store, a } = fresh();
+    addProp(store, 'ribbon');
+    const ribbon = store.scene.props[0];
+    expect(ribbon.hold).toEqual({ figure: a, hand: 'R' });
+    applyMotion(store, a, 'pirouette');
+    expectClean(store.scene);
+    const at = figureAt(store.scene);
+    const lengths = (trail: number[][]) => trail.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - trail[i][0], p[1] - trail[i][1], p[2] - trail[i][2]), 0);
+    const started = performance.now();
+    const times = [0, 0.8, 1.1, 1.4];
+    for (const t of times) {
+      const trail = sceneAt(store.scene, t).props[0].trail!;
+      // From the stick's tip, four metres long, never under the floor.
+      const tip = worldOfProp(store.scene, ribbon.id, at, t)!;
+      expect(Math.hypot(trail[0][0] - tip.position[0], trail[0][2] - tip.position[2])).toBeLessThan(0.7);
+      expect(lengths(trail)).toBeCloseTo(4, 1);
+      expect(Math.min(...trail.map((p) => p[1]))).toBeGreaterThan(0);
+    }
+    // Quick enough to play (a frame's worth of ribbon in well under a frame).
+    expect((performance.now() - started) / times.length).toBeLessThan(40);
+    // At rest it hangs from the tip and lies on the floor; turning, it flies out.
+    const still = sceneAt(store.scene, 0).props[0].trail!;
+    expect(still.at(-1)![1]).toBeLessThan(0.01);
+    const turning = sceneAt(store.scene, 1.1).props[0].trail!;
+    expect(Math.max(...turning.map((p) => p[1]))).toBeGreaterThan(0.5);
   }, 60_000);
 
   it('a figure walking behind a wall is reported hidden from the shot camera', () => {

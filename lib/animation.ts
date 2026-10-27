@@ -1,6 +1,6 @@
 import { jointLimits, wrapDeg } from './joints';
 import { chainAt, locomote } from './locomotion';
-import { propsAt } from './propmotion';
+import { propsAt, ribbonTrail } from './propmotion';
 import { groundOf } from './surfaces';
 import { keysInShot, spanAt } from './shots';
 import { JOINTS, type Animation, type CameraKey, type CameraTrack, type Figure, type Shot, type Hand, type Keyframe, type PoseKey, type Prop, type PropKey, type Scene, type Vec3 } from './types';
@@ -349,10 +349,12 @@ export function sceneAt(scene: Scene, t: number): Scene {
   };
   const figures = scene.figures.map((f) => figureAt(f, t));
   // Props ride in hands, fly and fall: they need the figures' hands at their key times too.
-  const props = propsAt(scene, t, (id, at) => {
+  const figureAtTime = (id: string, at: number) => {
     const f = Math.abs(at - t) < 1e-9 ? figures.find((x) => x.id === id) : scene.figures.find((x) => x.id === id);
     return !f ? null : Math.abs(at - t) < 1e-9 ? f : figureAt(f, at);
-  });
+  };
+  // A ribbon trails where its stick's tip has just been.
+  const props = propsAt(scene, t, figureAtTime).map((p) => (p.kind === 'ribbon' ? { ...p, trail: ribbonTrail(scene, p.id, t, figureAtTime) ?? undefined } : p));
   return { ...scene, figures, props };
 }
 

@@ -24,6 +24,21 @@ describe('motion QA', () => {
     }
   }, 30_000);
 
+  it('finds a ball flying through someone, but not one let go of or caught at a hand', () => {
+    const f = newFigure({ name: 'Ben' });
+    const ball = { ...newProp('sphere', [0, 1, -1.5], 'Ball'), scale: [0.24, 0.24, 0.24] as [number, number, number] };
+    const scene = animate([[0, [f]], [1, [f]]]);
+    // Straight through the chest, from in front to behind (gliding, not lobbed over).
+    const through = { ...scene, props: [ball], animation: { ...scene.animation!, keys: [
+      { ...scene.animation!.keys[0], props: { [ball.id]: { position: [0, 1.3, 1.5] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] } } },
+      { ...scene.animation!.keys[1], props: { [ball.id]: { position: [0, 1.3, -1.5] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] } } },
+    ] } };
+    expect(checkMotion(through).map((i) => i.message)).toContain('Ball flies through Ben’s body');
+    // Past the side, clear of him.
+    const past = { ...through, animation: { ...through.animation, keys: through.animation.keys.map((k) => ({ ...k, props: { [ball.id]: { ...k.props![ball.id], position: [1, 1.1, k.props![ball.id].position[2]] as [number, number, number] } } })) } };
+    expect(kinds(past)).toEqual([]);
+  });
+
   it('finds a planted foot sliding', () => {
     const f = newFigure();
     const moved = { ...f, position: [0.3, 0, 0] as [number, number, number] };

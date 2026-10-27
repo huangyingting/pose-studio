@@ -106,7 +106,10 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
     ...(p.hold ? [{ label: 'Toss up and catch', icon: ArrowUpFromDot, onSelect: () => throwProp(store, id, { figure: p.hold!.figure, hand: p.hold!.hand }) }] : []),
     ...(p.hold && p.kind === 'sphere' ? [
       { label: 'Dribble (2 s)', icon: ChevronsDown, onSelect: () => dribbleProp(store, id) },
-      ...store.scene.props.filter((x) => x.kind === 'hoop').map((x): MenuItem => ({ label: `Shoot at ${x.name}`, icon: Goal, onSelect: () => throwProp(store, id, { hoop: x.id }) })),
+      ...store.scene.props.filter((x) => x.kind === 'hoop').flatMap((x): MenuItem[] => [
+        { label: `Shoot at ${x.name}`, icon: Goal, onSelect: () => throwProp(store, id, { hoop: x.id }) },
+        { label: `Shoot at ${x.name}, off the rim`, icon: Goal, onSelect: () => throwProp(store, id, { hoop: x.id, miss: true }) },
+      ]),
     ] : []),
     '-',
     { label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },

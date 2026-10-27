@@ -28,7 +28,7 @@ function topsOf(props: Prop[]): Top[] {
     const o = new PropObject(ink, p.kind, p.id);
     o.apply(p);
     o.liftAboveFloor();
-    for (const mesh of o.parts.bodies) {
+    for (const mesh of o.solids) {
       box.setFromObject(mesh);
       // Thin upright parts (a chair back, a wall) are not stood on unless wide enough for a foot.
       if (box.max.x - box.min.x < 0.08 || box.max.z - box.min.z < 0.08) continue;

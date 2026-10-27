@@ -5,15 +5,16 @@ import {
 } from './doc';
 import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
-import { figureKeyTimes, figurePoseAt, keyAt, moveKey, newAnimation, poseOf, removeKey, setDuration as setAnimDuration, setKey, setPropKey, snapTime } from './animation';
+import { figureKeyTimes, figurePoseAt, keyAt, moveKey, newAnimation, poseOf, removeKey, samplePose, setDuration as setAnimDuration, setKey, setPropKey, snapTime } from './animation';
 import { handPosition, rimOf, throwTime, worldOfProp } from './propmotion';
+import { RIM } from './props';
 import { groundOf } from './surfaces';
-import { GRAVITY, JUMP_PREP, flightTime, travelTime } from './locomotion';
+import { JUMP_PREP, flightTime, travelTime } from './locomotion';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure } from './poses';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
-  facing, forward, withFacing, withPosition, type Contact,
+  facing, forward, leftward, withFacing, withPosition, type Contact,
 } from './relations';
 import { CAMERA_MOVES, shotAt } from './shot';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
@@ -295,18 +296,47 @@ export function addProp(store: Store, kind: PropKind, at?: Vec3) {
  * through a basketball hoop (it drops through the rim to the floor). It flies under gravity; the
  * hands are wherever the figures have them at those moments. The playhead goes to where it lands.
  */
-export function throwProp(store: Store, id: string, target: { at: [number, number] } | { figure: string; hand: Side } | { hoop: string }) {
+export function throwProp(store: Store, id: string, target: { at: [number, number] } | { figure: string; hand: Side } | { hoop: string; miss?: boolean }) {
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const scene = store.scene;
   const a = scene.animation!;
   const prop = scene.props.find((p) => p.id === id);
   if (!prop?.hold) return null;
-  const t0 = snapTime(a, store.getState().time);
-  const at = (fid: string, t: number) => figurePoseAt(scene, fid, t);
-  const from = worldOfProp(scene, id, at, t0);
+  let t0 = snapTime(a, store.getState().time);
+  // A shot is shot: the ball up in front of the face, then the arm up and out to the hoop, and a
+  // follow-through; the other hand at the ball's side until it goes. It takes a moment to gather
+  // (after a dribble, say): the ball goes then.
+  let anim0 = a;
+  const shooter = scene.figures.find((f) => f.id === prop.hold!.figure);
+  if ('hoop' in target && shooter) {
+    const [hand, other] = prop.hold.hand === 'R' ? ['R', 'L'] : ['L', 'R'];
+    const s = hand === 'L' ? 1 : -1;
+    const frame = 1 / a.fps;
+    const before = figureKeyTimes(a, shooter.id).filter((t) => t < t0 + 1e-6).at(-1);
+    if (before !== undefined) t0 = Math.min(60, Math.max(t0, Math.round((before + 16 * frame) * a.fps) / a.fps));
+    const shot: [number, Partial<Figure['joints']>][] = [
+      [t0 - 8 * frame, { [`shoulder${hand}`]: [-110, 0, 20 * s], [`elbow${hand}`]: [-100, 0, 0], [`shoulder${other}`]: [-70, 0, -10 * s], [`elbow${other}`]: [-90, 0, 0] }],
+      [t0, { [`shoulder${hand}`]: [-155, 0, 10 * s], [`elbow${hand}`]: [-15, 0, 0], [`shoulder${other}`]: [-95, 0, -20 * s], [`elbow${other}`]: [-60, 0, 0] }],
+      [t0 + 8 * frame, { [`shoulder${hand}`]: [-145, 0, 10 * s], [`elbow${hand}`]: [-20, 0, 0], [`shoulder${other}`]: [-75, 0, -20 * s], [`elbow${other}`]: [-50, 0, 0] }],
+    ];
+    const onFrame = (t: number) => Math.round(t * a.fps) / a.fps;
+    const times = shot.map(([t]) => onFrame(t));
+    // Long enough for the follow-through (keys are kept within the animation).
+    anim0 = { ...anim0, duration: Math.min(60, Math.max(anim0.duration, times[2])) };
+    // Its keys in the middle of the shot (the end of a run, say) hold the ball up too.
+    for (const t of figureKeyTimes(a, shooter.id)) {
+      if (t > times[0] + 1e-6 && t < times[2] - 1e-6 && !times.some((x) => Math.abs(x - t) < 1e-6)) anim0 = keyJoints(scene, anim0, shooter, t, shot[t < times[1] ? 0 : 1][1]);
+    }
+    for (const [i, [, joints]] of shot.entries()) if (times[i] >= 0 && times[i] <= 60) anim0 = keyJoints(scene, anim0, shooter, times[i], joints);
+  }
+  const posedScene = { ...scene, animation: anim0 };
+  const at = (fid: string, t: number) => figurePoseAt(posedScene, fid, t);
+  const from = worldOfProp(posedScene, id, at, t0);
   if (!from) return null;
   let to: Vec3;
   let end: PropKey;
+  // After a shot: where it bounces on (each a hop to a point, rising so high), then it rests.
+  let hops: { at: Vec3; rise: number }[] = [];
   if ('at' in target) {
     const [x, z] = target.at;
     to = [Math.round(x * 1000) / 1000, groundOf(scene.props, id)(x, z), Math.round(z * 1000) / 1000];
@@ -314,10 +344,27 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   } else if ('hoop' in target) {
     const hoop = scene.props.find((p) => p.id === target.hoop && p.kind === 'hoop');
     if (!hoop) return null;
-    // Its centre through the rim's centre (a prop's place is its base), then it falls.
     const rim = rimOf(hoop);
-    to = [rim[0], Math.round((rim[1] - prop.scale[1] / 2) * 1000) / 1000, rim[2]];
-    end = { position: to, rotation: from.rotation, throw: true, release: true };
+    const r = prop.scale[1] / 2;
+    const d = Math.hypot(rim[0] - from.position[0], rim[2] - from.position[2]) || 1;
+    const [dx, dz] = [(rim[0] - from.position[0]) / d, (rim[2] - from.position[2]) / d];
+    const ground = groundOf(scene.props, id);
+    const r3 = (v: number) => Math.round(v * 1000) / 1000;
+    /** A floor point `k` metres on from (x, z) the way it flew. */
+    const on = (x: number, z: number, k: number): Vec3 => [r3(x + dx * k), ground(x + dx * k, z + dz * k), r3(z + dz * k)];
+    if (target.miss) {
+      // Off the front of the rim: back out towards the shooter, bouncing on the floor.
+      const front = RIM.radius * hoop.scale[0] + r * 0.6;
+      to = [r3(rim[0] - dx * front), r3(rim[1] - r * 0.5), r3(rim[2] - dz * front)];
+      const first = on(to[0], to[2], -1.6);
+      hops = [{ at: first, rise: 0.5 }, { at: on(first[0], first[2], -0.6), rise: 0.3 }, { at: on(first[0], first[2], -0.9), rise: 0.1 }];
+    } else {
+      // Its centre through the rim's centre (a prop's place is its base), down through the net and a couple of bounces.
+      to = [rim[0], r3(rim[1] - r), rim[2]];
+      const below = on(rim[0], rim[2], 0.05);
+      hops = [{ at: below, rise: 0 }, { at: on(below[0], below[2], 0.35), rise: 0.4 }, { at: on(below[0], below[2], 0.55), rise: 0.12 }];
+    }
+    end = { position: to, rotation: from.rotation, throw: true };
   } else {
     const catcher = at(target.figure, t0);
     if (!catcher) return null;
@@ -327,14 +374,23 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   }
   const toss = 'figure' in target && target.figure === prop.hold.figure;
   const t1 = Math.min(60, Math.round((t0 + throwTime(from.position, to, toss ? 2 : undefined)) * a.fps) / a.fps);
-  // Through a hoop, it then drops to the floor: the animation runs on until it is down.
-  const settled = 'hoop' in target ? Math.min(60, t1 + Math.sqrt((2 * Math.max(0, to[1] - groundOf(scene.props, id)(to[0], to[2]))) / GRAVITY) + 0.5) : t1;
+  // A shot bounces on: the animation runs on until it is down.
+  const after: { t: number; key: PropKey }[] = [];
+  let last = { t: t1, at: to };
+  for (const h of hops) {
+    const t = Math.round((last.t + throwTime(last.at, h.at, h.rise)) * a.fps) / a.fps;
+    if (t > 60) break;
+    after.push({ t, key: { position: h.at, rotation: from.rotation, throw: true } });
+    last = { t, at: h.at };
+  }
+  const settled = Math.min(60, last.t + (after.length ? 0.4 : 0));
   store.updateScene((s) => {
     if (!s.animation) return s;
     const free = { ...prop, position: from.position, rotation: from.rotation, hold: undefined };
-    let anim = setPropKey(s.animation, t0, free, { release: true }, prop);
-    anim = shiftPropTrack(anim, id, t0, t1 - t0);
+    let anim = setPropKey(anim0, t0, free, { release: true }, prop);
+    anim = shiftPropTrack(anim, id, t0, last.t - t0);
     anim = putPropKey(anim, t1, id, end);
+    for (const k of after) anim = putPropKey(anim, k.t, id, k.key);
     return {
       ...s,
       props: s.props.map((p) => (p.id === id ? free : p)),
@@ -347,10 +403,11 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
 }
 
 /**
- * Dribble a ball from the hand holding it at the playhead: pushed down, it bounces off the floor
- * under the hand (between where the hand is as it lets go and as it catches it again, so it works
- * on the run) and back into the hand, `bounces` times, half a second each. The playhead goes to
- * the end.
+ * Dribble a ball from the hand holding it at the playhead, `bounces` times, half a second each:
+ * the arm pushes it down, it bounces off the floor under the hand (between where the hand is as
+ * it lets go and as it meets it again, so it works on the run) and the hand meets it on the way up
+ * and rides it to the top before pushing again. The arm is keyed (inside a walk or run: waypoints
+ * that pose the upper body). The playhead goes to the end.
  */
 export function dribbleProp(store: Store, id: string, bounces = 4) {
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
@@ -361,40 +418,69 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
   const holder = scene.figures.find((f) => f.id === hold?.figure);
   if (!prop || !hold || !holder) return null;
   const t0 = snapTime(a, store.getState().time);
-  const at = (fid: string, t: number) => figurePoseAt(scene, fid, t);
-  const from = worldOfProp(scene, id, at, t0);
+  const from = worldOfProp(scene, id, (fid, t) => figurePoseAt(scene, fid, t), t0);
   if (!from) return null;
-  const P = 12 / a.fps;
+  const frame = 1 / a.fps;
+  // In frames of a bounce: let go (arm down), off the floor, met by the hand, at the top.
+  const [P, FLOOR, MEET, TOP] = [12, 4, 7, 9].map((n) => n * frame);
   const t1 = Math.min(60, t0 + bounces * P);
   const g = grip(prop.kind, hold.hand, holder.body.height);
   const ground = groundOf(scene.props, id);
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
-  store.updateScene((s) => {
-    if (!s.animation) return s;
+  const s = hold.hand === 'L' ? 1 : -1;
+  const arm = (up: boolean): Partial<Figure['joints']> => ({
+    [`shoulder${hold.hand}`]: up ? [-22, 0, 24 * s] : [-30, 0, 22 * s],
+    [`elbow${hold.hand}`]: up ? [-50, 0, 0] : [-15, 0, 0],
+  });
+  // The arm first: where the hand is depends on it.
+  let anim = a;
+  for (let i = 0; i < bounces; i++) {
+    for (const [t, up] of [[t0 + i * P, false], [t0 + i * P + TOP, true]] as const) {
+      if (t <= 60) anim = keyJoints(scene, anim, holder, t, arm(up));
+    }
+  }
+  const armed = { ...scene, animation: anim };
+  const at = (fid: string, t: number) => figurePoseAt(armed, fid, t);
+  store.updateScene((sc) => {
+    if (!sc.animation) return sc;
     const free = { ...prop, position: from.position, rotation: from.rotation, hold: undefined };
-    let anim = setPropKey(s.animation, t0, free, { release: true }, prop);
-    anim = shiftPropTrack(anim, id, t0, t1 - t0);
+    let next = setPropKey(anim, t0, free, { release: true }, prop);
+    next = shiftPropTrack(next, id, t0, t1 - t0);
     for (let i = 0; i < bounces; i++) {
       const out = t0 + i * P;
-      // Back in the hand two frames before it is pushed down again.
-      const back = out + P - 2 / a.fps;
-      if (back > 60) break;
-      const h0 = handPosition(at(hold.figure, out)!, hold.hand, s.props);
-      const h1 = handPosition(at(hold.figure, back)!, hold.hand, s.props);
-      const [x, z] = [r3((h0[0] + h1[0]) / 2), r3((h0[2] + h1[2]) / 2)];
-      if (i) anim = putPropKey(anim, out, id, { position: h0, rotation: from.rotation, release: true });
-      anim = putPropKey(anim, out + P / 2, id, { position: [x, ground(x, z), z], rotation: from.rotation });
-      anim = putPropKey(anim, back, id, { position: g.position, rotation: g.rotation, hold: { ...hold } });
+      if (out + MEET > 60) break;
+      const h0 = handPosition(at(hold.figure, out)!, hold.hand, sc.props);
+      const h1 = handPosition(at(hold.figure, out + MEET)!, hold.hand, sc.props);
+      // Out to the side of the legs and a little ahead.
+      const body = at(hold.figure, out + FLOOR)!;
+      const [lx, lz] = leftward(body);
+      const [fx, fz] = forward(body);
+      const side = 0.22 * s;
+      const [x, z] = [r3((h0[0] + h1[0]) / 2 + lx * side + fx * 0.12), r3((h0[2] + h1[2]) / 2 + lz * side + fz * 0.12)];
+      if (i) next = putPropKey(next, out, id, { position: h0, rotation: from.rotation, release: true });
+      next = putPropKey(next, out + FLOOR, id, { position: [x, ground(x, z), z], rotation: from.rotation });
+      next = putPropKey(next, out + MEET, id, { position: g.position, rotation: g.rotation, hold: { ...hold } });
     }
     return {
-      ...s,
-      props: s.props.map((p) => (p.id === id ? free : p)),
-      animation: { ...anim, duration: Math.min(60, Math.max(anim.duration, t1)) },
+      ...sc,
+      props: sc.props.map((p) => (p.id === id ? free : p)),
+      animation: { ...next, duration: Math.min(60, Math.max(next.duration, t1)) },
     };
   });
   store.setTime(t1);
   store.select({ kind: 'prop', prop: id });
   return { from: t0, to: t1 };
+}
+
+/**
+ * Key some of a figure's joints at a time, the rest as they are then (inside a walk or run: a
+ * waypoint on its path that poses the upper body).
+ */
+function keyJoints(scene: Scene, a: Animation, f: Figure, t: number, joints: Partial<Figure['joints']>): Animation {
+  const p = samplePose(a, f.id, t);
+  const placed = figurePoseAt({ ...scene, animation: a }, f.id, t)!;
+  const keyed = p ? { ...f, joints: p.joints, hands: p.hands, grounded: p.grounded } : f;
+  return setKey(a, t, [{ ...keyed, joints: { ...keyed.joints, ...joints } as Figure['joints'], position: placed.position }]);
 }
 
 /** One prop's key at a time (on a frame), with or without other things keyed then. */

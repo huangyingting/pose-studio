@@ -65,6 +65,7 @@ const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
   hoop: [1, 1, 1],
   bar: [1, 1.2, 1],
   ring: [1, 1, 1],
+  ribbon: [1, 1, 1],
   stick: [1, 0.9, 1],
   phone: [1, 1, 1],
   cup: [1, 1, 1],

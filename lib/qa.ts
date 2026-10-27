@@ -9,7 +9,7 @@ import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
 import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
 import { shotSpans } from './shots';
-import { JOINTS, type Figure, type JointName, type Prop, type Scene } from './types';
+import { JOINTS, type Figure, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -178,6 +178,7 @@ export function checkMotion(scene: Scene): Issue[] {
   const times = frameTimes(a);
   if (!a.loop && times[times.length - 1] < a.duration) times.push(a.duration);
   const names = new Map(scene.figures.map((f) => [f.id, f.name]));
+  const propNames = new Map(scene.props.map((p) => [p.id, p.name]));
   const who = (id: string) => (figures.length > 1 ? `${names.get(id)}: ` : '');
 
   const rig = new Rig();
@@ -197,7 +198,7 @@ export function checkMotion(scene: Scene): Issue[] {
     const o = props.get(p.id)!;
     o.apply(p);
     o.object.updateMatrixWorld(true);
-    return o.parts.bodies.map((mesh) => {
+    return o.solids.map((mesh) => {
       mesh.geometry.computeBoundingBox();
       // A little in from its surface (touching is fine), but no thinner than half of a thin part (a bar).
       const box = mesh.geometry.boundingBox!.clone();
@@ -218,6 +219,7 @@ export function checkMotion(scene: Scene): Issue[] {
         : `${who(d.figure)}${JOINT_LABELS[d.joint!]} snaps (${Math.round(worst)}° more in one frame)`;
       case 'overlap': {
         const [, , boneA, other, boneB] = key.split(':');
+        if (other === 'ball') return `${propNames.get(boneB)} flies through ${names.get(d.figure)}’s ${BONE_LABELS[boneA]}`;
         return other === 'prop'
           ? `${who(d.figure)}The ${BONE_LABELS[boneA]} goes through a prop`
           : `${names.get(d.figure)}’s ${BONE_LABELS[boneA]} passes ${cm(worst)} into ${names.get(other)}’s ${BONE_LABELS[boneB]}`;
@@ -265,6 +267,12 @@ export function checkMotion(scene: Scene): Issue[] {
     const visible = s.figures.filter((f) => figures.some((x) => x.id === f.id));
     const caps = new Map<string, Capsule[]>();
     const pieces = wrap ? [] : piecesAt(s.props, frames[i - 1]?.props, frames[i + 1]?.props);
+    // Balls in the air (not held, and not where they were the frame before): their centres and radii.
+    const flying = wrap ? [] : s.props.filter((p) => p.kind === 'sphere' && !p.hold && placeOf(frames[i - 1]?.props, p.id) !== placeOf(s.props, p.id)).map((p) => {
+      const [rx, ry, rz] = p.rotation.map((v) => v * (Math.PI / 180)) as Vec3;
+      const lift = new THREE.Vector3(0, 0.5 * p.scale[1], 0).applyEuler(new THREE.Euler(rx, ry, rz, 'XYZ'));
+      return { id: p.id, c: new THREE.Vector3(...p.position).add(lift), r: 0.5 * Math.min(...p.scale) };
+    });
     rig.ground = groundOf(s.props);
     for (const f of visible) {
       const m = rig.model(f);
@@ -329,6 +337,17 @@ export function checkMotion(scene: Scene): Issue[] {
       prevCaps.set(f.id, c);
       // Through a prop: a bone's axis passing through a prop piece, now or on its way here since
       // the frame before (a leg swung through a thin bar between two frames).
+      // A ball on the move (thrown, bounced) through the body or legs; not while it is at a hand
+      // (being let go of, or caught), and arms catch and hold it.
+      const hands = (['wristL', 'wristR'] as const).map((j) => rig.model(f).joints[j].getWorldPosition(new THREE.Vector3()));
+      for (const ball of flying) {
+        if (hands.some((h) => h.distanceTo(ball.c) < 0.4)) continue;
+        for (const cap of c) {
+          if (/^(shoulder|elbow|wrist)/.test(cap.bone)) continue;
+          const depth = ball.r + cap.r - segmentDistance(ball.c, ball.c, cap.p, cap.q);
+          if (depth > 0.02) ranges.hit(`overlap:${f.id}:${cap.bone}:ball:${ball.id}`, step, depth, { kind: 'overlap', figure: f.id, joint: cap.bone });
+        }
+      }
       for (const [n, cap] of c.entries()) {
         const was = before?.[n];
         const hit = pieces.some((pc) => {
@@ -394,7 +413,7 @@ function hiddenInShots(scene: Scene): Issue[] {
       const subject = subjectAt(scene, t);
       placeShot(cam, frameAt(t), shotAt(scene, t), SHOT_ASPECT, { follow: a.camera?.follow ? figuresCenter(view, subject) : null, t });
       cam.updateMatrixWorld();
-      const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.parts.bodies ?? []).map((mesh) => ({ mesh, name: p.name })));
+      const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name })));
       if (!blockers.length) continue;
       for (const f of now.figures.filter((x) => !x.hidden && (!subject || x.id === subject))) {
         const m = view.figures.get(f.id);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRAVITY } from './locomotion';
-import { RIM } from './props';
+import { RIBBON, RIM } from './props';
 import { Rig } from './relations';
 import { groundOf } from './surfaces';
 import type { Animation, Figure, Prop, PropKey, Scene, Side, Vec3 } from './types';
@@ -139,6 +139,79 @@ export function throwTime(from: Vec3, to: Vec3, rise?: number) {
   const d = Math.hypot(to[0] - from[0], to[2] - from[2]);
   const top = Math.max(from[1], to[1]) + (rise ?? 0.25 + 0.12 * d);
   return Math.sqrt((2 * (top - from[1])) / GRAVITY) + Math.sqrt((2 * (top - to[1])) / GRAVITY);
+}
+
+/** Where a ribbon's tip was at moments of a scene (as played). */
+const tips = new WeakMap<Scene, Map<string, THREE.Vector3 | null>>();
+
+/**
+ * A ribbon's line through the air at time t: along where the stick's tip has just been (each
+ * moment of the last second dropped by how long the ribbon has been falling since), at a fixed
+ * length; what that path does not cover hangs straight down, and what reaches the floor lies on it.
+ */
+export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: (fid: string, at: number) => Figure | null): Vec3[] | null {
+  const prop = scene.props.find((p) => p.id === id);
+  if (!prop || prop.kind !== 'ribbon') return null;
+  const scale = new THREE.Vector3(...prop.scale);
+  // Held all along (no keys of its own): straight from the hand, the quick way.
+  const steady = prop.hold && !(scene.animation && propTrack(scene.animation, id).length) ? prop.hold : null;
+  const local = compose(prop.position, prop.rotation).scale(scale);
+  rig ??= new Rig();
+  const seen = tips.get(scene) ?? new Map<string, THREE.Vector3 | null>();
+  tips.set(scene, seen);
+  const tip = (at: number) => {
+    const key = `${id}:${at}`;
+    if (!seen.has(key)) seen.set(key, tipAt(at));
+    return seen.get(key)?.clone() ?? null;
+  };
+  const tipAt = (at: number) => {
+    if (steady) {
+      const f = figureAt(steady.figure, Math.max(0, at));
+      if (!f) return null;
+      const j = rig!.model(f).joints[steady.hand === 'L' ? 'wristL' : 'wristR'];
+      j.updateWorldMatrix(true, false);
+      return new THREE.Vector3(0, RIBBON.stick, 0).applyMatrix4(j.matrixWorld.clone().multiply(local));
+    }
+    const w = worldOfProp(scene, id, figureAt, Math.max(0, at));
+    return w && new THREE.Vector3(0, RIBBON.stick, 0).applyMatrix4(compose(w.position, w.rotation).scale(scale));
+  };
+  const start = tip(t);
+  if (!start) return null;
+  // Moments on a fixed grid (so playing on, frame after frame, they are worked out once).
+  const DT = 1 / 16;
+  const grid = Math.floor(t / DT) * DT;
+  const path = [start];
+  for (let k = 0; k < 16 && grid - k * DT >= 0; k++) path.push(tip(grid - k * DT)!.add(new THREE.Vector3(0, -0.25 * GRAVITY * (t - grid + k * DT) ** 2, 0)));
+  const ground = groundOf(scene.props, id);
+  const seg = RIBBON.length / RIBBON.segments;
+  const pts = [start];
+  // Walk the path a segment at a time.
+  let i = 0;
+  let at = start.clone();
+  let way = new THREE.Vector3(1, 0, 0);
+  for (let n = 1; n <= RIBBON.segments; n++) {
+    let left = seg;
+    while (i < path.length - 1 && left > 1e-6) {
+      const to = path[i + 1];
+      const d = at.distanceTo(to);
+      if (d <= left) { left -= d; if (d > 1e-6) way = to.clone().sub(at).normalize(); at = to.clone(); i++; }
+      else { way = to.clone().sub(at).normalize(); at.addScaledVector(way, left); left = 0; }
+    }
+    // Past the path: straight down, then along the floor the way it was going.
+    if (left > 1e-6) at.y -= left;
+    const floor = ground(at.x, at.z) + 0.004;
+    if (at.y < floor) {
+      const flat = new THREE.Vector3(way.x, 0, way.z);
+      if (flat.lengthSq() < 1e-8) flat.set(1, 0, 0);
+      const prev = pts[pts.length - 1];
+      const drop = Math.max(0, prev.y - floor);
+      at = new THREE.Vector3(prev.x, floor, prev.z).addScaledVector(flat.normalize(), Math.sqrt(Math.max(0, seg * seg - drop * drop)));
+      i = path.length;
+    }
+    pts.push(at.clone());
+  }
+  if (seen.size > 2000) seen.clear();
+  return pts.map((p) => [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000, Math.round(p.z * 1000) / 1000]);
 }
 
 /** Where a basketball hoop's rim centre is, in the world. */

@@ -104,6 +104,8 @@ export class SceneView {
     }
 
     this.root.updateMatrixWorld(true);
+    // A ribbon is laid along its line once its stick is in place.
+    for (const p of scene.props) if (p.kind === 'ribbon') this.props.get(p.id)?.setTrail(p.trail ?? null);
     // Eyes on someone or something: turn the head to it (after everything is placed).
     const eyes = new THREE.Vector3();
     const box = new THREE.Box3();
