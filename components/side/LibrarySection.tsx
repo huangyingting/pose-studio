@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type 
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Clapperboard, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import {
-  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, placeTemplate, saveTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
+  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteTemplate, newShoot, placeTemplate, saveTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
 } from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
-import { TEMPLATE_GROUPS, templatesOf } from '@/lib/templates';
+import { SHOOT_PRESETS, TEMPLATE_GROUPS, templatesOf } from '@/lib/templates';
 import { newScene } from '@/lib/doc';
 import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
@@ -450,7 +450,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
   return (
     <div className="side-scroll">
       <Target>
-        A template is a cast, a set and what they do, without cameras. Click to open it as a new scene;
+        A template is a cast, a set and what they do, without cameras; a shoot preset films one with a coverage. Click to open it as a new scene;
         {' '}{figure ? <>or put it here, its first role on <strong>{figure.name}</strong>.</> : 'or select a figure to put it into this scene around it.'}
       </Target>
       <div className="library-row">
@@ -458,6 +458,27 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
           <BookmarkPlus size={14} aria-hidden /> Save this scene as a template…
         </button>
       </div>
+      <section aria-label="Shoot presets">
+        <Group title="Ready to shoot" count={SHOOT_PRESETS.length}>
+          {SHOOT_PRESETS.map((p) => {
+            const t = all.find((x) => x.id === p.template)!;
+            const how = COVERAGES.find((c) => c.id === p.coverage)!;
+            return (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => { if (newShoot(store, p.id)) { notifyUndo(`${p.name}: ${t.name}, filmed as ${how.name.toLowerCase()}`); onPick?.(); } }}
+                  {...preview(p.name, `${t.name}, filmed as ${how.name.toLowerCase()}: opens as a new scene, cameras and cuts made`, () => templatePreview(t.id, t.build, style))}
+                >
+                  <Clapperboard size={14} aria-hidden />
+                  <span className="side-list-name">{p.name}</span>
+                  <em>{how.name}</em>
+                </button>
+              </li>
+            );
+          })}
+        </Group>
+      </section>
       <section aria-label="Scene templates">
         {groups.map((g) => {
           const list = all.filter((t) => t.group === g);

@@ -34,6 +34,28 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
   { id: 'high-jump', name: 'High jump', group: 'Set-ups', people: 1, build: highJump },
 ];
 
+/**
+ * Shoot presets: a scene template and a coverage to film it with, by reference (neither holds
+ * the other). Picking one opens the template as a new scene and films it; a still template is
+ * given an animation this long first.
+ */
+export interface ShootPreset {
+  id: string;
+  name: string;
+  template: string;
+  coverage: string;
+  /** Seconds, for a template that does not move. */
+  duration?: number;
+}
+
+export const SHOOT_PRESETS: ShootPreset[] = [
+  { id: 'shoot-interview', name: 'Interview', template: 'conversation', coverage: 'dialogue', duration: 9 },
+  { id: 'shoot-deal', name: 'Closing the deal', template: 'handshake', coverage: 'dialogue', duration: 6 },
+  { id: 'shoot-bout', name: 'The bout', template: 'boxing', coverage: 'dialogue' },
+  { id: 'shoot-dance', name: 'First dance', template: 'waltz-turn', coverage: 'follow' },
+  { id: 'shoot-jump', name: 'Over the bar', template: 'high-jump', coverage: 'follow' },
+];
+
 /** The templates there are: the built-in ones and the library's (fresh ids each time one is built). */
 export function templatesOf(lib: Library): SceneTemplate[] {
   return [

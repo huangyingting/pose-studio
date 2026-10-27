@@ -8,7 +8,7 @@ import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard 
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
-import { asTemplate, putTemplate, templatesOf } from './templates';
+import { SHOOT_PRESETS, asTemplate, putTemplate, templatesOf } from './templates';
 import { clipInfo, keysClip, partKeys } from './clip';
 import { saveClips } from './assetstore';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
@@ -1202,6 +1202,16 @@ export function sceneFromTemplate(store: Store, id: string) {
   if (!t) return false;
   addScene(store, t.build());
   return true;
+}
+
+/** A shoot preset (lib/templates.ts): its template as a new scene, filmed with its coverage. */
+export function newShoot(store: Store, id: string) {
+  const p = SHOOT_PRESETS.find((x) => x.id === id);
+  const t = p && templatesOf(store.getState().library).find((x) => x.id === p.template);
+  if (!p || !t) return false;
+  addScene(store, { ...t.build(), name: p.name });
+  if (!store.scene.animation) startAnimation(store, p.duration ?? 6);
+  return !!coverScene(store, p.coverage);
 }
 
 /**

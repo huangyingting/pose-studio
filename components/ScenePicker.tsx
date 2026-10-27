@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, Ellipsis, FilePlus2, Search, Users, UsersRound } from 'lucide-react';
-import { addScene, moveScene } from '@/lib/actions';
-import { templatesOf } from '@/lib/templates';
+import { Clapperboard, ChevronDown, Ellipsis, FilePlus2, Search, Users, UsersRound } from 'lucide-react';
+import { addScene, moveScene, newShoot } from '@/lib/actions';
+import { SHOOT_PRESETS, templatesOf } from '@/lib/templates';
 import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
 import { sceneMenu } from './menus';
@@ -114,6 +114,8 @@ function SceneGrid({ onPick, notifyUndo }: { onPick(): void; notifyUndo(text: st
             tip="New scene"
             items={[
               { label: 'Blank scene', icon: FilePlus2, onSelect: () => { addScene(store); onPick(); } },
+              { group: 'Ready to shoot' },
+              ...SHOOT_PRESETS.map((p) => ({ label: p.name, icon: Clapperboard, onSelect: () => { newShoot(store, p.id); onPick(); } })),
               { group: 'From a template' },
               ...templatesOf(store.getState().library).map((t) => ({
                 label: t.name,

@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, arrange, coverScene, placeTemplate, saveTemplate, sceneFromTemplate, startAnimation, travelTo } from '@/lib/actions';
+import { addFigure, addProp, arrange, coverScene, newShoot, placeTemplate, saveTemplate, sceneFromTemplate, startAnimation, travelTo } from '@/lib/actions';
 import { parseLibrary } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
-import { checkMotion } from '@/lib/qa';
+import { checkMotion, checkShots } from '@/lib/qa';
 import { facing, withFacing } from '@/lib/relations';
-import { SCENE_TEMPLATES, TEMPLATE_GROUPS } from '@/lib/templates';
-import { fresh } from '../fixtures/scenes';
+import { shotSpans } from '@/lib/shots';
+import { Store } from '@/lib/store';
+import { SCENE_TEMPLATES, SHOOT_PRESETS, TEMPLATE_GROUPS } from '@/lib/templates';
+import { MemoryStorage, fresh } from '../fixtures/scenes';
 
 const apart = (p: number[], q: number[]) => Math.hypot(p[0] - q[0], p[2] - q[2]);
 
@@ -86,4 +88,19 @@ describe('scene templates: what is filmed, without how', () => {
     expect(apart(figurePoseAt(store.scene, a, walk.to + 0.05)!.position, [0, 0, 2])).toBeLessThan(0.3);
     expect(facingOf(figurePoseAt(store.scene, a, walk.to)!.bones)).toBeCloseTo(0, -1);
   });
+
+  it('opens each shoot preset as a scene filmed with its coverage, clean', () => {
+    for (const p of SHOOT_PRESETS) {
+      const store = new Store(new MemoryStorage());
+      expect(newShoot(store, p.id), p.id).toBe(true);
+      const a = store.scene.animation!;
+      expect(store.scene.name).toBe(p.name);
+      expect(a.coverage?.id, p.id).toBe(p.coverage);
+      expect(shotSpans(a).every((s) => a.cameras!.some((c) => c.id === s.shot.camera)), p.id).toBe(true);
+      if (p.duration) expect(a.duration).toBe(p.duration);
+      expect(checkShots(store.scene).map((i) => i.message), p.id).toEqual([]);
+      // Neither holds the other: the template has no cameras, the coverage no people.
+      expect(SCENE_TEMPLATES.find((t) => t.id === p.template)!.build().animation?.cameras).toBeUndefined();
+    }
+  }, 120_000);
 });

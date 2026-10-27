@@ -1,5 +1,5 @@
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, placeTemplate, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, ownCamera, addCamera, setCameraBody, setShotSubject, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
   setAnimationOptions, setDistance, setPlacement, setSceneView, startAnimation,
 } from '../actions';
@@ -20,7 +20,7 @@ import { anglesOf, withAngles, type Angles } from '../pose';
 import { CAMERA_MOVES, SHOT_SIZES, cameraAt, liveCamera, sizeOf, type Placement, type ShotSize } from '../shot';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
-import { SCENE_TEMPLATES, templatesOf } from '../templates';
+import { SCENE_TEMPLATES, SHOOT_PRESETS, templatesOf } from '../templates';
 import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type Posture, type PropKind, type Camera, type Style, type Vec3 } from '../types';
 
 /*
@@ -488,10 +488,15 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'new_scene',
-    description: `Start a new scene in the project and open it: blank, or from a scene template (a cast, a set and what they do, no cameras): ${SCENE_TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}; or one of the user's saved templates by name.`,
-    schema: obj({ template: str('"blank", a template id, or a saved template\'s name'), name: opt(str('Name for the scene')) }),
+    description: `Start a new scene in the project and open it: blank, or from a scene template (a cast, a set and what they do, no cameras): ${SCENE_TEMPLATES.map((t) => `${t.id} = ${t.name}`).join(', ')}; or one of the user's saved templates by name; or a shoot preset, a template already filmed with a coverage (cameras and cuts): ${SHOOT_PRESETS.map((p) => `${p.id} = ${p.name}`).join(', ')}.`,
+    schema: obj({ template: str('"blank", a template or shoot preset id, or a saved template\'s name'), name: opt(str('Name for the scene')) }),
     run: (store, i) => {
       const id = String(i.template);
+      if (SHOOT_PRESETS.some((p) => p.id === id)) {
+        newShoot(store, id);
+        if (i.name) store.updateScene((s) => ({ ...s, name: String(i.name).slice(0, 80) }));
+        return `Opened "${store.scene.name}", filmed in ${shotSpans(store.scene.animation!).length} shots. ${JSON.stringify(sceneSummary(store))}`;
+      }
       const scene = id === 'blank' ? newScene() : findTemplate(store, id).build();
       addScene(store, i.name ? { ...scene, name: String(i.name).slice(0, 80) } : scene);
       return `Opened "${store.scene.name}". ${JSON.stringify(sceneSummary(store))}`;

@@ -642,6 +642,12 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await templates.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
   // Its first role on the figure selected, the second on the one nearest it: nobody new.
   expect((await state(page)).scene.figures).toHaveLength(people);
+
+  // A shoot preset: a template opened and filmed with a coverage in one go.
+  await page.getByRole('region', { name: 'Shoot presets' }).getByRole('button', { name: /^Interview/ }).click();
+  const shoot = (await live(page)).scene;
+  expect(shoot.name).toBe('Interview');
+  expect(shoot.animation!.cameras!.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
 });
 
 test('placement fields move and turn the figure, and faces can be hidden', async ({ page }) => {
