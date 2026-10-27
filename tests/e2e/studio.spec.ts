@@ -675,6 +675,15 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
   expect((await anim(page)).animation!.camera!.keys).toHaveLength(4);
+
+  // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
+  await page.keyboard.press('Control+e');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '3D model (.glb)' }).click()]);
+  const glb = readFileSync((await download.path())!);
+  const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString()) as { animations: { name: string; channels: unknown[] }[]; cameras?: unknown[] };
+  expect(json.animations.map((x) => x.name)).toEqual([s.scene.figures[0].name, 'Camera']);
+  expect(json.animations[0].channels.length).toBeGreaterThan(17);
+  expect(json.cameras).toHaveLength(1);
 });
 
 test('a still scene can be animated with auto-keys', async ({ page }) => {

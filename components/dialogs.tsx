@@ -190,12 +190,12 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
           <button
             type="button"
             className="btn ghost"
-            data-tip="The open scene, posed as shown, for Blender and other 3D tools"
+            data-tip={scene.animation ? 'The open scene for Blender and other 3D tools: its figures, props and shot camera, animated' : 'The open scene, posed as shown, for Blender and other 3D tools'}
             onClick={async () => {
               try {
                 const { sceneToGlb } = await import('@/lib/model3d');
-                downloadBlob(await sceneToGlb(sceneAt(scene, time)), `${safeFilename(scene.name)}.glb`);
-                notify('3D model saved (.glb)');
+                downloadBlob(await sceneToGlb(scene, time), `${safeFilename(scene.name)}.glb`);
+                notify(scene.animation ? '3D model saved, animated (.glb)' : '3D model saved (.glb)');
               } catch (err) {
                 notify(`Could not export the 3D model: ${(err as Error).message}`, 'error');
               }

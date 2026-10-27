@@ -120,6 +120,29 @@ describe('assistant tools', () => {
     expect(runTool(store, 'apply_pose', { figure: id, pose: 'moonwalk' }).ok).toBe(false);
   });
 
+  it('edits actions as blocks: retimed, moved, their marks moved; waves over a walk; a shot at the hoop', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    run(store, 'move_to', { figure: id, x: 0, z: 3, how: 'walk', keep_facing: null, height: null, spin: null, flip: null });
+    const scene = JSON.parse(run(store, 'get_scene')) as { animation: { actions: { id: string; what: string; start: number; end: number; marks?: { z: number }[] }[] } };
+    const walk = scene.animation.actions.find((x) => x.what === 'Walk')!;
+    expect(walk.marks![0].z).toBeCloseTo(3, 1);
+    const edit = (patch: Record<string, unknown>) => run(store, 'edit_action', { action: walk.id, start: null, duration: null, blend_in: null, speed: null, mirrored: null, remove: null, ...patch });
+    expect(edit({ duration: walk.end - walk.start + 1 })).toMatch(/^Walk: /);
+    expect(actionsOf(store.scene.animation!, id).find((x) => x.id === walk.id)!.duration).toBeCloseTo(walk.end - walk.start + 1, 1);
+    run(store, 'move_mark', { action: walk.id, figure: id, x: 1, z: 4 });
+    expect(actionsOf(store.scene.animation!, id).find((x) => x.id === walk.id)!.roles[0].end!.at).toEqual([1, 4]);
+    run(store, 'set_time', { seconds: 0.5 });
+    expect(run(store, 'upper_body', { figure: id, motion: 'wave' })).toMatch(/wave from the waist up/);
+    expect(actionsOf(store.scene.animation!, id, 'upper')).toHaveLength(1);
+    // A ball shot at a hoop from the hand.
+    run(store, 'add_prop', { kind: 'sphere', x: 0, z: 0, facing: null, name: 'Ball', held_by: id, hand: 'R' });
+    run(store, 'add_prop', { kind: 'hoop', x: 1, z: 7, facing: null, name: 'Hoop', held_by: null, hand: null });
+    store.setTime(store.scene.animation!.duration);
+    expect(run(store, 'throw_prop', { prop: 'Ball', to_figure: null, hand: null, hoop: 'Hoop', miss: null, dribble: null, x: null, z: null })).toMatch(/let go at .* arriving at/);
+    expect(edit({ remove: true })).toBe('Removed Walk.');
+  }, 60_000);
+
   it('opens templates and explains bad input', () => {
     const store = new Store(new MemoryStorage());
     expect(run(store, 'new_scene', { template: 'handshake', name: 'Deal' })).toMatch(/Opened "Deal"/);
