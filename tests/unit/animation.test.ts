@@ -8,9 +8,11 @@ import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
 import { describeShot } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
+import { withFacing } from '@/lib/relations';
 import { CAMERA_MOVES, captureShot, framingFor, placeShot, shotAt } from '@/lib/shot';
 import { Store } from '@/lib/store';
 import type { Figure, JointName } from '@/lib/types';
+import { angle, withAngles } from '@/lib/pose';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -22,7 +24,7 @@ class MemoryStorage implements Storage {
   setItem(k: string, v: string) { this.m.set(k, v); }
 }
 
-const withKnee = (f: Figure, deg: number): Figure => ({ ...f, joints: { ...f.joints, leftLowerLeg: [deg, 0, 0] } });
+const withKnee = (f: Figure, deg: number): Figure => ({ ...f, bones: withAngles(f.bones, { leftLowerLeg: [deg, 0, 0] }) });
 
 function twoKeyScene(loop = false) {
   const f = newFigure();
@@ -57,8 +59,8 @@ describe('keyframe sampling', () => {
 
   it('turns the short way across ±180°', () => {
     const f = newFigure();
-    const s = newScene('Turn', [{ ...f, joints: { hips: [0, 170, 0] } }]);
-    const a = setKey(newAnimation(s, 2), 1, [{ ...f, joints: { hips: [0, -170, 0] } }]);
+    const s = newScene('Turn', [withFacing(f, 170)]);
+    const a = setKey(newAnimation(s, 2), 1, [withFacing(f, -170)]);
     const yaw = samplePose({ ...a, loop: false }, f.id, 0.5)!.joints.hips![1];
     expect(Math.abs(yaw)).toBeGreaterThan(170);
   });
@@ -91,18 +93,18 @@ describe('animation in the store', () => {
     const store = new Store(new MemoryStorage());
     startAnimation(store);
     const id = store.scene.figures[0].id;
-    const knee0 = store.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0;
+    const knee0 = angle(store.scene.figures[0].bones, 'leftLowerLeg')[0];
     store.setTime(1);
     store.updateFigure(id, (f) => withKnee(f, 45));
     expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
     store.setTime(0);
-    expect(store.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0).toBe(knee0);
+    expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(knee0);
     store.setTime(1);
-    expect(store.scene.figures[0].joints.leftLowerLeg![0]).toBe(45);
+    expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(45);
     // Undo removes the key and puts the figure back.
     store.undo();
     expect(store.scene.animation!.keys).toHaveLength(1);
-    expect(store.scene.figures[0].joints.leftLowerLeg?.[0] ?? 0).toBe(knee0);
+    expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(knee0);
     addKeyframe(store);
     expect(store.scene.animation!.keys).toHaveLength(2);
   });
@@ -116,7 +118,7 @@ describe('animation in the store', () => {
     const b = new Store(storage);
     const s = b.scene;
     expect(b.getState().time).toBe(0);
-    expect(s.figures[0].joints).toEqual(sceneAt(s, 0).figures[0].joints);
+    expect(s.figures[0].bones).toEqual(sceneAt(s, 0).figures[0].bones);
   });
 });
 

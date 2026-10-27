@@ -8,6 +8,7 @@ import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
 import type { Scene } from '@/lib/types';
+import { angle, facingOf } from '../../lib/pose';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -31,7 +32,7 @@ function track(scene: Scene, id: string) {
     sv.sync(sceneAt(scene, t));
     const m = sv.figures.get(id)!;
     const at = (j: 'leftFoot' | 'rightFoot' | 'hips') => m.joints[j].getWorldPosition(new THREE.Vector3());
-    return { t, L: at('leftFoot'), R: at('rightFoot'), root: at('hips'), low: m.lowest(), yaw: sceneAt(scene, t).figures.find((f) => f.id === id)!.joints.hips?.[1] ?? 0 };
+    return { t, L: at('leftFoot'), R: at('rightFoot'), root: at('hips'), low: m.lowest(), yaw: facingOf(sceneAt(scene, t).figures.find((f) => f.id === id)!.bones) };
   });
   sv.dispose();
   return frames;
@@ -118,7 +119,7 @@ describe('walking, running and jumping from mark to mark', () => {
     const keys = store.scene.animation!.keys.map((k) => k.t);
     setTravel(store, id, keys.at(-1)!, 'jump', { spin: 1 });
     const half = (keys[0] + keys.at(-1)!) / 2;
-    const yaw = sceneAt(store.scene, half).figures[0].joints.hips?.[1] ?? 0;
+    const yaw = facingOf(sceneAt(store.scene, half).figures[0].bones);
     expect(Math.abs(yaw)).toBeGreaterThan(120);
   });
 
@@ -130,7 +131,7 @@ describe('walking, running and jumping from mark to mark', () => {
       let prev: number[] | null = null;
       for (let t = 0; t <= scene.animation!.duration; t += 1 / 240) {
         const f = sceneAt(scene, t).figures[0];
-        const cur = legs.flatMap((j) => f.joints[j] ?? [0, 0, 0]);
+        const cur = legs.flatMap((j) => angle(f.bones, j));
         if (prev) cur.forEach((v, k) => { const d = Math.abs(v - prev![k]); worst = Math.max(worst, Math.min(d, 360 - d)); });
         prev = cur;
       }

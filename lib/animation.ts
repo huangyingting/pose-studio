@@ -1,4 +1,5 @@
 import { jointLimits, wrapDeg } from './joints';
+import { anglesOf, bonesOf, nearer, type Angles } from './pose';
 import { chainAt, locomote } from './locomotion';
 import { propsAt, ribbonTrail } from './propmotion';
 import { groundOf } from './surfaces';
@@ -18,7 +19,7 @@ export const DEFAULT_FPS = 24;
 
 export function poseOf(f: Figure): PoseKey {
   return {
-    joints: structuredClone(f.joints),
+    joints: anglesOf(f.bones),
     position: [...f.position],
     hands: { L: { curl: [...f.hands.L.curl], spread: f.hands.L.spread }, R: { curl: [...f.hands.R.curl], spread: f.hands.R.spread } },
     grounded: f.grounded,
@@ -267,9 +268,13 @@ export function samplePose(a: Animation, id: string, t: number): PoseKey | null 
   const k3 = !k2.pose.travel && seg.k3.pose.travel ? { ...k2, t: k2.t + gap } : seg.k3;
   const { num, ang } = interpolator(k0, k1, k2, k3, time);
   const ks = [k0, k1, k2, k3];
-  const joints: Figure['joints'] = {};
+  const joints: Angles = {};
   for (const j of JOINTS) {
-    const r = ks.map((k) => k.pose.joints[j] ?? [0, 0, 0]);
+    // The same rotation has two sets of angles: each key is read as the one nearest its neighbour.
+    const r = ks.map((k): Vec3 => k.pose.joints[j] ?? [0, 0, 0]);
+    r[0] = nearer(j, r[0], r[1]);
+    r[2] = nearer(j, r[2], r[1]);
+    r[3] = nearer(j, r[3], r[2]);
     const lim = jointLimits(j);
     const v = [0, 1, 2].map((c) => {
       const [p0, p1, p2, p3] = r.map((x) => x[c]);
@@ -330,7 +335,7 @@ export function figurePoseAt(scene: Scene, id: string, t: number): Figure | null
   const p = samplePose(a, f.id, t);
   if (!p) return f;
   const { joints, position, hands, grounded } = locomote(a, f, t, p, groundOf(scene.props));
-  return { ...f, joints, position, hands, grounded };
+  return { ...f, bones: bonesOf(joints), position, hands, grounded };
 }
 
 /**
@@ -345,7 +350,7 @@ export function sceneAt(scene: Scene, t: number): Scene {
     const p = samplePose(a, f.id, at);
     if (!p) return f;
     const { joints, position, hands, grounded } = locomote(a, f, at, p, ground);
-    return { ...f, joints, position, hands, grounded };
+    return { ...f, bones: bonesOf(joints), position, hands, grounded };
   };
   const figures = scene.figures.map((f) => figureAt(f, t));
   // Props ride in hands, fly and fall: they need the figures' hands at their key times too.

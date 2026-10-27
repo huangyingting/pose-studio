@@ -3,7 +3,9 @@ import { RELAXED_HAND, cloneHand } from './hands';
 import { mapPoses, parseAnimation, remapAnimation } from './animation';
 import { parseBoard } from './board';
 import { uid } from './uid';
+import * as THREE from 'three';
 import { mirrorJointName, sideOf, wrapDeg } from './joints';
+import { anglesOf, bonesOf, facingOf, toQuat, type Angles, type Bones, type Quat } from './pose';
 import { clampLight } from './lighting';
 import {
   FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
@@ -14,7 +16,8 @@ export { uid };
 
 export const DEFAULT_VIEW: View = { yaw: 0, pitch: 4, fov: 20 };
 
-export const NEUTRAL_JOINTS: Figure['joints'] = {
+/** A relaxed standing pose (joint angles). */
+export const NEUTRAL_ANGLES: Angles = {
   leftUpperArm: [0, 0, 10], rightUpperArm: [0, 0, -10], leftLowerArm: [-8, 0, 0], rightLowerArm: [-8, 0, 0], leftUpperLeg: [0, 0, 3], rightUpperLeg: [0, 0, -3],
 };
 
@@ -23,7 +26,7 @@ export function newFigure(partial: Partial<Figure> = {}): Figure {
     id: uid('f'),
     name: 'Figure',
     body: { ...DEFAULT_BODY },
-    joints: structuredClone(NEUTRAL_JOINTS),
+    bones: bonesOf(NEUTRAL_ANGLES),
     hands: { L: cloneHand(RELAXED_HAND), R: cloneHand(RELAXED_HAND) },
     position: [0, 0, 0],
     grounded: true,
@@ -31,8 +34,8 @@ export function newFigure(partial: Partial<Figure> = {}): Figure {
   };
 }
 
-/** Joint angles of each stand-in posture (the root's turn is kept). */
-export const POSTURE_JOINTS: Record<Posture, Figure['joints']> = {
+/** Joint angles of each stand-in posture (the hips' turn is kept). */
+export const POSTURE_ANGLES: Record<Posture, Angles> = {
   stand: { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8] },
   sit: {
     leftUpperLeg: [-88, 0, 4], rightUpperLeg: [-88, 0, -4], leftLowerLeg: [88, 0, 0], rightLowerLeg: [88, 0, 0],
@@ -43,10 +46,9 @@ export const POSTURE_JOINTS: Record<Posture, Figure['joints']> = {
 
 /** A capsule stand-in for blocking, in a posture. */
 export function withPosture(f: Figure, posture: Posture): Figure {
-  const p = POSTURE_JOINTS[posture];
-  const yaw = f.joints.hips?.[1] ?? 0;
+  const p = POSTURE_ANGLES[posture];
   const root = p.hips ?? [0, 0, 0];
-  return { ...f, proxy: posture, joints: { ...structuredClone(p), ...(root[0] || yaw ? { hips: [root[0], yaw, root[2]] } : {}) } };
+  return { ...f, proxy: posture, bones: bonesOf({ ...p, hips: [root[0], facingOf(f.bones), root[2]] }) };
 }
 
 export function newScene(name = 'New scene', figures: Figure[] = [newFigure()]): Scene {
@@ -102,23 +104,30 @@ export function duplicateScene(s: Scene): Scene {
 
 const mirrorVec = (r: Vec3): Vec3 => [r[0], r[1] === 0 ? 0 : -r[1], r[2] === 0 ? 0 : -r[2]];
 
+/** Joint angles mirrored left↔right. */
+export function mirrorAngles(a: Angles): Angles {
+  const out: Angles = {};
+  for (const [name, r] of Object.entries(a) as [JointName, Vec3][]) out[mirrorJointName(name)] = mirrorVec(r);
+  return out;
+}
+
 /** Mirror a figure's pose left↔right (and its position across the centre line). */
 export function mirrorFigure(f: Figure): Figure {
-  const joints: Figure['joints'] = {};
-  for (const [name, r] of Object.entries(f.joints) as [JointName, Vec3][]) joints[mirrorJointName(name)] = mirrorVec(r);
   return {
     ...f,
-    joints,
+    bones: bonesOf(mirrorAngles(anglesOf(f.bones))),
     hands: { L: cloneHand(f.hands.R), R: cloneHand(f.hands.L) },
     position: [-f.position[0], f.position[1], f.position[2]],
   };
 }
 
 export function mirrorScene(s: Scene): Scene {
-  const mirrorPose = (p: PoseKey): PoseKey => {
-    const m = mirrorFigure({ ...newFigure(), ...p });
-    return { joints: m.joints, position: m.position, hands: m.hands, grounded: p.grounded };
-  };
+  const mirrorPose = (p: PoseKey): PoseKey => ({
+    ...p,
+    joints: mirrorAngles(p.joints),
+    position: [-p.position[0], p.position[1], p.position[2]],
+    hands: { L: cloneHand(p.hands.R), R: cloneHand(p.hands.L) },
+  });
   const mirrored: Scene = {
     ...s,
     figures: s.figures.map(mirrorFigure),
@@ -135,21 +144,25 @@ export function mirrorScene(s: Scene): Scene {
 
 /** Copy one side of the body onto the other. */
 export function symmetrize(f: Figure, from: Side): Figure {
-  const joints = { ...f.joints };
+  const was = anglesOf(f.bones);
+  const joints = { ...was };
   for (const j of JOINTS) {
     if (sideOf(j) !== from) continue;
-    const r = f.joints[j];
+    const r = was[j];
     const other = mirrorJointName(j);
     if (r) joints[other] = mirrorVec(r);
     else delete joints[other];
   }
   // Centre joints become symmetric too.
-  for (const j of ['hips', 'spine', 'chest', 'neck', 'head'] as const) {
-    const r = f.joints[j];
+  for (const j of ['spine', 'chest', 'neck', 'head'] as const) {
+    const r = was[j];
     if (r) joints[j] = [r[0], 0, 0];
   }
+  // The hips keep their turn (the way the figure faces).
+  const h = was.hips;
+  if (h) joints.hips = [h[0], h[1], 0];
   const to: Side = from === 'L' ? 'R' : 'L';
-  return { ...f, joints, hands: { ...f.hands, [to]: cloneHand(f.hands[from]) } };
+  return { ...f, bones: bonesOf(joints), hands: { ...f.hands, [to]: cloneHand(f.hands[from]) } };
 }
 
 /* ------------------------------------------------------------------ */
@@ -170,11 +183,26 @@ const OLD_JOINT_NAMES: Record<string, JointName> = {
   hipL: 'leftUpperLeg', kneeL: 'leftLowerLeg', ankleL: 'leftFoot', hipR: 'rightUpperLeg', kneeR: 'rightLowerLeg', ankleR: 'rightFoot',
 };
 
-function parseJoints(v: unknown): Figure['joints'] {
+function parseJoints(v: unknown): Angles {
   if (isObj(v)) v = Object.fromEntries(Object.entries(v).map(([k, r]) => [OLD_JOINT_NAMES[k] ?? k, r]));
-  const out: Figure['joints'] = {};
+  const out: Angles = {};
   if (!isObj(v)) return out;
   for (const j of JOINTS) if (v[j] !== undefined) out[j] = vec3(v[j], [0, 0, 0]).map(wrapDeg) as Vec3;
+  return out;
+}
+
+/** Bone rotations: unit quaternions (documents saved before them have joint angles: converted once). */
+function parseBones(o: Record<string, unknown>): Bones {
+  if (!isObj(o.bones)) return bonesOf(parseJoints(o.joints));
+  const out: Bones = {};
+  for (const j of JOINTS) {
+    const q = o.bones[j];
+    if (!Array.isArray(q) || q.length !== 4 || !q.every((x) => typeof x === 'number' && Number.isFinite(x))) continue;
+    // Stored quaternions are rounded, so only a real error is normalised (saved poses read back unchanged).
+    const len = Math.hypot(...(q as number[]));
+    if (Math.abs(len - 1) < 1e-4) out[j] = toQuat(new THREE.Quaternion(...(q as Quat)));
+    else if (len > 1e-6) out[j] = toQuat(new THREE.Quaternion(q[0] / len, q[1] / len, q[2] / len, q[3] / len));
+  }
   return out;
 }
 
@@ -200,7 +228,7 @@ function parseFigure(v: unknown, i: number): Figure {
     id: str(o.id, uid('f')),
     name: str(o.name, `Figure ${i + 1}`),
     body: clampBody(isObj(o.body) ? (o.body as Partial<Figure['body']>) : DEFAULT_BODY),
-    joints: parseJoints(o.joints),
+    bones: parseBones(o),
     hands: { L: parseHand(hands.L), R: parseHand(hands.R) },
     position: vec3(o.position, [0, 0, 0]),
     grounded: o.grounded !== false,
@@ -257,7 +285,7 @@ export function parsePoses(v: unknown): PoseAsset[] | undefined {
   const poses = v.slice(0, 500).filter(isObj).map((o, i) => ({
     id: str(o.id, uid('pose')),
     name: str(o.name, `Pose ${i + 1}`).slice(0, 80),
-    joints: parseJoints(o.joints),
+    bones: parseBones(o),
     hands: { L: parseHand(isObj(o.hands) ? o.hands.L : undefined), R: parseHand(isObj(o.hands) ? o.hands.R : undefined) },
     view: parseView(o.view),
   }));

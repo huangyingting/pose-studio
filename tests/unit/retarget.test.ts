@@ -11,6 +11,7 @@ import { builtInPoses, poseScene } from '@/lib/poses';
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { fromMediaPipe, LM, retarget } from '@/lib/retarget';
 import type { JointName } from '@/lib/types';
+import { angle } from '../../lib/pose';
 
 /** Fake MediaPipe world landmarks taken from a posed mannequin. */
 function landmarksFrom(m: Mannequin) {
@@ -48,9 +49,9 @@ describe('retarget', () => {
     const target = new Mannequin(new Ink(), DEFAULT_BODY);
     for (const s of refScenes()) {
       source.apply(s.figures[0]);
-      const { joints, skipped } = retarget(target, fromMediaPipe(landmarksFrom(source)));
+      const { bones, skipped } = retarget(target, fromMediaPipe(landmarksFrom(source)));
       expect(skipped).toEqual([]);
-      target.apply(newFigure({ joints }));
+      target.apply(newFigure({ bones }));
       // Compare world-space bone directions (how the spine bend is split between joints may differ).
       const rel = (m: Mannequin, a: JointName, b: JointName) => worldPos(m.joints[b]).sub(worldPos(m.joints[a])).normalize();
       for (const [a, b] of BONES) {
@@ -64,9 +65,9 @@ describe('retarget', () => {
     const source = new Mannequin(new Ink(), DEFAULT_BODY);
     const target = new Mannequin(new Ink(), DEFAULT_BODY);
     source.apply(refScenes()[12].figures[0]); // deep squat
-    const { joints } = retarget(target, fromMediaPipe(landmarksFrom(source)));
+    const { bones } = retarget(target, fromMediaPipe(landmarksFrom(source)));
     for (const j of ['leftLowerArm', 'rightLowerArm', 'leftLowerLeg', 'rightLowerLeg'] as const) {
-      const r = joints[j] ?? [0, 0, 0];
+      const r = angle(bones, j);
       expect(Math.abs(r[1]) + Math.abs(r[2]), j).toBeLessThan(0.5);
     }
   });

@@ -358,7 +358,7 @@ function poseFigures(people: DetectedPerson[], body: BodyParams): { figures: Fig
     res.skipped.forEach((s) => skipped.add(s));
     // Spread people out horizontally in the order they appear in the photo.
     const hipX = p.image.length > 24 ? (p.image[23].x + p.image[24].x) / 2 : 0.5;
-    return newFigure({ name: people.length > 1 ? `Person ${i + 1}` : 'Figure', body: { ...body }, joints: res.joints, position: [(hipX - 0.5) * 3, 0, 0] });
+    return newFigure({ name: people.length > 1 ? `Person ${i + 1}` : 'Figure', body: { ...body }, bones: res.bones, position: [(hipX - 0.5) * 3, 0, 0] });
   });
   m.dispose();
   return { figures, skipped: [...skipped] };
@@ -437,7 +437,7 @@ export function PhotoDialog({ onClose, notify, onReference }: {
       store.updateScene((s) => ({
         ...s,
         view: photoView,
-        figures: s.figures.map((f) => (f.id === activeFigure ? { ...f, joints: first.joints } : f)),
+        figures: s.figures.map((f) => (f.id === activeFigure ? { ...f, bones: first.bones } : f)),
       }));
       if (rest.length) addFigures(store, rest);
     }

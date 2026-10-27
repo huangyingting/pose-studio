@@ -76,7 +76,7 @@ function filmed(key: string, make: () => Scene, style: Style): PreviewJob {
 /** A pose on a figure, framed to fit. */
 export function posePreview(p: PoseAsset, style: Style): PreviewJob {
   return {
-    key: `pose:${style}:${p.id}:${JSON.stringify(p.joints)}`,
+    key: `pose:${style}:${p.id}:${JSON.stringify(p.bones)}`,
     count: 1,
     frame: () => sharedRenderer().render(poseScene(p), W, H, LINE, { style, faces: true, margin: 0.1 }).toDataURL('image/png'),
   };

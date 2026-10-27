@@ -4,6 +4,7 @@ import { DEFAULT_BODY } from './body';
 import { mirrorFigure, newFigure, newProp, newScene } from './doc';
 import { HAND_PRESETS, cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
+import { anglesOf, bonesOf, type Angles } from './pose';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { CAMERA_MOVES } from './shot';
 import { buildTemplate, waltzHold } from './templates';
@@ -33,26 +34,29 @@ export interface Motion {
   setUp?: boolean;
 }
 
-type Joints = Figure['joints'];
+type Joints = Angles;
+
+/** A figure's pose as joint angles (motions are written in angles; see lib/pose.ts). */
+const J = (f: Pick<Figure, 'bones'>): Angles => anglesOf(f.bones);
 
 const hand = (name: string): Hand => cloneHand(HAND_PRESETS.find((p) => p.name === name)!.hand);
 
 function person(name: string, b: BodyParams, joints: Joints = {}, yaw = 0, pos: Vec3 = [0, 0, 0]): Figure {
-  return withFacing({ ...newFigure({ name, body: b, position: pos }), joints }, yaw);
+  return withFacing({ ...newFigure({ name, body: b, position: pos }), bones: bonesOf(joints) }, yaw);
 }
 
 /** Same figure with different joints (keeps id, body, facing). */
 function posed(f: Figure, joints: Joints, extra: Partial<Figure> = {}): Figure {
-  const yaw = f.joints.hips?.[1] ?? 0;
+  const yaw = J(f).hips?.[1] ?? 0;
   const root = joints.hips ?? [0, 0, 0];
-  return { ...f, ...extra, joints: { ...joints, hips: [root[0], wrapDeg(yaw + root[1]), root[2]] } };
+  return { ...f, ...extra, bones: bonesOf({ ...joints, hips: [root[0], wrapDeg(yaw + root[1]), root[2]] }) };
 }
 
 /** Swap left and right limbs, keeping where the figure stands and faces. */
 function mirrored(f: Figure): Figure {
   const m = mirrorFigure(f);
-  const r = f.joints.hips ?? [0, 0, 0];
-  return { ...m, position: f.position, joints: { ...m.joints, hips: [r[0], r[1], -r[2] || 0] } };
+  const r = J(f).hips ?? [0, 0, 0];
+  return { ...m, position: f.position, bones: bonesOf({ ...J(m), hips: [r[0], r[1], -r[2] || 0] }) };
 }
 
 interface Key {
@@ -107,18 +111,18 @@ function local(rig: Rig, f: Figure, joint: JointName, offset: Vec3) {
 }
 
 function reachTo(rig: Rig, f: Figure, side: Side, target: THREE.Vector3) {
-  return { ...f, joints: reach(rig, f, side, target).joints };
+  return { ...f, bones: reach(rig, f, side, target).bones };
 }
 
 /** Rotate a figure rigidly about the vertical axis through the origin. */
 function turnAbout(f: Figure, deg: number): Figure {
   const a = THREE.MathUtils.degToRad(deg);
   const [x, y, z] = f.position;
-  const r = f.joints.hips ?? [0, 0, 0];
+  const r = J(f).hips ?? [0, 0, 0];
   return {
     ...f,
     position: [Math.round((x * Math.cos(a) + z * Math.sin(a)) * 1000) / 1000 || 0, y, Math.round((-x * Math.sin(a) + z * Math.cos(a)) * 1000) / 1000 || 0],
-    joints: { ...f.joints, hips: [r[0], wrapDeg(r[1] + deg), r[2]] },
+    bones: bonesOf({ ...J(f), hips: [r[0], wrapDeg(r[1] + deg), r[2]] }),
   };
 }
 
@@ -140,12 +144,12 @@ function guard(rig: Rig, f: Figure): Figure {
 
 /** The same joints with some changed (bending a guard, sinking a stance…). */
 function adjusted(f: Figure, joints: Joints, extra: Partial<Figure> = {}): Figure {
-  return { ...f, ...extra, joints: { ...f.joints, ...joints } };
+  return { ...f, ...extra, bones: bonesOf({ ...J(f), ...joints }) };
 }
 
 /** Pitch the pelvis by `by` (negative: back), the thighs countering it so the feet stay put. */
 function rock(f: Figure, by: number): Figure {
-  const j = f.joints;
+  const j = J(f);
   const r = j.hips ?? [0, 0, 0];
   const thigh = (h: Vec3 | undefined): Vec3 => [(h?.[0] ?? 0) - by, h?.[1] ?? 0, h?.[2] ?? 0];
   return adjusted(f, { hips: [r[0] + by, r[1], r[2]], leftUpperLeg: thigh(j.leftUpperLeg), rightUpperLeg: thigh(j.rightUpperLeg) });
@@ -153,7 +157,7 @@ function rock(f: Figure, by: number): Figure {
 
 /** Sink by bending the knees: thighs forward and shins back as much, so the feet stay put. */
 function sink(f: Figure, knee: number): Figure {
-  const j = f.joints;
+  const j = J(f);
   const add = (r: Vec3 | undefined, by: number): Vec3 => [(r?.[0] ?? 0) + by, r?.[1] ?? 0, r?.[2] ?? 0];
   return adjusted(f, {
     leftLowerLeg: add(j.leftLowerLeg, knee), rightLowerLeg: add(j.rightLowerLeg, knee),
@@ -181,9 +185,9 @@ function inBetween(rig: Rig, a: Figure, b: Figure, count: number, ref: Figure, s
   return Array.from({ length: count }, (_, i) => {
     const u = (i + 1) / (count + 1);
     const mix = (p: Vec3 | undefined, q: Vec3 | undefined): Vec3 => [0, 1, 2].map((c) => (p?.[c] ?? 0) + wrapDeg((q?.[c] ?? 0) - (p?.[c] ?? 0)) * u) as Vec3;
-    const joints = Object.fromEntries([...new Set([...Object.keys(a.joints), ...Object.keys(b.joints)])].map((j) => [j, mix(a.joints[j as JointName], b.joints[j as JointName])]));
+    const joints = Object.fromEntries([...new Set([...Object.keys(J(a)), ...Object.keys(J(b))])].map((j) => [j, mix(J(a)[j as JointName], J(b)[j as JointName])]));
     const position = a.position.map((v, c) => v + (b.position[c] - v) * u) as Vec3;
-    return plantFeet(rig, { ...a, joints, position, grounded: a.grounded && b.grounded }, ref, sides);
+    return plantFeet(rig, { ...a, bones: bonesOf(joints), position, grounded: a.grounded && b.grounded }, ref, sides);
   });
 }
 
@@ -319,17 +323,17 @@ export const MOTIONS: Motion[] = [
         const s = local(rig, from, 'chest', [0, 0.2, 0]);
         return h.clone().add(s.clone().sub(h).normalize().multiplyScalar(short));
       };
-      const jab = reachTo(rig, { ...a0, joints: { ...a0.joints, chest: [4, -16, 0] } }, 'L', towards(a0, b0, 0.12));
-      const lean = { ...b0, joints: { ...b0.joints, spine: [-4, -12, 0], neck: [-12, 0, 0] } } as Figure;
-      const crossBody: Figure = { ...a0, joints: { ...a0.joints, chest: [6, 18, 0], spine: [8, 10, 0] } };
+      const jab = reachTo(rig, { ...a0, bones: bonesOf({ ...J(a0), chest: [4, -16, 0] }) }, 'L', towards(a0, b0, 0.12));
+      const lean = { ...b0, bones: bonesOf({ ...J(b0), spine: [-4, -12, 0], neck: [-12, 0, 0] }) } as Figure;
+      const crossBody: Figure = { ...a0, bones: bonesOf({ ...J(a0), chest: [6, 18, 0], spine: [8, 10, 0] }) };
       const cross = reachTo(rig, crossBody, 'R', towards(crossBody, b0, 0.14));
       // Slip: sink by bending the knees, thighs forward and shins back as much, so the feet stay put.
-      const sink = (j: JointName, by: number): Vec3 => { const r = b0.joints[j] ?? [0, 0, 0]; return [r[0] + by, r[1], r[2]]; };
-      const slip: Figure = { ...b0, joints: {
-        ...b0.joints, spine: [10, -12, -14], leftLowerLeg: sink('leftLowerLeg', 14), rightLowerLeg: sink('rightLowerLeg', 12),
+      const sink = (j: JointName, by: number): Vec3 => { const r = J(b0)[j] ?? [0, 0, 0]; return [r[0] + by, r[1], r[2]]; };
+      const slip: Figure = { ...b0, bones: bonesOf({
+        ...J(b0), spine: [10, -12, -14], leftLowerLeg: sink('leftLowerLeg', 14), rightLowerLeg: sink('rightLowerLeg', 12),
         leftUpperLeg: sink('leftUpperLeg', -7), rightUpperLeg: sink('rightUpperLeg', -6), leftFoot: sink('leftFoot', -7), rightFoot: sink('rightFoot', -6),
-      } };
-      const counter = reachTo(rig, { ...b0, joints: { ...b0.joints, chest: [4, -16, 0] } }, 'L', towards(b0, a0, 0.12));
+      }) };
+      const counter = reachTo(rig, { ...b0, bones: bonesOf({ ...J(b0), chest: [4, -16, 0] }) }, 'L', towards(b0, a0, 0.12));
       return animated('Boxing exchange', [
         { t: 0, figures: [a0, b0] },
         { t: 0.28, figures: [jab, lean] },
@@ -401,11 +405,11 @@ export const MOTIONS: Motion[] = [
     build: () => withRig((rig) => {
       const f = person('Fighter', { ...DEFAULT_BODY });
       const stance = guard(rig, posed(f, STANCE));
-      const g = stance.joints;
+      const g = J(stance);
       // Leaning the pelvis back would swing the standing leg forward: counter it at the hip.
       const support = (pitch: number): Vec3 => [g.leftUpperLeg![0] - (pitch - g.hips![0]), g.leftUpperLeg![1], g.leftUpperLeg![2]];
-      const chamber = { ...stance, joints: { ...g, hips: [-2, g.hips![1], 0] as Vec3, leftUpperLeg: support(-2), rightUpperLeg: [-95, 0, -6] as Vec3, rightLowerLeg: [112, 0, 0] as Vec3, rightFoot: [12, 0, 0] as Vec3 } };
-      const extend = { ...stance, joints: { ...g, hips: [-12, g.hips![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, leftUpperLeg: support(-12), rightUpperLeg: [-88, 0, -6] as Vec3, rightLowerLeg: [6, 0, 0] as Vec3, rightFoot: [-25, 0, 0] as Vec3 } };
+      const chamber = { ...stance, bones: bonesOf({ ...g, hips: [-2, g.hips![1], 0] as Vec3, leftUpperLeg: support(-2), rightUpperLeg: [-95, 0, -6] as Vec3, rightLowerLeg: [112, 0, 0] as Vec3, rightFoot: [12, 0, 0] as Vec3 }) };
+      const extend = { ...stance, bones: bonesOf({ ...g, hips: [-12, g.hips![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, leftUpperLeg: support(-12), rightUpperLeg: [-88, 0, -6] as Vec3, rightLowerLeg: [6, 0, 0] as Vec3, rightFoot: [-25, 0, 0] as Vec3 }) };
       return animated('Front kick', [
         { t: 0, figures: [stance] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
       ], { duration: 1.5, loop: true, view: { yaw: 70, pitch: 2, fov: 28 }, camera: 'hero' });
@@ -546,7 +550,7 @@ export const MOTIONS: Motion[] = [
         const y = q[j as JointName] ?? [0, 0, 0];
         return [j, [0, 1, 2].map((c) => Math.round((x[c] + wrapDeg(y[c] - x[c]) * u) * 10) / 10 || 0) as Vec3];
       }));
-      const { hips: _r, ...driven } = drive.joints;
+      const { hips: _r, ...driven } = J(drive);
       void _r;
       // Turns (the root's lean, then turn): the back to the bar first (half a turn by the top), laid
       // back face up over it, head down as the shoulders land; then rolled back flat.
@@ -555,9 +559,9 @@ export const MOTIONS: Motion[] = [
       const flat: Vec3 = [-88, 180, 0];
       const turnAt = (u: number): Vec3 => [r3(-115 * Math.sin((u * Math.PI) / 2)), r3(180 * smooth(u / 0.5)), 0];
       const between = (p: Vec3, q: Vec3, u: number): Vec3 => [r3(p[0] + (q[0] - p[0]) * u), r3(p[1] + (q[1] - p[1]) * u), 0];
-      const posedIn = (joints: Joints, hips: Vec3, position: Vec3): Figure => ({ ...f, grounded: false, joints: { ...joints, hips }, position });
+      const posedIn = (joints: Joints, hips: Vec3, position: Vec3): Figure => ({ ...f, grounded: false, bones: bonesOf({ ...joints, hips }), position });
       // On the mat: the pelvis this high above its top.
-      const pelvisOn = (joints: Joints, hips: Vec3) => rig.model({ ...f, grounded: true, joints: { ...joints, hips } }).joints.hips.position.y;
+      const pelvisOn = (joints: Joints, hips: Vec3) => rig.model({ ...f, grounded: true, bones: bonesOf({ ...joints, hips }) }).joints.hips.position.y;
       const yFlat = MAT + pelvisOn(down, flat);
       const yContact = MAT + pelvisOn(kick, contact);
       const from = rig.model(drive).joints.hips.getWorldPosition(new THREE.Vector3());
@@ -571,7 +575,7 @@ export const MOTIONS: Motion[] = [
       const apex = v / GRAVITY / T;
       const speed = 0.13;
       const keys: Key[] = [
-        { t: 0, figures: [{ ...stand, position: [0, 0, 0] }] }, { t: at(tRun), figures: [stand] }, { t: at(tRun + 6), figures: [load] }, { t: at(tRun + 9), figures: [lifting] }, { t: at(tRun + 12), figures: [{ ...drive, joints: { ...drive.joints, hips: upright } }] },
+        { t: 0, figures: [{ ...stand, position: [0, 0, 0] }] }, { t: at(tRun), figures: [stand] }, { t: at(tRun + 6), figures: [load] }, { t: at(tRun + 9), figures: [lifting] }, { t: at(tRun + 12), figures: [{ ...drive, bones: bonesOf({ ...J(drive), hips: upright }) }] },
       ];
       const T0 = tRun + 12;
       for (let i = 1; i <= AIR; i++) {
@@ -631,9 +635,9 @@ export const MOTIONS: Motion[] = [
       // eighth of the turn, so they ride smoothly from one contact to the next. It lands in the X
       // and steps the trailing foot in.
       const start = footAt(rig, x(0, 0), stand, 'L');
-      const reach = plantFeet(rig, { ...posed(f, { ...arms.joints, rightUpperLeg: [-35, 0, -30], rightLowerLeg: [75, 0, 0], rightFoot: [20, 0, 0] }), position: [start.position[0] / 2, 0, 0] }, stand, ['L']);
+      const reach = plantFeet(rig, { ...posed(f, { ...J(arms), rightUpperLeg: [-35, 0, -30], rightLowerLeg: [75, 0, 0], rightFoot: [20, 0, 0] }), position: [start.position[0] / 2, 0, 0] }, stand, ['L']);
       // Each step lifts the foot straight up where it stands first (thigh and shin at equal angles), then carries it over.
-      const lift = (from: Figure, side: Side, spread: number) => plantFeet(rig, { ...from, joints: { ...from.joints, [sided('UpperLeg', side)]: [-30, 0, spread], [sided('LowerLeg', side)]: [60, 0, 0], [sided('Foot', side)]: [15, 0, 0] } }, from, [side === 'L' ? 'R' : 'L']);
+      const lift = (from: Figure, side: Side, spread: number) => plantFeet(rig, { ...from, bones: bonesOf({ ...J(from), [sided('UpperLeg', side)]: [-30, 0, spread], [sided('LowerLeg', side)]: [60, 0, 0], [sided('Foot', side)]: [15, 0, 0] }) }, from, [side === 'L' ? 'R' : 'L']);
       const keys: Key[] = [{ t: 0, figures: [stand] }, { t: 0.3, figures: [arms] }, { t: 0.42, figures: [lift(arms, 'R', -3)] }, { t: 0.55, figures: [reach] }];
       let last = start;
       for (let i = 0; i <= 8; i++) {
@@ -643,7 +647,7 @@ export const MOTIONS: Motion[] = [
         keys.push({ t: Math.round((0.8 + i * 0.16) * 1000) / 1000, figures: [last] });
       }
       const together = footAt(rig, arms, last, 'R');
-      const close = plantFeet(rig, { ...posed(f, { ...arms.joints, leftUpperLeg: [-35, 0, 30], leftLowerLeg: [75, 0, 0], leftFoot: [20, 0, 0] }), position: [(last.position[0] + together.position[0]) / 2, 0, 0] }, last, ['R']);
+      const close = plantFeet(rig, { ...posed(f, { ...J(arms), leftUpperLeg: [-35, 0, 30], leftLowerLeg: [75, 0, 0], leftFoot: [20, 0, 0] }), position: [(last.position[0] + together.position[0]) / 2, 0, 0] }, last, ['R']);
       // Landing, the hips carry on over the right foot (no dead stop) as the left one lifts.
       const landing = plantFeet(rig, lift({ ...last, position: [last.position[0] - 0.1, last.position[1], last.position[2]] }, 'L', 40), last, ['R']);
       // Both feet stay down for a frame as the hips carry on, then the left one lifts over two.
@@ -695,10 +699,10 @@ export const MOTIONS: Motion[] = [
       for (let i = 1; i < AIR; i++) {
         const u = i / AIR;
         const half = AIR / 2;
-        const joints = (i < half ? inBetween(rig, push, { ...split, position: push.position }, half - 1, push, [])[i - 1] : i === half ? split : inBetween(rig, split, { ...land, position: split.position }, half - 1, split, [])[i - half - 1]).joints;
+        const joints = (i < half ? inBetween(rig, push, { ...split, position: push.position }, half - 1, push, [])[i - 1] : i === half ? split : inBetween(rig, split, { ...land, position: split.position }, half - 1, split, [])[i - half - 1]).bones;
         const time = at(i);
         const y = from.y + v * time - (9.81 * time * time) / 2;
-        flight.push({ t: at(UP + i), figures: [{ ...posed(f, joints), joints, grounded: false, position: [r3(from.x + (to.x - from.x) * u), r3(y), r3(from.z + (to.z - from.z) * u)] }] });
+        flight.push({ t: at(UP + i), figures: [{ ...f, bones: joints, grounded: false, position: [r3(from.x + (to.x - from.x) * u), r3(y), r3(from.z + (to.z - from.z) * u)] }] });
       }
       return animated('Split leap', atHeights(rig, [
         { t: 0, figures: [stand] }, { t: at(5), figures: [lift] }, { t: at(8), figures: [reaching] }, { t: at(10), figures: [step] },
@@ -731,7 +735,7 @@ export const MOTIONS: Motion[] = [
       const keys: Key[] = [{ t: 0, figures: [stand] }, ...falling.map((p) => ({ t: at(p.frame), figures: [p.pose] })), { t: at(43), figures: [lying] }];
       inBetween(rig, lying, sitting, 2, lying).forEach((p, i) => keys.push({ t: at(47 + 4 * i), figures: [p] }));
       // Rising over the left foot, the right comes through off the floor and lands beside it.
-      const rising = plantFeet(rig, { ...up, joints: { ...up.joints, rightUpperLeg: [-40, 0, -6], rightLowerLeg: [80, 0, 0], rightFoot: [20, 0, 0] }, position: [(kneeling.position[0] + up.position[0]) / 2, 0, (kneeling.position[2] + up.position[2]) / 2] }, kneeling, ['L']);
+      const rising = plantFeet(rig, { ...up, bones: bonesOf({ ...J(up), rightUpperLeg: [-40, 0, -6], rightLowerLeg: [80, 0, 0], rightFoot: [20, 0, 0] }), position: [(kneeling.position[0] + up.position[0]) / 2, 0, (kneeling.position[2] + up.position[2]) / 2] }, kneeling, ['L']);
       keys.push({ t: at(55), figures: [sitting] }, { t: at(67), figures: [kneeling] }, { t: at(76), figures: [rising] }, { t: at(84), figures: [up] });
       return animated('Fall & get up', keys, { duration: 3.6, loop: false, view: { yaw: 80, pitch: 6, fov: 32 }, camera: 'static' });
     }),

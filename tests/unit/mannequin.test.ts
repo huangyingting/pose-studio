@@ -5,6 +5,8 @@ import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
 import { IK_CHAINS, Mannequin, POLE_CHAINS, worldPos } from '@/lib/mannequin';
 import { builtInPoses, poseScene } from '@/lib/poses';
+import { angle, anglesOf, bonesOf, fromQuat } from '@/lib/pose';
+import { JOINTS } from '@/lib/types';
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
@@ -23,7 +25,8 @@ describe('Mannequin', () => {
     for (const s of refScenes()) {
       const f = s.figures[0];
       m.apply(f);
-      expect(m.read().joints, s.name).toEqual(f.joints);
+      const read = m.read().bones;
+      for (const j of JOINTS) expect(fromQuat(read[j]).angleTo(fromQuat(f.bones[j])), `${s.name} ${j}`).toBeLessThan(1e-3);
     }
   });
 
@@ -44,7 +47,7 @@ describe('Mannequin', () => {
   it('scales with the height setting', () => {
     for (const height of [1.3, 1.7, 2.0]) {
       const m = new Mannequin(new Ink(), { ...DEFAULT_BODY, height });
-      m.apply(newFigure({ body: { ...DEFAULT_BODY, height }, joints: {} }));
+      m.apply(newFigure({ body: { ...DEFAULT_BODY, height } }));
       const box = new THREE.Box3();
       m.forEachPoint((p) => box.expandByPoint(p));
       expect(box.max.y).toBeGreaterThan(height * 0.95);
@@ -71,7 +74,7 @@ describe('Mannequin', () => {
     m.solveIK(IK_CHAINS.leftHand, target);
     const wrist = worldPos(m.joints.leftHand);
     expect(wrist.clone().sub(shoulder).normalize().dot(new THREE.Vector3(1, 0, 0))).toBeGreaterThan(0.99);
-    for (const v of Object.values(m.read().joints)) v!.forEach((a) => expect(Number.isFinite(a)).toBe(true));
+    for (const q of Object.values(m.read().bones)) q!.forEach((a) => expect(Number.isFinite(a)).toBe(true));
   });
 
   it('bends knees forward when the hips are lowered', () => {
@@ -87,7 +90,7 @@ describe('Mannequin', () => {
 
   it('swivels the elbow without moving the hand', () => {
     const m = make();
-    m.apply(newFigure({ joints: { leftUpperArm: [-40, 0, 20], leftLowerArm: [-90, 0, 0] } }));
+    m.apply(newFigure({ bones: bonesOf({ leftUpperArm: [-40, 0, 20], leftLowerArm: [-90, 0, 0] }) }));
     const wrist = worldPos(m.joints.leftHand);
     const pole = worldPos(m.joints.leftLowerArm).add(new THREE.Vector3(1, 0, 0));
     m.swivel(POLE_CHAINS.leftLowerArm, pole);
@@ -96,20 +99,20 @@ describe('Mannequin', () => {
 
   it('clamps joints to their limits', () => {
     const m = make();
-    m.apply(newFigure({ joints: { leftLowerLeg: [-60, 0, 0], rightLowerArm: [40, 0, 0] } }));
+    m.apply(newFigure({ bones: bonesOf({ leftLowerLeg: [-60, 0, 0], rightLowerArm: [40, 0, 0] }) }));
     m.constrain(['leftLowerLeg', 'rightLowerArm']);
-    const j = m.read().joints;
+    const j = anglesOf(m.read().bones);
     expect(j.leftLowerLeg).toBeUndefined(); // clamped to [0, 0, 0]
     expect(j.rightLowerArm).toBeUndefined();
   });
 
   it('reads raised arms back without Euler flips', () => {
     const m = make();
-    m.apply(newFigure({ joints: { leftUpperArm: [-10, 90, 150] } }));
+    m.apply(newFigure({ bones: bonesOf({ leftUpperArm: [-10, 90, 150] }) }));
     // Disturb the quaternion slightly, as a gizmo drag would.
     const s = m.joints.leftUpperArm;
     s.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.001));
-    const r = m.read().joints.leftUpperArm!;
+    const r = angle(m.read().bones, 'leftUpperArm', [-10, 90, 150]);
     expect(Math.abs(r[2] - 150)).toBeLessThan(1);
     expect(Math.abs(r[1] - 90)).toBeLessThan(1);
   });
@@ -127,9 +130,9 @@ describe('Mannequin', () => {
       m.parts.bodies.filter((b) => b.userData.joint === 'leftHand').forEach((b) => box.expandByObject(b));
       return box;
     };
-    m.apply(newFigure({ joints: {} }));
+    m.apply(newFigure());
     const open = tipOf().getSize(new THREE.Vector3()).y;
-    const f = newFigure({ joints: {} });
+    const f = newFigure();
     f.hands.L = { curl: [1, 1, 1, 1, 1], spread: 0 };
     m.apply(f);
     expect(tipOf().getSize(new THREE.Vector3()).y).toBeLessThan(open * 0.8);

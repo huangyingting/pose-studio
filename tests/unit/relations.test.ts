@@ -6,6 +6,7 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, facing, forward, headPoint, inFrontOf, lookAt, reach,
   turnTowards, withFacing,
 } from '@/lib/relations';
+import { angle, anglesOf } from '@/lib/pose';
 
 const at = (x: number, z: number, yaw = 0) => withFacing(newFigure({ position: [x, 0, z] }), yaw);
 
@@ -52,7 +53,7 @@ describe('posing against another figure', () => {
     const target = contactPoint(rig.model(b), b, 'rightUpperArm');
     const res = reach(rig, a, 'L', target);
     expect(res.reached).toBe(true);
-    const m = rig.model({ ...a, joints: res.joints });
+    const m = rig.model({ ...a, bones: res.bones });
     const palm = m.joints.leftHand.localToWorld(new THREE.Vector3(0, -0.06 * (a.body.height / 1.8), 0));
     expect(palm.distanceTo(target)).toBeLessThan(0.05);
     rig.dispose();
@@ -69,8 +70,8 @@ describe('posing against another figure', () => {
     const rig = new Rig();
     const a = at(0, 0);
     for (const target of [new THREE.Vector3(2, 1.5, 2), new THREE.Vector3(-1.5, 0.8, 1), new THREE.Vector3(0.3, 2.2, 2)]) {
-      const joints = lookAt(rig, a, target);
-      const m = rig.model({ ...a, joints });
+      const bones = lookAt(rig, a, target);
+      const m = rig.model({ ...a, bones });
       const head = m.joints.head;
       const eye = headPoint(m, a);
       const face = new THREE.Vector3(0, 0, 1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
@@ -86,9 +87,9 @@ describe('posing against another figure', () => {
   it('twists the chest when the target is behind', () => {
     const rig = new Rig();
     const a = at(0, 0);
-    const joints = lookAt(rig, a, new THREE.Vector3(1, 1.5, -1));
-    expect(Math.abs(joints.chest?.[1] ?? 0)).toBeGreaterThan(10);
-    expect(worldPos(rig.model({ ...a, joints }).joints.head).y).toBeGreaterThan(1.3);
+    const bones = lookAt(rig, a, new THREE.Vector3(1, 1.5, -1));
+    expect(Math.abs(angle(bones, 'chest')[1])).toBeGreaterThan(10);
+    expect(worldPos(rig.model({ ...a, bones }).joints.head).y).toBeGreaterThan(1.3);
     rig.dispose();
   });
 });
@@ -103,7 +104,7 @@ describe('multi-person templates', () => {
       expect(s.figures).toHaveLength(t.people);
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
       for (const f of s.figures) {
-        for (const [j, r] of Object.entries(f.joints)) {
+        for (const [j, r] of Object.entries(anglesOf(f.bones))) {
           if (j === 'hips') continue;
           const lim = jointLimits(j as never);
           r!.forEach((v, i) => {

@@ -10,6 +10,7 @@ import { buildMotion } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
 import { rimOf, worldOfProp } from '@/lib/propmotion';
+import { withFacing } from '@/lib/relations';
 import { SceneView } from '@/lib/sceneview';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
@@ -141,7 +142,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     addFigure(store, [2.5, 0, 4]);
     const coach = store.getState().activeFigure!;
     name(store, coach, 'Coach');
-    store.updateFigure(coach, (f) => ({ ...f, joints: { ...f.joints, hips: [0, -90, 0] } }));
+    store.updateFigure(coach, (f) => withFacing(f, -90));
     setGaze(store, coach, { figure: jumper });
     light(store, 'noon');
     shoot(store, [1.5], ['tracking', 'static'], [jumper]);

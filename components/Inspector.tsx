@@ -15,6 +15,7 @@ import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
 import { JUMP_PREP, chainAt, jumpHeight } from '@/lib/locomotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
+import { angle } from '@/lib/pose';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
@@ -134,7 +135,7 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
 function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
   const store = useStore();
   const limits = useStudio((s) => s.settings.limits);
-  const rot = figure.joints[joint] ?? [0, 0, 0];
+  const rot = angle(figure.bones, joint);
   return (
     <Section
       title={JOINT_LABELS[joint]}

@@ -6,6 +6,7 @@ import { builtInPoses, poseScene } from '@/lib/poses';
 /** The 20 reference poses as scenes. */
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { JOINTS } from '@/lib/types';
+import { angle, anglesOf, bonesOf } from '@/lib/pose';
 
 describe('parseLibrary', () => {
   it('round-trips the v2 format unchanged', () => {
@@ -15,7 +16,7 @@ describe('parseLibrary', () => {
 
   it('reads documents saved with the old joint names (one-time converter)', () => {
     const s = parseScene({ figures: [{ joints: { root: [10, 20, 0], shoulderL: [0, 0, 30], kneeR: [45, 0, 0] } }] });
-    expect(s.figures[0].joints).toEqual({ hips: [10, 20, 0], leftUpperArm: [0, 0, 30], rightLowerLeg: [45, 0, 0] });
+    expect(anglesOf(s.figures[0].bones)).toEqual({ hips: [10, 20, 0], leftUpperArm: [0, 0, 30], rightLowerLeg: [45, 0, 0] });
   });
 
   it('accepts only library files', () => {
@@ -41,7 +42,7 @@ describe('parseLibrary', () => {
       view: { yaw: 900, pitch: 200, fov: 0 },
     });
     const f = s.figures[0];
-    expect(f.joints).toEqual({ leftUpperLeg: [0, 40, 0] });
+    expect(anglesOf(f.bones)).toEqual({ leftUpperLeg: [0, 40, 0] });
     expect(f.body.height).toBe(2.2);
     expect(f.body.sex).toBe(0);
     expect(f.hands.L.curl.slice(0, 3)).toEqual([1, 0, 0.5]);
@@ -66,17 +67,17 @@ describe('pose operations', () => {
   });
 
   it('mirroring swaps sides and negates twist/spread', () => {
-    const f = newFigure({ joints: { leftUpperArm: [-10, 90, 150] } });
-    const m = mirrorFigure(f);
-    expect(m.joints.rightUpperArm).toEqual([-10, -90, -150]);
-    expect(m.joints.leftUpperArm).toBeUndefined();
+    const f = newFigure({ bones: bonesOf({ leftUpperArm: [-10, 40, 60] }) });
+    const m = anglesOf(mirrorFigure(f).bones);
+    expect(m.rightUpperArm).toEqual([-10, -40, -60]);
+    expect(m.leftUpperArm).toBeUndefined();
   });
 
   it('symmetrize copies one side onto the other', () => {
-    const f = newFigure({ joints: { leftUpperLeg: [-40, 10, 20], rightUpperLeg: [5, 0, 0], chest: [10, 20, 5] } });
-    const s = symmetrize(f, 'L');
-    expect(s.joints.rightUpperLeg).toEqual([-40, -10, -20]);
-    expect(s.joints.chest).toEqual([10, 0, 0]);
+    const f = newFigure({ bones: bonesOf({ leftUpperLeg: [-40, 10, 20], rightUpperLeg: [5, 0, 0], chest: [10, 20, 5] }) });
+    const s = anglesOf(symmetrize(f, 'L').bones);
+    expect(s.rightUpperLeg).toEqual([-40, -10, -20]);
+    expect(s.chest).toEqual([10, 0, 0]);
   });
 
   it('creates props resting on the floor', () => {
@@ -92,8 +93,7 @@ describe('presets', () => {
   it('keeps every preset inside the anatomical joint limits', () => {
     for (const s of refScenes()) {
       for (const j of JOINTS) {
-        const r = s.figures[0].joints[j];
-        if (!r) continue;
+        const r = angle(s.figures[0].bones, j);
         const lim = jointLimits(j);
         r.forEach((v, i) => {
           expect(v, `${s.name}: ${j}[${i}]`).toBeGreaterThanOrEqual(lim[i][0]);

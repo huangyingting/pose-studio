@@ -7,6 +7,7 @@ import { builtInPoses, poseScene } from '@/lib/poses';
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
 import { canonical, mergeLibraries, sceneHash, syncBase } from '@/lib/sync';
 import type { Library, Scene } from '@/lib/types';
+import { withAngles } from '../../lib/pose';
 
 const lib = (scenes: Scene[], board?: Library['board']): Library => ({ version: 2, scenes, ...(board ? { board } : {}) });
 const named = (l: Library) => l.scenes.map((s) => s.name);
@@ -40,8 +41,8 @@ describe('library sync merge', () => {
   it('ignores where the playhead is in an animated pose', () => {
     const s = newScene('Anim', [newFigure()]);
     const f = s.figures[0];
-    const anim: Scene = { ...s, animation: setKey(newAnimation(s, 2), 1, [{ ...f, joints: { ...f.joints, leftLowerLeg: [60, 0, 0] as [number, number, number] } }]) };
-    const atHalf: Scene = { ...anim, figures: [{ ...f, joints: { ...f.joints, leftLowerLeg: [30, 0, 0] as [number, number, number] } }] };
+    const anim: Scene = { ...s, animation: setKey(newAnimation(s, 2), 1, [{ ...f, bones: withAngles(f.bones, { leftLowerLeg: [60, 0, 0] }) }]) };
+    const atHalf: Scene = { ...anim, figures: [{ ...f, bones: withAngles(f.bones, { leftLowerLeg: [30, 0, 0] }) }] };
     expect(sceneHash(canonical(lib([anim])).scenes[0])).toBe(sceneHash(canonical(lib([atHalf])).scenes[0]));
   });
 

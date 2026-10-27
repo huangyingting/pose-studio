@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { sideOf } from './joints';
 import { Mannequin, rotateToward, rotateWorld, setWorldQuaternion, worldPos } from './mannequin';
-import { JOINTS, type Figure, type JointName } from './types';
+import type { Bones } from './pose';
+import { JOINTS, type JointName } from './types';
 
 /** MediaPipe pose landmark indices. */
 export const LM = {
@@ -47,7 +48,7 @@ const VISIBLE = 0.35;
  * (bend only around their own axis), so the result stays editable with the sliders.
  * Returns the joint rotations and the list of limbs that could not be seen.
  */
-export function retarget(m: Mannequin, lm: Landmark3D[]): { joints: Figure['joints']; skipped: string[] } {
+export function retarget(m: Mannequin, lm: Landmark3D[]): { bones: Bones; skipped: string[] } {
   for (const j of JOINTS) m.joints[j].rotation.set(0, 0, 0);
   m.joints.hips.position.set(0, 1, 0);
   m.object.updateMatrixWorld(true);
@@ -114,5 +115,5 @@ export function retarget(m: Mannequin, lm: Landmark3D[]): { joints: Figure['join
     rotateToward(a, new THREE.Vector3(0, 0, 1).applyQuaternion(a.getWorldQuaternion(new THREE.Quaternion())), P(LM.toeR).sub(P(LM.heelR)));
   }
 
-  return { joints: m.read().joints, skipped };
+  return { bones: m.read().bones, skipped };
 }

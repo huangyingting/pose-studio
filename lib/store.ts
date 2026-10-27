@@ -116,7 +116,7 @@ export class Store {
   private lastTime = 0;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** Pose copied with Ctrl+C. */
-  clipboard: Pick<Figure, 'joints' | 'hands'> | null = null;
+  clipboard: Pick<Figure, 'bones' | 'hands'> | null = null;
   /** Set when localStorage is full or unavailable. */
   saveError: string | null = null;
   /** Library object last written to storage. */

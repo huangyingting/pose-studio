@@ -1,10 +1,11 @@
 import { HAND_PRESETS } from './hands';
-import type { Figure, Hand, PoseAsset, View } from './types';
+import { bonesOf, type Angles } from './pose';
+import type { Hand, PoseAsset, View } from './types';
 
 interface RawPose {
   name: string;
   view: View;
-  joints: Figure['joints'];
+  joints: Angles;
 }
 
 const v = (yaw: number, pitch: number): View => ({ yaw, pitch, fov: 20 });
@@ -191,5 +192,5 @@ const GROUP: Record<string, PoseGroup> = {
 /** The built-in poses (from the drawing reference sheet), with stable ids. */
 export const BUILT_IN_POSES: (PoseAsset & { group: PoseGroup })[] = RAW.map((p, i) => {
   const [l, r] = HAND_HINTS[p.name] ?? ['Relaxed', 'Relaxed'];
-  return { id: `preset${i + 1}`, name: p.name, joints: p.joints, hands: { L: hand(l), R: hand(r) }, view: p.view, group: GROUP[p.name] };
+  return { id: `preset${i + 1}`, name: p.name, bones: bonesOf(p.joints), hands: { L: hand(l), R: hand(r) }, view: p.view, group: GROUP[p.name] };
 });

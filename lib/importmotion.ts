@@ -7,6 +7,7 @@ import { DEFAULT_BODY } from './body';
 import { newFigure, newScene, uid } from './doc';
 import { legsOf } from './locomotion';
 import { Rig } from './relations';
+import { anglesOf, bonesOf, type Angles } from './pose';
 import { LM, retarget, type Landmark3D } from './retarget';
 import type { Keyframe, MotionAsset, PoseKey, Vec3 } from './types';
 
@@ -213,9 +214,10 @@ export function retargetMotion(src: MotionSource): MotionAsset {
     }
     // Feet on the floor: the lowest the ankles go over the clip is ankle height.
     const ground = floor;
+    let near: Angles = {};
     const poses: PoseKey[] = frames.map(({ lm, hips }) => {
       start ??= hips.clone();
-      const { joints } = retarget(m, lm);
+      const joints = near = anglesOf(retarget(m, lm).bones, near);
       const position: Vec3 = [
         Math.round((hips.x - start.x) * scale * 1000) / 1000,
         Math.round(((hips.y - ground) * scale + legs.ankleY) * 1000) / 1000,
@@ -231,7 +233,7 @@ export function retargetMotion(src: MotionSource): MotionAsset {
   }
   const first = keys[0].poses[figure.id];
   const scene = {
-    ...newScene(src.name, [{ ...figure, joints: first.joints, position: first.position, grounded: false }]),
+    ...newScene(src.name, [{ ...figure, bones: bonesOf(first.joints), position: first.position, grounded: false }]),
     animation: { duration: Math.max(0.2, Math.round(duration * 1000) / 1000), fps: DEFAULT_FPS, loop: false, keys },
   };
   return { id: uid('motion'), name: src.name.slice(0, 80), scene };

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg, type LimbPart } from './joints';
+import { boneToRig, fromQuat, rigToBone, toQuat } from './pose';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
 } from './types';
@@ -203,7 +204,6 @@ export class Mannequin {
   private hands = {} as Record<Side, FingerRig>;
   private faces = true;
   private bodyKey = '';
-  private last: Figure['joints'] = {};
   private style: Style = 'line';
   private selected: JointName | null = null;
   private highlight = false;
@@ -463,11 +463,7 @@ export class Mannequin {
   /** Pose the figure from document state. */
   apply(fig: Figure) {
     this.setBody(fig.body, !!fig.proxy);
-    for (const name of JOINTS) {
-      const r = fig.joints[name] ?? [0, 0, 0];
-      this.joints[name].rotation.set(r[0] * D2R, r[1] * D2R, r[2] * D2R);
-    }
-    this.last = fig.joints;
+    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fromQuat(fig.bones[name])));
     this.setHand('L', fig.hands.L);
     this.setHand('R', fig.hands.R);
     this.grounded = fig.grounded;
@@ -475,16 +471,13 @@ export class Mannequin {
     this.ground();
   }
 
-  /** Read joint rotations and root position back out (degrees, 0.1° precision). */
-  read(): Pick<Figure, 'joints' | 'position'> {
-    const joints: Figure['joints'] = {};
-    for (const name of JOINTS) {
-      const v = stableEuler(this.joints[name].rotation, this.last[name] ?? [0, 0, 0]);
-      if (v.some((a) => a !== 0)) joints[name] = v;
-    }
+  /** Read the bone rotations and the hips' position back out. */
+  read(): Pick<Figure, 'bones' | 'position'> {
+    const bones: Figure['bones'] = {};
+    for (const name of JOINTS) bones[name] = toQuat(rigToBone(name, this.joints[name].quaternion));
     const p = this.joints.hips.position;
     const r = (x: number) => Math.round(x * 1000) / 1000 || 0;
-    return { joints, position: [r(p.x), r(p.y), r(p.z)] };
+    return { bones, position: [r(p.x), r(p.y), r(p.z)] };
   }
 
   /** Clamp the given joints to their anatomical ranges. */
@@ -492,7 +485,7 @@ export class Mannequin {
     for (const name of names) {
       if (name === 'hips') continue;
       const obj = this.joints[name];
-      const cur = stableEuler(obj.rotation, this.last[name] ?? [0, 0, 0]);
+      const cur = stableEuler(obj.rotation, [0, 0, 0]);
       const lim = jointLimits(name);
       if (cur.every((v, i) => v >= lim[i][0] && v <= lim[i][1])) continue;
       const c = clampRotation(name, cur);

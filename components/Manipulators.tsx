@@ -399,7 +399,7 @@ export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
   version: number;
   active: string | null;
   onPick(id: string): void;
-  onTurn(id: string, read: Pick<Figure, 'joints' | 'position'>): void;
+  onTurn(id: string, read: Pick<Figure, 'bones' | 'position'>): void;
 }) {
   const groups = useRef<Record<string, THREE.Group | null>>({});
   const tmp = useMemo(() => ({ p: new THREE.Vector3(), q: new THREE.Quaternion(), f: new THREE.Vector3() }), []);
@@ -517,7 +517,7 @@ export function IKHandles({ m, figure, limits, onCommit }: {
   m: Mannequin;
   figure: Figure;
   limits: boolean;
-  onCommit(read: Pick<Figure, 'joints' | 'position'>): void;
+  onCommit(read: Pick<Figure, 'bones' | 'position'>): void;
 }) {
   const refs = useRef<Partial<Record<HandleId, THREE.Group | null>>>({});
   const hovered = useRef<HandleId | null>(null);

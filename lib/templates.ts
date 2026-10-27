@@ -4,8 +4,9 @@ import { newFigure, newScene } from './doc';
 import { sided } from './joints';
 import { HAND_PRESETS, cloneHand } from './hands';
 import {
-  Rig, backToBack, besides, contactPoint, faceEachOther, forward, headPoint, leftward, lookAt, reach, withFacing,
+  Rig, backToBack, besides, contactPoint, faceEachOther, facing, forward, headPoint, leftward, lookAt, reach, withFacing,
 } from './relations';
+import { withAngles, type Angles } from './pose';
 import type { BodyParams, Figure, Hand, JointName, Scene, Side, Vec3, View } from './types';
 
 /*
@@ -24,16 +25,16 @@ export interface Template {
 const body = (name: string): BodyParams => ({ ...(BODY_PRESETS.find((p) => p.name === name)?.body ?? DEFAULT_BODY) });
 const hand = (name: string): Hand => cloneHand(HAND_PRESETS.find((p) => p.name === name)!.hand);
 
-function person(name: string, b: BodyParams, x: number, z: number, yaw = 0, joints: Figure['joints'] = {}): Figure {
+function person(name: string, b: BodyParams, x: number, z: number, yaw = 0, joints: Angles = {}): Figure {
   const f = newFigure({ name, body: b, position: [x, 0, z] });
-  return withFacing({ ...f, joints: { ...f.joints, ...joints } }, yaw);
+  return withFacing({ ...f, bones: withAngles(f.bones, joints) }, yaw);
 }
 
 /** Merge joint angles into a figure, keeping its facing. */
-function pose(f: Figure, joints: Figure['joints']): Figure {
-  const yaw = f.joints.hips?.[1] ?? 0;
-  const next = { ...f, joints: { ...f.joints, ...joints } };
-  return joints.hips ? withFacing(next, yaw + joints.hips[1]) : next;
+function pose(f: Figure, joints: Angles): Figure {
+  const yaw = facing(f);
+  const next = { ...f, bones: withAngles(f.bones, joints) };
+  return joints.hips ? withFacing(next, yaw + joints.hips[1]) : withFacing(next, yaw);
 }
 
 function withHands(f: Figure, l: Hand, r: Hand = l): Figure {
@@ -50,11 +51,11 @@ function local(rig: Rig, f: Figure, joint: JointName, offset: Vec3) {
 }
 
 function reachTo(rig: Rig, f: Figure, side: Side, target: THREE.Vector3): Figure {
-  return { ...f, joints: reach(rig, f, side, target).joints };
+  return { ...f, bones: reach(rig, f, side, target).bones };
 }
 
 function lookTo(rig: Rig, f: Figure, target: THREE.Vector3): Figure {
-  return { ...f, joints: lookAt(rig, f, target) };
+  return { ...f, bones: lookAt(rig, f, target) };
 }
 
 function lookAtEachOther(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
@@ -97,7 +98,7 @@ export function waltzHold(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
   return [a, b];
 }
 
-const RELAXED_ARMS: Figure['joints'] = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
+const RELAXED_ARMS: Angles = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
 
 export const TEMPLATES: Template[] = [
   {
@@ -157,7 +158,7 @@ export const TEMPLATES: Template[] = [
     name: 'Walking hand in hand',
     people: 2,
     build: () => withRig((rig) => {
-      const stride = (lead: Side): Figure['joints'] => {
+      const stride = (lead: Side): Angles => {
         const [f, r]: [Side, Side] = lead === 'L' ? ['L', 'R'] : ['R', 'L'];
         const s = (side: string) => (side === 'L' ? 1 : -1);
         return {
@@ -166,7 +167,7 @@ export const TEMPLATES: Template[] = [
           [sided('UpperArm', f)]: [16, 0, 8 * s(f)], [sided('LowerArm', f)]: [-12, 0, 0],
           [sided('UpperArm', r)]: [-18, 0, 8 * s(r)], [sided('LowerArm', r)]: [-22, 0, 0],
           spine: [4, 0, 0],
-        } as Figure['joints'];
+        } as Angles;
       };
       let a = person('Anna', body('Female'), -0.27, 0, 0, stride('L'));
       let b = person('Ben', body('Male'), 0.29, 0.04, 0, stride('R'));
@@ -213,7 +214,7 @@ export const TEMPLATES: Template[] = [
     name: 'Sparring',
     people: 2,
     build: () => withRig((rig) => {
-      const stance: Figure['joints'] = {
+      const stance: Angles = {
         hips: [6, 25, 0], spine: [6, -12, 0], chest: [4, -10, 0],
         leftUpperLeg: [-26, 0, 8], leftLowerLeg: [26, 0, 0], leftFoot: [-6, 0, 0],
         rightUpperLeg: [16, 0, -12], rightLowerLeg: [24, 0, 0], rightFoot: [6, 0, 0],

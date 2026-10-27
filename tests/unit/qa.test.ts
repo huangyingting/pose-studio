@@ -6,6 +6,7 @@ import { buildMotion } from '@/lib/motions';
 import { checkMotion, segmentDistance } from '@/lib/qa';
 import { buildTemplate } from '@/lib/templates';
 import type { Figure, Scene } from '@/lib/types';
+import { bonesOf, withAngles } from '../../lib/pose';
 
 /** An animation from a list of [time, figures] keys. */
 function animate(keys: [number, Figure[]][], duration = 1, loop = false): Scene {
@@ -53,11 +54,11 @@ describe('motion QA', () => {
     expect(kinds(animate([[0, [f]]]))).not.toContain('slide');
 
     const g = newFigure();
-    const hyper = { ...g, joints: { ...g.joints, leftLowerLeg: [-40, 0, 0] as [number, number, number] } };
+    const hyper = { ...g, bones: withAngles(g.bones, { leftLowerLeg: [-40, 0, 0] }) };
     const limit = checkMotion(animate([[0, [hyper]]]));
     expect(limit.map((i) => [i.kind, i.joint])).toEqual([['limit', 'leftLowerLeg']]);
 
-    const snap = { ...g, joints: { ...g.joints, rightUpperArm: [-100, 0, 0] as [number, number, number] } };
+    const snap = { ...g, bones: withAngles(g.bones, { rightUpperArm: [-100, 0, 0] }) };
     expect(kinds(animate([[0, [g]], [0.5, [g]], [0.54, [snap]], [1, [snap]]]))).toContain('pop');
   });
 
@@ -75,8 +76,8 @@ describe('motion QA', () => {
 
   it('swings a limited joint through its range, not the short way round', () => {
     const f = newFigure();
-    const down = { ...f, joints: { leftUpperArm: [50, 0, 0] as [number, number, number] } };
-    const up = { ...f, joints: { leftUpperArm: [-160, 0, 0] as [number, number, number] } };
+    const down = { ...f, bones: bonesOf({ leftUpperArm: [50, 0, 0] }) };
+    const up = { ...f, bones: bonesOf({ leftUpperArm: [-160, 0, 0] }) };
     const a = animate([[0, [down]], [1, [up]]]).animation!;
     // Halfway the arm points forward (about −55°), not straight up behind the back (about 145°).
     expect(samplePose(a, f.id, 0.5)!.joints.leftUpperArm![0]).toBeCloseTo(-55, 0);

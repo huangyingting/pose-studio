@@ -13,6 +13,7 @@ import { allPoses, builtInPoses } from '../poses';
 import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
+import { anglesOf, withAngles, type Angles } from '../pose';
 import { CAMERA_MOVES } from '../shot';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
@@ -77,7 +78,7 @@ function sceneSummary(store: Store) {
       facing: r1(facing(f)),
       grounded: f.grounded,
       ...(f.hidden ? { hidden: true } : {}),
-      joints: Object.fromEntries(Object.entries(f.joints).filter(([, v]) => v.some((x) => x !== 0)).map(([k, v]) => [k, v.map(r1)])),
+      joints: Object.fromEntries(Object.entries(anglesOf(f.bones)).map(([k, v]) => [k, v.map(r1)])),
     })),
     props: s.props.map((p) => ({ id: p.id, name: p.name, kind: p.kind, ...(p.hold ? { held_by: p.hold.figure, hand: p.hold.hand } : {}), position: { x: r2(p.position[0]), z: r2(p.position[2]) }, facing: r1(p.rotation[1]), scale: p.scale.map(r2) })),
     animation: a ? {
@@ -117,7 +118,7 @@ export const TOOLS: AgentTool[] = [
       const f = findFigure(store, i.figure);
       const limits = store.getState().settings.limits;
       const clamped: string[] = [];
-      const joints = { ...f.joints };
+      const joints: Angles = {};
       for (const j of i.joints as { joint: JointName; x: number; y: number; z: number }[]) {
         if (!JOINTS.includes(j.joint)) throw new Error(`Unknown joint "${j.joint}"`);
         const v: Vec3 = [j.x, j.y, j.z].map(r1) as Vec3;
@@ -125,7 +126,7 @@ export const TOOLS: AgentTool[] = [
         if (c.some((x, k) => x !== v[k])) clamped.push(`${j.joint} → [${c.join(', ')}]`);
         joints[j.joint] = c;
       }
-      store.updateFigure(f.id, (x) => ({ ...x, joints }));
+      store.updateFigure(f.id, (x) => ({ ...x, bones: withAngles(x.bones, joints) }));
       return `Set ${(i.joints as unknown[]).length} joints on ${f.name}.${clamped.length ? ` Clamped to natural limits: ${clamped.join('; ')}.` : ''}`;
     },
   },

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
 import { Store } from '@/lib/store';
+import { angle } from '../../lib/pose';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -47,8 +48,8 @@ describe('assistant tools', () => {
     const id = scene.figures[0].id;
     expect(run(store, 'set_joints', { figure: scene.figures[0].name, joints: [{ joint: 'leftLowerLeg', x: -30, y: 0, z: 0 }, { joint: 'rightUpperArm', x: -90, y: 0, z: -10 }] }))
       .toMatch(/Clamped to natural limits: leftLowerLeg/);
-    expect(store.figure!.joints.leftLowerLeg).toEqual([0, 0, 0]);
-    expect(store.figure!.joints.rightUpperArm).toEqual([-90, 0, -10]);
+    expect(angle(store.figure!.bones, 'leftLowerLeg')).toEqual([0, 0, 0]);
+    expect(angle(store.figure!.bones, 'rightUpperArm')).toEqual([-90, 0, -10]);
 
     run(store, 'add_figure', { kind: 'figure', name: 'Ben', body: 'Male', posture: null, x: 1.5, z: null });
     run(store, 'relate', { figure: 'Ben', other: id, action: 'face_each_other', distance: null });

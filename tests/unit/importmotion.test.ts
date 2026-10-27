@@ -7,6 +7,7 @@ import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { Rig } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { CMU, UNREAL, bvh } from '../fixtures/bvh';
+import { facingOf } from '../../lib/pose';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -38,7 +39,7 @@ describe('importing motions from other tools', () => {
       const start = pose(0);
       start.object.updateMatrixWorld(true);
       expect(start.lowest()).toBeCloseTo(0, 1);
-      expect(Math.abs(figure.joints.hips?.[1] ?? 0)).toBeLessThan(5);
+      expect(Math.abs(facingOf(figure.bones))).toBeLessThan(5);
       // 40 cm of travel on a ~92 cm hip height lands near 0.4 m on the mannequin.
       const end = sceneAt(scene, a.duration).figures[0];
       expect(end.position[2]).toBeGreaterThan(0.3);

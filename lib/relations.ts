@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Ink } from './ink';
 import { sided } from './joints';
 import { IK_CHAINS, Mannequin, setWorldQuaternion, worldPos } from './mannequin';
+import { angle, facingOf, fromQuat, toQuat } from './pose';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
 /*
@@ -19,12 +20,13 @@ const round = (v: number, step = 0.001) => Math.round(v / step) * step || 0; // 
 const wrap = (a: number) => ((((a + 180) % 360) + 360) % 360) - 180;
 
 export function facing(f: Figure) {
-  return f.joints.hips?.[1] ?? 0;
+  return facingOf(f.bones);
 }
 
+/** The figure turned (about the vertical) to face `yaw`, its pose otherwise kept. */
 export function withFacing(f: Figure, yaw: number): Figure {
-  const r = f.joints.hips ?? [0, 0, 0];
-  return { ...f, joints: { ...f.joints, hips: [r[0], round(wrap(yaw), 0.1), r[2]] } };
+  const turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (round(wrap(yaw), 0.1) - facing(f)) * D2R);
+  return { ...f, bones: { ...f.bones, hips: toQuat(turn.multiply(fromQuat(f.bones.hips))) } };
 }
 
 export function withPosition(f: Figure, x: number, z: number): Figure {
@@ -198,7 +200,7 @@ export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, li
   if (miss >= 0.04 * k) {
     // The IK keeps the arm's bend plane: from an awkward start (say, an arm raised overhead) try
     // again from a relaxed arm hanging at the side, and keep whichever gets closer.
-    const first = m.read().joints;
+    const first = m.read().bones;
     const s = side === 'L' ? 1 : -1;
     m.joints[sided('UpperArm', side)].rotation.set(0, 0, s * 10 * THREE.MathUtils.DEG2RAD);
     m.joints[sided('LowerArm', side)].rotation.set(-8 * THREE.MathUtils.DEG2RAD, 0, 0);
@@ -206,19 +208,19 @@ export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, li
     m.object.updateMatrixWorld(true);
     const again = solve();
     if (again < miss) miss = again;
-    else m.apply({ ...f, joints: first });
+    else m.apply({ ...f, bones: first });
   }
   const reached = miss < 0.04 * k;
-  const joints = m.read().joints;
+  const bones = m.read().bones;
   m.setGroundLock(false);
-  return { joints, reached };
+  return { bones, reached };
 }
 
 /**
  * Turn the head (and neck, and the chest for big turns) so the figure looks at `target`,
  * without tilting the head sideways: each joint turns (yaw) and then nods (pitch).
  */
-export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true): Figure['joints'] {
+export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true): Figure['bones'] {
   const m = rig.model(f);
   const k = f.body.height / 1.8;
   /** Direction to the target as yaw / pitch-down (degrees) in the chest's frame. */
@@ -232,7 +234,7 @@ export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true
   const { yaw } = aim();
   const extra = Math.sign(yaw) * Math.max(0, Math.abs(yaw) - 100);
   if (extra) {
-    const c = f.joints.chest ?? [0, 0, 0];
+    const c = angle(f.bones, 'chest');
     m.joints.chest.rotation.y = THREE.MathUtils.clamp(c[1] + extra, -40, 40) * D2R;
     m.object.updateMatrixWorld(true);
   }
@@ -249,7 +251,7 @@ export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true
     turn('head', a.yaw * 0.55, a.pitch * 0.6);
   }
   if (limits) m.constrain(['neck', 'head']);
-  return m.read().joints;
+  return m.read().bones;
 }
 
 /** Head centre of a posed figure, for looking at someone. */

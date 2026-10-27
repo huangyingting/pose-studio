@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { newScene } from '@/lib/doc';
+import { anglesOf } from '@/lib/pose';
 
 // A fresh SQLite database with the app's migrations, and a signed-in user we control.
 const dir = mkdtempSync(join(tmpdir(), 'pose-studio-'));
@@ -65,7 +66,7 @@ describe('library API', () => {
     const saved = (await (await routes.library.GET()).json()).library;
     expect(saved.scenes[0].name).toBe('Junk');
     expect(saved.scenes[0].evil).toBeUndefined();
-    expect(saved.scenes[0].figures[0].joints).toEqual({ leftLowerLeg: [30, 0, 0] });
+    expect(anglesOf(saved.scenes[0].figures[0].bones)).toEqual({ leftLowerLeg: [30, 0, 0] });
   });
 });
 

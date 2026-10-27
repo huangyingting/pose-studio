@@ -1,7 +1,7 @@
 import { cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import {
-  NEUTRAL_JOINTS, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
+  NEUTRAL_ANGLES, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
 import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
@@ -17,6 +17,7 @@ import {
   facing, forward, leftward, withFacing, withPosition, type Contact,
 } from './relations';
 import { CAMERA_MOVES, shotAt } from './shot';
+import { bonesOf, withAngles, type Angles } from './pose';
 import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
@@ -223,7 +224,7 @@ export function setFigureColor(store: Store, id: string, color: string | null) {
 }
 
 export function resetPose(store: Store) {
-  store.updateActiveFigure((f) => ({ ...f, joints: structuredClone(NEUTRAL_JOINTS) }));
+  store.updateActiveFigure((f) => withFacing({ ...f, bones: bonesOf(NEUTRAL_ANGLES) }, facing(f)));
 }
 
 export function mirrorPose(store: Store) {
@@ -235,7 +236,7 @@ export function symmetrizePose(store: Store, from: Side) {
 }
 
 export function setJoint(store: Store, figure: string, joint: JointName, value: Vec3, key: string) {
-  store.updateFigure(figure, (f) => ({ ...f, joints: { ...f.joints, [joint]: value } }), key);
+  store.updateFigure(figure, (f) => ({ ...f, bones: withAngles(f.bones, { [joint]: value }) }), key);
 }
 
 export function setGrounded(store: Store, figure: string, grounded: boolean, currentPosition?: Vec3) {
@@ -249,14 +250,14 @@ export function setHand(store: Store, side: Side, hand: Hand, key = '') {
 export function copyPose(store: Store) {
   const f = store.figure;
   if (!f) return false;
-  store.clipboard = { joints: structuredClone(f.joints), hands: structuredClone(f.hands) };
+  store.clipboard = { bones: { ...f.bones }, hands: structuredClone(f.hands) };
   return true;
 }
 
 export function pastePose(store: Store) {
   const clip = store.clipboard;
   if (!clip || !store.figure) return false;
-  store.updateActiveFigure((f) => ({ ...f, joints: structuredClone(clip.joints), hands: structuredClone(clip.hands) }));
+  store.updateActiveFigure((f) => ({ ...f, bones: { ...clip.bones }, hands: structuredClone(clip.hands) }));
   return true;
 }
 
@@ -325,7 +326,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
     // After the shooter's last key and the ball's (a catch, say), so neither is overwritten.
     const before = [...figureKeyTimes(a, shooter.id), ...propKeyTimes(a, id)].filter((t) => t < t0 + 1e-6).sort((p, q) => p - q).at(-1);
     if (before !== undefined) t0 = Math.min(60, Math.max(t0, Math.round((before + 16 * frame) * a.fps) / a.fps));
-    const shot: [number, Partial<Figure['joints']>][] = [
+    const shot: [number, Angles][] = [
       [t0 - 8 * frame, { [sided('UpperArm', hand)]: [-110, 0, 20 * s], [sided('LowerArm', hand)]: [-100, 0, 0], [sided('UpperArm', other)]: [-70, 0, -10 * s], [sided('LowerArm', other)]: [-90, 0, 0] }],
       [t0, { [sided('UpperArm', hand)]: [-155, 0, 10 * s], [sided('LowerArm', hand)]: [-15, 0, 0], [sided('UpperArm', other)]: [-95, 0, -20 * s], [sided('LowerArm', other)]: [-60, 0, 0] }],
       [t0 + 8 * frame, { [sided('UpperArm', hand)]: [-145, 0, 10 * s], [sided('LowerArm', hand)]: [-20, 0, 0], [sided('UpperArm', other)]: [-75, 0, -20 * s], [sided('LowerArm', other)]: [-50, 0, 0] }],
@@ -438,7 +439,7 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
   const ground = groundOf(scene.props, id);
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   const s = hold.hand === 'L' ? 1 : -1;
-  const arm = (up: boolean): Partial<Figure['joints']> => ({
+  const arm = (up: boolean): Angles => ({
     [sided('UpperArm', hold.hand)]: up ? [-22, 0, 24 * s] : [-30, 0, 22 * s],
     [sided('LowerArm', hold.hand)]: up ? [-50, 0, 0] : [-15, 0, 0],
   });
@@ -485,11 +486,11 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
  * Key some of a figure's joints at a time, the rest as they are then (inside a walk or run: a
  * waypoint on its path that poses the upper body).
  */
-function keyJoints(scene: Scene, a: Animation, f: Figure, t: number, joints: Partial<Figure['joints']>): Animation {
+function keyJoints(scene: Scene, a: Animation, f: Figure, t: number, joints: Angles): Animation {
   const p = samplePose(a, f.id, t);
   const placed = figurePoseAt({ ...scene, animation: a }, f.id, t)!;
-  const keyed = p ? { ...f, joints: p.joints, hands: p.hands, grounded: p.grounded } : f;
-  return setKey(a, t, [{ ...keyed, joints: { ...keyed.joints, ...joints } as Figure['joints'], position: placed.position }]);
+  const keyed = p ? { ...f, bones: bonesOf(p.joints), hands: p.hands, grounded: p.grounded } : f;
+  return setKey(a, t, [{ ...keyed, bones: withAngles(keyed.bones, joints), position: placed.position }]);
 }
 
 /** One prop's key at a time (on a frame), with or without other things keyed then. */
@@ -644,8 +645,8 @@ export function lookAtFigure(store: Store, a: string, b: string) {
   const rig = new Rig();
   try {
     const target = headPoint(rig.model(fb), fb);
-    const joints = lookAt(rig, fa, target, store.getState().settings.limits);
-    store.updateFigure(a, (f) => ({ ...f, joints }));
+    const bones = lookAt(rig, fa, target, store.getState().settings.limits);
+    store.updateFigure(a, (f) => ({ ...f, bones }));
   } finally {
     rig.dispose();
   }
@@ -659,8 +660,8 @@ export function reachFor(store: Store, a: string, side: Side, b: string, contact
   const rig = new Rig();
   try {
     const target = contactPoint(rig.model(fb), fb, contact);
-    const { joints, reached } = reach(rig, fa, side, target, store.getState().settings.limits);
-    store.updateFigure(a, (f) => ({ ...f, joints }));
+    const { bones, reached } = reach(rig, fa, side, target, store.getState().settings.limits);
+    store.updateFigure(a, (f) => ({ ...f, bones }));
     return reached;
   } finally {
     rig.dispose();

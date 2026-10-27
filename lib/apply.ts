@@ -2,7 +2,8 @@ import { newAnimation, samplePose, snapTime } from './animation';
 import { cloneHand } from './hands';
 import { wrapDeg } from './joints';
 import { feetOf, legsOf, plantFeet } from './locomotion';
-import { Rig, facing } from './relations';
+import { anglesOf, bonesOf } from './pose';
+import { Rig, facing, withFacing } from './relations';
 import type { Animation, Figure, PoseAsset, PoseKey, Scene, Vec3 } from './types';
 
 /*
@@ -12,12 +13,7 @@ import type { Animation, Figure, PoseAsset, PoseKey, Scene, Vec3 } from './types
 
 /** The figure in the given pose (joints and hands), still facing the same way. */
 export function withPose(f: Figure, p: PoseAsset): Figure {
-  const r = p.joints.hips ?? [0, 0, 0];
-  return {
-    ...f,
-    joints: { ...structuredClone(p.joints), hips: [r[0], facing(f), r[2]] },
-    hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) },
-  };
+  return withFacing({ ...f, bones: { ...p.bones }, hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) } }, facing(f));
 }
 
 /** Rotate a floor offset by `deg` about the vertical axis (the same sense as turning a figure). */
@@ -41,7 +37,7 @@ export function insertMotion(scene: Scene, cast: string | string[], motion: Scen
   const targets = ids.map((id) => {
     const f = scene.figures.find((x) => x.id === id);
     const p = f && scene.animation ? samplePose(scene.animation, id, start) : null;
-    return f && p ? { ...f, joints: p.joints, position: p.position, grounded: p.grounded } : f;
+    return f && p ? { ...f, bones: bonesOf(p.joints), position: p.position, grounded: p.grounded } : f;
   });
   const m = motion.animation;
   if (!m || ids.length > motion.figures.length || targets.some((f) => !f) || new Set(ids).size < ids.length) return scene;
@@ -116,7 +112,7 @@ export function insertMotion(scene: Scene, cast: string | string[], motion: Scen
 function lockFeet(src: Figure, target: Figure, from: PoseKey[], to: PoseKey[]): PoseKey[] {
   const rig = new Rig();
   try {
-    const as = (f: Figure, p: PoseKey): Figure => ({ ...f, joints: p.joints, position: p.position, hands: p.hands, grounded: p.grounded });
+    const as = (f: Figure, p: PoseKey): Figure => ({ ...f, bones: bonesOf(p.joints), position: p.position, hands: p.hands, grounded: p.grounded });
     // Keyed heights keep their contacts: where the motion's figure touches the floor (a hand in a
     // cartwheel), this figure does too, whatever its proportions.
     to = to.map((p, i) => {
@@ -146,7 +142,7 @@ function lockFeet(src: Figure, target: Figure, from: PoseKey[], to: PoseKey[]): 
         anchors[i].push(anchor!);
       }
     }
-    return to.map((p, i) => (anchors[i].length ? { ...p, joints: plantFeet(rig, as(target, p), anchors[i]).joints } : p));
+    return to.map((p, i) => (anchors[i].length ? { ...p, joints: anglesOf(plantFeet(rig, as(target, p), anchors[i]).bones) } : p));
   } finally {
     rig.dispose();
   }
@@ -160,7 +156,7 @@ const stays = (a: { p: { x: number; y: number; z: number } }, b: { p: { x: numbe
 function densePlanted(m: Animation, src: Figure, keyed: { t: number; pose: PoseKey }[]) {
   const rig = new Rig();
   try {
-    const feet = keyed.map((k) => feetOf(rig, { ...src, joints: k.pose.joints, position: k.pose.position, hands: k.pose.hands, grounded: k.pose.grounded }));
+    const feet = keyed.map((k) => feetOf(rig, { ...src, bones: bonesOf(k.pose.joints), position: k.pose.position, hands: k.pose.hands, grounded: k.pose.grounded }));
     const floor = Math.min(...feet.flat().map((f) => f.p.y));
     const step = 1 / m.fps;
     const out: { t: number; pose: PoseKey }[] = [];

@@ -1,3 +1,5 @@
+import type { Angles, Bones } from './pose';
+
 export type Vec3 = [number, number, number];
 
 export const JOINTS = [
@@ -39,8 +41,8 @@ export interface Figure {
   id: string;
   name: string;
   body: BodyParams;
-  /** Euler rotations in degrees. root uses order YXZ, every other joint XZY. */
-  joints: Partial<Record<JointName, Vec3>>;
+  /** Bone rotations (quaternions) on the standard skeleton; see lib/pose.ts. */
+  bones: Bones;
   hands: Record<Side, Hand>;
   /** Root position. y is ignored while `grounded` is on (the figure rests on the floor). */
   position: Vec3;
@@ -113,7 +115,8 @@ export const TRAVELS = ['walk', 'run', 'jump'] as const;
 export type Travel = (typeof TRAVELS)[number];
 
 export interface PoseKey {
-  joints: Figure['joints'];
+  /** Joint angles (see lib/pose.ts). */
+  joints: Angles;
   position: Vec3;
   hands: Figure['hands'];
   grounded: boolean;
@@ -216,11 +219,11 @@ export interface MotionAsset {
   scene: Scene;
 }
 
-/** A pose in the library: joint angles and hands, applied to a figure without moving it. */
+/** A pose in the library: bone rotations and hands, applied to a figure without moving it. */
 export interface PoseAsset {
   id: string;
   name: string;
-  joints: Figure['joints'];
+  bones: Bones;
   hands: Figure['hands'];
   /** Camera for its thumbnail. */
   view: View;

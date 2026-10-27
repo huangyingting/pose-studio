@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clampRotation, sided, wrapDeg } from './joints';
+import { angleToQuat, bonesOf, type Angles } from './pose';
 import { Rig } from './relations';
 import type { Animation, BodyParams, Figure, JointName, PoseKey, Travel, Vec3 } from './types';
 
@@ -74,7 +75,7 @@ export function legsOf(body: BodyParams): Legs {
   const rig = new Rig();
   try {
     const m = rig.model({
-      id: 'legs', name: '', body, joints: {}, position: [0, 0, 0], grounded: true,
+      id: 'legs', name: '', body, bones: {}, position: [0, 0, 0], grounded: true,
       hands: { L: { curl: [0, 0, 0, 0, 0], spread: 0 }, R: { curl: [0, 0, 0, 0, 0], spread: 0 } },
     });
     const at = (j: JointName) => m.joints[j].getWorldPosition(m.joints[j].position.clone());
@@ -106,7 +107,7 @@ function keyedFeet(body: BodyParams, pose: PoseKey) {
   if (feet) return feet;
   const rig = new Rig();
   try {
-    const m = rig.model({ id: 'feet', name: '', body, joints: pose.joints, position: pose.position, hands: pose.hands, grounded: pose.grounded });
+    const m = rig.model({ id: 'feet', name: '', body, bones: bonesOf(pose.joints), position: pose.position, hands: pose.hands, grounded: pose.grounded });
     const at = (j: 'leftFoot' | 'rightFoot') => {
       const p = m.joints[j].getWorldPosition(m.joints[j].position.clone());
       return [p.x, p.y, p.z] as [number, number, number];
@@ -310,7 +311,7 @@ function compose(pose: PoseKey, legs: Legs, g: Generated): PoseKey {
     const el = joints[sided('LowerArm', side)] ?? [0, 0, 0];
     joints[sided('LowerArm', side)] = [r1(el[0] + g.elbows), el[1], el[2]];
   }
-  const clean = Object.fromEntries(Object.entries(joints).filter(([, v]) => v.some((x) => x !== 0))) as Figure['joints'];
+  const clean = Object.fromEntries(Object.entries(joints).filter(([, v]) => v.some((x) => x !== 0))) as Angles;
   return { ...pose, joints: clean, position: g.position.map((v) => Math.round(v * 1000) / 1000) as Vec3, grounded: false };
 }
 
@@ -677,16 +678,16 @@ export function plantFeet(rig: Rig, pose: Figure, ref: Figure | ReturnType<typeo
   // A grounded figure settles on its new lowest point: solve again until the feet stay.
   for (let i = 0; i < 3; i++) {
     let m = rig.model(f);
-    const joints = { ...f.joints };
+    const bones = { ...f.bones };
     for (const w of want) {
-      const hip = m.joints[w.side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'];
+      const hip = m.joints[sided('UpperLeg', w.side)];
       const frame = hip.parent!.getWorldQuaternion(new THREE.Quaternion()).invert();
       const t = w.p.clone().sub(hip.getWorldPosition(new THREE.Vector3())).applyQuaternion(frame);
       const ik = legAngles(legs, [t.x, t.y, t.z], 0);
-      joints[w.side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'] = [r1(ik.hip[0]), 0, r1(ik.hip[2])];
-      joints[w.side === 'L' ? 'leftLowerLeg' : 'rightLowerLeg'] = [r1(ik.knee), 0, 0];
+      bones[sided('UpperLeg', w.side)] = angleToQuat(sided('UpperLeg', w.side), [r1(ik.hip[0]), 0, r1(ik.hip[2])]);
+      bones[sided('LowerLeg', w.side)] = angleToQuat(sided('LowerLeg', w.side), [r1(ik.knee), 0, 0]);
     }
-    m = rig.model({ ...f, joints });
+    m = rig.model({ ...f, bones });
     // The foot turned as wanted, from the shin it hangs on.
     for (const w of want) {
       const ankle = m.joints[w.side === 'L' ? 'leftFoot' : 'rightFoot'];
@@ -694,9 +695,9 @@ export function plantFeet(rig: Rig, pose: Figure, ref: Figure | ReturnType<typeo
       const e = new THREE.Euler().setFromQuaternion(local, 'XZY');
       // Within the ankle's range: past it (a deep squat) the heel lifts, as people's do.
       const name = w.side === 'L' ? 'leftFoot' : 'rightFoot';
-      joints[name] = clampRotation(name, [r1(e.x * R2D), r1(e.y * R2D), r1(e.z * R2D)]);
+      bones[name] = angleToQuat(name, clampRotation(name, [r1(e.x * R2D), r1(e.y * R2D), r1(e.z * R2D)]));
     }
-    f = { ...f, joints };
+    f = { ...f, bones };
   }
   return f;
 }

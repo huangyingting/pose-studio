@@ -5,6 +5,7 @@ import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
 import { Rig } from './relations';
+import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
 import { SHOT_ASPECT, figuresCenter, placeShot, shotAt, shotFramer, subjectAt } from './shot';
@@ -239,7 +240,6 @@ export function checkMotion(scene: Scene): Issue[] {
     return before !== undefined && Math.abs(change - before) > limit ? Math.abs(change - before) : 0;
   };
   const minAnkle = new Map<string, number>();
-  const euler = new THREE.Euler();
   const point = new THREE.Vector3();
   const ray = new THREE.Ray();
   const tri = new THREE.Triangle();
@@ -302,9 +302,7 @@ export function checkMotion(scene: Scene): Issue[] {
           prevQ.delete(f.id + j);
           continue;
         }
-        const r = f.joints[j] ?? [0, 0, 0];
-        euler.set(r[0] * THREE.MathUtils.DEG2RAD, r[1] * THREE.MathUtils.DEG2RAD, r[2] * THREE.MathUtils.DEG2RAD, j === 'hips' ? 'YXZ' : 'XZY');
-        const q = new THREE.Quaternion().setFromEuler(euler);
+        const q = fromQuat(f.bones[j]);
         const pq = prevQ.get(f.id + j);
         if (pq) {
           const jump = pop(f.id + j, (pq.angleTo(q) * 180) / Math.PI, POP_STEP);
@@ -323,7 +321,7 @@ export function checkMotion(scene: Scene): Issue[] {
       // Joint limits.
       for (const j of JOINTS) {
         if (j === 'hips' || f.proxy) continue;
-        const r = f.joints[j] ?? [0, 0, 0];
+        const r = angle(f.bones, j);
         const lim = jointLimits(j);
         const over = Math.max(...r.map((v, k) => {
           const w = wrapDeg(v);
