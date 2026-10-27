@@ -18,6 +18,7 @@ import { actionLabel, keyAtTime, travelInto } from '@/lib/track';
 import { PROP_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
+import { KEYS } from './shortcuts';
 
 /*
  * The right-click menus, one per kind of thing. The same menu opens wherever the thing is shown
@@ -40,8 +41,8 @@ export function figureMenu(store: Store, id: string, { notifyUndo }: MenuUi): Me
     store.setSettings({ side: 'library', libraryTab });
   };
   return [
-    { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
-    { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateFigure(store, id) },
+    { label: 'Rename', icon: Pencil, shortcut: KEYS.rename, onSelect: () => renameInOutline(store, id) },
+    { label: 'Duplicate', icon: Copy, shortcut: KEYS.duplicate, onSelect: () => duplicateFigure(store, id) },
     { label: f.hidden ? 'Show' : 'Hide', icon: f.hidden ? Eye : EyeOff, onSelect: () => setFigureHidden(store, id, !f.hidden) },
     ...(f.proxy ? [] : [
       '-' as const,
@@ -64,7 +65,7 @@ export function figureMenu(store: Store, id: string, { notifyUndo }: MenuUi): Me
     ] : []),
     '-',
     {
-      label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, disabled: store.scene.figures.length <= 1,
+      label: 'Delete', icon: Trash2, shortcut: KEYS.remove, danger: true, disabled: store.scene.figures.length <= 1,
       onSelect: () => { if (deleteFigure(store, id)) notifyUndo(`Deleted ${f.name}`); },
     },
   ];
@@ -110,8 +111,8 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
     ...(p.kind === 'box' || p.kind === 'mat' ? others.map((x): MenuItem => ({ label: `${x.name} lies on it`, icon: BedSingle, onSelect: () => lieOn(store, x.id, id) })) : []),
   ];
   return [
-    { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
-    { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateProp(store, id) },
+    { label: 'Rename', icon: Pencil, shortcut: KEYS.rename, onSelect: () => renameInOutline(store, id) },
+    { label: 'Duplicate', icon: Copy, shortcut: KEYS.duplicate, onSelect: () => duplicateProp(store, id) },
     ...(hands.length || p.hold ? ['-' as const] : []),
     ...hands,
     ...takes,
@@ -131,7 +132,7 @@ export function propMenu(store: Store, id: string, { notifyUndo }: MenuUi): Menu
     ] : []),
     ...(carried.length ? ['-' as const, ...carried] : []),
     '-',
-    { label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },
+    { label: 'Delete', icon: Trash2, shortcut: KEYS.remove, danger: true, onSelect: () => { deleteProp(store, id); notifyUndo(`Deleted ${p.name}`); } },
   ];
 }
 
@@ -140,7 +141,7 @@ export function shotMenu(store: Store, id: string, { notify, notifyUndo }: MenuU
   const span = a && shotSpans(a).find((sp) => sp.shot.id === id);
   if (!span) return [];
   return [
-    { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
+    { label: 'Rename', icon: Pencil, shortcut: KEYS.rename, onSelect: () => renameInOutline(store, id) },
     {
       label: 'Choose a camera move…', icon: Video, onSelect: () => {
         store.setTime(span.start);
@@ -166,7 +167,7 @@ export function shotMenu(store: Store, id: string, { notify, notifyUndo }: MenuU
     },
     ...(span.index > 0 ? [
       '-' as const,
-      { label: 'Remove cut', icon: Scissors, shortcut: 'Del', danger: true, onSelect: () => { removeShotCut(store, id); notifyUndo(`Removed the cut before ${span.shot.name}`); } },
+      { label: 'Remove cut', icon: Scissors, shortcut: KEYS.remove, danger: true, onSelect: () => { removeShotCut(store, id); notifyUndo(`Removed the cut before ${span.shot.name}`); } },
     ] : []),
   ];
 }
@@ -181,12 +182,12 @@ export function cameraMenu(store: Store, id: string, { notifyUndo }: Pick<MenuUi
       { label: `Delete the point at ${point.toFixed(2)} s`, icon: Trash2, danger: true, disabled: cam.points.length <= 1, onSelect: () => deleteCameraPoint(store, point, id) },
       '-' as const,
     ] : []),
-    { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
+    { label: 'Rename', icon: Pencil, shortcut: KEYS.rename, onSelect: () => renameInOutline(store, id) },
     { label: 'Look through it', icon: Eye, checked: through, onSelect: () => store.lookThrough(through ? null : { camera: id }) },
-    { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl D', onSelect: () => duplicateCamera(store, id) },
+    { label: 'Duplicate', icon: Copy, shortcut: KEYS.duplicate, onSelect: () => duplicateCamera(store, id) },
     '-',
     {
-      label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, disabled: store.scene.cameras.length <= 1,
+      label: 'Delete', icon: Trash2, shortcut: KEYS.remove, danger: true, disabled: store.scene.cameras.length <= 1,
       onSelect: () => { deleteCamera(store, id); notifyUndo(`Deleted ${cam.name}`); },
     },
   ];
@@ -320,6 +321,6 @@ export function canvasMenu(store: Store, at: Vec3 | undefined, frameAll: () => v
     { group: 'Add a prop' },
     ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k): MenuItem => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k, spot) })),
     '-',
-    { label: 'Frame all', icon: Scan, shortcut: 'F', onSelect: frameAll },
+    { label: 'Frame all', icon: Scan, shortcut: KEYS.frameAll, onSelect: frameAll },
   ];
 }

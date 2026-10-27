@@ -1,4 +1,6 @@
+import { frameTimes } from './animation';
 import { angleAt } from './cameras';
+import { sceneAt } from './evaluate';
 import { STYLES, type Scene, type Style, type View } from './types';
 
 /*
@@ -16,10 +18,12 @@ export interface PracticeOptions {
   randomAngle: boolean;
   mirror: boolean;
   style: Style;
+  /** Simple face features (the practice's own, not the film's). */
+  faces: boolean;
 }
 
 export const DEFAULT_PRACTICE: PracticeOptions = {
-  source: 'all', seconds: 60, count: 10, shuffle: true, randomAngle: false, mirror: false, style: 'line',
+  source: 'all', seconds: 60, count: 10, shuffle: true, randomAngle: false, mirror: false, style: 'line', faces: true,
 };
 
 export const DURATIONS = [15, 30, 60, 120, 300, 600, 0];
@@ -42,6 +46,7 @@ export function parsePracticeOptions(raw: unknown): PracticeOptions {
     randomAngle: o.randomAngle === true,
     mirror: o.mirror === true,
     style: STYLES.includes(o.style as Style) ? (o.style as Style) : 'line',
+    faces: o.faces !== false,
   };
 }
 
@@ -62,7 +67,9 @@ export function buildSession(scenes: Scene[], current: Scene, o: PracticeOptions
   const n = sessionLength(o, scenes.length);
   let pool: Scene[];
   if (o.source === 'current') {
-    pool = Array.from({ length: n }, () => current);
+    // An animated scene: its moments, spread over it as a frame sheet's are.
+    const a = current.animation;
+    pool = a ? frameTimes(a, n).map((t) => sceneAt(current, t)) : Array.from({ length: n }, () => current);
   } else {
     pool = [...scenes];
     if (o.shuffle) {

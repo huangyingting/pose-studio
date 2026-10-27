@@ -17,6 +17,7 @@ import { startRename, useRenaming } from '../rename';
 import { useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Menu } from '../ui';
 import type { SectionProps } from './sections';
+import { KEYS } from '../shortcuts';
 
 /**
  * The open scene in workflow order: its cast (figures and stand-ins), its set (props), its
@@ -185,7 +186,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
         <div className="outline-group">
           <div className="outline-head">
             <h3>Shots <span className="count">{spans.length}</span></h3>
-            {a && <IconButton icon={Scissors} label="Cut a new shot at the playhead" shortcut="C" onClick={() => cutShot(store)} size={15} />}
+            {a && <IconButton icon={Scissors} label="Cut a new shot at the playhead" shortcut={KEYS.cut} onClick={() => cutShot(store)} size={15} />}
           </div>
           {a ? (
             <ul className="layers" aria-label="Shots">

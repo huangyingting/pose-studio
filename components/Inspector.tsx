@@ -30,6 +30,7 @@ import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
 import { figureMenu, propMenu, sceneMenu, type MenuUi } from './menus';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
+import { KEYS } from './shortcuts';
 
 export interface InspectorContext {
   /** The editor camera, to make a scene camera from. */
@@ -50,7 +51,7 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   const selection = useStudio((s) => s.selection);
   const figure = useActiveFigure();
   const scene = useScene();
-  const hide = <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut="I" className="panel-hide hide-mobile" size={15} onClick={onHide} />;
+  const hide = <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut={KEYS.inspector} className="panel-hide hide-mobile" size={15} onClick={onHide} />;
   const chrome: HeaderChrome = {
     before: (
       <button type="button" className="crumb" data-tip="The scene: its light and look" onClick={() => store.select(null)}>
@@ -148,7 +149,7 @@ function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
       actions={(
         <>
           <IconButton icon={RotateCcw} label="Reset joint" onClick={() => setJoint(store, figure.id, joint, [0, 0, 0], '')} />
-          <IconButton icon={X} label="Deselect" shortcut="Esc" onClick={() => store.select(null)} />
+          <IconButton icon={X} label="Deselect" shortcut={KEYS.deselect} onClick={() => store.select(null)} />
         </>
       )}
     >
@@ -197,12 +198,12 @@ function PoseSection({ ctx }: { ctx: InspectorContext }) {
   return (
     <Section title="Pose">
       <div className="toolrow">
-        <IconButton icon={FlipHorizontal2} label="Mirror pose" shortcut="M" onClick={() => mirrorPose(store)} />
+        <IconButton icon={FlipHorizontal2} label="Mirror pose" shortcut={KEYS.mirror} onClick={() => mirrorPose(store)} />
         <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => symmetrizePose(store, 'L')}>L→R</button>
         <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="Right → Left" onClick={() => symmetrizePose(store, 'R')}>R→L</button>
         <span className="toolrow-sep" />
-        <IconButton icon={ClipboardCopy} label="Copy pose" shortcut="Ctrl C" onClick={() => { if (copyPose(store)) ctx.notify('Pose copied'); }} />
-        <IconButton icon={ClipboardPaste} label="Paste pose" shortcut="Ctrl V" onClick={() => { if (!pastePose(store)) ctx.notify('Copy a pose first', 'error'); }} />
+        <IconButton icon={ClipboardCopy} label="Copy pose" shortcut={KEYS.copy} onClick={() => { if (copyPose(store)) ctx.notify('Pose copied'); }} />
+        <IconButton icon={ClipboardPaste} label="Paste pose" shortcut={KEYS.paste} onClick={() => { if (!pastePose(store)) ctx.notify('Copy a pose first', 'error'); }} />
         <span className="toolrow-sep" />
         <IconButton icon={RotateCcw} label="Reset pose" onClick={() => resetPose(store)} />
       </div>

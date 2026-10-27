@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import {
-  NEUTRAL_ANGLES, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
+  NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
@@ -1232,6 +1232,31 @@ export function applyPose(store: Store, figureId: string, poseId: string) {
   if (!pose) return false;
   store.updateFigure(figureId, (f) => (f.proxy ? f : withPose(f, pose)), '');
   return true;
+}
+
+/**
+ * People posed from a photo, with a "Photo camera" looking as the photo did (straight on): in a
+ * new scene, or (`figure`) the first on that figure, the others beside it as they stood in the
+ * photo, as a pose from the library is applied (keyed at the playhead), in one undo step.
+ */
+export function applyPhotoPose(store: Store, figures: Figure[], figure?: string) {
+  const photo = cameraFrom({ yaw: 0, pitch: 0, fov: 30 }, 'Photo camera');
+  if (!figure) {
+    appendScenes(store, [{ ...newScene('From photo', figures), cameras: [photo] }]);
+    return;
+  }
+  const on = store.scene.figures.find((f) => f.id === figure);
+  if (!on || on.proxy) return;
+  const [first, ...rest] = figures;
+  const [dx, dz] = [on.position[0] - first.position[0], on.position[2] - first.position[2]];
+  store.group(() => {
+    store.updateFigure(figure, (f) => ({ ...f, bones: first.bones }));
+    store.updateScene((s) => {
+      const had = s.cameras.find((c) => c.name === photo.name);
+      return withCamera(s, had ? { ...photo, id: had.id } : photo);
+    });
+    if (rest.length) addFigures(store, rest.map((f) => ({ ...f, position: [f.position[0] + dx, f.position[1], f.position[2] + dz] })));
+  });
 }
 
 /** Save a figure's pose to the library; returns the saved pose. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clampLight, DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
+import { newAnimation } from '@/lib/animation';
 import { angleAt } from '@/lib/cameras';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
 import { builtInPoses, poseScene } from '@/lib/poses';
@@ -86,6 +87,16 @@ describe('gesture practice', () => {
       expect(s.angle.pitch).toBeGreaterThanOrEqual(-10);
       expect(s.angle.pitch).toBeLessThanOrEqual(35);
     }
+  });
+
+  it('practises an animated scene\'s moments, spread over it, each from a random angle', () => {
+    const s = newScene('Wave', scenes[2].figures);
+    const animated = { ...s, animation: { ...newAnimation(s, 2) } };
+    const slides = buildSession(scenes, animated, { ...DEFAULT_PRACTICE, source: 'current', count: 5 }, seeded(4));
+    expect(slides).toHaveLength(5);
+    expect(slides.every((x) => !x.scene.animation || x.scene !== animated)).toBe(true);
+    expect(new Set(slides.map((x) => x.angle.yaw)).size).toBeGreaterThan(1);
+    expect(parsePracticeOptions({ faces: false }).faces).toBe(false);
   });
 
   it('mirrors some poses when enabled', () => {

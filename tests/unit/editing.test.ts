@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, addStandIn, cutShot, deleteSelection, duplicateSelection, nextName, renameProp, startAnimation,
+  addFigure, addProp, addStandIn, applyPhotoPose, cutShot, deleteSelection, duplicateSelection, nextName, renameProp, startAnimation,
 } from '@/lib/actions';
-import { parseScene } from '@/lib/doc';
+import { newFigure, parseScene } from '@/lib/doc';
+import { withAngles } from '@/lib/pose';
+import { keyTimesOf } from '@/lib/track';
 import { Store } from '@/lib/store';
 
 class MemoryStorage implements Storage {
@@ -85,5 +87,25 @@ describe('names, selection and editing', () => {
     store.select(null);
     expect(deleteSelection(store)).toBeNull();
     expect(duplicateSelection(store)).toBe(false);
+  });
+});
+
+describe('pose from a photo', () => {
+  it('goes on the selected figure as a library pose does (keyed, one undo step), the others beside it', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    store.updateFigure(id, (f) => ({ ...f, position: [3, 0, 2] }));
+    startAnimation(store, 2);
+    store.setTime(1);
+    const bent = withAngles(newFigure().bones, { leftLowerLeg: [60, 0, 0] });
+    const people = [newFigure({ bones: bent, position: [-0.5, 0, 0] }), newFigure({ position: [0.7, 0, 0] })];
+    const before = store.scene;
+    applyPhotoPose(store, people, id);
+    const s = store.scene;
+    expect(keyTimesOf(s.animation!, id)).toEqual([0, 1]);
+    expect(s.figures[1].position).toEqual([4.2, 0, 2]);
+    expect(s.cameras.map((c) => c.name)).toEqual(['Camera 1', 'Photo camera']);
+    store.undo();
+    expect(store.scene).toEqual(before);
   });
 });

@@ -27,14 +27,15 @@ export function PracticeMode({ onClose }: { onClose(): void }) {
   const [slides, setSlides] = useState<Slide[] | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [style, setStyle] = useState<Style>('line');
+  const [faces, setFaces] = useState(true);
   return (
     <div className="practice" role="dialog" aria-modal="true" aria-label="Gesture practice">
       {slides ? (
-        <Session slides={slides} seconds={seconds} style={style} onExit={onClose} onRestart={() => setSlides(null)} />
+        <Session slides={slides} seconds={seconds} style={style} faces={faces} onExit={onClose} onRestart={() => setSlides(null)} />
       ) : (
         <Setup
           onCancel={onClose}
-          onStart={(s, o) => { setSeconds(o.seconds); setStyle(o.style); setSlides(s); }}
+          onStart={(s, o) => { setSeconds(o.seconds); setStyle(o.style); setFaces(o.faces); setSlides(s); }}
         />
       )}
     </div>
@@ -76,7 +77,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
           <Segmented<PracticeOptions['source']> label="Poses"
             value={o.source}
             onChange={(source) => set({ source })}
-            options={[{ value: 'all', label: `Pose library (${scenes.length})` }, { value: 'current', label: 'This scene, random angles' }]}
+            options={[{ value: 'all', label: `Pose library (${scenes.length})` }, { value: 'current', label: scene.animation ? 'This scene’s moments, random angles' : 'This scene, random angles' }]}
           />
         </Field>
         <Field label="Time per pose">
@@ -99,6 +100,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
         {o.source === 'all' && <Toggle label="Shuffle" checked={o.shuffle} onChange={(shuffle) => set({ shuffle })} />}
         {o.source === 'all' && <Toggle label="Random camera angles" checked={o.randomAngle} onChange={(randomAngle) => set({ randomAngle })} />}
         <Toggle label="Randomly mirror poses" checked={o.mirror} onChange={(mirror) => set({ mirror })} />
+        <Toggle label="Face features" hint="Nose, eyes, brows and mouth, so you can tell where a figure looks" checked={o.faces} onChange={(faces) => set({ faces })} />
       </div>
       <div className="row practice-actions">
         <span className="muted">{total ? `About ${formatTime(total)} in total` : 'Advance with → or the Next button'}</span>
@@ -109,14 +111,14 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
   );
 }
 
-function Session({ slides, seconds, style, onExit, onRestart }: {
+function Session({ slides, seconds, style, faces, onExit, onRestart }: {
   slides: Slide[];
   seconds: number;
   style: Style;
+  faces: boolean;
   onExit(): void;
   onRestart(): void;
 }) {
-  const faces = useStudio((s) => s.settings.faces);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [done, setDone] = useState(false);

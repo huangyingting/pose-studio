@@ -74,11 +74,11 @@ export function fitCamera(camera: THREE.PerspectiveCamera, source: PointSource, 
 
 export interface ExportOptions {
   /**
-   * All poses, the current pose, the current pose from several angles, or (animations) a
-   * sheet of frames or a video.
+   * What is exported. Stills: this scene, a turnaround of it, every scene (all), the pose
+   * library (poses), a sheet of an animation's frames. Film: a video, a keyframe pack. 3D: the
+   * scene as a model (.glb).
    */
-  /** all: every scene; poses: the pose library (built-in and saved). */
-  scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'video' | 'pack';
+  scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'video' | 'pack' | 'model';
   /** The styled picture, or a depth / normal pass (for AI image and video tools). */
   pass: Pass;
   /** Keyframe packs: add a clay-shaded clip of each shot. */
@@ -133,7 +133,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   return {
-    scope: ['all', 'poses', 'turnaround', 'frames', 'video', 'pack'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
+    scope: ['all', 'poses', 'turnaround', 'frames', 'video', 'pack', 'model'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
     pass: o.pass === 'depth' || o.pass === 'normal' ? o.pass : 'beauty',
     greybox: o.greybox !== false,
     angles: o.angles === 8 ? 8 : 4,

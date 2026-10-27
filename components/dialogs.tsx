@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneAt } from '@/lib/evaluate';
-import { addCamera, addFigures, appendScenes, setReferenceImage } from '@/lib/actions';
-import { cameraFrom, newFigure, newScene } from '@/lib/doc';
+import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
+import { newFigure } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
@@ -13,13 +13,14 @@ import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
   canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, videoSize, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
-import { cameraAt, frameAspect, withCamera, type CameraView } from '@/lib/cameras';
+import { cameraAt, frameAspect, type CameraView } from '@/lib/cameras';
 import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
 import type { BodyParams, Figure, Style } from '@/lib/types';
 import { useScene, useStore, useStudio } from './store-context';
+import { SHORTCUTS } from './shortcuts';
 import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
 /* ---------------- Export ---------------- */
@@ -58,6 +59,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
   const scope: ExportOptions['scope'] = (!animated && (o.scope === 'frames' || o.scope === 'video')) || (o.scope === 'all' && scenes.length < 2) ? 'current' : o.scope;
   const video = scope === 'video';
   const pack = scope === 'pack';
+  const model = scope === 'model';
   // Video and keyframe packs are framed by the shot camera at a video size.
   const filmed = video || pack;
   const canRecord = videoSupported();
@@ -70,7 +72,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
   );
   const size = filmed ? videoSize(o.videoSize, frameAspect(scene)) : sheetSize(cells.length, o);
   const { width, height } = size;
-  const tooBig = !filmed && (width * height > 120_000_000 || width > 16384 || height > 16384);
+  const tooBig = !filmed && !model && (width * height > 120_000_000 || width > 16384 || height > 16384);
   const pass = pack ? 'beauty' : o.pass;
 
   useEffect(() => () => abort.current?.abort(), []);
@@ -114,6 +116,13 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
     setProgress(0);
     await new Promise((r) => setTimeout(r, 30)); // let the button state paint
     try {
+      if (model) {
+        const { sceneToGlb } = await import('@/lib/model3d');
+        downloadBlob(await sceneToGlb(scene, time), `${safeFilename(scene.name)}.glb`);
+        notify(scene.animation ? '3D model saved, animated (.glb)' : '3D model saved (.glb)');
+        onClose();
+        return;
+      }
       if (pack) {
         abort.current = new AbortController();
         const blob = await keyframePack(scene, {
@@ -164,52 +173,47 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
     />
   );
 
-  const images: SegmentOption<ExportOptions['scope']>[] = [
-    { value: 'current', label: 'This scene', icon: Square },
-    { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This scene from evenly spaced angles' },
-    ...(scenes.length > 1 ? [{ value: 'all' as const, label: `${scenes.length} scenes`, icon: LayoutGrid, title: 'Every scene of the project' }] : []),
-    { value: 'poses', label: `Poses ${poseCount}`, icon: Images, title: 'The pose library as a reference sheet' },
-  ];
-  const forVideo: SegmentOption<ExportOptions['scope']>[] = [
-    ...(animated ? [
-      { value: 'frames' as const, label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' },
-      { value: 'video' as const, label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' },
-    ] : []),
-    { value: 'pack', label: 'Keyframe pack', icon: Package, title: 'First/last frames, depth, normals, camera, prompt (and greybox clips) per shot, for AI video models' },
+  // What to export: one choice, grouped.
+  const outputs: { group: string; options: SegmentOption<ExportOptions['scope']>[] }[] = [
+    {
+      group: 'Stills',
+      options: [
+        { value: 'current', label: 'This scene', icon: Square },
+        { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This scene from evenly spaced angles' },
+        ...(scenes.length > 1 ? [{ value: 'all' as const, label: `${scenes.length} scenes`, icon: LayoutGrid, title: 'Every scene of the project' }] : []),
+        { value: 'poses', label: `Poses ${poseCount}`, icon: Images, title: 'The pose library as a reference sheet' },
+        ...(animated ? [{ value: 'frames' as const, label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' }] : []),
+      ],
+    },
+    {
+      group: 'Film',
+      options: [
+        ...(animated ? [{ value: 'video' as const, label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' }] : []),
+        { value: 'pack', label: 'Keyframe pack', icon: Package, title: 'First/last frames, depth, normals, camera, prompt (and greybox clips) per shot, for AI video models' },
+      ],
+    },
+    {
+      group: '3D',
+      options: [{ value: 'model', label: '3D model (.glb)', icon: Box, title: scene.animation ? 'The open scene for Blender and other 3D tools: its figures, props and shot camera, animated' : 'The open scene, posed as shown, for Blender and other 3D tools' }],
+    },
   ];
 
   return (
     <Modal
-      title={pack ? 'Export keyframe pack' : video ? 'Export video' : 'Export image'}
-      icon={pack ? Package : video ? Film : Download}
+      title={model ? 'Export 3D model' : pack ? 'Export keyframe pack' : video ? 'Export video' : 'Export image'}
+      icon={model ? Box : pack ? Package : video ? Film : Download}
       onClose={onClose}
       wide
       footer={
         <>
           <span className={tooBig ? 'error-text' : 'muted'}>
-            {width} × {height} px{tooBig ? ' — too large for most browsers' : ''}
+            {model ? (scene.animation ? 'Animated: figures, props and the shot camera' : 'Posed as shown') : `${width} × ${height} px`}{tooBig ? ' — too large for most browsers' : ''}
             {video && scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`}
           </span>
-          <button
-            type="button"
-            className="btn ghost"
-            data-tip={scene.animation ? 'The open scene for Blender and other 3D tools: its figures, props and shot camera, animated' : 'The open scene, posed as shown, for Blender and other 3D tools'}
-            onClick={async () => {
-              try {
-                const { sceneToGlb } = await import('@/lib/model3d');
-                downloadBlob(await sceneToGlb(scene, time), `${safeFilename(scene.name)}.glb`);
-                notify(scene.animation ? '3D model saved, animated (.glb)' : '3D model saved (.glb)');
-              } catch (err) {
-                notify(`Could not export the 3D model: ${(err as Error).message}`, 'error');
-              }
-            }}
-          >
-            <Box size={15} aria-hidden /> 3D model (.glb)
-          </button>
-          {!filmed && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })} data-tip="4 columns of 600 × 640 cells, as the original Pose.jpg sheet">Default layout</button>}
+          {!filmed && !model && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })} data-tip="4 columns of 600 × 640 cells, as the original Pose.jpg sheet">Default layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
-            {video ? <Film size={15} aria-hidden /> : pack ? <Package size={15} aria-hidden /> : <Download size={15} aria-hidden />}
+            {video ? <Film size={15} aria-hidden /> : pack ? <Package size={15} aria-hidden /> : model ? <Box size={15} aria-hidden /> : <Download size={15} aria-hidden />}
             {busy
               ? (filmed ? `${video ? 'Recording' : 'Packing'}… ${Math.round(progress * 100)}%` : 'Rendering…')
               : video ? 'Record video' : pack ? 'Download pack' : 'Download'}
@@ -219,12 +223,20 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
     >
       <div className="export-grid">
         <div className="form">
-          <Field label="Image">
-            <Segmented<ExportOptions['scope']> label="Image" full value={scope} onChange={(sc) => set({ scope: sc })} options={images} />
-          </Field>
-          <Field label="For video">
-            <Segmented<ExportOptions['scope']> label="For video" full value={scope} onChange={(sc) => set({ scope: sc })} options={forVideo} />
-          </Field>
+          <div className="export-outputs" role="radiogroup" aria-label="Export">
+            {outputs.map((g) => (
+              <div key={g.group} className="field">
+                <span>{g.group}</span>
+                <div className="segmented full">
+                  {g.options.map((op) => (
+                    <button key={op.value} type="button" role="radio" aria-checked={op.value === scope} className={op.value === scope ? 'on' : ''} title={op.title} onClick={() => set({ scope: op.value })}>
+                      {op.icon && <op.icon size={15} strokeWidth={1.75} aria-hidden />}<span>{op.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
           {scope === 'turnaround' && (
             <Field label="Angles">
               <Segmented<'4' | '8'>
@@ -263,7 +275,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
               </button>
             </Field>
           )}
-          {!pack && (
+          {!pack && !model && (
             <Field label="Pass">
               <Segmented<Pass>
                 label="Pass"
@@ -277,7 +289,7 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
               />
             </Field>
           )}
-          <div className="row">
+          {!model && <div className="row">
             <label>Style
               <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
             </label>
@@ -290,8 +302,12 @@ export function ExportDialog({ onClose, notify, editorCamera }: { onClose(): voi
                 <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
               </label>
             )}
-          </div>
-          {pack ? (
+          </div>}
+          {model ? (
+            <p className="muted small">
+              The open scene as a binary glTF for Blender, game engines and other 3D tools{animated ? ': an animation per person, one for the props and one for the shot camera' : ', posed as shown'}.
+            </p>
+          ) : pack ? (
             <>
               {animated && <Toggle label="Greybox clip of each shot" hint="A clay-shaded video of the motion and camera, as a reference for the model" checked={o.greybox} onChange={(greybox) => set({ greybox })} />}
               <p className="muted small">
@@ -375,13 +391,17 @@ function poseFigures(people: DetectedPerson[], body: BodyParams): { figures: Fig
 export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
   const store = useStore();
   const activeFigure = useStudio((s) => s.activeFigure);
+  const selection = useStudio((s) => s.selection);
   const scene = useScene();
+  // The pose can go on the selected figure only if one that can be posed is selected.
+  const posable = (selection?.kind === 'figure' || selection?.kind === 'joint') && !scene.figures.find((f) => f.id === selection.figure)?.proxy ? selection.figure : null;
   const [url, setUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [people, setPeople] = useState<DetectedPerson[]>([]);
-  const [target, setTarget] = useState<'new' | 'current'>('new');
+  const [chosen, setTarget] = useState<'new' | 'current'>('new');
+  const target = posable ? chosen : 'new';
   const [asReference, setAsReference] = useState(true);
   const canvas = useRef<HTMLCanvasElement>(null);
   const body = useMemo(() => scene.figures.find((f) => f.id === activeFigure)?.body ?? newFigure().body, [scene, activeFigure]);
@@ -433,21 +453,7 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
 
   const apply = () => {
     const { figures, skipped } = poseFigures(people, body);
-    // A camera looking as the photo did (straight on), to check the pose against it from there.
-    const photo = cameraFrom({ yaw: 0, pitch: 0, fov: 30 }, 'Photo camera');
-    if (target === 'new') {
-      appendScenes(store, [{ ...newScene('From photo', figures), cameras: [photo] }]);
-    } else if (activeFigure) {
-      const [first, ...rest] = figures;
-      store.updateScene((s) => {
-        const had = s.cameras.find((c) => c.name === photo.name);
-        return {
-          ...withCamera(s, had ? { ...photo, id: had.id } : photo),
-          figures: s.figures.map((f) => (f.id === activeFigure ? { ...f, bones: first.bones } : f)),
-        };
-      });
-      if (rest.length) addFigures(store, rest);
-    }
+    applyPhotoPose(store, figures, target === 'current' ? posable! : undefined);
     // Over the scene posed (the new one, or this one), saved with it.
     if (asReference && photoFile) void setReferenceImage(store, photoFile);
     notify(skipped.length ? `Posed. Not visible in the photo: ${skipped.join(', ')}` : 'Pose applied from photo');
@@ -489,10 +495,10 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
               full
               value={target}
               onChange={setTarget}
-              options={[{ value: 'new', label: 'A new scene' }, { value: 'current', label: 'The selected figure' }]}
+              options={[{ value: 'new', label: 'A new scene' }, ...(posable ? [{ value: 'current' as const, label: 'The selected figure' }] : [])]}
             />
           </Field>
-          <Toggle label="Show the photo as a reference overlay" checked={asReference} onChange={setAsReference} />
+          <Toggle label="Keep the photo as the scene's reference image" checked={asReference} onChange={setAsReference} />
         </div>
         <div className="preview">
           {status === 'loading' && <div className="spinner" aria-label="Working" />}
@@ -506,47 +512,6 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
 
 /* ---------------- Help ---------------- */
 
-const SHORTCUTS: [string, string][] = [
-  ['Select a body part', 'Click'],
-  ['Menu for a figure, prop, shot or scene', 'Right click'],
-  ['Pose a limb · move a hand or foot', 'Drag it'],
-  ['Twist a part · turn a figure or prop', 'Shift drag'],
-  ['Move a figure or prop on the floor', 'Drag its torso / it'],
-  ['Turn a figure or prop', 'Drag its floor ring (Shift: 15°)'],
-  ['Walk · run · jump the selected figure there', 'Right click the floor'],
-  ['How a figure gets to its next key (walk, run, jump…)', 'Right click between its keys'],
-  ['Orbit · pan · zoom', 'Drag empty space or Alt drag · Right drag · Wheel'],
-  ['Tools: pose · move (with height) · scale props', 'E  W  R'],
-  ['Camera views', '1 – 6'],
-  ['Frame all', 'F'],
-  ['Mirror pose', 'M'],
-  ['Drag handles', 'H'],
-  ['Show / hide the inspector', 'I'],
-  ['Next render style', 'L'],
-  ['Storyboard', 'B'],
-  ['Gesture practice', 'P'],
-  ['Play / pause animation', 'Space'],
-  ['Step a frame', ',  .'],
-  ['Key the selected figure · cut shot', 'K · C'],
-  ['Zoom · scroll the timeline', 'Ctrl wheel · Shift wheel'],
-  ['Move a key and the keys after it', 'Shift drag the key'],
-  ['Edit an action (a walk, a motion) in the inspector', 'Click its block'],
-  ['Move · retime · blend an action', 'Drag its block · its right edge · its ramp'],
-  ['Where an action ends · a formation', 'Drag its numbered mark on the floor'],
-  ['Move a shot\'s camera · up and down · add a point', 'Drag it · Shift drag · double-click its path'],
-  ['Previous / next scene', '[  ]'],
-  ['Undo / redo', 'Ctrl Z  ·  Ctrl Shift Z'],
-  ['Copy / paste pose', 'Ctrl C  ·  Ctrl V'],
-  ['Duplicate the selection', 'Ctrl D'],
-  ['Rename the selection', 'F2 · Double-click'],
-  ['Export image', 'Ctrl E'],
-  ['Save library', 'Ctrl S'],
-  ['Reorder scenes (scene picker)', 'Alt + arrows'],
-  ['Delete the selection', 'Del'],
-  ['Deselect', 'Esc'],
-  ['This help', '?'],
-];
-
 export function HelpDialog({ onClose }: { onClose(): void }) {
   return (
     <Modal title="Keyboard shortcuts" icon={Keyboard} onClose={onClose} wide>
@@ -556,8 +521,8 @@ export function HelpDialog({ onClose }: { onClose(): void }) {
         ))}
       </div>
       <p className="muted small" style={{ marginTop: 14 }}>
-        Click a slider&apos;s value to type an exact number. Poses are saved in this browser automatically; use <b>Save library</b> in
-        the main menu to keep a file, and <b>Share link</b> to send a single pose.
+        Click a slider&apos;s value to type an exact number. Scenes are saved in this browser automatically; use <b>Save project</b> in
+        the main menu to keep a file, and <b>Copy share link</b> in a scene&apos;s menu to send one scene.
       </p>
     </Modal>
   );

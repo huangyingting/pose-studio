@@ -350,7 +350,7 @@ test('Shift-drag twists a part; handheld props go in the hand; the scene exports
 
   // The posed scene as a binary glTF file.
   await page.keyboard.press('Control+e');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '3D model (.glb)' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('radio', { name: '3D model (.glb)' }).click().then(() => page.getByRole('button', { name: 'Download', exact: true }).click())]);
   expect(download.suggestedFilename()).toMatch(/\.glb$/);
   expect(readFileSync((await download.path())!).subarray(0, 4).toString()).toBe('glTF');
 });
@@ -733,7 +733,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
 
   // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
   await page.keyboard.press('Control+e');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '3D model (.glb)' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('radio', { name: '3D model (.glb)' }).click().then(() => page.getByRole('button', { name: 'Download', exact: true }).click())]);
   const glb = readFileSync((await download.path())!);
   const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString()) as { animations: { name: string; channels: unknown[] }[]; cameras?: unknown[] };
   expect(json.animations.map((x) => x.name)).toEqual([s.scene.figures[0].name, 'Camera']);

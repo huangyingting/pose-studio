@@ -22,6 +22,7 @@ import { openContextMenu } from './ContextMenu';
 import { actionMenu, cameraMenu, figureMenu, shotMenu, travelMenu } from './menus';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
+import { KEYS, withKey } from './shortcuts';
 
 /** Current playhead: the clock while playing, the document time otherwise. */
 export function usePlayhead(clock: Clock) {
@@ -379,7 +380,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
       <div className="tl-bar">
         <div className="tl-transport">
           <IconButton icon={StepBack} label="Previous keyframe" tipSide="top" className="tl-step" disabled={prevKey === undefined} onClick={() => prevKey !== undefined && seek(prevKey)} />
-          <button type="button" className="tl-play" onClick={toggle} aria-label={clock.playing ? 'Pause' : 'Play'} data-tip={clock.playing ? 'Pause  Space' : 'Play  Space'} data-tip-side="top">
+          <button type="button" className="tl-play" onClick={toggle} aria-label={clock.playing ? 'Pause' : 'Play'} data-tip={withKey(clock.playing ? 'Pause' : 'Play', 'play')} data-tip-side="top">
             {clock.playing ? <Pause size={16} aria-hidden /> : <Play size={16} aria-hidden />}
           </button>
           <IconButton icon={StepForward} label="Next keyframe" tipSide="top" className="tl-step" disabled={nextKey === undefined} onClick={() => nextKey !== undefined && seek(nextKey)} />
@@ -402,7 +403,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
           type="button"
           className={`btn ghost tl-btn${onKey ? ' on' : ''}`}
           aria-label={`${onKey ? 'Update' : 'Add'} ${keyLabel}`}
-          data-tip={`${onKey ? 'Update' : 'Add'} ${keyLabel}  K`}
+          data-tip={withKey(`${onKey ? 'Update' : 'Add'} ${keyLabel}`, 'key')}
           data-tip-side="top"
           onClick={() => addKeyframe(store)}
         >
@@ -411,7 +412,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
         {!compact && (
           <>
             <IconButton icon={Trash2} label={`Delete ${keyLabel}`} tipSide="top" disabled={!onKey || activeKeys.length <= 1} onClick={() => deleteKeyframe(store)} />
-            <button type="button" className="btn ghost tl-btn" aria-label="Cut: start a new shot here" data-tip="Cut: start a new shot here  C" data-tip-side="top" onClick={() => cutShot(store)}>
+            <button type="button" className="btn ghost tl-btn" aria-label="Cut: start a new shot here" data-tip={withKey('Cut: start a new shot here', 'cut')} data-tip-side="top" onClick={() => cutShot(store)}>
               <Scissors size={15} aria-hidden /> <span className="tl-label">Cut</span>
             </button>
           </>
@@ -467,7 +468,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
           items={[
             ...(compact ? [
               { label: `Delete ${keyLabel}`, icon: Trash2, disabled: !onKey || activeKeys.length <= 1, onSelect: () => deleteKeyframe(store) },
-              { label: 'Cut: start a new shot here', icon: Scissors, shortcut: 'C', onSelect: () => cutShot(store) },
+              { label: 'Cut: start a new shot here', icon: Scissors, shortcut: KEYS.cut, onSelect: () => cutShot(store) },
               { label: issues?.length ? `Motion check: ${qaLabel}` : 'Check the motion', icon: issues?.length ? TriangleAlert : Activity, disabled: checking, onSelect: check },
               { label: 'Repeat this shot', icon: Repeat1, checked: clock.repeatShot, onSelect: () => clock.setRepeatShot(!clock.repeatShot) },
               '-' as const,

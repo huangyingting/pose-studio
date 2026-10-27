@@ -11,6 +11,7 @@ import type { Panel, Scene, Style } from '@/lib/types';
 import { drawShot, videoSupported } from '@/lib/video';
 import { useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, Select, Toggle, type Notify } from './ui';
+import { KEYS } from './shortcuts';
 
 const PREVIEW = { width: 320, height: 180 };
 const previewCache = new Map<string, string>();
@@ -128,7 +129,7 @@ export default function Board({ onClose, notify }: { onClose(): void; notify: No
         >
           <Download size={15} aria-hidden /> {busy ? (busy.startsWith('animatic') ? `Recording ${busy.split(' ')[1] ?? ''}` : 'Rendering…') : 'Export'}
         </Menu>
-        <IconButton icon={X} label="Close storyboard" shortcut="Esc" onClick={onClose} />
+        <IconButton icon={X} label="Close storyboard" shortcut={KEYS.deselect} onClick={onClose} />
       </header>
       {panels.length ? (
         <ol className="board-grid">

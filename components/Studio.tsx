@@ -44,6 +44,7 @@ import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from '.
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
 import { cameraMenu, canvasMenu, figureMenu, propMenu, renameInOutline } from './menus';
+import { KEYS, withKey } from './shortcuts';
 
 function webglAvailable() {
   try {
@@ -350,11 +351,11 @@ function App() {
             label="Main menu"
             className="brand"
             items={[
-              { label: 'Save project (.json)', icon: Save, shortcut: 'Ctrl S', onSelect: saveFile },
+              { label: 'Save project (.json)', icon: Save, shortcut: KEYS.save, onSelect: saveFile },
               { label: 'Import scenes from a project…', icon: FileUp, onSelect: () => openFilePicker('append') },
               { label: 'Open project (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
               '-',
-              { label: 'Gesture practice', icon: Timer, shortcut: 'P', onSelect: () => setDialog('practice') },
+              { label: 'Gesture practice', icon: Timer, shortcut: KEYS.practice, onSelect: () => setDialog('practice') },
             ]}
           >
             <Logo />
@@ -369,9 +370,9 @@ function App() {
               onChange={setGizmo}
               iconOnly
               options={[
-                { value: 'rotate', label: 'Pose', icon: Hand, title: 'Pose: drag parts (Shift twists), floor rings turn  E' },
-                { value: 'translate', label: 'Move', icon: Move3d, title: 'Move figure or prop  W' },
-                { value: 'scale', label: 'Scale', icon: Scale3d, title: selection?.kind === 'prop' ? 'Scale the prop  R' : 'Scale a prop (select one first)  R', disabled: selection?.kind !== 'prop' },
+                { value: 'rotate', label: 'Pose', icon: Hand, title: withKey('Pose: drag parts (Shift twists), floor rings turn', 'pose') },
+                { value: 'translate', label: 'Move', icon: Move3d, title: withKey('Move figure or prop', 'move') },
+                { value: 'scale', label: 'Scale', icon: Scale3d, title: withKey(selection?.kind === 'prop' ? 'Scale the prop' : 'Scale a prop (select one first)', 'scale'), disabled: selection?.kind !== 'prop' },
               ]}
             />
             {settings.gizmo === 'rotate' && (
@@ -397,7 +398,7 @@ function App() {
                 { label: 'The shot camera (the cut)', checked: !!through && !through.camera, onSelect: () => store.lookThrough({}) },
                 ...scene.cameras.map((c) => ({ label: c.name, icon: Video, checked: through?.camera === c.id, onSelect: () => store.lookThrough({ camera: c.id }) })),
                 { group: 'Show' },
-                { label: 'Drag handles', shortcut: 'H', checked: settings.showHandles, onSelect: () => store.setSettings({ showHandles: !settings.showHandles }) },
+                { label: 'Drag handles', shortcut: KEYS.handles, checked: settings.showHandles, onSelect: () => store.setSettings({ showHandles: !settings.showHandles }) },
                 { label: 'Floor grid', checked: settings.showGrid, onSelect: () => store.setSettings({ showGrid: !settings.showGrid }) },
                 ...(scene.animation ? [{ label: 'Onion skin (the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) }] : []),
                 { label: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: settings.guides, onSelect: () => store.setSettings({ guides: !settings.guides }) },
@@ -409,12 +410,12 @@ function App() {
             >
               <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
             </Menu>
-            <IconButton icon={Focus} label="Frame all" shortcut="F" onClick={frameCurrent} />
+            <IconButton icon={Focus} label="Frame all" shortcut={KEYS.frameAll} onClick={frameCurrent} />
             <span className="tb-sep" />
             <Menu
               label="Render style"
               className="btn ghost"
-              tip="Render style  L"
+              tip={withKey('Render style', 'style')}
               items={STYLE_LIST.map((s) => ({
                 label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === settings.style, onSelect: () => store.setSettings({ style: s.id }),
               }))}
@@ -436,18 +437,18 @@ function App() {
           {SaveState ? <SaveState status={saveStatus} /> : <SaveIndicator status={saveStatus} />}
         </div>
         <div className="tb-right">
-          <IconButton icon={Undo2} label="Undo" shortcut="Ctrl Z" onClick={() => store.undo()} disabled={!canUndo} />
-          <IconButton icon={Redo2} label="Redo" shortcut="Ctrl Shift Z" onClick={() => store.redo()} disabled={!canRedo} />
+          <IconButton icon={Undo2} label="Undo" shortcut={KEYS.undo} onClick={() => store.undo()} disabled={!canUndo} />
+          <IconButton icon={Redo2} label="Redo" shortcut={KEYS.redo} onClick={() => store.redo()} disabled={!canRedo} />
           <span className="tb-sep hide-mobile" />
-          <IconButton icon={Keyboard} label="Keyboard shortcuts" shortcut="?" onClick={() => setDialog('help')} className="hide-mobile" />
+          <IconButton icon={Keyboard} label="Keyboard shortcuts" shortcut={KEYS.help} onClick={() => setDialog('help')} className="hide-mobile" />
           {Account && <Account />}
-          <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip="Export  Ctrl E">
+          <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip={withKey('Export', 'export')}>
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>
           <IconButton
             icon={settings.inspector ? PanelRightClose : PanelRightOpen}
             label={settings.inspector ? 'Hide the inspector' : 'Show the inspector'}
-            shortcut="I"
+            shortcut={KEYS.inspector}
             className="hide-mobile"
             pressed={settings.inspector}
             onClick={toggleInspector}
@@ -473,7 +474,7 @@ function App() {
         notifyUndo={notifyUndo}
         drawer={drawer === 'library'}
         onPhoto={() => setDialog('photo')}
-        actions={[{ label: 'Storyboard', icon: LayoutPanelTop, shortcut: 'B', onSelect: () => { stopPlayback(); setDialog('board'); } }]}
+        actions={[{ label: 'Storyboard', icon: LayoutPanelTop, shortcut: KEYS.board, onSelect: () => { stopPlayback(); setDialog('board'); } }]}
       />
 
       <main className={`stage${scene.animation ? ' animated' : ''}`} style={{ background: style.background }}>
