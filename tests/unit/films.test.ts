@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, editShot, holdHandle, holdProp, lieOn, moveProp,
-  addModel, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
+  addModel, retime, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
 } from '@/lib/actions';
-import { sceneAt, propWorldAt } from '@/lib/evaluate';
+import { actionsOf, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { importMotion } from '@/lib/importmotion';
 import { importModel } from '@/lib/model';
 import { LIGHT_PRESETS } from '@/lib/lighting';
@@ -65,6 +65,32 @@ function expectFilm(store: Store, lightId: string, people: number) {
 }
 
 const name = (store: Store, id: string, to: string) => store.updateFigure(id, (f) => ({ ...f, name: to }));
+
+/** Two fighters of these builds face off, exchange punches, then one throws a combination and the other takes a hit. */
+function boxing(ben: string, kai: string) {
+  const { store, a } = fresh();
+  name(store, a, 'Ben');
+  store.updateFigure(a, (f) => ({ ...f, body: body(ben) }));
+  addFigure(store, [1.5, 0, 0.5]);
+  const b = store.getState().activeFigure!;
+  name(store, b, 'Kai');
+  store.updateFigure(b, (f) => ({ ...f, body: body(kai) }));
+  arrange(store, a, b, 'faceEachOther');
+  // Ben leads the exchange; Kai is put opposite him.
+  store.setTime(0);
+  expect(applyMotion(store, a, 'boxing', [b])).toBe(true);
+  const later = store.scene.animation!.duration;
+  store.setTime(later);
+  applyMotion(store, a, 'jab-cross');
+  store.setTime(later);
+  applyMotion(store, b, 'block-duck');
+  // The hit lands as the block and duck finishes.
+  store.setTime(later + buildMotion('block-duck')!.animation!.duration);
+  applyMotion(store, b, 'hit');
+  setGaze(store, a, { figure: b });
+  setGaze(store, b, { figure: a });
+  return { store, later };
+}
 
 describe('films for the use case: light, cameras, people, props, occlusion and physics together', () => {
   it('basketball: a fast break dribbled up court, a pass on the run, a shot through the hoop', () => {
@@ -231,6 +257,36 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     expect(end.figures.find((f) => f.id === runners[3])!.position[2]).toBeCloseTo(31.9, 1);
   }, 120_000);
 
+  it('films keep passing when an action is retimed: the relay\'s handoffs stay in step', () => {
+    // The relay: each leg in turn takes longer; the baton still changes hands as each runner arrives.
+    for (const legNo of [0, 1, 2]) {
+      const { store, a } = fresh();
+      const runners = [a];
+      for (let i = 1; i < 4; i++) {
+        addFigure(store, [-0.35 * (i % 2), 0, i * 8]);
+        runners.push(store.getState().activeFigure!);
+      }
+      addProp(store, 'stick');
+      const baton = store.scene.props[0].id;
+      holdProp(store, baton, { figure: a, hand: 'R' });
+      store.setTime(0);
+      let leg = travelTo(store, a, [0, 7.6], 'run')!;
+      for (let i = 1; i < 4; i++) {
+        const hand = i % 2 ? 'L' : 'R';
+        store.setTime(leg.to - 0.4);
+        setJoint(store, runners[i], hand === 'L' ? 'leftUpperArm' : 'rightUpperArm', [30, 0, hand === 'L' ? 10 : -10], '');
+        store.setTime(leg.to);
+        holdProp(store, baton, { figure: runners[i], hand });
+        store.setTime(leg.to);
+        leg = travelTo(store, runners[i], [-0.35 * (i % 2), i * 8 + 7.9], 'run')!;
+      }
+      const run = actionsOf(store.scene.animation!, runners[legNo]).find((x) => x.source.kind === 'travel')!;
+      retime(store, run.id, run.duration * 1.2);
+      expectClean(store.scene);
+      expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold?.figure).toBe(runners[3]);
+    }
+  }, 300_000);
+
   it('a stretcher carried off past a group dance: two carry, one lies on it, four dance', () => {
     const { store, a } = fresh();
     name(store, a, 'Medic');
@@ -323,26 +379,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
   }, 120_000);
 
   it('boxing: two fighters face off, an exchange, then a combination and a hit', () => {
-    const { store, a } = fresh();
-    name(store, a, 'Ben');
-    addFigure(store, [1.5, 0, 0.5]);
-    const b = store.getState().activeFigure!;
-    name(store, b, 'Kai');
-    store.updateFigure(b, (f) => ({ ...f, body: body('Heroic') }));
-    arrange(store, a, b, 'faceEachOther');
-    // Ben leads the exchange; Kai is put opposite him.
-    store.setTime(0);
-    expect(applyMotion(store, a, 'boxing', [b])).toBe(true);
-    const later = store.scene.animation!.duration;
-    store.setTime(later);
-    applyMotion(store, a, 'jab-cross');
-    store.setTime(later);
-    applyMotion(store, b, 'block-duck');
-    // The hit lands as the block and duck finishes.
-    store.setTime(later + buildMotion('block-duck')!.animation!.duration);
-    applyMotion(store, b, 'hit');
-    setGaze(store, a, { figure: b });
-    setGaze(store, b, { figure: a });
+    const { store, later } = boxing('Female', 'Heroic');
     light(store, 'side');
     shoot(store, [later], ['handheld', 'hero']);
     expectFilm(store, 'side', 2);
@@ -434,6 +471,60 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const mannequinFoot = sv.figures.get(a)!.joints.leftFoot.getWorldPosition(new THREE.Vector3());
     expect(sv.models.get(a)!.object.getObjectByName(model.bones.leftFoot!)!.getWorldPosition(new THREE.Vector3()).distanceTo(mannequinFoot)).toBeLessThan(0.08);
     sv.dispose();
+  }, 120_000);
+
+  it('contacts hold on any bodies: the boxing exchange between builds big and small, a waltz between grown-ups', () => {
+    for (const [x, y] of [['Child', 'Heroic'], ['Heroic', 'Child'], ['Slender', 'Athletic'], ['Male', 'Female']]) expectClean(boxing(x, y).store.scene);
+    for (const [x, y] of [['Slender', 'Heroic'], ['Athletic', 'Slender'], ['Male', 'Female']]) {
+      const { store, a } = fresh();
+      addFigure(store, [1, 0, 0]);
+      const b = store.getState().activeFigure!;
+      store.updateFigure(a, (f) => ({ ...f, body: body(x) }));
+      store.updateFigure(b, (f) => ({ ...f, body: body(y) }));
+      expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
+      expectClean(store.scene);
+    }
+  }, 600_000);
+
+  it('physics, not special code: a pass blocked by someone in its way is reported; a shot off the rim rolls away', () => {
+    const { store, a } = fresh();
+    addFigure(store, [0, 0, 4]);
+    const b = store.getState().activeFigure!;
+    store.updateFigure(b, (f) => withFacing(f, 180));
+    // Someone tall in between, arms up.
+    addFigure(store, [0, 0, 2]);
+    const c = store.getState().activeFigure!;
+    store.updateFigure(c, (f) => ({ ...withFacing(f, 180), body: body('Heroic') }));
+    store.setTime(0);
+    setJoint(store, c, 'leftUpperArm', [-160, 0, 15], '');
+    setJoint(store, c, 'rightUpperArm', [-160, 0, -15], '');
+    addProp(store, 'sphere', [0.5, 0, 0.5]);
+    const ball = store.scene.props[0].id;
+    moveProp(store, ball, { scale: [0.24, 0.24, 0.24] });
+    holdProp(store, ball, { figure: a, hand: 'R' });
+    store.setTime(0.2);
+    throwProp(store, ball, { figure: b, hand: 'R' });
+    // Not caught: it hit the one in the way, and the check says so.
+    const misses = checkMotion(store.scene).filter((i) => i.kind === 'miss');
+    expect(misses.map((i) => i.figure)).toEqual([b]);
+    expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold).toBeUndefined();
+
+    // A shot off the front of the rim: it does not go through, and ends up on the floor away from it.
+    const shot = fresh();
+    addProp(shot.store, 'sphere', [0.5, 0, 0.5]);
+    const ball2 = shot.store.scene.props[0].id;
+    moveProp(shot.store, ball2, { scale: [0.24, 0.24, 0.24] });
+    holdProp(shot.store, ball2, { figure: shot.a, hand: 'R' });
+    addProp(shot.store, 'hoop', [0, 0, 5]);
+    const hoop = shot.store.scene.props[1];
+    shot.store.setTime(0);
+    const miss = throwProp(shot.store, ball2, { hoop: hoop.id, miss: true })!;
+    const rim = rimOf(hoop);
+    const at = propWorldAt(shot.store.scene, ball2, miss.to)!.position;
+    expect(Math.hypot(at[0] - rim[0], at[2] - rim[2])).toBeGreaterThan(0.1);
+    const end = sceneAt(shot.store.scene, shot.store.scene.animation!.duration).props[0].position;
+    expect(end[1]).toBeCloseTo(0, 2);
+    expect(Math.hypot(end[0] - rim[0], end[2] - rim[2])).toBeGreaterThan(0.3);
   }, 120_000);
 
   it('occlusion is caught: a fast break filmed from beyond the hoop, the backboard in the way', () => {

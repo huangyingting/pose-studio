@@ -13,7 +13,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretch
 import { putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, insertClip, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, retimeAction, ripple, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, insertClip, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { MOTIONS } from './motions';
@@ -690,7 +690,7 @@ export function moveAction(store: Store, id: string, start: number, key = '') {
     const before = a.actions.filter((x) => x !== act && layer(x) === layer(act) && x.roles.some((r) => who.includes(r.figure)) && x.start < act.start - 1e-6);
     const floor = Math.max(0, ...before.map((x) => (x.source.kind === 'keys' ? x.start + (partKeys(x.source.clip.parts[0]).at(-1)?.t ?? 0) : x.start + x.duration)));
     const to = Math.max(floor, snapTime({ ...a, duration: 60 }, start));
-    return Math.abs(to - act.start) < 1e-6 ? s : { ...s, animation: ripple(a, who, act.start - 0.5 / a.fps, to - act.start) };
+    return Math.abs(to - act.start) < 1e-6 ? s : { ...s, animation: rippleInStep(a, who, act.start, to - act.start) };
   }, key);
 }
 

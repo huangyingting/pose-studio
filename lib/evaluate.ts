@@ -27,6 +27,8 @@ import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type
 const EPS = 1e-6;
 /** How long a planted foot takes to be let go when it lifts in a clip (s). */
 const RELEASE = 0.12;
+/** How long a hand takes to take hold of a partner and let go (clip time, s): on other bodies it may have further to go. */
+const GRIP_EASE = 0.3;
 /** How long a hold asked for takes to take hold and let go (s). */
 const EASE = 0.25;
 /** How long a hand reaches out for a pass before it arrives (s). */
@@ -210,10 +212,11 @@ class Evaluator {
       const flip = (j: JointName) => (mirror ? mirrorJointName(j) : j);
       const figure = { ...f, ...free };
       clip.contacts.forEach((c, n) => {
-        if (c.part !== index || u < c.start - (c.on ? RELEASE : EPS) || u > c.end + RELEASE) return;
+        const ease = c.on ? GRIP_EASE : RELEASE;
+        if (c.part !== index || u < c.start - (c.on ? ease : EPS) || u > c.end + ease) return;
         const bone = flip(c.bone) as Holder;
         // Held from where it lands until it lifts, and let go over a moment (a hand eases onto its hold too).
-        const weight = u < c.start ? smooth(1 - (c.start - u) / RELEASE) : u <= c.end ? 1 : 1 - smooth((u - c.end) / RELEASE);
+        const weight = u < c.start ? smooth(1 - (c.start - u) / ease) : u <= c.end ? 1 : 1 - smooth((u - c.end) / ease);
         if (!c.on) {
           const side = bone === 'leftFoot' ? 'L' : 'R';
           const key = `${act.id}:${f.id}:${n}`;

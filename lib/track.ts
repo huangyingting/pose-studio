@@ -6,6 +6,7 @@ import { JUMP_PREP, jumpHeight, legsOf, travelTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
 import { wrapDeg } from './joints';
+import { shiftPropTrack } from './propmotion';
 import type { Action, ActionSource, Animation, Mark, Pose, Scene, Travel } from './types';
 
 /*
@@ -158,6 +159,35 @@ export function ripple(a: Animation, figure: string | string[], from: number, by
   });
   const last = Math.max(a.duration, ...actions.map(end));
   return sorted({ ...a, actions, duration: Math.min(60, last) });
+}
+
+/**
+ * Move what figures do from `from` on by `by`, and what happens in step with it: someone whose
+ * action starts just as one of theirs ends (a relay runner off as the baton comes in) comes along
+ * from then, and so on down the line; a prop keyed then (the baton changing hands) too.
+ */
+export function rippleInStep(a: Animation, figures: string[], from: number, by: number): Animation {
+  const half = 0.5 / a.fps;
+  const since = new Map(figures.map((f) => [f, from]));
+  const props = new Map<string, number>();
+  const at = (t: number, u: number) => Math.abs(t - u) < half;
+  for (let grew = true; grew;) {
+    grew = false;
+    // The moments that move: where what the moving figures do from then on ends.
+    // (A held pose of no length is no moment.)
+    const moments = a.actions.filter((x) => !x.layer && x.duration > half && x.roles.some((r) => since.has(r.figure) && end(x) > since.get(r.figure)! - half)).map(end);
+    for (const t of moments) {
+      for (const x of a.actions) {
+        if (x.layer || x.source.kind === 'keys' || !at(x.start, t)) continue;
+        for (const r of x.roles) if (!since.has(r.figure) || since.get(r.figure)! > t) { since.set(r.figure, t); grew = true; }
+      }
+      for (const [id, keys] of Object.entries(a.props ?? {})) if (keys.some((k) => at(k.t, t)) && (props.get(id) ?? Infinity) > t) props.set(id, t);
+    }
+  }
+  let out = a;
+  for (const t of new Set(since.values())) out = ripple(out, [...since].filter(([, u]) => u === t).map(([f]) => f), t - half, by);
+  for (const [id, t] of props) out = shiftPropTrack(out, id, t - half, by);
+  return out;
 }
 
 /**
@@ -337,7 +367,7 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
     const keys = keysOf(act).map((x) => ({ t: snapTime({ ...a, duration: 60 }, act.start + (x.t - act.start) * k), pose: x.pose }));
     next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
   }
-  const moved = ripple(a, act.roles.map((r) => r.figure), end(act) - 0.5 / a.fps, by);
+  const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by);
   return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
 }
 
@@ -449,16 +479,22 @@ function goTo(scene: Scene, figure: string, spot: Mark, t: number): Animation {
   const heading = Math.atan2(spot.at[0] - here.position[0], spot.at[1] - here.position[2]) * (180 / Math.PI);
   const off = Math.abs(wrapDeg(heading - spot.facing));
   const strafe = off > 90;
-  const need = travelTime('walk', d, f.body, undefined, strafe ? Math.abs(Math.sin((off * Math.PI) / 180)) : 0);
-  // Short of time, it goes at once, briskly.
-  const leave = Math.max(Math.round(free * a.fps) / a.fps, Math.round((t - need) * a.fps) / a.fps);
+  const side = strafe ? Math.abs(Math.sin((off * Math.PI) / 180)) : 0;
+  // Walking, leaving in time to get there (briskly, if short of time; side steps can be quick);
+  // well short of time for walking ahead, running (at once, if need be).
+  const leaving = (mode: Travel) => {
+    const need = travelTime(mode, d, f.body, undefined, side);
+    return { mode, need, leave: Math.max(Math.round(free * a.fps) / a.fps, Math.round((t - need) * a.fps) / a.fps) };
+  };
+  const walk = leaving('walk');
+  const { mode, leave } = !strafe && t - walk.leave < walk.need * 0.7 ? leaving('run') : walk;
   if (d >= 0.3 && t - leave >= 0.4) {
     const s = { ...scene, animation: splitAt(scene, figure, leave).a };
     let b = s.animation!;
     for (const x of actionsOf(b, figure)) if (x.start > leave + EPS && x.start < t - EPS) b = replace(b, x, []);
     const keyed = actionsOf(b, figure).find((x) => isKeys(x) && Math.abs(x.start - t) < EPS);
     if (keyed) b = replace(b, keyed, []);
-    const travel: Action = { id: uid('act'), start: leave, duration: t - leave, roles: [{ figure, end: spot }], source: { kind: 'travel', mode: 'walk', ...(strafe ? { strafe: true } : {}) } };
+    const travel: Action = { id: uid('act'), start: leave, duration: t - leave, roles: [{ figure, end: spot }], source: { kind: 'travel', mode, ...(strafe ? { strafe: true } : {}) } };
     return sorted({ ...b, actions: [...b.actions, travel] });
   }
   // No time to walk there: the figure is there when it starts.
