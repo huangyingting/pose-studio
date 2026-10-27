@@ -1,7 +1,7 @@
 import { jointLimits, mirrorJointName, wrapDeg } from './joints';
 import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
 import { uid } from './uid';
-import { JOINTS, type Clip, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
+import { JOINTS, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
 
 /*
  * Clips: motion on the standard skeleton, stored as three.js AnimationClip / glTF tracks (one
@@ -210,3 +210,6 @@ export function mirrorClip(c: Clip): Clip {
     contacts: c.contacts.map((x) => ({ ...x, bone: mirrorJointName(x.bone) })),
   };
 }
+
+/** What the library lists of an imported clip (its frames are kept apart). */
+export const clipInfo = (c: Clip): ClipInfo => ({ id: c.id, name: c.name, duration: c.duration, loop: c.loop, people: c.parts.map((p) => p.name) });

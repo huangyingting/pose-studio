@@ -823,9 +823,16 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   test.setTimeout(150_000);
   await page.getByRole('tab', { name: 'AI assistant' }).click();
   await expect(page.getByText('Sign in to pose, stage and animate')).toBeVisible();
+  // An imported motion's frames go up apart from the library, as a file of its own.
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
+  await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
+  await expect(page.getByRole('list', { name: 'My motions' })).toBeVisible();
+  const motion = (await live(page)).motions[0].id;
   await signIn(page);
   const server = () => page.evaluate(() => fetch('/api/library').then((r) => r.json()) as Promise<{ version: number; library: { scenes: { name: string }[] } | null }>);
   await expect.poll(async () => (await server()).library?.scenes.length ?? 0, { timeout: 30_000 }).toBeGreaterThanOrEqual(20);
+  await expect.poll(() => page.evaluate(() => fetch('/api/assets').then((r) => r.json()).then((x: { ids: string[] }) => x.ids)), { timeout: 30_000 }).toContain(motion);
   // Edits follow a moment later.
   await page.getByLabel('Scene name').fill('Synced scene');
   await expect.poll(async () => (await server()).library?.scenes.map((s) => s.name), { timeout: 30_000 }).toContain('Synced scene');
@@ -912,7 +919,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
 });
 
 /** The live scene, as the tests below need it. */
-type LiveStore = { scene: Scene; getState(): { activeFigure: string; time: number; library: { clips?: { name: string }[] } } };
+type LiveStore = { scene: Scene; getState(): { activeFigure: string; time: number; library: { clips?: { id: string; name: string }[] } } };
 const live = (page: Page) =>
   page.evaluate(() => {
     const store = (window as unknown as { __poseStudio: { store: LiveStore } }).__poseStudio.store;
@@ -1107,6 +1114,18 @@ test('a motion file is imported into My motions and given to the figure', async 
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
   const s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'clip']);
+  // Its frames are kept apart (IndexedDB): after a reload it is listed and still plays.
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  const at = (t: number) => page.evaluate((time) => {
+    const store = (window as unknown as { __poseStudio: { store: LiveStore & { setTime(t: number): void } } }).__poseStudio.store;
+    store.setTime(time);
+    return store.scene.figures.find((f) => f.id === store.getState().activeFigure)!.position[2];
+  }, t);
+  const clip = actionsOf(s.scene.animation!, s.active)[1];
+  await expect.poll(async () => Math.abs((await at(clip.start + clip.duration)) - (await at(clip.start))), { timeout: 15_000 }).toBeGreaterThan(0.1);
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Motions' }).click();
   // Deleting it takes it out of the library (the figure keeps its keys).
   await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);

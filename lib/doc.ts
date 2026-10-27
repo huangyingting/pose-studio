@@ -1,7 +1,7 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
 import { DEFAULT_FPS, mirrorAnimation, normalize, parseCamera, parseShots, remapAnimation } from './animation';
-import { keysClip } from './clip';
+import { clipInfo, keysClip } from './clip';
 import { parseBoard } from './board';
 import { uid } from './uid';
 import * as THREE from 'three';
@@ -10,7 +10,7 @@ import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bon
 import { clampLight } from './lighting';
 import {
   FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Clip, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type Pose, type PoseAsset,
+  type Action, type Animation, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type Pose, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -549,6 +549,24 @@ export function parseLibrary(data: unknown): Library {
   }
   const board = parseBoard(data.board, ids);
   const poses = parsePoses(data.poses);
-  const clips = [...(Array.isArray(data.clips) ? data.clips.slice(0, 100).map(parseClip).filter((c): c is Clip => c !== null) : []), ...clipsFromMotions(data.motions)];
+  // What the imported clips are (a file, or a library from before they were kept apart, has their frames too: clipsIn).
+  const clips = [...(Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []), ...clipsFromMotions(data.motions).map(clipInfo)];
   return { version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}) };
+}
+
+function parseClipInfo(v: unknown): ClipInfo | null {
+  if (!isObj(v)) return null;
+  if (Array.isArray(v.parts)) {
+    const c = parseClip(v);
+    return c && clipInfo(c);
+  }
+  if (typeof v.id !== 'string' || !v.id) return null;
+  const people = (Array.isArray(v.people) ? v.people : []).slice(0, 8).map((p, i) => str(p, `Part ${i + 1}`).slice(0, 80));
+  return { id: v.id.slice(0, 80), name: str(v.name, 'Motion').slice(0, 80), duration: Math.min(600, Math.max(0, num(v.duration, 0))), loop: v.loop === true, people: people.length ? people : ['Part 1'] };
+}
+
+/** The imported clips whose frames a file carries (a saved library, or one from before clips were kept apart). */
+export function clipsIn(data: unknown): Clip[] {
+  if (!isObj(data)) return [];
+  return [...(Array.isArray(data.clips) ? data.clips.slice(0, 500).map(parseClip).filter((c): c is Clip => c !== null) : []), ...clipsFromMotions(data.motions)];
 }

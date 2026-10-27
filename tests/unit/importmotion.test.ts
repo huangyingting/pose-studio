@@ -8,8 +8,8 @@ import { Rig } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { CMU, UNREAL, bvh } from '../fixtures/bvh';
 import { facingOf } from '../../lib/pose';
-import { clipScene, setLibraryClips } from '@/lib/assets';
-import { keyTimes } from '@/lib/clip';
+import { clipById, clipScene, putClips } from '@/lib/assets';
+import { clipInfo, keyTimes } from '@/lib/clip';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -31,7 +31,7 @@ describe('importing motions from other tools', () => {
       expect(clip.name).toBe('Step forward');
       expect(clip.duration).toBeCloseTo(0.2, 3);
       expect(keyTimes(clip.parts[0]).length).toBeGreaterThanOrEqual(3);
-      setLibraryClips([clip]);
+      putClips([clip]);
       const scene = clipScene(clip);
       const a = scene.animation!;
 
@@ -63,7 +63,9 @@ describe('importing motions from other tools', () => {
     const at = (t: number) => sceneAt(store.scene, t).figures.find((f) => f.id === id)!;
     const motion = retargetMotion(await readMotionFile('Step forward.bvh', file(CMU)));
     saveMotion(store, motion);
-    expect(parseLibrary(JSON.parse(JSON.stringify(store.getState().library))).clips).toEqual([motion]);
+    // Listed in the library; its frames kept apart.
+    expect(parseLibrary(JSON.parse(JSON.stringify(store.getState().library))).clips).toEqual([clipInfo(motion)]);
+    expect(clipById(motion.id)).toBe(motion);
     expect(applyMotion(store, id, motion.id)).toBe(true);
     const scene = store.scene;
     const rig = new Rig();

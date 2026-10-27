@@ -1,4 +1,6 @@
-import { parseLibrary } from './doc';
+import { clipById, clipIdsOf } from './assets';
+import { saveClips } from './assetstore';
+import { parseClip, parseLibrary } from './doc';
 import { withBase } from './paths';
 import type { Store } from './store';
 import { canonical, matchesBase, mergeLibraries, sceneHash, syncBase, type SyncBase } from './sync';
@@ -8,7 +10,8 @@ import type { Library } from './types';
  * Keeps the signed-in user's library on the server (server edition). Pulls when it starts and
  * when the tab comes back into view, pushes a moment after each saved edit, and merges when
  * another device saved in between (see lib/sync.ts). The browser copy stays the working copy,
- * so editing works offline.
+ * so editing works offline. Imported clips' frames go up and come down apart from the library,
+ * one file each (app/api/assets).
  */
 
 export type CloudStatus = 'syncing' | 'synced' | 'offline' | 'error';
@@ -29,6 +32,8 @@ export class CloudSync {
   lastSynced: number | null = null;
   private saved: Saved;
   private pushed = '';
+  /** The clips last seen on both sides. */
+  private clips = '';
   private timer: ReturnType<typeof setTimeout> | null = null;
   private busy: Promise<void> = Promise.resolve();
   private stopped = false;
@@ -117,6 +122,30 @@ export class CloudSync {
     const { library, version } = (await res.json()) as { library: unknown; version: number };
     if (library && version !== this.saved.version) this.adopt(canonical(parseLibrary(library)), version);
     await this.push(true);
+    await this.syncClips(true);
+  }
+
+  /** Clips the library uses that only one side has: fetched, or sent up. */
+  private async syncClips(force = false) {
+    const ids = clipIdsOf(this.store.getState().library);
+    const print = [...ids].sort().join();
+    if (!force && print === this.clips) return;
+    const res = await fetch(withBase('/api/assets'), { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    const there = new Set(((await res.json()) as { ids: string[] }).ids);
+    for (const id of await this.store.loadClips()) {
+      if (!there.has(id)) continue;
+      const got = await fetch(withBase(`/api/assets/${encodeURIComponent(id)}`));
+      const clip = got.ok ? parseClip(await got.json()) : null;
+      if (clip) await saveClips([clip]);
+    }
+    for (const id of ids) {
+      const clip = clipById(id);
+      if (there.has(id) || !clip) continue;
+      const put = await fetch(withBase(`/api/assets/${encodeURIComponent(id)}`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clip) });
+      if (!put.ok) throw new Error(String(put.status));
+    }
+    this.clips = print;
   }
 
   private adopt(server: Library, version: number) {
@@ -153,6 +182,7 @@ export class CloudSync {
       const { version } = (await res.json()) as { version: number };
       this.remember(version, lib);
       this.pushed = print;
+      await this.syncClips();
       this.setStatus('synced');
       return;
     }

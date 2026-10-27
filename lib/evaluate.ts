@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart } from './clip';
-import { clipById } from './assets';
+import { clipById, clipsVersion } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
@@ -537,9 +537,10 @@ const cache = new WeakMap<Animation, { key: string; ev: Evaluator }>();
 function evaluator(scene: Scene): Evaluator {
   const a = scene.animation!;
   // What it depends on besides the animation: the cast's bodies, what stands in the scene, the
-  // props (their places, those that do not move by themselves), and whether physics is loaded.
+  // props (their places, those that do not move by themselves), whether physics is loaded, and
+  // the imported clips at hand.
   const props = scene.props.map((p) => (animated(a, p.id) ? [p.id, p.kind, p.scale, p.physics] : [p.id, p.kind, p.scale, p.position, p.rotation, p.hold]));
-  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body]), surfacesKey(scene.props), props, physicsReady()]);
+  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body]), surfacesKey(scene.props), props, physicsReady(), clipsVersion()]);
   const hit = cache.get(a);
   if (hit && hit.key === key) return hit.ev;
   hit?.ev.dispose();

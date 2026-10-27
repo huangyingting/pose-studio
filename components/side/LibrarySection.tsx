@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type 
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, FilePlus2, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import { addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, startAnimation } from '@/lib/actions';
-import { clipScene } from '@/lib/assets';
+import { clipById, clipScene } from '@/lib/assets';
+import { newScene } from '@/lib/doc';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
@@ -333,7 +334,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
                   type="button"
                   aria-disabled={!usable}
                   onClick={() => give(m.id, m.name)}
-                  {...preview(m.name, usable ? `Click to give it to ${figure.name}` : undefined, () => motionPreview(m.id, () => clipScene(m), style))}
+                  {...preview(m.name, usable ? `Click to give it to ${figure.name}` : undefined, () => motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style))}
                 >
                   <Film size={14} aria-hidden />
                   <span className="side-list-name">{m.name}</span>

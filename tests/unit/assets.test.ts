@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, applyMotion, applyPose, deletePose, savePose } from '@/lib/actions';
+import { addFigure, applyMotion, applyPose, deletePose, saveMotion, savePose } from '@/lib/actions';
 import { BUILT_IN, clipById } from '@/lib/assets';
-import { newFigure, newScene, parseLibrary } from '@/lib/doc';
+import { keysClip } from '@/lib/clip';
+import { clipsIn, newFigure, newScene, parseLibrary } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { buildMotion } from '@/lib/motions';
 import { allPoses, builtInPoses, withPose } from '@/lib/poses';
@@ -100,5 +101,44 @@ describe('library assets applied to the scene', () => {
     const server: Library = { ...base, poses: [p('kept'), p('gone-here'), p('new-there')] };
     const local: Library = { ...base, poses: [p('kept'), p('gone-there'), p('new-here')] };
     expect(mergeLibraries(server, local, syncBase(base)).poses!.map((x) => x.id)).toEqual(['kept', 'new-there', 'new-here']);
+  });
+
+  it('keeps imported clips apart from the library: fifty long ones list in a few kilobytes and play', async () => {
+    const storage = new MemoryStorage();
+    const store = new Store(storage);
+    const f = store.figure!;
+    // Fifty clips of a minute at 30 frames a second (the hips swaying): megabytes of frames.
+    const clips = Array.from({ length: 50 }, (_, n) => ({
+      ...keysClip(Array.from({ length: 1800 }, (_, i) => ({ t: i / 30, pose: { ...f, position: [Math.sin(i / 10 + n) * 0.1, f.position[1], 0] as [number, number, number] } }))),
+      name: `Take ${n + 1}`,
+    }));
+    for (const c of clips) saveMotion(store, c);
+    store.save();
+    const saved = storage.getItem(Store.LIBRARY_KEY)!;
+    expect(saved.length).toBeLessThan(20_000);
+    expect(JSON.stringify(clips).length).toBeGreaterThan(5_000_000);
+    expect(store.getState().library.clips!.map((c) => c.name)).toEqual(clips.map((c) => c.name));
+    // Played from the library on a figure.
+    expect(applyMotion(store, f.id, clips[49].id)).toBe(true);
+    store.setTime(1);
+    // (from where the figure stands: the way the hips go in the clip, from its first frame)
+    expect(figurePoseAt(store.scene, f.id, 1)!.position[0]).toBeCloseTo(f.position[0] + (Math.sin(30 / 10 + 49) - Math.sin(49)) * 0.1, 2);
+    // Opened again (another session): listed, and brought back from where they are kept.
+    const again = new Store(storage);
+    expect(await again.loadClips()).toEqual([]);
+    expect(clipById(clips[3].id)?.parts[0].tracks.length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it('moves the frames of clips saved inside an old library out to the asset store (one-time converter)', () => {
+    const f = newFigure();
+    const clip = { ...keysClip([{ t: 0, pose: f }, { t: 1, pose: { ...f, position: [1, f.position[1], 0] as [number, number, number] } }]), id: 'old-clip', name: 'Old' };
+    const data = { version: 3, scenes: [newScene('A')], clips: [clip] };
+    expect(parseLibrary(data).clips).toEqual([{ id: 'old-clip', name: 'Old', duration: 1, loop: false, people: ['Keys'] }]);
+    expect(clipsIn(data).map((c) => c.id)).toEqual(['old-clip']);
+    const storage = new MemoryStorage();
+    storage.setItem(Store.LIBRARY_KEY, JSON.stringify(data));
+    const store = new Store(storage);
+    expect(store.getState().library.clips![0]).not.toHaveProperty('parts');
+    expect(clipById('old-clip')?.duration).toBe(1);
   });
 });

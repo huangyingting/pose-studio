@@ -1,6 +1,7 @@
 import { normalize, propKeyOf } from './animation';
-import { setLibraryClips } from './assets';
-import { newScene, parseLibrary } from './doc';
+import { clipIdsOf } from './assets';
+import { loadClips, saveClips } from './assetstore';
+import { clipsIn, newScene, parseLibrary } from './doc';
 import { sceneAt } from './evaluate';
 import { keepProps, setPropKey } from './propmotion';
 import { setPoseAt } from './track';
@@ -76,7 +77,13 @@ interface HistoryEntry {
 function loadLibrary(storage: Storage | null): Library {
   try {
     const raw = storage?.getItem(STORAGE.library);
-    if (raw) return parseLibrary(JSON.parse(raw));
+    if (raw) {
+      const data = JSON.parse(raw);
+      // A library from before imported clips were kept apart: their frames move to the asset store.
+      const frames = clipsIn(data);
+      if (frames.length) void saveClips(frames);
+      return parseLibrary(data);
+    }
   } catch {
     // Corrupt entry: start a new project.
   }
@@ -128,7 +135,6 @@ export class Store {
 
   constructor(private storage: Storage | null = typeof localStorage === 'undefined' ? null : localStorage) {
     const library = loadLibrary(storage);
-    setLibraryClips(library.clips);
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
@@ -136,6 +142,15 @@ export class Store {
     });
     // An animated pose opens at its first frame.
     this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
+    void this.loadClips();
+  }
+
+  /**
+   * Bring the imported clips the library uses to hand, from where they are kept (lib/assetstore.ts).
+   * Returns the ids of those not kept here (another device has them: the server may).
+   */
+  loadClips() {
+    return loadClips(clipIdsOf(this.state.library));
   }
 
   getState = () => this.state;
@@ -177,7 +192,6 @@ export class Store {
   }
 
   private set(patch: Partial<State>, persist = true) {
-    if (patch.library && patch.library.clips !== this.state.library.clips) setLibraryClips(patch.library.clips);
     const pending = persist && this.storage !== null;
     this.state = this.normalize({ ...this.state, ...patch, ...(pending ? { saveStatus: 'pending' as const } : {}) });
     if (pending) this.scheduleSave();
@@ -328,6 +342,7 @@ export class Store {
     const same = library.scenes.findIndex((s) => s.id === id);
     this.savedLibrary = library;
     this.set({ library, sceneIndex: same >= 0 ? same : this.state.sceneIndex, saveStatus: 'saved' }, false);
+    void this.loadClips();
     return true;
   }
 
@@ -339,6 +354,7 @@ export class Store {
     const same = library.scenes.findIndex((s) => s.id === this.scene.id);
     const sceneIndex = same >= 0 ? same : Math.min(this.state.sceneIndex, library.scenes.length - 1);
     this.set({ library: this.withFrame(library, sceneIndex, this.state.time), sceneIndex });
+    void this.loadClips();
   }
 
   static readonly LIBRARY_KEY = STORAGE.library;

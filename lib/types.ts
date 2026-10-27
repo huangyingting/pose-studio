@@ -320,8 +320,21 @@ export interface Library {
   board?: Panel[];
   /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
   poses?: PoseAsset[];
-  /** Motions the user imported (BVH, FBX, glTF), to apply to any figure like the built-in ones. */
-  clips?: Clip[];
+  /**
+   * Motions the user imported (BVH, FBX, glTF), to apply to any figure like the built-in ones: what
+   * they are. Their frames are kept apart, as assets (lib/assetstore.ts).
+   */
+  clips?: ClipInfo[];
+}
+
+/** An imported clip as the library lists it: its name, length and people (the frames are an asset). */
+export interface ClipInfo {
+  id: string;
+  name: string;
+  duration: number;
+  loop: boolean;
+  /** Its parts' names: one per person. */
+  people: string[];
 }
 
 /** A pose in the library: bone rotations and hands, applied to a figure without moving it. */

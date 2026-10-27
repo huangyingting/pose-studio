@@ -6,16 +6,16 @@ import {
   Hand, Keyboard, LayoutPanelTop, Link, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, ScanFace, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
-  addKeyframe, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
+  addKeyframe, addMotions, addScene, appendScenes, cutShot, copyPose, deleteSelection, duplicateCurrentScene, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
 } from '@/lib/actions';
-import { parseLibrary, uid } from '@/lib/doc';
+import { clipsIn, parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam, shareUrl } from '@/lib/share';
 import { Store, type SaveStatus } from '@/lib/store';
 import { snapTime } from '@/lib/animation';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
-import { clipById } from '@/lib/assets';
+import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { actionsOf } from '@/lib/evaluate';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';
@@ -119,6 +119,8 @@ function App() {
     void loadPhysics();
     return onPhysicsReady(() => store.setTime(store.getState().time));
   }, [flies, store]);
+  // Imported clips come from the asset store after the first frame: what uses them is shown again.
+  useEffect(() => onClips(() => store.setTime(store.getState().time)), [store]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const notify = useCallback<Notify>((text, kind = 'info', action) => {
@@ -212,14 +214,20 @@ function App() {
   }, [store, notify]);
 
   const saveFile = useCallback(() => {
-    const json = JSON.stringify(store.getState().library, null, 2);
+    // The file carries the imported clips' frames too (the library itself only lists them).
+    const lib = store.getState().library;
+    const frames = clipIdsOf(lib).flatMap((id) => clipById(id) ?? []);
+    const clips = [...frames, ...(lib.clips ?? []).filter((c) => !clipById(c.id))];
+    const json = JSON.stringify({ ...lib, ...(clips.length ? { clips } : {}) }, null, 2);
     downloadBlob(new Blob([json], { type: 'application/json' }), 'pose-studio.json');
   }, [store]);
 
   const openFile = async (file: File, mode: 'replace' | 'append') => {
     try {
-      const lib = parseLibrary(JSON.parse(await file.text()));
+      const data = JSON.parse(await file.text());
+      const lib = parseLibrary(data);
       const what = `${lib.scenes.length} scene${lib.scenes.length === 1 ? '' : 's'}`;
+      addMotions(store, clipsIn(data));
       if (mode === 'replace') {
         replaceLibrary(store, lib.scenes, lib.board);
         notifyUndo(`Opened ${what}`);

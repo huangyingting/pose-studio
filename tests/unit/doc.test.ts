@@ -38,7 +38,7 @@ describe('parseLibrary', () => {
     expect(a.actions.find((x) => x.source.kind === 'travel')!.roles[0].end).toEqual({ at: [0, 2], facing: 0 });
     expect(a.props!.ball.map((k) => [k.t, !!k.release])).toEqual([[0, false], [2, true]]);
     expect(lib.version).toBe(3);
-    expect(lib.clips!.map((c) => [c.id, c.name, c.duration, c.parts.length])).toEqual([['m', 'Mine', 1, 1]]);
+    expect(lib.clips!.map((c) => [c.id, c.name, c.duration, c.people.length])).toEqual([['m', 'Mine', 1, 1]]);
   });
 
   it('reads documents saved with the old joint names (one-time converter)', () => {

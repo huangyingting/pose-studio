@@ -7,7 +7,8 @@ import {
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
-import { keysClip, partKeys } from './clip';
+import { clipInfo, keysClip, partKeys } from './clip';
+import { saveClips } from './assetstore';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -970,9 +971,20 @@ export function deletePose(store: Store, id: string) {
   });
 }
 
-/** Keep an imported motion in the library (My motions). */
+/** Keep an imported motion in the library (My motions): listed there, its frames kept as an asset. */
 export function saveMotion(store: Store, clip: Clip) {
-  store.commit((lib) => ({ ...lib, clips: [...(lib.clips ?? []), clip] }));
+  void saveClips([clip]);
+  store.commit((lib) => ({ ...lib, clips: [...(lib.clips ?? []), clipInfo(clip)] }));
+}
+
+/** Imported motions brought in from a library file: listed (those not listed yet), their frames kept. */
+export function addMotions(store: Store, clips: Clip[]) {
+  if (!clips.length) return;
+  void saveClips(clips);
+  store.commit((lib) => {
+    const have = new Set((lib.clips ?? []).map((c) => c.id));
+    return { ...lib, clips: [...(lib.clips ?? []), ...clips.filter((c) => !have.has(c.id)).map(clipInfo)] };
+  });
 }
 
 export function deleteMotion(store: Store, id: string) {

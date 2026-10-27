@@ -128,13 +128,14 @@ Copy `.env.example` to `.env` and fill it in:
 - Sign-in: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and/or `AZURE_AD_CLIENT_ID` / `AZURE_AD_CLIENT_SECRET` / `AZURE_AD_TENANT_ID`. Each provider appears when it is configured. Redirect URIs: `{NEXTAUTH_URL}/api/auth/callback/google` and `{NEXTAUTH_URL}/api/auth/callback/azure-ad`.
 - AI: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT` (or `OPENAI_API_KEY` and `OPENAI_MODEL`); `AI_DAILY_LIMIT` caps model requests per user per day (default 200). Without these the AI assistant (left rail) says it is not set up.
 - `DATABASE_URL`: the SQLite file (default `file:./data/pose-studio.db`).
+- `ASSETS_DIR`: where users' imported motions are kept, one file each (default: `assets/` next to the database).
 
 ```bash
 npm run db:migrate && npm run dev     # local development
 docker compose up --build             # or the Docker image, database on a volume
 ```
 
-`/api/auth/*` (NextAuth), `/api/library` (sync, with optimistic versioning) and `/api/ai` (the model proxy) are named `route.server.ts`, which only server builds include.
+`/api/auth/*` (NextAuth), `/api/library` (sync, with optimistic versioning), `/api/assets` (imported motions' frames, synced apart from the library) and `/api/ai` (the model proxy) are named `route.server.ts`, which only server builds include. In the browser, imported motions are kept in IndexedDB, the library in localStorage.
 
 ## Deployment
 
