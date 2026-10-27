@@ -9,8 +9,10 @@ import { HOLDABLE } from '@/lib/hold';
 import { describeSpan } from '@/lib/prompt';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import { HANDHELD, PROP_KINDS, PROP_LABELS, type Figure, type PoseKey, type Travel, type Vec3 } from '@/lib/types';
-import { JUMP_PREP, chainAt, jumpHeight } from '@/lib/locomotion';
+import { HANDHELD, PROP_KINDS, PROP_LABELS, type Figure, type Travel, type Vec3 } from '@/lib/types';
+import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
+import { actionsOf } from '@/lib/evaluate';
+import { keyAtTime, travelInto } from '@/lib/track';
 import { PROP_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
@@ -52,7 +54,7 @@ export function figureMenu(store: Store, id: string, { notifyUndo }: MenuUi): Me
     ]),
     ...(f.proxy ? [] : gazeItems(store, f)),
     // The same moves for someone else (a crowd, a synchronised routine).
-    ...(store.scene.animation?.keys.some((k) => k.poses[id]) && store.scene.figures.length > 1 ? [
+    ...(store.scene.animation && actionsOf(store.scene.animation, id).length > 1 && store.scene.figures.length > 1 ? [
       { group: 'Copy moves to' } as MenuItem,
       ...store.scene.figures.filter((x) => x.id !== id).map((x): MenuItem => ({
         label: x.name, icon: Copy, onSelect: () => { if (copyMotion(store, id, x.id)) notifyUndo(`${x.name} now moves like ${f.name}`); },
@@ -173,11 +175,13 @@ export function sceneMenu(store: Store, index: number, { notifyUndo }: Pick<Menu
  */
 export function travelMenu(store: Store, figureId: string, t: number): MenuItem[] {
   const a = store.scene.animation;
-  const pose = a?.keys.find((k) => Math.abs(k.t - t) < 0.5 / a.fps)?.poses[figureId];
-  if (!a || !pose) return [];
-  const kind = pose.travel ?? null;
-  const keep = { strafe: pose.strafe, spin: pose.spin, flip: pose.flip };
-  const set = (k: Travel | null, patch: Partial<PoseKey> = {}) => setTravel(store, figureId, t, k, { ...keep, ...patch });
+  const tr = a && travelInto(a, figureId, t);
+  const how = tr?.source.kind === 'travel' ? tr.source : null;
+  if (!a || (!how && !keyAtTime(a, figureId, t))) return [];
+  const kind = how?.mode ?? null;
+  const pose = { strafe: how?.strafe, spin: how?.spin, flip: how?.flip };
+  const keep = { ...pose };
+  const set = (k: Travel | null, patch: { strafe?: boolean; spin?: number; flip?: number } = {}) => setTravel(store, figureId, t, k, { ...keep, ...patch });
   const items: MenuItem[] = [
     { group: 'Getting here' },
     { label: 'Glide (as keyed)', icon: Spline, checked: !kind, onSelect: () => set(null) },
@@ -192,8 +196,7 @@ export function travelMenu(store: Store, figureId: string, t: number): MenuItem[
     });
   }
   if (kind === 'jump') {
-    const c = chainAt(a, figureId, t - 1e-3);
-    const flight = c ? Math.max(0, c.t1 - c.t0 - 2 * JUMP_PREP) : 0;
+    const flight = tr ? Math.max(0, tr.duration - 2 * JUMP_PREP) : 0;
     const now = jumpHeight(flight);
     const near = (h: number) => Math.abs(now - h) < 0.06;
     items.push({ group: `Height · ${now.toFixed(2)} m` });

@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import { moveMark } from '@/lib/actions';
-import { figureKeyTimes, sceneAt } from '@/lib/animation';
-import { footprints, legsOf } from '@/lib/locomotion';
+import { actionsOf, footprints, marksOf, sceneAt } from '@/lib/evaluate';
+import { partKeys } from '@/lib/clip';
+import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
 import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
 import type { Hover, SceneView } from '@/lib/sceneview';
@@ -648,14 +649,19 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
       const lift = Math.max(0, f.position[1] - ground(f.position[0], f.position[2]) - legs.rootY);
       points.push([f.position[0], ground(f.position[0], f.position[2]) + 0.012 + lift, f.position[2]]);
     }
-    // A mark where the figure gets to somewhere new (a run of keys in one place, as in a dance, is one mark).
+    // A mark where the figure gets to somewhere new: where a walk, run, jump or clip ends, or a key
+    // puts it (a run of keys in one place, as in a dance, is one mark).
     const marks: { t: number; x: number; z: number }[] = [];
-    for (const t of figureKeyTimes(a, figureId)) {
-      const k = a.keys.find((x) => x.t === t)!.poses[figureId];
-      const last = marks[marks.length - 1];
-      if (!last || k.travel || Math.hypot(k.position[0] - last.x, k.position[2] - last.z) > 0.15) marks.push({ t, x: k.position[0], z: k.position[2] });
+    for (const act of actionsOf(a, figureId)) {
+      const stops = act.source.kind === 'keys'
+        ? partKeys(act.source.clip.parts[0]).map((k) => ({ t: act.start + k.t, at: [k.pose.position[0], k.pose.position[2]], moved: false }))
+        : [{ t: act.start + act.duration, at: marksOf(scene, act, figureId)!.end.at, moved: true }];
+      for (const m of stops) {
+        const last = marks[marks.length - 1];
+        if (!last || m.moved || Math.hypot(m.at[0] - last.x, m.at[1] - last.z) > 0.15) marks.push({ t: m.t, x: m.at[0], z: m.at[1] });
+      }
     }
-    return { points, marks, prints: footprints(a, figure, ground) };
+    return { points, marks, prints: footprints(scene, figureId) };
   }, [a, figure, figureId, scene, ground]);
 
   const drag = (t: number) => (e: ThreeEvent<PointerEvent>) => {

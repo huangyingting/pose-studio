@@ -9,9 +9,36 @@ import { JOINTS } from '@/lib/types';
 import { angle, anglesOf, bonesOf } from '@/lib/pose';
 
 describe('parseLibrary', () => {
-  it('round-trips the v2 format unchanged', () => {
-    const lib = { version: 2 as const, scenes: refScenes() };
+  it('round-trips the format unchanged', () => {
+    const lib = { version: 3 as const, scenes: refScenes() };
     expect(parseLibrary(JSON.parse(JSON.stringify(lib)))).toEqual(lib);
+  });
+
+  it('reads animations saved as keyframes: keys, walks and props (one-time converter)', () => {
+    const pose = (x: number, z: number, extra = {}) => ({ joints: { leftLowerLeg: [20, 0, 0] }, position: [x, 0, z], hands: {}, grounded: true, ...extra });
+    const lib = parseLibrary({
+      version: 2,
+      scenes: [{
+        id: 's', figures: [{ id: 'a' }, { id: 'b' }], props: [{ id: 'ball', kind: 'sphere' }],
+        animation: {
+          duration: 3, fps: 24, loop: false,
+          keys: [
+            { t: 0, poses: { a: pose(0, 0), b: pose(2, 0) }, props: { ball: { position: [0, 0, 1], rotation: [0, 0, 0] } } },
+            { t: 1, poses: { a: pose(0, 0) } },
+            { t: 2, poses: { a: pose(0, 2, { travel: 'walk' }) }, props: { ball: { position: [0, 0, 2], rotation: [0, 0, 0], release: true } } },
+          ],
+        },
+      }],
+      motions: [{ id: 'm', name: 'Mine', scene: { figures: [{ id: 'x' }], animation: { duration: 1, keys: [{ t: 0, poses: { x: pose(0, 0) } }, { t: 1, poses: { x: pose(0, 1) } }] } } }],
+    });
+    const a = lib.scenes[0].animation!;
+    const of = (id: string) => a.actions.filter((x) => x.roles[0].figure === id).map((x) => [x.source.kind, x.start, x.duration]);
+    expect(of('a')).toEqual([['keys', 0, 1], ['travel', 1, 1], ['keys', 2, 0]]);
+    expect(of('b')).toEqual([['keys', 0, 0]]);
+    expect(a.actions.find((x) => x.source.kind === 'travel')!.roles[0].end).toEqual({ at: [0, 2], facing: 0 });
+    expect(a.props!.ball.map((k) => [k.t, !!k.release])).toEqual([[0, false], [2, true]]);
+    expect(lib.version).toBe(3);
+    expect(lib.clips!.map((c) => [c.id, c.name, c.duration, c.parts.length])).toEqual([['m', 'Mine', 1, 1]]);
   });
 
   it('reads documents saved with the old joint names (one-time converter)', () => {

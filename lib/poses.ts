@@ -1,7 +1,7 @@
 import { DEFAULT_VIEW, newFigure, newScene } from './doc';
 import { cloneHand } from './hands';
 import { BUILT_IN_POSES } from './presets';
-import { withFacing } from './relations';
+import { facing, withFacing } from './relations';
 import type { Figure, Library, PoseAsset, Scene, View } from './types';
 import { uid } from './uid';
 
@@ -36,4 +36,9 @@ export function poseFromFigure(f: Figure, name: string, view: View = DEFAULT_VIE
     hands: { L: cloneHand(f.hands.L), R: cloneHand(f.hands.R) },
     view: { ...view },
   };
+}
+
+/** The figure in the given pose (bones and hands), still facing the same way. */
+export function withPose(f: Figure, p: PoseAsset): Figure {
+  return withFacing({ ...f, bones: { ...p.bones }, hands: { L: cloneHand(p.hands.L), R: cloneHand(p.hands.R) } }, facing(f));
 }

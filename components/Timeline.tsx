@@ -6,11 +6,14 @@ import {
   StepBack, StepForward, Trash2, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import {
-  addKeyframe, cutShot, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, rippleKeys, setAnimationOptions, setCameraKey,
+  addKeyframe, cutShot, deleteAction, deleteCameraKey, deleteKeyframe, moveKeyframe, removeAnimation, rippleKeys, setAnimationOptions, setCameraKey,
 } from '@/lib/actions';
-import { figureKeyTimes, removePropKey, snapTime } from '@/lib/animation';
-import { propKeyTimes, propTrack } from '@/lib/propmotion';
+import { snapTime } from '@/lib/animation';
+import { clipById } from '@/lib/assets';
+import { actionsOf } from '@/lib/evaluate';
+import { propKeyTimes, propTrack, removePropKey } from '@/lib/propmotion';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
+import { keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
 import type { Animation, CameraKey, Figure } from '@/lib/types';
@@ -102,7 +105,8 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const figures = scene.figures;
   const multi = figures.length > 1;
   const active = figures.find((f) => f.id === activeId) ?? figures[0];
-  const activeKeys = active ? figureKeyTimes(a, active.id) : a.keys.map((k) => k.t);
+  const activeKeys = active ? keyTimesOf(a, active.id) : [];
+  const stops = active ? moments(a, active.id) : moments(a);
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
   const cam = a.camera;
@@ -129,8 +133,8 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     pause();
     store.setTime(snapTime(a, t));
   };
-  const prevKey = [...activeKeys].reverse().find((t) => t < time - 1e-3);
-  const nextKey = activeKeys.find((t) => t > time + 1e-3);
+  const prevKey = [...stops].reverse().find((t) => t < time - 1e-3);
+  const nextKey = stops.find((t) => t > time + 1e-3);
 
   const timeAt = (clientX: number) => {
     const r = track.current!.getBoundingClientRect();
@@ -186,7 +190,8 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     // Keys elsewhere to line up with (other figures', props', the camera's, the cuts): a punch
     // lands as the other flinches.
     const others = [
-      ...a.keys.filter((k) => !k.poses[figureId] || Object.keys(k.poses).length > 1 || k.props).map((k) => k.t),
+      ...figures.filter((f) => f.id !== figureId).flatMap((f) => moments(a, f.id)),
+      ...Object.values(a.props ?? {}).flatMap((keys) => keys.map((k) => k.t)),
       ...(a.camera?.keys.map((k) => k.t) ?? []),
       ...(a.shots?.map((x) => x.start) ?? []),
     ].filter((x) => Math.abs(x - t) > 1e-6);
@@ -197,7 +202,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
       if (Math.abs(to - from) < 1e-6) return;
       if (ripple) rippleKeys(store, figureId, from, to - from, `ripple:${figureId}`);
       else moveKeyframe(store, from, to, figureId);
-      const now = figureKeyTimes(store.scene.animation!, figureId).find((k) => Math.abs(k - to) < 0.5 / a.fps);
+      const now = moments(store.scene.animation!, figureId).find((k) => Math.abs(k - to) < 0.5 / a.fps);
       if (now !== undefined) {
         from = now;
         store.setTime(now);
@@ -464,7 +469,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               })}
             </div>
             {figures.map((f) => {
-              const times = figureKeyTimes(a, f.id);
+              const times = keyTimesOf(a, f.id);
               const tight = dense(times);
               return (
                 <div
@@ -472,21 +477,28 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                   className={`tl-row${multi && f.id === active?.id ? ' active' : ''}`}
                   aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}
                   onContextMenu={(e) => {
-                    // How the figure gets from one key to the next, for the stretch under the pointer.
+                    // How the figure gets from one key (or mark) to the next, for the stretch under the pointer.
                     const at = timeAt(e.clientX);
-                    const next = times.find((k) => k > at + 1e-6);
+                    const next = moments(a, f.id).find((k) => k > at + 1e-6 && (travelInto(a, f.id, k) || keyAtTime(a, f.id, k)));
                     if (next === undefined || next === times[0]) { e.preventDefault(); return; }
                     store.setActiveFigure(f.id);
                     openContextMenu(e, travelMenu(store, f.id, next), `${f.name} · to ${next.toFixed(2)} s`);
                   }}
                 >
-                  {travelBars(a, f.id).map((b) => (
+                  {actionBars(a, f.id).map((b) => (
                     <span
-                      key={b.t0}
+                      key={b.id}
                       className={`tl-travel grab ${b.kind}`}
                       style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }}
-                      title={`${b.label}: drag to move it (and what follows), right-click to change how ${f.name} gets there`}
+                      title={b.kind === 'clip'
+                        ? `${b.label}: drag to move it (and what follows), right-click to remove it`
+                        : `${b.label}: drag to move it (and what follows), right-click to change how ${f.name} gets there`}
                       onPointerDown={dragKey(b.t0, f.id, true)}
+                      onContextMenu={b.kind === 'clip' ? (e) => {
+                        e.stopPropagation();
+                        store.setActiveFigure(f.id);
+                        openContextMenu(e, [{ label: `Remove ${b.label}`, icon: Trash2, danger: true, onSelect: () => deleteAction(store, b.id) }], `${f.name} · ${b.label}`);
+                      } : undefined}
                     >
                       <span style={inSight(b.t0, b.t1)}>{b.label}</span>
                     </span>
@@ -627,24 +639,21 @@ function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issu
 }
 
 
-/** The walk, run and jump stretches of a figure's track, labelled for the timeline. */
-function travelBars(a: Animation, id: string) {
-  const track = a.keys.filter((k) => k.poses[id]);
-  const bars: { t0: number; t1: number; kind: string; label: string }[] = [];
-  for (let i = 1; i < track.length; i++) {
-    const p = track[i].poses[id];
-    if (!p.travel) continue;
-    const t0 = track[i - 1].t;
-    const t1 = track[i].t;
-    let label = p.travel === 'walk' ? 'Walk' : p.travel === 'run' ? 'Run' : 'Jump';
-    if (p.travel === 'jump') {
-      label += ` ${jumpHeight(Math.max(0, t1 - t0 - 2 * JUMP_PREP)).toFixed(1)} m`;
-      if (p.spin) label += ` · ${p.spin === 0.5 ? '½' : p.spin} turn${Math.abs(p.spin) > 1 ? 's' : ''}`;
-      if (p.flip) label += p.flip > 0 ? ' · front flip' : ' · back flip';
-    } else if (p.strafe) label += ' · keep facing';
-    bars.push({ t0, t1, kind: p.travel, label });
-  }
-  return bars;
+/** A figure's walks, runs, jumps and motions, labelled for the timeline. */
+function actionBars(a: Animation, id: string) {
+  return actionsOf(a, id).flatMap((x) => {
+    const src = x.source;
+    const [t0, t1] = [x.start, x.start + x.duration];
+    if (src.kind === 'clip') return [{ id: x.id, t0, t1, kind: 'clip', label: clipById(src.clip)?.name ?? 'Motion' }];
+    if (src.kind !== 'travel') return [];
+    let label = src.mode === 'walk' ? 'Walk' : src.mode === 'run' ? 'Run' : 'Jump';
+    if (src.mode === 'jump') {
+      label += ` ${jumpHeight(Math.max(0, x.duration - 2 * JUMP_PREP)).toFixed(1)} m`;
+      if (src.spin) label += ` · ${src.spin === 0.5 ? '½' : src.spin} turn${Math.abs(src.spin) > 1 ? 's' : ''}`;
+      if (src.flip) label += src.flip > 0 ? ' · front flip' : ' · back flip';
+    } else if (src.strafe) label += ' · keep facing';
+    return [{ id: x.id, t0, t1, kind: src.mode as string, label }];
+  });
 }
 
 /** The stretches of a prop's track: in a hand, or flying (thrown). */
@@ -653,8 +662,8 @@ function propBars(a: Animation, id: string, figures: Figure[]) {
   const bars: { t0: number; t1: number; kind: string; label: string }[] = [];
   const name = (fid: string) => figures.find((f) => f.id === fid)?.name ?? 'a hand';
   for (let i = 1; i < track.length; i++) {
-    const prev = track[i - 1].key;
-    const k = track[i].key;
+    const prev = track[i - 1];
+    const k = track[i];
     if (k.throw) bars.push({ t0: track[i - 1].t, t1: track[i].t, kind: 'throw', label: k.hold ? `To ${name(k.hold.figure)}` : 'Thrown' });
     else if (prev.hold && !k.release) bars.push({ t0: track[i - 1].t, t1: track[i].t, kind: 'held', label: `${name(prev.hold.figure)}'s hand` });
   }

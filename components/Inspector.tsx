@@ -9,11 +9,12 @@ import {
   arrange, copyPose, holdProp, renameScene, setFigureColor, setGaze, setJumpHeight, setPosture, setSceneLight, setTravel, lookAtFigure, mirrorPose, pastePose,
   reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, symmetrizePose,
 } from '@/lib/actions';
-import { figureKeyTimes } from '@/lib/animation';
+import { travelAt } from '@/lib/evaluate';
+import { keyAtTime, moments, travelInto } from '@/lib/track';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
-import { JUMP_PREP, chainAt, jumpHeight } from '@/lib/locomotion';
+import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { angle } from '@/lib/pose';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
@@ -212,8 +213,8 @@ function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorConte
   const animation = useScene().animation;
   const time = useStudio((s) => s.time);
   // Between two marks of a walk, run or jump the generated steps place the figure.
-  const chain = animation ? chainAt(animation, figure.id, time) : null;
-  const moving = chain && time > chain.t0 + 1e-6 && time < chain.t1 - 1e-6;
+  const travel = animation ? travelAt(animation, figure.id, time) : null;
+  const moving = travel && time > travel.start + 1e-6 && time < travel.start + travel.duration - 1e-6;
   return (
     <Section title="Placement">
       <div className="prop-row">
@@ -339,22 +340,22 @@ function MovementSection({ figure }: { figure: Figure }) {
   const a = useScene().animation;
   const time = useStudio((s) => s.time);
   if (!a) return null;
-  const times = figureKeyTimes(a, figure.id);
-  const next = times.find((k) => k > time + 1e-6);
+  const times = moments(a, figure.id);
+  const next = times.find((k) => k > time + 1e-6 && (travelInto(a, figure.id, k) || keyAtTime(a, figure.id, k)));
   const started = times.some((k) => k <= time + 1e-6);
-  const key = next !== undefined ? a.keys.find((k) => Math.abs(k.t - next) < 1e-6)?.poses[figure.id] : undefined;
-  if (next === undefined || !started || !key) {
+  const tr = next !== undefined ? travelInto(a, figure.id, next) : null;
+  const key = tr?.source.kind === 'travel' ? tr.source : {} as { mode?: Travel; strafe?: boolean; spin?: number; flip?: number };
+  if (next === undefined || !started) {
     return (
       <Section id="movement" title="Movement" collapsible>
         <p className="hint-text">Right-click the floor to walk, run or jump there from here: it makes a new mark.</p>
       </Section>
     );
   }
-  const kind: Getting = key.travel ?? 'glide';
+  const kind: Getting = key.mode ?? 'glide';
   const keep = { strafe: key.strafe, spin: key.spin, flip: key.flip };
   const set = (k: Getting, patch: { strafe?: boolean; spin?: number; flip?: number } = {}) => setTravel(store, figure.id, next, k === 'glide' ? null : k, { ...keep, ...patch });
-  const chain = kind === 'jump' ? chainAt(a, figure.id, next - 1e-3) : null;
-  const height = chain ? jumpHeight(Math.max(0, chain.t1 - chain.t0 - 2 * JUMP_PREP)) : 0;
+  const height = kind === 'jump' && tr ? jumpHeight(Math.max(0, tr.duration - 2 * JUMP_PREP)) : 0;
   const nearest = JUMP_HEIGHTS.reduce((b, h) => (Math.abs(h - height) < Math.abs(b - height) ? h : b));
   return (
     <Section id="movement" title={`Movement · to ${next.toFixed(2)} s`} collapsible>

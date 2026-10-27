@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { addProp, moveProp, setTravel, travelTo } from '@/lib/actions';
-import { frameTimes, sceneAt } from '@/lib/animation';
+import { frameTimes } from '@/lib/animation';
+import { sceneAt } from '@/lib/evaluate';
 import { legsOf } from '@/lib/locomotion';
 import { buildMotion } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
@@ -9,6 +10,7 @@ import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
 import type { Scene } from '@/lib/types';
 import { angle, facingOf } from '../../lib/pose';
+import { actionsOf } from '@/lib/evaluate';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -116,9 +118,9 @@ describe('walking, running and jumping from mark to mark', () => {
     expect(frames.at(-1)!.root.z).toBeCloseTo(1.2, 1);
 
     // A full turn in the air: half way through the jump it faces the other way.
-    const keys = store.scene.animation!.keys.map((k) => k.t);
-    setTravel(store, id, keys.at(-1)!, 'jump', { spin: 1 });
-    const half = (keys[0] + keys.at(-1)!) / 2;
+    const jump = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'travel')!;
+    setTravel(store, id, jump.start + jump.duration, 'jump', { spin: 1 });
+    const half = jump.start + jump.duration / 2;
     const yaw = facingOf(sceneAt(store.scene, half).figures[0].bones);
     expect(Math.abs(yaw)).toBeGreaterThan(120);
   });

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { keyAt, moveKey, newAnimation, removeKey, sampleCamera, samplePose, sceneAt, setDuration, setKey, frameTimes } from '@/lib/animation';
+import { sampleCamera, setDuration, frameTimes } from '@/lib/animation';
+import { partKeys } from '@/lib/clip';
+import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { addFigure, addKeyframe, applyCameraMove, applyMotion, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
 import { BODY_PRESETS } from '@/lib/body';
 import { duplicateScene, mirrorScene, newFigure, newScene, parseScene } from '@/lib/doc';
@@ -11,8 +13,9 @@ import { checkMotion } from '@/lib/qa';
 import { withFacing } from '@/lib/relations';
 import { CAMERA_MOVES, captureShot, framingFor, placeShot, shotAt } from '@/lib/shot';
 import { Store } from '@/lib/store';
-import type { Figure, JointName } from '@/lib/types';
-import { angle, withAngles } from '@/lib/pose';
+import { keyAtTime, keyTimesOf, keysAction, moveKeyTo, removeKeyAt, setPoseAt } from '@/lib/track';
+import type { Figure, JointName, Scene } from '@/lib/types';
+import { angle, anglesOf, facingOf, withAngles } from '@/lib/pose';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -26,55 +29,55 @@ class MemoryStorage implements Storage {
 
 const withKnee = (f: Figure, deg: number): Figure => ({ ...f, bones: withAngles(f.bones, { leftLowerLeg: [deg, 0, 0] }) });
 
+/** One figure keyed at these times. */
+function keyed(keys: [number, Figure][], loop = false, duration = 2): Scene {
+  const s = newScene('Test', [keys[0][1]]);
+  return { ...s, animation: { duration, fps: 24, loop, actions: [keysAction(s.figures[0].id, keys.map(([t, pose]) => ({ t, pose })))] } };
+}
+
 function twoKeyScene(loop = false) {
   const f = newFigure();
-  const s = newScene('Test', [withKnee(f, 0)]);
-  let a = { ...newAnimation(s, 2), loop };
-  a = setKey(a, 1, [withKnee(f, 60)]);
-  return { ...s, animation: a };
+  return keyed([[0, withKnee(f, 0)], [1, withKnee(f, 60)]], loop);
 }
+
+const kneeAt = (s: Scene, t: number) => angle(figurePoseAt(s, s.figures[0].id, t)!.bones, 'leftLowerLeg')[0];
 
 describe('keyframe sampling', () => {
   it('passes exactly through the keys and in between', () => {
     const s = twoKeyScene();
-    const id = s.figures[0].id;
-    expect(samplePose(s.animation!, id, 0)!.joints.leftLowerLeg?.[0] ?? 0).toBe(0);
-    expect(samplePose(s.animation!, id, 1)!.joints.leftLowerLeg![0]).toBe(60);
-    const mid = samplePose(s.animation!, id, 0.5)!.joints.leftLowerLeg![0];
+    expect(kneeAt(s, 0)).toBe(0);
+    expect(kneeAt(s, 1)).toBe(60);
+    const mid = kneeAt(s, 0.5);
     expect(mid).toBeGreaterThan(20);
     expect(mid).toBeLessThan(40);
     // Holds the last key after it (no loop).
-    expect(samplePose(s.animation!, id, 1.8)!.joints.leftLowerLeg![0]).toBe(60);
+    expect(kneeAt(s, 1.8)).toBe(60);
   });
 
   it('loops smoothly back to the first key', () => {
     const s = twoKeyScene(true);
-    const id = s.figures[0].id;
-    const at = (t: number) => samplePose(s.animation!, id, t)!.joints.leftLowerLeg?.[0] ?? 0;
-    expect(at(1.5)).toBeGreaterThan(10);
-    expect(at(1.5)).toBeLessThan(50);
-    expect(at(1.999)).toBeLessThan(2);
-    expect(at(2.5)).toBeCloseTo(at(0.5), 5);
+    expect(kneeAt(s, 1.5)).toBeGreaterThan(10);
+    expect(kneeAt(s, 1.5)).toBeLessThan(50);
+    expect(kneeAt(s, 1.999)).toBeLessThan(2);
   });
 
   it('turns the short way across ±180°', () => {
     const f = newFigure();
-    const s = newScene('Turn', [withFacing(f, 170)]);
-    const a = setKey(newAnimation(s, 2), 1, [withFacing(f, -170)]);
-    const yaw = samplePose({ ...a, loop: false }, f.id, 0.5)!.joints.hips![1];
-    expect(Math.abs(yaw)).toBeGreaterThan(170);
+    const s = keyed([[0, withFacing(f, 170)], [1, withFacing(f, -170)]]);
+    expect(Math.abs(facingOf(figurePoseAt(s, f.id, 0.5)!.bones))).toBeGreaterThan(170);
   });
 
   it('adds, moves and removes keys on the frame grid', () => {
     const s = twoKeyScene();
-    let a = setKey(s.animation!, 0.51, s.figures);
-    expect(a.keys.map((k) => k.t)).toEqual([0, 0.5, 1]);
-    a = moveKey(a, 0.5, 1.25);
-    expect(a.keys.map((k) => k.t)).toEqual([0, 1, 1.25]);
-    expect(moveKey(a, 1.25, 1).keys.map((k) => k.t)).toEqual([0, 1, 1.25]); // occupied
-    a = removeKey(a, 1);
-    expect(keyAt(a, 1)).toBe(-1);
-    expect(setDuration(a, 4).keys.map((k) => k.t)).toEqual([0, 2.5]);
+    const id = s.figures[0].id;
+    let a = setPoseAt(s, id, 0.51, s.figures[0]);
+    expect(keyTimesOf(a, id)).toEqual([0, 0.5, 1]);
+    a = moveKeyTo(a, id, 0.5, 1.25);
+    expect(keyTimesOf(a, id)).toEqual([0, 1, 1.25]);
+    expect(keyTimesOf(moveKeyTo(a, id, 1.25, 1), id)).toEqual([0, 1, 1.25]); // occupied
+    a = removeKeyAt(a, id, 1);
+    expect(keyAtTime(a, id, 1)).toBeNull();
+    expect(keyTimesOf(setDuration(a, 4), id)).toEqual([0, 2.5]);
     expect(frameTimes({ ...a, duration: 1, fps: 24, loop: true }, 4)).toEqual([0, 0.25, 0.5, 0.75]);
   });
 
@@ -82,9 +85,9 @@ describe('keyframe sampling', () => {
     const s = twoKeyScene();
     expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
     const copy = duplicateScene(s);
-    expect(Object.keys(copy.animation!.keys[1].poses)).toEqual([copy.figures[0].id]);
+    expect(copy.animation!.actions.map((x) => x.roles[0].figure)).toEqual([copy.figures[0].id]);
     const m = mirrorScene(s);
-    expect(m.animation!.keys[1].poses[s.figures[0].id].joints.rightLowerLeg![0]).toBe(60);
+    expect(angle(figurePoseAt(m, s.figures[0].id, 1)!.bones, 'rightLowerLeg')[0]).toBe(60);
   });
 });
 
@@ -96,17 +99,17 @@ describe('animation in the store', () => {
     const knee0 = angle(store.scene.figures[0].bones, 'leftLowerLeg')[0];
     store.setTime(1);
     store.updateFigure(id, (f) => withKnee(f, 45));
-    expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
+    expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1]);
     store.setTime(0);
     expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(knee0);
     store.setTime(1);
     expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(45);
     // Undo removes the key and puts the figure back.
     store.undo();
-    expect(store.scene.animation!.keys).toHaveLength(1);
+    expect(keyTimesOf(store.scene.animation!, id)).toHaveLength(1);
     expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(knee0);
     addKeyframe(store);
-    expect(store.scene.animation!.keys).toHaveLength(2);
+    expect(keyTimesOf(store.scene.animation!, id)).toHaveLength(2);
   });
 
   it('opens animated poses at their first frame', () => {
@@ -186,12 +189,13 @@ describe('animation templates', () => {
       const s = m.build();
       const a = s.animation!;
       expect(s.figures, m.id).toHaveLength(m.people);
-      expect(a.keys.length, m.id).toBeGreaterThan(1);
+      expect(a.actions.length, m.id).toBeGreaterThan(m.people - 1);
       expect(a.camera?.keys.length, m.id).toBeGreaterThan(0);
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
-      for (const k of a.keys) {
-        for (const p of Object.values(k.poses)) {
-          for (const [j, r] of Object.entries(p.joints)) {
+      for (const x of a.actions) {
+        if (x.source.kind !== 'keys') continue;
+        for (const k of partKeys(x.source.clip.parts[0])) {
+          for (const [j, r] of Object.entries(anglesOf(k.pose.bones))) {
             if (j === 'hips') continue;
             const lim = jointLimits(j as JointName);
             r!.forEach((v, i) => {
@@ -213,8 +217,8 @@ describe('per-figure tracks', () => {
     startAnimation(store, 2);
     return { store, a: a.id, b: b.id };
   }
-  const keys = (store: Store, id: string) => store.scene.animation!.keys.filter((k) => k.poses[id]).map((k) => k.t);
-  const knee = (store: Store, id: string, t: number) => samplePose(store.scene.animation!, id, t)!.joints.leftLowerLeg?.[0] ?? 0;
+  const keys = (store: Store, id: string) => keyTimesOf(store.scene.animation!, id);
+  const knee = (store: Store, id: string, t: number) => angle(figurePoseAt(store.scene, id, t)!.bones, 'leftLowerLeg')[0];
   const bend = (store: Store, id: string, deg: number) => store.updateFigure(id, (f) => withKnee(f, deg));
 
   it('keys only the figure that was posed', () => {
@@ -232,7 +236,7 @@ describe('per-figure tracks', () => {
     store.setTime(1);
     bend(store, a, 60);
     bend(store, b, 40);
-    expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
+    expect([...keys(store, a), ...keys(store, b)]).toEqual([0, 1, 0, 1]);
     // A's punch later; B's reaction stays at 1 s.
     moveKeyframe(store, 1, 1.5, a);
     expect(keys(store, a)).toEqual([0, 1.5]);
@@ -262,7 +266,7 @@ describe('per-figure tracks', () => {
     addKeyframe(store, [a, b]);
     expect(keys(store, a)).toEqual([0, 0.5]);
     deleteFigure(store, b);
-    expect(store.scene.animation!.keys.every((k) => !k.poses[b])).toBe(true);
+    expect(store.scene.animation!.actions.every((x) => x.roles.every((r) => r.figure !== b))).toBe(true);
   });
 
   it('a figure added later stays put until it is keyed', () => {
@@ -270,7 +274,7 @@ describe('per-figure tracks', () => {
     store.setTime(1);
     addFigure(store);
     const c = store.getState().activeFigure!;
-    expect(keys(store, c)).toEqual([1]);
+    expect(keys(store, c)).toEqual([0]);
     expect(knee(store, c, 0)).toBe(knee(store, c, 2));
   });
 });

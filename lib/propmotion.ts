@@ -3,6 +3,7 @@ import { GRAVITY } from './locomotion';
 import { RIBBON, RIM } from './props';
 import { Rig } from './relations';
 import { groundOf } from './surfaces';
+import { propKeyOf } from './animation';
 import type { Animation, Figure, Prop, PropKey, Scene, Side, Vec3 } from './types';
 
 /*
@@ -36,12 +37,59 @@ function decompose(m: THREE.Matrix4): { position: Vec3; rotation: Vec3 } {
 }
 
 /** The keys of one prop, in time order. */
-export function propTrack(a: Animation, id: string) {
-  return a.keys.filter((k) => k.props?.[id]).map((k) => ({ t: k.t, key: k.props![id] }));
+export function propTrack(a: Animation, id: string): PropKey[] {
+  return a.props?.[id] ?? [];
 }
 
 export function propKeyTimes(a: Animation, id: string) {
   return propTrack(a, id).map((k) => k.t);
+}
+
+const onFrame = (a: Animation, t: number) => Math.round(t * a.fps) / a.fps;
+const withTrack = (a: Animation, id: string, keys: PropKey[]): Animation => {
+  const { [id]: _, ...rest } = a.props ?? {};
+  void _;
+  const props = keys.length ? { ...rest, [id]: [...keys].sort((p, q) => p.t - q.t) } : rest;
+  if (Object.keys(props).length) return { ...a, props };
+  const { props: _old, ...out } = a;
+  void _old;
+  return out;
+};
+
+/** One prop's key at a time (on a frame), replacing one there. */
+export function putPropKey(a: Animation, t: number, id: string, key: Omit<PropKey, 't'>): Animation {
+  const time = onFrame(a, t);
+  return withTrack(a, id, [...propTrack(a, id).filter((k) => Math.abs(k.t - time) >= 0.5 / a.fps), { ...key, t: time }]);
+}
+
+/**
+ * Key a prop at time t with its current place; an existing key keeps whether it was let go or
+ * thrown there. The first key of a prop also keys where it was before (`was`) at the start, so it
+ * moves from there.
+ */
+export function setPropKey(a: Animation, t: number, prop: Prop, extra: Partial<PropKey> = {}, was?: Prop): Animation {
+  const time = Math.min(a.duration, Math.max(0, onFrame(a, t)));
+  let out = a;
+  if (was && !propTrack(a, prop.id).length && time > 0) out = putPropKey(out, 0, prop.id, propKeyOf(was, 0));
+  const old = propTrack(out, prop.id).find((k) => Math.abs(k.t - time) < 0.5 / a.fps);
+  return putPropKey(out, time, prop.id, { ...propKeyOf(prop, time), ...(old?.release ? { release: true } : {}), ...(old?.throw ? { throw: true } : {}), ...extra });
+}
+
+/** Remove one prop's key at time t. */
+export function removePropKey(a: Animation, t: number, id: string): Animation {
+  return withTrack(a, id, propTrack(a, id).filter((k) => Math.abs(k.t - t) >= 0.5 / a.fps));
+}
+
+/** Move one prop's keys after `after` later by `by` seconds. */
+export function shiftPropTrack(a: Animation, id: string, after: number, by: number): Animation {
+  const keys = propTrack(a, id).map((k) => (k.t <= after + 1e-6 ? k : { ...k, t: Math.min(60, onFrame(a, k.t + by)) }));
+  return { ...withTrack(a, id, keys), duration: Math.min(60, Math.max(a.duration, ...keys.map((k) => k.t))) };
+}
+
+/** Only the keys of these props (after props are deleted). */
+export function keepProps(a: Animation, ids: Set<string>): Animation {
+  if (Object.keys(a.props ?? {}).every((id) => ids.has(id))) return a;
+  return Object.keys(a.props ?? {}).reduce((out, id) => (ids.has(id) ? out : withTrack(out, id, [])), a);
 }
 
 /**
@@ -49,7 +97,7 @@ export function propKeyTimes(a: Animation, id: string) {
  */
 export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: number) => Figure | null): Prop[] {
   const a = scene.animation;
-  if (!a || !a.keys.some((k) => k.props && Object.keys(k.props).length)) return scene.props;
+  if (!a?.props) return scene.props;
   rig ??= new Rig();
   rig.ground = groundOf(scene.props);
   const wrists = new Map<string, THREE.Matrix4 | null>();
@@ -74,9 +122,10 @@ export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: numbe
     const held = (k: PropKey) => !!k.hold && scene.figures.some((f) => f.id === k.hold!.figure);
     /** A key's world place: in the hand at that time if held, or where the hand let go. */
     const world = (i: number): { position: Vec3; rotation: Vec3 } => {
-      const { t: at, key } = track[i];
-      const hand = held(key) ? key.hold! : key.release && i > 0 && held(track[i - 1].key) ? track[i - 1].key.hold! : null;
-      const local = held(key) ? key : key.release && i > 0 ? track[i - 1].key : key;
+      const key = track[i];
+      const at = key.t;
+      const hand = held(key) ? key.hold! : key.release && i > 0 && held(track[i - 1]) ? track[i - 1].hold! : null;
+      const local = held(key) ? key : key.release && i > 0 ? track[i - 1] : key;
       if (hand) {
         const m = wrist(hand.figure, hand.hand, at);
         if (m) return decompose(m.clone().multiply(compose(local.position, local.rotation)));
@@ -90,15 +139,15 @@ export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: numbe
     };
 
     // Before the first key: as at the first key.
-    if (t <= track[0].t) return held(track[0].key) ? asProp(track[0].key, track[0].key.hold) : asProp(world(0));
+    if (t <= track[0].t) return held(track[0]) ? asProp(track[0], track[0].hold) : asProp(world(0));
     let i = track.length - 1;
     while (i > 0 && track[i].t > t) i--;
     const a0 = track[i];
     // After the last key: held, at rest, or falling from where it was let go.
     if (i === track.length - 1) {
-      if (held(a0.key)) return asProp(a0.key, a0.key.hold);
+      if (held(a0)) return asProp(a0, a0.hold);
       const w = world(i);
-      if (!a0.key.release) return asProp(w);
+      if (!a0.release) return asProp(w);
       const fall = t - a0.t;
       const floor = ground(w.position[0], w.position[2]);
       return asProp({ position: [w.position[0], Math.max(floor, w.position[1] - (GRAVITY * fall * fall) / 2), w.position[2]], rotation: w.rotation });
@@ -106,14 +155,14 @@ export function propsAt(scene: Scene, t: number, figureAt: (id: string, t: numbe
     const b0 = track[i + 1];
     const u = (t - a0.t) / (b0.t - a0.t);
     // In a hand: it rides along (easing to the next place in the same hand).
-    if (held(a0.key) && !b0.key.release) {
-      const same = held(b0.key) && b0.key.hold!.figure === a0.key.hold!.figure && b0.key.hold!.hand === a0.key.hold!.hand;
-      return asProp(same ? lerpPlace(a0.key, b0.key, smooth(u)) : a0.key, a0.key.hold);
+    if (held(a0) && !b0.release) {
+      const same = held(b0) && b0.hold!.figure === a0.hold!.figure && b0.hold!.hand === a0.hold!.hand;
+      return asProp(same ? lerpPlace(a0, b0, smooth(u)) : a0, a0.hold);
     }
-    if (held(a0.key)) return asProp(a0.key, a0.key.hold);
+    if (held(a0)) return asProp(a0, a0.hold);
     const wa = world(i);
     const wb = world(i + 1);
-    if (b0.key.throw) {
+    if (b0.throw) {
       // In flight: straight across, and up and down under gravity.
       const T = b0.t - a0.t;
       const p0 = lerpPlace(wa, wb, u);

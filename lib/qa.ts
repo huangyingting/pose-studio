@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { frameTimes, sceneAt } from './animation';
-import { chainAt } from './locomotion';
+import { frameTimes } from './animation';
+import { sceneAt, travelAt } from './evaluate';
 import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
@@ -294,8 +294,8 @@ export function checkMotion(scene: Scene): Issue[] {
       // Pops: a large rotation, or the body jumping, in a single frame. Walks, runs and jumps are
       // generated smooth (tests sample them finely), and legs really move that fast when running
       // or taking off: their legs and body are not checked for pops.
-      const generated = !!chainAt(a, f.id, times[i]) || generatedBefore.has(f.id);
-      if (chainAt(a, f.id, times[i])) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
+      const generated = !!travelAt(a, f.id, times[i]) || generatedBefore.has(f.id);
+      if (travelAt(a, f.id, times[i])) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
       for (const j of JOINTS) {
         if (generated && (LEGS.has(j) || j === 'hips')) {
           prevStep.delete(f.id + j);

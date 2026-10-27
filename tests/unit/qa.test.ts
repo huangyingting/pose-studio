@@ -1,17 +1,19 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { poseOf, samplePose } from '@/lib/animation';
 import { newFigure, newProp, newScene } from '@/lib/doc';
+import { figurePoseAt } from '@/lib/evaluate';
 import { buildMotion } from '@/lib/motions';
 import { checkMotion, segmentDistance } from '@/lib/qa';
 import { buildTemplate } from '@/lib/templates';
 import type { Figure, Scene } from '@/lib/types';
-import { bonesOf, withAngles } from '../../lib/pose';
+import { keysAction } from '@/lib/track';
+import { angle, bonesOf, withAngles } from '../../lib/pose';
 
-/** An animation from a list of [time, figures] keys. */
+/** An animation from a list of [time, figures] keys (each figure's keys one action). */
 function animate(keys: [number, Figure[]][], duration = 1, loop = false): Scene {
   const scene = newScene('Test', keys[0][1]);
-  return { ...scene, animation: { duration, fps: 24, loop, keys: keys.map(([t, figs]) => ({ t, poses: Object.fromEntries(figs.map((f) => [f.id, poseOf(f)])) })) } };
+  const actions = keys[0][1].map((f) => keysAction(f.id, keys.flatMap(([t, figs]) => figs.filter((x) => x.id === f.id).map((x) => ({ t, pose: x })))));
+  return { ...scene, animation: { duration, fps: 24, loop, actions } };
 }
 
 const kinds = (s: Scene) => checkMotion(s).map((i) => i.kind);
@@ -30,13 +32,13 @@ describe('motion QA', () => {
     const ball = { ...newProp('sphere', [0, 1, -1.5], 'Ball'), scale: [0.24, 0.24, 0.24] as [number, number, number] };
     const scene = animate([[0, [f]], [1, [f]]]);
     // Straight through the chest, from in front to behind (gliding, not lobbed over).
-    const through = { ...scene, props: [ball], animation: { ...scene.animation!, keys: [
-      { ...scene.animation!.keys[0], props: { [ball.id]: { position: [0, 1.3, 1.5] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] } } },
-      { ...scene.animation!.keys[1], props: { [ball.id]: { position: [0, 1.3, -1.5] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] } } },
-    ] } };
+    const through = { ...scene, props: [ball], animation: { ...scene.animation!, props: { [ball.id]: [
+      { t: 0, position: [0, 1.3, 1.5] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+      { t: 1, position: [0, 1.3, -1.5] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+    ] } } };
     expect(checkMotion(through).map((i) => i.message)).toContain('Ball flies through Ben’s body');
     // Past the side, clear of him.
-    const past = { ...through, animation: { ...through.animation, keys: through.animation.keys.map((k) => ({ ...k, props: { [ball.id]: { ...k.props![ball.id], position: [1, 1.1, k.props![ball.id].position[2]] as [number, number, number] } } })) } };
+    const past = { ...through, animation: { ...through.animation, props: { [ball.id]: through.animation.props[ball.id].map((k) => ({ ...k, position: [1, 1.1, k.position[2]] as [number, number, number] })) } } };
     expect(kinds(past)).toEqual([]);
   });
 
@@ -78,9 +80,9 @@ describe('motion QA', () => {
     const f = newFigure();
     const down = { ...f, bones: bonesOf({ leftUpperArm: [50, 0, 0] }) };
     const up = { ...f, bones: bonesOf({ leftUpperArm: [-160, 0, 0] }) };
-    const a = animate([[0, [down]], [1, [up]]]).animation!;
+    const s = animate([[0, [down]], [1, [up]]]);
     // Halfway the arm points forward (about −55°), not straight up behind the back (about 145°).
-    expect(samplePose(a, f.id, 0.5)!.joints.leftUpperArm![0]).toBeCloseTo(-55, 0);
+    expect(angle(figurePoseAt(s, f.id, 0.5)!.bones, 'leftUpperArm', [-55, 0, 0])[0]).toBeCloseTo(-55, 0);
   });
 
   it('measures the distance between segments', () => {

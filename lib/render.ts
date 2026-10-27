@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { frameTimes, sceneAt } from './animation';
+import { frameTimes } from './animation';
+import { sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
 import { DEFAULT_LIGHT, LightRig } from './lighting';
 import { LineArtPass } from './lineart';

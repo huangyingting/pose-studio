@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addFigure, addProp, holdProp, moveProp, startAnimation, throwProp } from '@/lib/actions';
-import { figurePoseAt, sceneAt } from '@/lib/animation';
+import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { duplicateScene, parseLibrary } from '@/lib/doc';
 import { handPosition, worldOfProp } from '@/lib/propmotion';
 import { Store } from '@/lib/store';
@@ -90,12 +90,12 @@ describe('props over time: carried, thrown, caught, dropped', () => {
     throwProp(store, ball, { at: [2, 1] });
     const lib = parseLibrary(JSON.parse(JSON.stringify(store.getState().library)));
     const scene = lib.scenes[0];
-    expect(scene.animation!.keys.filter((k) => k.props?.[ball])).toHaveLength(3);
+    expect(scene.animation!.props![ball]).toHaveLength(3);
     const copy = duplicateScene(scene);
     const newBall = copy.props[0].id;
     const newFigure = copy.figures[0].id;
     expect(newBall).not.toBe(ball);
-    const held = copy.animation!.keys.find((k) => k.props?.[newBall]?.hold)!.props![newBall];
+    const held = copy.animation!.props![newBall].find((k) => k.hold)!;
     expect(held.hold!.figure).toBe(newFigure);
     expect(newFigure).not.toBe(id);
   });

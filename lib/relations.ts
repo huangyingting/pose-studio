@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Ink } from './ink';
 import { sided } from './joints';
 import { IK_CHAINS, Mannequin, setWorldQuaternion, worldPos } from './mannequin';
-import { angle, facingOf, fromQuat, toQuat } from './pose';
+import { angle, facingOf, turnBones } from './pose';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
 /*
@@ -25,8 +25,7 @@ export function facing(f: Figure) {
 
 /** The figure turned (about the vertical) to face `yaw`, its pose otherwise kept. */
 export function withFacing(f: Figure, yaw: number): Figure {
-  const turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (round(wrap(yaw), 0.1) - facing(f)) * D2R);
-  return { ...f, bones: { ...f.bones, hips: toQuat(turn.multiply(fromQuat(f.bones.hips))) } };
+  return { ...f, bones: turnBones(f.bones, round(wrap(yaw), 0.1) - facing(f)) };
 }
 
 export function withPosition(f: Figure, x: number, z: number): Figure {

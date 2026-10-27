@@ -1,4 +1,4 @@
-import { sceneAt } from './animation';
+import { sceneAt } from './evaluate';
 import { shotAt, shotFramer, subjectAt, type Framing } from './shot';
 import { styleDef } from './styles';
 import { sharedRenderer } from './thumbnails';

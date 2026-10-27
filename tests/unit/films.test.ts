@@ -4,7 +4,7 @@ import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, arrange, cutShot, dribbleProp, editShot, holdProp, moveProp, setGaze, setSceneLight,
   throwProp, travelTo,
 } from '@/lib/actions';
-import { sceneAt } from '@/lib/animation';
+import { sceneAt } from '@/lib/evaluate';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { buildMotion } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';

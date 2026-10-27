@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
-import { sceneAt } from '@/lib/animation';
+import { sceneAt } from '@/lib/evaluate';
 import { addFigures, appendScenes, setSceneView } from '@/lib/actions';
 import { newFigure, newScene } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';

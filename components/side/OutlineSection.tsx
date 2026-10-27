@@ -6,7 +6,7 @@ import {
   addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, editShot, renameFigure, renameProp,
   setFigureHidden, startAnimation,
 } from '@/lib/actions';
-import { figureKeyTimes } from '@/lib/animation';
+import { moments } from '@/lib/track';
 import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
@@ -61,7 +61,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
           <ul className="layers" aria-label="Cast">
             {scene.figures.map((f) => {
               const on = f.id === active && (!selection || selection.kind === 'figure' || selection.kind === 'joint');
-              const moving = !!a && figureKeyTimes(a, f.id).length > 1;
+              const moving = !!a && moments(a, f.id).length > 1;
               return (
                 <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}`}>
                   <Row

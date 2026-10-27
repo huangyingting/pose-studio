@@ -3,6 +3,10 @@ import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
 import { Store } from '@/lib/store';
 import { angle } from '../../lib/pose';
+import { partKeys } from '@/lib/clip';
+import { actionsOf } from '@/lib/evaluate';
+import { facingOf } from '@/lib/pose';
+import { keyTimesOf } from '@/lib/track';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -89,18 +93,19 @@ describe('assistant tools', () => {
     run(store, 'animate', { duration: 2, loop: false });
     run(store, 'set_time', { seconds: 1 });
     run(store, 'set_joints', { figure: fig, joints: [{ joint: 'leftUpperArm', x: -120, y: 0, z: 10 }] });
-    expect(store.scene.animation!.keys.map((k) => k.t)).toEqual([0, 1]);
+    expect(keyTimesOf(store.scene.animation!, fig)).toEqual([0, 1]);
     run(store, 'camera_move', { move: 'orbit90' });
     expect(store.scene.animation!.camera!.keys.length).toBeGreaterThan(1);
     expect(run(store, 'check_motion')).toBe('No problems found.');
     expect(run(store, 'describe_shot')).toMatch(/arcs/);
 
     // Staging moves the figure in every key; animate_move keys the new place at the playhead only.
+    const keys = () => actionsOf(store.scene.animation!, fig).flatMap((x) => (x.source.kind === 'keys' ? partKeys(x.source.clip.parts[0]).map((k) => k.pose) : []));
     run(store, 'place_figure', { figure: fig, x: 1, z: null, facing: 90, animate_move: null });
-    expect(store.scene.animation!.keys.map((k) => k.poses[fig].position[0])).toEqual([1, 1]);
-    expect(store.scene.animation!.keys.map((k) => k.poses[fig].joints.hips![1])).toEqual([90, 90]);
+    expect(keys().map((p) => p.position[0])).toEqual([1, 1]);
+    expect(keys().map((p) => Math.round(facingOf(p.bones)))).toEqual([90, 90]);
     run(store, 'place_figure', { figure: fig, x: 2, z: null, facing: null, animate_move: true });
-    expect(store.scene.animation!.keys.map((k) => k.poses[fig].position[0])).toEqual([1, 2]);
+    expect(keys().map((p) => p.position[0])).toEqual([1, 2]);
   });
 
   it('applies library poses and motions to a figure', () => {
@@ -108,10 +113,10 @@ describe('assistant tools', () => {
     const id = store.figure!.id;
     expect(run(store, 'apply_pose', { figure: id, pose: 'hand on head' })).toBe('Figure: Hand on head.');
     expect(run(store, 'apply_motion', { figure: id, motion: 'walk' })).toMatch(/Walk ahead from 0 s/);
-    // Two marks, the steps between them generated: it arrives 3 m ahead, walking.
-    const keys = store.scene.animation!.keys;
-    expect(keys.map((k) => k.poses[id].travel)).toEqual([undefined, 'walk']);
-    expect(keys[1].poses[id].position[2]).toBeCloseTo(3, 2);
+    // From where it stands to a mark 3 m ahead, walking (the steps generated).
+    const walk = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'travel')!;
+    expect(walk.source).toMatchObject({ mode: 'walk' });
+    expect(walk.roles[0].end!.at[1]).toBeCloseTo(3, 2);
     expect(runTool(store, 'apply_pose', { figure: id, pose: 'moonwalk' }).ok).toBe(false);
   });
 

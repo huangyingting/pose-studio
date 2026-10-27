@@ -1,4 +1,4 @@
-import { sceneAt } from './animation';
+import { sceneAt } from './evaluate';
 import { newScene } from './doc';
 import type { Library, Panel, Scene } from './types';
 
@@ -15,7 +15,7 @@ export interface SyncBase {
   /** Saved poses both sides had. */
   poses?: string[];
   /** Imported motions both sides had. */
-  motions?: string[];
+  clips?: string[];
 }
 
 function hash(text: string) {
@@ -44,7 +44,7 @@ const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
 
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
-  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.motions?.length) return false;
+  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length) return false;
   const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
@@ -57,7 +57,7 @@ export function canonical(lib: Library): Library {
 export function syncBase(lib: Library): SyncBase {
   return {
     scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board),
-    poses: (lib.poses ?? []).map((p) => p.id), motions: (lib.motions ?? []).map((m) => m.id),
+    poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id),
   };
 }
 
@@ -68,7 +68,7 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
     && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s))
     && boardHash(lib.board) === base.board
     && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join()
-    && (lib.motions ?? []).map((m) => m.id).join() === (base.motions ?? []).join();
+    && (lib.clips ?? []).map((m) => m.id).join() === (base.clips ?? []).join();
 }
 
 export function mergeLibraries(server: Library, local: Library, base: SyncBase | null): Library {
@@ -115,13 +115,13 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
   // Saved poses and imported motions: everything from both sides, except those one side deleted
   // since they last agreed.
   const poses = assets(server.poses, local.poses, base?.poses);
-  const motions = assets(server.motions, local.motions, base?.motions);
+  const clips = assets(server.clips, local.clips, base?.clips);
   return {
     ...server,
     scenes: out.length ? out : server.scenes,
     ...(board?.length ? { board } : { board: undefined }),
     ...(poses.length ? { poses } : { poses: undefined }),
-    ...(motions.length ? { motions } : { motions: undefined }),
+    ...(clips.length ? { clips } : { clips: undefined }),
   };
 }
 

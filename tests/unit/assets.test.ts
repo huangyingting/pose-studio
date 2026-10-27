@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { addFigure, applyMotion, applyPose, deletePose, savePose } from '@/lib/actions';
-import { samplePose } from '@/lib/animation';
-import { insertMotion, withPose } from '@/lib/apply';
+import { BUILT_IN, clipById } from '@/lib/assets';
 import { newFigure, newScene, parseLibrary } from '@/lib/doc';
+import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { buildMotion } from '@/lib/motions';
-import { allPoses, builtInPoses } from '@/lib/poses';
+import { allPoses, builtInPoses, withPose } from '@/lib/poses';
+import { insertClip } from '@/lib/track';
 import { facing, withFacing } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { mergeLibraries, syncBase } from '@/lib/sync';
@@ -58,17 +59,18 @@ describe('library assets applied to the scene', () => {
   it('puts a motion on one figure\'s track, from where it stands and facing its way', () => {
     const ben = withFacing({ ...newFigure({ name: 'Ben' }), position: [2, 0, 0] }, 90);
     const anna = newFigure({ name: 'Anna' });
-    const walk = buildMotion('walk')!;
-    const scene = insertMotion(newScene('S', [ben, anna]), ben.id, walk, 0);
+    const wave = clipById(BUILT_IN + 'wave')!;
+    const scene = insertClip(newScene('S', [ben, anna]), [ben.id], wave.id, 0);
     const a = scene.animation!;
-    expect(a.duration).toBe(walk.animation!.duration);
-    // Ben moves; Anna only has her starting key.
-    expect(a.keys.filter((k) => k.poses[anna.id]).map((k) => k.t)).toEqual([0]);
-    const first = samplePose(a, ben.id, 0)!;
+    expect(a.duration).toBe(wave.duration);
+    // Ben waves; Anna only holds her pose.
+    expect(actionsOf(a, anna.id).map((x) => x.source.kind)).toEqual(['keys']);
+    expect(actionsOf(a, ben.id).map((x) => x.source.kind)).toEqual(['keys', 'clip']);
+    const first = figurePoseAt(scene, ben.id, 0)!;
     expect(first.position[0]).toBeCloseTo(2);
-    expect(first.joints.hips![1]).toBeCloseTo(90, 0);
-    // A loop ends where it began: one full cycle.
-    expect(a.keys.at(-1)!.t).toBeCloseTo(a.duration);
+    expect(facing(first)).toBeCloseTo(90, 0);
+    // A loop: one full cycle.
+    expect(actionsOf(a, ben.id)[1].duration).toBeCloseTo(a.duration);
   });
 
   it('adds a motion at the playhead to an animated scene, lengthening it', () => {
@@ -83,8 +85,8 @@ describe('library assets applied to the scene', () => {
     expect(store.scene.animation!.duration).toBeGreaterThan(buildMotion('wave')!.animation!.duration);
     // Several people: on this figure and the other (the nearest), not on one alone.
     expect(applyMotion(store, id, 'waltz-turn')).toBe(true);
-    const keyed = (f: string) => store.scene.animation!.keys.filter((k) => k.poses[f]).length;
-    expect(keyed(other)).toBeGreaterThan(3);
+    const together = actionsOf(store.scene.animation!, other).find((x) => x.source.kind === 'clip' && x.source.clip === BUILT_IN + 'waltz-turn');
+    expect(together?.roles.map((r) => r.figure)).toEqual([id, other]);
     const solo = new Store(new MemoryStorage());
     expect(applyMotion(solo, solo.figure!.id, 'waltz-turn')).toBe(false);
     // A set-up with its own props opens as a scene instead.
@@ -94,7 +96,7 @@ describe('library assets applied to the scene', () => {
   it('syncs saved poses, keeping deletions from either side', () => {
     const scene = newScene('A');
     const p = (id: string) => ({ ...builtInPoses()[0], id, name: id });
-    const base: Library = { version: 2, scenes: [scene], poses: [p('kept'), p('gone-here'), p('gone-there')] };
+    const base: Library = { version: 3, scenes: [scene], poses: [p('kept'), p('gone-here'), p('gone-there')] };
     const server: Library = { ...base, poses: [p('kept'), p('gone-here'), p('new-there')] };
     const local: Library = { ...base, poses: [p('kept'), p('gone-there'), p('new-here')] };
     expect(mergeLibraries(server, local, syncBase(base)).poses!.map((x) => x.id)).toEqual(['kept', 'new-there', 'new-here']);

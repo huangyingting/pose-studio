@@ -1,22 +1,25 @@
 import * as THREE from 'three';
-import { poseOf } from './animation';
+import { keysClip, partKeys } from './clip';
 import { DEFAULT_BODY } from './body';
 import { mirrorFigure, newFigure, newProp, newScene } from './doc';
 import { HAND_PRESETS, cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
-import { anglesOf, bonesOf, type Angles } from './pose';
+import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { CAMERA_MOVES } from './shot';
 import { buildTemplate, waltzHold } from './templates';
 import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
-import type { Animation, BodyParams, Figure, Hand, JointName, PoseKey, Scene, Side, Travel, Vec3, View } from './types';
+import { keysAction } from './track';
+import { uid } from './uid';
+import type { Action, Animation, BodyParams, Figure, Hand, JointName, Pose, Scene, Side, Travel, Vec3, View } from './types';
 
 /*
- * Animated templates: walking, running and jumping ahead (generated, lib/locomotion.ts), dances,
- * a boxing exchange and more. One-person motions are made on the default figure, so on a figure
- * like it they play exactly as made (on other proportions, planted feet are locked: apply.ts).
- * Keys are authored as joint angles (with IK for contacts and punches) and each animation
- * comes with a camera move, so it plays like a short shot.
+ * Built-in motions: walking, running and jumping ahead (generated, lib/locomotion.ts), dances, a
+ * boxing exchange and more. Each is made as a scene on the default figure(s), with keys (and
+ * travels where steps are generated), and plays as a Clip baked from it (lib/assets.ts): on a
+ * figure like it exactly as made; on other proportions its planted feet are locked. Keys are
+ * authored as joint angles (with IK for contacts and punches) and each animation comes with a
+ * camera move, so it plays like a short shot.
  */
 
 /** Groups of the motion library (several-people motions are listed on their own). */
@@ -64,33 +67,50 @@ interface Key {
   figures: Figure[];
 }
 
-function animated(name: string, keys: Key[], o: { duration: number; loop: boolean; view: View; camera?: string }): Scene {
+const poseOf = (f: Figure): Pose => ({ bones: f.bones, position: f.position, hands: f.hands, grounded: f.grounded });
+
+/** A scene keyed with these poses: each figure's keys one action (going round, in a loop). */
+function animated(name: string, keys: Key[], o: { duration: number; loop: boolean; view: View; camera?: string; follow?: boolean }): Scene {
   const scene = { ...newScene(name, keys[0].figures), view: o.view };
-  const animation: Animation = {
-    duration: o.duration,
-    fps: 24,
-    loop: o.loop,
-    // On frame times, so a motion put on a figure's track plays exactly as made.
-    keys: keys.map((k) => ({ t: Math.round(k.t * 24) / 24, poses: Object.fromEntries(k.figures.map((f) => [f.id, poseOf(f)])) })),
-  };
+  const actions = keys[0].figures.map((f): Action => {
+    // On frame times, so a motion plays exactly as made.
+    const mine = keys.filter((k) => k.figures.some((x) => x.id === f.id)).map((k) => ({ t: Math.round(k.t * 24) / 24, pose: poseOf(k.figures.find((x) => x.id === f.id)!) }));
+    if (!o.loop) return keysAction(f.id, mine);
+    return { id: uid('act'), start: 0, duration: o.duration, roles: [{ figure: f.id }], source: { kind: 'keys', clip: keysClip(mine, true, o.duration) } };
+  });
+  const animation: Animation = { duration: o.duration, fps: 24, loop: o.loop, actions };
   const move = CAMERA_MOVES.find((m) => m.id === (o.camera ?? 'static'));
-  if (move) animation.camera = { keys: move.keys(animation, o.view), follow: move.follow ?? false, shake: move.shake ?? 0 };
+  if (move) animation.camera = { keys: move.keys(animation, o.view), follow: o.follow ?? move.follow ?? false, shake: move.shake ?? 0 };
   return { ...scene, animation };
+}
+
+/**
+ * A figure's keys from t0 to t1 walked, run or jumped instead (its steps generated): the keys in
+ * between become marks it passes on the way.
+ */
+function travelling(scene: Scene, figure: string, t0: number, t1: number, mode: Travel, strafe = false): Scene {
+  const a = scene.animation!;
+  const act = a.actions.find((x) => x.roles[0].figure === figure)!;
+  const clip = (act.source as Extract<Action['source'], { kind: 'keys' }>).clip;
+  const keys = partKeys(clip.parts[0]).map((k) => ({ t: act.start + k.t, pose: k.pose }));
+  const mark = (p: Pose) => ({ at: [p.position[0], p.position[2]] as [number, number], facing: Math.round(facingOf(p.bones) * 10) / 10 || 0 });
+  const on = (t: number) => (k: { t: number }) => Math.abs(k.t - t) < 1e-4;
+  const inner = keys.filter((k) => k.t > t0 + 1e-4 && k.t < t1 - 1e-4);
+  const travel: Action = {
+    id: uid('act'), start: t0, duration: t1 - t0, roles: [{ figure, end: mark(keys.find(on(t1))!.pose) }],
+    source: { kind: 'travel', mode, ...(strafe ? { strafe: true } : {}), ...(inner.length && mode !== 'jump' ? { via: inner.map((k) => mark(k.pose)) } : {}) },
+  };
+  const before = keys.filter((k) => k.t <= t0 + 1e-4);
+  const after = keys.filter((k) => k.t >= t1 - 1e-4);
+  const actions = [...a.actions.filter((x) => x !== act), keysAction(figure, before), travel, ...(after.length ? [keysAction(figure, after)] : [])];
+  return { ...scene, animation: { ...a, actions } };
 }
 
 /** A figure walking, running or jumping `distance` metres ahead, its steps generated. */
 function travelled(f: Figure, kind: Travel, distance: number, o: { view: View; camera?: string }): Scene {
   const t = Math.round(travelTime(kind, distance, f.body) * 24) / 24;
-  const there: PoseKey = { ...poseOf(f), position: [f.position[0], f.position[1], f.position[2] + distance], travel: kind };
-  const scene = animated(f.name, [{ t: 0, figures: [f] }], { duration: t, loop: false, ...o });
-  const a = scene.animation!;
-  const keys = [...a.keys, { t, poses: { [f.id]: there } }];
-  const animation = { ...a, keys };
-  if (a.camera) {
-    const move = CAMERA_MOVES.find((m) => m.id === (o.camera ?? 'static'))!;
-    animation.camera = { ...a.camera, keys: move.keys(animation, o.view), follow: true };
-  }
-  return { ...scene, animation };
+  const there = { ...f, position: [f.position[0], f.position[1], f.position[2] + distance] as Vec3 };
+  return travelling(animated(f.name, [{ t: 0, figures: [f] }, { t, figures: [there] }], { duration: t, loop: false, ...o, follow: true }), f.id, 0, t, kind);
 }
 
 function withRig<T>(fn: (rig: Rig) => T): T {
@@ -299,15 +319,9 @@ export const MOTIONS: Motion[] = [
       // A full turn in eight steps: each dancer side-steps around the couple's centre, turning with
       // it (generated steps, keeping their facing), so no foot slides and the hold keeps its shape.
       const keys: Key[] = Array.from({ length: 9 }, (_, i) => ({ t: i * 0.375, figures: couple.map((f) => turnAbout(f, -45 * i)) }));
-      const scene = animated('Waltz turn', keys, { duration: 3, loop: true, view: { yaw: 30, pitch: 10, fov: 26 }, camera: 'push' });
-      const anim = scene.animation!;
-      return {
-        ...scene,
-        animation: {
-          ...anim,
-          keys: anim.keys.map((k, i) => (i ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).map(([id, p]) => [id, { ...p, travel: 'walk' as const, strafe: true }])) } : k)),
-        },
-      };
+      const scene = animated('Waltz turn', keys, { duration: 3, loop: false, view: { yaw: 30, pitch: 10, fov: 26 }, camera: 'push' });
+      const turning = couple.reduce((sc, f) => travelling(sc, f.id, 0, 3, 'walk', true), scene);
+      return { ...turning, animation: { ...turning.animation!, loop: true } };
     }),
   },
   {
@@ -601,13 +615,9 @@ export const MOTIONS: Motion[] = [
       keys.push({ t: at(T0 + AIR + ROLL + 12), figures: [lie] }, { t: at(T0 + AIR + ROLL + 24), figures: [lie] });
       const end = at(T0 + AIR + ROLL + 24);
       const to = { z: zEnd };
-      const scene = animated('High jump', keys, { duration: end, loop: false, view: { yaw: 90, pitch: 4, fov: 40 } });
-      const anim = scene.animation!;
-      // The run-up is generated: the key at the take-off mark is reached running.
-      const run = anim.keys.map((k) => (Math.abs(k.t - at(tRun)) < 1e-6 ? { ...k, poses: Object.fromEntries(Object.entries(k.poses).map(([id, p]) => [id, { ...p, travel: 'run' as const }])) } : k));
-      const animation: Animation = { ...anim, keys: run };
-      const move = CAMERA_MOVES.find((m) => m.id === 'static')!;
-      animation.camera = { keys: move.keys(animation, scene.view), follow: true, shake: 0 };
+      // The run-up is generated: the take-off mark is reached running.
+      const scene = travelling(animated('High jump', keys, { duration: end, loop: false, view: { yaw: 90, pitch: 4, fov: 40 }, follow: true }), f.id, 0, at(tRun), 'run');
+      const animation = scene.animation!;
       // The bar where the hips are at the top of the flight; the mat beyond it.
       const bar = r3(from.z + (to.z - from.z) * apex);
       return {

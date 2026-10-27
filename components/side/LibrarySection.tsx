@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type 
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, FilePlus2, Film, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
 import { addScene, applyCameraMove, applyMotion, applyPose, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, startAnimation } from '@/lib/actions';
+import { clipScene } from '@/lib/assets';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
@@ -223,7 +224,7 @@ function motionLength(id: string) {
 function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   const store = useStore();
   const figure = useActiveFigure();
-  const mine = useStudio((s) => s.library.motions) ?? [];
+  const mine = useStudio((s) => s.library.clips) ?? [];
   const style = useStudio((s) => s.settings.style);
   const fileRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
@@ -250,7 +251,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
       const { importMotion } = await import('@/lib/importmotion');
       const motion = await importMotion(file.name, await file.arrayBuffer());
       saveMotion(store, motion);
-      notifyUndo(`Imported “${motion.name}” (${motion.scene.animation!.duration.toFixed(1)} s) to My motions`);
+      notifyUndo(`Imported “${motion.name}” (${motion.duration.toFixed(1)} s) to My motions`);
     } catch (e) {
       notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -329,11 +330,11 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
                   type="button"
                   aria-disabled={!usable}
                   onClick={() => give(m.id, m.name)}
-                  {...preview(m.name, usable ? `Click to give it to ${figure.name}` : undefined, () => motionPreview(m.id, () => m.scene, style))}
+                  {...preview(m.name, usable ? `Click to give it to ${figure.name}` : undefined, () => motionPreview(m.id, () => clipScene(m), style))}
                 >
                   <Film size={14} aria-hidden />
                   <span className="side-list-name">{m.name}</span>
-                  <em>{(m.scene.animation?.duration ?? 0).toFixed(1)} s</em>
+                  <em>{m.duration.toFixed(1)} s</em>
                 </button>
                 <IconButton icon={Trash2} label={`Delete my motion ${m.name}`} className="row-delete" size={13} onClick={() => { deleteMotion(store, m.id); notifyUndo(`Deleted “${m.name}”`); }} />
               </li>

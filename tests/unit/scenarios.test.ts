@@ -4,7 +4,8 @@ import {
   addFigure, addProp, addScene, applyMotion, arrange, cutShot, dribbleProp, editShot, holdProp, moveProp, saveMotion, setGaze, setSceneLight, throwProp,
   travelTo,
 } from '@/lib/actions';
-import { frameTimes, sceneAt } from '@/lib/animation';
+import { frameTimes } from '@/lib/animation';
+import { actionsOf, figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { handPosition, rimOf, worldOfProp } from '@/lib/propmotion';
@@ -308,7 +309,7 @@ describe('scenes from the use case', () => {
     store.updateFigure(a, (f) => withFacing(f, 60));
     expect(applyMotion(store, a, 'takedown')).toBe(true);
     expectClean(store.scene);
-    const first = (id: string) => store.scene.animation!.keys.find((k) => k.poses[id])!.poses[id];
+    const first = (id: string) => figurePoseAt(store.scene, id, 0)!;
     // The lead starts where it stood; the partner opposite it, as in the motion (0.72 m apart).
     expect(first(a).position).toEqual(store.scene.figures[0].position);
     const pa = first(a).position;
@@ -326,10 +327,9 @@ describe('scenes from the use case', () => {
     store.setTime(0);
     const walk = travelTo(store, a, [0, 6], 'walk')!;
     expect(applyMotion(store, a, 'boxing', [b])).toBe(true);
-    const track = store.scene.animation!.keys.filter((k) => k.poses[b]);
-    const atStart = track.find((k) => Math.abs(k.t - walk.to) < 1e-6)!;
+    const over = actionsOf(store.scene.animation!, b).find((x) => x.source.kind === 'travel' && Math.abs(x.start + x.duration - walk.to) < 1e-6)!;
     // B steps over facing A (a long turn at the end of a walk would twist its legs).
-    expect(atStart.poses[b]).toMatchObject({ travel: 'walk', strafe: true });
+    expect(over.source).toMatchObject({ mode: 'walk', strafe: true });
     expectClean(store.scene);
   }, 60_000);
 

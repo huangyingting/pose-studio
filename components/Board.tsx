@@ -18,7 +18,7 @@ const previewCache = new Map<string, string>();
 
 /** A small 16:9 frame of a scene through its shot camera (cached by content). */
 function preview(scene: Scene, style: Style) {
-  const key = JSON.stringify([style, scene.figures, scene.props, scene.view, scene.animation?.keys[0], scene.animation?.camera?.keys[0]]);
+  const key = JSON.stringify([style, scene.figures, scene.props, scene.view, scene.animation?.actions, scene.animation?.camera?.keys[0]]);
   let url = previewCache.get(key);
   if (!url) {
     const c = document.createElement('canvas');

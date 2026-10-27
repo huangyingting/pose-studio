@@ -1,4 +1,4 @@
-import type { Angles, Bones } from './pose';
+import type { Bones } from './pose';
 
 export type Vec3 = [number, number, number];
 
@@ -107,39 +107,103 @@ export interface Scene {
   animation?: Animation;
 }
 
-/* ---------- animation ---------- */
+/* ---------- animation (see lib/evaluate.ts) ---------- */
 
-/** One figure's pose in a keyframe. */
-/** How a figure gets to a key from its previous key (without one: it glides, interpolated). */
+/** A figure's pose: what a Clip gives for one person at a moment. */
+export type Pose = Pick<Figure, 'bones' | 'position' | 'hands' | 'grounded'>;
+
+/** Ways of getting from one place to another, generated step by step (lib/locomotion.ts). */
 export const TRAVELS = ['walk', 'run', 'jump'] as const;
 export type Travel = (typeof TRAVELS)[number];
 
-export interface PoseKey {
-  /** Joint angles (see lib/pose.ts). */
-  joints: Angles;
-  position: Vec3;
-  hands: Figure['hands'];
-  grounded: boolean;
-  /** Generated locomotion from the previous key: legs, root and arm swing follow the path. */
-  travel?: Travel;
-  /** Keep the keyed facing on the way (side steps, backing up) instead of facing where it goes. */
-  strafe?: boolean;
-  /** A jump's turns in the air: about the vertical (spin) and head over heels (flip, + forwards). */
-  spin?: number;
-  flip?: number;
+/** A place on the floor, and the way a figure there faces (degrees; 0 faces +Z). */
+export interface Mark {
+  at: [number, number];
+  facing: number;
 }
 
-export interface Keyframe {
-  /** Seconds from the start. */
+/**
+ * One animated value of a Clip part, as in a three.js AnimationClip / glTF animation: `times` in
+ * seconds and `values` (so many per time). Names: `<bone>.quaternion` (x, y, z, w),
+ * `hips.position` (x, y, z: the root), `hands.L` / `hands.R` (five curls and the spread) and
+ * `grounded` (1 or 0). Smooth tracks are hermite curves through their keys (in joint angles);
+ * linear ones are sampled densely (imported or baked motion).
+ */
+export interface ClipTrack {
+  name: string;
+  times: number[];
+  values: number[];
+  interpolation: 'smooth' | 'linear' | 'step';
+}
+
+/** One person's part of a Clip. */
+export interface ClipPart {
+  name: string;
+  /** Proportions it was made on (the root's travel and heights scale with the body playing it). */
+  body?: BodyParams;
+  tracks: ClipTrack[];
+}
+
+/** Something that happens at a moment of a Clip (a release, a catch, a footstep). Reserved. */
+export interface ClipEvent {
   t: number;
-  /** Pose per figure id. */
-  poses: Record<string, PoseKey>;
-  /** Place per prop id (props without keys stay where they are). */
-  props?: Record<string, PropKey>;
+  part: number;
+  kind: string;
+  hand?: Side;
 }
 
-/** One prop's place in a keyframe. */
+/** A body part of a part planted from `start` to `end` (a foot on the floor). */
+export interface ClipContact {
+  part: number;
+  bone: JointName;
+  start: number;
+  end: number;
+}
+
+/** Motion data on the standard skeleton: one part per person, with its events and contacts. */
+export interface Clip {
+  id: string;
+  name: string;
+  duration: number;
+  loop: boolean;
+  parts: ClipPart[];
+  events: ClipEvent[];
+  contacts: ClipContact[];
+}
+
+/** What makes an Action's motion. */
+export type ActionSource =
+  /** A Clip from the library (by id), one part per role, placed from where each role is. */
+  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean }
+  /** Poses keyed by hand: a one-part Clip of the action's own, in world space. One key: a held pose. */
+  | { kind: 'keys'; clip: Clip }
+  /** Walking, running or jumping to the role's end mark (via other marks), its steps generated. */
+  | { kind: 'travel'; mode: Travel; strafe?: boolean; spin?: number; flip?: number; via?: Mark[] };
+
+/** A figure taking part in an Action, and where the action leaves it (world). */
+export interface Role {
+  figure: string;
+  end?: Mark;
+}
+
+/**
+ * Something done over a span of time by one or more figures. Actions on the base layer follow
+ * one another; a correction action adds hand edits on top of what is under it.
+ */
+export interface Action {
+  id: string;
+  start: number;
+  duration: number;
+  /** Seconds before it starts over which the figure eases from what it is doing into its first pose (it then plays as made). */
+  blendIn?: number;
+  layer?: 'correction';
+  roles: Role[];
+  source: ActionSource;
+}
+
+/** One prop's place at a time. */
 export interface PropKey {
+  t: number;
   /** World place, or (held) relative to the holding hand. */
   position: Vec3;
   rotation: Vec3;
@@ -177,8 +241,10 @@ export interface Animation {
   duration: number;
   fps: number;
   loop: boolean;
-  /** Sorted by time. */
-  keys: Keyframe[];
+  /** Every figure's actions, by start. */
+  actions: Action[];
+  /** Keys of props that move (by id, in time order). */
+  props?: Record<string, PropKey[]>;
   camera?: CameraTrack;
   /**
    * Shots (cuts) along the timeline, sorted by start; each runs until the next one. The camera
@@ -201,7 +267,7 @@ export interface Shot {
 }
 
 export interface Library {
-  version: 2;
+  version: 3;
   /** The project's scenes: each a set, a cast and their animation and shots. */
   scenes: Scene[];
   /** Storyboard: panels in story order, each showing one scene (see lib/board.ts). */
@@ -209,14 +275,7 @@ export interface Library {
   /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
   poses?: PoseAsset[];
   /** Motions the user imported (BVH, FBX, glTF), to apply to any figure like the built-in ones. */
-  motions?: MotionAsset[];
-}
-
-/** An imported motion: one figure's animation (retargeted to the mannequin). */
-export interface MotionAsset {
-  id: string;
-  name: string;
-  scene: Scene;
+  clips?: Clip[];
 }
 
 /** A pose in the library: bone rotations and hands, applied to a figure without moving it. */

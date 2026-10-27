@@ -3,15 +3,18 @@ import { sided, wrapDeg } from './joints';
 import {
   NEUTRAL_ANGLES, duplicateScene, mirrorFigure, mirrorScene, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
-import { insertMotion, withPose } from './apply';
 import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
-import { figureKeyTimes, figurePoseAt, keyAt, moveKey, newAnimation, poseOf, removeKey, samplePose, sceneAt, setDuration as setAnimDuration, setKey, setPropKey, snapTime } from './animation';
-import { handPosition, propKeyTimes, rimOf, throwTime, worldOfProp } from './propmotion';
+import { newAnimation, setDuration as setAnimDuration, snapTime } from './animation';
+import { BUILT_IN } from './assets';
+import { keysClip, partKeys } from './clip';
+import { actionsOf, figurePoseAt, sceneAt } from './evaluate';
+import { handPosition, propKeyTimes, putPropKey, rimOf, setPropKey, shiftPropTrack, throwTime, worldOfProp } from './propmotion';
+import { addTravel, insertClip, keyAtTime, keyTimesOf, moments, moveKeyTo, moveMarkTo, removeKeyAt, ripple, setPoseAt, setTravelMode, travelInto } from './track';
 import { RIM } from './props';
 import { groundOf } from './surfaces';
-import { JUMP_PREP, flightTime, travelTime } from './locomotion';
+import { JUMP_PREP, flightTime } from './locomotion';
 import { MOTIONS } from './motions';
-import { allPoses, poseFromFigure } from './poses';
+import { allPoses, poseFromFigure, withPose } from './poses';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, leftward, withFacing, withPosition, type Contact,
@@ -22,7 +25,7 @@ import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { grip, held, released } from './hold';
-import type { Animation, CameraKey, CameraTrack, Figure, Hand, JointName, Light, MotionAsset, Panel, PoseKey, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, CameraKey, CameraTrack, Clip, Figure, Hand, JointName, Light, Panel, Pose, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -76,7 +79,7 @@ export function moveScene(store: Store, from: number, to: number) {
 
 
 export function replaceLibrary(store: Store, scenes: Scene[], board?: Panel[]) {
-  store.commit(() => (board ? { version: 2, scenes, board } : { version: 2, scenes }), '', { sceneIndex: 0, selection: null, activeFigure: null });
+  store.commit((lib) => ({ ...lib, scenes, board }), '', { sceneIndex: 0, selection: null, activeFigure: null });
 }
 
 export function renameScene(store: Store, name: string) {
@@ -146,35 +149,42 @@ export function duplicateFigure(store: Store, id: string) {
   const copy: Figure = { ...structuredClone(src), id: uid('f'), name: nextName(src.name, store.scene.figures.map((f) => f.name)), position: [src.position[0] + 0.8, src.position[1], src.position[2]] };
   addFigures(store, [copy]);
   // An animated figure's copy moves the same way, alongside.
-  if (store.scene.animation?.keys.some((k) => k.poses[id])) {
+  if (store.scene.animation && actionsOf(store.scene.animation, id).length > 1) {
     store.updateScene((s) => (s.animation ? { ...s, animation: copyTrack(s.animation, id, copy.id, [0.8, 0]) } : s));
   }
 }
 
-/** `to`'s track becomes a copy of `from`'s, moved across the floor by `offset` (x, z). */
+/**
+ * `to`'s track becomes a copy of `from`'s (what it does by itself), moved across the floor by
+ * `offset` (x, z).
+ */
 function copyTrack(a: Animation, from: string, to: string, offset: [number, number]): Animation {
-  const keys = a.keys
-    .map((k) => {
-      const { [to]: _, ...poses } = k.poses;
-      void _;
-      const src = k.poses[from];
-      if (src) poses[to] = { ...structuredClone(src), position: [src.position[0] + offset[0], src.position[1], src.position[2] + offset[1]] };
-      return { ...k, poses };
-    })
-    .filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
-  return { ...a, keys };
+  const move = (m: { at: [number, number]; facing: number }) => ({ ...m, at: [m.at[0] + offset[0], m.at[1] + offset[1]] as [number, number] });
+  const copies = a.actions.filter((x) => x.roles.length === 1 && x.roles[0].figure === from).map((x): Action => {
+    const roles = [{ figure: to, ...(x.roles[0].end ? { end: move(x.roles[0].end) } : {}) }];
+    const src = x.source;
+    if (src.kind === 'keys' && !x.layer) {
+      const keys = partKeys(src.clip.parts[0]).map((k) => ({ t: k.t, pose: { ...k.pose, position: [k.pose.position[0] + offset[0], k.pose.position[1], k.pose.position[2] + offset[1]] as Vec3 } }));
+      return { ...x, id: uid('act'), roles, source: { kind: 'keys', clip: keysClip(keys, src.clip.loop, src.clip.duration) } };
+    }
+    if (src.kind === 'travel' && src.via) return { ...x, id: uid('act'), roles, source: { ...src, via: src.via.map(move) } };
+    return { ...structuredClone(x), id: uid('act'), roles };
+  });
+  return { ...a, actions: [...a.actions.filter((x) => !x.roles.some((r) => r.figure === to)), ...copies].sort((p, q) => p.start - q.start || p.duration - q.duration) };
 }
 
 /**
- * Give figure `to` the same moves as `from` (a crowd, a synchronised routine): `from`'s keys,
- * moved to start where `to` stands now. `to`'s own keys are replaced.
+ * Give figure `to` the same moves as `from` (a crowd, a synchronised routine): `from`'s actions,
+ * moved to start where `to` stands now. `to`'s own are replaced.
  */
 export function copyMotion(store: Store, from: string, to: string) {
   const a = store.scene.animation;
   const target = store.scene.figures.find((f) => f.id === to);
-  const first = a?.keys.find((k) => k.poses[from])?.poses[from];
-  if (!a || !target || !first || from === to) return false;
-  const offset: [number, number] = [target.position[0] - first.position[0], target.position[2] - first.position[2]];
+  const first = a && actionsOf(a, from)[0];
+  if (!a || !target || !first || first.source.kind !== 'keys' || from === to) return false;
+  const p = partKeys(first.source.clip.parts[0])[0].pose;
+  const at = figurePoseAt(store.scene, to, 0)!;
+  const offset: [number, number] = [at.position[0] - p.position[0], at.position[2] - p.position[2]];
   store.updateScene((s) => (s.animation ? { ...s, animation: copyTrack(s.animation, from, to, offset) } : s));
   return true;
 }
@@ -324,7 +334,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
     const s = hand === 'L' ? 1 : -1;
     const frame = 1 / a.fps;
     // After the shooter's last key and the ball's (a catch, say), so neither is overwritten.
-    const before = [...figureKeyTimes(a, shooter.id), ...propKeyTimes(a, id)].filter((t) => t < t0 + 1e-6).sort((p, q) => p - q).at(-1);
+    const before = [...keyTimesOf(a, shooter.id), ...propKeyTimes(a, id)].filter((t) => t < t0 + 1e-6).sort((p, q) => p - q).at(-1);
     if (before !== undefined) t0 = Math.min(60, Math.max(t0, Math.round((before + 16 * frame) * a.fps) / a.fps));
     const shot: [number, Angles][] = [
       [t0 - 8 * frame, { [sided('UpperArm', hand)]: [-110, 0, 20 * s], [sided('LowerArm', hand)]: [-100, 0, 0], [sided('UpperArm', other)]: [-70, 0, -10 * s], [sided('LowerArm', other)]: [-90, 0, 0] }],
@@ -335,8 +345,8 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
     const times = shot.map(([t]) => onFrame(t));
     // Long enough for the follow-through (keys are kept within the animation).
     anim0 = { ...anim0, duration: Math.min(60, Math.max(anim0.duration, times[2])) };
-    // Its keys in the middle of the shot (the end of a run, say) hold the ball up too.
-    for (const t of figureKeyTimes(a, shooter.id)) {
+    // Its keys and marks in the middle of the shot (the end of a run, say) hold the ball up too.
+    for (const t of moments(a, shooter.id)) {
       if (t > times[0] + 1e-6 && t < times[2] - 1e-6 && !times.some((x) => Math.abs(x - t) < 1e-6)) anim0 = keyJoints(scene, anim0, shooter, t, shot[t < times[1] ? 0 : 1][1]);
     }
     for (const [i, [, joints]] of shot.entries()) if (times[i] >= 0 && times[i] <= 60) anim0 = keyJoints(scene, anim0, shooter, times[i], joints);
@@ -346,7 +356,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   const from = worldOfProp(posedScene, id, at, t0);
   if (!from) return null;
   let to: Vec3;
-  let end: PropKey;
+  let end: Omit<PropKey, 't'>;
   // After a shot: where it bounces on (each a hop to a point, rising so high), then it rests.
   let hops: { at: Vec3; rise: number }[] = [];
   if ('at' in target) {
@@ -387,7 +397,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   const toss = 'figure' in target && target.figure === prop.hold.figure;
   const t1 = Math.min(60, Math.round((t0 + throwTime(from.position, to, toss ? 2 : undefined)) * a.fps) / a.fps);
   // A shot bounces on: the animation runs on until it is down.
-  const after: { t: number; key: PropKey }[] = [];
+  const after: { t: number; key: Omit<PropKey, 't'> }[] = [];
   let last = { t: t1, at: to };
   for (const h of hops) {
     const t = Math.round((last.t + throwTime(last.at, h.at, h.rise)) * a.fps) / a.fps;
@@ -440,8 +450,8 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   const s = hold.hand === 'L' ? 1 : -1;
   const arm = (up: boolean): Angles => ({
-    [sided('UpperArm', hold.hand)]: up ? [-22, 0, 24 * s] : [-30, 0, 22 * s],
-    [sided('LowerArm', hold.hand)]: up ? [-50, 0, 0] : [-15, 0, 0],
+    [sided('UpperArm', hold.hand)]: up ? [-20, 0, 24 * s] : [-32, 0, 22 * s],
+    [sided('LowerArm', hold.hand)]: up ? [-62, 0, 0] : [-10, 0, 0],
   });
   // The arm first: where the hand is depends on it.
   let anim = a;
@@ -483,42 +493,14 @@ export function dribbleProp(store: Store, id: string, bounces = 4) {
 }
 
 /**
- * Key some of a figure's joints at a time, the rest as they are then (inside a walk or run: a
- * waypoint on its path that poses the upper body).
+ * Key some of a figure's joints at a time, the rest as they are then (inside a walk, run or clip:
+ * a correction posing the upper body on the way).
  */
 function keyJoints(scene: Scene, a: Animation, f: Figure, t: number, joints: Angles): Animation {
-  const p = samplePose(a, f.id, t);
-  const placed = figurePoseAt({ ...scene, animation: a }, f.id, t)!;
-  const keyed = p ? { ...f, bones: bonesOf(p.joints), hands: p.hands, grounded: p.grounded } : f;
-  return setKey(a, t, [{ ...keyed, bones: withAngles(keyed.bones, joints), position: placed.position }]);
-}
-
-/** One prop's key at a time (on a frame), with or without other things keyed then. */
-function putPropKey(a: Animation, t: number, id: string, key: PropKey): Animation {
-  const time = Math.round(t * a.fps) / a.fps;
-  const i = a.keys.findIndex((k) => Math.abs(k.t - time) < 0.5 / a.fps);
-  const keys = i >= 0
-    ? a.keys.map((k, j) => (j === i ? { ...k, props: { ...k.props, [id]: key } } : k))
-    : [...a.keys, { t: time, poses: {}, props: { [id]: key } }].sort((p, q) => p.t - q.t);
-  return { ...a, keys };
-}
-
-/** Move one prop's keys after `after` later by `by` seconds. */
-function shiftPropTrack(a: Animation, id: string, after: number, by: number): Animation {
-  const moved: { t: number; key: PropKey }[] = [];
-  const keys = a.keys.map((k) => {
-    if (k.t <= after + 1e-6 || !k.props?.[id]) return k;
-    moved.push({ t: Math.min(60, Math.round((k.t + by) * a.fps) / a.fps), key: k.props[id] });
-    const { [id]: _, ...rest } = k.props;
-    void _;
-    return { ...k, props: rest };
-  }).filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
-  for (const m of moved) {
-    const i = keys.findIndex((k) => Math.abs(k.t - m.t) < 0.5 / a.fps);
-    if (i >= 0) keys[i] = { ...keys[i], props: { ...keys[i].props, [id]: m.key } };
-    else keys.push({ t: m.t, poses: {}, props: { [id]: m.key } });
-  }
-  return { ...a, keys: keys.sort((p, q) => p.t - q.t), duration: Math.min(60, Math.max(a.duration, ...keys.map((k) => k.t))) };
+  const at = { ...scene, animation: a.duration < t ? { ...a, duration: Math.min(60, t) } : a };
+  const p = figurePoseAt(at, f.id, t)!;
+  const pose: Pose = { bones: withAngles(p.bones, joints), position: p.position, hands: p.hands, grounded: p.grounded };
+  return setPoseAt(at, f.id, t, pose);
 }
 
 /** Put a prop in a figure's hand (it closes into a grip), or (null) let it go onto the floor. */
@@ -680,124 +662,65 @@ export function startAnimation(store: Store, duration = 2) {
 
 /**
  * Walk, run or jump a figure from where it is at the playhead to a floor point: a new mark. Its
- * later keys move on by the time it takes (the other figures are untouched); the playhead goes to
- * the new mark, so the next "…to here" continues from there. Walking and running face the way
+ * later actions move on by the time it takes (the other figures are untouched); the playhead goes
+ * to the new mark, so the next "…to here" continues from there. Walking and running face the way
  * they go unless `strafe` (side steps, backing up); a jump keeps the figure's facing.
  */
 export function travelTo(store: Store, figureId: string, to: [number, number], kind: Travel, opts: { strafe?: boolean; height?: number } = {}) {
-  const fresh = !store.scene.animation;
-  if (fresh) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
-  const a = store.scene.animation!;
-  const f = store.scene.figures.find((x) => x.id === figureId);
-  if (!f) return null;
-  const t0 = snapTime(a, store.getState().time);
-  const d = Math.hypot(to[0] - f.position[0], to[1] - f.position[2]);
-  const heading = Math.atan2(to[0] - f.position[0], to[1] - f.position[2]);
-  const sideways = opts.strafe && d > 0.05 ? Math.abs(Math.sin(heading - facing(f) * (Math.PI / 180))) : 0;
-  const duration = travelTime(kind, d, f.body, opts.height, sideways);
-  const t1 = Math.round((t0 + duration) * a.fps) / a.fps;
-  const yaw = kind === 'jump' || opts.strafe || d < 0.05 ? facing(f) : Math.atan2(to[0] - f.position[0], to[1] - f.position[2]) * (180 / Math.PI);
-  const end: PoseKey = {
-    ...poseOf(withFacing(f, yaw)),
-    position: [Math.round(to[0] * 1000) / 1000, f.position[1], Math.round(to[1] * 1000) / 1000],
-    travel: kind,
-    ...(opts.strafe ? { strafe: true } : {}),
-  };
-  store.updateScene((s) => {
-    if (!s.animation) return s;
-    // Keep the start as a mark, make room after it on this figure's track, then key the arrival.
-    let anim = setKey(s.animation, t0, [f]);
-    anim = shiftTrack(anim, figureId, t0, t1 - t0);
-    const keys = anim.keys.filter((k) => Math.abs(k.t - t1) >= 0.5 / anim.fps || !k.poses[figureId]);
-    const at = keys.findIndex((k) => Math.abs(k.t - t1) < 0.5 / anim.fps);
-    const withEnd = at >= 0
-      ? keys.map((k, i) => (i === at ? { ...k, poses: { ...k.poses, [figureId]: end } } : k))
-      : [...keys, { t: t1, poses: { [figureId]: end } }].sort((p, q) => p.t - q.t);
-    const last = Math.max(...withEnd.map((k) => k.t));
-    return { ...s, animation: { ...anim, keys: withEnd, duration: Math.min(60, Math.max(anim.duration, last)) } };
-  });
-  store.setTime(t1);
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  const done = addTravel(store.scene, figureId, store.getState().time, to, kind, opts);
+  if (!done) return null;
+  store.updateScene((s) => ({ ...s, animation: done.animation }));
+  store.setTime(done.to);
   store.select({ kind: 'figure', figure: figureId });
-  return { from: t0, to: t1 };
+  return { from: done.from, to: done.to };
 }
 
 /**
- * Move a figure's key at `from` and all its later keys by `by` seconds: a pause put in or taken
- * out of its action (the other figures keep their timing). It cannot move back past its key before.
+ * Move a figure's key (or action) at `from` and everything of its after it by `by` seconds: a
+ * pause put in or taken out of what it does (the other figures keep their timing). It cannot
+ * move back past what comes before.
  */
 export function rippleKeys(store: Store, figureId: string, from: number, by: number, key = '') {
   store.updateScene((s) => {
     const a = s.animation;
     if (!a) return s;
-    const times = figureKeyTimes(a, figureId);
-    const before = [...times].reverse().find((t) => t < from - 1e-6);
+    const before = moments(a, figureId).filter((t) => t < from - 1e-6).at(-1);
     const step = before === undefined ? Math.max(by, -from) : Math.max(by, before + 1 / a.fps - from);
     // From the key at `from` on (keys sit on frames, so half a frame before it is safe).
-    return Math.abs(step) < 1e-6 ? s : { ...s, animation: shiftTrack(a, figureId, from - 0.5 / a.fps, step) };
+    return Math.abs(step) < 1e-6 ? s : { ...s, animation: ripple(a, figureId, from - 0.5 / a.fps, step) };
   }, key);
 }
 
-/** Move one figure's keys after `after` later by `by` seconds (its other keys stay; others' too). */
-function shiftTrack(a: Animation, id: string, after: number, by: number): Animation {
-  const moved: { t: number; pose: PoseKey }[] = [];
-  const keys = a.keys.map((k) => {
-    if (k.t <= after + 1e-6 || !k.poses[id]) return k;
-    moved.push({ t: Math.min(60, Math.round((k.t + by) * a.fps) / a.fps), pose: k.poses[id] });
-    const { [id]: _, ...rest } = k.poses;
-    void _;
-    return { ...k, poses: rest };
-  }).filter((k) => Object.keys(k.poses).length || Object.keys(k.props ?? {}).length);
-  for (const m of moved) {
-    const i = keys.findIndex((k) => Math.abs(k.t - m.t) < 0.5 / a.fps);
-    if (i >= 0) keys[i] = { ...keys[i], poses: { ...keys[i].poses, [id]: m.pose } };
-    else keys.push({ t: m.t, poses: { [id]: m.pose } });
-  }
-  const last = Math.max(a.duration, ...keys.map((k) => k.t));
-  return { ...a, keys: keys.sort((p, q) => p.t - q.t), duration: Math.min(60, last) };
+/** How a figure gets to its key (or mark) at time t: walk, run, jump, or (null) glide as keyed. */
+export function setTravel(store: Store, figureId: string, t: number, kind: Travel | null, patch: { strafe?: boolean; spin?: number; flip?: number } = {}) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: setTravelMode(s, figureId, t, kind, patch) } : s));
 }
 
-/** How a figure gets to its key at time t: walk, run, jump, or (null) glide as keyed. */
-export function setTravel(store: Store, figureId: string, t: number, kind: Travel | null, patch: Partial<Pick<PoseKey, 'strafe' | 'spin' | 'flip'>> = {}) {
-  store.updateScene((s) => {
-    const a = s.animation;
-    if (!a) return s;
-    const i = keyAt(a, t);
-    const pose = i >= 0 ? a.keys[i].poses[figureId] : undefined;
-    if (!pose) return s;
-    const next: PoseKey = { ...pose, ...patch };
-    if (kind) next.travel = kind;
-    else delete next.travel;
-    for (const k of ['strafe', 'spin', 'flip'] as const) if (!next[k]) delete next[k];
-    if (next.travel !== 'jump') { delete next.spin; delete next.flip; }
-    return { ...s, animation: { ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, poses: { ...k.poses, [figureId]: next } } : k)) } };
-  });
-}
-
-/** Set a jump's height: its time in the air changes (gravity), the figure's later keys move with it. */
+/** Set a jump's height: its time in the air changes (gravity), the figure's later actions move with it. */
 export function setJumpHeight(store: Store, figureId: string, t: number, height: number) {
   const a = store.scene.animation;
-  if (!a) return;
-  const times = figureKeyTimes(a, figureId);
-  const i = times.findIndex((x) => Math.abs(x - t) < 0.5 / a.fps);
-  if (i <= 0) return;
-  const want = flightTime(height) + 2 * JUMP_PREP;
-  const by = Math.round((times[i - 1] + want - times[i]) * a.fps) / a.fps;
+  const jump = a && travelInto(a, figureId, t);
+  if (!a || !jump) return;
+  const by = Math.round((jump.start + flightTime(height) + 2 * JUMP_PREP - (jump.start + jump.duration)) * a.fps) / a.fps;
   if (Math.abs(by) < 1e-6) return;
-  store.updateScene((s) => (s.animation ? { ...s, animation: shiftTrack(s.animation, figureId, times[i - 1], by) } : s));
-  store.setTime(times[i] + by);
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const moved = ripple(s.animation, figureId, jump.start + jump.duration - 0.5 / a.fps, by);
+    return { ...s, animation: { ...moved, actions: moved.actions.map((x) => (x.id === jump.id ? { ...x, duration: x.duration + by } : x)) } };
+  });
+  store.setTime(t + by);
 }
 
-/** Move a figure's mark (its key at time t) to another floor point. */
+/** Move a figure's mark (where it is keyed, or a travel ends, at time t) to another floor point. */
 export function moveMark(store: Store, figureId: string, t: number, to: [number, number], key = '') {
-  store.updateScene((s) => {
-    const a = s.animation;
-    if (!a) return s;
-    const i = keyAt(a, t);
-    const pose = i >= 0 ? a.keys[i].poses[figureId] : undefined;
-    if (!pose) return s;
-    const moved: PoseKey = { ...pose, position: [Math.round(to[0] * 1000) / 1000, pose.position[1], Math.round(to[1] * 1000) / 1000] };
-    return { ...s, animation: { ...a, keys: a.keys.map((k, j) => (j === i ? { ...k, poses: { ...k.poses, [figureId]: moved } } : k)) } };
-  }, key);
+  store.updateScene((s) => (s.animation ? { ...s, animation: moveMarkTo(s, figureId, t, to) } : s), key);
+}
+
+/** Remove an action (a motion, say) from the tracks of everyone in it. */
+export function deleteAction(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.filter((x) => x.id !== id) } } : s));
+  store.setTime(store.getState().time);
 }
 
 export function removeAnimation(store: Store) {
@@ -809,24 +732,33 @@ export function removeAnimation(store: Store) {
   });
 }
 
-/** Record the current pose as a keyframe at the playhead. */
-/** Key the active figure's pose at the playhead (or `figureIds`, or every figure with `all`). */
+/** Key the active figure's pose at the playhead (or `figureIds`'). */
 export function addKeyframe(store: Store, figureIds?: string[]) {
   const t = store.getState().time;
   const ids = figureIds ?? (store.getState().activeFigure ? [store.getState().activeFigure!] : store.scene.figures.map((f) => f.id));
-  store.updateScene((s) => (s.animation ? { ...s, animation: setKey(s.animation, t, s.figures.filter((f) => ids.includes(f.id))) } : s));
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    let animation = s.animation;
+    for (const f of s.figures.filter((x) => ids.includes(x.id))) animation = setPoseAt({ ...s, animation }, f.id, t, { bones: f.bones, position: f.position, hands: f.hands, grounded: f.grounded });
+    return { ...s, animation };
+  });
 }
 
-/** Delete the active figure's key at the playhead (it keeps at least one key). */
+/** Delete the active figure's key at the playhead (it keeps at least one). */
 export function deleteKeyframe(store: Store, figureId = store.getState().activeFigure ?? undefined) {
   const t = store.getState().time;
-  store.updateScene((s) => (s.animation ? { ...s, animation: removeKey(s.animation, t, figureId) } : s));
+  if (!figureId) return;
+  store.updateScene((s) => (s.animation ? { ...s, animation: removeKeyAt(s.animation, figureId, t) } : s));
   store.setTime(t);
 }
 
-/** Retime one figure's key (or, without `figureId`, the whole keyframe). */
+/** Retime one figure's key (or, without `figureId`, every figure's key at that time). */
 export function moveKeyframe(store: Store, from: number, to: number, figureId?: string) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: moveKey(s.animation, from, to, figureId) } : s), `move-key:${figureId ?? ''}`);
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const ids = figureId ? [figureId] : s.figures.map((f) => f.id).filter((id) => keyAtTime(s.animation!, id, from));
+    return { ...s, animation: ids.reduce((a, id) => moveKeyTo(a, id, from, to), s.animation) };
+  }, `move-key:${figureId ?? ''}`);
   store.setTime(store.getState().time);
 }
 
@@ -995,16 +927,16 @@ export function deletePose(store: Store, id: string) {
 }
 
 /** Keep an imported motion in the library (My motions). */
-export function saveMotion(store: Store, motion: MotionAsset) {
-  store.commit((lib) => ({ ...lib, motions: [...(lib.motions ?? []), motion] }));
+export function saveMotion(store: Store, clip: Clip) {
+  store.commit((lib) => ({ ...lib, clips: [...(lib.clips ?? []), clip] }));
 }
 
 export function deleteMotion(store: Store, id: string) {
   store.commit((lib) => {
-    const motions = (lib.motions ?? []).filter((m) => m.id !== id);
-    const { motions: _old, ...rest } = lib;
+    const clips = (lib.clips ?? []).filter((m) => m.id !== id);
+    const { clips: _old, ...rest } = lib;
     void _old;
-    return motions.length ? { ...rest, motions } : rest;
+    return clips.length ? { ...rest, clips } : rest;
   });
 }
 
@@ -1027,69 +959,26 @@ export function nearestPartners(store: Store, figureId: string, count: number) {
  * own props, or too few figures).
  */
 export function applyMotion(store: Store, figureId: string, motionId: string, partners?: string[]) {
-  const mine = store.getState().library.motions?.find((m) => m.id === motionId);
-  if (mine) {
-    const start = store.scene.animation ? store.getState().time : 0;
-    store.updateScene((s) => insertMotion(s, figureId, mine.scene, start));
+  const start = store.scene.animation ? store.getState().time : 0;
+  if (store.getState().library.clips?.some((c) => c.id === motionId)) {
+    store.updateScene((s) => insertClip(s, [figureId], motionId, start));
     store.setTime(start);
     return true;
   }
   const motion = MOTIONS.find((m) => m.id === motionId);
   if (!motion || motion.setUp) return false;
-  if (motion.people > 1) {
-    const cast = [figureId, ...(partners ?? nearestPartners(store, figureId, motion.people - 1))];
-    if (cast.length < motion.people) return false;
-    const start = store.scene.animation ? store.getState().time : 0;
-    const before = store.scene;
-    store.updateScene((s) => walkIn(before, insertMotion(s, cast, motion.build(), start), cast.slice(1), start));
-    store.setTime(start);
-    return true;
-  }
   if (motion.travel) {
     // Walk, run or jump ahead from where the figure stands, facing its way.
-    const f = store.scene.figures.find((x) => x.id === figureId);
+    const f = store.figure?.id === figureId ? store.figure : store.scene.figures.find((x) => x.id === figureId);
     if (!f) return false;
     const [fx, fz] = forward(f);
     const d = motion.travel.distance;
     travelTo(store, figureId, [f.position[0] + fx * d, f.position[2] + fz * d], motion.travel.kind);
     return true;
   }
-  const start = store.scene.animation ? store.getState().time : 0;
-  store.updateScene((s) => insertMotion(s, figureId, motion.build(), start));
+  const cast = [figureId, ...(motion.people > 1 ? partners ?? nearestPartners(store, figureId, motion.people - 1) : [])];
+  if (cast.length < motion.people) return false;
+  store.updateScene((s) => insertClip(s, cast, BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;
-}
-
-/**
- * Partners keyed before a motion starts walk to their places for it (if they are not there
- * already): they hold where they were until they set off, or (short of time) go at once, briskly.
- */
-function walkIn(before: Scene, after: Scene, partners: string[], start: number): Scene {
-  const a = after.animation;
-  if (!before.animation || !a) return after;
-  let keys = a.keys;
-  for (const id of partners) {
-    const f = before.figures.find((x) => x.id === id);
-    const at = keys.findIndex((k) => Math.abs(k.t - start) < 0.5 / a.fps && k.poses[id]);
-    const prev = figureKeyTimes(before.animation, id).filter((t) => t < start - 1e-6).at(-1);
-    if (!f || at < 0 || prev === undefined) continue;
-    const from = figurePoseAt(before, id, start)!;
-    const to = keys[at].poses[id].position;
-    const d = Math.hypot(to[0] - from.position[0], to[2] - from.position[2]);
-    if (d < 0.3) continue;
-    // Facing about the way it goes, it walks there and turns; otherwise it steps there facing its
-    // partner (turning on the spot at the end of a walk would twist the legs).
-    const heading = Math.atan2(to[0] - from.position[0], to[2] - from.position[2]) * (180 / Math.PI);
-    const off = Math.abs(wrapDeg(heading - (keys[at].poses[id].joints.hips?.[1] ?? 0)));
-    const strafe = off > 90;
-    const sideways = strafe ? Math.abs(Math.sin((off * Math.PI) / 180)) : 0;
-    keys = keys.map((k, i) => (i === at ? { ...k, poses: { ...k.poses, [id]: { ...k.poses[id], travel: 'walk' as const, ...(strafe && { strafe: true }) } } } : k));
-    const leave = Math.round((start - travelTime('walk', d, f.body, undefined, sideways)) * a.fps) / a.fps;
-    if (leave <= prev + 1e-6) continue;
-    const { travel: _t, strafe: _s, spin: _p, flip: _f, ...setOff } = samplePose(before.animation, id, leave)!;
-    void _t; void _s; void _p; void _f;
-    const j = keys.findIndex((k) => Math.abs(k.t - leave) < 0.5 / a.fps);
-    keys = j >= 0 ? keys.map((k, i) => (i === j ? { ...k, poses: { ...k.poses, [id]: setOff } } : k)) : [...keys, { t: leave, poses: { [id]: setOff } }].sort((p, q) => p.t - q.t);
-  }
-  return { ...after, animation: { ...a, keys } };
 }

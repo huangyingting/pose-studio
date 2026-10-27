@@ -1,7 +1,11 @@
-import { keepFigures, keepProps, poseOf, propKeyOf, sceneAt, setKey, setPropKey } from './animation';
+import { normalize, propKeyOf } from './animation';
+import { setLibraryClips } from './assets';
 import { newScene, parseLibrary } from './doc';
+import { sceneAt } from './evaluate';
+import { keepProps, setPropKey } from './propmotion';
+import { setPoseAt } from './track';
 import { shotSpans } from './shots';
-import { STYLES, type Figure, type GizmoMode, type Library, type Prop, type Scene, type Selection, type Style } from './types';
+import { STYLES, type Figure, type GizmoMode, type Library, type Pose, type Prop, type Scene, type Selection, type Style } from './types';
 
 export interface Settings {
   style: Style;
@@ -77,7 +81,7 @@ function loadLibrary(storage: Storage | null): Library {
     // Corrupt entry: start a new project.
   }
   // A new project: one empty scene (the built-in poses live in the pose library).
-  return { version: 2, scenes: [newScene('Scene 1')] };
+  return { version: 3, scenes: [newScene('Scene 1')] };
 }
 
 function loadSettings(storage: Storage | null): Settings {
@@ -124,6 +128,7 @@ export class Store {
 
   constructor(private storage: Storage | null = typeof localStorage === 'undefined' ? null : localStorage) {
     const library = loadLibrary(storage);
+    setLibraryClips(library.clips);
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
@@ -169,6 +174,7 @@ export class Store {
   }
 
   private set(patch: Partial<State>, persist = true) {
+    if (patch.library && patch.library.clips !== this.state.library.clips) setLibraryClips(patch.library.clips);
     const pending = persist && this.storage !== null;
     this.state = this.normalize({ ...this.state, ...patch, ...(pending ? { saveStatus: 'pending' as const } : {}) });
     if (pending) this.scheduleSave();
@@ -230,24 +236,26 @@ export class Store {
   }
 
   /**
-   * Auto-key: in an animated pose, a change to a figure's pose is recorded as a key at the current
-   * time on that figure's own track (other figures' tracks are untouched). Deleted figures lose
-   * their tracks.
+   * Auto-key: in an animated pose, a change to a figure's pose is recorded at the current time on
+   * that figure's own track (lib/track.ts setPoseAt; other figures' tracks are untouched). Deleted
+   * figures lose their actions; new ones hold their pose.
    */
   private autoKey(prev: Library, next: Library): Library {
     const i = this.state.sceneIndex;
     const before = prev.scenes[i];
     const after = next.scenes[i];
     if (!after?.animation || !before || before.id !== after.id || (before.figures === after.figures && before.props === after.props)) return next;
-    const was = new Map(before.figures.map((f) => [f.id, JSON.stringify(poseOf(f))]));
-    const changed = after.figures.filter((f) => was.get(f.id) !== JSON.stringify(poseOf(f)));
-    let animation = changed.length ? setKey(after.animation, this.state.time, changed) : after.animation;
-    animation = keepFigures(animation, new Set(after.figures.map((f) => f.id)));
+    const pose = (f: Figure): Pose => ({ bones: f.bones, position: f.position, hands: f.hands, grounded: f.grounded });
+    const was = new Map(before.figures.map((f) => [f.id, JSON.stringify(pose(f))]));
+    let animation = normalize(after.animation, after.figures);
+    for (const f of after.figures) {
+      if (was.has(f.id) && was.get(f.id) !== JSON.stringify(pose(f))) animation = setPoseAt({ ...after, animation }, f.id, this.state.time, pose(f));
+    }
     // Props too: moving one, or putting it in a hand, keys it here (the first time, from where it was).
     const wasProp = new Map(before.props.map((p) => [p.id, p]));
     for (const p of after.props) {
       const old = wasProp.get(p.id);
-      if (old && JSON.stringify(propKeyOf(old)) !== JSON.stringify(propKeyOf(p))) animation = setPropKey(animation, this.state.time, p, {}, old);
+      if (old && JSON.stringify(propKeyOf(old, 0)) !== JSON.stringify(propKeyOf(p, 0))) animation = setPropKey(animation, this.state.time, p, {}, old);
     }
     animation = keepProps(animation, new Set(after.props.map((p) => p.id)));
     if (animation === after.animation) return next;

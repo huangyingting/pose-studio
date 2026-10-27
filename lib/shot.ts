@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { frameTimes, sampleCamera, sceneAt } from './animation';
+import { frameTimes, sampleCamera } from './animation';
+import { sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
 import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';

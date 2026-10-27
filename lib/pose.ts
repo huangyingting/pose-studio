@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { partOf, sideOf, wrapDeg } from './joints';
+import { mirrorJointName, partOf, sideOf, wrapDeg } from './joints';
 import { JOINTS, type JointName, type Vec3 } from './types';
 
 /*
@@ -115,4 +115,18 @@ export function withAngles(bones: Bones, angles: Angles): Bones {
 /** The pose's own facing (degrees, the hips' turn about the vertical; 0 faces +Z). */
 export function facingOf(bones: Bones): number {
   return quatToAngle('hips', bones.hips)[1];
+}
+
+/** A pose mirrored left ↔ right: each rotation reflected across the plane x = 0, on the other side's bone. */
+export function mirrorBones(bones: Bones): Bones {
+  const out: Bones = {};
+  for (const [j, q] of Object.entries(bones) as [JointName, Quat][]) out[mirrorJointName(j)] = [q[0], -q[1] || 0, -q[2] || 0, q[3]];
+  return out;
+}
+
+/** The pose turned by `deg` about the vertical (its root's rotation). */
+export function turnBones(bones: Bones, deg: number): Bones {
+  if (Math.abs(deg) < 1e-9) return bones;
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), deg * D2R).multiply(fromQuat(bones.hips));
+  return { ...bones, hips: toQuat(q) };
 }

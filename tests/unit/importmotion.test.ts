@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { addFigure, applyMotion, saveMotion } from '@/lib/actions';
-import { sceneAt } from '@/lib/animation';
+import { sceneAt } from '@/lib/evaluate';
 import { parseLibrary } from '@/lib/doc';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { Rig } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { CMU, UNREAL, bvh } from '../fixtures/bvh';
 import { facingOf } from '../../lib/pose';
+import { clipScene, setLibraryClips } from '@/lib/assets';
+import { keyTimes } from '@/lib/clip';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -25,12 +27,13 @@ const file = (n: typeof CMU) => new TextEncoder().encode(bvh(n)).buffer as Array
 describe('importing motions from other tools', () => {
   for (const [rig, names] of [['CMU / Mixamo-style names', CMU], ['Unreal-style names', UNREAL]] as const) {
     it(`retargets a BVH with ${rig}: travel scaled to the mannequin, the thigh swing kept`, async () => {
-      const asset = retargetMotion(await readMotionFile('Step_forward.bvh', file(names)));
-      expect(asset.name).toBe('Step forward');
-      const scene = asset.scene;
+      const clip = retargetMotion(await readMotionFile('Step_forward.bvh', file(names)));
+      expect(clip.name).toBe('Step forward');
+      expect(clip.duration).toBeCloseTo(0.2, 3);
+      expect(keyTimes(clip.parts[0]).length).toBeGreaterThanOrEqual(3);
+      setLibraryClips([clip]);
+      const scene = clipScene(clip);
       const a = scene.animation!;
-      expect(a.duration).toBeCloseTo(0.2, 3);
-      expect(a.keys.length).toBeGreaterThanOrEqual(3);
 
       const figure = scene.figures[0];
       const model = new Rig();
@@ -60,7 +63,7 @@ describe('importing motions from other tools', () => {
     const at = (t: number) => sceneAt(store.scene, t).figures.find((f) => f.id === id)!;
     const motion = retargetMotion(await readMotionFile('Step forward.bvh', file(CMU)));
     saveMotion(store, motion);
-    expect(parseLibrary(JSON.parse(JSON.stringify(store.getState().library))).motions?.[0].scene.animation?.keys.length).toBe(motion.scene.animation!.keys.length);
+    expect(parseLibrary(JSON.parse(JSON.stringify(store.getState().library))).clips).toEqual([motion]);
     expect(applyMotion(store, id, motion.id)).toBe(true);
     const scene = store.scene;
     const rig = new Rig();

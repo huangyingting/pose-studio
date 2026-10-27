@@ -6,7 +6,8 @@ import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
 import { HAND_PRESETS, cloneHand } from '../hands';
-import { mapPoses } from '../animation';
+import { actionsOf } from '../evaluate';
+import { restage } from '../track';
 import { clampRotation } from '../joints';
 import { MOTIONS, buildMotion } from '../motions';
 import { allPoses, builtInPoses } from '../poses';
@@ -85,7 +86,12 @@ function sceneSummary(store: Store) {
       duration: a.duration,
       loop: a.loop,
       playhead: r2(store.getState().time),
-      pose_keys: a.keys.map((k) => r2(k.t)),
+      actions: a.actions.filter((x) => !x.layer).map((x) => ({
+        figures: x.roles.map((r) => s.figures.find((f) => f.id === r.figure)?.name ?? r.figure),
+        what: x.source.kind === 'travel' ? x.source.mode : x.source.kind === 'clip' ? x.source.clip : 'keys',
+        start: r2(x.start),
+        end: r2(x.start + x.duration),
+      })),
       camera_keys: (a.camera?.keys ?? []).map((k) => ({ t: r2(k.t), yaw: r1(k.yaw), pitch: r1(k.pitch), fov: r1(k.fov), zoom: r2(k.zoom) })),
       shots: shotSpans(a).map((sp) => ({ name: sp.shot.name, start: r2(sp.start), end: r2(sp.end) })),
     } : null,
@@ -176,19 +182,12 @@ export const TOOLS: AgentTool[] = [
       const f = findFigure(store, i.figure);
       const p = { x: (i.x as number | null) ?? undefined, z: (i.z as number | null) ?? undefined, yaw: (i.facing as number | null) ?? undefined };
       const a = store.scene.animation;
-      if (a && !i.animate_move && a.keys.some((k) => k.poses[f.id])) {
-        // Shift the whole track: every key moves and turns by the same amount.
+      if (a && !i.animate_move && actionsOf(a, f.id).length) {
+        // Shift the whole track: every key and mark moves and turns by the same amount.
         const dx = p.x === undefined ? 0 : p.x - f.position[0];
         const dz = p.z === undefined ? 0 : p.z - f.position[2];
         const dyaw = p.yaw === undefined ? 0 : p.yaw - facing(f);
-        store.updateScene((s) => ({
-          ...s,
-          animation: mapPoses(s.animation!, (pose, id) => {
-            if (id !== f.id) return pose;
-            const r = pose.joints.hips ?? [0, 0, 0];
-            return { ...pose, position: [pose.position[0] + dx, pose.position[1], pose.position[2] + dz], joints: { ...pose.joints, hips: [r[0], r[1] + dyaw, r[2]] } };
-          }),
-        }));
+        store.updateScene((s) => ({ ...s, animation: restage(s.animation!, f.id, dx, dz, dyaw) }));
         store.setTime(store.getState().time);
       } else {
         setPlacement(store, f.id, p);
@@ -424,7 +423,7 @@ export const TOOLS: AgentTool[] = [
     run: (store, i) => {
       const f = findFigure(store, i.figure);
       const q = String(i.motion).trim().toLowerCase();
-      const mine = store.getState().library.motions ?? [];
+      const mine = store.getState().library.clips ?? [];
       const motion = MOTIONS.find((m) => !m.setUp && m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
       if (!motion) throw new Error(`No motion "${i.motion}"`);
       const partners = i.partner ? [findFigure(store, i.partner).id] : undefined;

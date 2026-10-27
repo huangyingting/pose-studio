@@ -1,4 +1,5 @@
-import { newAnimation, sceneAt } from './animation';
+import { newAnimation } from './animation';
+import { sceneAt } from './evaluate';
 import { poseScene } from './poses';
 import { shotAt, shotFramer, subjectAt, type CameraMove } from './shot';
 import { sharedRenderer } from './thumbnails';

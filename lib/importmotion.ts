@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { BVHLoader } from 'three/examples/jsm/loaders/BVHLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DEFAULT_FPS, poseOf } from './animation';
 import { DEFAULT_BODY } from './body';
-import { newFigure, newScene, uid } from './doc';
+import { partFromPoses } from './clip';
+import { detectContacts } from './constraints';
+import { newFigure, uid } from './doc';
 import { legsOf } from './locomotion';
 import { Rig } from './relations';
-import { anglesOf, bonesOf, type Angles } from './pose';
 import { LM, retarget, type Landmark3D } from './retarget';
-import type { Keyframe, MotionAsset, PoseKey, Vec3 } from './types';
+import type { Clip, Pose, Vec3 } from './types';
 
 /*
  * Importing a motion from another tool: BVH (motion capture), FBX (e.g. Mixamo) or glTF/GLB with
@@ -115,7 +115,7 @@ export async function readMotionFile(name: string, data: ArrayBuffer): Promise<M
 const v3 = () => new THREE.Vector3();
 
 /** Turn a motion into one of ours: a figure's keys at RATE per second. */
-export function retargetMotion(src: MotionSource): MotionAsset {
+export function retargetMotion(src: MotionSource): Clip {
   const bones = matchBones(src.root);
   const at = (k: string) => (bones[k] ? bones[k]!.getWorldPosition(v3()) : null);
   const turn = (k: string) => (bones[k] ? bones[k]!.getWorldQuaternion(new THREE.Quaternion()) : null);
@@ -157,7 +157,7 @@ export function retargetMotion(src: MotionSource): MotionAsset {
   const rig = new Rig();
   const figure = newFigure({ name: src.name, body: { ...DEFAULT_BODY } });
   const m = rig.model(figure);
-  const keys: Keyframe[] = [];
+  const keys: { t: number; pose: Pose }[] = [];
   let start: THREE.Vector3 | null = null;
   let floor = Infinity;
   const frames: { lm: Landmark3D[]; hips: THREE.Vector3 }[] = [];
@@ -214,29 +214,24 @@ export function retargetMotion(src: MotionSource): MotionAsset {
     }
     // Feet on the floor: the lowest the ankles go over the clip is ankle height.
     const ground = floor;
-    let near: Angles = {};
-    const poses: PoseKey[] = frames.map(({ lm, hips }) => {
+    frames.forEach(({ lm, hips }, i) => {
       start ??= hips.clone();
-      const joints = near = anglesOf(retarget(m, lm).bones, near);
       const position: Vec3 = [
         Math.round((hips.x - start.x) * scale * 1000) / 1000,
         Math.round(((hips.y - ground) * scale + legs.ankleY) * 1000) / 1000,
         Math.round((hips.z - start.z) * scale * 1000) / 1000,
       ];
-      return { ...poseOf(figure), joints, position, grounded: false };
+      const pose: Pose = { bones: retarget(m, lm).bones, position, hands: figure.hands, grounded: false };
+      keys.push({ t: Math.round(((duration * i) / (count - 1)) * 1000) / 1000, pose });
     });
-    poses.forEach((pose, i) => keys.push({ t: Math.round(((duration * i) / (count - 1)) * 1000) / 1000, poses: { [figure.id]: pose } }));
   } finally {
     upright.remove(src.root);
     mixer.stopAllAction();
     rig.dispose();
   }
-  const first = keys[0].poses[figure.id];
-  const scene = {
-    ...newScene(src.name, [{ ...figure, bones: bonesOf(first.joints), position: first.position, grounded: false }]),
-    animation: { duration: Math.max(0.2, Math.round(duration * 1000) / 1000), fps: DEFAULT_FPS, loop: false, keys },
-  };
-  return { id: uid('motion'), name: src.name.slice(0, 80), scene };
+  const name = src.name.slice(0, 80);
+  const clip: Clip = { id: uid('clip'), name, duration: keys[keys.length - 1].t, loop: false, parts: [partFromPoses(name, keys, 'smooth', figure.body)], events: [], contacts: [] };
+  return { ...clip, contacts: detectContacts(clip, 0, RATE) };
 }
 
 /** Read and retarget a motion file in one go. */

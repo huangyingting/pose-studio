@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { expect } from 'vitest';
-import { frameTimes, sceneAt } from '@/lib/animation';
+import { frameTimes } from '@/lib/animation';
+import { sceneAt } from '@/lib/evaluate';
 import { BODY_PRESETS } from '@/lib/body';
 import { handPosition, worldOfProp } from '@/lib/propmotion';
 import { checkMotion } from '@/lib/qa';

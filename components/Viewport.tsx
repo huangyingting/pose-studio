@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
 import { editCameraKey } from '@/lib/actions';
-import { sceneAt } from '@/lib/animation';
+import { sceneAt } from '@/lib/evaluate';
+import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
@@ -102,7 +103,7 @@ export default function Viewport({
     const id = setTimeout(() => setFramed({ id: sceneRef.current.id, frame: shotFramer(sceneRef.current) }), hasFrame ? 250 : 0);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anim?.keys, anim?.duration, anim?.loop, scene.figures, scene.id, needFrame]);
+  }, [anim?.actions, anim?.duration, anim?.loop, scene.figures, scene.id, needFrame]);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
@@ -301,15 +302,16 @@ function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: 
   useLayoutEffect(() => {
     const a = scene.animation!;
     const tol = 0.5 / a.fps;
-    let prev = [...a.keys].reverse().find((k) => k.t < time - tol);
-    let next = a.keys.find((k) => k.t > time + tol);
-    if (a.loop && a.keys.length > 1) {
-      prev ??= a.keys[a.keys.length - 1];
-      next ??= a.keys[0];
+    const keys = moments(a);
+    let prev = [...keys].reverse().find((t) => t < time - tol);
+    let next = keys.find((t) => t > time + tol);
+    if (a.loop && keys.length > 1) {
+      prev ??= keys[keys.length - 1];
+      next ??= keys[0];
     }
-    [prev, next].forEach((k, i) => {
-      has.current[i] = !!k && Math.abs(k.t - time) >= tol;
-      if (k) views[i].sync({ ...sceneAt(scene, k.t), props: [] });
+    [prev, next].forEach((t, i) => {
+      has.current[i] = t !== undefined && Math.abs(t - time) >= tol;
+      if (t !== undefined) views[i].sync({ ...sceneAt(scene, t), props: [] });
     });
   }, [scene, time, views]);
   useFrame(() => {
