@@ -3,7 +3,9 @@ import {
   addFigure, applyMotion, arrange, fitWarp, moveAction, moveMark, recastRole, retime, setBlend, setClipOptions, travelTo,
 } from '@/lib/actions';
 import { actionsOf, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
-import { actionLabel } from '@/lib/track';
+import { newAnimation } from '@/lib/animation';
+import { actionLabel, retimeAction, rippleInStep } from '@/lib/track';
+import type { Action, Animation, Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
 const ends = (store: ReturnType<typeof fresh>['store'], id: string) => actionsOf(store.scene.animation!, id).map((x) => +(x.start + x.duration).toFixed(3));
@@ -110,4 +112,31 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     expect(walk.roles[0].end!.at[0]).toBeCloseTo(go(2)[0], 2);
     expect(walk.roles[0].end!.at[1]).toBeCloseTo(go(2)[1], 2);
   }, 60_000);
+
+  it('what happens in step moves along once, and only what moves pulls anyone along', () => {
+    // Plain tracks: a travel (no length of its own to work out) per figure and time.
+    const travel = (id: string, figure: string, start: number, duration: number, layer?: Action['layer']): Action => ({
+      id, start, duration, roles: [{ figure }], source: { kind: 'travel', mode: 'walk' }, ...(layer ? { layer } : {}),
+    });
+    const base: Animation = { ...newAnimation({ figures: [], props: [] } as unknown as Scene, 20), actions: [] };
+    const starts = (a: Animation) => Object.fromEntries(a.actions.map((x) => [x.id, x.start]));
+
+    // A relay of three, then a duet of the first and the last: retiming the first leg moves the
+    // chain once each, the duet once (not once for each of them).
+    let a: Animation = { ...base, actions: [
+      travel('a', 'A', 0, 2), travel('b', 'B', 2, 2), travel('c', 'C', 4, 2),
+      { id: 'duet', start: 10, duration: 2, roles: [{ figure: 'A' }, { figure: 'C' }], source: { kind: 'clip', clip: 'motion:waltz-turn' } },
+    ] };
+    expect(starts(retimeAction(a, 'a', 3))).toEqual({ a: 0, b: 3, c: 5, duet: 11 });
+
+    // A wave over a run: moving it does not move the run, nor the one who sets off as the run ends.
+    a = { ...base, actions: [travel('run', 'A', 0, 5), travel('wave', 'A', 2, 1, 'upper'), travel('next', 'B', 5, 2)], props: { baton: [{ t: 5, position: [0, 0, 0], rotation: [0, 0, 0] }] } };
+    const waved = rippleInStep(a, ['A'], 2, 1);
+    expect(starts(waved)).toEqual({ run: 0, wave: 3, next: 5 });
+    expect(waved.props!.baton[0].t).toBe(5);
+
+    // Moving what comes after an arrival does not hold up the one who set off at the arrival.
+    a = { ...base, actions: [travel('p', 'A', 0, 2), travel('m', 'A', 2, 2), travel('off', 'B', 2, 2)] };
+    expect(starts(rippleInStep(a, ['A'], 2, 1))).toEqual({ p: 0, m: 3, off: 2 });
+  });
 });

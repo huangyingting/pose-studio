@@ -163,29 +163,39 @@ export function ripple(a: Animation, figure: string | string[], from: number, by
 
 /**
  * Move what figures do from `from` on by `by`, and what happens in step with it: someone whose
- * action starts just as one of theirs ends (a relay runner off as the baton comes in) comes along
- * from then, and so on down the line; a prop keyed then (the baton changing hands) too.
+ * action starts just as one of the moving actions ends (a relay runner off as the baton comes in)
+ * comes along from then, and so on down the line; a prop keyed then (the baton changing hands)
+ * too. `ends`: more moments that move (where an action that was retimed ended).
  */
-export function rippleInStep(a: Animation, figures: string[], from: number, by: number): Animation {
+export function rippleInStep(a: Animation, figures: string[], from: number, by: number, ends: number[] = []): Animation {
   const half = 0.5 / a.fps;
   const since = new Map(figures.map((f) => [f, from]));
   const props = new Map<string, number>();
   const at = (t: number, u: number) => Math.abs(t - u) < half;
+  // An action moves when it starts once one of its people is moving.
+  const moves = (x: Action) => x.roles.some((r) => since.has(r.figure) && x.start >= since.get(r.figure)! - half);
   for (let grew = true; grew;) {
     grew = false;
-    // The moments that move: where what the moving figures do from then on ends.
-    // (A held pose of no length is no moment.)
-    const moments = a.actions.filter((x) => !x.layer && x.duration > half && x.roles.some((r) => since.has(r.figure) && end(x) > since.get(r.figure)! - half)).map(end);
+    // The moments that move: where the moving actions end (a held pose of no length is no moment).
+    const moments = [...ends, ...a.actions.filter((x) => !x.layer && x.duration > half && moves(x)).map(end)];
     for (const t of moments) {
       for (const x of a.actions) {
         if (x.layer || x.source.kind === 'keys' || !at(x.start, t)) continue;
-        for (const r of x.roles) if (!since.has(r.figure) || since.get(r.figure)! > t) { since.set(r.figure, t); grew = true; }
+        for (const r of x.roles) if (!since.has(r.figure) || since.get(r.figure)! > t + half) { since.set(r.figure, t); grew = true; }
       }
-      for (const [id, keys] of Object.entries(a.props ?? {})) if (keys.some((k) => at(k.t, t)) && (props.get(id) ?? Infinity) > t) props.set(id, t);
+      for (const [id, keys] of Object.entries(a.props ?? {})) if (keys.some((k) => at(k.t, t)) && (props.get(id) ?? Infinity) > t + half) props.set(id, t);
     }
   }
-  let out = a;
-  for (const t of new Set(since.values())) out = ripple(out, [...since].filter(([, u]) => u === t).map(([f]) => f), t - half, by);
+  // Each action moved once (one done by several moves for all of them).
+  const shift = (t: number) => Math.min(60, Math.round((t + by) * a.fps) / a.fps);
+  const actions = a.actions.map((x) => {
+    if (x.source.kind === 'keys' && x.roles.length === 1 && since.has(x.roles[0].figure)) {
+      const t0 = since.get(x.roles[0].figure)! - half;
+      if (x.start < t0 && end(x) >= t0) return { ...keysAction(x.roles[0].figure, keysOf(x).map((k) => (k.t >= t0 ? { ...k, t: shift(k.t) } : k)), x.layer), id: x.id };
+    }
+    return moves(x) ? { ...x, start: shift(x.start) } : x;
+  });
+  let out = sorted({ ...a, actions, duration: Math.min(60, Math.max(a.duration, ...actions.map(end))) });
   for (const [id, t] of props) out = shiftPropTrack(out, id, t - half, by);
   return out;
 }
@@ -367,7 +377,7 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
     const keys = keysOf(act).map((x) => ({ t: snapTime({ ...a, duration: 60 }, act.start + (x.t - act.start) * k), pose: x.pose }));
     next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
   }
-  const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by);
+  const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
   return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
 }
 
