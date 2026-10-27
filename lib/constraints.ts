@@ -1,14 +1,19 @@
+import * as THREE from 'three';
 import { DEFAULT_BODY } from './body';
 import { RELAXED_HAND } from './hands';
 import { samplePart } from './clip';
-import { feetOf } from './locomotion';
-import { Rig } from './relations';
-import type { Clip, ClipContact, Figure } from './types';
+import { clampRotation } from './joints';
+import { feetOf, plantFeet } from './locomotion';
+import { IK_CHAINS, rotateWorld, setWorldQuaternion } from './mannequin';
+import { angleToQuat, fromQuat, quatToAngle, toQuat } from './pose';
+import { Rig, reach } from './relations';
+import type { Clip, ClipContact, Figure, Holder, JointName } from './types';
 
 /*
- * Contacts: where a body part holds still on something over a stretch of a clip. A clip's
- * planted feet are found once, when it is made; played on a figure of other proportions (or
- * warped to another mark), those feet are locked where they land (lib/evaluate.ts).
+ * Constraints: body parts held on something, solved for the actual bodies in one pass after the
+ * actions have posed everyone (lib/evaluate.ts gathers them). They come from clips (their
+ * planted feet, and hands holding another person, found once when the clip is made) and from
+ * the user ("hold on to …": a hand on someone's shoulder, a foot on a step, the hips on a seat).
  */
 
 /** Is the foot down (near the clip's floor) and in the same place from `a` to the later `b`, not lifting off? */
@@ -44,3 +49,148 @@ export function detectContacts(clip: Clip, index: number, fps: number): ClipCont
   }
 }
 
+/** How near a hand comes to another part's bone (its axis) to touch it, by bone (m). */
+const REACH_IN: Partial<Record<JointName, number>> = { hips: 0.17, spine: 0.17, chest: 0.17, neck: 0.1, leftUpperArm: 0.08, rightUpperArm: 0.08, leftLowerArm: 0.07, rightLowerArm: 0.07, leftUpperLeg: 0.1, rightUpperLeg: 0.1, leftLowerLeg: 0.08, rightLowerLeg: 0.08 };
+/** The joint a bone runs to (its axis is from its joint to that one). */
+const BONE_END: Partial<Record<JointName, JointName>> = {
+  hips: 'spine', spine: 'chest', chest: 'neck', neck: 'head', leftUpperArm: 'leftLowerArm', rightUpperArm: 'rightLowerArm', leftLowerArm: 'leftHand', rightLowerArm: 'rightHand',
+  leftUpperLeg: 'leftLowerLeg', rightUpperLeg: 'rightLowerLeg', leftLowerLeg: 'leftFoot', rightLowerLeg: 'rightFoot',
+};
+/** A hand on the trunk is held in the chest's frame (it may sit over the spine or the chest from frame to frame). */
+const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'neck'];
+
+/**
+ * Where the parts of a clip of several people hold each other: stretches where a hand stays on
+ * the same spot of another part's body (a hold, a grip), sampled every frame.
+ */
+export function detectGrips(clip: Clip, fps: number): ClipContact[] {
+  if (clip.parts.length < 2) return [];
+  const rig = new Rig();
+  try {
+    const frames = Math.max(1, Math.round(clip.duration * fps));
+    const times = Array.from({ length: frames + 1 }, (_, i) => Math.min(clip.duration, i / fps));
+    const models = (t: number) => clip.parts.map((part, i) => rig.model({ id: `grip${i}`, name: '', body: part.body ?? DEFAULT_BODY, ...samplePart(part, t, clip.duration, false) }));
+    // Per frame, for each part's hands: the spot on another part they touch (in that bone's frame), if any.
+    type Touch = { part: number; bone: JointName; at: THREE.Vector3 } | null;
+    const touches: Touch[][][] = times.map((t) => {
+      const ms = models(t);
+      return ms.map((m, p) => (['leftHand', 'rightHand'] as const).map((hand) => {
+        const w = m.joints[hand].getWorldPosition(new THREE.Vector3());
+        let best: Touch = null;
+        let bestGap = Infinity;
+        ms.forEach((o, q) => {
+          if (q === p) return;
+          for (const [bone, r] of Object.entries(REACH_IN) as [JointName, number][]) {
+            const a = o.joints[bone].getWorldPosition(new THREE.Vector3());
+            const b = o.joints[BONE_END[bone]!].getWorldPosition(new THREE.Vector3());
+            const gap = new THREE.Line3(a, b).closestPointToPoint(w, true, new THREE.Vector3()).distanceTo(w) - r;
+            const frame: JointName = TRUNK.includes(bone) ? 'chest' : bone;
+            if (gap < 0.03 && gap < bestGap) [best, bestGap] = [{ part: q, bone: frame, at: o.joints[frame].worldToLocal(w.clone()) }, gap];
+          }
+        });
+        return best;
+      }));
+    });
+    const out: ClipContact[] = [];
+    clip.parts.forEach((_, p) => (['leftHand', 'rightHand'] as const).forEach((hand, h) => {
+      let from = -1;
+      let last = -1;
+      const close = () => {
+        if (from >= 0 && last - from >= 3) {
+          const t = touches[from][p][h]!;
+          out.push({ part: p, bone: hand, start: times[from], end: times[last], on: { part: t.part, bone: t.bone } });
+        }
+        from = -1;
+      };
+      for (let i = 0; i <= frames; i++) {
+        const now = touches[i][p][h];
+        const held = from >= 0 ? touches[from][p][h]! : null;
+        // The same spot of the same bone (a hand that slides along is not a hold); a frame or two
+        // off it is the same hold still.
+        const same = !!now && !!held && now.part === held.part && now.bone === held.bone && now.at.distanceTo(held.at) < 0.04;
+        if (same) last = i;
+        else if (from >= 0 && i - last > 2) close();
+        if (from < 0 && now) [from, last] = [i, i];
+      }
+      close();
+    }));
+    return out;
+  } finally {
+    rig.dispose();
+  }
+}
+
+/**
+ * Two-bone IK with the least change: the middle joint (an elbow or knee, a hinge) bends or
+ * straightens to the distance, then the upper bone turns the shortest way to the target, so the
+ * limb keeps its twist (stable for a limb held almost straight).
+ */
+function reachLeast(m: ReturnType<Rig['model']>, chain: readonly [JointName, JointName, JointName], target: THREE.Vector3) {
+  const [u, mid, e] = chain.map((j) => m.joints[j]);
+  m.object.updateMatrixWorld(true);
+  const A = u.getWorldPosition(new THREE.Vector3());
+  const B = mid.getWorldPosition(new THREE.Vector3());
+  const C = e.getWorldPosition(new THREE.Vector3());
+  const [a, b] = [A.distanceTo(B), B.distanceTo(C)];
+  const d = THREE.MathUtils.clamp(target.distanceTo(A), Math.abs(a - b) + 1e-3, a + b - 1e-3);
+  const inner = (len: number) => Math.acos(THREE.MathUtils.clamp((a * a + b * b - len * len) / (2 * a * b), -1, 1));
+  const knee = chain[0].endsWith('UpperLeg');
+  // Elbows bend with a negative turn about their own x axis, knees with a positive one.
+  mid.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), (inner(A.distanceTo(C)) - inner(d)) * (knee ? 1 : -1)));
+  m.object.updateMatrixWorld(true);
+  const now = e.getWorldPosition(new THREE.Vector3()).sub(A);
+  rotateWorld(u, new THREE.Quaternion().setFromUnitVectors(now.normalize(), target.clone().sub(A).normalize()));
+}
+
+/** A body part held somewhere in the world, so much (0–1). */
+export interface Hold {
+  bone: Holder;
+  /** Where: what a hand's palm touches, where an ankle goes, where the pelvis goes. */
+  at: THREE.Vector3;
+  weight: number;
+  /** The limb kept as it moves (a clip's way of moving): only what it takes to get the part from where it is to `at` changes; a hand keeps its turn. */
+  relative?: boolean;
+}
+
+/**
+ * Solve a figure's holds in one pass: the hips first (they carry the body), then each hand and
+ * foot reaches its place with two-bone IK (within the joints' limits).
+ */
+export function solveHolds(rig: Rig, f: Figure, holds: Hold[], limits = true): Pick<Figure, 'bones' | 'position' | 'grounded'> {
+  let fig = f;
+  const hips = holds.find((h) => h.bone === 'hips');
+  if (hips && hips.weight > 0) {
+    const now = rig.model(fig).joints.hips.getWorldPosition(new THREE.Vector3());
+    const d = hips.at.clone().sub(now).multiplyScalar(hips.weight);
+    fig = { ...fig, grounded: false, position: [fig.position[0] + d.x, now.y + d.y, fig.position[2] + d.z] };
+  }
+  for (const h of holds) {
+    if (h.bone === 'hips' || h.weight <= 0) continue;
+    const chain = IK_CHAINS[h.bone];
+    const side = h.bone.startsWith('left') ? 'L' : 'R';
+    const foot = h.bone.endsWith('Foot');
+    const m = rig.model(fig);
+    const end = m.joints[h.bone];
+    const here = { side, p: end.getWorldPosition(new THREE.Vector3()), q: end.getWorldQuaternion(new THREE.Quaternion()) } as const;
+    let solved: Figure['bones'];
+    if (foot && h.relative) {
+      // The leg turned by what it takes to bring the foot from where it is to `at` (its own way of bending kept).
+      const [from, to] = [plantFeet(rig, fig, [here]).bones, plantFeet(rig, fig, [{ ...here, p: h.at }]).bones];
+      solved = Object.fromEntries(chain.map((j) => [j, toQuat(fromQuat(fig.bones[j]).multiply(fromQuat(from[j]).invert().multiply(fromQuat(to[j]))))]));
+    } else if (foot) solved = plantFeet(rig, fig, [{ ...here, p: h.at }]).bones;
+    else if (h.relative) {
+      reachLeast(m, chain, h.at);
+      setWorldQuaternion(end, here.q);
+      solved = m.read().bones;
+    } else solved = reach(rig, fig, side, h.at, limits).bones;
+    const bones = { ...fig.bones };
+    for (const j of chain) {
+      let q = toQuat(fromQuat(fig.bones[j]).slerp(fromQuat(solved[j]), Math.min(1, h.weight)));
+      // A knee or elbow does not bend backwards to reach.
+      if (limits && j === chain[1]) q = angleToQuat(j, clampRotation(j, quatToAngle(j, q)));
+      bones[j] = q;
+    }
+    fig = { ...fig, bones };
+  }
+  return { bones: fig.bones, position: fig.position, grounded: fig.grounded };
+}

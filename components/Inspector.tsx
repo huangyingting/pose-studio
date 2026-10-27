@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import {
   ArrowDownToLine, ArrowLeftRight, ChevronRight, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Hand, ImagePlus, Mars, Navigation,
-  PanelLeft, PanelRight, PanelRightClose, PersonStanding, Repeat, RotateCcw, Trash2, UserRound, Venus, X, type LucideIcon,
+  PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdProp, renameScene, setFigureColor, setGaze, setJumpHeight, setPosture, setSceneLight, setTravel, lookAtFigure, mirrorPose, pastePose,
+  arrange, copyPose, holdOn, holdProp, letGo, renameScene, setFigureColor, setGaze, setJumpHeight, setPosture, setSceneLight, setTravel, lookAtFigure, mirrorPose, pastePose,
   reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, symmetrizePose,
 } from '@/lib/actions';
 import { travelAt } from '@/lib/evaluate';
@@ -20,7 +20,7 @@ import { angle } from '@/lib/pose';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { FIGURE_COLORS, FINGERS, POSTURES, type Figure, type JointName, type Posture, type Hand as HandPose, type Light, type Side, type Travel, type Vec3, type View, PROP_LABELS } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Travel, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
@@ -245,6 +245,14 @@ function Action({ icon: Icon, label, onClick }: { icon: LucideIcon; label: strin
 }
 
 /** The figure with the others: where it keeps its eyes, and placing and touching another figure. */
+/** What a hold is, in words: "Left hand on Kai's chest". */
+function holdLabel(c: Constraint, scene: Scene) {
+  const part = c.bone.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^./, (x) => x.toUpperCase());
+  const t = c.target;
+  const on = 'figure' in t ? `${scene.figures.find((f) => f.id === t.figure)?.name ?? 'someone'}'s ${JOINT_LABELS[t.bone].toLowerCase()}` : 'prop' in t ? scene.props.find((p) => p.id === t.prop)?.name ?? 'a prop' : 'a spot';
+  return `${part} on ${on}`;
+}
+
 function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext }) {
   const store = useStore();
   const scene = useScene();
@@ -257,6 +265,7 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
   const other = others.find((f) => f.id === otherId) ?? others[0];
   const gaze = !figure.gaze ? 'free' : 'figure' in figure.gaze ? `f:${figure.gaze.figure}` : `p:${figure.gaze.prop}`;
   const d = other ? distance(figure, other) : 0;
+  const holds = (scene.animation?.constraints ?? []).filter((c) => c.figure === figure.id);
   return (
     <Section id="others" title="With others" collapsible>
       {!figure.proxy && (
@@ -318,8 +327,31 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
                 >
                   <Hand size={14} aria-hidden /> Reach
                 </button>
+                {scene.animation && (
+                  <button
+                    type="button"
+                    className="btn subtle"
+                    data-tip="Keep the hand there from now to the end of what it is doing, however they move"
+                    onClick={() => {
+                      if (!holdOn(store, figure.id, side, other.id, contact)) ctx.notify('Out of reach now: the hand stretches towards it', 'error');
+                    }}
+                  >
+                    <Pin size={14} aria-hidden /> Hold on
+                  </button>
+                )}
               </div>
             </div>
+          )}
+          {holds.length > 0 && (
+            <ul className="holds" aria-label="Holds">
+              {holds.map((c) => (
+                <li key={c.id}>
+                  <span>{holdLabel(c, scene)}</span>
+                  <em>{c.start.toFixed(1)}–{c.end.toFixed(1)} s</em>
+                  <IconButton icon={Unlink} label="Let go here" size={13} onClick={() => letGo(store, c.id)} />
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}

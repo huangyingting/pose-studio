@@ -20,7 +20,7 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store } from '@/lib/store';
 import type { CameraKey, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
+import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -228,6 +228,7 @@ export default function Viewport({
         {settings.showHandles && !shotMode && scene.animation && activeFigure && scene.figures.some((f) => f.id === activeFigure && !f.hidden) && (
           <RouteOverlay store={store} scene={scene} figureId={activeFigure} time={time} />
         )}
+        {settings.showHandles && !shotMode && scene.animation?.constraints && <HoldPins sv={sv} scene={scene} time={time} />}
         {settings.showHandles && selection?.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold && (
           <PropRing
             sv={sv}

@@ -9,8 +9,8 @@ import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bones, type Quat } from './pose';
 import { clampLight } from './lighting';
 import {
-  FINGERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Clip, type ClipPart, type ClipTrack, type Figure, type Hand, type JointName, type Library, type Light, type Mark, type Pose, type PoseAsset,
+  FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Action, type Animation, type Clip, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type Pose, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -352,7 +352,9 @@ export function parseClip(v: unknown): Clip | null {
     contacts: (Array.isArray(v.contacts) ? v.contacts.slice(0, 2000) : []).filter(isObj).flatMap((c) => {
       const part = Math.round(num(c.part, 0));
       if (part < 0 || part >= n || !JOINTS.includes(c.bone as JointName)) return [];
-      return [{ part, bone: c.bone as JointName, start: num(c.start, 0), end: num(c.end, 0) }];
+      const on = isObj(c.on) && JOINTS.includes(c.on.bone as JointName) ? { part: Math.round(num(c.on.part, -1)), bone: c.on.bone as JointName } : null;
+      if (on && (on.part < 0 || on.part >= n || on.part === part)) return [];
+      return [{ part, bone: c.bone as JointName, start: num(c.start, 0), end: num(c.end, 0), ...(on ? { on } : {}) }];
     }),
   };
 }
@@ -392,6 +394,17 @@ function parseAction(v: unknown, figures: Set<string>, duration: number): Action
   };
 }
 
+function parseConstraint(v: unknown, figures: Set<string>, props: Set<string>, duration: number): Constraint | null {
+  if (!isObj(v) || !figures.has(v.figure as string) || !HOLDERS.includes(v.bone as Holder) || !isObj(v.target)) return null;
+  const o = v.target;
+  const target: ConstraintTarget | null = typeof o.figure === 'string' ? (figures.has(o.figure) && JOINTS.includes(o.bone as JointName) ? { figure: o.figure, bone: o.bone as JointName, at: vec3(o.at, [0, 0, 0]) } : null)
+    : typeof o.prop === 'string' ? (props.has(o.prop) ? { prop: o.prop, at: vec3(o.at, [0, 0, 0]) } : null)
+    : Array.isArray(o.point) ? { point: vec3(o.point, [0, 0, 0]) } : null;
+  if (!target) return null;
+  const start = Math.min(duration, Math.max(0, num(v.start, 0)));
+  return { id: str(v.id, uid('hold')).slice(0, 40), figure: v.figure as string, bone: v.bone as Holder, target, start, end: Math.min(60, Math.max(start, num(v.end, start))) };
+}
+
 export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>): Animation | undefined {
   if (!isObj(v)) return undefined;
   const duration = Math.min(60, Math.max(0.2, num(v.duration, 2)));
@@ -419,7 +432,8 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
   }
   for (const list of Object.values(props)) list.sort((p, q) => p.t - q.t);
   if (!actions.length && !Object.keys(props).length) return undefined;
-  const anim: Animation = { duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}) };
+  const holds = (Array.isArray(v.constraints) ? v.constraints.slice(0, 500) : []).map((c) => parseConstraint(c, figures, propIds, duration)).filter((c): c is Constraint => c !== null);
+  const anim: Animation = { duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}) };
   const cam = parseCamera(v.camera, duration);
   if (cam) anim.camera = cam;
   const shots = parseShots(v.shots, duration);

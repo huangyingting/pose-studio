@@ -152,12 +152,14 @@ export interface ClipEvent {
   hand?: Side;
 }
 
-/** A body part of a part planted from `start` to `end` (a foot on the floor). */
+/** A body part of a part held still from `start` to `end`: a foot on the floor, or a hand on another part's body. */
 export interface ClipContact {
   part: number;
   bone: JointName;
   start: number;
   end: number;
+  /** On another part's bone (the clip says where on it); without: on the floor. */
+  on?: { part: number; bone: JointName };
 }
 
 /** Motion data on the standard skeleton: one part per person, with its events and contacts. */
@@ -199,6 +201,26 @@ export interface Action {
   layer?: 'correction';
   roles: Role[];
   source: ActionSource;
+}
+
+/** The body parts a constraint can hold. */
+export const HOLDERS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot', 'hips'] as const;
+export type Holder = (typeof HOLDERS)[number];
+
+/** What a constrained body part is held on: someone's body part, a prop or a place (points in their own frame). */
+export type ConstraintTarget =
+  | { figure: string; bone: JointName; at: Vec3 }
+  | { prop: string; at: Vec3 }
+  | { point: Vec3 };
+
+/** A contact asked for: a figure's hand, foot or hips held on something from `start` to `end`. */
+export interface Constraint {
+  id: string;
+  figure: string;
+  bone: Holder;
+  target: ConstraintTarget;
+  start: number;
+  end: number;
 }
 
 /** One prop's place at a time. */
@@ -243,6 +265,8 @@ export interface Animation {
   loop: boolean;
   /** Every figure's actions, by start. */
   actions: Action[];
+  /** Contacts asked for ("hold on to …"), solved for the actual bodies. */
+  constraints?: Constraint[];
   /** Keys of props that move (by id, in time order). */
   props?: Record<string, PropKey[]>;
   camera?: CameraTrack;

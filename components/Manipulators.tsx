@@ -755,3 +755,28 @@ export function SeeThrough({ sv, figureId }: { sv: SceneView; figureId: string |
   useEffect(() => () => { for (const p of sv.props.values()) p.setFade(false); }, [sv]);
   return null;
 }
+
+/** Pins on the hands, feet or hips held on something ("hold on to …"), while the hold lasts. */
+export function HoldPins({ sv, scene, time }: { sv: SceneView; scene: Scene; time: number }) {
+  const holds = (scene.animation?.constraints ?? []).filter((c) => time >= c.start - 1e-6 && time <= c.end + 1e-6);
+  const pins = useRef<(THREE.Group | null)[]>([]);
+  useFrame(() => {
+    holds.forEach((c, i) => {
+      const pin = pins.current[i];
+      const m = sv.figures.get(c.figure);
+      if (pin && m) m.joints[c.bone].getWorldPosition(pin.position);
+    });
+  });
+  return (
+    <>
+      {holds.map((c, i) => (
+        <group key={c.id} ref={(el) => { pins.current[i] = el; }}>
+          <mesh renderOrder={7}>
+            <sphereGeometry args={[0.028, 12, 8]} />
+            <meshBasicMaterial color="#e5484d" transparent opacity={0.85} depthTest={false} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}

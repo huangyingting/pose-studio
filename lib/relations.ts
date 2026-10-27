@@ -174,6 +174,19 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
   }
 }
 
+/** The bone a contact point moves with (to hold on to it as the figure moves). */
+export const CONTACT_BONES: Record<Contact, JointName> = {
+  head: 'head', leftUpperArm: 'chest', rightUpperArm: 'chest', chest: 'chest', back: 'chest', waist: 'spine',
+  leftUpperLeg: 'hips', rightUpperLeg: 'hips', leftLowerLeg: 'leftLowerLeg', rightLowerLeg: 'rightLowerLeg', leftHand: 'leftHand', rightHand: 'rightHand',
+};
+
+/** A contact point on a posed figure as a spot on the bone it moves with (in that bone's frame). */
+export function contactSpot(m: Mannequin, f: Figure, c: Contact): { bone: JointName; at: Vec3 } {
+  const bone = CONTACT_BONES[c];
+  const p = m.joints[bone].worldToLocal(contactPoint(m, f, c));
+  return { bone, at: [p.x, p.y, p.z].map((v) => Math.round(v * 1000) / 1000) as Vec3 };
+}
+
 /**
  * Pose `f`'s arm so its hand rests on `target` (world space). The wrist stops a palm's length
  * short of the point. Returns the new joints and whether the hand actually got there.

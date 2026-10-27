@@ -1,8 +1,8 @@
 import { hermite, keysClip, mirrorClip, segment } from './clip';
-import { wrapDeg } from './joints';
+import { mirrorJointName, wrapDeg } from './joints';
 import { keysInShot, spanAt } from './shots';
 import { uid } from './uid';
-import type { Action, Animation, CameraKey, CameraTrack, Figure, Mark, Prop, PropKey, Scene, Shot } from './types';
+import type { Action, Animation, CameraKey, CameraTrack, Constraint, Figure, Mark, Prop, PropKey, Scene, Shot, Vec3 } from './types';
 
 export type { Animation };
 
@@ -31,8 +31,11 @@ export function normalize(a: Animation, figures: Figure[]): Animation {
     if (!mine.length || mine[0].source.kind !== 'keys') actions = [...actions, holdAction(f, mine.length ? mine[0].start : 0)];
   }
   const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.filter((k) => !k.hold || ids.has(k.hold.figure))]));
-  if (actions.length === a.actions.length && actions.every((x, i) => x === a.actions[i]) && JSON.stringify(props) === JSON.stringify(a.props)) return a;
-  return { ...a, actions: [...actions].sort((p, q) => p.start - q.start || p.duration - q.duration), ...(props ? { props } : {}) };
+  const holds = a.constraints?.filter((c) => ids.has(c.figure) && (!('figure' in c.target) || ids.has(c.target.figure)));
+  if (actions.length === a.actions.length && actions.every((x, i) => x === a.actions[i]) && JSON.stringify(props) === JSON.stringify(a.props) && holds?.length === a.constraints?.length) return a;
+  const { constraints: _all, ...rest } = a;
+  void _all;
+  return { ...rest, actions: [...actions].sort((p, q) => p.start - q.start || p.duration - q.duration), ...(props ? { props } : {}), ...(holds?.length ? { constraints: holds } : {}) };
 }
 
 /** A new animation: every figure holds its pose. */
@@ -114,7 +117,12 @@ export function remapAnimation(a: Animation, ids: Map<string, string>, propIds: 
   const props = a.props && Object.fromEntries(Object.entries(a.props).flatMap(([id, keys]) => (propIds.has(id)
     ? [[propIds.get(id)!, keys.map((k) => ({ ...structuredClone(k), ...(k.hold ? { hold: { ...k.hold, figure: ids.get(k.hold.figure) ?? k.hold.figure } } : {}) }))]]
     : [])));
-  return { ...a, actions, ...(props ? { props } : {}) };
+  const constraints = a.constraints?.flatMap((c) => {
+    if (!ids.has(c.figure) || ('figure' in c.target && !ids.has(c.target.figure)) || ('prop' in c.target && !propIds.has(c.target.prop))) return [];
+    const target = 'figure' in c.target ? { ...c.target, figure: ids.get(c.target.figure)! } : 'prop' in c.target ? { ...c.target, prop: propIds.get(c.target.prop)! } : c.target;
+    return [{ ...structuredClone(c), id: uid('hold'), figure: ids.get(c.figure)!, target }];
+  });
+  return { ...a, actions, ...(props ? { props } : {}), ...(constraints?.length ? { constraints } : {}) };
 }
 
 /** An animation mirrored left ↔ right (across the plane x = 0). */
@@ -134,7 +142,13 @@ export function mirrorAnimation(a: Animation): Animation {
     ...(k.hold ? { hold: { ...k.hold, hand: k.hold.hand === 'L' ? 'R' as const : 'L' as const } } : {}),
   }))]));
   const camera = a.camera && { ...a.camera, keys: a.camera.keys.map((k) => ({ ...k, yaw: -k.yaw, pan: [-k.pan[0], k.pan[1]] as [number, number] })) };
-  return { ...a, actions, ...(props ? { props } : {}), ...(camera ? { camera } : {}) };
+  const flipped = (v: Vec3): Vec3 => [-v[0] || 0, v[1], v[2]];
+  const constraints = a.constraints?.map((c) => ({
+    ...c,
+    bone: mirrorJointName(c.bone) as Constraint['bone'],
+    target: 'figure' in c.target ? { ...c.target, bone: mirrorJointName(c.target.bone), at: flipped(c.target.at) } : 'prop' in c.target ? { ...c.target, at: flipped(c.target.at) } : { point: flipped(c.target.point) },
+  }));
+  return { ...a, actions, ...(props ? { props } : {}), ...(camera ? { camera } : {}), ...(constraints ? { constraints } : {}) };
 }
 
 /* ---------- validation of untrusted data ---------- */

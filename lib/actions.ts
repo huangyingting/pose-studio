@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { cloneHand } from './hands';
 import { sided, wrapDeg } from './joints';
 import {
@@ -16,7 +17,7 @@ import { JUMP_PREP, flightTime } from './locomotion';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
 import {
-  Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
+  Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, leftward, withFacing, withPosition, type Contact,
 } from './relations';
 import { CAMERA_MOVES, shotAt } from './shot';
@@ -25,7 +26,7 @@ import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { grip, held, released } from './hold';
-import type { Action, Animation, CameraKey, CameraTrack, Clip, Figure, Hand, JointName, Light, Panel, Pose, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, CameraKey, CameraTrack, Clip, Constraint, Figure, Hand, JointName, Light, Panel, Pose, Posture, Prop, PropKey, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -648,6 +649,48 @@ export function reachFor(store: Store, a: string, side: Side, b: string, contact
   } finally {
     rig.dispose();
   }
+}
+
+/* Holding on (constraints, lib/constraints.ts) */
+
+/**
+ * Hold `a`'s hand on a part of `b` from the playhead to the end of what `a` is doing then (or of
+ * the animation): wherever either of them moves, the hand stays on it. In a still scene, the hand
+ * just reaches there. False if it cannot reach it now.
+ */
+export function holdOn(store: Store, a: string, side: Side, b: string, contact: Contact) {
+  const s = store.scene;
+  if (!s.animation) return reachFor(store, a, side, b, contact);
+  const anim = s.animation;
+  const t = snapTime(anim, store.getState().time);
+  const fa = figurePoseAt(s, a, t);
+  const fb = figurePoseAt(s, b, t);
+  if (!fa || !fb) return false;
+  const rig = new Rig();
+  try {
+    const spot = contactSpot(rig.model(fb), fb, contact);
+    const reached = reach(rig, fa, side, rig.model(fb).joints[spot.bone].localToWorld(new THREE.Vector3(...spot.at))).reached;
+    const doing = actionsOf(anim, a).find((x) => x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
+    const end = doing ? doing.start + doing.duration : anim.duration;
+    const hold: Constraint = { id: uid('hold'), figure: a, bone: sided('Hand', side) as Constraint['bone'], target: { figure: b, ...spot }, start: t, end: end > t ? end : anim.duration };
+    store.updateScene((sc) => (sc.animation ? { ...sc, animation: { ...sc.animation, constraints: [...(sc.animation.constraints ?? []), hold] } } : sc));
+    return reached;
+  } finally {
+    rig.dispose();
+  }
+}
+
+/** Let go of a hold at the playhead (one that has not started by then goes). */
+export function letGo(store: Store, id: string) {
+  const t = store.getState().time;
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a?.constraints) return s;
+    const constraints = a.constraints.flatMap((c) => (c.id !== id ? [c] : t > c.start + 1e-6 ? [{ ...c, end: Math.min(c.end, snapTime(a, t)) }] : []));
+    const { constraints: _old, ...rest } = a;
+    void _old;
+    return { ...s, animation: constraints.length ? { ...rest, constraints } : rest };
+  });
 }
 
 /* Animation */

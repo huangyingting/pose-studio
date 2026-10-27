@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart } from './clip';
 import { clipById } from './assets';
-import { clampRotation, sided, wrapDeg } from './joints';
-import { feetOf, legsOf, locomote, plantFeet, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
-import { angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones } from './pose';
-import { propsAt, ribbonTrail } from './propmotion';
+import { DEFAULT_BODY } from './body';
+import { mirrorJointName, wrapDeg } from './joints';
+import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
+import { anglesOf, bonesOf, facingOf, fromQuat, toQuat, turnBones } from './pose';
+import { propsAt, ribbonTrail, worldOfProp } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
-import { detectContacts } from './constraints';
-import type { Action, Animation, Clip, ClipPart, Figure, Mark, Pose, Scene, Vec3 } from './types';
+import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
+import type { Action, Animation, Clip, ClipPart, ConstraintTarget, Figure, Holder, JointName, Mark, Pose, Scene, Vec3 } from './types';
 
 /*
  * Evaluation: where everything is at a time. For each figure, its actions on the base layer give
@@ -25,6 +26,8 @@ import type { Action, Animation, Clip, ClipPart, Figure, Mark, Pose, Scene, Vec3
 const EPS = 1e-6;
 /** How long a planted foot takes to be let go when it lifts in a clip (s). */
 const RELEASE = 0.12;
+/** How long a hold asked for takes to take hold and let go (s). */
+const EASE = 0.25;
 const D2R = Math.PI / 180;
 
 const end = (a: Action) => a.start + a.duration;
@@ -75,7 +78,7 @@ class Evaluator {
   private readonly chains = new Map<string, Chain>();
   private readonly anchors = new Map<string, ReturnType<typeof feetOf>>();
 
-  constructor(scene: Scene) {
+  constructor(private readonly scene: Scene) {
     this.a = scene.animation!;
     this.ground = groundOf(scene.props);
     this.rig.ground = this.ground;
@@ -86,7 +89,7 @@ class Evaluator {
     this.rig.dispose();
   }
 
-  /** A figure's pose at time t: its actions, corrections and contacts. */
+  /** A figure's pose at time t: its actions, its corrections, then its contacts held (one pass for everyone). */
   pose(id: string, t: number): Pose | null {
     const f = this.figures.get(id);
     if (!f) return null;
@@ -95,10 +98,125 @@ class Evaluator {
     if (!p) {
       // Played on and on, every moment is new: what was worked out is let go now and then.
       if (this.poses.size > 20000) this.poses.clear();
+      const free = this.free(f, t);
+      const holds = this.holds(f, t, free);
+      p = holds.length ? { ...free, ...solveHolds(this.rig, { ...f, ...free }, holds) } : free;
+      this.poses.set(key, p);
+    }
+    return p;
+  }
+
+  /** A figure's pose at t before contacts are held (what others' holds on it are measured on). */
+  private free(f: Figure, t: number): Pose {
+    const key = `free:${f.id}@${t}`;
+    let p = this.poses.get(key);
+    if (!p) {
       p = this.corrected(f, t, this.base(f, t));
       this.poses.set(key, p);
     }
     return p;
+  }
+
+  /** Where one of a figure's bones is at t (before holds), with a point in its frame. */
+  private onBody(id: string, bone: JointName, at: Vec3, t: number, scale = 1): THREE.Vector3 | null {
+    const f = this.figures.get(id);
+    if (!f) return null;
+    return this.rig.model({ ...f, ...this.free(f, t) }).joints[bone].localToWorld(new THREE.Vector3(...at).multiplyScalar(scale));
+  }
+
+  /**
+   * The contacts a figure holds at t: from the clip it plays (feet planted where they landed, hands
+   * on the person they hold) and the ones asked for ("hold on to …"), each eased in and out.
+   */
+  private holds(f: Figure, t: number, free: Pose): Hold[] {
+    const act = actionsOf(this.a, f.id).filter((x) => x.source.kind === 'clip' && x.start - EPS <= t && t <= end(x) + EPS).at(-1);
+    const out = act ? this.clipHolds(f, act, t, free) : [];
+    for (const c of this.a.constraints ?? []) {
+      if (c.figure !== f.id || t < c.start - EASE || t > c.end + EASE) continue;
+      const weight = t < c.start ? smooth(1 - (c.start - t) / EASE) : t <= c.end ? 1 : 1 - smooth((t - c.end) / EASE);
+      const at = this.targetOf(c.target, t);
+      if (at) out.push({ bone: c.bone, at, weight });
+    }
+    return out;
+  }
+
+  /** The pose an action leaves a figure in, its contacts held (what comes next starts from it). */
+  private ending(f: Figure, act: Action): Pose {
+    const pose = this.at(f, act, end(act));
+    if (act.source.kind !== 'clip') return pose;
+    const key = `ending:${act.id}:${f.id}`;
+    let p = this.poses.get(key);
+    if (!p) {
+      const holds = this.clipHolds(f, act, end(act), pose);
+      p = holds.length ? { ...pose, ...solveHolds(this.rig, { ...f, ...pose }, holds) } : pose;
+      this.poses.set(key, p);
+    }
+    return p;
+  }
+
+  /** The contacts of the clip an action plays: feet planted where they landed, hands on the person they hold. */
+  private clipHolds(f: Figure, act: Action, t: number, free: Pose): Hold[] {
+    const out: Hold[] = [];
+    const clip = clipOf(act);
+    if (clip) {
+      const index = act.roles.findIndex((r) => r.figure === f.id);
+      const speed = (act.source as { speed?: number }).speed ?? 1;
+      const { u, mirror } = this.placed(f, act, t);
+      const flip = (j: JointName) => (mirror ? mirrorJointName(j) : j);
+      const figure = { ...f, ...free };
+      clip.contacts.forEach((c, n) => {
+        if (c.part !== index || u < c.start - (c.on ? RELEASE : EPS) || u > c.end + RELEASE) return;
+        const bone = flip(c.bone) as Holder;
+        // Held from where it lands until it lifts, and let go over a moment (a hand eases onto its hold too).
+        const weight = u < c.start ? smooth(1 - (c.start - u) / RELEASE) : u <= c.end ? 1 : 1 - smooth((u - c.end) / RELEASE);
+        if (!c.on) {
+          const side = bone === 'leftFoot' ? 'L' : 'R';
+          const key = `${act.id}:${f.id}:${n}`;
+          let at = this.anchors.get(key);
+          if (!at) {
+            const landed = this.placed(f, act, act.start + c.start / speed).pose;
+            at = feetOf(this.rig, { ...f, ...landed }, [side]);
+            this.anchors.set(key, at);
+          }
+          // Only where it is on the floor is held: the foot lifts and turns as the clip has it.
+          const now = feetOf(this.rig, figure, [side])[0].p;
+          out.push({ bone, at: new THREE.Vector3(at[0].p.x, now.y, at[0].p.z), weight, relative: true });
+          return;
+        }
+        const partner = act.roles[c.on.part]?.figure;
+        const body = this.figures.get(partner ?? '')?.body;
+        if (!partner || !body) return;
+        // Where on the partner's body the clip has the hand now, on the partner as it is (however big).
+        const size = legsOf(body).rootY / legsOf(clip.parts[c.on.part].body ?? body).rootY;
+        const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, size);
+        if (spot) out.push({ bone, at: spot, weight, relative: true });
+      });
+    }
+    return out;
+  }
+
+  /** Where a clip has a hand of one part on another part's bone at clip time u (in that bone's frame). */
+  private gripSpot(clip: Clip, part: number, other: number, hand: JointName, bone: JointName, u: number, mirror: boolean): Vec3 {
+    const pose = (i: number) => {
+      const p = samplePart(clip.parts[i], u, clip.duration, clip.loop);
+      return { id: `clip:${clip.id}:${i}`, name: '', body: clip.parts[i].body ?? DEFAULT_BODY, ...(mirror ? mirrorPose(p) : p) };
+    };
+    const w = this.rig.model(pose(part)).joints[hand].getWorldPosition(new THREE.Vector3());
+    return this.rig.model(pose(other)).joints[bone].worldToLocal(w).toArray() as Vec3;
+  }
+
+  /** Where a constraint's target is at t. */
+  private targetOf(target: ConstraintTarget, t: number): THREE.Vector3 | null {
+    if ('point' in target) return new THREE.Vector3(...target.point);
+    if ('figure' in target) return this.onBody(target.figure, target.bone, target.at, t);
+    const place = worldOfProp(this.scene, target.prop, (id, at) => {
+      const f = this.figures.get(id);
+      return f ? { ...f, ...this.free(f, at) } : null;
+    }, t);
+    if (!place) return null;
+    const d = Math.PI / 180;
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(...place.position), new THREE.Quaternion().setFromEuler(new THREE.Euler(place.rotation[0] * d, place.rotation[1] * d, place.rotation[2] * d)), new THREE.Vector3(1, 1, 1));
+    return new THREE.Vector3(...target.at).applyMatrix4(m);
   }
 
   /** The base layer's pose: the action at t (the later one, where they overlap), or a hold or glide between them. */
@@ -110,7 +228,7 @@ class Evaluator {
       const prev = acts.filter((x) => end(x) < t).at(-1);
       const next = acts.find((x) => x.start > t);
       if (!prev) return this.at(f, next!, next!.start);
-      const held = this.at(f, prev, end(prev));
+      const held = this.ending(f, prev);
       // Keys to come are glided to (in a loop, the first ones again by the end); anything else
       // starts from the held pose.
       const wrap = !next && this.a.loop;
@@ -253,49 +371,14 @@ class Evaluator {
   }
 
   private clip(f: Figure, act: Action, t: number): Pose {
-    const { pose, part, u, mirror } = this.placed(f, act, t);
-    if (!part) return pose;
-    // Feet planted in the clip stay where they landed (on any proportions, and warped too).
-    const clip = clipOf(act)!;
-    const index = act.roles.findIndex((r) => r.figure === f.id);
-    // Each foot is held from where it lands until it lifts, and let go over a moment.
-    let out = pose;
-    for (const side of ['L', 'R'] as const) {
-      const bone = (side === 'L') !== mirror ? 'leftFoot' : 'rightFoot';
-      const n = clip.contacts.findIndex((c) => c.part === index && c.bone === bone && u >= c.start - EPS && u <= c.end + RELEASE);
-      if (n < 0) continue;
-      const c = clip.contacts[n];
-      const key = `${act.id}:${f.id}:${n}`;
-      let at = this.anchors.get(key);
-      if (!at) {
-        const landed = this.placed(f, act, act.start + c.start / ((act.source as { speed?: number }).speed ?? 1)).pose;
-        at = feetOf(this.rig, { ...f, ...landed }, [side]);
-        this.anchors.set(key, at);
-      }
-      // The leg turned by what it takes to bring the foot from where the clip has it back to where
-      // it landed (the clip's own way of holding the leg is kept), and let go as it lifts.
-      const w = u <= c.end ? 1 : 1 - smooth((u - c.end) / RELEASE);
-      // Only where it is on the floor is held: the foot lifts and turns as the clip has it.
-      const figure = { ...f, ...out };
-      const now = feetOf(this.rig, figure, [side]);
-      const from = plantFeet(this.rig, figure, now).bones;
-      const to = plantFeet(this.rig, figure, [{ ...now[0], p: new THREE.Vector3(at[0].p.x, now[0].p.y, at[0].p.z) }]).bones;
-      const leg = [sided('UpperLeg', side), sided('LowerLeg', side), sided('Foot', side)];
-      out = { ...out, bones: { ...out.bones, ...Object.fromEntries(leg.map((j) => {
-        const q = fromQuat(out.bones[j]);
-        const held = toQuat(q.clone().slerp(q.clone().multiply(fromQuat(from[j]).invert().multiply(fromQuat(to[j]))), w));
-        // The knee does not bend backwards to reach.
-        return [j, j === leg[1] ? angleToQuat(j, clampRotation(j, quatToAngle(j, held))) : held];
-      })) } };
-    }
-    return out;
+    return this.placed(f, act, t).pose;
   }
 
   /** A figure with no clip to play holds where it is. */
   private held(f: Figure, act: Action): Pose {
     const acts = actionsOf(this.a, f.id);
     const prev = acts.slice(0, acts.indexOf(act)).at(-1);
-    return prev ? this.at(f, prev, end(prev)) : f;
+    return prev ? this.ending(f, prev) : f;
   }
 
   /* ---------- travel ---------- */
@@ -309,7 +392,7 @@ class Evaluator {
     const acts = actionsOf(this.a, f.id);
     const i = acts.indexOf(act);
     const prev = acts.slice(0, i).at(-1);
-    const from = prev ? this.at(f, prev, end(prev)) : (f as Pose);
+    const from = prev ? this.ending(f, prev) : (f as Pose);
     const start = this.startMark(f, act);
     const to = act.roles.find((r) => r.figure === f.id)?.end ?? start;
     // It arrives in the pose the next action starts with, or (none, or another travel) as it left, at the mark.
@@ -453,5 +536,5 @@ export function bakeClip(scene: Scene, id = uid('clip'), name = scene.name): Cli
   const times = Array.from({ length: frames + 1 }, (_, i) => i / a.fps);
   const parts = scene.figures.map((f) => partFromPoses(f.name, times.map((t) => ({ t, pose: figurePoseAt(scene, f.id, Math.min(t, a.duration))! })), 'linear', f.body));
   const clip: Clip = { id, name, duration: frames / a.fps, loop: a.loop, parts, events: [], contacts: [] };
-  return { ...clip, contacts: parts.flatMap((p, i) => detectContacts(clip, i, a.fps)) };
+  return { ...clip, contacts: [...parts.flatMap((p, i) => detectContacts(clip, i, a.fps)), ...detectGrips(clip, a.fps)] };
 }
