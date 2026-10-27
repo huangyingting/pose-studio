@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { liveCamera } from '@/lib/shot';
 import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
 import { Store } from '@/lib/store';
@@ -95,7 +96,7 @@ describe('assistant tools', () => {
     run(store, 'set_joints', { figure: fig, joints: [{ joint: 'leftUpperArm', x: -120, y: 0, z: 10 }] });
     expect(keyTimesOf(store.scene.animation!, fig)).toEqual([0, 1]);
     run(store, 'camera_move', { move: 'orbit90' });
-    expect(store.scene.animation!.shots![0].points.length).toBeGreaterThan(1);
+    expect(liveCamera(store.scene, 0)!.points.length).toBeGreaterThan(1);
     expect(run(store, 'check_motion')).toBe('No problems found.');
     expect(run(store, 'describe_shot')).toMatch(/arcs/);
 

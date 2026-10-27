@@ -680,7 +680,8 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
-  expect((await anim(page)).animation!.shots![0].points).toHaveLength(9);
+  const filmed = (await anim(page)).animation!;
+  expect(filmed.cameras!.find((c) => c.id === filmed.shots![0].camera)!.points).toHaveLength(9);
 
   // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
   await page.keyboard.press('Control+e');
@@ -697,7 +698,11 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
   await page.locator('.tl-shot').first().click();
   const inspector = page.getByRole('complementary', { name: 'Inspector' });
-  const shot = async () => (await anim(page)).animation!.shots![0];
+  // The camera the shot films with (framing it gives it one).
+  const shot = async () => {
+    const a = (await anim(page)).animation!;
+    return a.cameras!.find((c) => c.id === a.shots![0].camera)!;
+  };
   // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
   await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true }).click();
   let s = await shot();
@@ -730,6 +735,10 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   const after = s.points[0].position;
   expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeGreaterThan(0.1);
   expect(after[1]).toBeCloseTo(before[1], 2);
+  // The camera is an object of the scene: listed in the outline, with an inspector of its own.
+  await page.getByRole('list', { name: 'Cameras' }).getByRole('button', { name: /^Camera 1/ }).click();
+  await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
+  await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
 });
 
 test('a still scene can be animated with auto-keys', async ({ page }) => {
@@ -1153,9 +1162,10 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await openSection(page, 'Scene');
   await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
   await page.locator('.tl-shot').first().click();
-  await choose(page, 'Shot subject', second.name);
+  await choose(page, 'Camera subject', second.name);
   s = await live(page);
-  expect(s.scene.animation!.shots?.[0]?.subject).toBe(second.id);
+  const a = s.scene.animation!;
+  expect(a.cameras!.find((c) => c.id === a.shots![0].camera)!.subject).toBe(second.id);
 
   // Dusk light, kept with the scene.
   await page.getByRole('button', { name: 'Render style' }).click();

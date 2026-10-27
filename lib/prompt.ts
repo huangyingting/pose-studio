@@ -1,5 +1,5 @@
 import type { Scene } from './types';
-import { angleOf, cameraAt, sizeOf, type CameraView, type ShotSize } from './shot';
+import { angleOf, cameraAt, cameraById, sizeOf, type CameraView, type ShotSize } from './shot';
 import { newShot, shotSpans, type ShotSpan } from './shots';
 
 /*
@@ -40,9 +40,9 @@ function cast(scene: Scene) {
 }
 
 function movement(scene: Scene, span: ShotSpan) {
-  const shot = span.shot;
+  const cam = cameraById(scene.animation, span.shot.camera);
   const moves: string[] = [];
-  if (scene.animation && shot.points.length > 1) {
+  if (scene.animation && (cam?.points.length ?? 0) > 1) {
     // The camera over the shot, a few times: how near it is, its lens, angle and height.
     const n = 8;
     const views = Array.from({ length: n + 1 }, (_, i) => cameraAt(scene, span.start + ((span.end - 1e-3 - span.start) * i) / n));
@@ -61,8 +61,8 @@ function movement(scene: Scene, span: ShotSpan) {
     if (rise > 20) moves.push('crane up');
     else if (rise < -20) moves.push('crane down');
   }
-  if (scene.animation && shot.anchor === 'subject') moves.push('tracking shot that follows the subject');
-  if ((shot.shake ?? 0) > 0) moves.push('hand-held camera');
+  if (scene.animation && cam?.anchor === 'subject') moves.push('tracking shot that follows the subject');
+  if ((cam?.shake ?? 0) > 0) moves.push('hand-held camera');
   return moves.length ? moves.join(', ') : 'static camera';
 }
 
@@ -72,7 +72,7 @@ export function describeSpan(scene: Scene, span: ShotSpan) {
   const a = scene.animation;
   const c = cast(scene);
   const parts = [
-    `${FRAMING[sizeOf(scene, span.shot, span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view)}.`,
+    `${FRAMING[sizeOf(scene, cameraById(scene.animation, span.shot.camera), span.start, view)]}, ${angle(angleOf(view).pitch)}, ${lens(view)}.`,
     `Camera: ${movement(scene, span)}.`,
     `${c[0].toUpperCase()}${c.slice(1)}: ${(span.shot.caption || scene.name).toLowerCase()}.`,
   ];

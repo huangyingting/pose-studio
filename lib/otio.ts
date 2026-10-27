@@ -1,10 +1,11 @@
 import { describeSpan } from './prompt';
+import { cameraById } from './shot';
 import { shotSpans, videoModel } from './shots';
 import type { Scene } from './types';
 
 /*
  * OpenTimelineIO cut list: one clip per shot, pointing at the exported video, with the
- * caption, camera keys and shot description as metadata. Opens in editors and pipelines
+ * caption, the camera (its path) and shot description as metadata. Opens in editors and pipelines
  * that read .otio (DaVinci Resolve, Premiere via plugins, OTIO tools).
  */
 
@@ -16,7 +17,7 @@ export function buildOtio(scene: Scene, mediaUrl: string) {
   const rate = a.fps;
   const frames = (s: number) => Math.round(s * rate);
   const target = videoModel(a.target);
-  const clips = shotSpans(a).map((span) => ({
+  const clips = shotSpans(a).map((span) => ({ span, camera: cameraById(a, span.shot.camera) })).map(({ span, camera }) => ({
     OTIO_SCHEMA: 'Clip.2',
     name: span.shot.name,
     source_range: {
@@ -39,7 +40,7 @@ export function buildOtio(scene: Scene, mediaUrl: string) {
       pose_studio: {
         caption: span.shot.caption ?? '',
         prompt: describeSpan(scene, span),
-        camera: { anchor: span.shot.anchor, aim: span.shot.aim, points: span.shot.points, ...(span.shot.shake ? { shake: span.shot.shake } : {}) },
+        ...(camera ? { camera } : {}),
         ...(target ? { cut_for: target.name, over_limit: span.end - span.start > target.max } : {}),
       },
     },

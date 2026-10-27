@@ -298,7 +298,7 @@ function App() {
         }
         case 'F2': {
           const sel = store.getState().selection;
-          const id = sel?.kind === 'prop' ? sel.prop : sel?.kind === 'shot' ? sel.shot : sel?.kind === 'joint' || sel?.kind === 'figure' ? sel.figure : sel ? null : store.getState().activeFigure;
+          const id = sel?.kind === 'prop' ? sel.prop : sel?.kind === 'shot' ? sel.shot : sel?.kind === 'camera' ? sel.camera : sel?.kind === 'joint' || sel?.kind === 'figure' ? sel.figure : sel ? null : store.getState().activeFigure;
           if (id) run(() => renameInOutline(store, id));
           return;
         }

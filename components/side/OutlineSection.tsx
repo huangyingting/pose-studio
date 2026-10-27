@@ -1,12 +1,13 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Copy, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, SunMedium, Trash2, TriangleAlert, UserRound } from 'lucide-react';
+import { Camera, Copy, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, SunMedium, Trash2, TriangleAlert, UserRound } from 'lucide-react';
 import {
-  addFigure, addProp, addStandIn, cutShot, deleteFigure, deleteProp, duplicateFigure, duplicateProp, editShot, renameFigure, renameProp,
+  addCamera, addFigure, addProp, addStandIn, cutShot, deleteCamera, deleteFigure, editCamera, deleteProp, duplicateFigure, duplicateProp, editShot, renameFigure, renameProp,
   setFigureHidden, startAnimation,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
+import { liveCamera } from '@/lib/shot';
 import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
@@ -18,8 +19,8 @@ import { IconButton, Menu } from '../ui';
 import type { SectionProps } from './sections';
 
 /**
- * The open scene in workflow order: its cast (figures and stand-ins), its set (props) and its
- * shots. Selecting an item shows it in the inspector; the library applies to what is selected.
+ * The open scene in workflow order: its cast (figures and stand-ins), its set (props), its
+ * cameras and its shots. Selecting an item shows it in the inspector; the library applies to what is selected.
  * Double-click (or F2) renames; right-click opens the item's menu.
  */
 export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionProps) {
@@ -142,6 +143,44 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
             {!scene.props.length && <li className="outline-empty">No props yet</li>}
           </ul>
         </div>
+
+        {a && (
+          <div className="outline-group">
+            <div className="outline-head">
+              <h3>Cameras <span className="count">{a.cameras?.length ?? 0}</span></h3>
+              <IconButton
+                icon={Plus}
+                label="New camera from the view, for the shot at the playhead"
+                onClick={() => { const id = addCamera(store); if (id) store.select({ kind: 'camera', camera: id }); }}
+                size={15}
+              />
+            </div>
+            <ul className="layers" aria-label="Cameras">
+              {(a.cameras ?? []).map((c) => {
+                const on = selection?.kind === 'camera' && selection.camera === c.id;
+                return (
+                  <li key={c.id} className={on ? 'on' : liveCamera(scene, time)?.id === c.id ? 'here' : ''}>
+                    <Row
+                      id={c.id}
+                      icon={Camera}
+                      name={c.name}
+                      renaming={renaming === c.id}
+                      onRename={(name) => editCamera(store, c.id, { name })}
+                      onClick={() => store.select({ kind: 'camera', camera: c.id })}
+                      onMenu={(e) => { e.preventDefault(); store.select({ kind: 'camera', camera: c.id }); }}
+                    >
+                      <em>{spans.filter((sp) => sp.shot.camera === c.id).map((sp) => sp.index + 1).join(', ')}</em>
+                    </Row>
+                    <span className="layer-actions">
+                      <IconButton icon={Trash2} label={`Delete ${c.name}`} onClick={() => { deleteCamera(store, c.id); notifyUndo(`Deleted ${c.name}`); }} size={14} />
+                    </span>
+                  </li>
+                );
+              })}
+              {!a.cameras?.length && <li className="outline-empty">The still camera films everyone</li>}
+            </ul>
+          </div>
+        )}
 
         <div className="outline-group">
           <div className="outline-head">

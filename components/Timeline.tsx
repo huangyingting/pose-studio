@@ -15,7 +15,7 @@ import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, pointTimes, shotSpans, videoModel } from '@/lib/shots';
-import type { CameraView } from '@/lib/shot';
+import { cameraById, liveCamera, type CameraView } from '@/lib/shot';
 import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
@@ -246,18 +246,20 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     window.addEventListener('pointerup', up);
   };
 
-  /** Drag a camera path point along its shot to retime it; a click goes to it. */
+  /** Drag a camera path point (of the camera filming then) to retime it; a click goes to it. */
   const dragPoint = (t: number) => (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     seek(t);
+    const cam = liveCamera(store.scene, t)?.id;
+    if (!cam) return;
     let from = t;
     const key = `campoint:${t}`;
     const move = (ev: PointerEvent) => {
       const to = snapTime(a, timeAt(ev.clientX));
       if (Math.abs(to - from) < 1e-6) return;
-      retimeCameraPoint(store, from, to, key);
-      const now = pointTimes(store.scene.animation!).find((x) => Math.abs(x - to) < 0.5 / a.fps);
+      retimeCameraPoint(store, from, to, key, cam);
+      const now = cameraById(store.scene.animation, cam)?.points.map((p) => p.t).find((x) => Math.abs(x - to) < 0.5 / a.fps);
       if (now !== undefined) {
         from = now;
         store.setTime(now);
@@ -539,8 +541,9 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                       openContextMenu(e, shotMenu(store, sp.shot.id, { notify, notifyUndo }), sp.shot.name);
                     }}
                   >
+                    {!!sp.shot.blend && <i className="tl-blend" style={{ width: `${Math.min(100, (sp.shot.blend / (sp.end - sp.start)) * 100)}%` }} aria-hidden />}
                     {over && <TriangleAlert size={11} aria-hidden />}
-                    <span style={inSight(sp.start, sp.end)}>{sp.shot.name}</span>
+                    <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(a, sp.shot.camera) ? ` · ${cameraById(a, sp.shot.camera)!.name}` : ''}</span>
                     <em>{(sp.end - sp.start).toFixed(1)}s</em>
                   </button>
                 );

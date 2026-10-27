@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { liveCamera } from '@/lib/shot';
 import { setDuration, frameTimes } from '@/lib/animation';
 import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
@@ -157,7 +158,7 @@ describe('animation templates', () => {
       const a = s.animation!;
       expect(s.figures, m.id).toHaveLength(m.people);
       expect(a.actions.length, m.id).toBeGreaterThan(m.people - 1);
-      expect(buildMotion(m.id)!.animation!.shots![0].points.length, m.id).toBeGreaterThan(0);
+      expect(liveCamera(buildMotion(m.id)!, 0)!.points.length, m.id).toBeGreaterThan(0);
       expect(parseScene(JSON.parse(JSON.stringify(s)))).toEqual(s);
       for (const x of a.actions) {
         if (x.source.kind !== 'keys') continue;

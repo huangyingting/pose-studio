@@ -21,7 +21,7 @@ import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ActionInspector from './ActionInspector';
-import ShotInspector from './ShotInspector';
+import ShotInspector, { CameraInspector } from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
 import { IconButton, NameHeader, NumberField, Section, Segmented, Select, Slider, Toggle, type HeaderChrome, type Notify } from './ui';
@@ -38,7 +38,7 @@ export interface InspectorContext {
 
 /**
  * Right-hand properties panel. It shows what is selected, as a design tool's inspector does: a
- * figure (its pose, place, others, movement, hands and body), a prop, a shot, or the scene itself
+ * figure (its pose, place, others, movement, hands and body), a prop, a shot, a camera, or the scene itself
  * (its light and look; the "Scene" crumb in the header). It folds away for more canvas.
  */
 export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHide(): void }) {
@@ -59,6 +59,7 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   let content;
   if (selection?.kind === 'prop' && scene.props.some((p) => p.id === selection.prop)) content = <PropEditor id={selection.prop} chrome={chrome} />;
   else if (selection?.kind === 'shot') content = <ShotInspector id={selection.shot} notify={ctx.notify} chrome={chrome} />;
+  else if (selection?.kind === 'camera' && scene.animation?.cameras?.some((c) => c.id === selection.camera)) content = <CameraInspector id={selection.camera} chrome={chrome} />;
   else if (selection?.kind === 'action') content = <ActionInspector id={selection.action} figure={selection.figure} chrome={chrome} />;
   else if (selection?.kind === 'scene' || !figure) content = <SceneInspector ctx={ctx} chrome={{ after: hide }} />;
   else content = <FigureInspector figure={figure} ctx={ctx} chrome={chrome} />;

@@ -294,10 +294,11 @@ export interface Animation {
   constraints?: Constraint[];
   /** Keys of props that move (by id, in time order). */
   props?: Record<string, PropKey[]>;
+  /** The scene's cameras (lib/shot.ts). */
+  cameras?: Camera[];
   /**
-   * The camera's track: its shots, sorted by start; each runs until the next one starts (a cut)
-   * or the animation ends. Each films with its own camera path (lib/shot.ts). None: one shot,
-   * the still camera's.
+   * The camera track: shots sorted by start; each runs until the next one starts (a cut) or the
+   * animation ends, filmed by one of the cameras. None: one shot, the still camera's.
    */
   shots?: Shot[];
   /** Video model the shots are cut for (see lib/shots.ts), which limits a shot's length. */
@@ -310,7 +311,7 @@ export interface Animation {
 export const FRAME_SHAPES = ['16:9', '9:16', '1:1', '2.39:1'] as const;
 export type FrameShape = (typeof FRAME_SHAPES)[number];
 
-/** A shot: a block on the camera's track, with its own camera path. */
+/** A shot: a span of the animation's time, filmed by one of the scene's cameras. */
 export interface Shot {
   id: string;
   /** Seconds from the start of the animation. */
@@ -318,23 +319,36 @@ export interface Shot {
   name: string;
   /** What happens in the shot (used in prompts, storyboards and cut lists). */
   caption?: string;
-  /** The figure the shot is about (none: everyone). */
+  /** The camera filming it (none, or gone: the still camera's view of everyone). */
+  camera?: string;
+  /** Comes in by blending from the camera before over this long (s); none: a cut. */
+  blend?: number;
+}
+
+/**
+ * A camera of the scene: where it is and where it looks over the animation's time, its lens,
+ * its shake. Shots refer to cameras; one camera can film several shots.
+ */
+export interface Camera {
+  id: string;
+  name: string;
+  /** The figure it films (none: everyone). */
   subject?: string;
   /** Where its path is: fixed in the world, or riding along with its subject. */
   anchor: 'world' | 'subject';
-  /** Where the camera looks: at its subject, at a point, or along its path. */
+  /** Where it looks: at its subject, at a point, or along its path. */
   aim: 'subject' | 'point' | 'path';
-  /** The path's points in time order (none: the still camera's view of everyone). */
+  /** The path's points in time order (animation time). */
   points: CameraPoint[];
-  /** How the camera goes from point to point: easing through them, or at an even pace. */
+  /** How it goes from point to point: easing through them, or at an even pace. */
   ease?: 'smooth' | 'linear';
   /** Hand-held shake, 0–1. */
   shake?: number;
 }
 
-/** A point of a shot's camera path. */
+/** A point of a camera's path. */
 export interface CameraPoint {
-  /** Seconds from the shot's start. */
+  /** Seconds (animation time). */
   t: number;
   /** Where the camera is: in the world, or (anchored to the subject) from the subject's place on the floor. */
   position: Vec3;
@@ -412,6 +426,8 @@ export type Selection =
   | { kind: 'action'; action: string; figure: string }
   /** A shot of the animation (see lib/shots.ts; 'main' when it is not cut). */
   | { kind: 'shot'; shot: string }
+  /** A camera of the animation (picked in the outline or on the canvas). */
+  | { kind: 'camera'; camera: string }
   /** The scene itself: its light, look and reference image. */
   | { kind: 'scene' }
   | null;

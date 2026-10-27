@@ -22,13 +22,13 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleOf, cameraAt, capturePoint, filmWith, frameAspect, framePoint, lensFov, pointIn, restate, type Placement, type ShotSize } from './shot';
+import { angleOf, cameraAt, cameraById, capturePoint, filmWith, frameAspect, framePoint, lensFov, liveCamera, restate, viewOf, withCamera, type Placement, type ShotSize } from './shot';
 import { bonesOf, withAngles } from './pose';
-import { cutAt, movePoint, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
+import { cutAt, movePoint, newCamera, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Scene, Shot, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, Camera, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, FrameShape, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -458,6 +458,11 @@ export function deleteSelection(store: Store): string | null {
     removeShotCut(store, sel.shot);
     return `the cut before ${name}`;
   }
+  const cam = sel?.kind === 'camera' ? cameraById(scene.animation, sel.camera) : null;
+  if (cam) {
+    deleteCamera(store, cam.id);
+    return cam.name;
+  }
   return null;
 }
 
@@ -819,7 +824,7 @@ export function setAnimationOptions(store: Store, patch: { duration?: number; lo
   store.setTime(store.getState().time);
 }
 
-/* Shot camera: each shot's camera path (lib/shot.ts) */
+/* Cameras: objects in the scene with paths (lib/shot.ts); shots film with them */
 
 /** The shot playing at the playhead, and the time (on a frame). */
 function shotHere(store: Store) {
@@ -829,60 +834,95 @@ function shotHere(store: Store) {
   return { a, t, span: spanAt(a, t) };
 }
 
-/** Set (or replace) the current shot's path point at the playhead: the camera there, looking at `look`, through a lens with this field of view. */
+/** The camera filming at t, given one (a new camera for its shot) if it is filmed by the still camera. */
+function filming(s: Scene, t: number): { s: Scene; cam: Camera } {
+  const a = s.animation!;
+  const span = spanAt(a, t);
+  const cam = cameraById(a, span.shot.camera);
+  if (cam) return { s, cam };
+  const made = newCamera(a);
+  return { s: { ...s, animation: { ...updateShot(a, span.shot.id, { camera: made.id }), cameras: [...(a.cameras ?? []), made] } }, cam: made };
+}
+
+/** What a camera sees at t: its own view once it has a path, before that what the shot shows. */
+const seenBy = (s: Scene, cam: Camera, t: number) => (cam.points.length ? viewOf(s, cam, t) : cameraAt(s, t));
+
+/** Set (or replace) a path point at the playhead of the camera filming then: there, looking at `look`, through a lens with this field of view. */
 export function setCameraPoint(store: Store, position: THREE.Vector3, look: THREE.Vector3, fov: number, key = '') {
   const here = shotHere(store);
   if (!here) return;
-  store.updateScene((s) => {
-    const point = capturePoint(s, here.t, position, look, fov);
-    return point && s.animation ? { ...s, animation: setPointAt(s.animation, here.t, point) } : s;
+  store.updateScene((x) => {
+    const { s, cam } = filming(x, here.t);
+    return { ...s, animation: setPointAt(s.animation!, cam, here.t, capturePoint(s, cam, here.t, position, look, fov)) };
   }, key);
 }
 
-/** Move the path point at time t to another place in the world (dragged on the canvas); it keeps looking where it did. */
-export function moveCameraPoint(store: Store, t: number, position: THREE.Vector3, key = '') {
+/** The camera with this id, or the one filming at t. */
+const cameraOf = (s: Scene, t: number, id?: string) => (id ? cameraById(s.animation, id) : liveCamera(s, t));
+
+/** A point on a camera's path at t (on a frame), where it passes then. */
+export function addCameraPoint(store: Store, camera: string, t: number) {
   store.updateScene((s) => {
-    const a = s.animation;
-    if (!a) return s;
-    const before = cameraAt(s, t);
-    const point = capturePoint(s, t, position, before.target, before.fov);
-    return point ? { ...s, animation: setPointAt(a, t, { ...point, ...(before.roll ? { roll: before.roll } : {}) }) } : s;
+    const cam = cameraById(s.animation, camera);
+    if (!s.animation || !cam) return s;
+    const time = snapTime(s.animation, t);
+    const view = viewOf(s, cam, time);
+    return { ...s, animation: setPointAt(s.animation, cam, time, { ...capturePoint(s, cam, time, view.position, view.target, view.fov), ...(view.roll ? { roll: view.roll } : {}) }) };
+  });
+}
+
+/** Move a camera's path point at time t to another place in the world (dragged on the canvas); it keeps looking where it did. */
+export function moveCameraPoint(store: Store, camera: string, t: number, position: THREE.Vector3, key = '') {
+  store.updateScene((s) => {
+    const cam = cameraOf(s, t, camera);
+    if (!s.animation || !cam) return s;
+    const before = viewOf(s, cam, t);
+    const point = capturePoint(s, cam, t, position, before.target, before.fov);
+    return { ...s, animation: setPointAt(s.animation, cam, t, { ...point, ...(before.roll ? { roll: before.roll } : {}) }) };
   }, key);
 }
 
-/** Point the camera at time t at another place in the world (its look point dragged). */
-export function moveCameraLook(store: Store, t: number, look: THREE.Vector3, key = '') {
+/** Point a camera at time t at another place in the world (its look point dragged). */
+export function moveCameraLook(store: Store, camera: string, t: number, look: THREE.Vector3, key = '') {
   store.updateScene((s) => {
-    const a = s.animation;
-    if (!a) return s;
-    const before = cameraAt(s, t);
-    const point = capturePoint(s, t, before.position, look, before.fov);
-    return point ? { ...s, animation: setPointAt(a, t, point) } : s;
+    const cam = cameraOf(s, t, camera);
+    if (!s.animation || !cam) return s;
+    const before = viewOf(s, cam, t);
+    return { ...s, animation: setPointAt(s.animation, cam, t, capturePoint(s, cam, t, before.position, look, before.fov)) };
   }, key);
 }
 
-export function deleteCameraPoint(store: Store, t = store.getState().time) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: removePointAt(s.animation, snapTime(s.animation, t)) } : s));
+/** Remove the path point at t of a camera (by default the one filming then). */
+export function deleteCameraPoint(store: Store, t = store.getState().time, camera?: string) {
+  store.updateScene((s) => {
+    const cam = cameraOf(s, t, camera);
+    return s.animation && cam ? { ...s, animation: removePointAt(s.animation, cam, snapTime(s.animation, t)) } : s;
+  });
 }
 
-/** Retime the path point at `from` (within its shot). */
-export function retimeCameraPoint(store: Store, from: number, to: number, key = '') {
-  store.updateScene((s) => (s.animation ? { ...s, animation: movePoint(s.animation, from, snapTime(s.animation, to)) } : s), key);
+/** Retime the path point at `from` of a camera (by default the one filming then). */
+export function retimeCameraPoint(store: Store, from: number, to: number, key = '', camera?: string) {
+  store.updateScene((s) => {
+    const cam = cameraOf(s, from, camera);
+    return s.animation && cam ? { ...s, animation: movePoint(s.animation, cam, from, snapTime(s.animation, to)) } : s;
+  }, key);
 }
 
 /**
- * Frame the current shot's subject at a shot size at the playhead: the camera keeps its angle and
- * lens (`lens`: another one), and comes as near as that size takes; `place`: where the subject
- * sits in the frame.
+ * Frame the subject of the camera filming at the playhead at a shot size: the camera keeps its
+ * angle and lens (`lens`: another one), and comes as near as that size takes; `place`: where the
+ * subject sits in the frame.
  */
 export function frameShot(store: Store, size: ShotSize, o: { lens?: number; place?: Placement } = {}) {
   const here = shotHere(store);
   if (!here) return;
-  const s = store.scene;
-  const view = cameraAt(s, here.t);
-  const { yaw, pitch } = angleOf(view);
-  const point = framePoint(s, here.span.shot, here.span.start, here.t, size, { yaw, pitch, lens: o.lens ?? view.lens, place: o.place });
-  store.updateScene((x) => (x.animation ? { ...x, animation: setPointAt(x.animation, here.t, point) } : x));
+  store.updateScene((x) => {
+    const { s, cam } = filming(x, here.t);
+    const view = seenBy(s, cam, here.t);
+    const { yaw, pitch } = angleOf(view);
+    const point = framePoint(s, cam, here.t, size, { yaw, pitch, lens: o.lens ?? view.lens, place: o.place });
+    return { ...s, animation: setPointAt(s.animation!, cam, here.t, point) };
+  });
 }
 
 /**
@@ -894,35 +934,79 @@ export function setLens(store: Store, mm: number, keep: 'size' | 'place' = 'size
   const here = shotHere(store);
   if (!here) return;
   const lens = Math.min(1200, Math.max(4, mm));
-  store.updateScene((s) => {
-    if (!s.animation) return s;
-    const view = cameraAt(s, here.t);
+  store.updateScene((x) => {
+    const { s, cam } = filming(x, here.t);
+    const view = seenBy(s, cam, here.t);
     const position = keep === 'size'
       ? view.target.clone().add(view.position.clone().sub(view.target).multiplyScalar(lens / view.lens))
       : view.position;
-    const point = capturePoint(s, here.t, position, view.target, lensFov(lens, frameAspect(s)));
-    return point ? { ...s, animation: setPointAt(s.animation, here.t, { ...point, lens, ...(view.roll ? { roll: view.roll } : {}) }) } : s;
+    const point = capturePoint(s, cam, here.t, position, view.target, lensFov(lens, frameAspect(s)));
+    return { ...s, animation: setPointAt(s.animation!, cam, here.t, { ...point, lens, ...(view.roll ? { roll: view.roll } : {}) }) };
   }, key);
 }
 
 /**
- * A shot's camera: what it is about (subject), where its path is (anchor), what it looks at (aim)
- * — the path is restated so the camera stays where it was — how it eases, how it shakes.
+ * A camera's settings: its name, what it films (subject), where its path is (anchor), what it
+ * looks at (aim) — the path is restated so the camera stays where it was — how it eases, how it
+ * shakes.
  */
-export function setShotCamera(store: Store, id: string, patch: Partial<Pick<Shot, 'subject' | 'anchor' | 'aim' | 'ease' | 'shake'>>) {
+export function editCamera(store: Store, id: string, patch: Partial<Pick<Camera, 'name' | 'subject' | 'anchor' | 'aim' | 'ease' | 'shake'>>) {
   store.updateScene((s) => {
     const a = s.animation;
-    const span = a && shotSpans(a).find((x) => x.shot.id === id);
-    if (!a || !span) return s;
+    const old = cameraById(a, id);
+    if (!a || !old) return s;
     const { subject, anchor, aim, ...rest } = patch;
     const where = { ...(subject !== undefined ? { subject: subject || undefined } : {}), ...(anchor ? { anchor } : {}), ...(aim ? { aim } : {}) };
-    let shot = Object.keys(where).length ? restate(s, span, where) : span.shot;
-    if (!shot.subject) delete shot.subject;
-    shot = { ...shot, ...rest };
-    if (!shot.shake) delete shot.shake;
-    if (shot.ease !== 'linear') delete shot.ease;
-    return { ...s, animation: { ...a, shots: shotSpans(a).map((x) => (x.shot.id === id ? shot : x.shot)) } };
-  }, `shot-camera:${id}`);
+    let cam = Object.keys(where).length ? restate(s, old, where) : old;
+    if (!cam.subject) delete cam.subject;
+    cam = { ...cam, ...rest, name: (rest.name ?? cam.name).trim() || cam.name };
+    if (!cam.shake) delete cam.shake;
+    if (cam.ease !== 'linear') delete cam.ease;
+    return withCamera(s, cam);
+  }, `camera:${id}`);
+}
+
+/** A new camera for the shot at the playhead, where the camera filming there is now (its id). */
+export function addCamera(store: Store) {
+  const here = shotHere(store);
+  if (!here) return null;
+  const s = store.scene;
+  const before = cameraById(here.a, here.span.shot.camera);
+  const view = cameraAt(s, here.t);
+  let cam = newCamera(here.a, before?.subject ? { subject: before.subject } : {});
+  cam = { ...cam, points: [capturePoint(s, cam, here.t, view.position, view.target, view.fov)] };
+  store.updateScene((x) => (x.animation ? { ...x, animation: { ...updateShot(x.animation, here.span.shot.id, { camera: cam.id }), cameras: [...(x.animation.cameras ?? []), cam] } } : x));
+  return cam.id;
+}
+
+/**
+ * A camera of a shot's own to change (its id): the one it films with if no other shot does, or
+ * else a copy of it; a new camera if it has none.
+ */
+export function ownCamera(store: Store, shotId: string): string | null {
+  const a = store.scene.animation;
+  const span = a && shotSpans(a).find((x) => x.shot.id === shotId);
+  if (!a || !span) return null;
+  const cam = cameraById(a, span.shot.camera);
+  if (cam && !shotSpans(a).some((x) => x.shot.id !== shotId && x.shot.camera === cam.id)) return cam.id;
+  const { id: _id, name: _name, ...rest } = cam ?? newCamera(a);
+  void _id;
+  void _name;
+  const copy = { ...newCamera(a), ...rest };
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...updateShot(s.animation, shotId, { camera: copy.id }), cameras: [...(s.animation.cameras ?? []), copy] } } : s));
+  return copy.id;
+}
+
+/** Make a shot about one figure (or everyone: ''), on a camera of its own. */
+export function setShotSubject(store: Store, shotId: string, figure: string) {
+  const id = ownCamera(store, shotId);
+  if (id) editCamera(store, id, { subject: figure });
+}
+
+/** Remove a camera: the shots it filmed are filmed by the still camera. */
+export function deleteCamera(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: removeCamera(s.animation, id) } : s));
+  if (store.getState().selection?.kind === 'camera') store.select(null);
 }
 
 /** The frame shape the scene's shots are filmed in (16:9, 9:16, 1:1, 2.39:1). */
@@ -946,24 +1030,31 @@ export function applyCameraMove(store: Store, id: string) {
 
 /* Shots */
 
-/** Cut at the playhead: a new shot starts there, holding the current framing until re-keyed. */
+/** Cut at the playhead: a new shot starts there, filming with the same camera until given another. */
 export function cutShot(store: Store) {
   const t = store.getState().time;
-  store.updateScene((s) => {
-    if (!s.animation) return s;
-    const time = snapTime(s.animation, t);
-    const span = spanAt(s.animation, time);
-    const view = cameraAt(s, time);
-    return { ...s, animation: cutAt(s.animation, time, pointIn(s, span.shot, time - span.start, time, view.position, view.target, view.lens, view.roll)) };
-  });
+  store.updateScene((s) => (s.animation ? { ...s, animation: cutAt(s.animation, snapTime(s.animation, t)) } : s));
 }
 
 export function removeShotCut(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: removeCut(s.animation, id) } : s));
 }
 
-export function editShot(store: Store, id: string, patch: { name?: string; caption?: string }) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: updateShot(s.animation, id, patch) } : s), `shot:${id}`);
+/** A shot's name and caption, the camera it films with (null: the still camera) and how long it blends in from the one before (0: a cut). */
+export function editShot(store: Store, id: string, patch: { name?: string; caption?: string; camera?: string | null; blend?: number }) {
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const { camera, blend, ...rest } = patch;
+    const a = updateShot(s.animation, id, rest);
+    const shots = a.shots!.map((x) => {
+      if (x.id !== id) return x;
+      const { camera: oldCam, blend: oldBlend, ...shot } = x;
+      const cam = camera === undefined ? oldCam : camera ?? undefined;
+      const b = blend === undefined ? oldBlend : Math.min(10, Math.max(0, Math.round(blend * 100) / 100));
+      return { ...shot, ...(cam ? { camera: cam } : {}), ...(b ? { blend: b } : {}) };
+    });
+    return { ...s, animation: { ...a, shots } };
+  }, `shot:${id}`);
 }
 
 /** Cut the shots for a video model (its clip length becomes each shot's limit), or clear it. */

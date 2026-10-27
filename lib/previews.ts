@@ -1,8 +1,8 @@
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { poseScene } from './poses';
-import { cameraAt, filmWith, type CameraMove } from './shot';
-import { newShot } from './shots';
+import { cameraAt, filmWith, subjectAt, type CameraMove } from './shot';
+import { newCamera, newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { PoseAsset, Scene, Style } from './types';
 
@@ -93,9 +93,12 @@ export function cameraPreview(move: CameraMove, scene: Scene, style: Style): Pre
   if (!sceneIds.has(scene)) sceneIds.set(scene, nextScene++);
   return filmed(`camera:${style}:${move.id}:${sceneIds.get(scene)}`, () => {
     const anim = scene.animation ?? { ...newAnimation(scene, 3), loop: false };
-    // One shot over the whole animation (about the subject of the shot at its start), filmed by this move.
-    const { shots, ...whole } = anim;
-    const subject = shots?.[0]?.subject;
-    return filmWith({ ...scene, animation: { ...whole, shots: [{ ...newShot(0, 'Shot 1', 'main'), ...(subject ? { subject } : {}) }] } }, move.id);
+    // One shot over the whole animation (on the subject of the camera at its start), filmed by this move.
+    const { shots: _shots, cameras: _cameras, ...whole } = anim;
+    void _shots;
+    void _cameras;
+    const subject = subjectAt(scene, 0);
+    const cam = { ...newCamera(whole), id: 'preview', ...(subject ? { subject } : {}) };
+    return filmWith({ ...scene, animation: { ...whole, cameras: [cam], shots: [{ ...newShot(0, 'Shot 1', 'main'), camera: cam.id }] } }, move.id);
   }, style);
 }

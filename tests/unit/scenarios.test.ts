@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, addScene, applyMotion, arrange, cutShot, dribbleProp, holdProp, moveProp, saveMotion, setGaze, setSceneLight, setShotCamera, throwProp,
+  addFigure, addProp, addScene, applyMotion, arrange, cutShot, dribbleProp, holdProp, moveProp, saveMotion, setGaze, setSceneLight, setShotSubject, throwProp,
   travelTo,
 } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
@@ -45,7 +45,7 @@ describe('scenes from the use case', () => {
     setSceneLight(store, LIGHT_PRESETS.find((p) => p.id === 'noon')!.light);
     store.setTime(runA.to);
     cutShot(store);
-    setShotCamera(store, store.scene.animation!.shots![1].id, { subject: b });
+    setShotSubject(store, store.scene.animation!.shots![1].id, b);
 
     expectClean(store.scene);
     const end = sceneAt(store.scene, store.scene.animation!.duration);

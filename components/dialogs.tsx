@@ -303,7 +303,7 @@ export function ExportDialog({ onClose, notify, currentView }: { onClose(): void
               </Field>
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
               <p className="muted small">
-                Filmed through the shot camera: set camera keys or pick a camera move on the timeline.
+                Filmed through the shots&apos; cameras: frame a shot or pick a camera move for it.
                 {!canRecord && ' This browser cannot record video.'}
               </p>
             </>
