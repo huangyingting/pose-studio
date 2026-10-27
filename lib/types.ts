@@ -348,6 +348,8 @@ export type Selection =
   /** A whole figure (picked in the outline): delete, duplicate, rename, move it. */
   | { kind: 'figure'; figure: string }
   | { kind: 'prop'; prop: string }
+  /** An action on a figure's track (a walk, a motion, posed keys), picked on the timeline from that figure's row. */
+  | { kind: 'action'; action: string; figure: string }
   /** A shot of the animation (see lib/shots.ts; 'main' when it is not cut). */
   | { kind: 'shot'; shot: string }
   /** The scene itself: its light, look and reference image. */

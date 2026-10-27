@@ -107,7 +107,7 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await page.getByLabel('Scene name').fill(name);
   await openSection(page, 'Library');
   await page.getByRole('radio', { name: 'Motions' }).click();
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion}`) }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion} [\\d.]+ s$`) }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -953,6 +953,42 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   await page.getByRole('menuitemradio', { name: 'Full turn' }).click();
   s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active)[1].source).toMatchObject({ mode: 'jump', spin: 1 });
+});
+
+test('actions are blocks on the timeline: picked for the inspector, retimed by their edge, blended by their ramp', async ({ page }) => {
+  await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
+  let s = await live(page);
+  const walk = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'travel' && a.source.mode === 'walk')!);
+  const before = await walk();
+  // Picked: the inspector shows how it gets there and its timing.
+  await page.locator('.tl-travel.walk').click();
+  const inspector = page.getByRole('complementary', { name: 'Inspector' });
+  await expect(inspector.getByLabel('Action')).toHaveText('Walk');
+  await expect(inspector.getByRole('radiogroup', { name: 'Getting there' })).toBeVisible();
+  // Its right edge drags half a second longer.
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const box = (await page.locator('.tl-travel.walk').boundingBox())!;
+  const perSecond = lanes.width / s.scene.animation!.duration;
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(box.x + box.width - 2 + (perSecond * 0.5 * i) / 5, box.y + box.height / 2);
+  await page.mouse.up();
+  expect((await walk()).duration - before.duration).toBeGreaterThan(0.3);
+  // A run put in before it (the playhead went to the walk's start): the walk's ramp drags out, and it blends in.
+  await floorMenu(page, [-0.8, 0, -2.4], 'Run here');
+  s = await live(page);
+  const ramp = (await page.locator('.tl-ramp.walk').boundingBox())!;
+  const perSecond2 = lanes.width / s.scene.animation!.duration;
+  await page.mouse.move(ramp.x + ramp.width / 2, ramp.y + ramp.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(ramp.x + ramp.width / 2 - (perSecond2 * 0.3 * i) / 5, ramp.y + ramp.height / 2);
+  await page.mouse.up();
+  expect((await walk()).blendIn ?? 0).toBeGreaterThan(0.15);
+  // The walk runs instead, from the inspector.
+  await page.locator('.tl-travel.walk').click({ position: { x: 20, y: 5 } });
+  await expect(inspector.getByLabel('Action')).toHaveText('Walk');
+  await inspector.getByRole('radio', { name: 'Run' }).click();
+  expect(actionsOf((await live(page)).scene.animation!, s.active).filter((a) => a.source.kind === 'travel').map((a) => (a.source as { mode: string }).mode)).toEqual(['run', 'run']);
 });
 
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {

@@ -6,22 +6,21 @@ import {
   PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdOn, holdProp, letGo, renameScene, setFigureColor, setGaze, setJumpHeight, setPosture, setSceneLight, setTravel, lookAtFigure, mirrorPose, pastePose,
+  arrange, copyPose, holdOn, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
   reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, symmetrizePose,
 } from '@/lib/actions';
 import { travelAt } from '@/lib/evaluate';
-import { keyAtTime, moments, travelInto } from '@/lib/track';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { HAND_PRESETS } from '@/lib/hands';
 import { HOLDABLE } from '@/lib/hold';
-import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
 import { angle } from '@/lib/pose';
 import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Travel, type Vec3, type View, PROP_LABELS } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, type View, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
+import ActionInspector from './ActionInspector';
 import ShotInspector from './ShotInspector';
 import { PROP_ICONS } from './icons';
 import { useActiveFigure, useScene, useStore, useStudio } from './store-context';
@@ -60,6 +59,7 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   let content;
   if (selection?.kind === 'prop' && scene.props.some((p) => p.id === selection.prop)) content = <PropEditor id={selection.prop} chrome={chrome} />;
   else if (selection?.kind === 'shot') content = <ShotInspector id={selection.shot} notify={ctx.notify} chrome={chrome} />;
+  else if (selection?.kind === 'action') content = <ActionInspector id={selection.action} figure={selection.figure} chrome={chrome} />;
   else if (selection?.kind === 'scene' || !figure) content = <SceneInspector ctx={ctx} chrome={{ after: hide }} />;
   else content = <FigureInspector figure={figure} ctx={ctx} chrome={chrome} />;
 
@@ -112,7 +112,6 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
         </Section>
         <PlacementSection figure={figure} ctx={ctx} />
         <OthersSection figure={figure} ctx={ctx} />
-        <MovementSection figure={figure} />
       </>
     );
   }
@@ -125,7 +124,6 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
       {!joint && <JointPicker figure={figure} />}
       <PlacementSection figure={figure} ctx={ctx} />
       <OthersSection figure={figure} ctx={ctx} />
-      <MovementSection figure={figure} />
       <HandsSection hands={figure.hands} />
       <BodySection figure={figure} />
     </>
@@ -355,88 +353,6 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
           )}
         </>
       )}
-    </Section>
-  );
-}
-
-type Getting = 'glide' | Travel;
-const JUMP_HEIGHTS = [0.3, 0.5, 0.8, 1.2];
-
-/**
- * How the figure gets to its next key from the playhead: as keyed (gliding), or walking, running
- * or jumping there with generated steps; for a jump its height and turns. The same choices as
- * right-clicking its track on the timeline.
- */
-function MovementSection({ figure }: { figure: Figure }) {
-  const store = useStore();
-  const a = useScene().animation;
-  const time = useStudio((s) => s.time);
-  if (!a) return null;
-  const times = moments(a, figure.id);
-  const next = times.find((k) => k > time + 1e-6 && (travelInto(a, figure.id, k) || keyAtTime(a, figure.id, k)));
-  const started = times.some((k) => k <= time + 1e-6);
-  const tr = next !== undefined ? travelInto(a, figure.id, next) : null;
-  const key = tr?.source.kind === 'travel' ? tr.source : {} as { mode?: Travel; strafe?: boolean; spin?: number; flip?: number };
-  if (next === undefined || !started) {
-    return (
-      <Section id="movement" title="Movement" collapsible>
-        <p className="hint-text">Right-click the floor to walk, run or jump there from here: it makes a new mark.</p>
-      </Section>
-    );
-  }
-  const kind: Getting = key.mode ?? 'glide';
-  const keep = { strafe: key.strafe, spin: key.spin, flip: key.flip };
-  const set = (k: Getting, patch: { strafe?: boolean; spin?: number; flip?: number } = {}) => setTravel(store, figure.id, next, k === 'glide' ? null : k, { ...keep, ...patch });
-  const height = kind === 'jump' && tr ? jumpHeight(Math.max(0, tr.duration - 2 * JUMP_PREP)) : 0;
-  const nearest = JUMP_HEIGHTS.reduce((b, h) => (Math.abs(h - height) < Math.abs(b - height) ? h : b));
-  return (
-    <Section id="movement" title={`Movement · to ${next.toFixed(2)} s`} collapsible>
-      <Segmented<Getting>
-        label="Getting there"
-        full
-        value={kind}
-        onChange={(k) => set(k)}
-        options={[{ value: 'glide', label: 'Glide' }, { value: 'walk', label: 'Walk' }, { value: 'run', label: 'Run' }, { value: 'jump', label: 'Jump' }]}
-      />
-      {(kind === 'walk' || kind === 'run') && (
-        <Toggle label="Keep facing" hint="Side steps and backing up instead of turning to the way it goes" checked={!!key.strafe} onChange={(strafe) => set(kind, { strafe })} />
-      )}
-      {kind === 'jump' && (
-        <>
-          <div className="field">
-            <span>Height · {height.toFixed(2)} m</span>
-            <Segmented<string>
-              label="Jump height"
-              full
-              value={String(nearest)}
-              onChange={(h) => setJumpHeight(store, figure.id, next, Number(h))}
-              options={JUMP_HEIGHTS.map((h) => ({ value: String(h), label: `${h} m` }))}
-            />
-          </div>
-          <div className="field">
-            <span>In the air</span>
-            <Segmented<string>
-              label="Turns in the air"
-              full
-              value={String(key.spin ?? 0)}
-              onChange={(v) => set('jump', { spin: Number(v) })}
-              options={[{ value: '0', label: 'No turn' }, { value: '0.5', label: '½' }, { value: '1', label: '1' }, { value: '2', label: '2' }]}
-            />
-            <Segmented<string>
-              label="Flip"
-              full
-              value={String(key.flip ?? 0)}
-              onChange={(v) => set('jump', { flip: Number(v) })}
-              options={[{ value: '0', label: 'No flip' }, { value: '1', label: 'Front flip' }, { value: '-1', label: 'Back flip' }]}
-            />
-          </div>
-        </>
-      )}
-      <p className="hint-text">
-        {kind === 'glide'
-          ? 'It moves between its keys as posed. Walk, run or jump to step there instead.'
-          : 'Its steps are generated between the marks. Drag the marks on the floor to change the way.'}
-      </p>
     </Section>
   );
 }

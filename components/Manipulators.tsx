@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
-import { moveMark } from '@/lib/actions';
-import { actionsOf, footprints, marksOf, sceneAt } from '@/lib/evaluate';
+import { fitWarp, moveMark } from '@/lib/actions';
+import { actionsOf, footprints, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
+import { facingOf } from '@/lib/pose';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
@@ -11,6 +12,7 @@ import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Chain, type Mannequin 
 import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import type { Figure, JointName, Scene } from '@/lib/types';
+import { openContextMenu } from './ContextMenu';
 
 /*
  * Direct manipulation on the canvas. The things themselves are the handles:
@@ -630,6 +632,33 @@ export function IKHandles({ m, figure, limits, onCommit }: {
   );
 }
 
+/** A mark's facing arrow: a small triangle just beyond its ring (pointing along the floor's -y before it is laid down, i.e. +z). */
+const ARROW = new THREE.Shape([new THREE.Vector2(-0.06, -0.14), new THREE.Vector2(0.06, -0.14), new THREE.Vector2(0, -0.21)]);
+
+/** A mark's number, drawn once per number. */
+const numbers = new Map<number, THREE.CanvasTexture>();
+function numberTexture(n: number): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  let tex = numbers.get(n);
+  if (!tex) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    if (!g) return null;
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#30313a';
+    g.font = `600 ${n > 9 ? 30 : 38}px system-ui, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(n), 32, 35);
+    tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    numbers.set(n, tex);
+  }
+  return tex;
+}
+
 /**
  * A figure's route while animating: its marks (where its keys put it; drag one to move it, click
  * to go to that moment), the path its body takes (in the air for a jump) and the footprints of
@@ -651,38 +680,53 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
     }
     // A mark where the figure gets to somewhere new: where a walk, run, jump or clip ends, or a key
     // puts it (a run of keys in one place, as in a dance, is one mark).
-    const marks: { t: number; x: number; z: number }[] = [];
+    const marks: { t: number; x: number; z: number; facing: number; act?: string; over: boolean }[] = [];
     for (const act of actionsOf(a, figureId)) {
       const stops = act.source.kind === 'keys'
-        ? partKeys(act.source.clip.parts[0]).map((k) => ({ t: act.start + k.t, at: [k.pose.position[0], k.pose.position[2]], moved: false }))
-        : [{ t: act.start + act.duration, at: marksOf(scene, act, figureId)!.end.at, moved: true }];
+        ? partKeys(act.source.clip.parts[0]).map((k) => ({ t: act.start + k.t, at: [k.pose.position[0], k.pose.position[2]], facing: facingOf(k.pose.bones), moved: false, act: undefined, over: false }))
+        : [{ t: act.start + act.duration, ...marksOf(scene, act, figureId)!.end, moved: true, act: act.id, over: overWarp(scene, act, figureId) }];
       for (const m of stops) {
         const last = marks[marks.length - 1];
-        if (!last || m.moved || Math.hypot(m.at[0] - last.x, m.at[1] - last.z) > 0.15) marks.push({ t: m.t, x: m.at[0], z: m.at[1] });
+        if (!last || m.moved || Math.hypot(m.at[0] - last.x, m.at[1] - last.z) > 0.15) marks.push({ t: m.t, x: m.at[0], z: m.at[1], facing: m.facing, act: m.act, over: m.over });
       }
     }
     return { points, marks, prints: footprints(scene, figureId) };
   }, [a, figure, figureId, scene, ground]);
 
-  const drag = (t: number) => (e: ThreeEvent<PointerEvent>) => {
+  /** Drag a mark on the floor; a click goes there (and picks the action ending there). Dragged past where a motion can stretch, it asks what to do. */
+  const drag = (m: (typeof route.marks)[number]) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0 || e.altKey) return;
     e.stopPropagation();
     const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const [x0, y0] = [e.nativeEvent.clientX, e.nativeEvent.clientY];
     let moved = false;
+    let last = { clientX: x0, clientY: y0 };
     pointer.orbit(false);
     follow(
       (ev) => {
         if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_PX) return;
         moved = true;
+        last = ev;
         document.body.style.cursor = 'grabbing';
         const h = pointer.ray(ev.clientX, ev.clientY).intersectPlane(floor, new THREE.Vector3());
-        if (h) moveMark(store, figureId, t, [h.x, h.z], `mark:${figureId}:${t}`);
+        if (h) moveMark(store, figureId, m.t, [h.x, h.z], `mark:${figureId}:${m.t}`);
       },
       () => {
         pointer.orbit(true);
         document.body.style.cursor = '';
-        if (!moved) store.setTime(t);
+        if (!moved) {
+          store.setTime(m.t);
+          if (m.act) store.select({ kind: 'action', action: m.act, figure: figureId });
+          return;
+        }
+        const act = m.act ? store.scene.animation?.actions.find((x) => x.id === m.act) : undefined;
+        if (act && overWarp(store.scene, act, figureId)) {
+          openContextMenu(last, [
+            { label: 'Move it back (as far as the motion stretches)', onSelect: () => fitWarp(store, act.id, figureId, 'back') },
+            { label: 'Walk the rest of the way after it', onSelect: () => fitWarp(store, act.id, figureId, 'walk') },
+            { label: 'Leave it there', onSelect: () => {} },
+          ], 'Further than the motion can stretch');
+        }
       },
     );
   };
@@ -696,27 +740,33 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
           <meshBasicMaterial color={p.side === 'L' ? '#30a46c' : '#f59e0b'} transparent opacity={0.5} depthWrite={false} />
         </mesh>
       ))}
-      {route.marks.map((m) => {
+      {route.marks.map((m, n) => {
         const on = Math.abs(m.t - time) < 0.5 / a.fps;
         const y = ground(m.x, m.z) + 0.008;
+        const color = m.over ? '#e5484d' : on ? '#3b6cff' : '#60616a';
         return (
           <group key={m.t} position={[m.x, y, m.z]}>
             <mesh rotation-x={-Math.PI / 2} renderOrder={6}>
-              <ringGeometry args={[0.07, 0.1, 32]} />
-              <meshBasicMaterial color={on ? '#3b6cff' : '#60616a'} transparent opacity={0.9} depthWrite={false} />
+              <ringGeometry args={[0.1, 0.135, 32]} />
+              <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
             </mesh>
             <mesh rotation-x={-Math.PI / 2} renderOrder={6}>
-              <circleGeometry args={[0.07, 32]} />
-              <meshBasicMaterial color="#ffffff" transparent opacity={on ? 0.9 : 0.6} depthWrite={false} />
+              <circleGeometry args={[0.1, 32]} />
+              <meshBasicMaterial map={numberTexture(n + 1)} color={m.over ? '#ffe4e4' : '#ffffff'} transparent opacity={on ? 0.95 : 0.75} depthWrite={false} />
+            </mesh>
+            {/* Which way the figure faces there. */}
+            <mesh rotation={[-Math.PI / 2, 0, m.facing * D2R]} renderOrder={6}>
+              <shapeGeometry args={[ARROW]} />
+              <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} side={THREE.DoubleSide} />
             </mesh>
             <mesh
               rotation-x={-Math.PI / 2}
               visible={false}
-              onPointerDown={drag(m.t)}
+              onPointerDown={drag(m)}
               onPointerOver={() => { document.body.style.cursor = 'grab'; }}
               onPointerOut={() => { document.body.style.cursor = ''; }}
             >
-              <circleGeometry args={[0.16, 16]} />
+              <circleGeometry args={[0.2, 16]} />
             </mesh>
           </group>
         );

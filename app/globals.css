@@ -727,6 +727,27 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.jump { background: rgba(139, 92, 246, 0.15); color: #6b44d6; }
 .tl-travel.clip { background: rgba(59, 108, 255, 0.13); color: #2c55d6; }
 .tl-travel.upper { top: auto; bottom: 1px; height: 9px; font-size: 8px; line-height: 9px; background: rgba(20, 184, 166, 0.2); color: #0d7d70; }
+.tl-travel.keys { background: rgba(96, 97, 106, 0.08); color: var(--text-3); }
+/* An action done together (on each of its people's rows), and the one picked for the inspector. */
+.tl-travel.group { gap: 4px; box-shadow: inset 0 0 0 1px currentColor; }
+.tl-travel.sel { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--accent-ring); }
+.tl-block { display: contents; }
+/* Its right edge retimes it; the ramp before it is how long it blends in (drag it out). */
+.tl-edge { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
+.tl-edge:hover { background: rgba(0, 0, 0, 0.12); }
+.tl-ramp { position: absolute; top: 5px; bottom: 5px; z-index: 1; clip-path: polygon(0 100%, 100% 0, 100% 100%); background: currentColor; opacity: 0.35; cursor: w-resize; }
+.tl-ramp.none { width: 6px !important; margin-left: -6px; opacity: 0.12; }
+.tl-ramp:hover { opacity: 0.6; }
+.tl-ramp.walk { color: #30a46c; }
+.tl-ramp.run { color: #f59e0b; }
+.tl-ramp.jump { color: #8b5cf6; }
+.tl-ramp.clip { color: #3b6cff; }
+/* A prop let go (a throw) and caught or taken, and the line from one to the other. */
+.tl-event { position: absolute; top: 1px; width: 0; height: 0; margin-left: -4px; border: 4px solid transparent; pointer-events: none; }
+.tl-event.release { border-bottom: 6px solid #e5484d; border-top: 0; }
+.tl-event.catch { top: auto; bottom: 1px; border-top: 6px solid #30a46c; border-bottom: 0; }
+.tl-flights { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.tl-flights line { stroke: #e5484d; stroke-width: 1; stroke-dasharray: 3 2; opacity: 0.7; }
 .tl-travel.held { background: rgba(96, 97, 106, 0.1); color: var(--text-2); }
 .tl-travel.throw { background: rgba(229, 72, 77, 0.12); color: #b4383c; }
 .tl-key.prop { width: 9px; height: 9px; margin: -5px 0 0 -5px; background: #8a8b95; }
@@ -942,6 +963,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .panel-title > svg { color: var(--text-2); }
 .panel-title .title-input { flex: 1; min-width: 0; margin-left: -8px; font-weight: 600; text-overflow: ellipsis; }
 .panel-title .title-input:not(:focus) { background: transparent; }
+.panel-title .title-static { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.warp-warn { padding: 8px 10px; border-radius: var(--radius-s); background: rgba(229, 72, 77, 0.08); color: #b4383c; font-size: 12px; }
+.warp-warn p { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 6px; }
+.warp-warn .row { display: flex; gap: 6px; }
 .title-note { color: var(--text-3); font-size: 12px; font-weight: 400; }
 .spacer { flex: 1; }
 

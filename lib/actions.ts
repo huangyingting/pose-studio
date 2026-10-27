@@ -8,10 +8,12 @@ import { DEFAULT_HOLD, boardPanels, insertPanel, movePanel, newPanel, withBoard 
 import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { keysClip, partKeys } from './clip';
-import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt } from './evaluate';
+import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
-import { addTravel, addUpper, insertClip, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, ripple, setPoseAt, setTravelMode, travelInto } from './track';
+import {
+  actionLabel, addTravel, addUpper, insertClip, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, retimeAction, ripple, setBlendIn, setPoseAt, setTravelMode, travelInto,
+} from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
@@ -444,6 +446,12 @@ export function deleteSelection(store: Store): string | null {
     const f = scene.figures.find((x) => x.id === sel.figure);
     return f && deleteFigure(store, f.id) ? f.name : null;
   }
+  if (sel?.kind === 'action') {
+    const act = scene.animation?.actions.find((x) => x.id === sel.action);
+    if (!act) return null;
+    deleteAction(store, act.id);
+    return actionLabel(act);
+  }
   if (sel?.kind === 'shot' && scene.animation?.shots?.[0]?.id !== sel.shot && scene.animation?.shots?.some((x) => x.id === sel.shot)) {
     const name = scene.animation.shots.find((x) => x.id === sel.shot)!.name;
     removeShotCut(store, sel.shot);
@@ -661,6 +669,96 @@ export function setJumpHeight(store: Store, figureId: string, t: number, height:
 /** Move a figure's mark (where it is keyed, or a travel ends, at time t) to another floor point. */
 export function moveMark(store: Store, figureId: string, t: number, to: [number, number], key = '') {
   store.updateScene((s) => (s.animation ? { ...s, animation: moveMarkTo(s, figureId, t, to) } : s), key);
+}
+
+/* Actions on the timeline: moved, retimed, blended, recast, and their marks fitted */
+
+const actionById = (store: Store, id: string) => store.scene.animation?.actions.find((x) => x.id === id);
+
+/**
+ * Move an action to start at `start` (on a frame): what everyone in it does after it comes along.
+ * It stops at the end of what any of them does before it.
+ */
+export function moveAction(store: Store, id: string, start: number, key = '') {
+  store.updateScene((s) => {
+    const a = s.animation;
+    const act = a?.actions.find((x) => x.id === id);
+    if (!a || !act) return s;
+    const who = act.roles.map((r) => r.figure);
+    const layer = (x: Action) => x.layer ?? 'base';
+    const before = a.actions.filter((x) => x !== act && layer(x) === layer(act) && x.roles.some((r) => who.includes(r.figure)) && x.start < act.start - 1e-6);
+    const floor = Math.max(0, ...before.map((x) => (x.source.kind === 'keys' ? x.start + (partKeys(x.source.clip.parts[0]).at(-1)?.t ?? 0) : x.start + x.duration)));
+    const to = Math.max(floor, snapTime({ ...a, duration: 60 }, start));
+    return Math.abs(to - act.start) < 1e-6 ? s : { ...s, animation: ripple(a, who, act.start - 0.5 / a.fps, to - act.start) };
+  }, key);
+}
+
+/** Retime an action to last `duration` (see track.retimeAction). */
+export function retime(store: Store, id: string, duration: number, key = '') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: retimeAction(s.animation, id, duration) } : s), key);
+}
+
+/** How long an action blends in from what was before it (s). */
+export function setBlend(store: Store, id: string, blendIn: number, key = '') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: setBlendIn(s.animation, id, blendIn) } : s), key);
+}
+
+/**
+ * A clip action's speed (a clip that does not loop takes longer or shorter for it) and whether it
+ * is mirrored (left for right).
+ */
+export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean }, key = '') {
+  const act = actionById(store, id);
+  if (act?.source.kind !== 'clip') return;
+  const clip = clipById(act.source.clip);
+  if (patch.speed !== undefined && clip && !clip.loop) retime(store, id, clip.duration / Math.min(4, Math.max(0.25, patch.speed)), key);
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const actions = s.animation.actions.map((x) => {
+      if (x.id !== id || x.source.kind !== 'clip') return x;
+      const source = { ...x.source };
+      if (patch.speed !== undefined && clip?.loop) source.speed = Math.min(4, Math.max(0.25, patch.speed));
+      if (patch.mirror !== undefined) {
+        if (patch.mirror) source.mirror = true;
+        else delete source.mirror;
+      }
+      return { ...x, source };
+    });
+    return { ...s, animation: { ...s.animation, actions } };
+  }, key);
+}
+
+/** Give a role of an action of several people to another figure (see track.recast). */
+export function recastRole(store: Store, id: string, index: number, figure: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: recast(s, id, index, figure) } : s));
+  store.setTime(store.getState().time);
+}
+
+/**
+ * A clip's end mark dragged further than the clip can be warped: put it back to the nearest place
+ * it can reach, or keep it and walk the rest of the way after the clip.
+ */
+export function fitWarp(store: Store, id: string, figure: string, how: 'back' | 'walk') {
+  const act = actionById(store, id);
+  const want = act?.roles.find((r) => r.figure === figure)?.end;
+  const limit = act && warpLimit(store.scene, act, figure);
+  if (!act || !want || !limit) return;
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const actions = s.animation.actions.map((x) => (x.id === id ? { ...x, roles: x.roles.map((r) => (r.figure === figure ? { ...r, end: limit } : r)) } : x));
+    return { ...s, animation: { ...s.animation, actions } };
+  });
+  if (how === 'walk') {
+    const done = addTravel(store.scene, figure, act.start + act.duration, want.at, 'walk');
+    if (done) store.updateScene((s) => ({ ...s, animation: done.animation }));
+  }
+  store.setTime(store.getState().time);
+}
+
+/** Where an action handling a prop sends it: a pass to another hand, a shot that goes in or off the rim. */
+export function setActionTarget(store: Store, id: string, target: PropTarget) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => (x.id === id ? { ...x, target } : x)) } } : s));
+  store.setTime(store.getState().time);
 }
 
 /** Remove an action (a motion, say) from the tracks of everyone in it. */

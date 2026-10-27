@@ -440,7 +440,7 @@ class Evaluator {
   }
 
   /** Where a clip action would leave a figure, unwarped. */
-  private natural(f: Figure, act: Action): Mark {
+  natural(f: Figure, act: Action): Mark {
     const key = `natural:${act.id}:${f.id}`;
     let m = this.marks.get(key);
     if (!m) {
@@ -574,6 +574,47 @@ export function marksOf(scene: Scene, act: Action, id: string): { start: Mark; e
   if (!f || !scene.animation) return null;
   const ev = evaluator(scene);
   return { start: ev.startMark(f, act), end: ev.endMark(f, act) };
+}
+
+/** How far a clip may be warped to its end mark: in distance (a fraction of its own) and direction (degrees). */
+export const WARP = { distance: 0.25, angle: 30 };
+/** A clip done in place is warped no further than this (m). */
+const IN_PLACE = 0.3;
+
+/**
+ * The nearest end mark a clip can be warped to for a figure, from the one it has: within ±25% of
+ * the way the clip goes by itself and ±30° of its direction (a clip done in place: within a step).
+ * Null: not a clip, or no mark of its own.
+ */
+export function warpLimit(scene: Scene, act: Action, id: string): Mark | null {
+  const f = scene.figures.find((x) => x.id === id);
+  const end = act.roles.find((r) => r.figure === id)?.end;
+  if (!f || !end || act.source.kind !== 'clip' || !scene.animation) return null;
+  const ev = evaluator(scene);
+  const s = ev.startMark(f, act).at;
+  const natural = ev.natural(f, act).at;
+  const n = [natural[0] - s[0], natural[1] - s[1]];
+  const e = [end.at[0] - s[0], end.at[1] - s[1]];
+  const ln = Math.hypot(n[0], n[1]);
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
+  if (ln < IN_PLACE) {
+    const d = [e[0] - n[0], e[1] - n[1]];
+    const k = Math.min(1, IN_PLACE / Math.max(1e-9, Math.hypot(d[0], d[1])));
+    return { ...end, at: [r3(natural[0] + d[0] * k), r3(natural[1] + d[1] * k)] };
+  }
+  const u = [n[0] / ln, n[1] / ln];
+  const turn = Math.atan2(u[0] * e[1] - u[1] * e[0], u[0] * e[0] + u[1] * e[1]);
+  const a = Math.max(-WARP.angle, Math.min(WARP.angle, turn * (180 / Math.PI))) * (Math.PI / 180);
+  const len = Math.max(1 - WARP.distance, Math.min(1 + WARP.distance, Math.hypot(e[0], e[1]) / ln)) * ln;
+  const dir = [Math.cos(a) * u[0] - Math.sin(a) * u[1], Math.cos(a) * u[1] + Math.sin(a) * u[0]];
+  return { ...end, at: [r3(s[0] + dir[0] * len), r3(s[1] + dir[1] * len)] };
+}
+
+/** Whether a clip's end mark for a figure is further than it can be warped to. */
+export function overWarp(scene: Scene, act: Action, id: string): boolean {
+  const limit = warpLimit(scene, act, id);
+  const end = act.roles.find((r) => r.figure === id)?.end;
+  return !!limit && !!end && Math.hypot(limit.at[0] - end.at[0], limit.at[1] - end.at[1]) > 0.005;
 }
 
 /** The scene as it looks at time t: every figure posed by its actions, the props where they are then. */

@@ -2,7 +2,7 @@ import { keyPose, keysClip, partKeys, setPartKey } from './clip';
 import { clipById } from './assets';
 import { newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
-import { legsOf, travelTime } from './locomotion';
+import { JUMP_PREP, jumpHeight, legsOf, travelTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
 import { wrapDeg } from './joints';
@@ -143,15 +143,16 @@ export function moveKeyTo(a: Animation, figure: string, from: number, to: number
 /**
  * Move everything of a figure from time `from` on by `by` seconds (its keys there and after, and
  * its actions starting then or later): a pause put in or taken out. Actions done together move
- * for everyone in them.
+ * for everyone in them. (Several figures: each moved once.)
  */
-export function ripple(a: Animation, figure: string, from: number, by: number): Animation {
+export function ripple(a: Animation, figure: string | string[], from: number, by: number): Animation {
+  const who = typeof figure === 'string' ? [figure] : figure;
   const shift = (t: number) => Math.min(60, Math.round((t + by) * a.fps) / a.fps);
   const actions = a.actions.map((x) => {
-    if (!x.roles.some((r) => r.figure === figure)) return x;
+    if (!x.roles.some((r) => who.includes(r.figure))) return x;
     if (x.source.kind === 'keys' && x.start < from - EPS && end(x) >= from - EPS) {
       const keys = keysOf(x).map((k) => (k.t >= from - EPS ? { ...k, t: shift(k.t) } : k));
-      return { ...keysAction(figure, keys, x.layer), id: x.id };
+      return { ...keysAction(x.roles[0].figure, keys, x.layer), id: x.id };
     }
     return x.start >= from - EPS ? { ...x, start: shift(x.start) } : x;
   });
@@ -230,6 +231,8 @@ export function addTravel(scene: Scene, figure: string, t: number, to: [number, 
   const t1 = Math.round((t0 + travelTime(mode, d, f.body, opts.height, sideways)) * a.fps) / a.fps;
   const yaw = mode === 'jump' || opts.strafe || d < 0.05 ? facing : heading;
   a = ripple(a, figure, t0 + 0.5 / a.fps, t1 - t0);
+  // What it did from then on (a walk starting then) comes after it.
+  a = { ...a, actions: a.actions.map((x) => (!x.layer && !isKeys(x) && x.roles.some((r) => r.figure === figure) && Math.abs(x.start - t0) < EPS ? { ...x, start: t1 } : x)) };
   const travel: Action = {
     id: uid('act'), start: t0, duration: t1 - t0,
     roles: [{ figure, end: { at: [r3(to[0]), r3(to[1])], facing: Math.round(wrapDeg(yaw) * 10) / 10 || 0 } }],
@@ -286,22 +289,94 @@ export function setTravelMode(scene: Scene, figure: string, t: number, mode: Tra
   return sorted({ ...next, actions: [...next.actions, travel] });
 }
 
-/** Move a figure's mark (where its travel ending at t goes) to another floor point. */
+/**
+ * Move a figure's mark at t to another floor point: where its travel or clip ending then goes (a
+ * clip of several people takes them all along, as a formation), or where its key then puts it.
+ */
 export function moveMarkTo(scene: Scene, figure: string, t: number, to: [number, number]): Animation {
   const a = scene.animation!;
-  const tr = travelInto(a, figure, t);
+  const act = actionsOf(a, figure).find((x) => !isKeys(x) && x.source.kind !== 'keys' && Math.abs(end(x) - t) < 0.5 / a.fps);
   const hit = keyAtTime(a, figure, t);
   let out = a;
-  if (tr) {
-    const role = tr.roles.find((r) => r.figure === figure)!;
-    const was = role.end ?? marksOf(scene, tr, figure)!.end;
-    out = replace(out, tr, [{ ...tr, roles: tr.roles.map((r) => (r.figure === figure ? { ...r, end: { ...was, at: [r3(to[0]), r3(to[1])] } } : r)) }]);
+  if (act) {
+    const was = act.roles.find((r) => r.figure === figure)!.end ?? marksOf(scene, act, figure)!.end;
+    const [dx, dz] = [to[0] - was.at[0], to[1] - was.at[1]];
+    const roles = act.roles.map((r) => {
+      const m = r.end ?? marksOf(scene, act, r.figure)!.end;
+      return { ...r, end: { ...m, at: [r3(m.at[0] + dx), r3(m.at[1] + dz)] as [number, number] } };
+    });
+    out = replace(out, act, [{ ...act, roles }]);
   }
   if (hit) {
     const keys = keysOf(hit.act).map((k, i) => (i === hit.i ? { ...k, pose: { ...k.pose, position: [r3(to[0]), k.pose.position[1], r3(to[1])] as Pose['position'] } } : k));
     out = sorted(replace(out, hit.act, [{ ...keysAction(figure, keys), id: hit.act.id }]));
   }
   return out;
+}
+
+/* ---------- actions ---------- */
+
+/**
+ * Retime an action to last `duration`: a clip plays faster or slower (one that loops goes round
+ * more or fewer times), a walk takes longer, hand keys spread out. What everyone in it does after
+ * moves on by the difference.
+ */
+export function retimeAction(a: Animation, id: string, duration: number): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  if (!act) return a;
+  const d = Math.max(1, Math.round(duration * a.fps)) / a.fps;
+  const by = d - act.duration;
+  if (Math.abs(by) < EPS) return a;
+  let next: Action = { ...act, duration: d };
+  const src = act.source;
+  if (src.kind === 'clip') {
+    const clip = clipById(src.clip);
+    if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round((clip.duration / d) * 1000) / 1000 } };
+  } else if (src.kind === 'keys') {
+    const k = d / Math.max(EPS, act.duration);
+    const keys = keysOf(act).map((x) => ({ t: snapTime({ ...a, duration: 60 }, act.start + (x.t - act.start) * k), pose: x.pose }));
+    next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
+  }
+  const moved = ripple(a, act.roles.map((r) => r.figure), end(act) - 0.5 / a.fps, by);
+  return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
+}
+
+/** What an action is called on the timeline and in the inspector: the motion's name, or how the figure gets there. */
+export function actionLabel(act: Action): string {
+  const src = act.source;
+  if (src.kind === 'keys') return act.layer === 'correction' ? 'Correction' : 'Posed';
+  if (src.kind === 'clip') return clipById(src.clip)?.name ?? 'Motion';
+  let label = src.mode === 'walk' ? 'Walk' : src.mode === 'run' ? 'Run' : 'Jump';
+  if (src.mode === 'jump') {
+    label += ` ${jumpHeight(Math.max(0, act.duration - 2 * JUMP_PREP)).toFixed(1)} m`;
+    if (src.spin) label += ` · ${src.spin === 0.5 ? '½' : src.spin} turn${Math.abs(src.spin) > 1 ? 's' : ''}`;
+    if (src.flip) label += src.flip > 0 ? ' · front flip' : ' · back flip';
+  } else if (src.strafe) label += ' · keep facing';
+  return label;
+}
+
+/** How long an action takes to blend in from what was before it (s). */
+export function setBlendIn(a: Animation, id: string, blendIn: number): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  if (!act) return a;
+  const b = Math.round(Math.min(2, Math.max(0, blendIn)) * 100) / 100;
+  const { blendIn: _old, ...rest } = act;
+  void _old;
+  return replace(a, act, [b > 0 ? { ...rest, blendIn: b } : rest]);
+}
+
+/**
+ * Give a role of an action of several people to another figure: one already in it swaps places;
+ * anyone else gives way on their track for it, and the one who had the role is left out.
+ */
+export function recast(scene: Scene, id: string, index: number, figure: string): Animation {
+  let a = scene.animation!;
+  const act = a.actions.find((x) => x.id === id);
+  if (!act || !act.roles[index] || act.roles[index].figure === figure) return a;
+  const other = act.roles.findIndex((r) => r.figure === figure);
+  const roles = act.roles.map((r, i) => (i === index ? { ...r, figure } : i === other ? { ...r, figure: act.roles[index].figure } : r));
+  if (other < 0) a = clear({ ...scene, animation: a }, figure, act.start, end(act));
+  return sorted({ ...a, actions: [...a.actions.filter((x) => x.id !== id), { ...act, roles }] });
 }
 
 /* ---------- clips ---------- */

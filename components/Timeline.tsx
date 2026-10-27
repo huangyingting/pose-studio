@@ -3,23 +3,22 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   Activity, Camera, ChevronDown, ChevronUp, Clapperboard, Diamond, Scissors, TriangleAlert, X, Ellipsis, Ghost, MoveHorizontal, Pause, Play, Repeat, Repeat1,
-  StepBack, StepForward, Trash2, ZoomIn, ZoomOut,
+  StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import {
-  addKeyframe, cutShot, deleteAction, deleteCameraKey, deleteCorrection, deleteKeyframe, moveKeyframe, removeAnimation, rippleKeys, setAnimationOptions, setCameraKey,
+  addKeyframe, cutShot, deleteCameraKey, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, rippleKeys, setAnimationOptions, setBlend,
+  setCameraKey,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
-import { clipById } from '@/lib/assets';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
-import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
-import { correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel } from '@/lib/shots';
 import type { Action, Animation, CameraKey, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
-import { figureMenu, shotMenu, travelMenu } from './menus';
+import { actionMenu, figureMenu, shotMenu, travelMenu } from './menus';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
@@ -102,6 +101,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const frame = Math.round(time * a.fps);
   // Each figure has its own key track; the key buttons work on the active figure's.
   const activeId = useStudio((st) => st.activeFigure);
+  const selected = useStudio((st) => (st.selection?.kind === 'action' ? st.selection.action : null));
   const figures = scene.figures;
   const multi = figures.length > 1;
   const active = figures.find((f) => f.id === activeId) ?? figures[0];
@@ -213,6 +213,37 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     el.addEventListener('pointerup', up);
   };
 
+  /**
+   * Drag an action along its row (what everyone in it does after comes along), its right edge to
+   * retime it, or the ramp before it to blend into it over longer; a click picks it for the inspector.
+   */
+  const dragAction = (act: Action, figureId: string, part: 'move' | 'end' | 'blend') => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    pause();
+    const [x0, t0] = [e.clientX, timeAt(e.clientX)];
+    const [start, duration, blend] = [act.start, act.duration, act.blendIn ?? 0];
+    const key = `act:${act.id}:${part}`;
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      moved = true;
+      const dt = timeAt(ev.clientX) - t0;
+      if (part === 'move') moveAction(store, act.id, start + dt, key);
+      else if (part === 'end') retime(store, act.id, duration + dt, key);
+      else setBlend(store, act.id, blend - dt, key);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (moved) return;
+      store.select({ kind: 'action', action: act.id, figure: figureId });
+      seek(act.start);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   const check = () => {
     if (issues) { setQaOpen(!qaOpen); return; }
     pause();
@@ -256,6 +287,28 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   // Ruler, shots, one row per figure (taller when there is just one), camera.
   // Props that move over time get a row each, under the figures.
   const moving = scene.props.filter((p) => propKeyTimes(a, p.id).length > 0 || a.actions.some((x) => x.prop === p.id));
+  // What happens to the props: released (a throw), caught or taken (a handoff), with a line from each release to where it is caught or lands.
+  const name = (id?: string) => figures.find((f) => f.id === id)?.name ?? '';
+  const events: { t: number; figure: string; kind: 'release' | 'catch'; title: string }[] = [];
+  const flights: { t0: number; from: string; t1: number; to: string | null; prop: number }[] = [];
+  moving.forEach((p, j) => {
+    const st = propStretchesOf(scene, p.id);
+    st.forEach((x, i) => {
+      const prev = st[i - 1];
+      if (x.kind === 'free' && prev?.kind === 'held' && prev.figure) {
+        events.push({ t: x.t0, figure: prev.figure, kind: 'release', title: `${name(prev.figure)} lets go of ${p.name}` });
+        const next = st[i + 1];
+        flights.push({ t0: x.t0, from: prev.figure, t1: next?.kind === 'held' ? next.t0 : x.t1, to: next?.kind === 'held' ? next.figure ?? null : null, prop: j });
+      }
+      if (x.kind === 'held' && x.figure && i > 0 && (prev.kind !== 'held' || prev.figure !== x.figure)) {
+        events.push({ t: x.t0, figure: x.figure, kind: 'catch', title: `${name(x.figure)} ${prev.kind === 'held' ? 'takes' : 'catches'} ${p.name}${prev.kind === 'held' ? ` from ${name(prev.figure)}` : ''}` });
+        if (prev.kind === 'held' && prev.figure) flights.push({ t0: x.t0, from: prev.figure, t1: x.t0, to: x.figure, prop: j });
+      }
+    });
+  });
+  const rowH = multi ? 24 : 26;
+  const figureY = (id: string) => 42 + figures.findIndex((f) => f.id === id) * rowH + rowH / 2;
+  const propY = (j: number) => 42 + figures.length * rowH + j * 22 + 11;
   const rows = `18px 24px ${multi ? figures.map(() => '24px').join(' ') : '26px'} ${moving.map(() => '22px').join(' ')} 26px`;
   const step = TICKS.find((x) => x * pxPerSecond >= 10) ?? 60;
   const labelStep = LABELS.find((x) => x * pxPerSecond >= 56) ?? 120;
@@ -485,38 +538,40 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                     openContextMenu(e, travelMenu(store, f.id, next), `${f.name} · to ${next.toFixed(2)} s`);
                   }}
                 >
-                  {actionBars(a, f.id).map((b) => (
-                    <span
-                      key={b.id}
-                      className={`tl-travel grab ${b.kind}`}
-                      style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }}
-                      title={b.kind === 'clip'
-                        ? `${b.label}: drag to move it (and what follows), right-click to remove it`
-                        : `${b.label}: drag to move it (and what follows), right-click to change how ${f.name} gets there`}
-                      onPointerDown={dragKey(b.t0, f.id, true)}
-                      onContextMenu={b.kind === 'clip' ? (e) => {
-                        e.stopPropagation();
-                        store.setActiveFigure(f.id);
-                        openContextMenu(e, [{ label: `Remove ${b.label}`, icon: Trash2, danger: true, onSelect: () => deleteAction(store, b.id) }], `${f.name} · ${b.label}`);
-                      } : undefined}
-                    >
-                      <span style={inSight(b.t0, b.t1)}>{b.label}</span>
-                    </span>
-                  ))}
-                  {actionsOf(a, f.id, 'upper').map((x) => (
-                    <span
-                      key={x.id}
-                      className="tl-travel upper grab"
-                      style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
-                      title={`${clipName(x)} (upper body, over what ${f.name} is doing): drag to move it (and what follows), right-click to remove it`}
-                      onPointerDown={dragKey(x.start, f.id, true)}
-                      onContextMenu={(e) => {
-                        e.stopPropagation();
-                        openContextMenu(e, [{ label: `Remove ${clipName(x)}`, icon: Trash2, danger: true, onSelect: () => deleteAction(store, x.id) }], `${f.name} · upper body`);
-                      }}
-                    >
-                      <span style={inSight(x.start, x.start + x.duration)}>{clipName(x)} · upper body</span>
-                    </span>
+                  {[...actionsOf(a, f.id), ...actionsOf(a, f.id, 'upper')].filter((x) => x.duration > 1e-6).map((x) => {
+                    const label = actionLabel(x);
+                    const kind = x.layer === 'upper' ? 'upper' : x.source.kind === 'travel' ? x.source.mode : x.source.kind;
+                    const group = x.roles.length > 1;
+                    return (
+                      <span key={x.id} className="tl-block">
+                        {!x.layer && x.source.kind !== 'keys' && (
+                          <span
+                            className={`tl-ramp ${kind}${x.blendIn ? '' : ' none'}`}
+                            style={{ left: pct(x.start - (x.blendIn ?? 0)), width: `${((x.blendIn ?? 0) / span) * 100}%` }}
+                            title={`Blend into ${label}${x.blendIn ? ` over ${x.blendIn.toFixed(2)} s` : ''}: drag left for longer`}
+                            onPointerDown={dragAction(x, f.id, 'blend')}
+                          />
+                        )}
+                        <span
+                          className={`tl-travel grab ${kind}${group ? ' group' : ''}${selected === x.id ? ' sel' : ''}`}
+                          style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
+                          title={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click to edit, drag to move it (and what follows), its right edge to retime it; right-click for more`}
+                          onPointerDown={dragAction(x, f.id, 'move')}
+                          onContextMenu={(e) => {
+                            e.stopPropagation();
+                            store.setActiveFigure(f.id);
+                            openContextMenu(e, actionMenu(store, x.id, f.id), `${f.name} · ${label}`);
+                          }}
+                        >
+                          {group && <Users size={10} aria-hidden />}
+                          <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
+                          <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
+                        </span>
+                      </span>
+                    );
+                  })}
+                  {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
+                    <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} title={ev.title} aria-hidden />
                   ))}
                   {correctionTimesOf(a, f.id).map((t) => (
                     <button
@@ -608,6 +663,13 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
               ))}
               {!cam?.keys.length && <span className="tl-empty">No camera moves yet: frame a view and press the camera key, or pick a move</span>}
             </div>
+            {flights.length > 0 && (
+              <svg className="tl-flights" aria-hidden>
+                {flights.map((fl, n) => (
+                  <line key={n} x1={pct(fl.t0)} y1={figureY(fl.from)} x2={pct(fl.t1)} y2={fl.to ? figureY(fl.to) : propY(fl.prop)} />
+                ))}
+              </svg>
+            )}
             {time >= v0 - 1e-6 && time <= v1 + 1e-6 && <div className="tl-playhead" style={{ left: pct(time) }} aria-hidden />}
           </div>
           {zoom && (
@@ -669,25 +731,6 @@ function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issu
   );
 }
 
-
-const clipName = (x: Action) => (x.source.kind === 'clip' ? clipById(x.source.clip)?.name ?? 'Motion' : 'Motion');
-
-/** A figure's walks, runs, jumps and motions, labelled for the timeline. */
-function actionBars(a: Animation, id: string) {
-  return actionsOf(a, id).flatMap((x) => {
-    const src = x.source;
-    const [t0, t1] = [x.start, x.start + x.duration];
-    if (src.kind === 'clip') return [{ id: x.id, t0, t1, kind: 'clip', label: clipName(x) }];
-    if (src.kind !== 'travel') return [];
-    let label = src.mode === 'walk' ? 'Walk' : src.mode === 'run' ? 'Run' : 'Jump';
-    if (src.mode === 'jump') {
-      label += ` ${jumpHeight(Math.max(0, x.duration - 2 * JUMP_PREP)).toFixed(1)} m`;
-      if (src.spin) label += ` · ${src.spin === 0.5 ? '½' : src.spin} turn${Math.abs(src.spin) > 1 ? 's' : ''}`;
-      if (src.flip) label += src.flip > 0 ? ' · front flip' : ' · back flip';
-    } else if (src.strafe) label += ' · keep facing';
-    return [{ id: x.id, t0, t1, kind: src.mode as string, label }];
-  });
-}
 
 /** The stretches of a prop's time, read-only: in someone's hand, or flying. */
 function propBars(scene: Scene, id: string) {

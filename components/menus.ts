@@ -1,9 +1,9 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
-  addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
-  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
+  addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
+  dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
 import { handlesOf } from '@/lib/props';
@@ -13,7 +13,7 @@ import type { Store } from '@/lib/store';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Figure, type Travel, type Vec3 } from '@/lib/types';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { actionsOf } from '@/lib/evaluate';
-import { keyAtTime, travelInto } from '@/lib/track';
+import { actionLabel, keyAtTime, travelInto } from '@/lib/track';
 import { PROP_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
@@ -187,6 +187,19 @@ export function sceneMenu(store: Store, index: number, { notifyUndo }: Pick<Menu
  * How a figure gets to its key at time t (from its previous key): glide as keyed, walk, run or
  * jump; facing; and for a jump its height and turns in the air.
  */
+/** An action's menu on the timeline: how a walk gets there, a motion mirrored, and removing it. */
+export function actionMenu(store: Store, id: string, figureId: string): MenuItem[] {
+  const act = store.scene.animation?.actions.find((x) => x.id === id);
+  if (!act) return [];
+  const src = act.source;
+  return [
+    ...(src.kind === 'travel' ? [...travelMenu(store, figureId, act.start + act.duration), '-' as const] : []),
+    ...(src.kind === 'clip' ? [{ label: 'Mirrored (left for right)', icon: FlipHorizontal2, checked: !!src.mirror, onSelect: () => setClipOptions(store, id, { mirror: !src.mirror }) }, '-' as const] : []),
+    { label: 'Edit in the inspector', icon: Pencil, onSelect: () => store.select({ kind: 'action', action: id, figure: figureId }) },
+    { label: `Remove ${actionLabel(act)}`, icon: Trash2, danger: true, onSelect: () => deleteAction(store, id) },
+  ];
+}
+
 export function travelMenu(store: Store, figureId: string, t: number): MenuItem[] {
   const a = store.scene.animation;
   const tr = a && travelInto(a, figureId, t);
