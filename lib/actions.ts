@@ -28,7 +28,7 @@ import { cutAt, keysInShot, removeCut, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, CameraKey, CameraTrack, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, Panel, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
+import type { Action, Animation, CameraKey, CameraTrack, Clip, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Panel, Posture, Prop, PropKind, Scene, Side, Travel, Vec3, View } from './types';
 
 /* Scenes (library entries) */
 
@@ -984,6 +984,29 @@ export function addMotions(store: Store, clips: Clip[]) {
   store.commit((lib) => {
     const have = new Set((lib.clips ?? []).map((c) => c.id));
     return { ...lib, clips: [...(lib.clips ?? []), ...clips.filter((c) => !have.has(c.id)).map(clipInfo)] };
+  });
+}
+
+/** Keep an imported character in the library (its file is already kept: lib/model.ts importModel). */
+export function addModel(store: Store, info: ModelInfo) {
+  store.commit((lib) => ({ ...lib, models: [...(lib.models ?? []), info] }));
+}
+
+export function deleteModel(store: Store, id: string) {
+  store.commit((lib) => {
+    const models = (lib.models ?? []).filter((m) => m.id !== id);
+    const { models: _old, ...rest } = lib;
+    void _old;
+    return models.length ? { ...rest, models } : rest;
+  });
+}
+
+/** Draw a figure as an imported character, or (null) as the mannequin. */
+export function setFigureModel(store: Store, figureId: string, model: string | null) {
+  store.updateFigure(figureId, (f) => {
+    const { model: _old, ...rest } = f;
+    void _old;
+    return model ? { ...rest, model } : rest;
   });
 }
 

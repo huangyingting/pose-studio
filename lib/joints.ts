@@ -1,4 +1,4 @@
-import type { JointName, Side, Vec3 } from './types';
+import type { Bone, JointName, Side, Vec3 } from './types';
 
 /** The parts of a limb, as in VRM bone names (`leftUpperArm`, `rightFoot`, …). */
 export type LimbPart = 'UpperArm' | 'LowerArm' | 'Hand' | 'UpperLeg' | 'LowerLeg' | 'Foot';
@@ -84,9 +84,11 @@ export function clampRotation(j: JointName, r: Vec3): Vec3 {
 }
 
 export function mirrorJointName(j: JointName): JointName {
-  const side = sideOf(j);
-  return side ? sided(partOf(j)!, side === 'L' ? 'R' : 'L') : j;
+  return mirrorBone(j) as JointName;
 }
+
+/** The same bone on the other side (any bone of the skeleton). */
+export const mirrorBone = (b: Bone): Bone => (b.startsWith('left') ? `right${b.slice(4)}` : b.startsWith('right') ? `left${b.slice(5)}` : b) as Bone;
 
 /** Wrap an angle into (-180, 180]. */
 export function wrapDeg(a: number) {

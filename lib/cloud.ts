@@ -1,5 +1,6 @@
 import { clipById, clipIdsOf } from './assets';
-import { saveClips } from './assetstore';
+import { loadModelFile, saveClips, saveModelFile } from './assetstore';
+import { modelTemplate } from './model';
 import { parseClip, parseLibrary } from './doc';
 import { withBase } from './paths';
 import type { Store } from './store';
@@ -10,8 +11,8 @@ import type { Library } from './types';
  * Keeps the signed-in user's library on the server (server edition). Pulls when it starts and
  * when the tab comes back into view, pushes a moment after each saved edit, and merges when
  * another device saved in between (see lib/sync.ts). The browser copy stays the working copy,
- * so editing works offline. Imported clips' frames go up and come down apart from the library,
- * one file each (app/api/assets).
+ * so editing works offline. Imported clips' frames and characters' files go up and come down
+ * apart from the library, one file each (app/api/assets).
  */
 
 export type CloudStatus = 'syncing' | 'synced' | 'offline' | 'error';
@@ -25,7 +26,8 @@ interface Saved {
 const KEY = 'pose-studio:sync';
 const PUSH_DELAY = 1500;
 
-const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}:${p.caption ?? ''}`).join() + (lib.poses ?? []).map((p) => p.id).join();
+const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}:${p.caption ?? ''}`).join()
+  + [lib.poses, lib.clips, lib.models].map((list) => (list ?? []).map((x) => x.id).join()).join('|');
 
 export class CloudSync {
   status: CloudStatus = 'syncing';
@@ -125,25 +127,41 @@ export class CloudSync {
     await this.syncClips(true);
   }
 
-  /** Clips the library uses that only one side has: fetched, or sent up. */
+  /** Clips and models the library uses that only one side has: fetched, or sent up. */
   private async syncClips(force = false) {
-    const ids = clipIdsOf(this.store.getState().library);
-    const print = [...ids].sort().join();
+    const lib = this.store.getState().library;
+    const ids = clipIdsOf(lib);
+    const models = (lib.models ?? []).map((m) => m.id);
+    const print = [...ids, ...models].sort().join();
     if (!force && print === this.clips) return;
     const res = await fetch(withBase('/api/assets'), { cache: 'no-store' });
     if (!res.ok) throw new Error(String(res.status));
     const there = new Set(((await res.json()) as { ids: string[] }).ids);
+    const url = (id: string) => withBase(`/api/assets/${encodeURIComponent(id)}`);
+    const send = async (id: string, body: BodyInit, type: string) => {
+      const put = await fetch(url(id), { method: 'PUT', headers: { 'Content-Type': type }, body });
+      if (!put.ok) throw new Error(String(put.status));
+    };
     for (const id of await this.store.loadClips()) {
       if (!there.has(id)) continue;
-      const got = await fetch(withBase(`/api/assets/${encodeURIComponent(id)}`));
+      const got = await fetch(url(id));
       const clip = got.ok ? parseClip(await got.json()) : null;
       if (clip) await saveClips([clip]);
     }
     for (const id of ids) {
       const clip = clipById(id);
-      if (there.has(id) || !clip) continue;
-      const put = await fetch(withBase(`/api/assets/${encodeURIComponent(id)}`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clip) });
-      if (!put.ok) throw new Error(String(put.status));
+      if (!there.has(id) && clip) await send(id, JSON.stringify(clip), 'application/json');
+    }
+    for (const id of models) {
+      const file = await loadModelFile(id);
+      if (file && !there.has(id)) await send(id, file, 'application/octet-stream');
+      if (!file && there.has(id)) {
+        const got = await fetch(url(id));
+        if (got.ok) {
+          await saveModelFile(id, await got.arrayBuffer());
+          modelTemplate(id);
+        }
+      }
     }
     this.clips = print;
   }

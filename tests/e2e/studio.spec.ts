@@ -6,6 +6,7 @@ import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
 import { keyTimesOf, moments } from '../../lib/track';
 import type { Animation, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
+import { characterGltf } from '../fixtures/gltf';
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
@@ -1129,6 +1130,41 @@ test('a motion file is imported into My motions and given to the figure', async 
   // Deleting it takes it out of the library (the figure keeps its keys).
   await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
+});
+
+test('a character is imported and the figure drawn as it; bones it cannot name are matched by hand', async ({ page }) => {
+  await openSection(page, 'Library');
+  await page.getByRole('radio', { name: 'Models' }).click();
+  // Its left hand has a name nobody uses: matched by hand in the dialog.
+  const odd = characterGltf(true).replaceAll('mixamorig:LeftHand"', 'mixamorig:Paw"');
+  await page.getByLabel('Character file').setInputFiles({ name: 'Hero.gltf', mimeType: 'model/gltf+json', buffer: Buffer.from(odd) });
+  const dialog = page.getByRole('dialog', { name: /Match the bones of Hero\.gltf/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Import' })).toBeDisabled();
+  for (const [bone, name] of [['Left hand', 'mixamorigPaw'], ['Left lower arm', 'mixamorigLeftForeArm'], ['Left upper arm', 'mixamorigLeftArm']]) {
+    await dialog.getByRole('combobox', { name: bone, exact: true }).click();
+    await page.getByRole('option', { name, exact: true }).click();
+  }
+  await dialog.getByRole('button', { name: 'Import' }).click();
+  const models = page.getByRole('list', { name: 'My models' });
+  await expect(models.getByRole('button', { name: /^Hero/ })).toBeVisible();
+  const figure = () => page.evaluate(() => {
+    const store = (window as unknown as { __poseStudio: { store: { figure: { model?: string } | null; getState(): { library: { models?: { id: string; bones: Record<string, string> }[] } } } } }).__poseStudio.store;
+    return { model: store.figure?.model, models: store.getState().library.models ?? [] };
+  });
+  let f = await figure();
+  expect(f.models[0].bones.leftHand).toBe('mixamorigPaw');
+  expect(f.model).toBe(f.models[0].id);
+  // Back to the mannequin, and the character again from the inspector after a reload (its file is kept).
+  await page.getByRole('list', { name: 'Built in' }).getByRole('button', { name: /^Mannequin/ }).click();
+  expect((await figure()).model).toBeUndefined();
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  await page.getByRole('button', { name: 'Body & colour' }).click();
+  await page.getByRole('combobox', { name: 'Model' }).click();
+  await page.getByRole('option', { name: 'Hero' }).click();
+  f = await figure();
+  expect(f.model).toBe(f.models[0].id);
 });
 
 test('the timeline zooms, retimes a stretch, plays slower and folds away', async ({ page }) => {

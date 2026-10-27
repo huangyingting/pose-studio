@@ -9,6 +9,24 @@ export const JOINTS = [
 ] as const;
 export type JointName = (typeof JOINTS)[number];
 
+/**
+ * The rest of the VRM 1.0 humanoid skeleton (but the eyes and jaw): bones the mannequin does not
+ * move by itself, which an imported model or motion may have (lib/skeleton.ts).
+ */
+export const EXTRA_BONES = [
+  'upperChest', 'leftShoulder', 'rightShoulder', 'leftToes', 'rightToes',
+  'leftThumbMetacarpal', 'leftThumbProximal', 'leftThumbDistal', 'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
+  'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal', 'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
+  'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
+  'rightThumbMetacarpal', 'rightThumbProximal', 'rightThumbDistal', 'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
+  'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal', 'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
+  'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal',
+] as const;
+export type ExtraBone = (typeof EXTRA_BONES)[number];
+/** A bone of the skeleton: the mannequin's joints, and the rest of the humanoid's. */
+export type Bone = JointName | ExtraBone;
+export const BONES: readonly Bone[] = [...JOINTS, ...EXTRA_BONES];
+
 export type Side = 'L' | 'R';
 
 /** Finger order used by curl arrays. */
@@ -55,6 +73,8 @@ export interface Figure {
   gaze?: { figure: string } | { prop: string };
   /** A tint to tell figures apart (teams, sides), as a CSS colour. */
   color?: string;
+  /** Drawn as an imported character (a model in the library, by id) instead of the mannequin. */
+  model?: string;
 }
 
 /** Tints for telling figures apart. */
@@ -325,6 +345,19 @@ export interface Library {
    * they are. Their frames are kept apart, as assets (lib/assetstore.ts).
    */
   clips?: ClipInfo[];
+  /** Characters the user imported, to draw figures as (their files are assets). */
+  models?: ModelInfo[];
+}
+
+/**
+ * An imported character (a glTF or FBX file with a skinned mesh): how the library lists it, and
+ * which of its bones is each of the skeleton's. The file is an asset (lib/assetstore.ts).
+ */
+export interface ModelInfo {
+  id: string;
+  name: string;
+  format: 'glb' | 'fbx';
+  bones: Partial<Record<Bone, string>>;
 }
 
 /** An imported clip as the library lists it: its name, length and people (the frames are an asset). */

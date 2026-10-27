@@ -9,8 +9,8 @@ import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bones, type Quat } from './pose';
 import { clampLight } from './lighting';
 import {
-  FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type Pose, type PoseAsset,
+  BONES, FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Action, type Animation, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type Pose, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -180,7 +180,7 @@ function parseJoints(v: unknown): Angles {
 function parseBones(o: Record<string, unknown>): Bones {
   if (!isObj(o.bones)) return bonesOf(parseJoints(o.joints));
   const out: Bones = {};
-  for (const j of JOINTS) {
+  for (const j of BONES) {
     const q = o.bones[j];
     if (!Array.isArray(q) || q.length !== 4 || !q.every((x) => typeof x === 'number' && Number.isFinite(x))) continue;
     // Stored quaternions are rounded, so only a real error is normalised (saved poses read back unchanged).
@@ -222,6 +222,7 @@ function parseFigure(v: unknown, i: number): Figure {
     ...(isObj(o.gaze) && typeof o.gaze.figure === 'string' ? { gaze: { figure: o.gaze.figure } }
       : isObj(o.gaze) && typeof o.gaze.prop === 'string' ? { gaze: { prop: o.gaze.prop } } : {}),
     ...(typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? { color: o.color.toLowerCase() } : {}),
+    ...(typeof o.model === 'string' && o.model ? { model: o.model.slice(0, 80) } : {}),
   };
 }
 
@@ -306,7 +307,7 @@ function trackSize(name: string) {
   if (name === 'grounded') return 1;
   if (name === 'hands.L' || name === 'hands.R') return 6;
   const bone = name.endsWith('.quaternion') ? name.slice(0, -'.quaternion'.length) : '';
-  return JOINTS.includes(bone as JointName) ? 4 : 0;
+  return BONES.includes(bone as Bone) ? 4 : 0;
 }
 
 function parseTrack(v: unknown): ClipTrack | null {
@@ -551,7 +552,15 @@ export function parseLibrary(data: unknown): Library {
   const poses = parsePoses(data.poses);
   // What the imported clips are (a file, or a library from before they were kept apart, has their frames too: clipsIn).
   const clips = [...(Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []), ...clipsFromMotions(data.motions).map(clipInfo)];
-  return { version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}) };
+  const models = (Array.isArray(data.models) ? data.models : []).slice(0, 200).flatMap((m) => parseModelInfo(m) ?? []);
+  return { version: 3, scenes, ...(board ? { board } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}) };
+}
+
+function parseModelInfo(v: unknown): ModelInfo | null {
+  if (!isObj(v) || typeof v.id !== 'string' || !v.id || !isObj(v.bones)) return null;
+  const bones: ModelInfo['bones'] = {};
+  for (const b of BONES) if (typeof v.bones[b] === 'string') bones[b] = (v.bones[b] as string).slice(0, 200);
+  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones };
 }
 
 function parseClipInfo(v: unknown): ClipInfo | null {

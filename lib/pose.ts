@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { mirrorJointName, partOf, sideOf, wrapDeg } from './joints';
-import { JOINTS, type JointName, type Vec3 } from './types';
+import { mirrorBone, partOf, sideOf, wrapDeg } from './joints';
+import { JOINTS, type Bone, type JointName, type Vec3 } from './types';
 
 /*
  * Poses on the standard skeleton. A bone's rotation is a quaternion (x, y, z, w), local to its
@@ -12,8 +12,8 @@ import { JOINTS, type JointName, type Vec3 } from './types';
  */
 
 export type Quat = [number, number, number, number];
-/** Bone rotations of a pose (bones left out are at rest). */
-export type Bones = Partial<Record<JointName, Quat>>;
+/** Bone rotations of a pose (bones left out are at rest; see lib/skeleton.ts for the bones beyond the mannequin's). */
+export type Bones = Partial<Record<Bone, Quat>>;
 /** The same pose as joint angles in degrees (see lib/joints.ts). */
 export type Angles = Partial<Record<JointName, Vec3>>;
 
@@ -120,7 +120,7 @@ export function facingOf(bones: Bones): number {
 /** A pose mirrored left ↔ right: each rotation reflected across the plane x = 0, on the other side's bone. */
 export function mirrorBones(bones: Bones): Bones {
   const out: Bones = {};
-  for (const [j, q] of Object.entries(bones) as [JointName, Quat][]) out[mirrorJointName(j)] = [q[0], -q[1] || 0, -q[2] || 0, q[3]];
+  for (const [j, q] of Object.entries(bones) as [Bone, Quat][]) out[mirrorBone(j)] = [q[0], -q[1] || 0, -q[2] || 0, q[3]];
   return out;
 }
 

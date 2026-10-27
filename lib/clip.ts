@@ -1,7 +1,7 @@
 import { jointLimits, mirrorJointName, wrapDeg } from './joints';
 import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
 import { uid } from './uid';
-import { JOINTS, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
+import { EXTRA_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
 
 /*
  * Clips: motion on the standard skeleton, stored as three.js AnimationClip / glTF tracks (one
@@ -11,7 +11,7 @@ import { JOINTS, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type H
 
 export const ROOT = 'hips.position';
 export const GROUNDED = 'grounded';
-export const boneTrack = (j: JointName) => `${j}.quaternion`;
+export const boneTrack = (j: Bone) => `${j}.quaternion`;
 export const handTrack = (s: Side) => `hands.${s}`;
 
 type Interpolation = ClipTrack['interpolation'];
@@ -27,6 +27,8 @@ export function partFromPoses(name: string, keys: { t: number; pose: Pose }[], i
     tracks: [
       track(ROOT, (p) => p.position.map((v) => Math.round(v * 1e4) / 1e4 || 0)),
       ...JOINTS.map((j) => track(boneTrack(j), (p) => [...(p.bones[j] ?? [0, 0, 0, 1])])),
+      // The bones beyond the mannequin's, where the poses have them (an imported motion's fingers, say).
+      ...EXTRA_BONES.filter((b) => keys.some((k) => k.pose.bones[b])).map((b) => track(boneTrack(b), (p) => [...(p.bones[b] ?? [0, 0, 0, 1])], 'linear')),
       track(handTrack('L'), hand('L')),
       track(handTrack('R'), hand('R')),
       track(GROUNDED, (p) => [p.grounded ? 1 : 0], 'step'),
@@ -57,7 +59,7 @@ export function keyPose(part: ClipPart, i: number): Pose {
     return { curl: v.slice(0, 5) as Hand['curl'], spread: v[5] };
   };
   const bones: Pose['bones'] = {};
-  for (const j of JOINTS) {
+  for (const j of [...JOINTS, ...extrasOf(part).map(([b]) => b)]) {
     const q = at(boneTrack(j), 4);
     if (q?.length === 4) bones[j] = q as [number, number, number, number];
   }
@@ -124,6 +126,14 @@ function trackAngles(j: JointName, track: ClipTrack): Vec3[] {
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
+/** A rotation track's value at time t, turned the short way between its keys. */
+function slerpTrack(track: ClipTrack, t: number, duration: number, loop: boolean): [number, number, number, number] {
+  const seg = segment(track.times, t, duration, loop);
+  const v = (i: number) => fromQuat(track.values.slice(i * 4, i * 4 + 4) as [number, number, number, number]);
+  const u = seg.t[2] - seg.t[1] > 1e-9 && track.interpolation !== 'step' ? (seg.time - seg.t[1]) / (seg.t[2] - seg.t[1]) : 0;
+  return toQuat(v(seg.i[1]).slerp(v(seg.i[2]), u));
+}
+
 /** One track's value at time t. */
 function sampleTrack(track: ClipTrack, size: number, t: number, duration: number, loop: boolean, bone?: JointName): number[] {
   const { times, values } = track;
@@ -158,6 +168,20 @@ function sampleTrack(track: ClipTrack, size: number, t: number, duration: number
   return angleToQuat(bone, out);
 }
 
+/** A part's tracks of the bones beyond the mannequin's (most parts have none). */
+const extraTracks = new WeakMap<ClipPart, [Bone, ClipTrack][]>();
+function extrasOf(part: ClipPart) {
+  let out = extraTracks.get(part);
+  if (!out) {
+    out = part.tracks.flatMap((tr): [Bone, ClipTrack][] => {
+      const b = tr.name.endsWith('.quaternion') ? (tr.name.slice(0, -'.quaternion'.length) as Bone) : null;
+      return b && (EXTRA_BONES as readonly string[]).includes(b) ? [[b, tr]] : [];
+    });
+    extraTracks.set(part, out);
+  }
+  return out;
+}
+
 /** A part's pose at time t (in the clip's own space). */
 export function samplePart(part: ClipPart, t: number, duration: number, loop: boolean): Pose {
   const get = (name: string, size: number, bone?: JointName) => {
@@ -169,6 +193,8 @@ export function samplePart(part: ClipPart, t: number, duration: number, loop: bo
     const q = get(boneTrack(j), 4, j);
     if (q) bones[j] = q as [number, number, number, number];
   }
+  // The bones beyond the mannequin's: turned the short way between keys.
+  for (const [b, tr] of extrasOf(part)) bones[b] = slerpTrack(tr, t, duration, loop);
   const hand = (s: Side): Hand => {
     const v = get(handTrack(s), 6) ?? [0, 0, 0, 0, 0, 0];
     return { curl: v.slice(0, 5).map(clamp01) as Hand['curl'], spread: clamp01(v[5]) };

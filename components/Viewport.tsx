@@ -10,6 +10,7 @@ import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
+import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
 import { SHOT_ASPECT, captureShot, figuresCenter, placeShot, shotAt, shotFramer, subjectAt, type Framing } from '@/lib/shot';
 
@@ -80,9 +81,12 @@ export default function Viewport({
   const gizmoBusy = useRef(0);
   const downAt = useRef<[number, number]>([0, 0]);
 
+  // Characters' files are read after the first frame: drawn as them once they are.
+  const [models, setModels] = useState(0);
+  useEffect(() => onModels(() => setModels((n) => n + 1)), []);
   useLayoutEffect(() => {
     sv.sync(scene);
-  }, [sv, scene]);
+  }, [sv, scene, models]);
   useLayoutEffect(() => sv.setSelection(selection), [sv, selection, scene]);
   useLayoutEffect(() => sv.setStyle(settings.style), [sv, settings.style]);
   useLayoutEffect(() => sv.setFaces(settings.faces), [sv, settings.faces]);

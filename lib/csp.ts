@@ -10,7 +10,8 @@ export function contentSecurityPolicy({ dev = false, meta = false } = {}) {
     "style-src 'self' 'unsafe-inline'",
     // Account pictures from Google (server edition; Microsoft's arrive as data: URLs).
     "img-src 'self' data: blob: https://*.googleusercontent.com",
-    "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com",
+    // data: and blob: for the buffers and textures inside imported characters (glTF).
+    "connect-src 'self' data: blob: https://cdn.jsdelivr.net https://storage.googleapis.com",
     "worker-src 'self' blob:",
     "font-src 'self'",
     "object-src 'none'",

@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, FilePlus2, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
-import { addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, startAnimation } from '@/lib/actions';
+import {
+  addModel, addScene, applyCameraMove, applyMotion, applyPose, applyUpperBody, deleteModel, deleteMotion, deletePose, nearestPartners, saveMotion, savePose, setFigureModel, startAnimation,
+} from '@/lib/actions';
 import { clipById, clipScene } from '@/lib/assets';
 import { newScene } from '@/lib/doc';
+import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { POSE_GROUPS } from '@/lib/presets';
 import { builtInPoses } from '@/lib/poses';
@@ -15,6 +18,7 @@ import { shotSpans, spanAt } from '@/lib/shots';
 import { styleDef } from '@/lib/styles';
 import type { LibraryTab } from '@/lib/store';
 import { useScene, useStore, useStudio } from '../store-context';
+import BoneMapDialog from '../BoneMapDialog';
 import { IconButton, Segmented } from '../ui';
 import type { SectionProps } from './sections';
 
@@ -40,11 +44,12 @@ export default function LibrarySection(props: SectionProps) {
           full
           value={tab}
           onChange={(t) => { preview.hide(); setTab(t); }}
-          options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'camera', label: 'Camera' }]}
+          options={[{ value: 'poses', label: 'Poses' }, { value: 'motions', label: 'Motions' }, { value: 'models', label: 'Models' }, { value: 'camera', label: 'Camera' }]}
         />
       </div>
       {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
       {tab === 'motions' && <Motions {...props} preview={preview.bind} />}
+      {tab === 'models' && <Models {...props} />}
       {tab === 'camera' && <CameraMoves {...props} preview={preview.bind} />}
       {preview.card}
     </div>
@@ -247,16 +252,18 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
     onPick?.();
   };
 
-  const read = async (file: File) => {
+  const [mapping, setMapping] = useState<{ file: File; err: MissingBones } | null>(null);
+  const read = async (file: File, map?: BoneMap) => {
     setReading(true);
     try {
       // The loaders are only fetched when a motion is imported.
       const { importMotion } = await import('@/lib/importmotion');
-      const motion = await importMotion(file.name, await file.arrayBuffer());
+      const motion = await importMotion(file.name, await file.arrayBuffer(), map);
       saveMotion(store, motion);
       notifyUndo(`Imported “${motion.name}” (${motion.duration.toFixed(1)} s) to My motions`);
     } catch (e) {
-      notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+      if (e instanceof MissingBones && !map) setMapping({ file, err: e });
+      else notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setReading(false);
     }
@@ -326,6 +333,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
             </Group>
           );
         })}
+        {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
         {mine.length > 0 && (
           <Group title="My motions" count={mine.length}>
             {mine.map((m) => (
@@ -346,6 +354,81 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
           </Group>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Characters to draw figures as: the mannequin, or one imported (a glTF/GLB or FBX with a skeleton). */
+function Models({ notify, notifyUndo }: SectionProps) {
+  const store = useStore();
+  const figure = useActiveFigure();
+  const mine = useStudio((s) => s.library.models) ?? [];
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
+  const [mapping, setMapping] = useState<{ file: File; err: MissingBones } | null>(null);
+  const usable = !!figure && !figure.proxy;
+  const give = (id: string | null, name: string) => {
+    if (!usable) return;
+    setFigureModel(store, figure.id, id);
+    notifyUndo(`${figure.name}: drawn as ${name}`);
+  };
+  const read = async (file: File, map?: BoneMap) => {
+    setReading(true);
+    try {
+      const info = await importModel(file.name, await file.arrayBuffer(), map);
+      addModel(store, info);
+      if (usable) setFigureModel(store, figure.id, info.id);
+      notifyUndo(`Imported “${info.name}”${usable ? `: ${figure.name} is drawn as it` : ''}`);
+    } catch (e) {
+      if (e instanceof MissingBones && !map) setMapping({ file, err: e });
+      else notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setReading(false);
+    }
+  };
+  const row = (id: string | null, name: string) => (
+    <li key={id ?? 'mannequin'}>
+      <button type="button" aria-disabled={!usable} aria-pressed={usable ? (figure.model ?? null) === id : undefined} onClick={() => give(id, name)}>
+        <PersonStanding size={14} aria-hidden />
+        <span className="side-list-name">{name}</span>
+        {usable && (figure.model ?? null) === id && <em>{figure.name}</em>}
+      </button>
+      {id && <IconButton icon={Trash2} label={`Delete my model ${name}`} className="row-delete" size={13} onClick={() => { deleteModel(store, id); notifyUndo(`Deleted “${name}”`); }} />}
+    </li>
+  );
+  return (
+    <div className="side-scroll">
+      <Target>
+        {usable ? <>Click a model to draw <strong>{figure.name}</strong> as it.</> : 'Select a figure to draw it as a character.'}
+      </Target>
+      <div className="library-row">
+        <button
+          type="button"
+          className="btn subtle library-import"
+          disabled={reading}
+          onClick={() => fileRef.current?.click()}
+          data-tip="A character with a skeleton (glTF/GLB or FBX: Mixamo, VRoid…), posed and animated like the mannequin"
+        >
+          <Upload size={14} aria-hidden /> {reading ? 'Importing…' : 'Import character…'}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".glb,.gltf,.fbx"
+          hidden
+          aria-label="Character file"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void read(f);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      <section aria-label="Models">
+        <Group title="Built in" count={1}>{row(null, 'Mannequin')}</Group>
+        {mine.length > 0 && <Group title="My models" count={mine.length}>{mine.map((m) => row(m.id, m.name))}</Group>}
+      </section>
+      {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
     </div>
   );
 }

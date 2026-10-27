@@ -6,7 +6,7 @@ import {
   PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X, type LucideIcon,
 } from 'lucide-react';
 import {
-  arrange, copyPose, holdOn, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
+  arrange, copyPose, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
   reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, symmetrizePose,
 } from '@/lib/actions';
 import { travelAt } from '@/lib/evaluate';
@@ -415,8 +415,18 @@ function BodySection({ figure }: { figure: Figure }) {
   const body = figure.body;
   const setBody = (patch: Partial<typeof body>, key = '') => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...f.body, ...patch } }), key);
   const sexField = BODY_FIELDS.find((f) => f.key === 'sex')!;
+  const models = useStudio((s) => s.library.models) ?? [];
   return (
     <Section id="body" title="Body & colour" collapsible defaultOpen={false}>
+      <div className="field">
+        <span>Drawn as</span>
+        <Select<string>
+          label="Model"
+          value={figure.model && models.some((m) => m.id === figure.model) ? figure.model : ''}
+          onChange={(v) => setFigureModel(store, figure.id, v || null)}
+          options={[{ value: '', label: 'Mannequin' }, ...models.map((m) => ({ value: m.id, label: m.name }))]}
+        />
+      </div>
       <div className="swatches" role="radiogroup" aria-label="Colour">
         <button type="button" role="radio" aria-checked={!figure.color} aria-label="No colour" className={`swatch none${!figure.color ? ' on' : ''}`} onClick={() => setFigureColor(store, figure.id, null)} />
         {FIGURE_COLORS.map((c) => (

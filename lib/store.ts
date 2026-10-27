@@ -1,6 +1,7 @@
 import { normalize, propKeyOf } from './animation';
 import { clipIdsOf } from './assets';
 import { loadClips, saveClips } from './assetstore';
+import { setModels } from './model';
 import { clipsIn, newScene, parseLibrary } from './doc';
 import { sceneAt } from './evaluate';
 import { keepProps, setPropKey } from './propmotion';
@@ -32,7 +33,7 @@ export interface Settings {
   timelineHeight: number;
 }
 
-export const LIBRARY_TABS = ['poses', 'motions', 'camera'] as const;
+export const LIBRARY_TABS = ['poses', 'motions', 'models', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export const SIDE_SECTIONS = ['scene', 'library', 'ai'] as const;
@@ -135,6 +136,7 @@ export class Store {
 
   constructor(private storage: Storage | null = typeof localStorage === 'undefined' ? null : localStorage) {
     const library = loadLibrary(storage);
+    setModels(library.models);
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
@@ -192,6 +194,7 @@ export class Store {
   }
 
   private set(patch: Partial<State>, persist = true) {
+    if (patch.library && patch.library.models !== this.state.library.models) setModels(patch.library.models);
     const pending = persist && this.storage !== null;
     this.state = this.normalize({ ...this.state, ...patch, ...(pending ? { saveStatus: 'pending' as const } : {}) });
     if (pending) this.scheduleSave();

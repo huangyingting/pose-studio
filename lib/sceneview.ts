@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Ink, type Ghost } from './ink';
 import { Mannequin } from './mannequin';
+import { ModelRig, modelInfo, modelTemplate } from './model';
 import { PropObject } from './props';
 import { groundOf } from './surfaces';
 import type { JointName, Scene, Selection, Style } from './types';
@@ -17,6 +18,8 @@ export class SceneView {
   readonly root = new THREE.Group();
   readonly figures = new Map<string, Mannequin>();
   readonly props = new Map<string, PropObject>();
+  /** Figures drawn as imported characters (the mannequin stays, unseen, to pick and pose them by). */
+  readonly models = new Map<string, ModelRig>();
   /** Bumped whenever objects are created/destroyed/rebuilt (joint references change). */
   version = 0;
   private style: Style = 'line';
@@ -72,6 +75,30 @@ export class SceneView {
       m.setGround(ground);
       m.apply(f);
       m.setTint(f.color ?? null);
+      // Drawn as a character, once its file has been read.
+      const template = f.model && !f.proxy ? modelTemplate(f.model) : null;
+      let rig = this.models.get(f.id);
+      if (rig && (!template || rig.info.id !== f.model)) {
+        this.root.remove(rig.object);
+        rig.dispose();
+        this.models.delete(f.id);
+        rig = undefined;
+        changed = true;
+      }
+      if (template && !rig) {
+        rig = new ModelRig(template, modelInfo(f.model!)!);
+        this.models.set(f.id, rig);
+        this.root.add(rig.object);
+        changed = true;
+      }
+      m.object.visible = !rig;
+      rig?.apply(f, m.joints.hips.getWorldPosition(new THREE.Vector3()));
+    }
+    for (const [id, rig] of this.models) {
+      if (figureIds.has(id)) continue;
+      this.root.remove(rig.object);
+      rig.dispose();
+      this.models.delete(id);
     }
 
     const propIds = new Set(scene.props.map((p) => p.id));
@@ -189,6 +216,8 @@ export class SceneView {
 
   dispose() {
     for (const m of this.figures.values()) m.dispose();
+    for (const r of this.models.values()) r.dispose();
+    this.models.clear();
     for (const p of this.props.values()) p.dispose();
     this.figures.clear();
     this.props.clear();

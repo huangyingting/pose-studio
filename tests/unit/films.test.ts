@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, editShot, holdHandle, holdProp, lieOn, moveProp,
-  setAnimationOptions, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
+  addModel, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
 } from '@/lib/actions';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
+import { importMotion } from '@/lib/importmotion';
+import { importModel } from '@/lib/model';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { buildMotion } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';
@@ -14,6 +16,8 @@ import { withFacing } from '@/lib/relations';
 import { SceneView } from '@/lib/sceneview';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
+import { CMU, bvh } from '../fixtures/bvh';
+import { characterGltf } from '../fixtures/gltf';
 import { body, expectClean, fresh } from '../fixtures/scenes';
 
 /*
@@ -396,6 +400,40 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const turning = sceneAt(store.scene, 3.6).props[0].trail!;
     expect(Math.max(...turning.map((p) => p[1]))).toBeGreaterThan(0.5);
     expect(sceneAt(store.scene, toss.to + 0.1).props[1].hold?.figure).toBe(b);
+  }, 120_000);
+
+  it('an imported character steps forward as an imported capture has it, then walks on, drawn as itself', async () => {
+    const { store, a } = fresh();
+    name(store, a, 'Hero');
+    // A Mixamo-style character (glTF) and a CMU-style capture (BVH), both imported.
+    const model = await importModel('Hero.gltf', new TextEncoder().encode(characterGltf(true)).buffer as ArrayBuffer);
+    addModel(store, model);
+    setFigureModel(store, a, model.id);
+    const step = await importMotion('Step forward.bvh', new TextEncoder().encode(bvh(CMU)).buffer as ArrayBuffer);
+    saveMotion(store, step);
+    addFigure(store, [2, 0, 0]);
+    const b = store.getState().activeFigure!;
+    store.setTime(0);
+    expect(applyMotion(store, a, step.id)).toBe(true);
+    store.setTime(store.scene.animation!.duration);
+    const walk = travelTo(store, a, [0, 2.5], 'walk')!;
+    store.setTime(0);
+    applyMotion(store, b, step.id);
+    light(store, 'studio');
+    shoot(store, [walk.from], ['static', 'tracking'], [undefined, a]);
+    expectFilm(store, 'studio', 2);
+    // Drawn as the character, its feet where the mannequin's are: the planted one stays put.
+    const sv = new SceneView();
+    const foot = (t: number) => {
+      sv.sync(sceneAt(store.scene, t));
+      return sv.models.get(a)!.object.getObjectByName(model.bones.rightFoot!)!.getWorldPosition(new THREE.Vector3());
+    };
+    const planted = foot(0);
+    for (const t of [0.1, step.duration]) expect(Math.hypot(foot(t).x - planted.x, foot(t).z - planted.z), String(t)).toBeLessThan(0.03);
+    sv.sync(sceneAt(store.scene, walk.to));
+    const mannequinFoot = sv.figures.get(a)!.joints.leftFoot.getWorldPosition(new THREE.Vector3());
+    expect(sv.models.get(a)!.object.getObjectByName(model.bones.leftFoot!)!.getWorldPosition(new THREE.Vector3()).distanceTo(mannequinFoot)).toBeLessThan(0.08);
+    sv.dispose();
   }, 120_000);
 
   it('occlusion is caught: a fast break filmed from beyond the hoop, the backboard in the way', () => {

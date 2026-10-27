@@ -16,6 +16,8 @@ export interface SyncBase {
   poses?: string[];
   /** Imported motions both sides had. */
   clips?: string[];
+  /** Imported characters both sides had. */
+  models?: string[];
 }
 
 function hash(text: string) {
@@ -44,7 +46,7 @@ const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
 
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
-  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length) return false;
+  if (lib.scenes.length !== 1 || lib.board?.length || lib.poses?.length || lib.clips?.length || lib.models?.length) return false;
   const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
@@ -57,7 +59,7 @@ export function canonical(lib: Library): Library {
 export function syncBase(lib: Library): SyncBase {
   return {
     scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board),
-    poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id),
+    poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id), models: (lib.models ?? []).map((m) => m.id),
   };
 }
 
@@ -68,7 +70,8 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
     && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s))
     && boardHash(lib.board) === base.board
     && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join()
-    && (lib.clips ?? []).map((m) => m.id).join() === (base.clips ?? []).join();
+    && (lib.clips ?? []).map((m) => m.id).join() === (base.clips ?? []).join()
+    && (lib.models ?? []).map((m) => m.id).join() === (base.models ?? []).join();
 }
 
 export function mergeLibraries(server: Library, local: Library, base: SyncBase | null): Library {
@@ -116,12 +119,14 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
   // since they last agreed.
   const poses = assets(server.poses, local.poses, base?.poses);
   const clips = assets(server.clips, local.clips, base?.clips);
+  const models = assets(server.models, local.models, base?.models);
   return {
     ...server,
     scenes: out.length ? out : server.scenes,
     ...(board?.length ? { board } : { board: undefined }),
     ...(poses.length ? { poses } : { poses: undefined }),
     ...(clips.length ? { clips } : { clips: undefined }),
+    ...(models.length ? { models } : { models: undefined }),
   };
 }
 

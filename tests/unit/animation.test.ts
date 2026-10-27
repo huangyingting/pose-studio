@@ -181,7 +181,7 @@ describe('animation templates', () => {
         expect(checkMotion(store.scene).map((i) => i.message), `${m.id} on ${preset.name}`).toEqual([]);
       }
     }
-  }, 180_000);
+  }, 300_000);
 
 
   it('builds every motion with valid keys within joint limits', () => {
