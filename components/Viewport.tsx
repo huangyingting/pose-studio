@@ -13,9 +13,9 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
-import { angleAt, cameraAt, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
+import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
-import type { Settings, Store } from '@/lib/store';
+import type { Settings, Store, Through } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import { openContextMenu } from './ContextMenu';
 import type { Clock } from './clock';
@@ -57,7 +57,8 @@ interface Props {
   /** Animation playback clock, playhead time, and director tools. */
   clock: Clock;
   time: number;
-  shotMode: boolean;
+  /** Looking through the cut or one camera (the editor's own view: null). */
+  through: Through;
   onion: boolean;
   /** Right-click on the canvas (not after a drag). */
   onMenu(e: { clientX: number; clientY: number }, hit: CanvasHit): void;
@@ -72,9 +73,10 @@ function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
 }
 
 export default function Viewport({
-  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, shotMode, onion, onMenu,
+  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu,
 }: Props) {
   const captureRef = useRef<(() => CameraView | null) | null>(null);
+  const shotMode = !!through;
   const sv = useMemo(() => new SceneView(), []);
   // Re-render when sync() replaces three.js objects, so the gizmo/handles get the new joints.
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
@@ -237,7 +239,7 @@ export default function Viewport({
         <OrbitControls makeDefault onChange={keepCameraAboveFloor} />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
-        <ShotDriver store={store} scene={scene} clock={clock} time={time} enabled={shotMode} captureRef={captureRef} />
+        <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
           <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} />
         )}
@@ -320,18 +322,20 @@ function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: 
  * orbited, panned and dollied freely: letting go sets the shot's camera point at the playhead
  * (through the lens, as posing sets a figure's key).
  */
-function ShotDriver({ store, scene, clock, time, enabled, captureRef }: {
+function ShotDriver({ store, scene, clock, time, through, captureRef }: {
   store: Store;
   scene: Scene;
   clock: Clock;
   time: number;
-  enabled: boolean;
+  through: Through;
   captureRef: RefObject<(() => CameraView | null) | null>;
 }) {
   const get = useThree((s) => s.get);
   const size = useThree((s) => s.size);
   const dirty = useRef(true);
-  useEffect(() => { dirty.current = true; }, [time, scene, enabled, size]);
+  const enabled = !!through;
+  const lookId = through?.camera;
+  useEffect(() => { dirty.current = true; }, [time, scene, through, size]);
 
   const stageAspect = size.width / Math.max(1, size.height);
   const aspect = frameAspect(scene);
@@ -348,18 +352,19 @@ function ShotDriver({ store, scene, clock, time, enabled, captureRef }: {
     };
   });
 
-  // Through the lens: a change of view, once let go of, is the camera point at the playhead.
+  // Through the lens: a change of view, once let go of, is the camera's point at the playhead
+  // (the camera looked through, or the one filming then).
   useEffect(() => {
     const controls = get().controls as unknown as { addEventListener(type: 'end', f: () => void): void; removeEventListener(type: 'end', f: () => void): void } | null;
-    if (!enabled || !controls || !scene.animation) return;
+    if (!enabled || !controls) return;
     const end = () => {
       if (clock.playing) return;
       const v = captureRef.current?.();
-      if (v) setCameraPoint(store, v.position, v.target, v.fov);
+      if (v) setCameraPoint(store, v.position, v.target, v.fov, '', lookId);
     };
     controls.addEventListener('end', end);
     return () => controls.removeEventListener('end', end);
-  }, [enabled, get, store, clock, captureRef, scene.animation]);
+  }, [enabled, lookId, get, store, clock, captureRef]);
 
   useFrame((state) => {
     const camera = state.camera as THREE.PerspectiveCamera;
@@ -367,7 +372,9 @@ function ShotDriver({ store, scene, clock, time, enabled, captureRef }: {
     if (!enabled || !controls) return;
     if (!clock.playing && !dirty.current) return;
     dirty.current = false;
-    const view = cameraAt(scene, clock.playing ? clock.time : time);
+    const t = clock.playing ? clock.time : time;
+    const one = lookId ? cameraById(scene, lookId) : null;
+    const view = one ? viewOf(scene, one, scene.animation ? t : 0) : cameraAt(scene, t);
     placeCamera(camera, { ...view, fov: displayFov(view.fov) }, stageAspect);
     controls.target.copy(view.target);
     controls.update();

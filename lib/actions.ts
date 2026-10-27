@@ -27,7 +27,7 @@ import {
 } from './relations';
 import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
 import { bonesOf, withAngles } from './pose';
-import { cutAt, movePoint, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
+import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import type { Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
@@ -473,10 +473,11 @@ export function deleteSelection(store: Store): string | null {
   return null;
 }
 
-/** Duplicate the selected prop or figure (also when one of its joints is selected). False when there is none. */
+/** Duplicate the selected prop, figure (also when one of its joints is selected) or camera. False when there is none. */
 export function duplicateSelection(store: Store) {
   const sel = store.getState().selection;
   if (sel?.kind === 'prop') duplicateProp(store, sel.prop);
+  else if (sel?.kind === 'camera') duplicateCamera(store, sel.camera);
   else if (sel?.kind === 'figure' || sel?.kind === 'joint') duplicateFigure(store, sel.figure);
   else return false;
   return true;
@@ -846,14 +847,14 @@ const pathCamera = (s: Scene, id: string) => {
 };
 
 /**
- * Set the camera filming at the playhead to look as a view does (from `position` at `look`,
- * through a lens with this field of view): a path camera gets a point there; a rig takes the
- * view's angle from its subject and its lens, keeping its shot size.
+ * Set the camera filming at the playhead (or `camera`) to look as a view does (from `position` at
+ * `look`, through a lens with this field of view): a path camera gets a point there; a rig takes
+ * the view's angle from its subject and its lens, keeping its shot size.
  */
-export function setCameraPoint(store: Store, position: THREE.Vector3, look: THREE.Vector3, fov: number, key = '') {
+export function setCameraPoint(store: Store, position: THREE.Vector3, look: THREE.Vector3, fov: number, key = '', camera?: string) {
   const { t, fps } = here(store);
   store.updateScene((s) => {
-    const cam = liveCamera(s, t);
+    const cam = (camera && cameraById(s, camera)) || liveCamera(s, t);
     if (cam.kind === 'rig') {
       const view = { position, target: look, fov, lens: fovLens(fov, frameAspect(s)), roll: 0 };
       return withCamera(s, { ...cam, rig: rigFrom(s, cam, view, t, cam.rig.body, { size: cam.rig.size, lens: Math.round(view.lens) }) });
@@ -1068,6 +1069,18 @@ export function setShotSubject(store: Store, shotId: string, figure: string) {
   if (id) editCamera(store, id, { subject: figure });
 }
 
+/** A copy of a camera, as the user's own (not a coverage's), selected. Its id. */
+export function duplicateCamera(store: Store, id: string): string | null {
+  const src = cameraById(store.scene, id);
+  if (!src) return null;
+  const { made: _made, ...rest } = structuredClone(src);
+  void _made;
+  const copy = { ...rest, id: uid('cam'), name: nextName(`${src.name} copy`, store.scene.cameras.map((c) => c.name)) } as Camera;
+  store.updateScene((s) => ({ ...s, cameras: [...s.cameras, copy] }));
+  store.select({ kind: 'camera', camera: copy.id });
+  return copy.id;
+}
+
 /** Remove a camera (not the scene's last): the shots it filmed are filmed by the first of the others. */
 export function deleteCamera(store: Store, id: string) {
   store.updateScene((s) => removeCamera(s, id));
@@ -1123,6 +1136,11 @@ export function cutShot(store: Store) {
 
 export function removeShotCut(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: removeCut(s.animation, id) } : s));
+}
+
+/** Move the cut at the start of a shot (dragged on the timeline): no camera changes. */
+export function moveShotCut(store: Store, id: string, t: number, key = '') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: moveCut(s.animation, id, t) } : s), key);
 }
 
 /** A shot's name and caption, the camera it films with (one of the scene's) and how long it blends in from the one before (0: a cut). */

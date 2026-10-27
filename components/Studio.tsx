@@ -94,7 +94,7 @@ function App() {
   // Animation: playback clock and director tools (UI state, not saved).
   const [clock] = useState(() => new Clock());
   const time = useStudio((s) => s.time);
-  const [shotMode, setShotMode] = useState(false);
+  const through = useStudio((s) => s.through);
   const [onion, setOnion] = useState(false);
   const togglePlay = useCallback(() => {
     if (!store.scene.animation) return;
@@ -490,12 +490,12 @@ function App() {
           apiRef={apiRef}
           clock={clock}
           time={time}
-          shotMode={shotMode}
+          through={through}
           onion={onion}
           onMenu={openCanvasMenu}
         />
-        {shotMode && <Letterbox aspect={frameAspect(scene)} guides={settings.guides} />}
-        {scene.animation && !shotMode && <CorrectionBadge scene={scene} figureId={activeFigure} time={time} />}
+        {through && <Letterbox aspect={frameAspect(scene)} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
+        {scene.animation && !through && <CorrectionBadge scene={scene} figureId={activeFigure} time={time} />}
         {settings.tips && (
           <section className="tips" aria-label="Tips">
             <ul>
@@ -514,8 +514,6 @@ function App() {
         {scene.animation && (
           <Timeline
             clock={clock}
-            shotMode={shotMode}
-            setShotMode={setShotMode}
             onion={onion}
             setOnion={setOnion}
             captureShot={() => apiRef.current?.captureShot() ?? null}
@@ -588,10 +586,12 @@ function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: st
 }
 
 /** The shot's frame over the canvas (its shape), with rule-of-thirds lines and safe areas if asked for. */
-function Letterbox({ aspect, guides }: { aspect: number; guides: boolean }) {
+/** The shot's frame over the canvas, and (looking through one camera) its name. */
+function Letterbox({ aspect, guides, name }: { aspect: number; guides: boolean; name?: string }) {
   return (
     <div className="letterbox" aria-hidden>
       <div style={{ '--aspect': aspect } as CSSProperties}>
+        {name && <span className="letterbox-name">{name}</span>}
         {guides && (
           <>
             <i className="third v1" /><i className="third v2" /><i className="third h1" /><i className="third h2" />

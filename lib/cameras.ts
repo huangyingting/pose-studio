@@ -304,6 +304,13 @@ export const SHOT_SIZES = [
 ] as const;
 export type { Placement, ShotSize };
 
+/** A rig camera's rule in a few words, e.g. "follows Ben, MCU, 85 mm". */
+export function rigRule(scene: Scene, cam: RigCamera): string {
+  const who = cameraFigures(scene, cam)?.map((id) => scene.figures.find((f) => f.id === id)!.name).join(' and ') ?? 'everyone';
+  const size = SHOT_SIZES.find((x) => x.id === cam.rig.size)!.short;
+  return `${cam.rig.body === 'orbit' ? 'circles' : 'follows'} ${who}, ${size}, ${Math.round(cam.rig.lens)} mm`;
+}
+
 /** How much of the body each shot size holds: from and to, as shares of the body's height down from the top of the head. */
 const SPAN: Record<ShotSize, [number, number]> = {
   ews: [-1.6, 2.6], ws: [-0.45, 1.45], fs: [-0.08, 1.06], mws: [-0.07, 0.74],

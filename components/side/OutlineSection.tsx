@@ -12,7 +12,7 @@ import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
-import { figureMenu, propMenu, shotMenu } from '../menus';
+import { cameraMenu, figureMenu, propMenu, shotMenu } from '../menus';
 import { startRename, useRenaming } from '../rename';
 import { useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Menu } from '../ui';
@@ -166,7 +166,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
                       renaming={renaming === c.id}
                       onRename={(name) => editCamera(store, c.id, { name })}
                       onClick={() => store.select({ kind: 'camera', camera: c.id })}
-                      onMenu={(e) => { e.preventDefault(); store.select({ kind: 'camera', camera: c.id }); }}
+                      onMenu={(e) => { store.select({ kind: 'camera', camera: c.id }); openContextMenu(e, cameraMenu(store, c.id, { notifyUndo }), c.name); }}
                     >
                       <em>{spans.filter((sp) => sp.shot.camera === c.id).map((sp) => sp.index + 1).join(', ')}</em>
                     </Row>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { applyCameraMove, cutShot, editShot, moveCameraPoint, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
+import { applyCameraMove, cutShot, deleteCamera, duplicateSelection, editShot, moveCameraPoint, moveShotCut, removeShotCut, setTargetModel, startAnimation } from '@/lib/actions';
 import { cameraAt, liveCamera } from '@/lib/cameras';
 import type { PathCamera, Scene } from '@/lib/types';
 import { parseScene } from '@/lib/doc';
@@ -109,4 +109,36 @@ describe('keyframe pack pieces', () => {
     expect(points().at(-1)).toEqual(last);
   });
 
+  it('moves a cut (no camera changes) and sets a blend by dragging, within the shots around it', () => {
+    const store = animatedStore();
+    store.setTime(2);
+    cutShot(store);
+    const id = shotSpans(store.scene.animation!)[1].shot.id;
+    const cameras = store.scene.cameras;
+    moveShotCut(store, id, 1.5, 'drag');
+    moveShotCut(store, id, 1.26, 'drag');
+    expect(shotSpans(store.scene.animation!).map((s) => s.start)).toEqual([0, 1.25]);
+    expect(store.scene.cameras).toBe(cameras);
+    // Not past the shot before, nor onto it.
+    moveShotCut(store, id, -3);
+    expect(shotSpans(store.scene.animation!)[1].start).toBeCloseTo(1 / 24, 9);
+    store.undo();
+    store.undo();
+    expect(shotSpans(store.scene.animation!)[1].start).toBe(2);
+  });
+
+  it('copies a camera as one of the user\'s own, and looks through it until it goes', () => {
+    const store = animatedStore();
+    const [first] = store.scene.cameras;
+    store.select({ kind: 'camera', camera: first.id });
+    expect(duplicateSelection(store)).toBe(true);
+    const copy = store.scene.cameras[1];
+    expect(copy).toMatchObject({ name: `${first.name} copy`, kind: first.kind });
+    expect(store.getState().selection).toEqual({ kind: 'camera', camera: copy.id });
+    store.lookThrough({ camera: copy.id });
+    deleteCamera(store, copy.id);
+    expect(store.getState().through).toBeNull();
+    store.lookThrough({});
+    expect(store.getState().through).toEqual({});
+  });
 });

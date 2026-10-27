@@ -1,8 +1,8 @@
 import {
-  ArrowDownToLine, ArrowLeftRight, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
+  ArrowDownToLine, ArrowLeftRight, Camera, Plus, ArrowUpFromDot, BedSingle, ChevronsDown, Goal, BookmarkPlus, ClipboardCopy, Footprints, Hand, MoveUpRight, RefreshCw, RotateCw, Send, Spline, Wind, Copy, Eye, EyeOff, Film, FlipHorizontal2, LayoutPanelTop, Pencil, PersonStanding, Scan, Scissors, Trash2, UserRound, Video,
 } from 'lucide-react';
 import {
-  addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteFigure, deleteProp, deleteScene, duplicateCurrentScene, duplicateFigure,
+  addCamera, addFigure, addProp, addStandIn, addToBoard, copyMotion, deleteAction, deleteCamera, deleteFigure, deleteProp, deleteScene, duplicateCamera, duplicateCurrentScene, duplicateFigure, editShot,
   dribbleProp, duplicateProp, holdHandle, holdProp, lieOn, propNow, removeShotCut, savePose, setClipOptions, setFigureHidden, setGaze, setJumpHeight, setTravel, throwProp, travelTo,
 } from '@/lib/actions';
 import { HOLDABLE } from '@/lib/hold';
@@ -146,6 +146,16 @@ export function shotMenu(store: Store, id: string, { notify, notifyUndo }: MenuU
         store.setSettings({ side: 'library', libraryTab: 'camera' });
       },
     },
+    { group: 'Film with' },
+    ...store.scene.cameras.map((c) => ({ label: c.name, icon: Camera, checked: c.id === span.shot.camera, onSelect: () => editShot(store, id, { camera: c.id }) })),
+    {
+      label: 'New camera from the view', icon: Plus, onSelect: () => {
+        const t = store.getState().time;
+        if (t < span.start - 1e-6 || t >= span.end - 1e-6) store.setTime(span.start);
+        addCamera(store);
+      },
+    },
+    '-',
     {
       label: 'Copy description', icon: ClipboardCopy, onSelect: () => {
         const text = describeSpan(store.scene, span);
@@ -156,6 +166,23 @@ export function shotMenu(store: Store, id: string, { notify, notifyUndo }: MenuU
       '-' as const,
       { label: 'Remove cut', icon: Scissors, shortcut: 'Del', danger: true, onSelect: () => { removeShotCut(store, id); notifyUndo(`Removed the cut before ${span.shot.name}`); } },
     ] : []),
+  ];
+}
+
+/** A camera of the scene (in the outline, on the timeline, in its inspector). */
+export function cameraMenu(store: Store, id: string, { notifyUndo }: Pick<MenuUi, 'notifyUndo'>): MenuItem[] {
+  const cam = store.scene.cameras.find((c) => c.id === id);
+  if (!cam) return [];
+  const through = store.getState().through?.camera === id;
+  return [
+    { label: 'Rename', icon: Pencil, shortcut: 'F2', onSelect: () => renameInOutline(store, id) },
+    { label: 'Look through it', icon: Eye, checked: through, onSelect: () => store.lookThrough(through ? null : { camera: id }) },
+    { label: 'Duplicate', icon: Copy, shortcut: 'Ctrl+D', onSelect: () => duplicateCamera(store, id) },
+    '-',
+    {
+      label: 'Delete', icon: Trash2, shortcut: 'Del', danger: true, disabled: store.scene.cameras.length <= 1,
+      onSelect: () => { deleteCamera(store, id); notifyUndo(`Deleted ${cam.name}`); },
+    },
   ];
 }
 

@@ -775,6 +775,42 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   expect(await shot()).toMatchObject({ kind: 'rig', rig: { body: 'follow', size: 'mcu' } });
 });
 
+test('cuts move on the timeline; the camera row shows one camera, which can be looked through', async ({ page }) => {
+  await openSection(page, 'Scene');
+  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
+  await page.keyboard.press('c');
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  // The cut is dragged later; the cameras stay as they were.
+  const before = await anim(page);
+  const cut = page.locator('.tl-shot').nth(1).locator('.tl-cut');
+  const box = (await cut.boundingBox())!;
+  await drag(page, { x: box.x + 2, y: box.y + box.height / 2 }, { x: box.x + 62, y: box.y + box.height / 2 });
+  const after = await anim(page);
+  expect(after.animation!.shots[1].start).toBeGreaterThan(1.05);
+  expect(after.cameras).toEqual(before.cameras);
+  // Its ramp, dragged out, blends the shot in.
+  const ramp = (await page.locator('.tl-shot').nth(1).locator('.tl-blend').boundingBox())!;
+  await page.locator('.tl-shot').nth(1).hover();
+  await drag(page, { x: ramp.x + 8, y: ramp.y + 4 }, { x: ramp.x + 60, y: ramp.y + 4 });
+  expect((await anim(page)).animation!.shots[1].blend).toBeGreaterThan(0.1);
+  // The second shot films with a new camera (its menu); the camera row follows the playhead.
+  await page.locator('.tl-shot').nth(1).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'New camera from the view' }).click();
+  await expect(timeline.getByRole('button', { name: 'Camera 2', exact: true })).toBeVisible();
+  // Selected in the outline, the first camera has the row (its rule, as it places itself).
+  const cameras = page.getByRole('list', { name: 'Cameras' });
+  await cameras.getByRole('button', { name: /^Camera 1/ }).click();
+  await expect(timeline.getByRole('button', { name: 'Camera 1', exact: true })).toBeVisible();
+  await expect(page.locator('.tl-row.camera')).toContainText('Camera 1 · follows everyone');
+  // Looked through from its menu: the letterbox carries its name; Ctrl+D copies it.
+  await cameras.getByRole('button', { name: /^Camera 1/ }).click({ button: 'right' });
+  await page.getByRole('menuitemradio', { name: 'Look through it' }).click();
+  await expect(page.locator('.letterbox-name')).toHaveText('Camera 1');
+  await page.keyboard.press('Control+d');
+  expect((await anim(page)).cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2', 'Camera 1 copy']);
+});
+
 test('a still scene can be animated with auto-keys', async ({ page }) => {
   await page.getByRole('button', { name: 'Animate' }).first().click();
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');

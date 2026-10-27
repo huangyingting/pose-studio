@@ -43,6 +43,9 @@ export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
 
 export type SaveStatus = 'saved' | 'pending' | 'error';
 
+/** What the canvas looks through: the editor's own view (null), the cut (what the shots show), or one camera. */
+export type Through = { camera?: string } | null;
+
 export interface State {
   library: Library;
   sceneIndex: number;
@@ -55,6 +58,7 @@ export interface State {
   saveStatus: SaveStatus;
   /** Animation time (seconds) of the open pose; its figures always show the pose at this time. */
   time: number;
+  through: Through;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -141,7 +145,7 @@ export class Store {
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
-      library, sceneIndex, selection: null, activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0,
+      library, sceneIndex, selection: null, activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null,
     });
     // An animated pose opens at its first frame.
     this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
@@ -188,10 +192,14 @@ export class Store {
     } else if (selection?.kind === 'shot') {
       const shot = selection.shot;
       if (!scene.animation || !shotSpans(scene.animation).some((sp) => sp.shot.id === shot)) selection = null;
+    } else if (selection?.kind === 'camera') {
+      const camera = selection.camera;
+      if (!scene.cameras.some((c) => c.id === camera)) selection = null;
     }
+    const through = s.through?.camera && !scene.cameras.some((c) => c.id === s.through!.camera) ? null : s.through;
     let activeFigure = selection?.kind === 'joint' || selection?.kind === 'figure' || selection?.kind === 'action' ? selection.figure : s.activeFigure;
     if (!scene.figures.some((f) => f.id === activeFigure)) activeFigure = scene.figures[0]?.id ?? null;
-    return { ...s, sceneIndex, selection, activeFigure, canUndo: this.past.length > 0, canRedo: this.future.length > 0 };
+    return { ...s, sceneIndex, selection, activeFigure, through, canUndo: this.past.length > 0, canRedo: this.future.length > 0 };
   }
 
   private set(patch: Partial<State>, persist = true) {
@@ -391,6 +399,10 @@ export class Store {
 
   select(selection: Selection) {
     this.set({ selection }, false);
+  }
+
+  lookThrough(through: Through) {
+    this.set({ through }, false);
   }
 
   setActiveFigure(activeFigure: string) {

@@ -7,19 +7,19 @@ import {
 } from 'lucide-react';
 import {
   addKeyframe, cutShot, deleteCameraPoint, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, retimeCameraPoint, rippleKeys, setAnimationOptions,
-  setBlend, setCameraPoint,
+  editShot, moveShotCut, setBlend, setCameraPoint,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
-import { overLimit, pointTimes, shotSpans, videoModel } from '@/lib/shots';
-import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
+import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
+import { cameraById, liveCamera, rigRule, type CameraView } from '@/lib/cameras';
 import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
-import { actionMenu, figureMenu, shotMenu, travelMenu } from './menus';
+import { actionMenu, cameraMenu, figureMenu, shotMenu, travelMenu } from './menus';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
@@ -36,15 +36,14 @@ const TICKS = [1 / 24, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30];
 const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
 
 /**
- * Keyframe timeline under the canvas: transport, the shots, a key track per figure (and per prop
- * that moves), and the shot camera's path points. Editing a figure at any time records a key there
+ * Keyframe timeline under the canvas: transport, the shots (the cuts between cameras), a key track
+ * per figure (and per prop that moves), and one camera's track: the selected camera's, or the one
+ * filming at the playhead. Editing a figure at any time records a key there
  * (auto-key). It zooms (Ctrl + wheel, the buttons) and scrolls (Shift + wheel, the bar under it),
  * folds down to its toolbar, and its top edge drags to make it taller.
  */
-export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion, captureShot, notify, notifyUndo }: {
+export default function Timeline({ clock, onion, setOnion, captureShot, notify, notifyUndo }: {
   clock: Clock;
-  shotMode: boolean;
-  setShotMode(on: boolean): void;
   onion: boolean;
   setOnion(on: boolean): void;
   captureShot(): CameraView | null;
@@ -112,7 +111,11 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
   const spans = shotSpans(a);
-  const camTimes = pointTimes(scene);
+  // The camera row: the selected camera, or the one filming at the playhead.
+  const through = useStudio((st) => st.through);
+  const picked = useStudio((st) => (st.selection?.kind === 'camera' ? st.selection.camera : null));
+  const rowCam = cameraById(scene, picked ?? undefined) ?? liveCamera(scene, time);
+  const camTimes = rowCam.kind === 'path' ? rowCam.points.map((p) => p.t) : [];
   const onCamKey = camTimes.some(near);
   // Motion check results, valid until the animation changes.
   const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
@@ -246,12 +249,12 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
     window.addEventListener('pointerup', up);
   };
 
-  /** Drag a camera path point (of the camera filming then) to retime it; a click goes to it. */
+  /** Drag a point of the row's camera to retime it; a click goes to it. */
   const dragPoint = (t: number) => (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     seek(t);
-    const cam = liveCamera(store.scene, t).id;
+    const cam = rowCam.id;
     let from = t;
     const key = `campoint:${t}`;
     const move = (ev: PointerEvent) => {
@@ -263,6 +266,25 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
       if (now !== undefined) {
         from = now;
         store.setTime(now);
+      }
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  /** Drag a cut (a shot's start) to move it, or the ramp after it to set how long the shot blends in. */
+  const dragCut = (sp: ShotSpan, part: 'cut' | 'blend') => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    pause();
+    const key = `${part}:${sp.shot.id}`;
+    const move = (ev: PointerEvent) => {
+      const t = timeAt(ev.clientX);
+      if (part === 'cut') moveShotCut(store, sp.shot.id, t, key);
+      else {
+        const now = shotSpans(store.scene.animation!).find((x) => x.shot.id === sp.shot.id)!;
+        editShot(store, sp.shot.id, { blend: Math.min(now.end - now.start, Math.max(0, snapTime(a, t) - now.start)) });
       }
     };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
@@ -427,18 +449,18 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             <span className="tl-sep" />
           </span>
         )}
-        <IconButton icon={Clapperboard} label="Look through the shot camera" tipSide="top" active={shotMode} pressed={shotMode} onClick={() => setShotMode(!shotMode)} />
+        <IconButton icon={Clapperboard} label="Look through the shot camera" tipSide="top" active={!!through && !through.camera} pressed={!!through && !through.camera} onClick={() => store.lookThrough(through && !through.camera ? null : {})} />
         <IconButton
           icon={Camera}
-          label={onCamKey ? 'Update camera point' : 'Set camera point from the view'}
+          label={`${onCamKey ? 'Update' : 'Set'} ${rowCam.name}${rowCam.kind === 'path' ? '’s point' : ''} from the view`}
           tipSide="top"
           active={onCamKey}
           onClick={() => {
             const shot = captureShot();
             if (!shot) return;
-            setCameraPoint(store, shot.position, shot.target, shot.fov);
-            if (!shotMode) setShotMode(true);
-            notify('Camera point set');
+            setCameraPoint(store, shot.position, shot.target, shot.fov, '', rowCam.id);
+            if (!through) store.lookThrough(picked ? { camera: rowCam.id } : {});
+            notify(`${rowCam.name} set from the view`);
           }}
         />
         <Menu
@@ -458,7 +480,7 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
             { label: 'Onion skin (ghosts of the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) },
             { label: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: guides, onSelect: () => store.setSettings({ guides: !guides }) },
             '-',
-            { label: 'Delete camera point', icon: Trash2, disabled: !onCamKey, onSelect: () => deleteCameraPoint(store) },
+            { label: `Delete ${rowCam.name}’s point`, icon: Trash2, disabled: !onCamKey || camTimes.length <= 1, onSelect: () => deleteCameraPoint(store, time, rowCam.id) },
             { label: 'Remove animation', icon: Trash2, danger: true, onSelect: () => { pause(); removeAnimation(store); } },
           ]}
         >
@@ -500,7 +522,15 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 {p.name}
               </button>
             ))}
-            <span aria-hidden>Camera</span>
+            <button
+              type="button"
+              className={`tl-figure tl-camera${picked ? ' on' : ''}`}
+              onClick={() => store.select({ kind: 'camera', camera: rowCam.id })}
+              onContextMenu={(e) => openContextMenu(e, cameraMenu(store, rowCam.id, { notifyUndo }), rowCam.name)}
+              title={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
+            >
+              <Camera size={11} aria-hidden /> {rowCam.name}
+            </button>
           </div>
           <div className="tl-lanes" ref={track} onPointerDown={scrub} style={{ gridTemplateRows: rows }}>
             <div className="tl-ruler">
@@ -541,7 +571,17 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                       openContextMenu(e, shotMenu(store, sp.shot.id, { notify, notifyUndo }), sp.shot.name);
                     }}
                   >
-                    {!!sp.shot.blend && <i className="tl-blend" style={{ width: `${Math.min(100, (sp.shot.blend / (sp.end - sp.start)) * 100)}%` }} aria-hidden />}
+                    {sp.index > 0 && (
+                      <>
+                        <i
+                          className={`tl-blend${sp.shot.blend ? '' : ' none'}`}
+                          style={sp.shot.blend ? { width: `${Math.min(100, (sp.shot.blend / (sp.end - sp.start)) * 100)}%` } : undefined}
+                          title={`Blend in from the shot before${sp.shot.blend ? ` over ${sp.shot.blend.toFixed(2)} s` : ''}: drag right for longer`}
+                          onPointerDown={dragCut(sp, 'blend')}
+                        />
+                        <i className="tl-cut" title="Drag to move the cut" onPointerDown={dragCut(sp, 'cut')} />
+                      </>
+                    )}
                     {over && <TriangleAlert size={11} aria-hidden />}
                     <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(scene, sp.shot.camera) ? ` · ${cameraById(scene, sp.shot.camera)!.name}` : ''}</span>
                     <em>{(sp.end - sp.start).toFixed(1)}s</em>
@@ -674,27 +714,30 @@ export default function Timeline({ clock, shotMode, setShotMode, onion, setOnion
                 </div>
               );
             })}
-            <div className="tl-row camera" aria-label="Camera points">
+            <div className="tl-row camera" aria-label={`${rowCam.name} track`}>
+              {rowCam.kind === 'rig' && (
+                <span className="tl-travel rig" style={{ left: pct(0), width: `${(a.duration / span) * 100}%` }} title={`${rowCam.name} places itself every frame: it ${rigRule(scene, rowCam)}`}>
+                  <span style={inSight(0, a.duration)}>{rowCam.name} · {rigRule(scene, rowCam)}</span>
+                </span>
+              )}
+              {spans.filter((sp) => sp.shot.camera !== rowCam.id).map((sp) => (
+                <span key={sp.shot.id} className="tl-dim" style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }} title={`${sp.shot.name} is filmed by another camera`} aria-hidden />
+              ))}
               {camTimes.map((t) => (
                 <button
                   key={t}
                   type="button"
                   className={`tl-key cam${near(t) ? ' on' : ''}`}
                   style={{ left: pct(t) }}
-                  aria-label={`Camera point at ${t.toFixed(2)} s`}
-                  title="A point of the path of the camera filming then: drag to retime it"
+                  aria-label={`${rowCam.name} point at ${t.toFixed(2)} s`}
+                  title={`A point of ${rowCam.name}’s path: drag to retime it`}
                   onPointerDown={dragPoint(t)}
                   onContextMenu={(e) => {
                     seek(t);
-                    openContextMenu(e, [{ label: 'Delete camera point', icon: Trash2, danger: true, onSelect: () => deleteCameraPoint(store, t) }], `Camera · ${t.toFixed(2)} s`);
+                    openContextMenu(e, [{ label: 'Delete point', icon: Trash2, danger: true, disabled: camTimes.length <= 1, onSelect: () => deleteCameraPoint(store, t, rowCam.id) }], `${rowCam.name} · ${t.toFixed(2)} s`);
                   }}
                 />
               ))}
-              {!camTimes.length && (
-                <span className="tl-empty">
-                  {spans.every((sp) => cameraById(scene, sp.shot.camera)?.kind === 'rig') ? 'Cameras placing themselves from their subjects (no points to key)' : 'No camera moves yet: frame a view and press the camera button, or pick a move'}
-                </span>
-              )}
             </div>
             {flights.length > 0 && (
               <svg className="tl-flights" aria-hidden>

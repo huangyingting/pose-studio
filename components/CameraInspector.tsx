@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Camera as CameraIcon, Trash2 } from 'lucide-react';
+import { Camera as CameraIcon, Eye, Trash2 } from 'lucide-react';
 import { deleteCamera, deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens, setShotSubject } from '@/lib/actions';
 import { LENSES, SHOT_SIZES, cameraById, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
@@ -12,6 +12,7 @@ export default function CameraInspector({ id, chrome }: { id: string; chrome?: H
   const store = useStore();
   const scene = useScene();
   const a = scene.animation;
+  const through = useStudio((st) => st.through?.camera === id);
   const cam = cameraById(scene, id);
   if (!cam) return null;
   const films = a ? shotSpans(a).filter((s) => s.shot.camera === id) : [];
@@ -19,7 +20,8 @@ export default function CameraInspector({ id, chrome }: { id: string; chrome?: H
   return (
     <>
       <NameHeader chrome={chrome} lead={<CameraIcon size={15} aria-hidden />} name={cam.name} label="Camera name" onRename={(name) => editCamera(store, id, { name })}>
-        <IconButton icon={Trash2} label="Delete camera" shortcut="Del" onClick={() => deleteCamera(store, id)} />
+        <IconButton icon={Eye} label="Look through this camera" active={through} pressed={through} onClick={() => store.lookThrough(through ? null : { camera: id })} />
+        {scene.cameras.length > 1 && <IconButton icon={Trash2} label="Delete camera" shortcut="Del" onClick={() => deleteCamera(store, id)} />}
       </NameHeader>
       <Section title="Films">
         {!a ? (

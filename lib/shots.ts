@@ -87,6 +87,18 @@ export function removeCut(a: Animation, id: string): Animation {
   return { ...a, shots: renamed(a.shots.filter((_, j) => j !== i)) };
 }
 
+/** Move a cut (the start of a shot after the first) to t, on a frame, keeping every shot at least a frame long. */
+export function moveCut(a: Animation, id: string, t: number): Animation {
+  const shots = shotsOf(a);
+  const i = shots.findIndex((s) => s.id === id);
+  if (i <= 0) return a;
+  const frame = 1 / a.fps;
+  const end = shots[i + 1]?.start ?? a.duration;
+  const start = Math.min(end - frame, Math.max(shots[i - 1].start + frame, Math.round(t * a.fps) / a.fps));
+  const blend = shots[i].blend && Math.min(shots[i].blend!, end - start);
+  return { ...a, shots: shots.map((s, k) => (k === i ? { ...s, start, ...(blend ? { blend } : {}) } : s)) };
+}
+
 export function updateShot(a: Animation, id: string, patch: Partial<Omit<Shot, 'id' | 'start'>>): Animation {
   return { ...a, shots: shotsOf(a).map((s) => (s.id === id ? { ...s, ...patch } : s)) };
 }
@@ -121,16 +133,4 @@ export function movePoint(cam: PathCamera, a: Pick<Animation, 'fps' | 'duration'
   const tol = 0.5 / a.fps;
   if (cam.points.some((p) => Math.abs(p.t - v) < tol && Math.abs(p.t - from) >= tol)) return cam;
   return { ...cam, points: cam.points.map((p) => (Math.abs(p.t - from) < tol ? { ...p, t: v } : p)).sort((p, q) => p.t - q.t) };
-}
-
-/** The path points that show on the timeline: each shot's camera's, over the shot's time. */
-export function pointTimes(scene: Scene): number[] {
-  const a = scene.animation;
-  if (!a) return [];
-  const spans = shotSpans(a);
-  return spans.flatMap((sp) => {
-    const cam = scene.cameras.find((c) => c.id === sp.shot.camera);
-    const last = sp.index === spans.length - 1;
-    return (cam?.kind === 'path' ? cam.points : []).filter((p) => p.t >= sp.start - 1e-6 && (p.t < sp.end - 1e-6 || (last && p.t <= sp.end + 1e-6))).map((p) => p.t);
-  });
 }
