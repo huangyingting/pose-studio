@@ -252,7 +252,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   store: Store;
   scene: Scene;
   limits: boolean;
-  /** Whether the drag handles (a joint's gizmo, the dots) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
+  /** Whether the drag handles (a joint's card, the dots) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
@@ -464,13 +464,22 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     return {
       cursor: 'grab',
       begin: () => { m.setGroundLock(true); select(); },
-      move: (ray) => {
+      move: (ray, _dx, _dy, e) => {
         const h = hit(ray, facingPlane);
         if (!h) return;
         const to = h.sub(pivot);
         if (to.lengthSq() < 1e-8) return;
+        q.setFromUnitVectors(from, to.normalize());
+        // Ctrl: the swing in 5° steps (about the way it swings).
+        if (snapping(e)) {
+          const turn = 2 * Math.acos(Math.min(1, Math.abs(q.w)));
+          if (turn > 1e-6) {
+            const axis = new THREE.Vector3(q.x, q.y, q.z).multiplyScalar(Math.sign(q.w) || 1).normalize();
+            q.setFromAxisAngle(axis, snap(turn * R2D, STEPS.joint) * D2R);
+          }
+        }
         keepAboveFloor(m, obj, () => {
-          setWorldQuaternion(obj, q.setFromUnitVectors(from, to.normalize()).multiply(startQ));
+          setWorldQuaternion(obj, q.clone().multiply(startQ));
           if (limits) m.constrain([joint]);
         });
         readout();
@@ -553,7 +562,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     if (t.kind === 'prop' || t.kind === 'held') setPointerHint(propHint(name(t.prop), t.kind === 'held'));
     else {
       const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint);
-      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Drag handles hidden: H shows the gizmo`);
+      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Drag handles hidden: H shows the card`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };

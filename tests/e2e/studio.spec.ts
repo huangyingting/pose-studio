@@ -402,20 +402,27 @@ test('the axes show on the view widget and in the fields; drags read out how far
   await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
 });
 
-test('a selected joint has the rotate gizmo: dragged from its middle it turns the part, within its limits', async ({ page }) => {
+test('a selected joint has a card beside it: − and + step a slider 5° (Shift 15°), its value is typed', async ({ page }) => {
   await page.keyboard.press('1');
   await unfold(page, 'Joints');
-  await page.getByRole('button', { name: 'Head', exact: true }).click();
-  const head = () => state(page).then((s) => angle(s.scene.figures[0].bones, 'head'));
-  const before = await head();
-  // The ball in the middle turns it freely (the rings, about one axis each).
-  const at = await project(page, 'head');
-  await page.mouse.move(at.x, at.y);
-  await page.mouse.down();
-  for (let i = 1; i <= 8; i++) await page.mouse.move(at.x + i * 6, at.y);
-  await page.mouse.up();
-  expect(await head()).not.toEqual(before);
-  await expect(page.locator('.panel h3').first()).toHaveText('Head');
+  await page.getByRole('button', { name: 'Left forearm', exact: true }).click();
+  const card = page.getByRole('group', { name: 'Left forearm sliders' });
+  await expect(card).toBeVisible();
+  const bend = () => state(page).then((s) => angle(s.scene.figures[0].bones, 'leftLowerArm')[0]);
+  const before = await bend();
+  const row = card.locator('.joint-card-row').first();
+  // (The elbow bends one way: − bends it more.)
+  await row.getByRole('button', { name: /−5°$/ }).click();
+  expect(await bend()).toBeCloseTo(before - 5, 0);
+  await row.getByRole('button', { name: /−5°$/ }).click({ modifiers: ['Shift'] });
+  expect(await bend()).toBeCloseTo(before - 20, 0);
+  await row.getByRole('button', { name: /\+5°$/ }).click();
+  expect(await bend()).toBeCloseTo(before - 15, 0);
+  // Its value, typed.
+  await row.getByRole('button', { name: /click to type$/ }).click();
+  await row.getByRole('spinbutton').fill('-40');
+  await row.getByRole('spinbutton').press('Enter');
+  await expect.poll(bend).toBeCloseTo(-40, 0);
 });
 
 test('Shift-drag twists a part; handheld props go in the hand; the scene exports as a 3D model', async ({ page }) => {

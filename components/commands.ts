@@ -452,7 +452,7 @@ export function stepHint(c: Ctx): string | null {
     case 'figure': return `${tool}← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
     case 'prop': return `${tool}← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
     case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${c.many?.figures.length ? whole : ''}${shift}`;
-    case 'joint': return `${c.store.getState().settings.gizmo === 'rotate' ? '' : 'E: rotate tool · '}Alt ← →: its slider −/+ 5° · Alt ↑ ↓: Bend, Twist, Side · ↑ ↓ ← →: another joint${shift}`;
+    case 'joint': return `Alt ← →: its slider −/+ 5° · Alt ↑ ↓: Bend, Twist, Side · ↑ ↓ ← →: another joint${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
     case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
     case 'light': return `← →: round 15° · Page Up / Down: higher, lower${shift}`;
@@ -1318,6 +1318,7 @@ export const GESTURES: [string, string][] = [
   ['Move a figure or prop on the floor', 'Drag its torso / it'],
   ['Turn a figure or prop', 'Drag its floor ring (Ctrl: 15° steps)'],
   ['Snap a drag to steps (5°, 15°, the 25 cm grid)', 'Ctrl drag (Cmd on macOS)'],
+  ['Turn a joint 5° · type its value', 'Its card’s − + (Shift: 15°) · click the value'],
   ['Drag finely', 'Shift drag (one slider)'],
   ['Walk · run · jump the selected figure there', 'Right click the floor'],
   ['How a figure gets to its next key (walk, run, jump…)', 'Right click between its keys'],
