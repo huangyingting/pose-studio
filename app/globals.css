@@ -1890,31 +1890,6 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 .turn-step { position: absolute; display: grid; place-items: center; width: 24px; height: 24px; margin: -12px 0 0 -12px; padding: 0; border: 0; border-radius: 50%; background: var(--panel); color: var(--accent); box-shadow: var(--shadow-float); cursor: pointer; pointer-events: auto; }
 .turn-step:hover { background: var(--accent); color: var(--on-accent); }
 @media (pointer: coarse) { .turn-step { width: 32px; height: 32px; margin: -16px 0 0 -16px; } }
-.joint-arcs { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.joint-arc.x { --c: var(--axis-x); }
-.joint-arc.y { --c: var(--axis-y); }
-.joint-arc.z { --c: var(--axis-z); }
-.joint-arc-line { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; transition: stroke-width 0.1s, opacity 0.1s; }
-/* (A pale edge under each, so they read on the figure and the floor alike.) */
-.joint-arc-edge { fill: none; stroke: var(--panel); stroke-width: 6; stroke-linecap: round; opacity: 0.85; }
-.joint-arc.on .joint-arc-edge { stroke-width: 9; }
-.joint-arc-head { fill: var(--c); }
-.joint-arc-hit { fill: none; stroke: transparent; stroke-width: 20; pointer-events: stroke; cursor: grab; touch-action: none; }
-.joint-arc-hit:active { cursor: grabbing; }
-@media (pointer: coarse) { .joint-arc-hit { stroke-width: 28; } }
-.joint-arc.on .joint-arc-line { stroke-width: 6; }
-/* An arc's − and + steps. */
-.joint-arc-step { pointer-events: all; cursor: pointer; }
-.joint-arc-step circle { fill: var(--panel); stroke: var(--c); stroke-width: 1.5; }
-.joint-arc-step path { stroke: var(--c); stroke-width: 2; stroke-linecap: round; }
-.joint-arc-step:hover circle { fill: var(--c); }
-.joint-arc-step:hover path { stroke: var(--panel); }
-@media (pointer: coarse) { .joint-arc-step circle { r: 11px; } }
-.joint-arc.faded { opacity: 0.3; }
-.joint-arc.limit { animation: arc-limit 0.25s steps(2) infinite; }
-@keyframes arc-limit { 50% { opacity: 0.25; } }
-/* A joint arc's value, typed where it was double-clicked. */
-.arc-value { position: absolute; z-index: 40; width: 72px; height: 26px; padding: 0 6px; font-variant-numeric: tabular-nums; }
 .drag-readout.axis-x { box-shadow: inset 3px 0 0 var(--axis-x); }
 .drag-readout.axis-y { box-shadow: inset 3px 0 0 var(--axis-y); }
 .drag-readout.axis-z { box-shadow: inset 3px 0 0 var(--axis-z); }

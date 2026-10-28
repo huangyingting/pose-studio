@@ -460,9 +460,9 @@ function App() {
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}
-            // (A part selected with the handles hidden: its arcs, and the dots, are hidden too.)
+            // (A part selected with the handles hidden: its gizmo, and the dots, are hidden too.)
             alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
-              ? `The drag handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Drag handles) for the joint's arcs and the dots`
+              ? `The drag handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Drag handles) for the joint's gizmo and the dots`
               : null}
           />
         </div>

@@ -38,13 +38,6 @@ const ENDS: Partial<Record<JointName, keyof typeof IK_CHAINS>> = { leftHand: 'le
 
 type Controls = { enabled: boolean } | null;
 
-/** World units per screen pixel at a point (for handles that keep their size on screen). */
-function worldPerPixel(camera: THREE.Camera, at: THREE.Vector3, height: number) {
-  const cam = camera as THREE.PerspectiveCamera;
-  if (!cam.isPerspectiveCamera) return 0.002;
-  return (2 * cam.position.distanceTo(at) * Math.tan((cam.fov * D2R) / 2)) / height;
-}
-
 /** Pointer helpers bound to the canvas: rays from client coordinates and the orbit switch. */
 function usePointer() {
   const get = useThree((s) => s.get);
@@ -259,7 +252,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   store: Store;
   scene: Scene;
   limits: boolean;
-  /** Whether the drag handles (a joint's arcs, the dots) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
+  /** Whether the drag handles (a joint's gizmo, the dots) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
@@ -560,7 +553,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     if (t.kind === 'prop' || t.kind === 'held') setPointerHint(propHint(name(t.prop), t.kind === 'held'));
     else {
       const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint);
-      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Drag handles hidden: H shows the arcs`);
+      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Drag handles hidden: H shows the gizmo`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };
@@ -740,17 +733,17 @@ export function PropRing({ sv, id, version, onTurn }: { sv: SceneView; id: strin
 
 type HandleId = 'leftHand' | 'rightHand' | 'leftFoot' | 'rightFoot' | 'hips' | 'leftLowerArm' | 'rightLowerArm' | 'leftLowerLeg' | 'rightLowerLeg';
 
-/** Size on the body (r, metres for a 1.8 m figure), and at least this many pixels on screen (px), easier to hit (hit). */
-const HANDLES: { id: HandleId; color: string; r: number; px: number; hit: number }[] = [
-  { id: 'leftHand', color: '#f97316', r: 0.034, px: 7, hit: 15 },
-  { id: 'rightHand', color: '#f97316', r: 0.034, px: 7, hit: 15 },
-  { id: 'leftFoot', color: '#10b981', r: 0.038, px: 7, hit: 15 },
-  { id: 'rightFoot', color: '#10b981', r: 0.038, px: 7, hit: 15 },
-  { id: 'hips', color: '#8b5cf6', r: 0.045, px: 8, hit: 16 },
-  { id: 'leftLowerArm', color: '#fdba74', r: 0.024, px: 5, hit: 11 },
-  { id: 'rightLowerArm', color: '#fdba74', r: 0.024, px: 5, hit: 11 },
-  { id: 'leftLowerLeg', color: '#6ee7b7', r: 0.026, px: 5, hit: 11 },
-  { id: 'rightLowerLeg', color: '#6ee7b7', r: 0.026, px: 5, hit: 11 },
+/** Size on the body (r, metres for a 1.8 m figure): they scale with the model, as the gizmo and the floor rings do; grabbed within twice that. */
+const HANDLES: { id: HandleId; color: string; r: number }[] = [
+  { id: 'leftHand', color: '#f97316', r: 0.034 },
+  { id: 'rightHand', color: '#f97316', r: 0.034 },
+  { id: 'leftFoot', color: '#10b981', r: 0.038 },
+  { id: 'rightFoot', color: '#10b981', r: 0.038 },
+  { id: 'hips', color: '#8b5cf6', r: 0.045 },
+  { id: 'leftLowerArm', color: '#fdba74', r: 0.024 },
+  { id: 'rightLowerArm', color: '#fdba74', r: 0.024 },
+  { id: 'leftLowerLeg', color: '#6ee7b7', r: 0.026 },
+  { id: 'rightLowerLeg', color: '#6ee7b7', r: 0.026 },
 ];
 
 const isPole = (id: HandleId): id is keyof typeof POLE_CHAINS => id in POLE_CHAINS;
@@ -789,16 +782,14 @@ export function IKHandles({ m, figure, limits, onCommit, sv, scene, store }: {
   const pointer = usePointer();
   const scale = figure.body.height / 1.8;
 
-  useFrame(({ camera: cam, size }) => {
+  useFrame(() => {
     for (const h of HANDLES) {
       const g = refs.current[h.id];
       if (!g) continue;
       m.joints[h.id].getWorldPosition(g.position);
-      const wpp = worldPerPixel(cam, g.position, size.height);
-      const base = h.r * scale;
-      const r = Math.min(base * 2.5, Math.max(base, h.px * wpp)) * (hovered.current === h.id || drag.current?.id === h.id ? 1.3 : 1);
+      const r = h.r * scale * (hovered.current === h.id || drag.current?.id === h.id ? 1.3 : 1);
       g.children[0].scale.setScalar(r);
-      g.children[1].scale.setScalar(Math.min(base * 5, Math.max(r, h.hit * wpp)));
+      g.children[1].scale.setScalar(r * 2);
     }
   });
 

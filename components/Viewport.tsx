@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
+import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
 import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint, setSceneLight, toggleSelected } from '@/lib/actions';
@@ -20,16 +21,15 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { Figure, JointName, Light, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, sliderAxis, valuesOf } from './Manipulators';
+import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText } from './Manipulators';
 import type { Contact } from '@/lib/relations';
-import JointArcs, { type JointOnScreen } from './JointArcs';
 import TurnButtons from './TurnButtons';
 import CameraHandles, { stepRig } from './CameraHandles';
 import LightHandles from './LightHandles';
 import { STEPS, snapping } from './modifiers';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
-import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
+import { cameraHint, jointText, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
 import type { Placing } from './placing';
 
 export interface ViewportApi {
@@ -43,13 +43,11 @@ export interface ViewportApi {
   project(figure: string, joint: JointName): { x: number; y: number } | null;
   /** Screen (client) coordinates of a world point. */
   projectPoint(p: Vec3): { x: number; y: number };
-  /** A joint on screen, for its arcs (null if it is not drawn). */
-  jointOnScreen(figure: string, joint: JointName): JointOnScreen | null;
   /** The camera of the current view (looking through the shot camera: as the shot frames it). */
   captureShot(): CameraView | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
   pick(x: number, y: number): CanvasHit;
-  /** Where on screen to label what is selected: just above it (a joint: beside it, opposite its arcs). Null if it is not drawn. */
+  /** Where on screen to label what is selected: just above it (a joint: above its figure, clear of its gizmo). Null if it is not drawn. */
   labelPoint(sel: NonNullable<Selection>): { x: number; y: number } | null;
   /** What turns the selection on screen: a figure's or prop's floor ring (its middle and half its width, px), a camera or the lamp (no width). */
   ringOnScreen(sel: NonNullable<Selection>): { x: number; y: number; r: number } | null;
@@ -108,7 +106,9 @@ export default function Viewport({
   // Re-render when sync() replaces three.js objects, so the gizmo/handles get the new joints.
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
   const gizmoBusy = useRef(0);
+  const gizmo = useRef<TransformControlsImpl>(null);
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
+  const jointFrom = useRef<Vec3 | null>(null);
   // Ctrl (Cmd) held: the gizmo snaps.
   const [snapKey, setSnapKey] = useState(false);
   useEffect(() => {
@@ -139,10 +139,6 @@ export default function Viewport({
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
-  const jointOnScreen = useCallback(
-    () => (selection?.kind === 'joint' ? apiRef.current?.jointOnScreen(selection.figure, selection.joint) ?? null : null),
-    [selection, apiRef],
-  );
   // What ⟲ ⟳ turn: a figure, a prop not in a hand, a rig camera, the light.
   const turnable = !!selection && (selection.kind === 'figure' || selection.kind === 'light'
     || (selection.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold)
@@ -179,10 +175,9 @@ export default function Viewport({
     } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
   };
 
-  // The gizmo is for the explicit tools: Move (W: a whole figure or a prop, also up and down) and
-  // Scale (R: props). Joints are posed by dragging the body (Shift-drag twists), by the selected
-  // joint's arcs (one per slider, outside the body: rings around a joint crossed the parts next to
-  // it and caught the drags meant for them) and the inspector's sliders; figures and props turn by
+  // The gizmo: Move (W: a whole figure or a prop, also up and down), Scale (R: props), and under the
+  // Pose tool a selected joint's rotate gizmo (with the drag handles shown). Joints are also posed
+  // by dragging the body (Shift-drag twists) and the inspector's sliders; figures and props turn by
   // their floor ring.
   const handles = settings.showHandles && !shotMode;
   // (A finger needs a bigger gizmo.)
@@ -191,7 +186,9 @@ export default function Viewport({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const openAngle = useMemo(() => angleAt(scene, 0), [scene.id]);
   let target: THREE.Object3D | null = null;
-  let mode: 'translate' | 'scale' = 'translate';
+  let mode: 'translate' | 'rotate' | 'scale' = 'translate';
+  // The gizmo's size in the world (metres: a rotate ring's radius, a move arrow's length).
+  let gizmoWorld = 0.45;
   let showY = true;
   let onGizmoChange = () => {};
   // The readout of a gizmo drag, from where its object was when the drag began.
@@ -205,6 +202,7 @@ export default function Viewport({
     const doc = figureDoc(gizmoFigure);
     if (m && doc) {
       target = m.joints.hips;
+      gizmoWorld = 0.45 * (doc.body.height / 1.8);
       showY = !doc.grounded;
       onGizmoChange = () => store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}`);
       readout = (p) => {
@@ -212,11 +210,29 @@ export default function Viewport({
         setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
       };
     }
+  } else if (selection?.kind === 'joint' && !moving && handles) {
+    // A selected joint (Pose tool): the rotate gizmo in its own axes, the rings in its sliders'
+    // colours, kept within its limits (as Blender, Maya and posing apps have it).
+    const m = sv.figures.get(selection.figure);
+    const doc = figureDoc(selection.figure);
+    const joint = selection.joint;
+    if (m && doc && !doc.proxy) {
+      target = m.joints[joint];
+      mode = 'rotate';
+      gizmoWorld = 0.16 * (doc.body.height / 1.8);
+      onGizmoChange = () => {
+        if (settings.limits) m.constrain([joint]);
+        store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}:${joint}`);
+      };
+      readout = () => setReadout(jointText(joint, jointFrom.current ?? angle(doc.bones, joint), angle(m.read().bones, joint)));
+    }
   } else if (selection?.kind === 'prop' && settings.gizmo !== 'rotate') {
     const p = sv.props.get(selection.prop);
     if (p) {
       target = p.object;
       mode = settings.gizmo;
+      const box = new THREE.Box3().setFromObject(p.object).getSize(new THREE.Vector3());
+      gizmoWorld = Math.max(0.25, Math.max(box.x, box.z) * 0.6 + 0.1);
       const id = selection.prop;
       onGizmoChange = () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() }), `gizmo:${id}`);
       readout = (from) => {
@@ -321,19 +337,26 @@ export default function Viewport({
           />
         )}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
+        {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * settings.gizmoSize * (coarse ? 1.3 : 1)} />}
         {target && !shotMode && (
           <TransformControls
+            ref={gizmo}
             object={target}
             mode={mode}
             space={mode === 'translate' ? 'world' : 'local'}
-            // (About 1.3 times drei's own by default, half as much again on touch screens; View → Gizmo size.)
-            size={1.05 * settings.gizmoSize * (coarse ? 1.5 : 1)}
+            // (Sized in the world by GizmoScale, as the floor rings are: it shrinks as the view draws back.)
+            size={1}
             showY={showY}
-            // (Ctrl: the 25 cm grid, 10 % of the size.)
+            // (Ctrl: the 25 cm grid, 5° on a joint, 10 % of the size.)
             translationSnap={snapKey ? STEPS.move : null}
+            rotationSnap={snapKey ? STEPS.joint * (Math.PI / 180) : null}
             scaleSnap={snapKey ? STEPS.scale : null}
-            onMouseDown={() => { gizmoBusy.current = Infinity; gizmoFrom.current = target!.position.clone(); }}
-            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; setReadout(null); }}
+            onMouseDown={() => {
+              gizmoBusy.current = Infinity;
+              gizmoFrom.current = target!.position.clone();
+              jointFrom.current = selection?.kind === 'joint' ? angle(figureDoc(selection.figure)!.bones, selection.joint) : null;
+            }}
+            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; setReadout(null); }}
             onObjectChange={() => {
               onGizmoChange();
               if (gizmoFrom.current) readout(gizmoFrom.current);
@@ -407,20 +430,61 @@ export default function Viewport({
       </Canvas>
       <DragReadout />
       {handles && turnable && !through && <TurnButtons key={JSON.stringify(selection)} onScreen={ringOnScreen} />}
-      {handles && selection?.kind === 'joint' && figureDoc(selection.figure) && !figureDoc(selection.figure)!.proxy && (
-        <JointArcs
-          key={`${selection.figure}:${selection.joint}`}
-          store={store}
-          figure={selection.figure}
-          joint={selection.joint}
-          value={angle(figureDoc(selection.figure)!.bones, selection.joint)}
-          limits={settings.limits}
-          onScreen={jointOnScreen}
-          onLimit={(on) => sv.setHover(on ? { figure: selection.figure, joints: [selection.joint] } : null)}
-        />
-      )}
     </div>
   );
+}
+
+/** What GizmoScale reads and sets of three-stdlib's gizmo (private there, public in fact). */
+type Sizable = THREE.Object3D & { object?: THREE.Object3D; size: number };
+const setGizmoSize = (c: Sizable, size: number) => { c.size = size; };
+
+/** The gizmo's widths of line (its units: a ring's radius, an arrow's length is 1): the rings are on a smaller gizmo. */
+const GIZMO_LINE = { straight: 0.04, ring: 0.1 };
+
+/**
+ * Thick lines for the gizmo: three draws its rings and arrows' shafts as 1 px lines (WebGL draws no
+ * wider), so each gets a thin tube along it, in the same material (its highlight under the pointer
+ * goes with it). Done once per gizmo.
+ */
+function thicken(c: Sizable) {
+  if (c.userData.thick) return;
+  c.userData.thick = true;
+  const lines: THREE.Line[] = [];
+  c.traverse((o) => { if ((o as THREE.Line).isLine && (o as { tag?: string }).tag !== 'helper') lines.push(o as THREE.Line); });
+  for (const line of lines) {
+    const pos = line.geometry.getAttribute('position');
+    if (!pos || pos.count < 2) continue;
+    const path = new THREE.CurvePath<THREE.Vector3>();
+    for (let i = 1; i < pos.count; i++) {
+      const a = new THREE.Vector3().fromBufferAttribute(pos, i - 1);
+      const b = new THREE.Vector3().fromBufferAttribute(pos, i);
+      if (a.distanceTo(b) > 1e-6) path.add(new THREE.LineCurve3(a, b));
+    }
+    if (!path.curves.length) continue;
+    const width = path.curves.length > 2 ? GIZMO_LINE.ring : GIZMO_LINE.straight;
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(1, path.curves.length), width / 2, 6, false), line.material);
+    tube.raycast = () => {};
+    line.add(tube);
+  }
+}
+
+/**
+ * The Move, Rotate and Scale gizmo sized in the world (`size`: its unit in metres), as the model,
+ * its floor rings and joint handles are, not one size on screen as three's is: it shrinks as the
+ * view draws back.
+ */
+function GizmoScale({ controls, size }: { controls: RefObject<TransformControlsImpl | null>; size: number }) {
+  const at = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }) => {
+    const c = controls.current as unknown as Sizable | null;
+    const o = c?.object;
+    if (!c || !o || !(camera instanceof THREE.PerspectiveCamera)) return;
+    thicken(c);
+    // (three-stdlib's gizmo is scaled by this factor × its size / 7.)
+    const factor = o.getWorldPosition(at).distanceTo(camera.position) * Math.min((1.9 * Math.tan((Math.PI * camera.fov) / 360)) / camera.zoom, 7);
+    setGizmoSize(c, factor > 1e-6 ? (7 * size) / factor : 1);
+  });
+  return null;
 }
 
 /** While something above the floor is dragged: a dashed line from it down to the floor. */
@@ -700,37 +764,6 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         return m ? toScreen(m.joints[joint].getWorldPosition(new THREE.Vector3())) : null;
       },
       projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
-      jointOnScreen: (id, joint) => {
-        const m = sv.figures.get(id);
-        // (A figure drawn as a character: its mannequin is hidden but still posed, and the character follows it.)
-        if (!m || (!m.object.visible && !sv.models.get(id))) return null;
-        const obj = m.joints[joint];
-        const pivot = obj.getWorldPosition(new THREE.Vector3());
-        const at = toScreen(pivot.clone());
-        const child = m.jointsUnder(joint)[1];
-        const end = child ? m.joints[child].getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, joint === 'head' ? 0.1 : -0.1, 0).applyQuaternion(obj.getWorldQuaternion(new THREE.Quaternion())).add(pivot);
-        // Away from the parts next to it on screen, and from the body (a limb's arcs go outside it).
-        const away = { x: 0, y: 0 };
-        const from = (p: THREE.Vector3, weight = 1) => {
-          const q = toScreen(p.clone());
-          const l = Math.hypot(q.x - at.x, q.y - at.y);
-          if (l > 1) { away.x -= ((q.x - at.x) / l) * weight; away.y -= ((q.y - at.y) / l) * weight; }
-          return q;
-        };
-        if (joint !== 'hips') from(obj.parent!.getWorldPosition(new THREE.Vector3()));
-        const e = from(end);
-        if (joint !== 'hips' && joint !== 'spine' && joint !== 'chest') from(m.joints.chest.getWorldPosition(new THREE.Vector3()), 1.5);
-        const angle = Math.hypot(away.x, away.y) > 0.3 ? Math.atan2(away.y, away.x) : Math.atan2(e.y - at.y, e.x - at.x) + Math.PI / 2;
-        // Which way a point of the part (in front of its end) goes on screen as each slider grows.
-        const probe = end.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), -0.06);
-        const p0 = toScreen(probe.clone());
-        const v = valuesOf(obj, joint);
-        const turns = [0, 1, 2].map((i): [number, number] => {
-          const p = toScreen(probe.clone().sub(pivot).applyAxisAngle(sliderAxis(obj, v, i), 0.1).add(pivot));
-          return [p.x - p0.x, p.y - p0.y];
-        });
-        return { x: at.x, y: at.y, away: angle, turns };
-      },
       captureShot: () => captureRef.current(),
       labelPoint: (sel) => {
         if (sel.kind === 'light') {
@@ -738,12 +771,8 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           const lamp = lampAt(lightDome(sv.bounds()), lightRef.current);
           return lamp.clone().project(camera).z > 1 ? null : toScreen(lamp);
         }
-        if (sel.kind === 'joint') {
-          // Beside the joint, on the side away from its arcs.
-          const j = apiRef.current?.jointOnScreen(sel.figure, sel.joint);
-          return j ? { x: j.x - Math.cos(j.away) * 72, y: j.y - Math.sin(j.away) * 40 } : null;
-        }
-        if (sel.kind === 'figure') {
+        if (sel.kind === 'figure' || sel.kind === 'joint') {
+          // (A joint's too: clear of its gizmo.)
           // Above the head (cheap enough to follow every frame).
           const m = sv.figures.get(sel.figure);
           if (!m || !m.object.visible && !sv.models.get(sel.figure)) return null;

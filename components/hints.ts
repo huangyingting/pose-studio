@@ -115,7 +115,6 @@ export const sliderName = (joint: JointName, axis: number) => axisLabels(joint)[
 export const sliderText = (joint: JointName, axis: number, value: number) => `${JOINT_LABELS[joint]} · ${sliderName(joint, axis)} ${degrees(value)}`;
 /** A drag held at a joint's limit (with the limits lock on). */
 export const limitText = (joint: JointName, value: number) => `${JOINT_LABELS[joint]}: limit ${degrees(value)}`;
-export const arcHint = (joint: JointName, axis: number) => `Drag: ${sliderName(joint, axis)} of the ${part(joint)} · Ctrl: 5° steps · Shift: fine · Double-click: type the value`;
 
 /** A joint's slider that a drag has changed most, and its value. */
 export function jointText(joint: JointName, before: Vec3, now: Vec3) {
