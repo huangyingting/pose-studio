@@ -285,7 +285,8 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     if (sel?.kind === 'many' && (t.kind === 'prop' ? sel.props.includes(t.prop) : t.kind === 'body' && sel.figures.includes(t.figure))) {
       const things = [
         ...sel.figures.flatMap((id) => { const m = sv.figures.get(id); return m ? [{ obj: m.joints.hips, top: m.object, commit: () => store.updateFigure(id, (f) => ({ ...f, ...m.read() })) }] : []; }),
-        ...sel.props.flatMap((id) => { const p = sv.props.get(id); return p ? [{ obj: p.object, top: p.object, commit: () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() })) }] : []; }),
+        // (A prop in a hand goes with the hand: not moved again.)
+        ...sel.props.filter((id) => !scene.props.find((x) => x.id === id)?.hold).flatMap((id) => { const p = sv.props.get(id); return p ? [{ obj: p.object, top: p.object, commit: () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() })) }] : []; }),
       ].map((x) => ({ ...x, p: x.obj.position.clone(), q: x.obj.quaternion.clone() }));
       const middle = things.reduce((m, x) => m.add(x.p), new THREE.Vector3()).divideScalar(Math.max(1, things.length));
       const up = new THREE.Vector3(0, 1, 0);
@@ -431,12 +432,13 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
           reachAboveFloor(m, chain, h, startQ, limits);
           if (!onto) readout();
         },
-        end: () => {
+        // (The pose and the hold: one undo step.)
+        end: () => store.group(() => {
           commit();
           if (hand && onto && !holdOn(store, t.figure, hand === 'leftHand' ? 'L' : 'R', onto.figure, onto.contact)) {
             setPointerHint(`${scene.figures.find((f) => f.id === onto!.figure)?.name} is out of reach`);
           }
-        },
+        }),
       };
     }
 
@@ -843,10 +845,13 @@ export function IKHandles({ m, figure, limits, onCommit, sv, scene, store }: {
     setReadout(null);
     m.setGroundLock(false);
     pointer.orbit(true);
-    onCommit(m.read());
     const on = onto.current;
     onto.current = null;
-    if (on && !holdOn(store, figure.id, hand === 'leftHand' ? 'L' : 'R', on.figure, on.contact)) setPointerHint(`${scene.figures.find((f) => f.id === on.figure)?.name} is out of reach`);
+    // (The pose and the hold: one undo step.)
+    store.group(() => {
+      onCommit(m.read());
+      if (on && !holdOn(store, figure.id, hand === 'leftHand' ? 'L' : 'R', on.figure, on.contact)) setPointerHint(`${scene.figures.find((f) => f.id === on.figure)?.name} is out of reach`);
+    });
   };
 
   return (

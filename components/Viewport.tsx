@@ -695,7 +695,11 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       },
       captureShot: () => captureRef.current(),
       labelPoint: (sel) => {
-        if (sel.kind === 'light') return toScreen(lampAt(lightDome(sv.bounds()), lightRef.current));
+        if (sel.kind === 'light') {
+          // (Behind the view: not on screen.)
+          const lamp = lampAt(lightDome(sv.bounds()), lightRef.current);
+          return lamp.clone().project(camera).z > 1 ? null : toScreen(lamp);
+        }
         if (sel.kind === 'joint') {
           // Beside the joint, on the side away from its arcs.
           const j = apiRef.current?.jointOnScreen(sel.figure, sel.joint);
@@ -912,6 +916,11 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
   // The camera whose outline row the pointer rests on (larger, in the accent); resting on one here marks its row.
   const linked = useStudio((st) => st.linked);
+  // (A rig camera removed while the pointer rests on it gets no pointer-out: the view's zoom comes back anyway.)
+  useEffect(() => () => {
+    const controls = get().controls as unknown as { enableZoom: boolean } | null;
+    if (controls) controls.enableZoom = true;
+  }, [cameras, get]);
   const link = (id: string) => {
     const cam = cameras.find((c) => c.id === id);
     // (Over a rig camera the wheel steps its shot size, not the view's zoom.)

@@ -787,9 +787,13 @@ export const COMMANDS: Command[] = [
     run: (c) => {
       App().stopPlayback();
       const view = c.store.getState().through ? App().captureShot() : null;
-      cutShot(c.store);
-      // Looking through: the new shot is filmed by a new camera as the view is now, and looked through.
-      if (view) c.store.lookThrough({ camera: addCamera(c.store, view) });
+      const shots = sceneOf(c).animation!.shots.length;
+      // Looking through: the new shot (if a cut was made) is filmed by a new camera as the view is now, and looked through; one undo step.
+      const cam = c.store.group(() => {
+        cutShot(c.store);
+        return view && sceneOf(c).animation!.shots.length > shots ? addCamera(c.store, view) : null;
+      });
+      if (cam) c.store.lookThrough({ camera: cam });
     },
   },
   {
