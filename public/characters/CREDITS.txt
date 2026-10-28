@@ -40,3 +40,11 @@ aoi.glb
   Changes (scripts/vrm-character.py): its bones renamed as the app's skeleton's, its textures
   fitted within 1024 px, its spring bones left out. Its meshes, MToon materials, humanoid and
   licence are as they came.
+
+mio.glb
+
+  "Mio": aoi.glb (Aoi by Ueda, above) made over by scripts/characters/mio.py: silver-white hair
+  and brows, grey-green eyes; a white bandeau (her T-shirt cut to a band) and white bikini bottom
+  (her body's painted underwear recoloured); the holes VRoid left in her body under her clothes
+  closed in her skin's colour; her cardigan and shorts taken off. Her body's shape, her face and
+  her shoes are Aoi's; the same licence and credit apply ("Mio, after Aoi by Ueda").

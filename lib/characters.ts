@@ -46,7 +46,7 @@ const OURS: ModelInfo['bones'] = Object.fromEntries(SKELETON.map((b) => [b, b]))
 /**
  * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
- * her own toon look (Ueda's VRM, credited as her licence asks). Each with the body the mannequin
+ * her own toon look (Ueda's VRM, credited as her licence asks), and Mio, Aoi made over. Each with the body the mannequin
  * under it takes (its height, build, head and legs, measured from the character), which contacts
  * and the motion check use.
  */
@@ -59,6 +59,11 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   {
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.55, build: 0, head: 1.27, legs: 1.13, bust: 0.3 },
     credit: 'by Ueda · personal use · credit required',
+  },
+  // (Aoi made over: silver hair, grey-green eyes, a white bikini: scripts/characters/mio.py.)
+  {
+    id: `${PREFIX}mio`, name: 'Mio', format: 'glb', bones: OURS, body: { sex: 1, height: 1.55, build: 0, head: 1.27, legs: 1.13, bust: 0.3 },
+    credit: 'after Aoi by Ueda · personal use · credit required',
   },
 ];
 
