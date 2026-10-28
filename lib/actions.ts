@@ -9,14 +9,14 @@ import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } fro
 import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
-import { clipInfo, keysClip, partKeys } from './clip';
+import { clipInfo, partKeys } from './clip';
 import { saveClips, saveImage } from './assetstore';
 import { filmOf } from './film';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, insertClip, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, insertClip, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { fitBody, modelInfo } from './model';
@@ -186,18 +186,9 @@ export function duplicateFigure(store: Store, id: string) {
  * `offset` (x, z).
  */
 function copyTrack(a: Animation, from: string, to: string, offset: [number, number]): Animation {
-  const move = (m: { at: [number, number]; facing: number }) => ({ ...m, at: [m.at[0] + offset[0], m.at[1] + offset[1]] as [number, number] });
-  const copies = a.actions.filter((x) => x.roles.length === 1 && x.roles[0].figure === from).map((x): Action => {
-    const roles = [{ figure: to, ...(x.roles[0].end ? { end: move(x.roles[0].end) } : {}) }];
-    const src = x.source;
-    if (src.kind === 'keys' && !x.layer) {
-      const keys = partKeys(src.clip.parts[0]).map((k) => ({ t: k.t, pose: { ...k.pose, position: [k.pose.position[0] + offset[0], k.pose.position[1], k.pose.position[2] + offset[1]] as Vec3 } }));
-      return { ...x, id: uid('act'), roles, source: { kind: 'keys', clip: keysClip(keys, src.clip.loop, src.clip.duration) } };
-    }
-    if (src.kind === 'travel' && src.via) return { ...x, id: uid('act'), roles, source: { ...src, via: src.via.map(move) } };
-    return { ...structuredClone(x), id: uid('act'), roles };
-  });
-  return { ...a, actions: [...a.actions.filter((x) => !x.roles.some((r) => r.figure === to)), ...copies].sort((p, q) => p.start - q.start || p.duration - q.duration) };
+  const copies = a.actions.filter((x) => x.roles.length === 1 && x.roles[0].figure === from).map((x): Action => ({ ...structuredClone(x), id: uid('act'), roles: [{ ...x.roles[0], figure: to }] }));
+  const b = restage({ ...a, actions: [...a.actions.filter((x) => !x.roles.some((r) => r.figure === to)), ...copies] }, [to], { dx: offset[0], dz: offset[1], turn: 0, about: [0, 0] });
+  return { ...b, actions: [...b.actions].sort((p, q) => p.start - q.start || p.duration - q.duration) };
 }
 
 /**
@@ -1634,6 +1625,33 @@ export function stepMany(store: Store, figures: string[], props: string[], move:
       });
     }
   });
+}
+
+/**
+ * Move whole performances across the floor (#13: a track offset, without a key): everything
+ * `figures` do, and those they share an action with, moved by (dx, dz) and turned by `turn`
+ * degrees about where they are at the playhead (or `about`). In a still scene: the figures themselves. Returns
+ * the figures moved.
+ */
+export function offsetPerformance(store: Store, figures: string[], move: { dx?: number; dz?: number; turn?: number; about?: [number, number] }, key = ''): string[] {
+  const s = store.scene;
+  const a = s.animation;
+  const ids = a ? partnersOf(a, figures) : figures;
+  const spots = s.figures.filter((f) => ids.includes(f.id)).map((f) => f.position);
+  if (!spots.length) return [];
+  const { dx = 0, dz = 0, turn = 0 } = move;
+  if (!a) {
+    store.group(() => {
+      if (dx || dz) stepMany(store, ids, [], { dx, dz });
+      if (turn) stepMany(store, ids, [], { turn });
+    });
+    return ids;
+  }
+  const about = move.about ?? [spots.reduce((t, p) => t + p[0], 0) / spots.length, spots.reduce((t, p) => t + p[2], 0) / spots.length];
+  // The track only: the figures are posed from it again (an edit to them would key them here).
+  store.updateScene((x) => (x.animation ? { ...x, animation: restage(x.animation, ids, { dx, dz, turn, about }) } : x), key);
+  store.setTime(store.getState().time);
+  return ids;
 }
 
 /** Turn one of a joint's sliders by a step (degrees), kept to its limits when they are on. */

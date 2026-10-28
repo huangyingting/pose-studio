@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { addCamera, addFigure, addProp, setJoint, startAnimation, stepCamera, stepFigure, stepJoint, stepMany, stepProp, turnFigure, turnProp } from '@/lib/actions';
+import { addCamera, addFigure, addProp, offsetPerformance, setJoint, startAnimation, stepCamera, stepFigure, stepJoint, stepMany, stepProp, travelTo, turnFigure, turnProp } from '@/lib/actions';
 import { cameraById, viewOf } from '@/lib/cameras';
 import { angle } from '@/lib/pose';
 import { facing } from '@/lib/relations';
 import { Store } from '@/lib/store';
-import { keyTimesOf } from '@/lib/track';
+import { figurePoseAt } from '@/lib/evaluate';
+import { keyTimesOf, partnersOf } from '@/lib/track';
+import type { Animation } from '@/lib/types';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -97,5 +99,41 @@ describe('steps from the keyboard (#13)', () => {
     store.updateScene((s) => ({ ...s, cameras: s.cameras.map((c) => (c.id === cam && c.kind === 'path' ? { ...c, points: c.points.map((p) => ({ ...p, roll: 10 })) } : c)) }));
     stepCamera(store, cam, { right: 0.1 });
     expect(viewOf(store.scene, cameraById(store.scene, cam)!, 0).roll).toBeCloseTo(10, 3);
+  });
+
+  it('moves and turns a whole performance without a key, in one undo step', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    startAnimation(store);
+    const [x0, , z0] = store.figure!.position;
+    const span = travelTo(store, id, [x0 + 2, z0], 'walk')!;
+    store.setTime(span.to);
+    const keys = keyTimesOf(store.scene.animation!, id);
+    const at = (t: number) => figurePoseAt(store.scene, id, t)!.position;
+    const [start, end] = [at(0), at(span.to)];
+    const undos = store.getState().canUndo;
+
+    offsetPerformance(store, [id], { dx: 0.5 }, 'test');
+    expect(keyTimesOf(store.scene.animation!, id)).toEqual(keys);
+    expect(at(0)[0]).toBeCloseTo(start[0] + 0.5, 2);
+    expect(at(span.to)[0]).toBeCloseTo(end[0] + 0.5, 2);
+    // The figure on the canvas is posed from it again.
+    expect(store.figure!.position[0]).toBeCloseTo(end[0] + 0.5, 2);
+
+    // Half a turn about where it is at the playhead: the walk now comes the other way.
+    offsetPerformance(store, [id], { turn: 180 });
+    expect(at(span.to)[0]).toBeCloseTo(end[0] + 0.5, 2);
+    expect(at(0)[0]).toBeCloseTo(end[0] + 0.5 + 2, 1);
+    store.undo();
+    store.undo();
+    expect(at(0)[0]).toBeCloseTo(start[0], 3);
+    expect(store.getState().canUndo).toBe(undos);
+  });
+
+  it('brings along those who share an action', () => {
+    const act = (id: string, figures: string[]) => ({ id, start: 0, duration: 1, roles: figures.map((figure) => ({ figure })), source: { kind: 'clip', clip: 'x' } });
+    const a = { duration: 4, fps: 24, loop: false, actions: [act('1', ['a', 'b']), act('2', ['b', 'c']), act('3', ['d'])] } as unknown as Animation;
+    expect(partnersOf(a, ['a']).sort()).toEqual(['a', 'b', 'c']);
+    expect(partnersOf(a, ['d'])).toEqual(['d']);
   });
 });

@@ -9,7 +9,7 @@ import {
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
   mirrorPose, pastePose, propNow, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
-  setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera,
+  setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight, lightFrom, lightText } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
@@ -291,6 +291,12 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
   return null;
 }
 
+/** n steps across the floor to the right (sx) and away (sy), as the editor's view sees them: (dx, dz). */
+function floorStep(sx: number, sy: number, n: number) {
+  const yaw = ((App().view?.()?.yaw ?? 0) * Math.PI) / 180;
+  return [sx * Math.cos(yaw) - sy * Math.sin(yaw), -sx * Math.sin(yaw) - sy * Math.cos(yaw)].map((v) => v * STEP.move * n) as [number, number];
+}
+
 /** Take a step: the way the screen shows for moves, Shift for three. */
 function step(c: Ctx, k: StepKey) {
   const at = stepping(c, k);
@@ -301,9 +307,7 @@ function step(c: Ctx, k: StepKey) {
   const sy = k === 'up' || k === 'turnUp' || k === 'raise' ? 1 : k === 'down' || k === 'turnDown' || k === 'lower' ? -1 : 0;
   const moving = k === 'left' || k === 'right' || k === 'up' || k === 'down';
   const lift = k === 'raise' || k === 'lower';
-  // The floor's right and away, as the editor's view sees them.
-  const yaw = ((App().view?.()?.yaw ?? 0) * Math.PI) / 180;
-  const [dx, dz] = [sx * Math.cos(yaw) - sy * Math.sin(yaw), -sx * Math.sin(yaw) - sy * Math.cos(yaw)].map((v) => v * STEP.move * n);
+  const [dx, dz] = floorStep(sx, sy, n);
   const name = (id?: string) => sceneOf(c).figures.find((f) => f.id === id)?.name ?? sceneOf(c).props.find((p) => p.id === id)?.name ?? sceneOf(c).cameras.find((x) => x.id === id)?.name ?? '';
   const where = (p: Vec3) => `X ${metres(p[0])}  Z ${metres(p[2])}${p[1] > 0.005 ? `  ↑ ${metres(p[1])}` : ''}`;
   switch (at.kind) {
@@ -360,14 +364,52 @@ function step(c: Ctx, k: StepKey) {
   }
 }
 
+/** The keys that move whole performances: Ctrl (Cmd) with the arrows; with Alt, ← → turn them. */
+const WHOLE_KEYS = [
+  { id: 'left', title: 'Move the whole performance left' },
+  { id: 'right', title: 'Move the whole performance right' },
+  { id: 'up', title: 'Move the whole performance away' },
+  { id: 'down', title: 'Move the whole performance nearer' },
+  { id: 'turnLeft', title: 'Turn the whole performance left' },
+  { id: 'turnRight', title: 'Turn the whole performance right' },
+] as const;
+
+/** Whose whole performances the Ctrl keys move: the figure selected, or the figures among several. */
+function performers(c: Ctx): string[] | null {
+  if (c.store.getState().through || c.joint) return null;
+  return c.many?.figures.length ? c.many.figures : c.figure ? [c.figure] : null;
+}
+
+/** Move or turn whole performances a step (no key; those acting with them come too). */
+function wholeStep(c: Ctx, k: StepKey) {
+  const ids = performers(c);
+  if (!ids) return;
+  const n = lastStepShift ? 3 : 1;
+  const sx = k === 'left' || k === 'turnLeft' ? -1 : k === 'right' || k === 'turnRight' ? 1 : 0;
+  const sy = k === 'up' ? 1 : k === 'down' ? -1 : 0;
+  const [dx, dz] = floorStep(sx, sy, n);
+  const turning = k.startsWith('turn');
+  const moved = offsetPerformance(c.store, ids, turning ? { turn: -sx * STEP.turn * n } : { dx, dz }, `whole:${ids.join(',')}`);
+  flashReadout(`${wholeText(c, ids, moved)} · ${turning ? `turned ${-sx * STEP.turn * n}°` : `moved ${Math.round(Math.hypot(dx, dz) * 100)} cm`}`);
+}
+
+/** "Kai's whole performance", "with Ben (they act together)". */
+function wholeText(c: Ctx, ids: string[], moved: string[]) {
+  const name = (id: string) => sceneOf(c).figures.find((f) => f.id === id)?.name ?? '';
+  const who = ids.length === 1 ? `${name(ids[0])}'s whole performance` : 'Their whole performances';
+  const others = moved.filter((id) => !ids.includes(id));
+  return others.length ? `${who}, with ${others.map(name).join(', ')} (acting together)` : who;
+}
+
 /** What the step keys do for what is selected, for the hint ("← → ↑ ↓: move · Alt ← →: turn"). */
 export function stepHint(c: Ctx): string | null {
   const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
   const shift = ' · Shift: ×3';
+  const whole = animated(c) ? ' · Ctrl: the whole performance' : '';
   switch (at?.kind) {
-    case 'figure': return `← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${shift}`;
+    case 'figure': return `← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
     case 'prop': return `← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
-    case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${shift}`;
+    case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${c.many?.figures.length ? whole : ''}${shift}`;
     case 'joint': return `Alt ← →: its slider −/+ 5° · Alt ↑ ↓: Bend, Twist, Side · ↑ ↓ ← →: another joint${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
     case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
@@ -478,6 +520,30 @@ export const COMMANDS: Command[] = [
     when: (c) => !!stepping(c, k.id),
     run: (c) => step(c, k.id),
   })),
+
+  // Whole performances (#13, a track offset): Ctrl (Cmd) + the arrows move all a figure does, Ctrl
+  // + Alt + ← → turn it, without a key; in a still scene, as the arrows.
+  ...WHOLE_KEYS.map((k): Command => {
+    const key = STEP_KEYS.find((x) => x.id === k.id)!.key;
+    const shift = key.startsWith('alt+') ? `mod+alt+shift+${key.slice(4)}` : `mod+shift+${key}`;
+    return { id: `whole.${k.id}`, title: k.title, keys: [`mod+${key}`, shift], when: (c) => !!performers(c), run: (c) => wholeStep(c, k.id) };
+  }),
+  {
+    id: 'figure.wholeTo', title: (c) => (c.floor ? 'Move the whole performance here' : 'Move the whole performance to…'),
+    help: 'Move everything the figure does so that it is at a spot at the playhead (no key)', icon: Move3d,
+    when: (c) => animated(c) && movable(c),
+    run: (c) => {
+      const f = c.figure ? figureOf(c) : activeFigure(c);
+      if (!f) return;
+      const go = (at: Vec3) => {
+        const now = figureOf({ store: c.store, figure: f.id })!.position;
+        const moved = offsetPerformance(c.store, [f.id], { dx: at[0] - now[0], dz: at[2] - now[2] });
+        flashReadout(`${wholeText(c, [f.id], moved)} · moved`);
+      };
+      if (c.floor) go(c.floor);
+      else App().pickFloor?.(`Click the floor where ${f.name} should be now, with all it does · Esc to cancel`, go);
+    },
+  },
 
   // Several things at once.
   {
@@ -1118,7 +1184,7 @@ export const MENUS = {
   ],
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
-    { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw',
+    { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo',
     'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
@@ -1138,7 +1204,7 @@ export const MENUS = {
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.shadows'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
-    { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', '-',
+    { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', '-',
     'floor.figure', 'floor.standIn', 'floor.prop', '-', 'view.frameAll',
   ],
   timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],

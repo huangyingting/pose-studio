@@ -5,13 +5,13 @@ import {
   ArrowLeftRight, ChevronDown, Copy, Eye, Footprints, Hand, Mars, Navigation, PanelLeft, PanelRight, PersonStanding, Pin, Repeat, RotateCcw, Unlink, UserRound, Venus, X,
 } from 'lucide-react';
 import {
-  arrange, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
+  arrange, offsetPerformance, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
-import { travelAt } from '@/lib/evaluate';
+import { figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
-import { JOINT_LABELS, axisLabels, jointLimits } from '@/lib/joints';
+import { JOINT_LABELS, axisLabels, jointLimits, wrapDeg } from '@/lib/joints';
 import { angle } from '@/lib/pose';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type Hand as HandPose, type Posture, type Scene, type Side, type Vec3 } from '@/lib/types';
@@ -136,6 +136,7 @@ export function PlacementPanel({ t }: { t: Target }) {
   // Between two marks of a walk, run or jump the generated steps place the figure.
   const travel = animation ? travelAt(animation, figure.id, time) : null;
   const moving = travel && time > travel.start + 1e-6 && time < travel.start + travel.duration - 1e-6;
+  const start = animation ? figurePoseAt(t.scene, figure.id, 0) : null;
   return (
     <>
       <div className="prop-row">
@@ -144,9 +145,18 @@ export function PlacementPanel({ t }: { t: Target }) {
         <NumberField prefix="Z" label="Position Z" value={figure.position[2]} step={0.05} onChange={(z) => setPlacement(store, figure.id, { z }, `place:${figure.id}:z`)} />
         <NumberField prefix="↻" label="Facing" value={facing(figure)} step={5} digits={0} onChange={(yaw) => setPlacement(store, figure.id, { yaw }, `place:${figure.id}:yaw`)} />
       </div>
+      {start && (
+        // Where its performance starts: changing it moves (or turns, about there) all it does, without a key.
+        <div className="prop-row" data-tip="Where it starts: changing it moves all it does, without a key (Ctrl + arrows)">
+          <span className="prop-row-label">Whole performance</span>
+          <NumberField prefix="X" label="Whole performance X" value={start.position[0]} step={0.05} onChange={(x) => offsetPerformance(store, [figure.id], { dx: x - start.position[0] }, `whole:${figure.id}:x`)} />
+          <NumberField prefix="Z" label="Whole performance Z" value={start.position[2]} step={0.05} onChange={(z) => offsetPerformance(store, [figure.id], { dz: z - start.position[2] }, `whole:${figure.id}:z`)} />
+          <NumberField prefix="↻" label="Whole performance facing" value={facing(start)} step={5} digits={0} onChange={(yaw) => offsetPerformance(store, [figure.id], { turn: wrapDeg(yaw - facing(start)), about: [start.position[0], start.position[2]] }, `whole:${figure.id}:yaw`)} />
+        </div>
+      )}
       {!figure.proxy && (
         // Walking, running, jumping or stepping somewhere, or throwing what it holds: picked on the floor.
-        <Menu label="Move to…" className="btn subtle move-to" items={() => menuItems(['figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw'], { store, figure: figure.id })}>
+        <Menu label="Move to…" className="btn subtle move-to" items={() => menuItems(['figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo'], { store, figure: figure.id })}>
           <Footprints size={14} aria-hidden /> Move to… <ChevronDown size={13} aria-hidden />
         </Menu>
       )}

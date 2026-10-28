@@ -1536,6 +1536,51 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   expect(await az()).toBeCloseTo(a0 + 15, 0);
 });
 
+test('a whole performance moves and turns as one, without a key: Ctrl + arrows, the inspector, Move the whole performance here', async ({ page }) => {
+  test.setTimeout(240_000);
+  await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
+  let s = await live(page);
+  const id = s.active!;
+  const keys = keyTimesOf(s.scene.animation!, id);
+  const end = (x: typeof s) => actionsOf(x.scene.animation!, id)[1].roles[0].end!.at;
+  const start = (x: typeof s) => actionsOf(x.scene.animation!, id)[0];
+  const [ex, ez] = end(s);
+  await page.keyboard.press('1');
+  await page.waitForTimeout(300);
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure animated$/ }).click();
+  // From the front, Ctrl → moves all it does 5 cm along +X, Shift three steps more; no key is added.
+  await page.keyboard.press('Control+ArrowRight');
+  await page.keyboard.press('Control+Shift+ArrowRight');
+  s = await live(page);
+  expect(end(s)[0]).toBeCloseTo(ex + 0.2, 2);
+  expect(end(s)[1]).toBeCloseTo(ez, 2);
+  expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
+  // The figure is where its walk now ends (the playhead is there).
+  expect(s.scene.figures.find((f) => f.id === id)!.position[0]).toBeCloseTo(ex + 0.2, 2);
+
+  // The inspector: where it starts, typed; all it does follows.
+  const x0 = (await page.getByRole('textbox', { name: 'Whole performance X' }).inputValue());
+  await page.getByRole('textbox', { name: 'Whole performance X' }).fill(String(Number(x0) - 0.2));
+  await page.getByRole('textbox', { name: 'Whole performance X' }).press('Enter');
+  s = await live(page);
+  expect(end(s)[0]).toBeCloseTo(ex, 2);
+  expect(start(s).source.kind).toBe('keys');
+
+  // Ctrl + Alt + → turns it about where it is now (the walk's end): the end stays, the start swings round.
+  await page.keyboard.press('Control+Alt+ArrowRight');
+  s = await live(page);
+  expect(end(s)[0]).toBeCloseTo(ex, 2);
+  expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
+
+  // Right-click the floor: the whole performance there (the figure is there at the playhead).
+  await page.keyboard.press('Escape');
+  await floorMenu(page, [-0.6, 0, -1.5], 'Move the whole performance here');
+  s = await live(page);
+  expect(end(s)[0]).toBeCloseTo(-0.6, 1);
+  expect(end(s)[1]).toBeCloseTo(-1.5, 1);
+  expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
+});
+
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);

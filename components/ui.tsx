@@ -758,7 +758,7 @@ export function NumberField({ prefix, label, value, onChange, step = 1, min = -I
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur(); }
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); // (Leaving the field commits it, once.)
           else if (e.key === 'Escape') { e.stopPropagation(); setText(null); (e.target as HTMLInputElement).blur(); }
           else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();

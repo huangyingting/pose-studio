@@ -3,7 +3,7 @@ import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
-  carryProblem, editFilm, motionProblem, nearestPartners, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, editFilm, motionProblem, nearestPartners, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
@@ -11,7 +11,7 @@ import { newFigure, newProp, newScene, withPosture } from '../doc';
 import { filmOf } from '../film';
 import { HAND_PRESETS, cloneHand } from '../hands';
 import { actionsOf, marksOf, missedCatchesOf, overWarp } from '../evaluate';
-import { actionLabel, restage } from '../track';
+import { actionLabel } from '../track';
 import { clampRotation } from '../joints';
 import { MOTIONS } from '../motions';
 import { allPoses, builtInPoses } from '../poses';
@@ -221,11 +221,12 @@ export const TOOLS: AgentTool[] = [
       const a = store.scene.animation;
       if (a && !i.animate_move && actionsOf(a, f.id).length) {
         // Shift the whole track: every key and mark moves and turns by the same amount.
-        const dx = p.x === undefined ? 0 : p.x - f.position[0];
-        const dz = p.z === undefined ? 0 : p.z - f.position[2];
         const dyaw = p.yaw === undefined ? 0 : p.yaw - facing(f);
-        store.updateScene((s) => ({ ...s, animation: restage(s.animation!, f.id, dx, dz, dyaw) }));
-        store.setTime(store.getState().time);
+        store.group(() => {
+          offsetPerformance(store, [f.id], { turn: dyaw });
+          const g = findFigure(store, f.id);
+          offsetPerformance(store, [f.id], { dx: p.x === undefined ? 0 : p.x - g.position[0], dz: p.z === undefined ? 0 : p.z - g.position[2] });
+        });
       } else {
         setPlacement(store, f.id, p);
       }

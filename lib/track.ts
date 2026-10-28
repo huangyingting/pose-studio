@@ -7,7 +7,7 @@ import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
 import { wrapDeg } from './joints';
 import { shiftPropTrack } from './propmotion';
-import type { Action, ActionSource, Animation, Mark, Pose, Scene, Travel } from './types';
+import type { Action, ActionSource, Animation, Clip, Mark, Pose, Scene, Travel, Vec3 } from './types';
 
 /*
  * Editing figures' tracks: their actions in time. Keys are set where the figure is keyed (or a
@@ -524,22 +524,83 @@ function goTo(scene: Scene, figure: string, spot: Mark, t: number): Animation {
   return sorted({ ...a, actions: [...a.actions, keysAction(figure, [{ t, pose: turned }])] });
 }
 
-/** Stage a figure elsewhere: everything it does by itself moved across the floor by (dx, dz) and turned by `turnBy`. */
-export function restage(a: Animation, figure: string, dx: number, dz: number, turnBy: number): Animation {
-  const move = (m: Mark): Mark => ({ at: [r3(m.at[0] + dx), r3(m.at[1] + dz)], facing: Math.round(wrapDeg(m.facing + turnBy) * 10) / 10 || 0 });
-  const actions = a.actions.map((x): Action => {
-    if (x.roles.length !== 1 || x.roles[0].figure !== figure) return x;
-    const roles = [{ ...x.roles[0], ...(x.roles[0].end ? { end: move(x.roles[0].end) } : {}) }];
-    const src = x.source;
-    if (src.kind === 'keys' && !x.layer) {
-      const keys = keysOf(x).map((k) => ({ t: k.t, pose: { ...k.pose, bones: turnBones(k.pose.bones, turnBy), position: [r3(k.pose.position[0] + dx), k.pose.position[1], r3(k.pose.position[2] + dz)] as Pose['position'] } }));
-      const clip = keysClip(keys.map((k) => ({ t: k.t - x.start, pose: k.pose })), src.clip.loop, src.clip.duration);
-      return { ...x, roles, source: { kind: 'keys', clip: { ...clip, id: src.clip.id } } };
+/**
+ * A move of whole performances across the floor (a track offset): turned by `turn` degrees about
+ * `about` (x, z), then moved by (dx, dz).
+ */
+export interface Offset {
+  dx: number;
+  dz: number;
+  turn: number;
+  about: [number, number];
+}
+
+/** The figures whose performances move with `figures`': those sharing an action with them, and theirs (a waltz, a bout). */
+export function partnersOf(a: Animation, figures: string[]): string[] {
+  const out = new Set(figures);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const x of a.actions) {
+      if (x.roles.length < 2 || !x.roles.some((r) => out.has(r.figure))) continue;
+      for (const r of x.roles) if (!out.has(r.figure)) { out.add(r.figure); grew = true; }
     }
-    if (src.kind === 'travel' && src.via) return { ...x, roles, source: { ...src, via: src.via.map(move) } };
-    return { ...x, roles };
+  }
+  return [...out];
+}
+
+/**
+ * Stage figures elsewhere: everything they do (their keys, marks, routes, where their throws land,
+ * the places they hold on to) moved and turned on the floor as one, as a track offset is (Unity's
+ * Track Offsets, Unreal's Transform Origin). What follows from them follows by itself: clips
+ * played from where they are, props in their hands, cameras on them. Actions shared with others
+ * move only if all of theirs do (see `partnersOf`).
+ */
+export function restage(a: Animation, figures: string[], o: Offset): Animation {
+  const ids = new Set(figures);
+  const place = (x: number, z: number): [number, number] => {
+    const [ox, oz] = turn(x - o.about[0], z - o.about[1], o.turn);
+    return [r3(o.about[0] + ox + o.dx), r3(o.about[1] + oz + o.dz)];
+  };
+  const move = (m: Mark): Mark => ({ at: place(...m.at), facing: Math.round(wrapDeg(m.facing + o.turn) * 10) / 10 || 0 });
+  // The yaw as a quaternion, put before a root's rotation.
+  const [qs, qc] = [Math.sin((o.turn * Math.PI) / 360), Math.cos((o.turn * Math.PI) / 360)];
+  // A keyed clip's root: its places moved (a correction's offsets turned only) and its rotations turned.
+  const tracks = (clip: Clip, correction: boolean): Clip => ({
+    ...clip,
+    parts: clip.parts.map((part) => ({
+      ...part,
+      tracks: part.tracks.map((tr) => {
+        const v = [...tr.values];
+        if (tr.name === 'hips.position') {
+          for (let i = 0; i < v.length; i += 3) {
+            if (correction) [v[i], v[i + 2]] = turn(v[i], v[i + 2], o.turn).map(r3);
+            else [v[i], v[i + 2]] = place(v[i], v[i + 2]);
+          }
+        } else if (tr.name === 'hips.quaternion' && !correction) {
+          for (let i = 0; i < v.length; i += 4) {
+            const [x, y, z, w] = v.slice(i, i + 4);
+            v.splice(i, 4, qc * x + qs * z, qc * y + qs * w, qc * z - qs * x, qc * w - qs * y);
+          }
+        } else return tr;
+        return { ...tr, values: v };
+      }),
+    })),
   });
-  return { ...a, actions };
+  const actions = a.actions.map((x): Action => {
+    if (!x.roles.every((r) => ids.has(r.figure))) return x;
+    const roles = x.roles.map((r) => (r.end ? { ...r, end: move(r.end) } : r));
+    const target = x.target && 'at' in x.target ? { target: { at: place(...x.target.at) } } : {};
+    const src = x.source;
+    const source: ActionSource = src.kind === 'keys' ? { kind: 'keys', clip: tracks(src.clip, x.layer === 'correction') }
+      : src.kind === 'travel' && src.via ? { ...src, via: src.via.map(move) } : src;
+    return { ...x, roles, source, ...target };
+  });
+  const constraints = a.constraints?.map((c) => {
+    if (!ids.has(c.figure) || !('point' in c.target)) return c;
+    const [x, z] = place(c.target.point[0], c.target.point[2]);
+    return { ...c, target: { point: [x, c.target.point[1], z] as Vec3 } };
+  });
+  return { ...a, actions, ...(constraints ? { constraints } : {}) };
 }
 
 /** Times where something happens on figures' tracks (a key, an action starting or ending): one figure's, or everyone's. */
