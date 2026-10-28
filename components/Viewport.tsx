@@ -113,6 +113,8 @@ export default function Viewport({
   const [snapKey, setSnapKey] = useState(false);
   const fineKey = useRef(false);
   const turnFrom = useRef<THREE.Quaternion | null>(null);
+  // A turn's angle so far as the drag makes it (raw) and as applied (Shift: a fifth of what it adds while held).
+  const turned = useRef({ raw: 0, from: 0, applied: 0, fine: false });
   useEffect(() => {
     const key = (e: KeyboardEvent) => { setSnapKey(snapping(e)); fineKey.current = fine(e); };
     const blur = () => { setSnapKey(false); fineKey.current = false; };
@@ -177,8 +179,8 @@ export default function Viewport({
     } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
   };
 
-  // The gizmo: a selected joint's rotate gizmo (with the drag handles shown), Move (W: a whole figure
-  // or a prop, also up and down) and Scale (R: props). Joints are also posed
+  // The gizmo: under the Pose tool (E, where each visit starts) a selected joint's rotate gizmo (with
+  // the drag handles shown); Move (W: a whole figure or a prop, also up and down); Scale (R: props). Joints are also posed
   // by dragging the body (Shift-drag twists) and the inspector's sliders; figures and props turn by
   // their floor ring.
   const handles = settings.showHandles && !shotMode;
@@ -198,8 +200,7 @@ export default function Viewport({
   const moving = settings.gizmo === 'translate';
   // (Not on a figure when something else is what is selected: one target at a time.)
   const other = selection?.kind === 'prop' || selection?.kind === 'shot' || selection?.kind === 'camera' || selection?.kind === 'light' || selection?.kind === 'many';
-  // (A selected joint always has its rotate gizmo; the Move tool moves a selected figure.)
-  const gizmoFigure = moving && !other && selection?.kind !== 'joint' ? (selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
+  const gizmoFigure = moving && !other ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
@@ -213,7 +214,7 @@ export default function Viewport({
         setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
       };
     }
-  } else if (selection?.kind === 'joint' && handles) {
+  } else if (selection?.kind === 'joint' && !moving && handles) {
     // A selected joint (Pose tool): the rotate gizmo in its own axes, the rings in its sliders'
     // colours, kept within its limits (as Blender, Maya and posing apps have it).
     const m = sv.figures.get(selection.figure);
@@ -360,13 +361,24 @@ export default function Viewport({
               gizmoFrom.current = target!.position.clone();
               jointFrom.current = selection?.kind === 'joint' ? angle(figureDoc(selection.figure)!.bones, selection.joint) : null;
               turnFrom.current = target!.quaternion.clone();
+              turned.current = { raw: 0, from: 0, applied: 0, fine: fineKey.current && !snapKey };
             }}
             onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; turnFrom.current = null; setReadout(null); }}
             onObjectChange={() => {
-              // Shift: a fifth of the turn the drag makes (not with Ctrl, which keeps to its steps).
-              if (mode === 'rotate' && fineKey.current && !snapKey && turnFrom.current) {
-                const now = target!.quaternion.clone();
-                target!.quaternion.copy(turnFrom.current).slerp(now, 0.2);
+              // Shift: what the drag adds while it is held turns a fifth as far (not with Ctrl, which keeps
+              // to its steps), however far the drag goes; pressing or letting go of Shift does not jump.
+              if (mode === 'rotate' && turnFrom.current && gizmo.current) {
+                const g = gizmo.current as unknown as { axis: string | null; rotationAxis: THREE.Vector3; rotationAngle: number };
+                const t = turned.current;
+                const fineNow = fineKey.current && !snapKey;
+                if (fineNow !== t.fine) Object.assign(t, { raw: g.rotationAngle, from: t.applied, fine: fineNow });
+                t.applied = t.from + (g.rotationAngle - t.raw) * (fineNow ? 0.2 : 1);
+                if (Math.abs(t.applied - g.rotationAngle) > 1e-9) {
+                  const q = new THREE.Quaternion().setFromAxisAngle(g.rotationAxis, t.applied);
+                  // (As three's gizmo puts it together: about the joint's own axis, or the view's.)
+                  if (g.axis !== 'E' && g.axis !== 'XYZE') target!.quaternion.copy(turnFrom.current).multiply(q).normalize();
+                  else target!.quaternion.copy(q).multiply(turnFrom.current).normalize();
+                }
               }
               onGizmoChange();
               if (gizmoFrom.current) readout(gizmoFrom.current);
@@ -505,11 +517,13 @@ function GizmoScale({ controls, size }: { controls: RefObject<TransformControlsI
  */
 class Warmup {
   private readonly at = new THREE.Object3D();
-  private readonly gizmos: TransformControlsImpl[] = [];
+  private gizmos: TransformControlsImpl[] = [];
+  private scene: THREE.Scene | null = null;
   private frames = 0;
   tick(scene: THREE.Scene, camera: THREE.Camera) {
     if (this.frames < 0) return;
-    if (!this.gizmos.length) {
+    if (!this.scene) {
+      this.scene = scene;
       for (const mode of ['translate', 'rotate', 'scale'] as const) {
         // (On an element of its own: it never takes the pointer.)
         const g = new TransformControlsImpl(camera, document.createElement('div'));
@@ -523,15 +537,24 @@ class Warmup {
       }
       scene.add(this.at, ...this.gizmos);
     }
-    if (++this.frames < 3) return;
-    scene.remove(this.at, ...this.gizmos);
+    if (++this.frames >= 3) this.dispose();
+  }
+  /**
+   * Done: the gizmos taken away and let go, without disposing their materials (that would free the
+   * programs they were made to compile); only the listener three put on the document goes.
+   */
+  dispose() {
     this.frames = -1;
+    this.scene?.remove(this.at, ...this.gizmos);
+    for (const g of this.gizmos) document.removeEventListener('pointerup', (g as unknown as { onPointerUp: EventListener }).onPointerUp);
+    this.gizmos = [];
   }
 }
 
 function GizmoWarmup() {
   const [warmup] = useState(() => new Warmup());
   useFrame(({ scene, camera }) => warmup.tick(scene, camera));
+  useEffect(() => () => warmup.dispose(), [warmup]);
   return null;
 }
 

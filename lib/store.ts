@@ -120,7 +120,8 @@ function loadSettings(storage: Storage | null): Settings {
         showHandles: s.showHandles !== false,
         showGrid: s.showGrid !== false,
         limits: s.limits !== false,
-        gizmo: s.gizmo === 'translate' || s.gizmo === 'scale' ? s.gizmo : 'rotate',
+        // (Each visit starts with the Pose tool: a joint clicked shows its rotate gizmo.)
+        gizmo: 'rotate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
         gizmoSize: typeof s.gizmoSize === 'number' ? Math.min(2, Math.max(0.6, s.gizmoSize)) : DEFAULT_SETTINGS.gizmoSize,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
