@@ -62,4 +62,24 @@ describe("the Library's motion files (public/motions)", () => {
     appendScenes(other, [{ ...scene, id: 'opened' }]);
     await vi.waitFor(() => expect(clipById('library:salute')).not.toBeNull());
   });
+
+  it('offline: asked for once, not again as the playhead moves', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked.push(url);
+      throw new TypeError('offline');
+    });
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    startAnimation(store, 5);
+    const play = { id: 'act-offline', start: 0, duration: 2, roles: [{ figure: id }], source: { kind: 'clip' as const, clip: 'library:yawn' } };
+    store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: [...s.animation!.actions, play] } }));
+    await vi.waitFor(() => expect(asked.filter((u) => u.includes('yawn'))).toHaveLength(1));
+    // (A frame at a time, the last request over by the next.)
+    for (let i = 1; i <= 20; i++) {
+      store.setTime(i / 10);
+      await new Promise((r) => setTimeout(r, 1));
+    }
+    expect(asked.filter((u) => u.includes('yawn'))).toHaveLength(1);
+  });
 });

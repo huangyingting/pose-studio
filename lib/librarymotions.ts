@@ -22,6 +22,10 @@ const listeners = new Set<() => void>();
 const coming = new Map<string, Promise<boolean>>();
 /** Those not found (asked for once). */
 const missing = new Set<string>();
+/** Those that could not be fetched (offline): when to try again. */
+const retry = new Map<string, number>();
+/** How long to wait before trying again (ms). */
+const RETRY_MS = 30_000;
 
 /** The Library's motion files (none until the index has come: asked for the first time this is). */
 export function libraryMotions(): LibraryMotion[] {
@@ -47,7 +51,7 @@ export function onLibraryMotions(f: () => void) {
 /** Bring one of them to hand (once): whether it is. */
 export function fetchLibraryClip(id: string): Promise<boolean> {
   if (hasClip(id)) return Promise.resolve(true);
-  if (missing.has(id)) return Promise.resolve(false);
+  if (missing.has(id) || (retry.get(id) ?? 0) > Date.now()) return Promise.resolve(false);
   let p = coming.get(id);
   if (!p) {
     p = fetch(withBase(`/motions/${encodeURIComponent(id.slice(LIBRARY.length))}.json`))
@@ -61,7 +65,10 @@ export function fetchLibraryClip(id: string): Promise<boolean> {
         putClips([clip]);
         return true;
       })
-      .catch(() => false)
+      .catch(() => {
+        retry.set(id, Date.now() + RETRY_MS);
+        return false;
+      })
       .finally(() => coming.delete(id));
     coming.set(id, p);
   }

@@ -229,11 +229,21 @@ export class Store {
     return { ...s, sceneIndex, selection, activeFigure, through, canUndo: this.past.length > 0, canRedo: this.future.length > 0 };
   }
 
+  /** What the scenes did when the Library's motion files they play were last looked for. */
+  private played: unknown[] = [];
+
   private set(patch: Partial<State>, persist = true) {
     if (patch.library && patch.library.models !== this.state.library.models) setModels(patch.library.models);
     if (patch.library && patch.library.film !== this.state.library.film) setFilm(patch.library.film);
-    // (Scenes come in or change, opened, shared or placed from a template: the Library's motion files they play.)
-    if (patch.library && patch.library.scenes !== this.state.library.scenes) void fetchLibraryClips(playedClips(patch.library));
+    // (Scenes come in or what they do changes, opened, shared or placed from a template: the Library's
+    // motion files they play. Not on each frame: the playhead moving leaves what they do as it is.)
+    if (patch.library && patch.library.scenes !== this.state.library.scenes) {
+      const acts = patch.library.scenes.map((s) => s.animation?.actions);
+      if (acts.length !== this.played.length || acts.some((x, i) => x !== this.played[i])) {
+        this.played = acts;
+        void fetchLibraryClips(playedClips(patch.library));
+      }
+    }
     const pending = persist && this.storage !== null;
     this.state = this.normalize({ ...this.state, ...patch, ...(pending ? { saveStatus: 'pending' as const } : {}) });
     if (pending) this.scheduleSave();
