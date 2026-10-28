@@ -602,8 +602,8 @@ export function cutTo(scene: Scene, d: number): Scene {
     const total = legs.reduce((t, l) => t + l, 0) || 1;
     const u = (d - x.start) / x.duration;
     const from = (i: number) => legs.slice(0, i).reduce((t, l) => t + l, 0) / total;
-    const mid = (i: number) => Math.abs((from(i) + from(i + 1)) / 2 - u);
-    const leg = legs.map((_, i) => i).filter((i) => off(i) < nearest + 0.05).reduce((best, i) => (mid(i) < mid(best) ? i : best));
+    const apart = (i: number) => Math.max(0, from(i) - u, u - from(i + 1));
+    const leg = legs.map((_, i) => i).filter((i) => off(i) < nearest + 0.05).reduce((best, i) => (apart(i) < apart(best) ? i : best));
     return [x.id, { mark: here, via: via.slice(0, leg) }];
   }));
   for (const f of scene.figures) a = clear({ ...scene, animation: a }, f.id, d, Infinity);

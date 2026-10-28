@@ -292,8 +292,9 @@ function App() {
       // scroll a side panel last clicked in; a plain button just clicked keeps no hold on them.
       if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && (el === document.body ? inPanel
         : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes'))) return;
-      // Tab goes from thing to thing only with the focus on the canvas (in the panels it moves the focus).
-      if (e.key === 'Tab' && el !== document.body && !el.closest('.stage')) return;
+      // Tab goes from thing to thing only with the focus on the canvas (last clicked, nothing focused);
+      // elsewhere, and before the canvas is clicked, it moves the focus.
+      if (e.key === 'Tab' && (el !== document.body || !onCanvas)) return;
       if (pick && e.key === 'Escape') {
         e.preventDefault();
         setPick(null);
@@ -311,7 +312,12 @@ function App() {
       cmd.run!(c);
     };
     let inPanel = false;
-    const onDown = (e: PointerEvent) => { inPanel = !!(e.target as Element).closest?.('aside'); };
+    let onCanvas = false;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element;
+      inPanel = !!t.closest?.('aside');
+      onCanvas = t instanceof HTMLCanvasElement && !!t.closest('.stage');
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown, true);
     return () => {

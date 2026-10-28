@@ -1713,6 +1713,9 @@ test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels
   const sel = () => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: { kind: string } | null } } } }).__poseStudio.store.getState().selection);
   const scene = await live(page);
   const things = scene.scene.figures.length + scene.scene.props.length + scene.scene.cameras.length + 1;
+  // Before the canvas is clicked, Tab is the browser's (a keyboard user reaches the controls).
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true);
   await page.keyboard.press('Escape');
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('Escape');
