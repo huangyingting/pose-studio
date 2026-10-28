@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { frameTimes } from './animation';
 import { hermite } from './clip';
-import { figurePoseAt, sceneAt } from './evaluate';
+import { basePoseAt, figurePoseAt, movesOf, sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
 import { Rig } from './relations';
 import { facingOf } from './pose';
@@ -454,11 +454,11 @@ function firstFilmed(scene: Scene, cam: Camera) {
  * Which way a rig's angles are measured from at t (world degrees): the subject's facing, or the
  * direction from it towards another figure, then (turning) or at the camera's first shot.
  */
-function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body): number {
+function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth = r.smooth ?? 0): number {
   const subject = cameraSubject(scene, cam);
   const at = r.body === 'follow' && r.turn ? t : firstFilmed(scene, cam);
-  const from = at === t ? body : smoothBody(scene, cameraFigures(scene, cam), at, r.smooth ?? 0);
-  const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, [r.toward], at, r.smooth ?? 0) : null;
+  const from = at === t ? body : smoothBody(scene, cameraFigures(scene, cam), at, smooth);
+  const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, [r.toward], at, smooth) : null;
   return other ? Math.atan2(other.x - from.x, other.z - from.z) * R2D : from.facing;
 }
 
@@ -470,16 +470,18 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
   const subject = cameraFigures(scene, cam);
   const other = r.clear && r.clear !== cam.subject && scene.figures.some((f) => f.id === r.clear && !f.hidden) ? r.clear : null;
   const away = r.yaw < 0 ? -1 : 1;
-  /** Where it films from at a time, turned `extra` degrees round its subject from its rig's own angle. */
-  const turnedBy = (time: number, place: Placement | undefined) => {
-    const body = smoothBody(scene, subject, time, r.smooth ?? 0);
+  /**
+   * Where it films from at a time, turned `extra` degrees round its subject from its rig's own
+   * angle (`rough`: from where they are then, not eased over its smoothing: to choose how far round).
+   */
+  const turnedBy = (time: number, place: Placement | undefined, rough = false) => {
+    const smooth = rough ? 0 : r.smooth ?? 0;
+    const body = smoothBody(scene, subject, time, smooth);
     const spin = r.body === 'orbit' ? (r.spin ?? 0) * (time - firstFilmed(scene, cam)) : 0;
-    const yaw = rigHeading(scene, cam, r, time, body) + r.yaw + spin;
+    const yaw = rigHeading(scene, cam, r, time, body, smooth) + r.yaw + spin;
     return (extra: number) => compose(body, r.size, yaw + extra, r.pitch, r.lens, place, aspect);
   };
-  const solve = (time: number, place: Placement | undefined) => {
-    const at = turnedBy(time, place);
-    const them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null;
+  const solve = (time: number, place: Placement | undefined, at = turnedBy(time, place), them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null) => {
     if (!them || !seen(at(0), them, r.lens, aspect)) return { shot: at(0), clear: true, extra: 0 };
     // Round, away from the other, by the least angle that leaves them out (found by halving; it
     // moves smoothly as they do).
@@ -508,50 +510,54 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     }
     place = known.get(key);
   }
-  // How far round its subject it goes, worked out every quarter second and eased over a second and
-  // a half, once: as far as keeps the other out (a single), and further if need be to keep out of
-  // anyone's way (never in their reach, nobody right in front of the lens; else as far from them as
-  // it gets). It arcs round, from a little before it must; no jump in the middle of a shot.
-  const owner: object = scene.animation ?? scene.figures;
+  // How far round its subject it goes: as far as keeps the other out (a single), and further if
+  // need be to keep out of anyone's way (never in their reach, nobody right in front of the lens;
+  // else as far from them as it gets), one way round only. Worked out every half second from where
+  // they are then (each kept while the figures move the same), held as far as any time near needs,
+  // then eased over a second: it arcs round, from a little before it must; no jump in the middle of
+  // a shot. Only the times around the one asked for are worked out.
+  const owner = movesOf(scene);
   let swung = swings.get(owner);
   if (!swung) swings.set(owner, (swung = new Map()));
-  const key = `${cam.id}:${JSON.stringify(r)}:${aspect}:${place}`;
-  let path = swung.get(key);
-  if (!path) {
-    const a = scene.animation;
-    const spans = a ? shotSpans(a).filter((s) => s.shot.camera === cam.id) : [];
-    const [from, to] = spans.length ? [Math.max(0, spans[0].start - 1), spans[spans.length - 1].end + 1] : [0, a?.duration ?? 0];
-    const times = Array.from({ length: Math.floor((to - from) / SWING_STEP) + 1 }, (_, i) => from + i * SWING_STEP);
-    // (Of the ways that keep clear, the one nearest the last: it stays on the side it went round.)
-    const raw: number[] = [];
-    for (const time of times) {
-      const keepOut = solve(time, place).extra;
-      const at = turnedBy(time, place);
-      const others = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => figurePoseAt(scene, f.id, time)?.position).filter((p): p is Vec3 => !!p);
-      const tries = [0, 20, -20, 40, -40, 60, -60, 90, -90].map((x) => keepOut + away * x);
-      const last = raw.length ? raw[raw.length - 1] : keepOut;
-      // (A single's other kept out of it too.)
-      const them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null;
-      const out = (x: number) => !them || !seen(at(x), them, r.lens, aspect);
-      // (Nothing keeps out of everyone's way and the other out of a single: as the single keeps the
-      // other out as best it can, unless that is in someone's way; else as far from them as it gets.)
-      const nearest = (xs: number[]) => xs.reduce((x, y) => (Math.abs(y - last) < Math.abs(x - last) ? y : x));
-      const unblocked = others.length ? tries.filter((x) => !blocked(at(x), others)) : [keepOut];
-      const clear = unblocked.filter(out);
-      raw.push(clear.length ? nearest(clear)
-        : other ? (unblocked.includes(keepOut) || !unblocked.length ? keepOut : nearest(unblocked))
-          : tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x)));
-    }
-    // (Held as far round as any time near needs it, then eased: round in time, and smoothly.)
-    const reach = Math.round(SWING_EASE / 2 / SWING_STEP);
-    const around = (xs: number[], i: number) => xs.slice(Math.max(0, i - reach), i + reach + 1);
-    const held = raw.map((_, i) => around(raw, i).reduce((x, y) => (Math.abs(y) > Math.abs(x) ? y : x), 0));
-    const eased = held.map((_, i) => { const near = around(held, i); return near.reduce((x, y) => x + y, 0) / near.length; });
-    swung.set(key, (path = { from, eased }));
-  }
-  const k = Math.max(0, Math.min(path.eased.length - 1, (t - path.from) / SWING_STEP));
+  const hidden = scene.figures.filter((f) => f.hidden).map((f) => f.id).join();
+  const key = `${cam.id}:${subject?.join()}:${hidden}:${JSON.stringify(r)}:${aspect}:${place}`;
+  let samples = swung.get(key);
+  if (!samples) swung.set(key, (samples = new Map()));
+  const raw = (i: number) => {
+    let x = samples.get(i);
+    if (x === undefined) samples.set(i, (x = turnAt(i * SWING_STEP)));
+    return x;
+  };
+  const turnAt = (time: number) => {
+    const at = turnedBy(time, place, true);
+    const them = other ? smoothBody(scene, [other], time, 0) : null;
+    const out = (x: number) => !them || !seen(at(x), them, r.lens, aspect);
+    const keepOut = solve(time, place, at, them).extra;
+    // (Where they stand, from what they do: their holds and idle life do not move them.)
+    const others = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => (basePoseAt(scene, f.id, time) ?? f).position);
+    if (!others.length) return keepOut;
+    const tries = [0, 20, 40, 60, 90].map((x) => keepOut + away * x);
+    const unblocked = tries.filter((x) => !blocked(at(x), others));
+    // (Nothing keeps out of everyone's way and the other out of a single: as the single keeps the
+    // other out as best it can, unless that is in someone's way; else as far from them as it gets.)
+    return unblocked.find(out)
+      ?? (other && (unblocked.includes(keepOut) || !unblocked.length) ? keepOut : unblocked[0])
+      ?? tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x));
+  };
+  const reach = Math.round(SWING_EASE / 2 / SWING_STEP);
+  const held = (i: number) => {
+    let x = 0;
+    for (let j = Math.max(0, i - reach); j <= i + reach; j++) if (Math.abs(raw(j)) > Math.abs(x)) x = raw(j);
+    return x;
+  };
+  const eased = (i: number) => {
+    let sum = 0, n = 0;
+    for (let j = Math.max(0, i - reach); j <= i + reach; j++, n++) sum += held(j);
+    return sum / n;
+  };
+  const k = Math.max(0, t / SWING_STEP);
   const i = Math.floor(k);
-  const swing = path.eased.length ? path.eased[i] + ((path.eased[Math.min(i + 1, path.eased.length - 1)] ?? 0) - path.eased[i]) * (k - i) : 0;
+  const swing = eased(i) + (eased(i + 1) - eased(i)) * (k - i);
   const shot = turnedBy(t, place)(swing);
   return { position: shot.position, target: shot.look, lens: r.lens };
 }
@@ -561,11 +567,11 @@ function clearance(shot: { position: THREE.Vector3 }, people: Vec3[]) {
   return Math.min(...people.map((p) => Math.hypot(p[0] - shot.position.x, p[2] - shot.position.z)));
 }
 
-// How far a rig camera is swung round its subject to keep out of people's way over time, once
-// worked out (per animation, camera and rig): every SWING_STEP seconds from `from`, eased over SWING_EASE.
-const swings = new WeakMap<object, Map<string, { from: number; eased: number[] }>>();
-const SWING_STEP = 0.25;
-const SWING_EASE = 1.5;
+// How far a rig camera is swung round its subject to keep out of people's way at each step of
+// SWING_STEP seconds, worked out as it is needed (per how the figures move, camera and rig).
+const swings = new WeakMap<object, Map<string, Map<number, number>>>();
+const SWING_STEP = 0.5;
+const SWING_EASE = 1;
 
 /**
  * Whether a camera stands in someone's reach (where they stand, `people`: an arm swung would cross

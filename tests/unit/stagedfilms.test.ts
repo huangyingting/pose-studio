@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { startFilm } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
-import { cameraAt } from '@/lib/cameras';
+import { cameraAt, viewOf } from '@/lib/cameras';
 import { parseClip } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { FILMS } from '@/lib/films';
@@ -90,4 +90,21 @@ describe('films: templates staged as a director would', () => {
       }
     }
   }, 300_000);
+
+  it('works a camera out again when what it films changes: its subject, the motions coming in', () => {
+    const store = new Store(new MemoryStorage());
+    expect(startFilm(store, { shoot: 'shoot-film-wuxia' }, 15)).toBe(true);
+    const fresh = (s: Scene) => structuredClone(s);
+    const t = 6;
+    // Worked out before the Library's motions are at hand (everyone standing), then as they come.
+    const cam = store.scene.cameras.find((c) => c.kind === 'rig' && c.name.startsWith('Low on'))!;
+    viewOf(store.scene, cam, t);
+    load(store.scene);
+    expect(viewOf(store.scene, cam, t).position.distanceTo(viewOf(fresh(store.scene), cam, t).position)).toBeLessThan(1e-6);
+    // Its subject changed: as if worked out for that one from the start.
+    const other = store.scene.figures.find((f) => f.id !== cam.subject)!.id;
+    const moved = { ...store.scene, cameras: store.scene.cameras.map((c) => (c.id === cam.id ? { ...c, subject: other } : c)) };
+    const now = moved.cameras.find((c) => c.id === cam.id)!;
+    expect(viewOf(moved, now, t).position.distanceTo(viewOf(fresh(moved), now, t).position)).toBeLessThan(1e-6);
+  }, 120_000);
 });

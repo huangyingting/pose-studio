@@ -618,6 +618,14 @@ function evaluator(scene: Scene): Evaluator {
   return ev;
 }
 
+/**
+ * What stands for how a scene's figures move: the same object as long as they move the same (no
+ * edit, no clip come in, the same bodies and ground), for what is worked out from it to be kept.
+ */
+export function movesOf(scene: Scene): object {
+  return scene.animation ? evaluator(scene) : scene.figures;
+}
+
 /** One figure as it is at time t. */
 export function figurePoseAt(scene: Scene, id: string, t: number): Figure | null {
   const f = scene.figures.find((x) => x.id === id);

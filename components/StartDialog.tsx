@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Clapperboard, FilePlus2 } from 'lucide-react';
 import { startFilm } from '@/lib/actions';
+import { shootsOf, templatesOf } from '@/lib/templates';
 import { LIBRARY_CATEGORIES } from './side/libraryItems';
 import { Thumbnail } from './side/LibrarySection';
 import { useStore } from './store-context';
@@ -19,11 +20,11 @@ export function StartDialog({ onClose, notify }: { onClose(): void; notify: Noti
   const store = useStore();
   const [length, setLength] = useState('30');
   const ui = { notify: (t: string) => notify(t), notifyUndo: (t: string) => notify(t) };
-  // The Library's templates and shoot presets, with their thumbnails (a template once: as its
-  // preset, where one of the same name films it).
-  const all = LIBRARY_CATEGORIES.find((c) => c.id === 'templates')!.items(store, ui);
-  const shot = new Set(all.filter((it) => it.key.startsWith('shoot:')).map((it) => it.name));
-  const items = all.filter((it) => !(it.key.startsWith('template:') && shot.has(it.name)));
+  // The Library's templates and shoot presets, with their thumbnails (a template once: as the
+  // preset of the same name that films it, where there is one: a film).
+  const lib = store.getState().library;
+  const filmed = new Set(shootsOf(lib).filter((p) => templatesOf(lib).find((t) => t.id === p.template)?.name === p.name).map((p) => `template:${p.template}`));
+  const items = LIBRARY_CATEGORIES.find((c) => c.id === 'templates')!.items(store, ui).filter((it) => !filmed.has(it.key));
   const start = (what: { template?: string; shoot?: string }, name: string) => {
     if (startFilm(store, what, Number(length))) {
       notify(`${name}: a ${LENGTHS.find((l) => l.value === length)!.label} film`);
