@@ -294,7 +294,9 @@ function App() {
         : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes'))) return;
       // Space presses a button reached from the keyboard (as browsers have it), not play; one just
       // clicked keeps no hold on it.
-      if (e.key === ' ' && el.matches(':focus-visible') && el.closest('button, [role="button"]')) return;
+      if (e.key === 'Tab') clicked = null;
+      const button = el.closest?.('button, [role="button"]');
+      if (e.key === ' ' && button && button !== clicked) return;
       // Tab goes from thing to thing only with the focus on the canvas (last clicked, nothing focused);
       // elsewhere, and before the canvas is clicked, it moves the focus.
       if (e.key === 'Tab' && (el !== document.body || !onCanvas)) return;
@@ -316,8 +318,11 @@ function App() {
     };
     let inPanel = false;
     let onCanvas = false;
+    // The button the pointer last pressed (Space does not press it again).
+    let clicked: Element | null = null;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Element;
+      clicked = t.closest?.('button, [role="button"]') ?? null;
       inPanel = !!t.closest?.('aside');
       onCanvas = t instanceof HTMLCanvasElement && !!t.closest('.stage');
     };
