@@ -13,6 +13,8 @@ import type { Action, Clip, Library, Scene } from './types';
 
 /** Ids of built-in motions' clips: this, then the motion's id. */
 export const BUILT_IN = 'motion:';
+/** Ids of the Library's motion files (public/motions, fetched when first used): this, then the file's name. */
+export const LIBRARY = 'library:';
 
 const loaded = new Map<string, Clip>();
 const builtIn = new Map<string, Clip | null>();
@@ -47,11 +49,16 @@ export function onClips(f: () => void) {
   return () => { listeners.delete(f); };
 }
 
-/** The imported clips a library uses: listed in it, or played in its scenes. */
+/** The imported clips a library uses: listed in it, or played in its scenes (not those that come with the app). */
 export function clipIdsOf(lib: Library): string[] {
   const ids = new Set((lib.clips ?? []).map((c) => c.id));
-  for (const s of lib.scenes) for (const x of s.animation?.actions ?? []) if (x.source.kind === 'clip' && !x.source.clip.startsWith(BUILT_IN)) ids.add(x.source.clip);
+  for (const id of playedClips(lib)) if (!id.startsWith(BUILT_IN) && !id.startsWith(LIBRARY)) ids.add(id);
   return [...ids];
+}
+
+/** The ids of the clips a library's scenes play. */
+export function playedClips(lib: Library): string[] {
+  return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : []))))];
 }
 
 /** A clip playing on its own people, where it has them. */

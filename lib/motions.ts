@@ -709,18 +709,6 @@ export const MOTIONS: Motion[] = [
     },
   },
   {
-    // Arms steady at the sides, hands closed on what they carry (a bag, a stretcher's handles): over a walk, they do not swing.
-    id: 'carry',
-    name: 'Carry',
-    group: 'Everyday',
-    people: 1,
-    build: () => {
-      const f = { ...person('Sam', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } };
-      const carry = posed(f, { ...STAND, leftUpperArm: [-10, 0, 8], rightUpperArm: [-10, 0, -8], leftLowerArm: [-25, 0, 0], rightLowerArm: [-25, 0, 0] });
-      return animated('Carry', [{ t: 0, figures: [carry] }, { t: 1, figures: [carry] }], { duration: 1, loop: true, view: { yaw: 40, pitch: 4, fov: 24 } });
-    },
-  },
-  {
     id: 'bow',
     name: 'Bow',
     group: 'Everyday',
@@ -864,12 +852,21 @@ function handling(name: string, frames: [number, Joints][], o: { loop?: boolean;
 }
 
 const relaxed: Joints = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
+const carrying: Joints = { leftUpperArm: [-10, 0, 8], rightUpperArm: [-10, 0, -8], leftLowerArm: [-25, 0, 0], rightLowerArm: [-25, 0, 0] };
 
 /**
  * Motions that handle props, put on a figure's upper body by the prop's menu (not listed in the
  * library): their release lets the prop go where the action sends it, their grab takes hold of it.
  */
 export const HANDLING: Motion[] = [
+  {
+    // Arms steady at the sides, hands closed on what they carry (a bag, a stretcher's handles): over a walk, they do not swing.
+    id: 'carry',
+    name: 'Carry',
+    group: 'Everyday',
+    people: 1,
+    build: () => handling('Carry', [[0, carrying], [24, carrying]], { loop: true }),
+  },
   {
     // A jump shot's arms: the ball up in front of the face, the arm up and out to the hoop, a follow-through; the other hand at the ball's side until it goes.
     id: 'shoot',

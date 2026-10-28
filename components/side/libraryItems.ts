@@ -4,7 +4,8 @@ import {
   applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate, motionProblem, nearestPartners,
   newShoot, placeTemplate, sceneFromTemplate, setFigureModel,
 } from '@/lib/actions';
-import { BUILT_IN, clipById, clipScene } from '@/lib/assets';
+import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
+import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
 import { sceneAt } from '@/lib/evaluate';
 import { insertClip } from '@/lib/track';
 import type { Figure, Scene } from '@/lib/types';
@@ -192,6 +193,32 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       }] : undefined,
     };
   });
+  // The Library's motion files: each fetched the first time it is used or shown.
+  const files = libraryMotions().map((m): LibraryItem => {
+    const giveTo = (id: string) => void fetchLibraryClip(m.id).then((ok) => {
+      const f = posableById(store, id);
+      if (!ok) ui.notify(`Could not load ${m.name}`);
+      else if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`);
+    });
+    return {
+      key: `motion:${m.id}`,
+      tab: 'motions',
+      part: 'Motions',
+      group: m.group,
+      name: m.name,
+      icon: Film,
+      meta: `${m.duration.toFixed(1)} s`,
+      note: figure ? `Click to give it to ${figure.name}` : undefined,
+      disabled: !figure,
+      run: () => { if (figure) { giveTo(figure.id); ui.onPick?.(); } },
+      drop: { figure: giveTo, length: m.duration },
+      preview: () => {
+        void fetchLibraryClip(m.id);
+        return { ...motionPreview(m.id, () => clipScene(clipById(m.id)!), style(store)), ready: () => hasClip(m.id) };
+      },
+      ghost: figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void fetchLibraryClip(m.id), null)) : undefined,
+    };
+  });
   const mine = (store.getState().library.clips ?? []).map((m): LibraryItem => ({
     key: `motion:${m.id}`,
     tab: 'motions',
@@ -208,7 +235,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     ghost: figure ? () => motionGhost(store, figure.id, m.id) : undefined,
     actions: [{ icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
   }));
-  return [...built, ...mine];
+  return [...built, ...files, ...mine];
 }
 
 function characters(store: Store, ui: LibraryUi): LibraryItem[] {

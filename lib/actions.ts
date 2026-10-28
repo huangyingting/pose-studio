@@ -6,7 +6,7 @@ import {
 } from './doc';
 import { boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { MAX_DURATION, newAnimation, normalize, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
-import { BUILT_IN, clipById } from './assets';
+import { BUILT_IN, clipById, hasClip } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
@@ -20,7 +20,7 @@ import {
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { fitBody, modelInfo } from './model';
-import { MOTIONS } from './motions';
+import { HANDLING, MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
@@ -1590,7 +1590,8 @@ export function nearestPartners(store: Store, figureId: string, count: number) {
  */
 export function applyUpperBody(store: Store, figureId: string, motionId: string) {
   const mine = store.getState().library.clips?.some((c) => c.id === motionId);
-  const motion = MOTIONS.find((m) => m.id === motionId);
+  // (A motion from the Library, or one of those prop menus put on, as carrying.)
+  const motion = [...MOTIONS, ...HANDLING].find((m) => m.id === motionId);
   if (!mine && (!motion || motion.people > 1 || motion.travel)) return false;
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const animation = addUpper(store.scene, figureId, mine ? motionId : BUILT_IN + motionId, store.getState().time);
@@ -1613,7 +1614,8 @@ export function deleteCorrection(store: Store, figureId: string, t: number) {
  */
 export function applyMotion(store: Store, figureId: string, motionId: string, partners?: string[]) {
   const start = store.scene.animation ? store.getState().time : 0;
-  if (store.getState().library.clips?.some((c) => c.id === motionId)) {
+  // (An imported clip: one of my motions, or the local motion library's, at hand.)
+  if (store.getState().library.clips?.some((c) => c.id === motionId) || hasClip(motionId)) {
     store.updateScene((s) => insertClip(s, [figureId], motionId, start));
     store.setTime(start);
     return true;

@@ -1321,7 +1321,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
   await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(21);
   await libraryShows(page, 'Motions');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump/ }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump ahead/ }).click();
   const sc = (await live(page)).scene;
   const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => (x.source.kind === 'travel' ? x.source.mode : x.source.kind)));
   expect(tracks[0]).toEqual(['keys']);

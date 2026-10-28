@@ -1,0 +1,548 @@
+[
+ {
+  "id": "library:aim-pistol",
+  "name": "Aim Pistol",
+  "duration": 5.433,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:angry",
+  "name": "Angry",
+  "duration": 19.167,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:ascending-stairs",
+  "name": "Ascending Stairs",
+  "duration": 1.367,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:backflip",
+  "name": "Backflip",
+  "duration": 4.1,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:baseball-hit",
+  "name": "Baseball Hit",
+  "duration": 2.9,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:baseball-pitching",
+  "name": "Baseball Pitching",
+  "duration": 3.933,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:blocking",
+  "name": "Blocking",
+  "duration": 1.333,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:bored",
+  "name": "Bored",
+  "duration": 10.667,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:breathing-idle",
+  "name": "Breathing Idle",
+  "duration": 9.933,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:button-pushing",
+  "name": "Button Pushing",
+  "duration": 3.233,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:capoeira",
+  "name": "Capoeira",
+  "duration": 4.8,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:carrying",
+  "name": "Carrying",
+  "duration": 10,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:clapping",
+  "name": "Clapping",
+  "duration": 1.167,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:climbing-ladder",
+  "name": "Climbing Ladder",
+  "duration": 0.767,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:crouch-idle",
+  "name": "Crouch Idle",
+  "duration": 1.667,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:crouch-to-stand",
+  "name": "Crouch To Stand",
+  "duration": 2.933,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:crouch-walk-forward",
+  "name": "Crouch Walk Forward",
+  "duration": 1.133,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:crying",
+  "name": "Crying",
+  "duration": 6.267,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:dancing",
+  "name": "Dancing",
+  "duration": 12.367,
+  "group": "Dance"
+ },
+ {
+  "id": "library:death-from-the-front",
+  "name": "Death From The Front",
+  "duration": 3.433,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:descending-stairs",
+  "name": "Descending Stairs",
+  "duration": 0.4,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:falling-back-death",
+  "name": "Falling Back Death",
+  "duration": 2.6,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:football-catch",
+  "name": "Football Catch",
+  "duration": 4.167,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:front-flip",
+  "name": "Front Flip",
+  "duration": 1.667,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:golf-drive",
+  "name": "Golf Drive",
+  "duration": 5.3,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:happy-idle",
+  "name": "Happy Idle",
+  "duration": 2.933,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:happy-walk",
+  "name": "Happy Walk",
+  "duration": 1.1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:hip-hop-dancing",
+  "name": "Hip Hop Dancing",
+  "duration": 11.967,
+  "group": "Dance"
+ },
+ {
+  "id": "library:hit-reaction",
+  "name": "Hit Reaction",
+  "duration": 2.3,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:hook-punch",
+  "name": "Hook Punch",
+  "duration": 2.167,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:idle",
+  "name": "Idle",
+  "duration": 3.267,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:jab-cross",
+  "name": "Jab Cross",
+  "duration": 2.133,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:jog-forward",
+  "name": "Jog Forward",
+  "duration": 0.833,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:jump-over",
+  "name": "Jump Over",
+  "duration": 2.267,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:jump",
+  "name": "Jump",
+  "duration": 1.667,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:kneeling-idle",
+  "name": "Kneeling Idle",
+  "duration": 4.267,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:landing",
+  "name": "Landing",
+  "duration": 2.1,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:laughing",
+  "name": "Laughing",
+  "duration": 9.767,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:laying-idle",
+  "name": "Laying Idle",
+  "duration": 12.5,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:lifting-object",
+  "name": "Lifting Object",
+  "duration": 11.5,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:look-around",
+  "name": "Look Around",
+  "duration": 6.333,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:lying-down",
+  "name": "Lying Down",
+  "duration": 5.733,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:pick-up-item",
+  "name": "Pick Up Item",
+  "duration": 1.2,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:pointing",
+  "name": "Pointing",
+  "duration": 3.433,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:praying",
+  "name": "Praying",
+  "duration": 3.233,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:pull-heavy-object",
+  "name": "Pull Heavy Object",
+  "duration": 1.1,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:pulling-lever",
+  "name": "Pulling Lever",
+  "duration": 6.267,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:punching-bag",
+  "name": "Punching Bag",
+  "duration": 3.233,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:push",
+  "name": "Push",
+  "duration": 8,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:roundhouse-kick",
+  "name": "Roundhouse Kick",
+  "duration": 2.5,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:rumba-dancing",
+  "name": "Rumba Dancing",
+  "duration": 2.367,
+  "group": "Dance"
+ },
+ {
+  "id": "library:run-backward",
+  "name": "Run Backward",
+  "duration": 0.633,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:salsa-dancing",
+  "name": "Salsa Dancing",
+  "duration": 11.967,
+  "group": "Dance"
+ },
+ {
+  "id": "library:salute",
+  "name": "Salute",
+  "duration": 2.833,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:scared",
+  "name": "Scared",
+  "duration": 10.067,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:shake-fist",
+  "name": "Shake Fist",
+  "duration": 2.433,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:shooting",
+  "name": "Shooting",
+  "duration": 1.167,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:shrugging",
+  "name": "Shrugging",
+  "duration": 2,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:sit-to-stand",
+  "name": "Sit To Stand",
+  "duration": 2.267,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:sit-to-type",
+  "name": "Sit To Type",
+  "duration": 1.2,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:sitting-drinking",
+  "name": "Sitting Drinking",
+  "duration": 15.2,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:sitting-idle",
+  "name": "Sitting Idle",
+  "duration": 6.4,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:sitting-talking",
+  "name": "Sitting Talking",
+  "duration": 30,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:soccer-penalty-kick",
+  "name": "Soccer Penalty Kick",
+  "duration": 1.5,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:sprint",
+  "name": "Sprint",
+  "duration": 0.533,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:stand-to-sit",
+  "name": "Stand To Sit",
+  "duration": 2.233,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:stand-up",
+  "name": "Stand Up",
+  "duration": 4.833,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:standing-arguing",
+  "name": "Standing Arguing",
+  "duration": 20.8,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:standing-block",
+  "name": "Standing Block",
+  "duration": 2,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:standing-dodge-left",
+  "name": "Standing Dodge Left",
+  "duration": 0.967,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:standing-idle",
+  "name": "Standing Idle",
+  "duration": 1.867,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:standing-jump",
+  "name": "Standing Jump",
+  "duration": 2.367,
+  "group": "Sport & gymnastics"
+ },
+ {
+  "id": "library:strafe-left",
+  "name": "Strafe Left",
+  "duration": 1.033,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:strafe-right",
+  "name": "Strafe Right",
+  "duration": 1.433,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:sword-and-shield-attack",
+  "name": "Sword And Shield Attack",
+  "duration": 1.733,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:sword-and-shield-idle",
+  "name": "Sword And Shield Idle",
+  "duration": 7.533,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:talking",
+  "name": "Talking",
+  "duration": 3.933,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:thinking",
+  "name": "Thinking",
+  "duration": 4.233,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:throw-object",
+  "name": "Throw Object",
+  "duration": 4.867,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:turn-90-left",
+  "name": "Turn 90 Left",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:turn-90-right",
+  "name": "Turn 90 Right",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:uppercut",
+  "name": "Uppercut",
+  "duration": 1.333,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:victory",
+  "name": "Victory",
+  "duration": 6.1,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:walk-backward",
+  "name": "Walk Backward",
+  "duration": 1.1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:walk-forward",
+  "name": "Walk Forward",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:walk-left",
+  "name": "Walk Left",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:walk-right",
+  "name": "Walk Right",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:walk",
+  "name": "Walk",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:walking-turn-180",
+  "name": "Walking Turn 180",
+  "duration": 1,
+  "group": "Getting around"
+ },
+ {
+  "id": "library:waving",
+  "name": "Waving",
+  "duration": 3.167,
+  "group": "Everyday"
+ },
+ {
+  "id": "library:yawn",
+  "name": "Yawn",
+  "duration": 8.333,
+  "group": "Everyday"
+ }
+]

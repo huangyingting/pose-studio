@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm run lint && npm run test && npm run test:slow",
     "setup:mediapipe": "node scripts/setup-mediapipe.mjs",
+    "motions": "node scripts/library-motions.mjs",
     "postinstall": "prisma generate && node scripts/setup-mediapipe.mjs",
     "db:migrate": "prisma migrate deploy"
   },

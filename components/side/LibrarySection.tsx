@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, Ellipsis, Search } from 'lucide-react';
+import { libraryMotions, onLibraryMotions } from '@/lib/librarymotions';
 import { PREVIEW_SIZE, requestThumb, runPreview, type PreviewJob } from '@/lib/previews';
 import { spanAt } from '@/lib/shots';
 import type { LibraryTab } from '@/lib/store';
@@ -22,6 +23,9 @@ import type { SectionProps } from './sections';
  * category. Resting the pointer on one shows what it does: the pose, the motion playing, the move
  * filming this scene.
  */
+const NO_MOTIONS: never[] = [];
+const noMotions = () => NO_MOTIONS;
+
 export default function LibrarySection({ notify, notifyUndo, onPick }: SectionProps) {
   const store = useStore();
   const tab = useStudio((s) => s.settings.libraryTab);
@@ -31,6 +35,8 @@ export default function LibrarySection({ notify, notifyUndo, onPick }: SectionPr
   useStudio((s) => s.activeFigure);
   useStudio((s) => s.selection);
   useStudio((s) => { const a = s.library.scenes[s.sceneIndex]?.animation; return a ? spanAt(a, s.time)?.shot.id ?? '' : ''; });
+  // (The Library's motion files, once their list has come.)
+  useSyncExternalStore(onLibraryMotions, libraryMotions, noMotions);
   const [query, setQuery] = useState('');
   // A category's header was clicked in the results: only its matches.
   const [scoped, setScoped] = useState(false);
