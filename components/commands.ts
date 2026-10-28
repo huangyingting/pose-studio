@@ -26,7 +26,7 @@ import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById } from '@/lib/assets';
-import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Travel, type Vec3 } from '@/lib/types';
+import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
@@ -425,6 +425,22 @@ export function turnSelection(c: Ctx, dir: 1 | -1) {
   return !!k;
 }
 
+/** Select the next (1) or previous (-1) thing in the scene: its figures, props, cameras, then the light. */
+function cycleSelection(c: Ctx, dir: 1 | -1) {
+  const s = sceneOf(c);
+  const things: NonNullable<Selection>[] = [
+    ...s.figures.filter((f) => !f.hidden).map((f) => ({ kind: 'figure' as const, figure: f.id })),
+    ...s.props.map((p) => ({ kind: 'prop' as const, prop: p.id })),
+    ...s.cameras.map((x) => ({ kind: 'camera' as const, camera: x.id })),
+    { kind: 'light' as const },
+  ];
+  const id = (x: Selection) => (!x ? '' : x.kind === 'figure' || x.kind === 'joint' ? x.figure : x.kind === 'prop' ? x.prop : x.kind === 'camera' ? x.camera : x.kind);
+  const now = things.findIndex((x) => id(x) === id(c.store.getState().selection));
+  const next = things[now < 0 ? (dir > 0 ? 0 : things.length - 1) : (now + dir + things.length) % things.length];
+  c.store.select(next);
+  App().frameSelection?.();
+}
+
 /** What the step keys do for what is selected, for the hint ("← → ↑ ↓: move · Alt ← →: turn"). */
 export function stepHint(c: Ctx): string | null {
   const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
@@ -576,6 +592,10 @@ export const COMMANDS: Command[] = [
       else App().pickFloor?.(`Click the floor where ${f.name} should be now, with all it does · Esc to cancel`, go);
     },
   },
+
+  // Tab: from one thing in the scene to the next (#13), brought into view if it is out of it.
+  { id: 'select.next', title: 'Select the next thing', help: 'Select the next thing in the scene (with the focus on the canvas)', keys: ['tab'], run: (c) => cycleSelection(c, 1) },
+  { id: 'select.prev', title: 'Select the previous thing', help: 'Select the previous thing in the scene', keys: ['shift+tab'], run: (c) => cycleSelection(c, -1) },
 
   // Several things at once.
   {
@@ -1193,8 +1213,8 @@ export function matchesKey(spec: string, e: KeyboardEvent) {
   if (parts.includes('mod') !== (e.ctrlKey || e.metaKey) || parts.includes('alt') !== e.altKey) return false;
   const letter = /^[a-z]$/.test(key);
   if (letter && parts.includes('mod') && parts.includes('shift') !== e.shiftKey) return false;
-  // (The arrows and the Page keys go further with Shift: a step is not a Shift step.)
-  if (/^(arrow|page)/.test(key) && parts.includes('shift') !== e.shiftKey) return false;
+  // (The arrows and the Page keys go further with Shift: a step is not a Shift step; Shift + Tab goes back.)
+  if (/^(arrow|page|tab)/.test(key) && parts.includes('shift') !== e.shiftKey) return false;
   const pressed = e.key === ' ' ? 'space' : e.key.toLowerCase();
   return pressed === key;
 }

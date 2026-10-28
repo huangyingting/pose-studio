@@ -1709,6 +1709,27 @@ test('steps found on the canvas: a joint arc\'s − and +, ⟲ and ⟳ beside th
   expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { settings: { gizmoSize: number } } } } }).__poseStudio.store.getState().settings.gizmoSize)).toBe(1.35);
 });
 
+test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {
+  const sel = () => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: { kind: string } | null } } } }).__poseStudio.store.getState().selection);
+  const scene = await live(page);
+  const things = scene.scene.figures.length + scene.scene.props.length + scene.scene.cameras.length + 1;
+  await page.keyboard.press('Escape');
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Tab');
+  expect((await sel())?.kind).toBe('figure');
+  for (let i = 1; i < things; i++) await page.keyboard.press('Tab');
+  expect((await sel())?.kind).toBe('light');
+  await page.keyboard.press('Tab');
+  expect((await sel())?.kind).toBe('figure');
+  await page.keyboard.press('Shift+Tab');
+  expect((await sel())?.kind).toBe('light');
+  // In the panels, Tab is the browser's.
+  await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button').first().focus();
+  await page.keyboard.press('Tab');
+  expect((await sel())?.kind).toBe('light');
+});
+
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);
