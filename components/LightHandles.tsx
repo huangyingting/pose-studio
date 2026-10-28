@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Line } from '@react-three/drei';
+import { Line } from './Line';
 import { setSceneLight } from '@/lib/actions';
 import { DEFAULT_LIGHT, clampLight, lampAt, lightDome, lightFrom, lightText } from '@/lib/lighting';
 import type { SceneView } from '@/lib/sceneview';

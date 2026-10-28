@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
-import { Line } from '@react-three/drei';
+import { Line } from './Line';
 import { editRig } from '@/lib/actions';
 import { cameraById, frameAspect, LENSES, placeCamera, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import type { Store } from '@/lib/store';

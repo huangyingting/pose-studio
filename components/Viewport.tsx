@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
+import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
+import { Line } from './Line';
+import { useSettled } from './useSettled';
 import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint, setSceneLight, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
@@ -883,8 +885,11 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
   const cameras = scene.cameras;
   // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
+  // (Sampled over the whole animation: worked out once a drag rests, not as the playhead moves the figures.)
+  const settled = useSettled(scene);
+  const { cameras: sc, animation: sa } = settled;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const trails = useMemo(() => cameras.map((c) => cameraTrail(scene, c)), [cameras, a]);
+  const trails = useMemo(() => sc.map((c) => cameraTrail(settled, c)), [sc, sa]);
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect());

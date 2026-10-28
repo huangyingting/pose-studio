@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Line } from '@react-three/drei';
+import { Line } from './Line';
+import { useSettled } from './useSettled';
 import { fitWarp, moveMark } from '@/lib/actions';
-import { actionsOf, footprints, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
+import { actionsOf, footprints, marksOf, overWarp, figurePoseAt } from '@/lib/evaluate';
 import { angle, facingOf, nearer } from '@/lib/pose';
 import { CONTACT_LABELS, contactPoint, type Contact } from '@/lib/relations';
 import { holdOn, holdProp } from '@/lib/actions';
@@ -940,17 +941,26 @@ function numberTexture(n: number): THREE.CanvasTexture | null {
 export function RouteOverlay({ store, scene, figureId, time }: { store: Store; scene: Scene; figureId: string; time: number }) {
   const pointer = usePointer();
   const a = scene.animation!;
-  const figure = scene.figures.find((f) => f.id === figureId)!;
   const ground = useMemo(() => groundOf(scene.props), [scene.props]);
-  const route = useMemo(() => {
-    const legs = legsOf(figure.body);
+  // The path and footprints are sampled over the whole animation: worked out once a drag rests
+  // (the marks, which are dragged, follow at once).
+  const settled = useSettled(scene);
+  const path = useMemo(() => {
+    const sa = settled.animation;
+    const f0 = settled.figures.find((x) => x.id === figureId);
+    if (!sa || !f0) return { points: [] as [number, number, number][], prints: [] as ReturnType<typeof footprints> };
+    const legs = legsOf(f0.body);
     const points: [number, number, number][] = [];
-    const steps = Math.max(2, Math.ceil(a.duration * 15));
+    const steps = Math.max(2, Math.ceil(sa.duration * 15));
     for (let i = 0; i <= steps; i++) {
-      const f = sceneAt(scene, (a.duration * i) / steps).figures.find((x) => x.id === figureId)!;
+      // (Only this figure: the others and the props are not worked out at every step.)
+      const f = figurePoseAt(settled, figureId, (sa.duration * i) / steps)!;
       const lift = Math.max(0, f.position[1] - ground(f.position[0], f.position[2]) - legs.rootY);
       points.push([f.position[0], ground(f.position[0], f.position[2]) + 0.012 + lift, f.position[2]]);
     }
+    return { points, prints: footprints(settled, figureId) };
+  }, [settled, figureId, ground]);
+  const route = useMemo(() => {
     // A mark where the figure gets to somewhere new: where a walk, run, jump or clip ends, or a key
     // puts it (a run of keys in one place, as in a dance, is one mark).
     const marks: { t: number; x: number; z: number; facing: number; act?: string; over: boolean }[] = [];
@@ -963,8 +973,8 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
         if (!last || m.moved || Math.hypot(m.at[0] - last.x, m.at[1] - last.z) > 0.15) marks.push({ t: m.t, x: m.at[0], z: m.at[1], facing: m.facing, act: m.act, over: m.over });
       }
     }
-    return { points, marks, prints: footprints(scene, figureId) };
-  }, [a, figure, figureId, scene, ground]);
+    return { ...path, marks };
+  }, [a, figureId, scene, path]);
 
   /** Drag a mark on the floor; a click goes there (and picks the action ending there). Dragged past where a motion can stretch, it asks what to do. */
   const drag = (m: (typeof route.marks)[number]) => (e: ThreeEvent<PointerEvent>) => {
