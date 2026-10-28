@@ -699,7 +699,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         if (sel.kind === 'joint') {
           // Beside the joint, on the side away from its arcs.
           const j = apiRef.current?.jointOnScreen(sel.figure, sel.joint);
-          return j ? { x: j.x - Math.cos(j.away) * 36, y: j.y - Math.sin(j.away) * 36 } : null;
+          return j ? { x: j.x - Math.cos(j.away) * 72, y: j.y - Math.sin(j.away) * 40 } : null;
         }
         if (sel.kind === 'figure') {
           // Above the head (cheap enough to follow every frame).
