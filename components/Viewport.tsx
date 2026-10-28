@@ -916,15 +916,17 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
   // The camera whose outline row the pointer rests on (larger, in the accent); resting on one here marks its row.
   const linked = useStudio((st) => st.linked);
-  // (A rig camera removed while the pointer rests on it gets no pointer-out: the view's zoom comes back anyway.)
-  useEffect(() => () => {
-    const controls = get().controls as unknown as { enableZoom: boolean } | null;
-    if (controls) controls.enableZoom = true;
-  }, [cameras, get]);
+  // Over a rig camera the wheel steps its shot size, not the view's zoom. (One removed while the
+  // pointer rests on it gets no pointer-out: the zoom comes back when it is gone, or these are.)
+  const zoomOff = useRef<string | null>(null);
+  const setZoom = useCallback((on: boolean) => { const controls = get().controls as unknown as { enableZoom: boolean } | null; if (controls) controls.enableZoom = on; }, [get]);
+  useEffect(() => {
+    if (zoomOff.current && !cameras.some((c) => c.id === zoomOff.current)) { zoomOff.current = null; setZoom(true); }
+  }, [cameras, setZoom]);
+  useEffect(() => () => setZoom(true), [setZoom]);
   const link = (id: string) => {
     const cam = cameras.find((c) => c.id === id);
-    // (Over a rig camera the wheel steps its shot size, not the view's zoom.)
-    const zoom = (on: boolean) => { const controls = get().controls as unknown as { enableZoom: boolean } | null; if (controls && cam?.kind === 'rig') controls.enableZoom = on; };
+    const zoom = (on: boolean) => { if (cam?.kind !== 'rig') return; zoomOff.current = on ? null : id; setZoom(on); };
     return {
       onPointerOver: () => { store.setLinked(id); zoom(false); setPointerHint(cameraHint(cam?.name ?? 'the camera', cam?.kind === 'rig')); },
       onPointerOut: () => { store.setLinked(null); zoom(true); setPointerHint(null); },
