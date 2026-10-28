@@ -79,7 +79,9 @@ const posableById = (store: Store, id: string) => store.scene.figures.find((f) =
 
 /** The selected figure, if it can take poses, motions and characters (stand-ins cannot). */
 function posable(store: Store) {
-  const { activeFigure } = store.getState();
+  const { activeFigure, selection } = store.getState();
+  // A prop or a camera selected: nothing for a figure's items to go on (one target at a time).
+  if (selection?.kind === 'prop' || selection?.kind === 'camera') return null;
   const f = store.scene.figures.find((x) => x.id === activeFigure);
   return f && !f.proxy ? f : null;
 }

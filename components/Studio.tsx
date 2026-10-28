@@ -39,6 +39,7 @@ import { COMMANDS, choices, command, commandForKey, matchesKey, menu, menuItems,
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewCube from './ViewCube';
+import SelectionPie from './SelectionPie';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
 import { nextStep, stepDone } from './nextStep';
 
@@ -149,6 +150,7 @@ function App() {
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
+  const labelPoint = useCallback((sel: NonNullable<typeof selection>) => apiRef.current?.labelPoint(sel) ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
   /** Toast with an Undo button, for destructive actions. */
@@ -271,6 +273,8 @@ function App() {
       const typing = el.closest('textarea, select, [contenteditable="true"]')
         || (el instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(el.type));
       if (typing) return;
+      // The arrow keys belong to what has focus (a slider, a menu, a list), if anything does.
+      if (e.key.startsWith('Arrow') && el !== document.body && el.closest('input, select, button, [role], [tabindex]')) return;
       if (pick && e.key === 'Escape') {
         e.preventDefault();
         setPick(null);
@@ -474,6 +478,7 @@ function App() {
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
         {!through && <ViewCube ctx={cx} view={viewNow} />}
+        <SelectionPie labelPoint={labelPoint} hidden={!!through || !!pick} />
         {referenceUrl && scene.reference?.visible && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={referenceUrl} alt="" style={{ opacity: scene.reference.opacity }} />

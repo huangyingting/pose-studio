@@ -1229,6 +1229,30 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('the selection is named on the canvas; its radial menu opens from the hub or with Q and runs commands', async ({ page }) => {
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  const pie = page.getByRole('menu', { name: 'Actions for Figure' });
+  // From the hub: a command, then one that takes a choice (a pose, from thumbnails).
+  await page.getByRole('button', { name: 'Actions for Figure' }).click();
+  await expect(pie.getByRole('menuitem', { name: 'Walk to…' })).toBeVisible();
+  await pie.getByRole('menuitem', { name: 'Duplicate' }).click();
+  await expect(pie).toHaveCount(0);
+  expect((await state(page)).scene.figures).toHaveLength(2);
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  const before = (await state(page)).scene.figures[0].bones;
+  await page.getByRole('button', { name: 'Actions for Figure' }).click();
+  await pie.getByRole('menuitem', { name: 'Pose' }).click();
+  await page.getByRole('menu', { name: 'Pose' }).getByRole('menuitem', { name: 'Cobra' }).click();
+  expect((await state(page)).scene.figures[0].bones).not.toEqual(before);
+  // Q opens it at the pointer; Esc closes it.
+  const canvas = (await page.locator('.stage canvas').boundingBox())!;
+  await page.mouse.move(canvas.x + canvas.width * 0.3, canvas.y + canvas.height * 0.5);
+  await page.keyboard.press('q');
+  await expect(pie).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(pie).toHaveCount(0);
+});
+
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);

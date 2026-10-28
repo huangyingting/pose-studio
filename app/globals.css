@@ -1794,3 +1794,32 @@ body.resizing { cursor: col-resize; user-select: none; }
 .logo .logo-bg { fill: var(--logo-bg); }
 .logo .logo-head { fill: var(--accent); }
 .logo .logo-body { stroke: var(--logo-fg); }
+
+/* What is selected, named on the canvas, with the hub its radial menu opens from. */
+.pie-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.sel-label {
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 4px; padding: 2px 2px 2px 8px;
+  border-radius: 999px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-float);
+  color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
+}
+.sel-hub { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); cursor: pointer; pointer-events: auto; touch-action: none; }
+.sel-hub:hover, .sel-hub[aria-expanded='true'] { background: var(--accent-hover); }
+.pie { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; }
+.pie svg { display: block; filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--shade) 22%, transparent)); }
+.pie-sector { fill: color-mix(in srgb, var(--panel) 96%, transparent); stroke: var(--border); stroke-width: 1; }
+.pie-sector.on { fill: var(--accent-soft); }
+.pie-item { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-2); cursor: pointer; transform: translate(80px, 80px); }
+.pie-item.on { color: var(--accent); }
+.pie-item[aria-disabled='true'] { color: var(--text-3); opacity: 0.45; cursor: default; }
+.pie-hub { position: absolute; left: 50%; top: 50%; display: grid; place-items: center; min-width: 44px; height: 44px; margin: 0; padding: 0 8px; border: 0; border-radius: 999px; background: var(--ink); color: var(--on-accent); transform: translate(-50%, -50%); cursor: pointer; }
+.pie-name { display: inline-flex; align-items: baseline; gap: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.pie-name em { font-style: normal; font-weight: 500; opacity: 0.7; }
+.pie-choice {
+  position: absolute; z-index: 5; display: grid; gap: 1px; max-height: 260px; min-width: 150px; padding: 4px; overflow-y: auto;
+  border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-pop); pointer-events: auto;
+}
+.pie-choice button { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font-size: 12px; text-align: left; cursor: pointer; }
+.pie-choice button:hover:not(:disabled) { background: var(--hover); }
+.pie-choice button[aria-checked='true'] { color: var(--accent); font-weight: 600; }
+.pie-choice.grid { grid-template-columns: repeat(4, 56px); }
+.pie-choice.grid button { height: 56px; padding: 0; justify-content: center; background: var(--panel-2); }

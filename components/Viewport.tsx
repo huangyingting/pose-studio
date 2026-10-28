@@ -21,6 +21,7 @@ import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObject
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
 import { cameraHint, setCanvasPointer, setPointerHint } from './hints';
+import { openPie } from './commands';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -37,6 +38,8 @@ export interface ViewportApi {
   captureShot(): CameraView | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
   pick(x: number, y: number): CanvasHit;
+  /** Where on screen to label what is selected: just above it (a joint: at it). Null if it is not drawn. */
+  labelPoint(sel: NonNullable<Selection>): { x: number; y: number } | null;
 }
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
@@ -89,6 +92,7 @@ export default function Viewport({
   const gizmoBusy = useRef(0);
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
+  const longPress = useRef(0);
 
   // Characters' files are read after the first frame: drawn as them once they are.
   const [models, setModels] = useState(0);
@@ -162,7 +166,25 @@ export default function Viewport({
       className={`canvas-wrap${onPick ? ' picking' : ''}`}
       onPointerEnter={() => setCanvasPointer(true)}
       onPointerLeave={() => { setCanvasPointer(false); setPointerHint(null); }}
-      onPointerDown={(e) => { downAt.current = [e.clientX, e.clientY]; }}
+      onPointerDown={(e) => {
+        downAt.current = [e.clientX, e.clientY];
+        // A long press on touch: what is under the finger, selected, with its radial menu (touch has no right-click).
+        window.clearTimeout(longPress.current);
+        if (e.pointerType !== 'touch') return;
+        const [x, y] = [e.clientX, e.clientY];
+        longPress.current = window.setTimeout(() => {
+          const [x1, y1] = downAt.current;
+          if (Math.hypot(x1 - x, y1 - y) > 8) return;
+          const hit = apiRef.current?.pick(x, y) ?? {};
+          if (hit.camera) store.select({ kind: 'camera', camera: hit.camera });
+          else if (hit.prop) store.select({ kind: 'prop', prop: hit.prop });
+          else if (hit.figure) store.select({ kind: 'figure', figure: hit.figure });
+          else return;
+          openPie({ x, y });
+        }, 550);
+      }}
+      onPointerMove={(e) => { if (e.pointerType === 'touch' && Math.hypot(e.clientX - downAt.current[0], e.clientY - downAt.current[1]) > 8) window.clearTimeout(longPress.current); }}
+      onPointerCancel={() => window.clearTimeout(longPress.current)}
       onPointerUpCapture={(e) => {
         // Picking: a click (dragging still orbits) is the pick. (The release goes on to the view's
         // controls; a figure under the pointer is selected, which ends the pick mode.)
@@ -172,6 +194,7 @@ export default function Viewport({
         onPick(apiRef.current?.pick(e.clientX, e.clientY) ?? {});
       }}
       onPointerUp={(e) => {
+        window.clearTimeout(longPress.current);
         // Open on release so a right-drag (pan) does not open it; the browser's own menu is off.
         const [x, y] = downAt.current;
         if (e.button !== 2 || Math.hypot(e.clientX - x, e.clientY - y) > 4 || !(e.target instanceof HTMLCanvasElement)) return;
@@ -238,7 +261,8 @@ export default function Viewport({
             onObjectChange={onGizmoChange}
           />
         )}
-        {handles && active && activeDoc && !activeDoc.proxy && (
+        {/* (Not while a prop or a camera is what is selected: one target at a time.) */}
+        {handles && active && activeDoc && !activeDoc.proxy && selection?.kind !== 'prop' && selection?.kind !== 'camera' && (
           <IKHandles
             key={`${activeDoc.id}:${version}`}
             m={active}
@@ -473,6 +497,24 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       },
       projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
       captureShot: () => captureRef.current(),
+      labelPoint: (sel) => {
+        if (sel.kind === 'joint') {
+          const m = sv.figures.get(sel.figure);
+          return m ? toScreen(m.joints[sel.joint].getWorldPosition(new THREE.Vector3())) : null;
+        }
+        let o: THREE.Object3D | undefined;
+        if (sel.kind === 'figure') o = sv.models.get(sel.figure)?.object ?? sv.figures.get(sel.figure)?.object;
+        else if (sel.kind === 'prop') o = sv.props.get(sel.prop)?.object;
+        else if (sel.kind === 'camera') rigRef.current?.traverse((x) => { if (!o && x.visible && x.userData.camera === sel.camera && x.userData.point === undefined) o = x; });
+        if (!o) return null;
+        let shown = true;
+        for (let p: THREE.Object3D | null = o; p; p = p.parent) shown &&= p.visible;
+        if (!shown) return null;
+        const box = new THREE.Box3().setFromObject(o);
+        if (box.isEmpty()) return null;
+        const c = box.getCenter(new THREE.Vector3());
+        return toScreen(new THREE.Vector3(c.x, box.max.y, c.z));
+      },
       pick: (x, y) => {
         const r = gl.domElement.getBoundingClientRect();
         const ray = new THREE.Raycaster();

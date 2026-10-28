@@ -1,14 +1,14 @@
 import {
-  Activity, ArrowDownToLine, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, ArrowDown, CircleDot, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Move3d, MoveHorizontal, MoveUpRight,
-  PanelRightClose, Pause, Pencil, PersonStanding, Play, Plus, Redo2, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
+  PanelRightClose, Pause, Pencil, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
   Spline, StepBack, StepForward, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, addFigure, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
   mirrorPose, pastePose, propNow, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
-  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo,
+  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
@@ -23,7 +23,12 @@ import { shotSpans } from '@/lib/shots';
 import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
-import { HANDHELD, PROP_KINDS, PROP_LABELS, STYLES, type Travel, type Vec3 } from '@/lib/types';
+import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Travel, type Vec3 } from '@/lib/types';
+import { CONTACT_LABELS } from '@/lib/relations';
+import { mirrorJointName } from '@/lib/joints';
+import { PARENT } from '@/lib/skeleton';
+import { mirrorBones } from '@/lib/pose';
+import { LENSES, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import { VIEW_PRESETS } from '@/lib/views';
 import { PROP_ICONS, STYLE_ICONS } from './icons';
 import { startRename } from './rename';
@@ -64,6 +69,8 @@ export interface App {
   zoomTimeline?(how: 'in' | 'out' | 'fit'): void;
   /** Ask for a spot on the floor (a pick mode), then do something there. */
   pickFloor?(hint: string, done: (at: Vec3) => void): void;
+  /** Open the selection's radial menu (at a point of the page: the pointer's by default). */
+  openPie?(at?: { x: number; y: number }): void;
 }
 
 // Until the studio has set it (menus are built while it first renders): nothing playing, nothing to open.
@@ -77,13 +84,15 @@ export function setApp(patch: Partial<App>) {
   app = { ...app, ...patch };
 }
 const App = () => app;
+/** Open the selection's radial menu at a point of the page (a long press on touch). */
+export const openPie = (at: { x: number; y: number }) => app.openPie?.(at);
 
 /** What a command acts on. */
 export interface Ctx {
   store: Store;
   figure?: string;
-  /** A part of the figure is selected (not the figure itself). */
-  joint?: boolean;
+  /** A part of the figure is selected (not the figure itself): which. */
+  joint?: JointName;
   prop?: string;
   camera?: string;
   shot?: string;
@@ -134,7 +143,7 @@ export function selectionCtx(store: Store): Ctx {
   if (!sel) return { store };
   switch (sel.kind) {
     case 'figure': return { store, figure: sel.figure };
-    case 'joint': return { store, figure: sel.figure, joint: true };
+    case 'joint': return { store, figure: sel.figure, joint: sel.joint };
     case 'prop': return { store, prop: sel.prop };
     case 'camera': return { store, camera: sel.camera };
     case 'shot': return { store, shot: sel.shot };
@@ -236,6 +245,10 @@ export const COMMANDS: Command[] = [
     id: 'app.nextScene', title: 'Next scene', keys: [']'], enabled: (c) => c.store.getState().sceneIndex < c.store.getState().library.scenes.length - 1,
     run: (c) => c.store.setSceneIndex(c.store.getState().sceneIndex + 1),
   },
+  {
+    id: 'app.pie', title: 'Actions for the selection', icon: CircleDot, keys: ['q'],
+    when: (c) => !c.action && !c.shot && !!(c.figure || c.prop || c.camera), run: () => App().openPie?.(),
+  },
   { id: 'app.deselect', title: 'Deselect', icon: X, keys: ['escape'], run: (c) => c.store.select(null) },
 
   // The canvas's tools.
@@ -307,6 +320,29 @@ export const COMMANDS: Command[] = [
   { id: 'pose.paste', title: 'Paste pose', icon: ClipboardPaste, keys: ['mod+v'], run: (c) => { if (!pastePose(c.store)) App().notify('Copy a pose first', 'error'); } },
   { id: 'pose.reset', title: 'Reset pose', icon: RotateCcw, run: (c) => resetPose(c.store) },
 
+  // A part of a figure (the selected joint).
+  { id: 'joint.reset', title: 'Reset the joint', icon: RotateCcw, when: (c) => !!c.joint, run: (c) => setJoint(c.store, c.figure!, c.joint!, [0, 0, 0], '') },
+  {
+    id: 'joint.mirror', title: 'Mirror to the other side', icon: FlipHorizontal2, when: (c) => !!c.joint && mirrorJointName(c.joint) !== c.joint,
+    run: (c) => {
+      const other = mirrorJointName(c.joint!);
+      c.store.updateFigure(c.figure!, (f) => ({ ...f, bones: { ...f.bones, [other]: mirrorBones(f.bones)[other] } }));
+    },
+  },
+  {
+    id: 'joint.parent', title: 'The joint above', icon: ArrowUp, keys: ['arrowup'], when: (c) => !!c.joint && c.joint !== 'hips',
+    run: (c) => c.store.select({ kind: 'joint', figure: c.figure!, joint: PARENT[c.joint as Exclude<JointName, 'hips'>] as JointName }),
+  },
+  {
+    id: 'joint.child', title: 'The joint below', icon: ArrowDown, keys: ['arrowdown'], when: (c) => !!c.joint && !!childOf(c.joint),
+    run: (c) => c.store.select({ kind: 'joint', figure: c.figure!, joint: childOf(c.joint!)! }),
+  },
+  {
+    id: 'joint.otherSide', title: 'The same joint on the other side', icon: ArrowLeftRight, keys: ['arrowleft', 'arrowright'],
+    when: (c) => !!c.joint && mirrorJointName(c.joint) !== c.joint,
+    run: (c) => c.store.select({ kind: 'joint', figure: c.figure!, joint: mirrorJointName(c.joint!) }),
+  },
+
   // A figure.
   {
     id: 'figure.hide', title: (c) => (figureOf(c)?.hidden ? 'Show' : 'Hide'), iconFor: (c) => (figureOf(c)?.hidden ? Eye : EyeOff), when: (c) => !!c.figure && !c.action,
@@ -356,6 +392,18 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    // A hand kept on someone else's body from now to the end of what it is doing.
+    id: 'figure.holdOn', title: 'Hold on to', icon: Hand,
+    when: (c) => !!figureOf(c) && !figureOf(c)!.proxy && !c.action && sceneOf(c).figures.some((x) => x.id !== c.figure && !x.hidden && !x.proxy),
+    items: (c) => sceneOf(c).figures.filter((x) => x.id !== c.figure && !x.hidden && !x.proxy).flatMap((x) => (['shoulder', 'waist', 'hand'] as const).map((part) => {
+      const contact = part === 'shoulder' ? 'leftUpperArm' : part === 'waist' ? 'waist' : 'rightHand';
+      return {
+        title: `${x.name}'s ${CONTACT_LABELS[contact].toLowerCase()}`, icon: Hand,
+        run: () => { if (!holdOn(c.store, c.figure!, 'R', x.id, contact)) App().notify(`${x.name} is out of reach`, 'error'); },
+      };
+    })),
+  },
+  {
     // The same moves for someone else (a crowd, a synchronised routine).
     id: 'figure.copyMoves', title: 'Copy moves to', icon: Copy,
     when: (c) => !!c.figure && !c.action && !!sceneOf(c).animation && actionsOf(sceneOf(c).animation!, c.figure).length > 1 && sceneOf(c).figures.length > 1,
@@ -378,6 +426,14 @@ export const COMMANDS: Command[] = [
       const f = holderOf(c)!;
       return (['R', 'L'] as const).filter((h) => !(p.hold?.figure === f.id && p.hold.hand === h)).map((h) => ({ title: `In ${f.name}'s ${hand(h)} hand`, icon: Hand, run: () => holdProp(c.store, p.id, { figure: f.id, hand: h }) }));
     },
+  },
+  {
+    // Into anyone's hand.
+    id: 'prop.give', title: 'Give to', icon: Hand,
+    when: (c) => { const p = c.prop && propNow(c.store, c.prop); return !!p && HOLDABLE.includes(p.kind); },
+    items: (c) => sceneOf(c).figures.filter((x) => !x.hidden && !x.proxy).flatMap((x) => (['R', 'L'] as const).map((h) => ({
+      title: `${x.name}'s ${hand(h)} hand`, icon: Hand, run: () => holdProp(c.store, c.prop!, { figure: x.id, hand: h }),
+    }))),
   },
   {
     // Someone else takes it from the hand holding it (a handoff).
@@ -475,6 +531,41 @@ export const COMMANDS: Command[] = [
   {
     id: 'camera.through', title: 'Look through it', icon: Eye, when: (c) => !!c.camera, checked: (c) => c.store.getState().through?.camera === c.camera,
     run: (c) => c.store.lookThrough(c.store.getState().through?.camera === c.camera ? null : { camera: c.camera! }),
+  },
+  {
+    // A path camera's point at the playhead from the editor's view; a rig's angle and size as the view frames its subject.
+    id: 'camera.fromView', title: 'Set from the view', icon: Camera, when: (c) => !!c.camera && c.at === undefined,
+    run: (c) => {
+      const shot = App().captureShot();
+      if (!shot) return;
+      setCameraPoint(c.store, shot.position, shot.target, shot.fov, '', c.camera);
+      App().notify(`${cameraById(sceneOf(c), c.camera)?.name} set from the view`);
+    },
+  },
+  {
+    id: 'camera.pointHere', title: 'A point here', icon: Plus, when: (c) => cameraById(sceneOf(c), c.camera)?.kind === 'path' && animated(c),
+    run: (c) => addCameraPoint(c.store, c.camera!, c.store.getState().time),
+  },
+  {
+    id: 'camera.size', title: 'Shot size', icon: Scan, when: (c) => !!c.camera,
+    items: (c) => {
+      const cam = cameraById(sceneOf(c), c.camera)!;
+      return SHOT_SIZES.map((x) => ({
+        title: `${x.short} · ${x.name}`, checked: cam.kind === 'rig' && cam.rig.size === x.id,
+        run: () => (cam.kind === 'rig' ? editRig(c.store, cam.id, { size: x.id }) : frameShot(c.store, x.id, { camera: cam.id })),
+      }));
+    },
+  },
+  {
+    id: 'camera.lens', title: 'Lens', icon: Aperture, when: (c) => !!c.camera,
+    items: (c) => {
+      const cam = cameraById(sceneOf(c), c.camera)!;
+      const now = cam.kind === 'rig' ? cam.rig.lens : viewOf(sceneOf(c), cam, c.store.getState().time).lens;
+      return LENSES.map((mm) => ({
+        title: `${mm} mm`, checked: Math.round(now) === mm,
+        run: () => (cam.kind === 'rig' ? editRig(c.store, cam.id, { lens: mm }) : setLens(c.store, mm, 'size', '', cam.id)),
+      }));
+    },
   },
   {
     id: 'camera.delete', title: 'Delete', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.camera && c.at === undefined, enabled: (c) => sceneOf(c).cameras.length > 1,
@@ -634,6 +725,11 @@ export const COMMANDS: Command[] = [
   { id: 'timeline.remove', title: 'Remove animation', icon: Trash2, danger: true, when: animated, run: (c) => { App().stopPlayback(); removeAnimation(c.store); } },
 ];
 
+/** The joint below another (the first, where it branches: the chest's is the neck). */
+function childOf(j: JointName): JointName | undefined {
+  return JOINTS.find((x) => x !== 'hips' && PARENT[x as Exclude<JointName, 'hips'>] === j);
+}
+
 /** Whether a figure can be sent somewhere (the context's, or the selected one), and the props it holds. */
 function movable(c: Ctx) {
   const f = c.figure ? figureOf(c) : c.floor ? activeFigure(c) : undefined;
@@ -776,6 +872,31 @@ export const MENUS = {
 } satisfies Record<string, MenuEntry[]>;
 
 export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name], c);
+
+/**
+ * The radial menus of what is selected: up to eight sectors each, in fixed places (a command that
+ * does not apply now is greyed, not removed), related ones side by side. `label` names a sector
+ * where the command's own title says something else.
+ */
+export type PieEntry = { id: string; label?: string };
+export const PIES: Record<'figure' | 'joint' | 'prop' | 'camera', PieEntry[]> = {
+  figure: [
+    { id: 'figure.pose', label: 'Pose' }, { id: 'figure.motion', label: 'Motion' }, { id: 'figure.walk', label: 'Walk to…' }, { id: 'figure.run', label: 'Run to…' },
+    { id: 'figure.eyes', label: 'Eyes on' }, { id: 'figure.holdOn', label: 'Hold on to' }, { id: 'duplicate' }, { id: 'figure.hide' },
+  ],
+  joint: [
+    { id: 'joint.reset', label: 'Reset' }, { id: 'joint.mirror', label: 'Mirror' }, { id: 'joint.parent', label: 'Joint above' }, { id: 'joint.child', label: 'Joint below' },
+    { id: 'pose.copy' }, { id: 'pose.paste' }, { id: 'timeline.key', label: 'Key' }, { id: 'tool.limits', label: 'Limits' },
+  ],
+  prop: [
+    { id: 'tool.move', label: 'Move' }, { id: 'tool.pose', label: 'Turn' }, { id: 'tool.scale', label: 'Scale' }, { id: 'prop.give', label: 'Give to' },
+    { id: 'prop.throwTo', label: 'Throw to' }, { id: 'prop.hold', label: 'Hold' }, { id: 'duplicate' }, { id: 'prop.delete' },
+  ],
+  camera: [
+    { id: 'camera.through', label: 'Look through' }, { id: 'camera.fromView', label: 'From the view' }, { id: 'camera.size', label: 'Size' }, { id: 'camera.lens', label: 'Lens' },
+    { id: 'camera.pointHere', label: 'Point here' }, { id: 'duplicate' },
+  ],
+};
 
 /** A command's choices as a menu of their own (the render styles). */
 export const choices = (id: string, c: Ctx): MenuItem[] => (command(id).items?.(c) ?? []).map((ch) => ({ label: ch.title, icon: ch.icon, checked: ch.checked, disabled: ch.disabled, onSelect: ch.run }));

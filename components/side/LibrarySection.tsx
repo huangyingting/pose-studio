@@ -203,7 +203,7 @@ function List({ category, title, items, preview }: { category: LibraryCategory; 
   );
 }
 
-function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: boolean; fallback: ReactNode }) {
+export function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: boolean; fallback: ReactNode }) {
   const drawn = thumb && 'key' in thumb ? thumb : null;
   const [url, setUrl] = useState<{ key: string; url: string } | null>(null);
   // Drawn once it scrolls into sight (a template's takes building it first).
