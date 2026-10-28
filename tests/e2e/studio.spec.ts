@@ -213,7 +213,7 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   const step = page.getByRole('status', { name: 'Next step' });
   await expect(step).toContainText('Pose Figure');
   await step.getByRole('button', { name: 'Not now' }).click();
-  await expect(step).toContainText('Make Figure walk somewhere');
+  await expect(step).toContainText('Give Figure something to do');
   // Resting on a part says what dragging it does.
   const hand = await project(page, 'leftHand');
   await page.mouse.move(hand.x, hand.y + 2);
@@ -522,11 +522,11 @@ test('share links open as a new scene', async ({ page, context }) => {
 
 test('saves and re-imports the library as JSON', async ({ page }) => {
   await page.getByRole('button', { name: 'Main menu' }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save project (.json)' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save project' }).click()]);
   const path = (await download.path())!;
   await page.getByRole('button', { name: 'Main menu' }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Import scenes from a project…' }).click();
+  await page.getByRole('menuitem', { name: 'Add scenes from a project…' }).click();
   await (await chooser).setFiles(path);
   await expect(page.getByText('Loaded 20 scenes')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(40);
@@ -1902,7 +1902,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.keyboard.press('3');
   await page.waitForTimeout(400);
   await page.getByRole('list', { name: 'Light' }).getByRole('button').click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Light from here (from the view)' }).click();
+  await page.getByRole('menuitem', { name: 'Light from this view' }).click();
   s = await live(page);
   expect(Math.abs(s.scene.light!.azimuth - 90)).toBeLessThan(5);
   await expect(page.getByRole('list', { name: 'Light' })).toContainText('From the left');

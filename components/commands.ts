@@ -479,11 +479,11 @@ export const COMMANDS: Command[] = [
   // The app.
   { id: 'app.undo', title: 'Undo', icon: Undo2, keys: ['mod+z'], enabled: (c) => c.store.getState().canUndo, run: (c) => c.store.undo() },
   { id: 'app.redo', title: 'Redo', icon: Redo2, keys: ['mod+shift+z', 'mod+y'], enabled: (c) => c.store.getState().canRedo, run: (c) => c.store.redo() },
-  { id: 'app.save', title: 'Save project (.json)', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
-  { id: 'app.newFilm', title: 'New film…', help: 'A new scene that starts as a film: what you are filming and how long', icon: Clapperboard, run: () => App().dialog('start') },
+  { id: 'app.save', title: 'Save project', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
+  { id: 'app.newFilm', title: 'New film…', help: 'Start a film: what to film and how long', icon: Clapperboard, run: () => App().dialog('start') },
   { id: 'app.exportVideo', title: 'Export the film as a video', icon: Film, when: animated, run: () => App().dialog('export-video') },
-  { id: 'app.import', title: 'Import scenes from a project…', icon: FileUp, run: () => App().openFile('append') },
-  { id: 'app.open', title: 'Open project (replace)…', icon: FolderOpen, run: () => App().openFile('replace') },
+  { id: 'app.import', title: 'Add scenes from a project…', icon: FileUp, run: () => App().openFile('append') },
+  { id: 'app.open', title: 'Open project…', help: 'Open a project in place of this one', icon: FolderOpen, run: () => App().openFile('replace') },
   { id: 'app.export', title: 'Export', icon: Download, keys: ['mod+e'], run: () => App().dialog('export') },
   { id: 'app.project', title: 'Project settings…', icon: Settings2, run: () => App().dialog('project') },
   { id: 'app.photo', title: 'Figures from a photo…', icon: ScanFace, run: () => App().dialog('photo') },
@@ -617,7 +617,7 @@ export const COMMANDS: Command[] = [
     items: (c) => LIGHT_PRESETS.map((p) => ({ title: p.name, checked: sameLight(lightOf(c), p.light), run: () => setSceneLight(c.store, p.light, '') })),
   },
   {
-    id: 'light.fromView', title: 'Light from here (from the view)', icon: Lightbulb, when: (c) => !!c.light || onScene(c),
+    id: 'light.fromView', title: 'Light from this view', icon: Lightbulb, when: (c) => !!c.light || onScene(c),
     run: (c) => {
       const v = App().captureShot();
       if (v) setSceneLight(c.store, lightFrom(lightOf(c), v.position.clone().sub(v.target)), '');
@@ -1091,7 +1091,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'timeline.cut', title: (c) => (c.store.getState().through ? 'Cut here, filmed from this view by a new camera' : 'Cut: start a new shot here'),
-    help: 'Cut: start a new shot here (looking through a camera: filmed from this view by a new camera)', icon: Scissors, keys: ['c'], when: animated,
+    help: 'Start a new shot here (looking through: a new camera from this view)', icon: Scissors, keys: ['c'], when: animated,
     run: (c) => {
       App().stopPlayback();
       const view = c.store.getState().through ? App().captureShot() : null;
@@ -1125,7 +1125,7 @@ export const COMMANDS: Command[] = [
   { id: 'timeline.check', title: 'Check the motion', icon: Activity, when: animated, run: () => App().checkMotion?.() },
   {
     // The director (#14): the scene filmed in a style, cut again as what they do changes; or by hand.
-    id: 'timeline.director', title: 'Director', help: 'The director: cameras and cuts made from what they do, kept up to date (or by hand)', icon: Clapperboard, when: animated,
+    id: 'timeline.director', title: 'Director', help: 'Films the scene for you, and keeps up as it changes (or By hand)', icon: Clapperboard, when: animated,
     items: (c) => {
       const cv = sceneOf(c).coverage;
       return [

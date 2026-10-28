@@ -428,7 +428,7 @@ function App() {
             <Menu
               label="View"
               className="btn ghost"
-              tip="The angle, what to look through and what the canvas shows"
+              tip="Look through, and what the canvas shows"
               items={() => menu('view', cx)}
             >
               <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />

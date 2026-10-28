@@ -134,4 +134,18 @@ describe('a film of a chosen length', () => {
     expect(store.getState().through).toEqual({ camera: cam });
     vi.unstubAllGlobals();
   });
+
+  it('is offered by the next-step hint when a film is still one shot', async () => {
+    const { nextStep } = await import('@/components/nextStep');
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    startAnimation(store, 10);
+    store.setTime(2);
+    travelTo(store, id, [0, -3], 'walk');
+    const step = nextStep(store)!;
+    expect(step.id).toBe('cut');
+    expect(step.actions.map((x) => x.label)).toEqual(['Director', 'Cut here']);
+    step.actions[0].run();
+    expect(store.scene.coverage).toMatchObject({ id: 'follow', live: true });
+  });
 });

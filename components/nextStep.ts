@@ -1,4 +1,5 @@
 import { newFigure } from '@/lib/doc';
+import { setDirector } from '@/lib/actions';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { command, type Ctx } from './commands';
@@ -54,21 +55,28 @@ export function nextStep(store: Store): Suggestion | null {
   const offer = (id: string, s: Omit<Suggestion, 'id'>): Suggestion | null => (done.includes(id) ? null : ((step = id), { id, ...s }));
 
   const out =
-    (!figures.length && offer('figure', { text: 'An empty scene: start with a figure', actions: [] }))
+    (!figures.length && offer('figure', { text: 'Empty scene: add a figure', actions: [] }))
     || (lead && !acting && people.length === 1 && JSON.stringify(lead.bones) === DEFAULT_BONES
-      && offer('pose', { text: `Pose ${lead.name}: drag a hand or a foot, or pick a pose`, actions: [] }))
-    || (lead && !acting && offer('act', { text: `Make ${lead.name} walk somewhere, or give ${lead.name} a motion`, actions: [] }))
-    || (a && acting && shotSpans(a).length === 1 && offer('cut', { text: 'One shot so far: cut it into shots', actions: [] }))
+      && offer('pose', { text: `Pose ${lead.name}: drag a part, or pick a pose`, actions: [] }))
+    || (lead && !acting && offer('act', { text: `Give ${lead.name} something to do`, actions: [] }))
+    || (a && acting && shotSpans(a).length === 1 && offer('cut', { text: 'One shot so far: let the director film it, or cut it', actions: [] }))
     || (a && shotSpans(a).length > 1 && new Set(shotSpans(a).map((sp) => sp.shot.camera)).size === 1
-      && offer('camera', { text: 'Every shot is filmed by one camera: film shot 2 with a new one', actions: [] }))
-    || (a && acting && offer('check', { text: 'Check the motion for sliding feet, collisions and pops', actions: [] }))
+      && offer('camera', { text: 'All shots use one camera: give shot 2 its own', actions: [] }))
+    || (a && acting && offer('check', { text: 'Check for sliding feet, collisions and pops', actions: [] }))
     || null;
   if (!out) return null;
   // The buttons: the commands that take the step.
   if (out.id === 'figure') out.actions = [act('floor.figure', 'Add a figure')];
   if (out.id === 'pose') out.actions = [act('figure.pose', 'Poses', { store, figure: lead!.id })];
   if (out.id === 'act') out.actions = [act('figure.walk', 'Walk to…', { store, figure: lead!.id }), act('figure.motion', 'Motions', { store, figure: lead!.id })];
-  if (out.id === 'cut') out.actions = [act('timeline.cut', 'Cut here')];
+  if (out.id === 'cut') {
+    // (The director: in the style that suits who is in it.)
+    const style = people.length > 1 ? 'dialogue' : 'follow';
+    out.actions = [
+      ...(scene.coverage?.live ? [] : [{ label: 'Director', run: () => { stepDone(scene.id, 'cut'); setDirector(store, style); } }]),
+      act('timeline.cut', 'Cut here'),
+    ];
+  }
   if (out.id === 'camera') {
     const second = shotSpans(a!)[1];
     const newCamera = command('shot.camera').items!({ store, shot: second.shot.id }).at(-1)!;

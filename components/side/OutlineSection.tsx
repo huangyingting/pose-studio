@@ -250,7 +250,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
             </ul>
           ) : (
             <div className="outline-still">
-              <Hint>A still image: a key (K) or an action on the timeline animates it, to film it in shots</Hint>
+              <Hint>A still image: add a key (K) or an action to animate it</Hint>
             </div>
           )}
         </div>
