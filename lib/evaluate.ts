@@ -26,6 +26,8 @@ import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type
  */
 
 const EPS = 1e-6;
+/** The most times a looping clip goes round (a short loop over a five-minute film). */
+const MAX_LAPS = 1000;
 /** Idle life eases in and out over this long at the edges of what a figure does (s). */
 const IDLE_EASE = 0.6;
 /** How long a planted foot takes to be let go when it lifts in a clip (s). */
@@ -224,7 +226,7 @@ class Evaluator {
           const side = bone === 'leftFoot' ? 'L' : 'R';
           // (Each time round a clip played again, where the foot lands then.)
           const repeat = (act.source as { repeat?: number }).repeat;
-          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? 50 : repeat! - 1, Math.max(0, Math.floor(((t - act.start) * speed) / clip.duration + EPS))) : 0;
+          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? MAX_LAPS : repeat! - 1, Math.max(0, Math.floor(((t - act.start) * speed) / clip.duration + EPS))) : 0;
           const key = `${act.id}:${f.id}:${n}:${lap}`;
           let at = this.anchors.get(key);
           if (!at) {
@@ -457,7 +459,7 @@ class Evaluator {
     let u = (t - act.start) * (src.speed ?? 1);
     let laps = 0;
     if ((clip.loop || src.repeat) && clip.duration > EPS) {
-      laps = Math.min(clip.loop ? 50 : src.repeat! - 1, Math.floor(u / clip.duration + EPS));
+      laps = Math.min(clip.loop ? MAX_LAPS : src.repeat! - 1, Math.floor(u / clip.duration + EPS));
       u = Math.min(clip.duration, Math.max(0, u - laps * clip.duration));
     } else u = Math.min(clip.duration, Math.max(0, u));
     const first = sample(0);

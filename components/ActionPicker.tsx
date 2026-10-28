@@ -8,6 +8,9 @@ import { LIBRARY_CATEGORIES, type Thumb } from './side/libraryItems';
 import { Thumbnail } from './side/LibrarySection';
 import { useStore } from './store-context';
 
+/** The everyday beats offered first (Library motions, by id). */
+const COMMON_BEATS = ['talk', 'wave', 'nod', 'shake-head', 'point', 'sit-down', 'stand-up', 'pick-up'];
+
 /** Where the picker opens: for a figure, at a point of the page (it opens upwards from there). */
 export interface PickerAt { figure: string; x: number; y: number }
 
@@ -39,13 +42,17 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
 
   const c: Ctx = { store, figure: at.figure };
   const ui = { notify: (t: string) => App().notify(t), notifyUndo: (t: string) => App().notifyUndo(t) };
-  const library = (id: 'poses' | 'motions') => LIBRARY_CATEGORIES.find((x) => x.id === id)!.items(store, ui)
-    .filter((it) => it.drop?.figure)
-    .map((it): Row => ({ label: it.name, icon: it.icon, thumb: it.thumb, meta: it.meta, run: () => it.drop!.figure!(at.figure) }));
+  const items = (id: 'poses' | 'motions') => LIBRARY_CATEGORIES.find((x) => x.id === id)!.items(store, ui).filter((it) => it.drop?.figure);
+  const row = (it: ReturnType<typeof items>[number]): Row => ({ label: it.name, icon: it.icon, thumb: it.thumb, meta: it.meta, run: () => it.drop!.figure!(at.figure) });
+  const library = (id: 'poses' | 'motions') => items(id).map(row);
+  // The everyday beats first: what people do in a scene between the big actions (#14).
+  const motions = items('motions');
+  const common = COMMON_BEATS.map((id) => motions.find((it) => it.key === `motion:${id}`)).filter((it) => !!it).map(row);
   // What it holds at the playhead.
   const held = store.scene.props.filter((p) => propNow(store, p.id)?.hold?.figure === at.figure);
   const parts: Part[] = [
     { title: 'Go somewhere', rows: commandRows(['figure.walk', 'figure.run', 'figure.jump', 'figure.step'], c) },
+    { title: 'Everyday', rows: common },
     ...held.map((p) => ({
       title: p.name,
       rows: commandRows(['prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot', 'prop.give', 'prop.letGo', 'prop.drop'], { store, prop: p.id }),

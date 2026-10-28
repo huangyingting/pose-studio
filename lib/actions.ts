@@ -1264,6 +1264,8 @@ export function setDirector(store: Store, style: string | null): boolean {
       store.updateScene((s) => (s.coverage?.live ? { ...s, coverage: { id: s.coverage.id, roles: s.coverage.roles } } : s));
       return true;
     }
+    // (Already filming in this style: as it is, its pinned shots kept.)
+    if (store.scene.coverage?.live && store.scene.coverage.id === style) return true;
     const cast = cover(store, style);
     if (cast) store.updateScene((s) => (s.coverage ? { ...s, coverage: { ...s.coverage, live: true } } : s));
     return !!cast;
@@ -1418,16 +1420,19 @@ export function sceneFromTemplate(store: Store, id: string) {
  */
 export function startFilm(store: Store, what: { template?: string; shoot?: string }, length: number): boolean {
   return store.group(() => {
+    // (A shoot preset: its template, filmed its way if it can be, else as suits who is in it.)
+    const preset = what.shoot ? shootsOf(store.getState().library).find((x) => x.id === what.shoot) : undefined;
     if (what.shoot) {
-      if (!shoot(store, what.shoot)) return false;
+      if (!preset || !sceneFromTemplate(store, preset.template)) return false;
+      store.updateScene((s) => ({ ...s, name: preset.name }));
     } else if (what.template) {
       if (!sceneFromTemplate(store, what.template)) return false;
     } else addScene(store);
     if (!store.scene.animation) startAnimation(store, length);
     store.updateScene((s) => fitted(s, length));
     const people = store.scene.figures.filter((f) => !f.hidden && !f.proxy).length;
-    const style = store.scene.coverage?.id ?? (people > 1 ? 'dialogue' : 'follow');
-    setDirector(store, style);
+    const fallback = people > 1 ? 'dialogue' : 'follow';
+    if (!setDirector(store, preset?.coverage ?? fallback)) setDirector(store, fallback);
     store.setTime(0);
     return true;
   });

@@ -89,3 +89,16 @@ describe('the director, by hand', () => {
     expect(store.scene.cameras.some((c) => c.id === made.id)).toBe(false);
   });
 });
+
+describe('a film of a chosen length', () => {
+  it('keeps a looping template motion going to the end', async () => {
+    const { startFilm } = await import('@/lib/actions');
+    const store = new Store(new MemoryStorage());
+    expect(startFilm(store, { template: 'group-dance' }, 60)).toBe(true);
+    const a = store.scene.animation!;
+    expect(a.duration).toBe(60);
+    const loops = a.actions.filter((x) => x.source.kind === 'keys' && x.source.clip.loop);
+    expect(loops.length).toBeGreaterThan(0);
+    for (const x of loops) expect(x.start + x.duration).toBeCloseTo(60, 3);
+  });
+});

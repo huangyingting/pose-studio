@@ -120,8 +120,8 @@ export function MotionsBar({ notify, notifyUndo }: BarProps) {
       <div className="library-row">
         <ImportButton
           label="Import motion…"
-          accept=".bvh,.fbx,.glb,.gltf"
-          tip="A BVH, FBX or glTF/GLB animation (motion capture, Mixamo…), fitted to the mannequin"
+          accept=".bvh,.fbx,.glb,.gltf,.json"
+          tip="A BVH, FBX or glTF/GLB animation (motion capture, Mixamo…), fitted to the mannequin, or a Pose Studio motion (.json)"
           fileLabel="Motion file"
           reading={imp.reading}
           onFile={(f) => void imp.run(f)}

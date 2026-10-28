@@ -4,6 +4,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DEFAULT_BODY } from './body';
 import { partFromPoses } from './clip';
+import { parseClip } from './doc';
 import { detectContacts } from './constraints';
 import { RELAXED_HAND, cloneHand } from './hands';
 import { legsOf } from './locomotion';
@@ -126,6 +127,19 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
 }
 
 /** Read and retarget a motion file in one go. */
-export async function importMotion(name: string, data: ArrayBuffer, map?: BoneMap) {
+export async function importMotion(name: string, data: ArrayBuffer, map?: BoneMap): Promise<Clip> {
+  if (name.toLowerCase().endsWith('.json')) return nativeMotion(data);
   return retargetMotion(await readMotionFile(name, data), map);
+}
+
+/** A motion saved in our own format (a clip's JSON), under a new id so that it is listed as its own. */
+function nativeMotion(data: ArrayBuffer): Clip {
+  let clip: Clip | null = null;
+  try {
+    clip = parseClip(JSON.parse(new TextDecoder().decode(data)));
+  } catch {
+    clip = null;
+  }
+  if (!clip) throw new Error('Not a Pose Studio motion file');
+  return { ...clip, id: uid('clip') };
 }

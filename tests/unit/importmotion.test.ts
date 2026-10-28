@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { addFigure, applyMotion, saveMotion } from '@/lib/actions';
 import { sceneAt } from '@/lib/evaluate';
 import { parseLibrary } from '@/lib/doc';
-import { readMotionFile, retargetMotion } from '@/lib/importmotion';
+import { importMotion, readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { Rig } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { CMU, UNREAL, bvh } from '../fixtures/bvh';
@@ -84,5 +84,15 @@ describe('importing motions from other tools', () => {
     const text = new TextEncoder().encode('HIERARCHY\nROOT Thing\n{\nOFFSET 0 0 0\nCHANNELS 3 Xposition Yposition Zposition\nEnd Site\n{\nOFFSET 0 1 0\n}\n}\nMOTION\nFrames: 1\nFrame Time: 0.1\n0 0 0\n').buffer as ArrayBuffer;
     await expect(async () => retargetMotion(await readMotionFile('x.bvh', text))).rejects.toThrow(/Could not find/);
     await expect(readMotionFile('x.txt', text)).rejects.toThrow(/BVH, FBX/);
+  });
+
+  it('imports a Pose Studio motion file as it was saved, under a new id', async () => {
+    const clip = retargetMotion(await readMotionFile('Step_forward.bvh', file(CMU)));
+    const bytes = new TextEncoder().encode(JSON.stringify(clip)).buffer as ArrayBuffer;
+    const back = await importMotion('Step_forward.clip.json', bytes);
+    expect(back.id).not.toBe(clip.id);
+    expect({ ...back, id: clip.id }).toEqual(clip);
+    const other = new TextEncoder().encode('{"parts":[]}').buffer as ArrayBuffer;
+    await expect(importMotion('x.json', other)).rejects.toThrow(/Pose Studio motion/);
   });
 });

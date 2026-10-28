@@ -584,8 +584,10 @@ export function fitted(scene: Scene, length: number): Scene {
   const a = scene.animation;
   if (!a) return scene;
   if (length < a.duration - EPS) return cutTo(scene, length);
+  // (A looping motion: a Library clip, or keys made to go round, as the built-in templates' are.)
+  const loops = (x: Action) => (x.source.kind === 'clip' ? !!clipById(x.source.clip)?.loop : x.source.kind === 'keys' && x.source.clip.loop);
   const actions = a.actions.map((x) => {
-    if (x.layer || x.source.kind !== 'clip' || !clipById(x.source.clip)?.loop || end(x) < a.duration - 0.05) return x;
+    if (x.layer || !loops(x) || end(x) < a.duration - 0.05) return x;
     return x.roles.every((r) => actionsOf(a, r.figure).at(-1) === x) ? { ...x, duration: length - x.start } : x;
   });
   return { ...scene, animation: { ...a, actions, duration: length } };

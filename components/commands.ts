@@ -1220,7 +1220,7 @@ export function keyLabel(spec: string) {
 /** A command's shortcut as shown. */
 export const shortcutOf = (id: string) => { const k = command(id).keys?.[0]; return k ? keyLabel(k) : undefined; };
 /** A tooltip with a command's shortcut ("Label  Ctrl E": the tooltip shows the keys apart). */
-export const tipOf = (id: string, label?: string) => { const k = shortcutOf(id); const t = label ?? (typeof command(id).title === 'string' ? command(id).title as string : id); return k ? `${t}  ${k}` : t; };
+export const tipOf = (id: string, label?: string) => { const k = shortcutOf(id); const cmd = command(id); const t = label ?? (typeof cmd.title === 'string' ? cmd.title : cmd.help ?? id); return k ? `${t}  ${k}` : t; };
 
 /** Whether a key press is this key ('mod+z' is not 'mod+shift+z'; a symbol's Shift is the symbol's). */
 export function matchesKey(spec: string, e: KeyboardEvent) {

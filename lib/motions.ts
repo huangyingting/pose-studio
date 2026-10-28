@@ -167,6 +167,20 @@ function adjusted(f: Figure, joints: Joints, extra: Partial<Figure> = {}): Figur
   return { ...f, ...extra, bones: bonesOf({ ...J(f), ...joints }) };
 }
 
+/**
+ * Standing, and sitting on a seat at about knee height behind (the hips back and down onto it, the
+ * feet where they stood), the arms resting on the thighs.
+ */
+function sitting(rig: Rig): { stand: Figure; sit: Figure } {
+  const f = person('Eli', { ...DEFAULT_BODY }, STAND);
+  const stand = posed(f, STAND);
+  const seat = posed(f, { ...STAND, spine: [4, 0, 0], leftUpperLeg: [-90, 0, 6], rightUpperLeg: [-90, 0, -6], leftLowerLeg: [90, 0, 0], rightLowerLeg: [90, 0, 0], leftUpperArm: [-28, 0, 8], rightUpperArm: [-28, 0, -8], leftLowerArm: [-40, 0, 0], rightLowerArm: [-40, 0, 0] });
+  const hipsY = rig.model(stand).joints.hips.position.y;
+  const thigh = rig.model(stand).joints.leftUpperLeg.getWorldPosition(new THREE.Vector3()).distanceTo(rig.model(stand).joints.leftLowerLeg.getWorldPosition(new THREE.Vector3()));
+  const sit = plantFeet(rig, { ...seat, grounded: false, position: [0, Math.round((hipsY - thigh) * 1000) / 1000, -Math.round(thigh * 1000) / 1000] }, stand);
+  return { stand, sit };
+}
+
 /** Pitch the pelvis by `by` (negative: back), the thighs countering it so the feet stay put. */
 function rock(f: Figure, by: number): Figure {
   const j = J(f);
@@ -722,6 +736,119 @@ export const MOTIONS: Motion[] = [
         { t: 0, figures: [stand] }, { t: 0.7, figures: [bow] }, { t: 1.4, figures: [bow] }, { t: 2.1, figures: [stand] },
       ], { duration: 2.6, loop: true, view: { yaw: 55, pitch: 6, fov: 24 } });
     },
+  },
+  // Everyday beats (#14): what people do in a scene between the big actions.
+  {
+    // Talking: the hands open and come up as the words do, one then the other, the head with them.
+    id: 'talk',
+    name: 'Talk',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = { ...person('Ana', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Open') } };
+      const at = (r: number, l: number, head: number, tilt: number) => posed(f, {
+        ...STAND, rightUpperArm: [-25 - r * 15, 10, -12 - r * 6], rightLowerArm: [-55 - r * 25, 20, 0],
+        leftUpperArm: [-15 - l * 15, -10, 10 + l * 6], leftLowerArm: [-45 - l * 25, -20, 0],
+        neck: [head * 0.5, tilt * 0.5, 0], head: [head, tilt, 0],
+      });
+      return animated('Talk', [
+        { t: 0, figures: [at(0, 0, 0, 0)] }, { t: 0.6, figures: [at(1, 0.2, 4, 6)] }, { t: 1.2, figures: [at(0.4, 0.4, -2, 0)] },
+        { t: 1.9, figures: [at(0.2, 1, 3, -6)] }, { t: 2.6, figures: [at(0.6, 0.3, 0, 2)] }, { t: 3.2, figures: [at(0, 0, 0, 0)] },
+      ], { duration: 3.2, loop: true, view: { yaw: 25, pitch: 4, fov: 22 } });
+    },
+  },
+  {
+    id: 'nod',
+    name: 'Nod',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = person('Ben', { ...DEFAULT_BODY }, STAND);
+      const head = (x: number) => posed(f, { ...STAND, neck: [x * 0.4, 0, 0], head: [x, 0, 0] });
+      return animated('Nod', [
+        { t: 0, figures: [head(0)] }, { t: 0.25, figures: [head(14)] }, { t: 0.5, figures: [head(-2)] }, { t: 0.75, figures: [head(12)] }, { t: 1.1, figures: [head(0)] },
+      ], { duration: 1.1, loop: false, view: { yaw: 70, pitch: 4, fov: 20 } });
+    },
+  },
+  {
+    id: 'shake-head',
+    name: 'Shake head',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = person('Cleo', { ...DEFAULT_BODY }, STAND);
+      const head = (y: number) => posed(f, { ...STAND, neck: [2, y * 0.35, 0], head: [2, y, 0] });
+      return animated('Shake head', [
+        { t: 0, figures: [head(0)] }, { t: 0.25, figures: [head(22)] }, { t: 0.55, figures: [head(-22)] }, { t: 0.85, figures: [head(18)] }, { t: 1.1, figures: [head(-10)] }, { t: 1.35, figures: [head(0)] },
+      ], { duration: 1.35, loop: false, view: { yaw: 10, pitch: 4, fov: 20 } });
+    },
+  },
+  {
+    // Pointing at something ahead: the arm comes up straight, holds, goes down.
+    id: 'point',
+    name: 'Point',
+    group: 'Everyday',
+    people: 1,
+    build: () => {
+      const f = { ...person('Dev', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Point') } };
+      const rest = posed(f, STAND);
+      const point = posed(f, { ...STAND, rightUpperArm: [-80, 0, -12], rightLowerArm: [-6, 0, 0], head: [-4, -8, 0], chest: [0, -8, 0] });
+      return animated('Point', [
+        { t: 0, figures: [rest] }, { t: 0.45, figures: [point] }, { t: 1.6, figures: [point] }, { t: 2.1, figures: [rest] },
+      ], { duration: 2.1, loop: false, view: { yaw: 60, pitch: 4, fov: 24 } });
+    },
+  },
+  {
+    // Sitting down (onto a chair or a step put under, at about knee height): the hips go back and
+    // down over planted feet, the arms come to the thighs.
+    id: 'sit-down',
+    name: 'Sit down',
+    group: 'Everyday',
+    people: 1,
+    build: () => withRig((rig) => {
+      const { stand, sit } = sitting(rig);
+      const lower = plantFeet(rig, { ...sink(rock(stand, 30), 40), position: [0, stand.position[1], -0.15] }, stand);
+      return animated('Sit down', [
+        { t: 0, figures: [stand] }, ...inBetween(rig, stand, lower, 3, stand).map((p, i) => ({ t: 0.15 * (i + 1), figures: [p] })),
+        { t: 0.6, figures: [lower] }, ...inBetween(rig, lower, sit, 3, stand).map((p, i) => ({ t: 0.6 + 0.15 * (i + 1), figures: [p] })),
+        { t: 1.2, figures: [sit] }, { t: 1.6, figures: [sit] },
+      ], { duration: 1.6, loop: false, view: { yaw: 80, pitch: 6, fov: 26 } });
+    }),
+  },
+  {
+    id: 'stand-up',
+    name: 'Stand up',
+    group: 'Everyday',
+    people: 1,
+    build: () => withRig((rig) => {
+      const { stand, sit } = sitting(rig);
+      // Leaning forward over the feet first, then up.
+      const lean = plantFeet(rig, { ...sink(rock(stand, 38), 60), position: [0, stand.position[1], -0.2] }, stand);
+      return animated('Stand up', [
+        { t: 0, figures: [sit] }, ...inBetween(rig, sit, lean, 3, stand).map((p, i) => ({ t: 0.12 * (i + 1), figures: [p] })),
+        { t: 0.5, figures: [lean] }, ...inBetween(rig, lean, stand, 4, stand).map((p, i) => ({ t: 0.5 + 0.16 * (i + 1), figures: [p] })),
+        { t: 1.3, figures: [stand] },
+      ], { duration: 1.3, loop: false, view: { yaw: 80, pitch: 6, fov: 26 } });
+    }),
+  },
+  {
+    // Bending to the floor and back up, the right hand down to it (to pick something up, or put it
+    // down), the feet planted.
+    id: 'pick-up',
+    name: 'Pick up / put down',
+    group: 'Everyday',
+    people: 1,
+    build: () => withRig((rig) => {
+      const f = { ...person('Fay', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Grip') } };
+      const stand = posed(f, STAND);
+      const bent = adjusted(sink(rock(stand, 55), 50), { spine: [20, 0, 0], neck: [-10, 0, 0], rightUpperArm: [-25, 0, -6], rightLowerArm: [-5, 0, 0], leftUpperArm: [-25, 0, 10], leftLowerArm: [-30, 0, 0] });
+      const down = plantFeet(rig, bent, stand);
+      return animated('Pick up / put down', [
+        { t: 0, figures: [stand] }, ...inBetween(rig, stand, down, 3, stand).map((p, i) => ({ t: 0.2 * (i + 1), figures: [p] })),
+        { t: 0.8, figures: [down] }, { t: 1.1, figures: [down] },
+        ...inBetween(rig, down, stand, 3, stand).map((p, i) => ({ t: 1.1 + 0.2 * (i + 1), figures: [p] })), { t: 1.9, figures: [stand] },
+      ], { duration: 1.9, loop: false, view: { yaw: 80, pitch: 6, fov: 26 } });
+    }),
   },
 ];
 
