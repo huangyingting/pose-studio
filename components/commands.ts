@@ -990,7 +990,10 @@ export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name],
 /** A figure's menu; with one of its parts selected, that part's commands too (the figure's own, Delete among them, act on the whole figure). */
 export function figureMenu(store: Store, figure: string, joint?: JointName): MenuItem[] {
   const own = menu('figure', { store, figure });
-  return joint ? [...own, '-', { group: JOINT_LABELS[joint] }, ...menu('joint', { store, figure, joint })] : own;
+  if (!joint) return own;
+  // (With a part selected the keys act on the part: the figure's commands show here without them.)
+  const unkeyed = own.map((it) => (typeof it === 'object' && 'label' in it ? { ...it, shortcut: undefined } : it));
+  return [...unkeyed, '-', { group: JOINT_LABELS[joint] }, ...menu('joint', { store, figure, joint })];
 }
 
 /** A command's choices as a menu of their own (the render styles). */

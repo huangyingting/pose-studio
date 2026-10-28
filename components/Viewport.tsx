@@ -731,12 +731,12 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const r = gl.domElement.getBoundingClientRect();
         const ray = new THREE.Raycaster();
         ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), camera);
-        const hit: CanvasHit = {};
+        // (The light's lamp under it too: said as well, not instead, for the right-click menu.)
+        const lamp = r3fScene.getObjectByName('light-lamp');
+        const hit: CanvasHit = lamp?.visible && ray.intersectObject(lamp, true).length ? { light: true } : {};
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (floor) hit.floor = [floor.x, 0, floor.z];
-        // The light's lamp, and a camera (or one of its points), in front of everything: they are drawn over the scene.
-        const lamp = r3fScene.getObjectByName('light-lamp');
-        if (lamp?.visible && ray.intersectObject(lamp, true).length) return { ...hit, light: true };
+        // A camera (or one of its points) in front of everything: it is drawn over the scene.
         for (const { object } of rigRef.current ? ray.intersectObject(rigRef.current, true) : []) {
           let o: THREE.Object3D | null = object;
           while (o && !o.userData.camera) o = o.parent;
