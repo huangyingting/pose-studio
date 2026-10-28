@@ -6,7 +6,7 @@ import { STAGINGS } from './stagings';
 import { clear } from './track';
 import { uid } from './uid';
 import { COVERAGES } from './coverage';
-import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset } from './types';
+import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset, Vec3 } from './types';
 
 /*
  * Scene templates: what is filmed, without how it is filmed. A template is a cast (its roles:
@@ -101,13 +101,15 @@ export function asTemplate(scene: Scene, name: string): TemplateAsset {
  * The figures cast keep who they are (body, name, look) and take the template's pose and
  * actions; what they did from `t0` on gives way.
  */
-export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: number): Scene {
+export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: number, at?: Vec3): Scene {
   const lead = scene.figures.find((f) => f.id === cast[0]);
   const first = template.figures[0];
   const spare = Math.max(0, ...scene.figures.map((f) => f.position[0] + 1.2));
+  // Its first role on the lead (where it stands, facing its way), or at a spot (its first figure there), or beside the others.
   const placed = !first ? template
     : lead ? placeScene(placeScene(template, 0, -first.position[0], -first.position[2]), facing(lead) - facing(first), lead.position[0], lead.position[2])
-      : placeScene(template, 0, scene.figures.length ? spare : 0, 0);
+      : at ? placeScene(template, 0, at[0] - first.position[0], at[2] - first.position[2])
+        : placeScene(template, 0, scene.figures.length ? spare : 0, 0);
   const ids = new Map(placed.figures.map((f, i) => [f.id, cast[i] && scene.figures.some((x) => x.id === cast[i]) ? cast[i] : f.id]));
   const taken = new Set(cast);
   const role = (f: Figure) => placed.figures.find((x) => ids.get(x.id) === f.id);

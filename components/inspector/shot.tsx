@@ -1,50 +1,63 @@
+'use client';
+
 import { ChevronRight, Copy, TriangleAlert, Video } from 'lucide-react';
 import { addCamera, editShot, ownCamera } from '@/lib/actions';
 import { SHOT_SIZES, cameraById, sizeOf, viewOf } from '@/lib/cameras';
-import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
+import { overLimit, shotSpans, videoModel } from '@/lib/shots';
 import type { Camera, Scene } from '@/lib/types';
-import { useFilm, useScene, useStore } from './store-context';
-import { shotMenu, type MenuUi } from './menus';
-import { NameHeader, NumberField, PropertyRow, Section, Segmented, Select, type HeaderChrome } from './ui';
+import { menu } from '../commands';
+import { useFilm } from '../store-context';
+import { NameHeader, NumberField, PropertyRow, Segmented, Select, type HeaderChrome } from '../ui';
+import type { Target } from './target';
 
-/** Inspector for a selected shot: what it is called and shows, how long, what it is cut for, the camera filming it. */
-export default function ShotInspector({ id, ui, chrome }: { id: string; ui: MenuUi; chrome?: HeaderChrome }) {
-  const store = useStore();
-  const scene = useScene();
-  const film = useFilm();
-  const a = scene.animation;
-  const span = a ? shotSpans(a).find((sp) => sp.shot.id === id) : undefined;
-  if (!a || !span) return null;
+/* A shot's header and sections: see sections.ts for which show when. */
+
+export function ShotHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
+  const span = t.span!;
+  return (
+    <NameHeader
+      chrome={chrome}
+      lead={<span className="shot-no">{span.index + 1}</span>}
+      name={span.shot.name}
+      label="Shot name"
+      onRename={(name) => editShot(t.store, span.shot.id, { name })}
+      menu={() => menu('shot', { store: t.store, shot: span.shot.id })}
+    />
+  );
+}
+
+export const shotSummary = (t: Target) => { const span = t.span!; return `${(span.end - span.start).toFixed(1)} s${span.shot.caption ? ` · ${span.shot.caption}` : ''}`; };
+
+/** What happens in it, and how long it is (flagged when longer than the film's video model allows). */
+export function ShotPanel({ t }: { t: Target }) {
+  const span = t.span!;
+  const model = videoModel(useFilm().target);
   const over = overLimit(span);
-  const model = videoModel(film.target);
-
   return (
     <>
-      <NameHeader chrome={chrome} lead={<span className="shot-no">{span.index + 1}</span>} name={span.shot.name} label="Shot name" onRename={(name) => editShot(store, id, { name })} menu={shotMenu(store, id, ui)} />
-      <Section id="shot" title="Shot" summary={`${(span.end - span.start).toFixed(1)} s${span.shot.caption ? ` · ${span.shot.caption}` : ''}`}>
-        <label className="field">
-          <span>Caption</span>
-          <textarea
-            value={span.shot.caption ?? ''}
-            aria-label="Shot caption"
-            rows={3}
-            placeholder="What happens…"
-            onChange={(e) => editShot(store, id, { caption: e.target.value })}
-          />
-        </label>
-        <PropertyRow label="Length">
-          <span className="shot-time">
-            <strong>{(span.end - span.start).toFixed(1)} s</strong> · {span.start.toFixed(2)}–{span.end.toFixed(2)} s
-            {over && model && <span className="warn"><TriangleAlert size={12} aria-hidden /> Longer than {model.name} allows ({model.max} s)</span>}
-          </span>
-        </PropertyRow>
-      </Section>
-      <ShotFilming span={span} />
+      <label className="field">
+        <span>Caption</span>
+        <textarea
+          value={span.shot.caption ?? ''}
+          aria-label="Shot caption"
+          rows={3}
+          placeholder="What happens…"
+          onChange={(e) => editShot(t.store, span.shot.id, { caption: e.target.value })}
+        />
+      </label>
+      <PropertyRow label="Length">
+        <span className="shot-time">
+          <strong>{(span.end - span.start).toFixed(1)} s</strong> · {span.start.toFixed(2)}–{span.end.toFixed(2)} s
+          {over && model && <span className="warn"><TriangleAlert size={12} aria-hidden /> Longer than {model.name} allows ({model.max} s)</span>}
+        </span>
+      </PropertyRow>
     </>
   );
 }
 
 const NEW = '+new';
+const cameraOf = (t: Target) => cameraById(t.scene, t.span!.shot.camera) ?? t.scene.cameras[0];
+export const filmedBySummary = (t: Target) => cameraOf(t).name;
 
 /** A camera in a few words as it films a shot from t: "Anna single · MCU · 85 mm · Follows". */
 function cameraSummary(scene: Scene, cam: Camera, t: number) {
@@ -56,15 +69,14 @@ function cameraSummary(scene: Scene, cam: Camera, t: number) {
 }
 
 /** Which camera films a shot and how it comes in (a cut or a blend); the camera's settings are its own inspector's. */
-function ShotFilming({ span }: { span: ShotSpan }) {
-  const store = useStore();
-  const scene = useScene();
-  const a = scene.animation!;
+export function FilmedByPanel({ t }: { t: Target }) {
+  const { store, scene } = t;
+  const span = t.span!;
   const shot = span.shot;
-  const cam = cameraById(scene, shot.camera) ?? scene.cameras[0];
-  const also = shotSpans(a).filter((s) => s.shot.id !== shot.id && s.shot.camera === cam.id);
+  const cam = cameraOf(t);
+  const also = shotSpans(scene.animation!).filter((s) => s.shot.id !== shot.id && s.shot.camera === cam.id);
   return (
-    <Section id="filmedby" title="Filmed by" summary={cam.name}>
+    <>
       <div className="field">
         <span>Camera</span>
         <Select<string>
@@ -72,8 +84,8 @@ function ShotFilming({ span }: { span: ShotSpan }) {
           value={cam.id}
           onChange={(v) => {
             if (v !== NEW) return editShot(store, shot.id, { camera: v });
-            const t = store.getState().time;
-            if (t < span.start - 1e-6 || t >= span.end - 1e-6) store.setTime(span.start);
+            const now = store.getState().time;
+            if (now < span.start - 1e-6 || now >= span.end - 1e-6) store.setTime(span.start);
             addCamera(store);
           }}
           options={[
@@ -109,6 +121,6 @@ function ShotFilming({ span }: { span: ShotSpan }) {
       <button type="button" className="btn subtle" onClick={() => { store.setTime(span.start); store.setSettings({ side: 'library', libraryTab: 'camera' }); }}>
         <Video size={14} aria-hidden /> Choose a camera move…
       </button>
-    </Section>
+    </>
   );
 }

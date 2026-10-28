@@ -1325,14 +1325,14 @@ function shoot(store: Store, id: string) {
  * (where it stands, facing its way), the next by the figures nearest it, new figures for the rest.
  * The figures it brings in or casts, by role.
  */
-export function placeTemplate(store: Store, id: string, lead = store.getState().activeFigure ?? undefined): string[] | null {
+export function placeTemplate(store: Store, id: string, lead: string | null | undefined = store.getState().activeFigure, at?: Vec3): string[] | null {
   const t = templatesOf(store.getState().library).find((x) => x.id === id);
   if (!t) return null;
   const built = t.build();
   const cast = lead && store.scene.figures.some((f) => f.id === lead) ? [lead, ...nearestPartners(store, lead, built.figures.length - 1)] : [];
   const before = new Set(store.scene.figures.map((f) => f.id));
   const t0 = store.scene.animation ? snapTime(store.scene.animation, store.getState().time) : 0;
-  store.updateScene((s) => putTemplate(s, built, cast, t0));
+  store.updateScene((s) => putTemplate(s, built, cast, t0, at));
   return [...cast, ...store.scene.figures.filter((f) => !before.has(f.id)).map((f) => f.id)];
 }
 

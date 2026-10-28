@@ -1,30 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, FileUp, Focus, FolderOpen,
-  Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, Settings2, SlidersHorizontal, Timer, Undo2,
+  ChevronDown, Download, Ellipsis, Eye, Hand, LayoutPanelTop, Lock, LockOpen, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Scale3d, SlidersHorizontal,
 } from 'lucide-react';
-import {
-  addKeyframe, addMotions, appendScenes, editFilm, cutShot, copyPose, deleteSelection, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
-} from '@/lib/actions';
-import { filmOf } from '@/lib/film';
+import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam } from '@/lib/share';
 import { Store } from '@/lib/store';
-import { snapTime } from '@/lib/animation';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
-import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { STYLES, type GizmoMode, type Scene, type View } from '@/lib/types';
-import { VIEW_PRESETS } from '@/lib/views';
-
-/** The editor's line weights (exports set their own). */
-const LINE_WEIGHTS = [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }];
+import { styleDef } from '@/lib/styles';
+import type { GizmoMode, Scene, Vec3, View } from '@/lib/types';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog, ProjectSettingsDialog } from './dialogs';
 // Accounts, library sync and AI: the server edition only (null in the static build).
@@ -44,8 +35,10 @@ import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
-import { cameraMenu, canvasMenu, figureMenu, propMenu, renameInOutline } from './menus';
-import { KEYS, withKey } from './shortcuts';
+import { choices, command, commandForKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
+import { CommandButton } from './CommandButton';
+import CommandPalette from './CommandPalette';
+import ViewCube from './ViewCube';
 
 function webglAvailable() {
   try {
@@ -79,7 +72,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project';
+type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette';
 
 function App() {
   const store = useStore();
@@ -93,6 +86,15 @@ function App() {
   const canRedo = useStudio((s) => s.canRedo);
 
   const toggleInspector = () => store.setSettings({ inspector: !store.getState().settings.inspector });
+
+  // The chrome's theme: as the system's (and following it as it changes), or chosen.
+  useLayoutEffect(() => {
+    const dark = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => { document.documentElement.dataset.theme = settings.theme === 'system' ? (dark.matches ? 'dark' : 'light') : settings.theme; };
+    apply();
+    dark.addEventListener('change', apply);
+    return () => dark.removeEventListener('change', apply);
+  }, [settings.theme]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [frameRequest, setFrameRequest] = useState<FrameRequest>({ view: { yaw: 0, pitch: 4 }, n: 0 });
@@ -103,6 +105,10 @@ function App() {
   const time = useStudio((s) => s.time);
   const through = useStudio((s) => s.through);
   const [onion, setOnion] = useState(false);
+  // Isolate: the canvas shows only this figure or prop (and what it holds), until toggled off or it is gone.
+  const [isolated, setIsolated] = useState<string | null>(null);
+  const isolate = isolated && (scene.figures.some((f) => f.id === isolated) || scene.props.some((p) => p.id === isolated)) ? isolated : null;
+  const shown = useMemo(() => (isolate && !through ? isolatedScene(scene, isolate) : scene), [scene, isolate, through]);
   const togglePlay = useCallback(() => {
     if (!store.scene.animation) return;
     if (clock.playing) {
@@ -134,8 +140,10 @@ function App() {
   const notify = useCallback<Notify>((text, kind = 'info', action) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' || action ? 6000 : 3000);
   }, []);
+
+  const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
+  const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
   /** Toast with an Undo button, for destructive actions. */
   const notifyUndo = useCallback((text: string) => {
@@ -227,9 +235,29 @@ function App() {
     }
   };
 
-  const setGizmo = useCallback((gizmo: GizmoMode) => store.setSettings({ gizmo }), [store]);
 
-  // Keyboard shortcuts.
+  // A pick mode (Walk to…, Throw to…): the next click on the floor; Esc or picking anything else
+  // (another selection, another scene) cancels.
+  const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; selection: typeof selection; scene: string } | null>(null);
+  const pick = picked && picked.selection === selection && picked.scene === scene.id ? picked : null;
+
+  const openFilePicker = useCallback((mode: 'append' | 'replace') => {
+    fileRef.current!.dataset.mode = mode;
+    fileRef.current!.click();
+  }, []);
+  // What the commands reach outside the store.
+  useEffect(() => {
+    setApp({
+      notify, notifyUndo, dialog: setDialog, frameAll: frameCurrent, frameView: frame, saveFile, openFile: openFilePicker,
+      playing: () => clock.playing, togglePlay, stopPlayback, speed: () => clock.speed, setSpeed: (x) => clock.setSpeed(x),
+      repeatShot: () => clock.repeatShot, setRepeatShot: (on) => clock.setRepeatShot(on), onion: () => onion, setOnion,
+      isolated: () => isolate, setIsolated,
+      captureShot: () => apiRef.current?.captureShot() ?? null,
+      pickFloor: (hint, done) => setPick({ hint, done, selection: store.getState().selection, scene: store.scene.id }),
+    });
+  }, [notify, notifyUndo, frameCurrent, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store]);
+
+  // Keyboard shortcuts: the command a key is bound to, on the selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (dialog || e.defaultPrevented) return;
@@ -237,64 +265,20 @@ function App() {
       const typing = el.closest('textarea, select, [contenteditable="true"]')
         || (el instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(el.type));
       if (typing) return;
-      const mod = e.ctrlKey || e.metaKey;
-      const k = e.key.toLowerCase();
-      const run = (fn: () => unknown) => { e.preventDefault(); fn(); };
-      if (mod) {
-        if (k === 'z') run(() => (e.shiftKey ? store.redo() : store.undo()));
-        else if (k === 'y') run(() => store.redo());
-        else if (k === 'c' && !window.getSelection()?.toString()) run(() => copyPose(store) && notify('Pose copied'));
-        else if (k === 'v') run(() => pastePose(store) || notify('Copy a pose first (Ctrl+C)', 'error'));
-        else if (k === 'd') run(() => duplicateSelection(store));
-        else if (k === 'e') run(() => setDialog('export'));
-        else if (k === 's') run(saveFile);
+      if (pick && e.key === 'Escape') {
+        e.preventDefault();
+        setPick(null);
         return;
       }
-      if (e.altKey) return;
-      const view = VIEW_PRESETS.find((v) => v.key === e.key);
-      if (view) return run(() => frame(view));
-      switch (e.key) {
-        case 'w': case 'W': return run(() => setGizmo('translate'));
-        case 'e': case 'E': return run(() => setGizmo('rotate'));
-        case 'r': case 'R': return store.getState().selection?.kind === 'prop' ? run(() => setGizmo('scale')) : undefined;
-        case 'f': case 'F': return run(frameCurrent);
-        case 'm': case 'M': return run(() => mirrorPose(store));
-        case 'h': case 'H': return run(() => store.setSettings({ showHandles: !store.getState().settings.showHandles }));
-        case 'i': case 'I': return run(() => store.setSettings({ inspector: !store.getState().settings.inspector }));
-        case 'l': case 'L': return run(() => {
-          const style = filmOf(store.getState().library).style;
-          editFilm(store, { style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] });
-        });
-        case 'p': case 'P': return run(() => setDialog('practice'));
-        case 'b': case 'B': return run(() => { stopPlayback(); setDialog('board'); });
-        case ' ': if (store.scene.animation) run(togglePlay); return;
-        case 'c': case 'C': if (store.scene.animation) run(() => { stopPlayback(); cutShot(store); }); return;
-        case 'k': case 'K': if (store.scene.animation) run(() => { stopPlayback(); addKeyframe(store); }); return;
-        case ',': case '.': {
-          const a = store.scene.animation;
-          if (!a) return;
-          return run(() => { stopPlayback(); store.setTime(snapTime(a, store.getState().time + (e.key === ',' ? -1 : 1) / a.fps)); });
-        }
-        case '[': return run(() => store.setSceneIndex(Math.max(0, store.getState().sceneIndex - 1)));
-        case ']': return run(() => store.setSceneIndex(Math.min(store.getState().library.scenes.length - 1, store.getState().sceneIndex + 1)));
-        case 'Delete': case 'Backspace': {
-          const name = deleteSelection(store);
-          if (name) run(() => notifyUndo(`Deleted ${name}`));
-          return;
-        }
-        case 'F2': {
-          const sel = store.getState().selection;
-          const id = sel?.kind === 'prop' ? sel.prop : sel?.kind === 'shot' ? sel.shot : sel?.kind === 'camera' ? sel.camera : sel?.kind === 'joint' || sel?.kind === 'figure' ? sel.figure : sel ? null : store.getState().activeFigure;
-          if (id) run(() => renameInOutline(store, id));
-          return;
-        }
-        case 'Escape': return run(() => store.select(null));
-        case '?': return run(() => setDialog('help'));
-      }
+      const c = selectionCtx(store);
+      const cmd = commandForKey(e, c);
+      if (!cmd) return;
+      e.preventDefault();
+      cmd.run!(c);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dialog, store, notify, notifyUndo, frame, frameCurrent, saveFile, setGizmo, togglePlay, stopPlayback]);
+  }, [dialog, store, pick]);
 
   // Offline support (production only: in development the cache would serve stale code).
   useEffect(() => {
@@ -309,21 +293,23 @@ function App() {
 
   // Right-click on the canvas: the menu of what is under the pointer, or of the empty floor.
   const openCanvasMenu = (e: { clientX: number; clientY: number }, hit: CanvasHit) => {
-    const ui = { notify, notifyUndo };
     const sel = store.getState().selection;
     if (hit.camera) {
       store.select({ kind: 'camera', camera: hit.camera });
-      openContextMenu(e, cameraMenu(store, hit.camera, ui, hit.point), store.scene.cameras.find((c) => c.id === hit.camera)?.name);
+      openContextMenu(e, menu('camera', { store, camera: hit.camera, at: hit.point }), store.scene.cameras.find((c) => c.id === hit.camera)?.name);
     } else if (hit.prop) {
       store.select({ kind: 'prop', prop: hit.prop });
-      openContextMenu(e, propMenu(store, hit.prop, ui), store.scene.props.find((p) => p.id === hit.prop)?.name);
+      openContextMenu(e, menu('prop', { store, prop: hit.prop }), store.scene.props.find((p) => p.id === hit.prop)?.name);
     } else if (hit.figure) {
       if (!(sel?.kind === 'joint' && sel.figure === hit.figure)) store.select({ kind: 'figure', figure: hit.figure });
-      openContextMenu(e, figureMenu(store, hit.figure, ui), store.scene.figures.find((f) => f.id === hit.figure)?.name);
+      openContextMenu(e, menu('figure', { store, figure: hit.figure }), store.scene.figures.find((f) => f.id === hit.figure)?.name);
     } else {
-      openContextMenu(e, canvasMenu(store, hit.floor, frameCurrent));
+      const floor = hit.floor && ([Math.round(hit.floor[0] * 100) / 100, 0, Math.round(hit.floor[2] * 100) / 100] as Vec3);
+      openContextMenu(e, menu('floor', { store, floor }));
     }
   };
+  // The commands' context in the top bar and menus here: the selection.
+  const cx = selectionCtx(store);
 
   const ctx: InspectorContext = {
     editorCamera: () => apiRef.current?.editorCamera() ?? null,
@@ -335,34 +321,19 @@ function App() {
 
   // Move works on any figure; Scale only on props.
   const gizmoForSelection = selection?.kind === 'prop' || (settings.gizmo === 'translate' && !!activeFigure);
-  const openFilePicker = (mode: 'append' | 'replace') => {
-    fileRef.current!.dataset.mode = mode;
-    fileRef.current!.click();
-  };
   const style = styleDef(film.style);
   const StyleIcon = STYLE_ICONS[film.style];
 
   return (
     <div
       className={`studio${drawer ? ` drawer-${drawer}` : ''}${settings.inspector ? '' : ' inspector-closed'}`}
+      style={settings.widths.inspector ? ({ '--panel-w': `${settings.widths.inspector}px` } as CSSProperties) : undefined}
       onPointerDownCapture={(e) => { if (!(e.target as HTMLElement).closest('.timeline')) stopPlayback(); }}
     >
       <header className="topbar">
         <div className="tb-left">
           <IconButton icon={PanelLeft} label="Side panel" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
-          <Menu
-            label="Main menu"
-            className="brand"
-            items={[
-              { label: 'Save project (.json)', icon: Save, shortcut: KEYS.save, onSelect: saveFile },
-              { label: 'Import scenes from a project…', icon: FileUp, onSelect: () => openFilePicker('append') },
-              { label: 'Open project (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
-              '-',
-              { label: 'Project settings…', icon: Settings2, onSelect: () => setDialog('project') },
-              { label: 'Gesture practice', icon: Timer, shortcut: KEYS.practice, onSelect: () => setDialog('practice') },
-              { label: 'Keyboard shortcuts', icon: Keyboard, shortcut: KEYS.help, onSelect: () => setDialog('help') },
-            ]}
-          >
+          <Menu label="Main menu" className="brand" items={() => menu('main', cx)}>
             <Logo />
             <span className="brand-name">Pose Studio</span>
             <ChevronDown size={14} className="brand-chevron" aria-hidden />
@@ -372,22 +343,22 @@ function App() {
             <Segmented<GizmoMode>
               label="Gizmo"
               value={settings.gizmo}
-              onChange={setGizmo}
+              onChange={(g) => command(g === 'rotate' ? 'tool.pose' : g === 'translate' ? 'tool.move' : 'tool.scale').run!(cx)}
               iconOnly
               options={[
-                { value: 'rotate', label: 'Pose', icon: Hand, title: withKey('Pose: drag parts (Shift twists), floor rings turn', 'pose') },
-                { value: 'translate', label: 'Move', icon: Move3d, title: withKey('Move figure or prop', 'move') },
-                { value: 'scale', label: 'Scale', icon: Scale3d, title: withKey(selection?.kind === 'prop' ? 'Scale the prop' : 'Scale a prop (select one first)', 'scale'), disabled: selection?.kind !== 'prop' },
+                { value: 'rotate', label: 'Pose', icon: Hand, title: tipOf('tool.pose', 'Pose: drag parts (Shift twists), floor rings turn') },
+                { value: 'translate', label: 'Move', icon: Move3d, title: tipOf('tool.move', 'Move figure or prop') },
+                { value: 'scale', label: 'Scale', icon: Scale3d, title: tipOf('tool.scale', selection?.kind === 'prop' ? 'Scale the prop' : 'Scale a prop (select one first)'), disabled: selection?.kind !== 'prop' },
               ]}
             />
             {settings.gizmo === 'rotate' && (
               // The Pose tool's option: joints bend only as far as a body's do (dragging, IK, sliders).
               <IconButton
                 icon={settings.limits ? Lock : LockOpen}
-                label="Natural joint limits"
+                label={titleOf(command('tool.limits'), cx)}
                 pressed={settings.limits}
                 active={settings.limits}
-                onClick={() => store.setSettings({ limits: !settings.limits })}
+                onClick={() => command('tool.limits').run!(cx)}
               />
             )}
             <span className="tb-sep" />
@@ -395,35 +366,17 @@ function App() {
               label="View"
               className="btn ghost"
               tip="The angle, what to look through and what the canvas shows"
-              items={[
-                { group: 'Angle' },
-                ...VIEW_PRESETS.map((v) => ({ label: v.label, shortcut: v.key, onSelect: () => { store.lookThrough(null); frame(v); } })),
-                { group: 'Look through' },
-                { label: 'The editor’s view', checked: !through, onSelect: () => store.lookThrough(null) },
-                { label: 'The shot camera (the cut)', checked: !!through && !through.camera, onSelect: () => store.lookThrough({}) },
-                ...scene.cameras.map((c) => ({ label: c.name, icon: Video, checked: through?.camera === c.id, onSelect: () => store.lookThrough({ camera: c.id }) })),
-                { group: 'Show' },
-                { label: 'Drag handles', shortcut: KEYS.handles, checked: settings.showHandles, onSelect: () => store.setSettings({ showHandles: !settings.showHandles }) },
-                { label: 'Floor grid', checked: settings.showGrid, onSelect: () => store.setSettings({ showGrid: !settings.showGrid }) },
-                ...(scene.animation ? [{ label: 'Onion skin (the keys either side)', icon: Ghost, checked: onion, onSelect: () => setOnion(!onion) }] : []),
-                { label: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: settings.guides, onSelect: () => store.setSettings({ guides: !settings.guides }) },
-                ...(style.outline ? [
-                  { group: 'Line weight' },
-                  ...LINE_WEIGHTS.map((w) => ({ label: w.label, checked: Math.abs(settings.editorLine - w.px) < 0.05, onSelect: () => store.setSettings({ editorLine: w.px }) })),
-                ] : []),
-              ]}
+              items={() => menu('view', cx)}
             >
               <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
             </Menu>
-            <IconButton icon={Focus} label="Frame all" shortcut={KEYS.frameAll} onClick={frameCurrent} />
+            <CommandButton id="view.frameAll" ctx={cx} />
             <span className="tb-sep" />
             <Menu
               label="Render style"
               className="btn ghost"
-              tip={withKey('Render style', 'style')}
-              items={STYLE_LIST.map((s) => ({
-                label: s.label, icon: STYLE_ICONS[s.id], checked: s.id === film.style, onSelect: () => editFilm(store, { style: s.id }),
-              }))}
+              tip={tipOf('view.nextStyle', 'Render style')}
+              items={() => choices('view.style', cx)}
             >
               <StyleIcon size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={13} aria-hidden />
             </Menu>
@@ -438,21 +391,22 @@ function App() {
             aria-label="Scene name"
             spellCheck={false}
           />
-          <ScenePicker ui={{ notify, notifyUndo }} />
+          <ScenePicker />
           {SaveState ? <SaveState status={saveStatus} /> : <SaveIndicator status={saveStatus} />}
         </div>
         <div className="tb-right">
-          <IconButton icon={Undo2} label="Undo" shortcut={KEYS.undo} onClick={() => store.undo()} disabled={!canUndo} />
-          <IconButton icon={Redo2} label="Redo" shortcut={KEYS.redo} onClick={() => store.redo()} disabled={!canRedo} className="hide-narrow" />
+          <CommandButton id="app.undo" ctx={cx} disabled={!canUndo} />
+          <CommandButton id="app.redo" ctx={cx} disabled={!canRedo} className="hide-narrow" />
           <span className="tb-sep hide-mobile" />
+          <CommandButton id="app.palette" ctx={cx} className="hide-mobile" />
           {Account && <Account />}
-          <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip={withKey('Export', 'export')}>
+          <button type="button" className="btn primary" onClick={() => command('app.export').run!(cx)} data-tip={tipOf('app.export')}>
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>
           <IconButton
             icon={settings.inspector ? PanelRightClose : PanelRightOpen}
             label={settings.inspector ? 'Hide the inspector' : 'Show the inspector'}
-            shortcut={KEYS.inspector}
+            shortcut={shortcutOf('app.inspector')}
             className="hide-mobile"
             pressed={settings.inspector}
             onClick={toggleInspector}
@@ -463,10 +417,7 @@ function App() {
             className="ibtn only-narrow"
             align="end"
             tip="More"
-            items={[
-              { label: 'Redo', icon: Redo2, shortcut: KEYS.redo, disabled: !canRedo, onSelect: () => store.redo() },
-              { label: 'Show the inspector', icon: PanelRightOpen, shortcut: KEYS.inspector, checked: settings.inspector, onSelect: toggleInspector },
-            ]}
+            items={() => menuItems(['app.redo', 'app.inspector'], cx)}
           >
             <Ellipsis size={16} aria-hidden />
           </Menu>
@@ -491,13 +442,13 @@ function App() {
         notifyUndo={notifyUndo}
         drawer={drawer === 'library'}
         onPhoto={() => setDialog('photo')}
-        actions={[{ label: 'Storyboard', icon: LayoutPanelTop, shortcut: KEYS.board, onSelect: () => { stopPlayback(); setDialog('board'); } }]}
+        actions={[{ label: titleOf(command('app.board'), cx), icon: LayoutPanelTop, shortcut: shortcutOf('app.board'), onSelect: () => command('app.board').run!(cx) }]}
       />
 
       <main className={`stage${scene.animation ? ' animated' : ''}`} style={{ background: style.background }}>
         <Viewport
           store={store}
-          scene={scene}
+          scene={shown}
           selection={selection}
           activeFigure={activeFigure}
           settings={settings}
@@ -508,8 +459,10 @@ function App() {
           through={through}
           onion={onion}
           onMenu={openCanvasMenu}
+          onPick={pick && ((hit) => { if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.floor); setPick(null); })}
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
+        {!through && <ViewCube ctx={cx} view={viewNow} />}
         {settings.tips && !through && (
           <section className="tips" aria-label="Tips">
             <ul>
@@ -526,18 +479,14 @@ function App() {
           <img className="reference" src={referenceUrl} alt="" style={{ opacity: scene.reference.opacity }} />
         )}
         {scene.animation && (
-          <Timeline
-            clock={clock}
-            captureShot={() => apiRef.current?.captureShot() ?? null}
-            notify={notify}
-            notifyUndo={notifyUndo}
-          />
+          <Timeline clock={clock} notify={notify} />
         )}
         {(() => {
           // The canvas's one hint, while it applies: the tool's, or that posing corrects a motion.
-          const hint = settings.gizmo !== 'rotate' && !gizmoForSelection
+          const hint = pick ? pick.hint : settings.gizmo !== 'rotate' && !gizmoForSelection
             ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
-            : scene.animation && !through ? correction(scene, activeFigure, time) : null;
+            : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
+              ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null);
           return hint && <div className="canvas-hint" role="status">{hint}</div>;
         })()}
       </main>
@@ -555,22 +504,32 @@ function App() {
         />
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
+      {dialog === 'palette' && <CommandPalette onClose={() => setDialog(null)} ui={{ notify, notifyUndo }} />}
       {dialog === 'project' && <ProjectSettingsDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
       {dialog === 'board' && <Board onClose={() => setDialog(null)} onExport={() => setDialog('export-story')} />}
       <ContextMenuHost />
       <TooltipHost />
-      <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
+      <Toasts toasts={toasts} dismiss={dismissToast} />
     </div>
   );
+}
+
+/** The scene as the canvas shows it while isolating one figure (and what it holds) or one prop. */
+function isolatedScene(scene: Scene, id: string): Scene {
+  return {
+    ...scene,
+    figures: scene.figures.map((f) => (f.id === id ? f : { ...f, hidden: true })),
+    props: scene.props.filter((p) => p.id === id || p.hold?.figure === id),
+  };
 }
 
 function Logo() {
   return (
     <svg className="logo" viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="8" fill="#18181b" />
-      <circle cx="16" cy="7.6" r="3.1" fill="#3b6cff" />
-      <path d="M16 12v8M16 13.5l-5.5 3.5M16 13.5l5.5-4.5M16 20l-3.5 6.5M16 20l4.5 6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <rect className="logo-bg" width="32" height="32" rx="8" />
+      <circle className="logo-head" cx="16" cy="7.6" r="3.1" />
+      <path d="M16 12v8M16 13.5l-5.5 3.5M16 13.5l5.5-4.5M16 20l-3.5 6.5M16 20l4.5 6" className="logo-body" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

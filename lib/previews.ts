@@ -6,7 +6,7 @@ import { poseScene } from './poses';
 import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type CameraMove } from './cameras';
 import { newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
-import type { PoseAsset, Scene, Style } from './types';
+import type { PoseAsset, Scene, Style, View } from './types';
 
 /*
  * Previews for the library, shown while the pointer rests on an item: a pose as a still, a
@@ -132,3 +132,70 @@ export function cameraPreview(move: CameraMove, scene: Scene, style: Style): Pre
     return filmWith({ ...scene, cameras: [cam], animation: { ...anim, shots: [newShot(0, 'Shot 1', cam.id, 'main')] } }, move.id, { base });
   }, style);
 }
+
+/*
+ * Thumbnails: small stills for the library's grids and rows (a pose, a template, a character), in
+ * one neutral line style on a transparent background so they read in either theme and whatever
+ * the film's style. Rendered when the page is idle, one at a time, and kept.
+ */
+
+const THUMB = 144;
+const thumbs = new Map<string, string>();
+const waiting = new Map<string, { make(): string; done: Set<(url: string) => void> }>();
+let draining = false;
+// When the page is idle (the canvas draws every frame, so not waiting for long).
+const idle = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 100 }) : setTimeout(fn, 0));
+
+function drain() {
+  const next = waiting.entries().next();
+  if (next.done) {
+    draining = false;
+    return;
+  }
+  const [key, job] = next.value;
+  waiting.delete(key);
+  const url = job.make();
+  thumbs.set(key, url);
+  job.done.forEach((fn) => fn(url));
+  idle(drain);
+}
+
+/** A thumbnail: at once if it was drawn before, or later (`onUrl`). Returns a function that stops waiting. */
+export function requestThumb(key: string, make: () => string, onUrl: (url: string) => void): () => void {
+  const had = thumbs.get(key);
+  if (had) {
+    onUrl(had);
+    return () => {};
+  }
+  const job = waiting.get(key) ?? { make, done: new Set() };
+  job.done.add(onUrl);
+  waiting.set(key, job);
+  if (!draining) {
+    draining = true;
+    idle(drain);
+  }
+  return () => job.done.delete(onUrl);
+}
+
+/** A scene as a thumbnail, from an angle. */
+export function drawThumb(scene: Scene, angle: View) {
+  return sharedRenderer().render(scene, THUMB, THUMB, 1.2, { style: 'line', transparent: true, faces: false, margin: 0.08, angle }).toDataURL('image/png');
+}
+
+/** A pose's thumbnail: its key and how to draw it. */
+export const poseThumb = (p: PoseAsset) => ({ key: `pose:${p.id}:${JSON.stringify(p.bones)}`, make: () => drawThumb(poseScene(p), p.view) });
+
+/** A template's: its people as they start, from the angle it is filmed from. */
+export const templateThumb = (id: string, build: () => Scene) => ({
+  key: `template:${id}`,
+  make: () => {
+    const scene = build();
+    return drawThumb(scene.animation ? sceneAt(scene, 0) : scene, angleAt(scene));
+  },
+});
+
+/** A character's (drawn when its file is here: the mannequin's always, an imported one's as it is imported). */
+export const characterThumb = (id: string | null) => ({
+  key: `character:${id ?? 'mannequin'}`,
+  make: () => drawThumb(newScene('Character', [newFigure(id ? { model: id } : {})]), { yaw: 20, pitch: 4, fov: 30 }),
+});

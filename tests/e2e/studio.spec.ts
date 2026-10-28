@@ -94,8 +94,7 @@ async function viewMenu(page: Page, item: string | RegExp) {
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 /** Pick what the Library lists (the drop-down beside its title). */
 async function libraryShows(page: Page, what: 'Templates' | 'Characters' | 'Poses' | 'Motions' | 'Camera') {
-  await page.getByRole('combobox', { name: 'Library section' }).click();
-  await page.getByRole('option', { name: what, exact: true }).click();
+  await page.getByRole('tablist', { name: 'Library' }).getByRole('tab', { name: what, exact: true }).click();
 }
 
 async function openSection(page: Page, name: 'Scene' | 'Library') {
@@ -192,7 +191,7 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
   // In groups (standing, sitting, kneeling, lying); resting on one shows it.
-  await expect(poses.getByRole('button')).toHaveCount(20);
+  await expect(poses.locator('li')).toHaveCount(20);
   await poses.getByRole('button', { name: 'Cobra', exact: true }).hover();
   await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
@@ -742,7 +741,8 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'clip']);
 
   await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await page.waitForTimeout(500);
+  // Playing: the playhead moves on (however busy the machine).
+  await expect(page.locator('.tl-time')).not.toHaveText(/^0\.00/);
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   expect((await anim(page)).time).toBeGreaterThan(0);
 
@@ -759,7 +759,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await expect(page.locator('.letterbox')).toBeVisible();
   // The shot's camera move: from its inspector to the library's camera moves.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1/ }).click();
+  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1 / }).click();
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
   const filmed = await anim(page);
@@ -915,7 +915,7 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   await expect(page.locator('.tl-shot')).toHaveCount(2);
   // Shots are listed in the Scene outline and edited in the inspector.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 2/ }).click();
+  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 2 / }).click();
   await page.getByRole('textbox', { name: 'Shot caption' }).fill('She waves back');
   // Shortcuts are off while typing.
   await page.getByRole('textbox', { name: 'Shot caption' }).blur();
@@ -1032,7 +1032,7 @@ async function signIn(page: Page) {
 test('signing in syncs the library to the account (server edition)', async ({ page }) => {
   test.setTimeout(150_000);
   await page.getByRole('tab', { name: 'AI assistant' }).click();
-  await expect(page.getByText('Sign in to pose, stage and animate')).toBeVisible();
+  await expect(page.getByText('Sign in to pose and animate by describing it')).toBeVisible();
   // An imported motion's frames go up apart from the library, as a file of its own.
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
@@ -1089,7 +1089,7 @@ test('the inspector folds away for more canvas and remembers it', async ({ page 
 
 test('the side panel switches sections, folds away and remembers it', async ({ page }) => {
   await openSection(page, 'Library');
-  await expect(page.getByRole('tabpanel').getByRole('heading', { name: 'Library' })).toBeVisible();
+  await expect(page.getByRole('tabpanel').getByRole('tablist', { name: 'Library' })).toBeVisible();
   await openSection(page, 'Scene');
   await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
   await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
@@ -1144,6 +1144,87 @@ async function floorMenu(page: Page, at: number[], item: string | RegExp) {
   await page.mouse.click(p.x, p.y, { button: 'right' });
   await page.getByRole('menuitem', { name: item }).click();
 }
+
+test('the command palette finds commands, scenes and Library items; Move to… walks a figure to a spot picked on the floor', async ({ page }) => {
+  const find = async (text: string) => {
+    await page.keyboard.press('Control+k');
+    const palette = page.getByRole('dialog', { name: 'Command palette' });
+    await palette.getByRole('combobox', { name: 'Find a command' }).fill(text);
+    return palette;
+  };
+  // A Library item, found by the Library's own search: a pose on the selected figure.
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  await (await find('cobra')).getByRole('option', { name: /^Poses: Cobra/ }).click();
+  await expect(page.getByText('Figure: Cobra')).toBeVisible();
+  // A command with its key, and a command's choice.
+  let palette = await find('mirror');
+  await expect(palette.getByRole('option', { name: /^Mirror pose/ })).toContainText('M');
+  await page.keyboard.press('Escape');
+  palette = await find('render style anime');
+  await palette.getByRole('option', { name: 'Render style: Anime' }).click();
+  await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
+
+  // Move to…: pick Walk, then a spot on the floor (the hint says what to do).
+  await page.getByRole('button', { name: 'Move to…' }).click();
+  await page.getByRole('menuitem', { name: 'Walk to…' }).click();
+  await expect(page.locator('.canvas-hint')).toHaveText(/^Click the floor where Figure should walk/);
+  const p = await projectPoint(page, [0.8, 0, -1.2]);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator('.canvas-hint')).toHaveCount(0);
+  const s = await live(page);
+  const track = actionsOf(s.scene.animation!, s.active);
+  expect(track[1].source).toMatchObject({ mode: 'walk' });
+  expect(track[1].roles[0].end!.at[0]).toBeCloseTo(0.8, 1);
+});
+
+test('the view widget, isolate, hover links, dragging from the Library, resizable panels and the dark theme', async ({ page }) => {
+  const yaw = () => page.evaluate(() => Math.round((window as unknown as { __poseStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__poseStudio.viewport.current.getView().yaw));
+  // The view widget turns the view as the keys 1–6 do.
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the left' }).click();
+  await expect.poll(yaw).toBe(90);
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' }).click();
+  await expect.poll(yaw).toBe(0);
+
+  // Isolate (/): only the selected figure on the canvas, and back.
+  await addLayer(page, 'Figure');
+  const [first, second] = await figs(page);
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure 2/ }).click();
+  await page.keyboard.press('/');
+  await expect(page.locator('.canvas-hint')).toHaveText(/^Only Figure 2/);
+  await page.keyboard.press('/');
+  await expect(page.locator('.canvas-hint')).toHaveCount(0);
+
+  // Resting on an outline row links its figure on the canvas.
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure$/ }).hover();
+  await expect.poll(() => state(page).then((x) => (x as unknown as { linked: string | null }).linked)).toBe(first.id);
+
+  // A pose dragged from the Library onto the figure that is not selected: it takes it.
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Poses');
+  const chest = await page.evaluate((id) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(id, 'chest')!, first.id);
+  const canvas = (await page.locator('.stage canvas').boundingBox())!;
+  await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: 'Cobra', exact: true })
+    .dragTo(page.locator('.stage canvas'), { targetPosition: { x: chest.x - canvas.x, y: chest.y - canvas.y } });
+  await expect(page.getByText('Figure: Cobra')).toBeVisible();
+  const [a, b] = await figs(page);
+  expect(a.bones).not.toEqual(first.bones);
+  expect(b.bones).toEqual(second.bones);
+
+  // The inspector is as wide as its edge is dragged, after a reload too.
+  const edge = (await page.locator('.panel-edge.left').boundingBox())!;
+  await drag(page, { x: edge.x + 3, y: edge.y + 200 }, { x: edge.x - 57, y: edge.y + 200 });
+  const wide = (await page.locator('.panel').boundingBox())!.width;
+  expect(wide).toBeGreaterThan(330);
+  await page.reload();
+  await page.locator('.stage canvas').waitFor();
+  expect(Math.abs((await page.locator('.panel').boundingBox())!.width - wide)).toBeLessThan(2);
+
+  // The dark theme, from the main menu.
+  await page.getByRole('button', { name: 'Main menu' }).click();
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
 
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
@@ -1230,12 +1311,13 @@ test('a two-person motion goes on the selected figure and the one next to it', a
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Boxing exchange/ }).click();
+  // (Looked for at once: the toast is on screen for a few seconds.)
+  await expect(page.getByText(`${second.name} and ${first.name}: Boxing exchange`)).toBeVisible();
   s = await live(page);
   // In this scene (no new one), both figures keyed: the selected one leads.
   expect((await state(page)).library.scenes).toHaveLength(scenes);
   const together = s.scene.animation!.actions.find((x) => x.source.kind === 'clip');
   expect(together?.roles.map((r) => r.figure)).toEqual([second.id, first.id]);
-  await expect(page.getByText(`${second.name} and ${first.name}: Boxing exchange`)).toBeVisible();
   // A child cannot lead an adult in a waltz hold: declined, with the reason.
   await openSection(page, 'Scene');
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: new RegExp(`^${second.name}`) }).first().click();
@@ -1263,7 +1345,7 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ri
   const handling = () => s.scene.animation!.actions.filter((x) => x.prop === ball);
   expect(handling().map((x) => [x.source.kind === 'clip' && x.source.clip, x.duration])).toEqual([['motion:dribble', 2]]);
   expect(s.time).toBeCloseTo(2, 2);
-  await propMenu('Ball', /^Shoot at Basketball hoop$/);
+  await propMenu('Ball', /^Basketball hoop$/);
   s = await live(page);
   // Through the rim, then down and bouncing on the floor: the animation runs on until it is down.
   expect(handling().at(-1)!.target).toMatchObject({ hoop: expect.any(String) });
@@ -1363,7 +1445,8 @@ test('a motion file is imported into My motions and given to the figure', async 
 
 test('a built-in character is fetched only when a figure is drawn as it', async ({ page }) => {
   const fetched: string[] = [];
-  page.on('request', (r) => { if (r.url().includes('/characters/')) fetched.push(r.url()); });
+  // Its thumbnails come with the app; a character's file only when it is used.
+  page.on('request', (r) => { if (/\/characters\/.*\.glb$/.test(r.url())) fetched.push(r.url()); });
   await openSection(page, 'Library');
   await libraryShows(page, 'Characters');
   const list = page.getByRole('region', { name: 'Characters' });

@@ -3,6 +3,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleHelp, Ellipsis, X, type LucideIcon } from 'lucide-react';
+import { PANEL_WIDTH } from '@/lib/store';
+import { endDrag, startDrag, type DropTarget } from './dragdrop';
 
 const FOCUSABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
 
@@ -111,14 +113,19 @@ export function IconButton({ icon: Icon, label, shortcut, onClick, active, disab
 /* ---------------- Menu ---------------- */
 
 export type MenuItem =
-  | { label: string; icon?: LucideIcon; shortcut?: string; onSelect(): void; danger?: boolean; disabled?: boolean; checked?: boolean }
+  | {
+    label: string; icon?: LucideIcon; shortcut?: string; onSelect(): void; danger?: boolean; disabled?: boolean; checked?: boolean;
+    /** It can also be dragged onto what it applies to (a prop onto the floor). */
+    drag?: DropTarget;
+  }
   | { group: string }
   | '-';
 
 /** Button that opens a list of actions. Closes on selection, outside click or Escape. */
 export function Menu({ label, items, children, className = 'btn ghost', side = 'bottom', align = 'start', tip }: {
   label: string;
-  items: MenuItem[];
+  /** Its items, or how to make them (when it opens: a menu built from the state is not built until wanted). */
+  items: MenuItem[] | (() => MenuItem[]);
   /** Trigger content; defaults to the label. */
   children?: ReactNode;
   className?: string;
@@ -169,7 +176,7 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
       </button>
       {open && (
         <div className={`menu-list ${side} ${align}`} role="menu" aria-label={label} ref={list} onKeyDown={onListKey}>
-          <MenuItems items={items} onDone={() => setOpen(false)} />
+          <MenuItems items={typeof items === 'function' ? items() : items} onDone={() => setOpen(false)} />
         </div>
       )}
     </div>
@@ -194,6 +201,9 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
             className={`menu-item${it.danger ? ' danger' : ''}${it.checked ? ' checked' : ''}`}
             disabled={it.disabled}
             onClick={() => { onDone(); it.onSelect(); }}
+            draggable={!!it.drag}
+            onDragStart={it.drag && ((e) => startDrag(e, it.drag!))}
+            onDragEnd={it.drag && (() => { endDrag(); onDone(); })}
           >
             <span className="menu-icon" aria-hidden>{it.icon && <it.icon size={15} strokeWidth={1.75} />}</span>
             <span className="menu-label">{it.label}</span>
@@ -225,7 +235,7 @@ export function NameHeader({ lead, name, label, onRename, children, chrome, menu
   onRename(name: string): void;
   children?: ReactNode;
   chrome?: HeaderChrome;
-  menu?: MenuItem[];
+  menu?: MenuItem[] | (() => MenuItem[]);
 }) {
   return (
     <div className="panel-title">
@@ -233,7 +243,7 @@ export function NameHeader({ lead, name, label, onRename, children, chrome, menu
       {lead}
       <TitleInput key={name} name={name} label={label} onRename={onRename} />
       {children}
-      {menu && menu.length > 0 && (
+      {menu && (typeof menu === 'function' || menu.length > 0) && (
         <Menu label={`${name} menu`} className="ibtn" align="end" tip="More" items={menu}>
           <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
         </Menu>
@@ -317,7 +327,7 @@ export function Info({ text, label = 'More about this' }: { text: string; label?
   const [open, setOpen] = useState(false);
   return (
     <span className="info-wrap">
-      <button type="button" className="info" aria-label={label} aria-expanded={open} data-tip={open ? undefined : text} onClick={() => setOpen(!open)} onBlur={() => setOpen(false)}>
+      <button type="button" className="info-btn" aria-label={label} aria-expanded={open} data-tip={open ? undefined : text} onClick={() => setOpen(!open)} onBlur={() => setOpen(false)}>
         <Info16 aria-hidden />
       </button>
       {open && <span className="info-pop" role="note">{text}</span>}
@@ -345,6 +355,25 @@ export function PropertyGroup({ children }: { children: ReactNode }) {
 /** One line of secondary text: an empty state, a note under a row. */
 export function Hint({ children }: { children: ReactNode }) {
   return <p className="hint">{children}</p>;
+}
+
+/**
+ * A side panel's inner edge: drag it to make the panel wider or narrower (within PANEL_WIDTH),
+ * double-click it to go back to the panel's own width. `side`: which way is wider.
+ */
+export function PanelEdge({ label, side, width, onWidth }: { label: string; side: 'left' | 'right'; width(): number; onWidth(w: number | null): void }) {
+  const drag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const x0 = e.clientX;
+    const w0 = width();
+    const move = (ev: PointerEvent) => onWidth(Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, w0 + (side === 'right' ? ev.clientX - x0 : x0 - ev.clientX)))));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('resizing'); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    document.body.classList.add('resizing');
+  };
+  return <div className={`panel-edge ${side}`} role="separator" aria-orientation="vertical" aria-label={label} data-tip={`${label} (double-click: its own width)`} onPointerDown={drag} onDoubleClick={() => onWidth(null)} />;
 }
 
 /* ---------------- Inputs ---------------- */
@@ -711,24 +740,31 @@ export type Notify = (text: string, kind?: Toast['kind'], action?: Toast['action
 export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: number): void }) {
   return (
     <div className="toasts" role="status" aria-live="polite">
-      {toasts.map((t) => {
-        const Icon = t.kind === 'error' ? CircleAlert : CircleCheck;
-        return (
-          <div key={t.id} className={`toast ${t.kind}`}>
-            <Icon size={16} aria-hidden />
-            <span>{t.text}</span>
-            {t.action && (
-              <button
-                type="button"
-                className="toast-action"
-                onClick={() => { t.action!.run(); dismiss(t.id); }}
-              >
-                {t.action.label}
-              </button>
-            )}
-          </div>
-        );
-      })}
+      {toasts.map((t) => <ToastItem key={t.id} toast={t} dismiss={dismiss} />)}
+    </div>
+  );
+}
+
+/** A toast, on screen for its time from when it shows (not from when it was asked for, which a long edit can delay). */
+function ToastItem({ toast: t, dismiss }: { toast: Toast; dismiss(id: number): void }) {
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(t.id), t.kind === 'error' || t.action ? 6000 : 3000);
+    return () => clearTimeout(timer);
+  }, [t.id, t.kind, t.action, dismiss]);
+  const Icon = t.kind === 'error' ? CircleAlert : CircleCheck;
+  return (
+    <div className={`toast ${t.kind}`}>
+      <Icon size={16} aria-hidden />
+      <span>{t.text}</span>
+      {t.action && (
+        <button
+          type="button"
+          className="toast-action"
+          onClick={() => { t.action!.run(); dismiss(t.id); }}
+        >
+          {t.action.label}
+        </button>
+      )}
     </div>
   );
 }

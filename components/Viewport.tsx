@@ -18,7 +18,8 @@ import type { Settings, Store, Through } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
-import { useFilm } from './store-context';
+import { useFilm, useStudio } from './store-context';
+import { dragged, endDrag } from './dragdrop';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -62,6 +63,8 @@ interface Props {
   onion: boolean;
   /** Right-click on the canvas (not after a drag). */
   onMenu(e: { clientX: number; clientY: number }, hit: CanvasHit): void;
+  /** A pick mode: the next click (not a drag) on the canvas goes here, whatever is under it. */
+  onPick?: ((hit: CanvasHit) => void) | null;
 }
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
@@ -73,7 +76,7 @@ function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
 }
 
 export default function Viewport({
-  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu,
+  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu, onPick,
 }: Props) {
   const captureRef = useRef<(() => CameraView | null) | null>(null);
   const film = useFilm();
@@ -84,6 +87,7 @@ export default function Viewport({
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
   const gizmoBusy = useRef(0);
   const downAt = useRef<[number, number]>([0, 0]);
+  const pickedAt = useRef(0);
 
   // Characters' files are read after the first frame: drawn as them once they are.
   const [models, setModels] = useState(0);
@@ -93,6 +97,9 @@ export default function Viewport({
   }, [sv, scene, models]);
   // Through the shot camera the picture is shown as filmed: no selection, no handles.
   useLayoutEffect(() => sv.setSelection(shotMode ? null : selection), [sv, selection, scene, shotMode]);
+  // The figure or prop whose outline row the pointer rests on: outlined as a whole.
+  const linked = useStudio((st) => st.linked);
+  useLayoutEffect(() => sv.setLinked(shotMode ? null : linked), [sv, linked, scene, shotMode]);
   useLayoutEffect(() => sv.setStyle(film.style), [sv, film.style]);
   useLayoutEffect(() => sv.setFaces(film.faces), [sv, film.faces]);
   useEffect(() => () => sv.dispose(), [sv]);
@@ -151,8 +158,16 @@ export default function Viewport({
 
   return (
     <div
-      className="canvas-wrap"
+      className={`canvas-wrap${onPick ? ' picking' : ''}`}
       onPointerDown={(e) => { downAt.current = [e.clientX, e.clientY]; }}
+      onPointerUpCapture={(e) => {
+        // Picking: a click (dragging still orbits) is the pick, not a selection.
+        const [x, y] = downAt.current;
+        if (!onPick || e.button !== 0 || Math.hypot(e.clientX - x, e.clientY - y) > 4 || !(e.target instanceof HTMLCanvasElement)) return;
+        e.stopPropagation();
+        pickedAt.current = performance.now();
+        onPick(apiRef.current?.pick(e.clientX, e.clientY) ?? {});
+      }}
       onPointerUp={(e) => {
         // Open on release so a right-drag (pan) does not open it; the browser's own menu is off.
         const [x, y] = downAt.current;
@@ -160,6 +175,22 @@ export default function Viewport({
         onMenu(e, apiRef.current?.pick(e.clientX, e.clientY) ?? {});
       }}
       onContextMenu={(e) => e.preventDefault()}
+      // Something dragged in (a Library item, a prop): onto the figure under the pointer, or the floor there.
+      onDragOver={(e) => {
+        const d = dragged();
+        if (!d || (!d.figure && !d.floor)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={(e) => {
+        const d = dragged();
+        if (!d) return;
+        e.preventDefault();
+        endDrag();
+        const hit = apiRef.current?.pick(e.clientX, e.clientY) ?? {};
+        if (hit.figure && d.figure) d.figure(hit.figure);
+        else if (hit.floor && d.floor && !hit.figure) d.floor(hit.floor);
+      }}
     >
       <Canvas
         flat
@@ -170,7 +201,8 @@ export default function Viewport({
         onPointerMissed={(e) => {
           const [x, y] = downAt.current;
           const moved = Math.hypot(e.clientX - x, e.clientY - y) > 4;
-          if (!moved && performance.now() - gizmoBusy.current > 250) store.select(null);
+          // (Not the click that picked a spot: the pick mode has just ended.)
+          if (!moved && !onPick && performance.now() - pickedAt.current > 300 && performance.now() - gizmoBusy.current > 250) store.select(null);
         }}
       >
         <color attach="background" args={[styleDef(film.style).background]} />
@@ -616,17 +648,22 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
 
   const now = clock.playing ? clock.time : time;
   const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
+  // The camera whose outline row the pointer rests on (larger, in the accent); resting on one here marks its row.
+  const linked = useStudio((st) => st.linked);
+  const link = (id: string) => ({ onPointerOver: () => store.setLinked(id), onPointerOut: () => store.setLinked(null) });
   let n = 0;
   return (
     <group ref={groupRef}>
       {cameras.map((c, i) => {
-        const color = c.id === picked ? '#3b6cff' : '#60616a';
+        const color = c.id === picked || c.id === linked ? '#3b6cff' : '#60616a';
         return (
           <group
             key={`now:${c.id}`}
             ref={(g) => { nowGlyphs.current[i] = g; }}
             userData={{ camera: c.id }}
+            scale={c.id === linked ? 1.4 : 1}
             onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
+            {...link(c.id)}
           >
             <mesh>
               <boxGeometry args={[0.14, 0.1, 0.12]} />
@@ -640,11 +677,11 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
         );
       })}
       {trails.map((trail, i) => trail.points.length > 1 && (
-        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked ? 3 : 1.5} transparent opacity={0.7} dashed={cameras[i].kind === 'rig'} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].kind === 'rig' ? undefined : addPoint(cameras[i].id, trail.times)} />
+        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked || cameras[i].id === linked ? 3 : 1.5} transparent opacity={0.7} dashed={cameras[i].kind === 'rig'} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].kind === 'rig' ? undefined : addPoint(cameras[i].id, trail.times)} />
       ))}
       {markers.map((m) => {
         const on = Math.abs(m.t - now) < 0.5 / fps && liveCamera(scene, now).id === m.cam.id;
-        const color = on ? '#3b6cff' : '#27272a';
+        const color = on || m.cam.id === linked ? '#3b6cff' : '#27272a';
         const k = n++;
         const l = m.aimed ? n++ : -1;
         return (
@@ -655,6 +692,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
               quaternion={m.quaternion}
               userData={{ camera: m.cam.id, point: m.t }}
               onPointerDown={(e) => dragOn(e, m.position, m.t, m.cam.id, (p, key) => moveCameraPoint(store, m.cam.id, m.t, p, key))}
+              {...link(m.cam.id)}
             >
               {/* A small camera: body and lens, looking down its −Z axis. */}
               <mesh>

@@ -473,6 +473,8 @@ export interface ModelInfo {
   proportions?: Proportions;
   /** The body under it, if known (the built-in characters): a figure drawn as it takes it, its height and build. */
   body?: BodyParams;
+  /** Its thumbnail for the library (an imported one's, drawn as it is imported). */
+  thumb?: string;
 }
 
 /** A body's build as shares of its height: hips above the feet, the head above its joint, the shoulders' width. */

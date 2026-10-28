@@ -276,11 +276,24 @@ export class ModelRig {
     }
   }
 
+  private linked = false;
+  private style: Style = 'line';
+
   /** Draw it in a style, its body tinted as the figure's colour. */
   setLook(style: Style, tint: string | null) {
+    this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
     for (const mesh of this.meshes) mesh.material = m.body;
-    for (const h of this.hulls) h.visible = !!styleDef(style).outline;
+    this.setLinked(this.linked);
+  }
+
+  /** Outline it in the accent (linked to the pointer elsewhere), whatever the style. */
+  setLinked(on: boolean) {
+    this.linked = on;
+    for (const h of this.hulls) {
+      h.material = on ? this.ink.linked : this.ink.outline;
+      h.visible = on || !!styleDef(this.style).outline;
+    }
   }
 
   /** Flat per-part colours for the line pass (as the mannequin's parts); returns the next free id. */

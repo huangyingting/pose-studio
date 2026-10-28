@@ -5,7 +5,7 @@ import { ChevronDown, Ellipsis, FilePlus2, Search, UsersRound } from 'lucide-rea
 import { addScene, moveScene } from '@/lib/actions';
 import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
-import { sceneMenu, type MenuUi } from './menus';
+import { menu } from './commands';
 import { useStore, useStudio } from './store-context';
 import { Menu } from './ui';
 
@@ -15,7 +15,7 @@ const COLUMNS = 3;
  * The project's scenes, from the top bar: switch scene (search, thumbnails; drag or Alt+arrows
  * to reorder), start a new one; rename, duplicate, delete or storyboard one (its menu, or right-click).
  */
-export default function ScenePicker({ ui }: { ui: MenuUi }) {
+export default function ScenePicker() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const scenes = useStudio((s) => s.library.scenes);
@@ -46,14 +46,14 @@ export default function ScenePicker({ ui }: { ui: MenuUi }) {
       </button>
       {open && (
         <div className="scene-popover" role="dialog" aria-label="Scenes">
-          <SceneGrid onPick={() => setOpen(false)} ui={ui} />
+          <SceneGrid onPick={() => setOpen(false)} />
         </div>
       )}
     </div>
   );
 }
 
-function SceneGrid({ onPick, ui }: { onPick(): void; ui: MenuUi }) {
+function SceneGrid({ onPick }: { onPick(): void }) {
   const store = useStore();
   const scenes = useStudio((s) => s.library.scenes);
   const index = useStudio((s) => s.sceneIndex);
@@ -123,7 +123,7 @@ function SceneGrid({ onPick, ui }: { onPick(): void; ui: MenuUi }) {
             className="ibtn"
             align="end"
             tip="More"
-            items={sceneMenu(store, index, ui)}
+            items={() => menu('scene', { store, scene: index })}
           >
             <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
           </Menu>
@@ -148,7 +148,7 @@ function SceneGrid({ onPick, ui }: { onPick(): void; ui: MenuUi }) {
               className="thumb"
               onClick={() => { store.setSceneIndex(i); onPick(); }}
               onKeyDown={(e) => onThumbKey(e, pos, i)}
-              onContextMenu={(e) => openContextMenu(e, sceneMenu(store, i, ui), s.name)}
+              onContextMenu={(e) => openContextMenu(e, menu('scene', { store, scene: i }), s.name)}
               aria-current={i === index}
               title={`${s.name} — Alt+arrow keys to reorder`}
             >

@@ -86,6 +86,9 @@ export class Ink {
     lightDir: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
+  /** The outline of a whole object linked to the pointer elsewhere (its row in the outline): the accent, thicker. */
+  private readonly linkedUniforms = { ...this.uniforms, color: { value: new THREE.Color('#3d63ff') }, thickness: { value: 3 }, opacity: { value: 1 } };
+  readonly linked = createOutlineMaterial(this.linkedUniforms);
   /** See-through, for props that block the view of the figure being edited. */
   readonly faded = new THREE.MeshBasicMaterial({ color: '#c9ccd6', transparent: true, opacity: 0.2, depthWrite: false });
   readonly ring = new THREE.MeshBasicMaterial({ color: '#8f8f8f' });
@@ -148,6 +151,7 @@ export class Ink {
   private applyThickness() {
     const o = styleDef(this.style).outline;
     this.uniforms.thickness.value = this.baseThickness * (this.ghost ? 0.8 : o ? o.scale : 0);
+    this.linkedUniforms.thickness.value = Math.max(2.5, this.uniforms.thickness.value + 1.5);
   }
 
   /** Surface materials for a style, created on first use. */
@@ -234,6 +238,8 @@ export class InkedParts {
   private faceLines: THREE.Mesh[] = [];
   /** Shown instead of the features when they are off (e.g. the plain construction head). */
   private plain = new Set<THREE.Mesh>();
+  private hulls: THREE.Mesh[] = [];
+  private linked = false;
   private featuresOn = true;
   private style: Style = 'line';
   private geometries = new Set<THREE.BufferGeometry>();
@@ -255,6 +261,7 @@ export class InkedParts {
     hull.raycast = () => {};
     mesh.add(hull);
     this.decorations.push(hull);
+    this.hulls.push(hull);
     this.geometries.add(geo);
     for (const r of rings) {
       const m = new THREE.Mesh(r, this.ink.ring);
@@ -326,6 +333,22 @@ export class InkedParts {
     for (const r of this.rings) r.visible = def.rings !== null;
     if (!def.outline) for (const d of this.decorations) if (!this.rings.includes(d)) d.visible = false;
     this.setFeatures(this.featuresOn);
+    this.applyLinked();
+  }
+
+  /** Outline the whole object in the accent (it is linked to the pointer elsewhere), whatever the style. */
+  setLinked(on: boolean) {
+    if (on === this.linked) return;
+    this.linked = on;
+    this.applyLinked();
+  }
+
+  private applyLinked() {
+    const outline = !!styleDef(this.style).outline;
+    for (const h of this.hulls) {
+      h.material = this.linked ? this.ink.linked : this.ink.outline;
+      if (!this.faded) h.visible = this.linked || outline;
+    }
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void) {

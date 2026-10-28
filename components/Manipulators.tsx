@@ -312,6 +312,8 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     const t = o && target(o);
     if (!t) return;
     sv.setHover(hover(t, e.shiftKey));
+    // Its row in the outline shows it too.
+    store.setLinked(t.kind === 'prop' || t.kind === 'held' ? t.prop : t.figure);
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };
 
@@ -324,6 +326,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
       onPointerOut={(e: ThreeEvent<PointerEvent>) => {
         if (e.buttons) return;
         sv.setHover(null);
+        store.setLinked(null);
         document.body.style.cursor = '';
       }}
     />

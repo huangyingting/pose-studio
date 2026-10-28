@@ -32,7 +32,17 @@ export interface Settings {
   timelineHeight: number;
   /** Looking through the shot camera, show the rule-of-thirds lines and safe areas. */
   guides: boolean;
+  /** Widths the side panels were dragged to (px): each left section's, and the inspector's. */
+  widths: Partial<Record<(typeof SIDE_SECTIONS)[number] | 'inspector', number>>;
+  /** The chrome's colours: as the system's, or light or dark. */
+  theme: Theme;
 }
+
+export const THEMES = ['system', 'light', 'dark'] as const;
+export type Theme = (typeof THEMES)[number];
+
+/** How wide a side panel can be dragged. */
+export const PANEL_WIDTH = { min: 200, max: 520 };
 
 export const LIBRARY_TABS = ['templates', 'characters', 'poses', 'motions', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
@@ -64,10 +74,12 @@ export interface State {
   /** Animation time (seconds) of the open pose; its figures always show the pose at this time. */
   time: number;
   through: Through;
+  /** The figure, prop or camera under the pointer in the outline or on the canvas: the other one shows it too. */
+  linked: string | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, side: 'scene', libraryTab: 'poses', tips: true, inspector: true, timelineFolded: false, timelineHeight: 0, guides: false,
+  showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, side: 'scene', libraryTab: 'poses', tips: true, inspector: true, timelineFolded: false, timelineHeight: 0, guides: false, widths: {}, theme: 'system',
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -117,6 +129,9 @@ function loadSettings(storage: Storage | null): Settings {
         timelineFolded: s.timelineFolded === true,
         timelineHeight: typeof s.timelineHeight === 'number' ? Math.min(2000, Math.max(0, s.timelineHeight)) : 0,
         guides: s.guides === true,
+        widths: Object.fromEntries(Object.entries(s.widths ?? {}).filter(([k, v]) => (k === 'inspector' || SIDE_SECTIONS.includes(k as (typeof SIDE_SECTIONS)[number])) && typeof v === 'number')
+          .map(([k, v]) => [k, Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, v as number))])),
+        theme: THEMES.includes(s.theme as Theme) ? (s.theme as Theme) : 'system',
       };
     }
   } catch {
@@ -149,7 +164,7 @@ export class Store {
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
-      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null,
+      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null, linked: null,
     });
     // An animated pose opens at its first frame.
     this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
@@ -410,9 +425,16 @@ export class Store {
     this.set({ through }, false);
   }
 
+  /** What the pointer rests on, in the outline or on the canvas (the other shows it too). */
+  setLinked(linked: string | null) {
+    if (linked !== this.state.linked) this.set({ linked }, false);
+  }
+
   setActiveFigure(activeFigure: string) {
     const sel = this.state.selection;
-    this.set({ activeFigure, selection: sel?.kind === 'joint' && sel.figure !== activeFigure ? null : sel }, false);
+    // A selected figure follows (the inspector shows the active one); another figure's part or action is let go.
+    const selection: Selection = sel?.kind === 'figure' ? { kind: 'figure', figure: activeFigure } : (sel?.kind === 'joint' || sel?.kind === 'action') && sel.figure !== activeFigure ? null : sel;
+    this.set({ activeFigure, selection }, false);
   }
 
   setSettings(patch: Partial<Settings>) {

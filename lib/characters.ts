@@ -58,3 +58,6 @@ export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);
 
 /** Where a built-in character's file is. */
 export const characterFile = (id: string) => withBase(`/characters/${id.slice(PREFIX.length)}.glb`);
+
+/** Its thumbnail, which comes with the app (drawing it would mean fetching its file). */
+export const characterImage = (id: string) => withBase(`/characters/${id.slice(PREFIX.length)}.png`);

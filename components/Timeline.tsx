@@ -1,13 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
+import { Activity, Camera, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Trash2, Users } from 'lucide-react';
 import {
-  Activity, Camera, ChevronDown, ChevronUp, Diamond, Scissors, TriangleAlert, X, Ellipsis, MoveHorizontal, Pause, Play, Repeat, Repeat1,
-  StepBack, StepForward, Trash2, Users, ZoomIn, ZoomOut,
-} from 'lucide-react';
-import {
-  addKeyframe, cutShot, deleteCameraPoint, deleteCorrection, deleteKeyframe, moveAction, moveKeyframe, removeAnimation, retime, retimeCameraPoint, rippleKeys, setAnimationOptions,
-  editShot, moveShotCut, setBlend, setCameraPoint,
+  deleteCorrection, moveAction, moveKeyframe, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
@@ -15,14 +11,15 @@ import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
-import { cameraById, liveCamera, rigRule, type CameraView } from '@/lib/cameras';
+import { cameraById, liveCamera, rigRule } from '@/lib/cameras';
 import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
-import { actionMenu, cameraMenu, figureMenu, shotMenu, travelMenu } from './menus';
+import { choices, command, menu, menuItems, setApp, tipOf, titleOf, type Ctx } from './commands';
+import { CommandButton } from './CommandButton';
+import { dragged, endDrag } from './dragdrop';
 import { useFilm, useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
-import { KEYS, withKey } from './shortcuts';
 
 /** Current playhead: the clock while playing, the document time otherwise. */
 export function usePlayhead(clock: Clock) {
@@ -31,7 +28,6 @@ export function usePlayhead(clock: Clock) {
   return clock.playing ? clock.time : time;
 }
 
-const SPEEDS = [0.25, 0.5, 1];
 /** Ruler spacings (seconds), finest first: the finest that keeps ticks (and labels) apart is used. */
 const TICKS = [1 / 24, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30];
 const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
@@ -43,12 +39,7 @@ const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
  * (auto-key). It zooms (Ctrl + wheel, the buttons) and scrolls (Shift + wheel, the bar under it),
  * folds down to its toolbar, and its top edge drags to make it taller.
  */
-export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
-  clock: Clock;
-  captureShot(): CameraView | null;
-  notify: Notify;
-  notifyUndo(text: string): void;
-}) {
+export default function Timeline({ clock, notify }: { clock: Clock; notify: Notify }) {
   const store = useStore();
   const scene = useScene();
   const a = scene.animation!;
@@ -112,11 +103,9 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
   // Shots longer than the model the film is cut for are flagged.
   const model = videoModel(useFilm().target);
   // The camera row: the selected camera, or the one filming at the playhead.
-  const through = useStudio((st) => st.through);
   const picked = useStudio((st) => (st.selection?.kind === 'camera' ? st.selection.camera : null));
   const rowCam = cameraById(scene, picked ?? undefined) ?? liveCamera(scene, time);
   const camTimes = rowCam.kind === 'path' ? rowCam.points.map((p) => p.t) : [];
-  const onCamKey = camTimes.some(near);
   // Motion check results, valid until the animation changes.
   const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
   const [qaOpen, setQaOpen] = useState(false);
@@ -325,6 +314,12 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
     window.addEventListener('pointerup', up);
   };
 
+  // The commands reach the motion check and the zoom here.
+  useEffect(() => {
+    setApp({ checkMotion: check, zoomTimeline: (how) => (how === 'fit' ? setZoom(null) : zoomBy(how === 'in' ? 0.5 : 2)) });
+  });
+  const c: Ctx = { store };
+
   const pct = (t: number) => `${((t - v0) / span) * 100}%`;
   const pxPerSecond = laneWidth / span;
   // Keys closer together on screen than a key is wide (a motion keyed every frame) show as dots.
@@ -373,7 +368,6 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
   // A narrow timeline (a phone, or both panels open on a small screen) keeps the transport, the key
   // and the length in its bar; the rest moves into the ⋯ menu.
   const compact = width < 640;
-  const keyLabel = `keyframe${multi && active ? ` (${active.name})` : ''}`;
   const qaLabel = checking ? 'Checking…' : issues ? (issues.length ? `${issues.length} ${issues.length === 1 ? 'issue' : 'issues'}` : 'No issues') : 'Check';
 
   return (
@@ -381,11 +375,11 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
       {!folded && <div className="tl-resize" onPointerDown={resize} onDoubleClick={() => store.setSettings({ timelineHeight: 0 })} title="Drag to make the timeline taller or shorter (double-click: fit)" aria-hidden />}
       <div className="tl-bar">
         <div className="tl-transport">
-          <IconButton icon={StepBack} label="Previous keyframe" tipSide="top" className="tl-step" disabled={prevKey === undefined} onClick={() => prevKey !== undefined && seek(prevKey)} />
-          <button type="button" className="tl-play" onClick={toggle} aria-label={clock.playing ? 'Pause' : 'Play'} data-tip={withKey(clock.playing ? 'Pause' : 'Play', 'play')} data-tip-side="top">
+          <CommandButton id="timeline.prevKey" ctx={c} tipSide="top" className="tl-step" disabled={prevKey === undefined} />
+          <button type="button" className="tl-play" onClick={toggle} aria-label={clock.playing ? 'Pause' : 'Play'} data-tip={tipOf('timeline.play', clock.playing ? 'Pause' : 'Play')} data-tip-side="top">
             {clock.playing ? <Pause size={16} aria-hidden /> : <Play size={16} aria-hidden />}
           </button>
-          <IconButton icon={StepForward} label="Next keyframe" tipSide="top" className="tl-step" disabled={nextKey === undefined} onClick={() => nextKey !== undefined && seek(nextKey)} />
+          <CommandButton id="timeline.nextKey" ctx={c} tipSide="top" className="tl-step" disabled={nextKey === undefined} />
           <span className="tl-time" aria-live="off">
             {time.toFixed(2)}<span className="tl-narrow-hide">/ {a.duration.toFixed(1)} s</span><em className="tl-narrow-hide">F{frame}</em>
           </span>
@@ -394,7 +388,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
             side="top"
             className="btn ghost tl-speed"
             tip="Playback speed"
-            items={SPEEDS.map((x) => ({ label: `${x}×${x === 1 ? ' (real time)' : ''}`, checked: speed === x, onSelect: () => clock.setSpeed(x) }))}
+            items={() => choices('timeline.speed', c)}
           >
             {speed}×
           </Menu>
@@ -403,34 +397,22 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
         <button
           type="button"
           className={`btn ghost tl-btn${onKey ? ' on' : ''}`}
-          aria-label={`${onKey ? 'Update' : 'Add'} ${keyLabel}`}
-          data-tip={withKey(`${onKey ? 'Update' : 'Add'} ${keyLabel}`, 'key')}
+          aria-label={titleOf(command('timeline.key'), c)}
+          data-tip={tipOf('timeline.key', titleOf(command('timeline.key'), c))}
           data-tip-side="top"
-          onClick={() => addKeyframe(store)}
+          onClick={() => command('timeline.key').run!(c)}
         >
           <Diamond size={15} aria-hidden /> <span className="tl-label">Key</span>
         </button>
         {!compact && (
           <>
-            <IconButton icon={Trash2} label={`Delete ${keyLabel}`} tipSide="top" disabled={!onKey || activeKeys.length <= 1} onClick={() => deleteKeyframe(store)} />
-            <button type="button" className="btn ghost tl-btn" aria-label="Cut: start a new shot here" data-tip={withKey('Cut: start a new shot here', 'cut')} data-tip-side="top" onClick={() => cutShot(store)}>
+            <CommandButton id="timeline.deleteKey" ctx={c} tipSide="top" disabled={!onKey || activeKeys.length <= 1} />
+            <button type="button" className="btn ghost tl-btn" aria-label={titleOf(command('timeline.cut'), c)} data-tip={tipOf('timeline.cut')} data-tip-side="top" onClick={() => command('timeline.cut').run!(c)}>
               <Scissors size={15} aria-hidden /> <span className="tl-label">Cut</span>
             </button>
           </>
         )}
-        <IconButton
-          icon={Camera}
-          label={`${onCamKey ? 'Update' : 'Set'} ${rowCam.name}${rowCam.kind === 'path' ? '’s point' : ''} from the view`}
-          tipSide="top"
-          active={onCamKey}
-          onClick={() => {
-            const shot = captureShot();
-            if (!shot) return;
-            setCameraPoint(store, shot.position, shot.target, shot.fov, '', rowCam.id);
-            if (!through) store.lookThrough(picked ? { camera: rowCam.id } : {});
-            notify(`${rowCam.name} set from the view`);
-          }}
-        />
+        <CommandButton id="timeline.cameraPoint" ctx={c} tipSide="top" />
         <span className="tl-sep" />
         <div className="tl-duration" data-tip="Length (seconds)" data-tip-side="top">
           <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={60} digits={1} onChange={(duration) => setAnimationOptions(store, { duration })} />
@@ -441,7 +423,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
             <button
               type="button"
               className={`btn ghost tl-qa${issues?.length ? ' warn' : ''}`}
-              onClick={check}
+              onClick={() => command('timeline.check').run!(c)}
               disabled={checking}
               aria-expanded={issues?.length ? qaOpen : undefined}
               data-tip="Check for foot sliding, interpenetration, joint limits and pops"
@@ -455,9 +437,9 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
         <span className="spacer" />
         {!folded && (
           <span className="tl-zoom">
-            <IconButton icon={ZoomOut} label="Zoom out" tipSide="top" disabled={!zoom} onClick={() => zoomBy(2)} />
-            <IconButton icon={ZoomIn} label="Zoom in (or Ctrl + wheel)" tipSide="top" disabled={span <= Math.min(0.5, a.duration) + 1e-6} onClick={() => zoomBy(0.5)} />
-            <IconButton icon={MoveHorizontal} label="Fit the whole animation" tipSide="top" disabled={!zoom} onClick={() => setZoom(null)} />
+            <CommandButton id="timeline.zoomOut" ctx={c} tipSide="top" disabled={!zoom} />
+            <CommandButton id="timeline.zoomIn" ctx={c} tipSide="top" disabled={span <= Math.min(0.5, a.duration) + 1e-6} />
+            <CommandButton id="timeline.fit" ctx={c} tipSide="top" disabled={!zoom} />
           </span>
         )}
         {!folded && <span className="tl-sep" />}
@@ -466,28 +448,11 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
           side="top"
           align="end"
           className="ibtn"
-          items={[
-            ...(compact ? [
-              { label: `Delete ${keyLabel}`, icon: Trash2, disabled: !onKey || activeKeys.length <= 1, onSelect: () => deleteKeyframe(store) },
-              { label: 'Cut: start a new shot here', icon: Scissors, shortcut: KEYS.cut, onSelect: () => cutShot(store) },
-              { label: issues?.length ? `Motion check: ${qaLabel}` : 'Check the motion', icon: issues?.length ? TriangleAlert : Activity, disabled: checking, onSelect: check },
-              '-' as const,
-            ] : []),
-            { label: 'Repeat this shot', icon: Repeat1, checked: clock.repeatShot, onSelect: () => clock.setRepeatShot(!clock.repeatShot) },
-            { label: 'Loop the animation', icon: Repeat, checked: a.loop, onSelect: () => setAnimationOptions(store, { loop: !a.loop }) },
-            '-',
-            { label: `Delete ${rowCam.name}’s point`, icon: Trash2, disabled: !onCamKey || camTimes.length <= 1, onSelect: () => deleteCameraPoint(store, time, rowCam.id) },
-            { label: 'Remove animation', icon: Trash2, danger: true, onSelect: () => { pause(); removeAnimation(store); } },
-          ]}
+          items={() => menuItems([...(compact ? ['timeline.deleteKey', 'timeline.cut', '-'] : []), 'timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'], c)}
         >
           <Ellipsis size={16} aria-hidden />
         </Menu>
-        <IconButton
-          icon={folded ? ChevronUp : ChevronDown}
-          label={folded ? 'Show the tracks' : 'Fold the timeline'}
-          tipSide="top"
-          onClick={() => store.setSettings({ timelineFolded: !folded })}
-        />
+        <CommandButton id="timeline.fold" ctx={c} tipSide="top" />
       </div>
 
       {!folded && (
@@ -501,8 +466,8 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
                 type="button"
                 className={`tl-figure${f.id === active?.id ? ' on' : ''}`}
                 onClick={() => store.setActiveFigure(f.id)}
-                onContextMenu={(e) => openContextMenu(e, figureMenu(store, f.id, { notify, notifyUndo }), f.name)}
-                title={`${f.name}: keys and retiming apply to this figure`}
+                onContextMenu={(e) => openContextMenu(e, menu('figure', { store, figure: f.id }), f.name)}
+                data-tip={`${f.name}: keys and retiming apply to this figure\nRight-click for more`}
               >
                 {f.color && <span className="tl-dot" style={{ background: f.color }} aria-hidden />}
                 {f.name}
@@ -522,7 +487,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
               type="button"
               className={`tl-figure tl-camera${picked ? ' on' : ''}`}
               onClick={() => store.select({ kind: 'camera', camera: rowCam.id })}
-              onContextMenu={(e) => openContextMenu(e, cameraMenu(store, rowCam.id, { notifyUndo }), rowCam.name)}
+              onContextMenu={(e) => openContextMenu(e, menu('camera', { store, camera: rowCam.id }), rowCam.name)}
               title={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
             >
               <Camera size={11} aria-hidden /> {rowCam.name}
@@ -560,12 +525,15 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
                     type="button"
                     className={`tl-shot${on ? ' on' : ''}${over ? ' over' : ''}`}
                     style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }}
-                    title={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${model!.name} allows (${model!.max} s)` : ''}`}
+                    data-tip={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${model!.name} allows (${model!.max} s)` : ''}\nRight-click for more`}
                     onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
                     onContextMenu={(e) => {
                       store.select({ kind: 'shot', shot: sp.shot.id });
-                      openContextMenu(e, shotMenu(store, sp.shot.id, { notify, notifyUndo }), sp.shot.name);
+                      openContextMenu(e, menu('shot', { store, shot: sp.shot.id }), sp.shot.name);
                     }}
+                    // A camera move dragged from the Library: onto this shot.
+                    onDragOver={(e) => { if (dragged()?.shot) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                    onDrop={(e) => { const d = dragged(); if (!d?.shot) return; e.preventDefault(); endDrag(); d.shot(sp.shot.id); }}
                   >
                     {sp.index > 0 && (
                       <>
@@ -599,7 +567,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
                     const next = moments(a, f.id).find((k) => k > at + 1e-6 && (travelInto(a, f.id, k) || keyAtTime(a, f.id, k)));
                     if (next === undefined || next === times[0]) { e.preventDefault(); return; }
                     store.setActiveFigure(f.id);
-                    openContextMenu(e, travelMenu(store, f.id, next), `${f.name} · to ${next.toFixed(2)} s`);
+                    openContextMenu(e, menuItems(['travel.how', 'travel.facing', 'travel.height', 'travel.turns'], { store, figure: f.id, at: next }), `${f.name} · to ${next.toFixed(2)} s`);
                   }}
                 >
                   {[...actionsOf(a, f.id), ...actionsOf(a, f.id, 'upper')].filter((x) => x.duration > 1e-6).map((x) => {
@@ -619,21 +587,39 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
                         <span
                           className={`tl-travel grab ${kind}${group ? ' group' : ''}${selected === x.id ? ' sel' : ''}`}
                           style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
-                          title={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click to edit, drag to move it (and what follows), its right edge to retime it; right-click for more`}
+                          data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click to edit, drag to move it (and what follows), its right edge to retime it\nRight-click for more`}
                           onPointerDown={dragAction(x, f.id, 'move')}
                           onContextMenu={(e) => {
                             e.stopPropagation();
                             store.setActiveFigure(f.id);
-                            openContextMenu(e, actionMenu(store, x.id, f.id), `${f.name} · ${label}`);
+                            openContextMenu(e, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
                           }}
                         >
                           {group && <Users size={10} aria-hidden />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
+                          {/* Its menu, on a ⋯ shown while the pointer is over it (always on touch). */}
+                          <button
+                            type="button"
+                            className="tl-more"
+                            aria-label={`More for ${label}`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              const r = e.currentTarget.getBoundingClientRect();
+                              store.setActiveFigure(f.id);
+                              openContextMenu({ clientX: r.left, clientY: r.bottom }, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
+                            }}
+                          >
+                            <Ellipsis size={12} aria-hidden />
+                          </button>
                           <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                         </span>
                       </span>
                     );
                   })}
+                  {/* Nothing to do yet: where to start. */}
+                  {!actionsOf(a, f.id).some((x) => x.source.kind !== 'keys') && times.length <= 1 && !f.proxy && (
+                    <span className="tl-empty" aria-hidden>Move to… in the inspector, or right-click the floor</span>
+                  )}
                   {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
                     <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} title={ev.title} aria-hidden />
                   ))}
@@ -660,19 +646,13 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
                       className={`tl-key${near(t) ? ' on' : ''}${tight[n] ? ' dense' : ''}`}
                       style={{ left: pct(t) }}
                       aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
-                      title="Drag to retime; Shift-drag to move the keys after it too"
+                      data-tip={"Drag to retime; Shift-drag to move the keys after it too\nRight-click for more"}
                       onPointerDown={dragKey(t, f.id)}
                       onContextMenu={(e) => {
                         e.stopPropagation();
                         seek(t);
                         store.setActiveFigure(f.id);
-                        openContextMenu(e, [
-                          ...(n > 0 ? [...travelMenu(store, f.id, t), '-' as const] : []),
-                          {
-                            label: 'Delete key', icon: Trash2, danger: true, disabled: times.length <= 1,
-                            onSelect: () => deleteKeyframe(store, f.id),
-                          },
-                        ], `${f.name} · ${t.toFixed(2)} s`);
+                        openContextMenu(e, menu('key', { store, figure: f.id, at: t }), `${f.name} · ${t.toFixed(2)} s`);
                       }}
                     />
                   ))}
@@ -730,7 +710,7 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
                   onPointerDown={dragPoint(t)}
                   onContextMenu={(e) => {
                     seek(t);
-                    openContextMenu(e, cameraMenu(store, rowCam.id, { notifyUndo }, t), `${rowCam.name} · ${t.toFixed(2)} s`);
+                    openContextMenu(e, menu('camera', { store, camera: rowCam.id, at: t }), `${rowCam.name} · ${t.toFixed(2)} s`);
                   }}
                 />
               ))}

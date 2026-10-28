@@ -1,69 +1,229 @@
 'use client';
 
-import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookmarkPlus, Clapperboard, Film, Layers, PersonStanding, Search, Trash2, Upload, UsersRound, Video } from 'lucide-react';
-import {
-  addModel, applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate, newShoot, saveShoot, motionProblem, placeTemplate, sceneFromTemplate, nearestPartners, saveMotion, savePose, setFigureModel,
-} from '@/lib/actions';
-import { clipById, clipScene } from '@/lib/assets';
-import { COVERAGES, castCoverage } from '@/lib/coverage';
-import { SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf, templatesOf } from '@/lib/templates';
-import { newScene } from '@/lib/doc';
-import { MissingBones, importModel, type BoneMap } from '@/lib/model';
-import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
-import { POSE_GROUPS } from '@/lib/presets';
-import { builtInPoses } from '@/lib/poses';
-import { PREVIEW_SIZE, cameraPreview, characterPreview, motionPreview, posePreview, runPreview, templatePreview, type PreviewJob } from '@/lib/previews';
-import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
-import { BUILT_IN_CHARACTERS } from '@/lib/characters';
-import { shotSpans, spanAt } from '@/lib/shots';
-import { styleDef } from '@/lib/styles';
+import { Check, ChevronDown, ChevronRight, Ellipsis, Search } from 'lucide-react';
+import { PREVIEW_SIZE, requestThumb, runPreview, type PreviewJob } from '@/lib/previews';
+import { spanAt } from '@/lib/shots';
 import type { LibraryTab } from '@/lib/store';
-import type { ShootPreset } from '@/lib/types';
-import { useFilm, useScene, useStore, useStudio } from '../store-context';
-import { saveAsTemplate } from '../menus';
-import BoneMapDialog from '../BoneMapDialog';
-import { Field, Hint, IconButton, Modal, NumberField, Select } from '../ui';
+import { styleDef } from '@/lib/styles';
+import { useFilm, useStore, useStudio } from '../store-context';
+import { IconButton, Menu } from '../ui';
+import { endDrag, startDrag } from '../dragdrop';
+import { LIBRARY_CATEGORIES, type LibraryCategory, type LibraryItem, type LibraryUi, type Thumb } from './libraryItems';
 import type { SectionProps } from './sections';
 
 /**
- * Ready-made things to build a scene with, in groups. They apply to what is selected: a pose or a
- * motion to the selected figure, a scene template to the open scene (or as a new one), a camera
- * move to the selected (or current) shot. Resting the pointer on one shows what it does: the
- * pose, the motion playing, the move filming this scene.
+ * Ready-made things to build a scene with, by category (icon tabs) and in groups. They apply to
+ * what is selected: a pose or a motion to the selected figure, a template as a new scene (or into
+ * this one), a camera move to the selected (or current) shot. One search box finds items in every
+ * category. Resting the pointer on one shows what it does: the pose, the motion playing, the move
+ * filming this scene.
  */
-export default function LibrarySection(props: SectionProps) {
+export default function LibrarySection({ notify, notifyUndo, onPick }: SectionProps) {
   const store = useStore();
   const tab = useStudio((s) => s.settings.libraryTab);
-  const setTab = (libraryTab: LibraryTab) => store.setSettings({ libraryTab });
+  // What the items depend on: the library (its scenes too), the selection, the shot at the playhead.
+  useStudio((s) => s.library);
+  useStudio((s) => s.sceneIndex);
+  useStudio((s) => s.activeFigure);
+  useStudio((s) => s.selection);
+  useStudio((s) => { const a = s.library.scenes[s.sceneIndex]?.animation; return a ? spanAt(a, s.time)?.shot.id ?? '' : ''; });
+  const [query, setQuery] = useState('');
+  // A category's header was clicked in the results: only its matches.
+  const [scoped, setScoped] = useState(false);
   const preview = usePreview();
+  const ui: LibraryUi = { notify, notifyUndo, onPick };
+  const open = LIBRARY_CATEGORIES.find((c) => c.id === tab) ?? LIBRARY_CATEGORIES[0];
+  const setTab = (libraryTab: LibraryTab) => { preview.hide(); store.setSettings({ libraryTab }); };
+
+  // Each tab (and the results) keeps its scroll position.
+  const scroller = useRef<HTMLDivElement>(null);
+  const positions = useRef(new Map<string, number>());
+  const view = query.trim() ? `search:${scoped ? tab : ''}` : tab;
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = positions.current.get(view) ?? 0;
+  }, [view]);
+
+  const q = query.trim().toLowerCase();
+  let body: ReactNode;
+  if (!q) {
+    body = (
+      <>
+        {open.Bar && <open.Bar {...ui} />}
+        <Items category={open} items={open.items(store, ui)} preview={preview.bind} />
+      </>
+    );
+  } else {
+    // Matches from every category, the open one's first, under one header each.
+    const cats = scoped ? [open] : [open, ...LIBRARY_CATEGORIES.filter((c) => c !== open)];
+    const found = cats.map((c) => ({ c, items: c.items(store, ui).filter((it) => it.name.toLowerCase().includes(q)) })).filter((x) => x.items.length);
+    body = found.length ? found.map(({ c, items }) => (
+      <section key={c.id} className="lib-results" aria-label={`${c.label} found`}>
+        <button type="button" className="lib-result-head" onClick={() => { setTab(c.id); setScoped(true); }} data-tip={scoped ? undefined : `Only ${c.label.toLowerCase()}`}>
+          <c.icon size={13} aria-hidden /> {c.label} <span className="count">{items.length}</span>
+        </button>
+        <List category={c} title={c.label} items={items} preview={preview.bind} />
+      </section>
+    )) : <p className="empty-note">Nothing matches “{query.trim()}”</p>;
+  }
+
   return (
-    <div className="side-section">
-      <div className="side-head">
-        <h2>Library</h2>
-        <div className="library-pick">
-          <Select<LibraryTab>
-            label="Library section"
-            value={tab}
-            onChange={(t) => { preview.hide(); setTab(t); }}
-            options={[
-              { value: 'templates', label: 'Templates', hint: 'A new scene, or into this one around the selected figure' },
-              { value: 'characters', label: 'Characters', hint: 'Who the selected figure is drawn as' },
-              { value: 'poses', label: 'Poses', hint: 'On the selected figure' },
-              { value: 'motions', label: 'Motions', hint: 'On the selected figure, at the playhead' },
-              { value: 'camera', label: 'Camera', hint: 'Coverage of the scene; a move for the selected shot' },
-            ]}
+    <div className="side-section library">
+      <Tabs tab={open.id} onPick={(id) => { setTab(id); setScoped(!!q); }} />
+      <div className="library-row">
+        <label className="search">
+          <Search size={14} aria-hidden />
+          <input
+            type="search"
+            placeholder="Search the library"
+            value={query}
+            aria-label="Search the library"
+            onChange={(e) => { setQuery(e.target.value); if (!e.target.value.trim()) setScoped(false); }}
           />
-        </div>
+        </label>
       </div>
-      {tab === 'poses' && <Poses {...props} preview={preview.bind} />}
-      {tab === 'motions' && <Motions {...props} preview={preview.bind} />}
-      {tab === 'characters' && <Characters {...props} preview={preview.bind} />}
-      {tab === 'templates' && <Templates {...props} preview={preview.bind} />}
-      {tab === 'camera' && <CameraMoves {...props} preview={preview.bind} />}
+      <div className="side-scroll" ref={scroller} onScroll={(e) => positions.current.set(view, e.currentTarget.scrollTop)}>
+        {body}
+      </div>
       {preview.card}
     </div>
+  );
+}
+
+/** The categories as icon tabs: the open one with its name, the others with it in a tooltip; past five, the last place is a ⋯. */
+function Tabs({ tab, onPick }: { tab: LibraryTab; onPick(id: LibraryTab): void }) {
+  const MAX = 5;
+  const shown = LIBRARY_CATEGORIES.length > MAX ? LIBRARY_CATEGORIES.slice(0, MAX - 1) : LIBRARY_CATEGORIES;
+  const more = LIBRARY_CATEGORIES.slice(shown.length);
+  return (
+    <div className="lib-tabs" role="tablist" aria-label="Library">
+      {shown.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          role="tab"
+          aria-selected={c.id === tab}
+          aria-label={c.label}
+          className={`lib-tab${c.id === tab ? ' on' : ''}`}
+          data-tip={c.id === tab ? undefined : c.label}
+          onClick={() => onPick(c.id)}
+        >
+          <c.icon size={15} strokeWidth={1.75} aria-hidden />
+          {c.id === tab && <span className="lib-tab-label">{c.label}</span>}
+        </button>
+      ))}
+      {more.length > 0 && (
+        <Menu label="More categories" className={`lib-tab${more.some((c) => c.id === tab) ? ' on' : ''}`} items={more.map((c) => ({ label: c.label, icon: c.icon, checked: c.id === tab, onSelect: () => onPick(c.id) }))}>
+          <Ellipsis size={15} aria-hidden />
+        </Menu>
+      )}
+    </div>
+  );
+}
+
+/** A category's items, in its parts (a region each) and groups (each folds, and remembers it). */
+function Items({ category, items, preview }: { category: LibraryCategory; items: LibraryItem[]; preview: Bind }) {
+  const parts = [...new Set(items.map((it) => it.part))];
+  return parts.map((part) => {
+    const mine = items.filter((it) => it.part === part);
+    return (
+      <section key={part} aria-label={part}>
+        {[...new Set(mine.map((it) => it.group))].map((g) => {
+          const list = mine.filter((it) => it.group === g);
+          return (
+            <Group key={g} id={`${category.id}:${g}`} title={g} count={list.length}>
+              <List category={category} title={g} items={list} preview={preview} />
+            </Group>
+          );
+        })}
+      </section>
+    );
+  });
+}
+
+function Group({ id, title, count, children }: { id: string; title: string; count: number; children: ReactNode }) {
+  const key = `pose-studio-libgroup-${id}`;
+  const [open, setOpen] = useState(() => typeof localStorage === 'undefined' || localStorage.getItem(key) !== '0');
+  const toggle = () => {
+    try { localStorage.setItem(key, open ? '0' : '1'); } catch { /* ignore */ }
+    setOpen(!open);
+  };
+  return (
+    <div className="lib-group">
+      <h3 className="lib-group-head">
+        <button type="button" aria-expanded={open} onClick={toggle}>
+          {open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+          {title}<span className="count">{count}</span>
+        </button>
+      </h3>
+      {open && children}
+    </div>
+  );
+}
+
+/** Items as thumbnails (a grid) or rows. */
+function List({ category, title, items, preview }: { category: LibraryCategory; title: string; items: LibraryItem[]; preview: Bind }) {
+  return (
+    <ul className={category.grid ? 'lib-grid' : 'side-list library-list'} aria-label={title}>
+      {items.map((it) => (
+        <li key={it.key}>
+          <button
+            type="button"
+            className={category.grid ? `lib-tile${it.on ? ' on' : ''}` : undefined}
+            aria-label={category.grid ? it.name : undefined}
+            aria-disabled={it.disabled || undefined}
+            aria-pressed={it.on === undefined || it.disabled ? undefined : it.on}
+            data-tip={it.preview ? undefined : it.note}
+            onClick={() => { if (!it.disabled) it.run(); }}
+            // Or dragged onto what it applies to: a figure, the floor, a shot.
+            draggable={!!it.drop}
+            onDragStart={it.drop && ((e) => { startDrag(e, it.drop!); })}
+            onDragEnd={it.drop && endDrag}
+            {...(it.preview ? preview(it.name, it.note, it.preview) : {})}
+          >
+            {category.grid ? (
+              <>
+                <Thumbnail thumb={it.thumb} fallback={<it.icon size={22} strokeWidth={1.5} aria-hidden />} />
+                <span className="lib-tile-name">{it.name}</span>
+                {it.on && <Check size={12} className="lib-tile-on" aria-hidden />}
+              </>
+            ) : (
+              <>
+                {it.thumb ? <Thumbnail thumb={it.thumb} small fallback={<it.icon size={14} aria-hidden />} /> : <it.icon size={14} aria-hidden />}
+                <span className="side-list-name">{it.name}</span>
+                {it.meta && <em>{it.meta}</em>}
+              </>
+            )}
+          </button>
+          {it.actions?.map((a) => <IconButton key={a.label} icon={a.icon} label={a.label} className="row-action" size={13} onClick={a.run} />)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: boolean; fallback: ReactNode }) {
+  const drawn = thumb && 'key' in thumb ? thumb : null;
+  const [url, setUrl] = useState<{ key: string; url: string } | null>(null);
+  // Drawn once it scrolls into sight (a template's takes building it first).
+  const el = useRef<HTMLSpanElement>(null);
+  const [seen, setSeen] = useState(false);
+  const key = drawn?.key;
+  useEffect(() => {
+    if (!key || seen || !el.current) return;
+    const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) setSeen(true); });
+    io.observe(el.current);
+    return () => io.disconnect();
+  }, [key, seen]);
+  useEffect(() => (drawn && seen ? requestThumb(drawn.key, drawn.make, (u) => setUrl({ key: drawn.key, url: u })) : undefined), [drawn?.key, seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const src = thumb && 'url' in thumb ? thumb.url : url && url.key === drawn?.key ? url.url : null;
+  return (
+    <span ref={el} className={small ? 'lib-thumb small' : 'lib-thumb'} aria-hidden>
+      {/* Generated data: URLs and the app's own images, so next/image does not apply. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {src ? <img src={src} alt="" draggable={false} /> : !drawn && fallback}
+    </span>
   );
 }
 
@@ -143,517 +303,6 @@ function PreviewCard({ shown, background }: { shown: Shown; background: string }
       )}
       <strong>{shown.title}</strong>
       {shown.note && <span>{shown.note}</span>}
-    </div>
-  );
-}
-
-/* ---------------- lists ---------------- */
-
-/** Who the library applies to, or what to select first. */
-function Target({ children }: { children: ReactNode }) {
-  return <p className="library-target">{children}</p>;
-}
-
-function Group({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
-  return (
-    <div className="lib-group">
-      <h3 className="lib-group-head">{title}{count !== undefined && <span className="count">{count}</span>}</h3>
-      <ul className="side-list library-list" aria-label={title}>{children}</ul>
-    </div>
-  );
-}
-
-function useActiveFigure() {
-  const scene = useScene();
-  const id = useStudio((s) => s.activeFigure);
-  return scene.figures.find((f) => f.id === id) ?? null;
-}
-
-type Listed = SectionProps & { preview: Bind };
-
-function Poses({ notifyUndo, onPick, preview }: Listed) {
-  const store = useStore();
-  const figure = useActiveFigure();
-  const mine = useStudio((s) => s.library.poses) ?? [];
-  const style = useFilm().style;
-  const [query, setQuery] = useState('');
-  const q = query.trim().toLowerCase();
-  const match = (name: string) => !q || name.toLowerCase().includes(q);
-  const usable = !!figure && !figure.proxy;
-  const groups = [
-    ...POSE_GROUPS.map((g) => ({ title: g as string, poses: builtInPoses().filter((p) => p.group === g && match(p.name)), mine: false })),
-    { title: 'My poses', poses: mine.filter((p) => match(p.name)), mine: true },
-  ].filter((g) => g.poses.length);
-
-  return (
-    <div className="side-scroll">
-      <Target>
-        {usable ? <>On <strong>{figure.name}</strong></> : figure?.proxy ? 'Stand-ins take postures: select a figure' : 'Select a figure to pose'}
-      </Target>
-      <div className="library-row">
-        <label className="search">
-          <Search size={14} aria-hidden />
-          <input type="search" placeholder="Search poses" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search poses" />
-        </label>
-        <IconButton
-          icon={BookmarkPlus}
-          label={usable ? `Save ${figure.name}'s pose` : 'Save the selected figure’s pose'}
-          disabled={!usable}
-          onClick={() => {
-            if (!figure) return;
-            const saved = savePose(store, figure.id, `${store.scene.name} · ${figure.name}`);
-            if (saved) notifyUndo(`Saved “${saved.name}” to the library`);
-          }}
-        />
-      </div>
-      <section aria-label="Poses">
-        {groups.map((g) => (
-          <Group key={g.title} title={g.title} count={g.poses.length}>
-            {g.poses.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  aria-disabled={!usable}
-                  onClick={() => { if (usable && applyPose(store, figure.id, p.id)) { notifyUndo(`${figure.name}: ${p.name}`); onPick?.(); } }}
-                  {...preview(p.name, usable ? `Click to put it on ${figure.name}` : undefined, () => posePreview(p, style))}
-                >
-                  <PersonStanding size={14} aria-hidden />
-                  <span className="side-list-name">{p.name}</span>
-                </button>
-                {g.mine && <IconButton icon={Trash2} label={`Delete my pose ${p.name}`} className="row-delete" size={13} onClick={() => { deletePose(store, p.id); notifyUndo(`Deleted “${p.name}”`); }} />}
-              </li>
-            ))}
-          </Group>
-        ))}
-        {!groups.length && <p className="empty-note">No poses match “{query}”.</p>}
-      </section>
-    </div>
-  );
-}
-
-// A motion's length (building one solves IK, so do it once per motion).
-const lengths = new Map<string, number>();
-function motionLength(id: string) {
-  if (!lengths.has(id)) lengths.set(id, MOTIONS.find((m) => m.id === id)?.build().animation?.duration ?? 0);
-  return lengths.get(id)!;
-}
-
-function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
-  const store = useStore();
-  const figure = useActiveFigure();
-  const mine = useStudio((s) => s.library.clips) ?? [];
-  const style = useFilm().style;
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [reading, setReading] = useState(false);
-  const usable = !!figure && !figure.proxy;
-  const give = (id: string, name: string) => { if (usable && applyMotion(store, figure.id, id)) { notifyUndo(`${figure.name}: ${name}`); onPick?.(); } };
-  /** From the waist up, over what the figure is doing (waving while walking). */
-  const over = (id: string, name: string) => { if (usable && applyUpperBody(store, figure.id, id)) { notifyUndo(`${figure.name}: ${name} (upper body)`); onPick?.(); } };
-  const scene = useScene();
-  const nameOf = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? '';
-  /** Who joins the selected figure in a motion of several people (the nearest), or null if too few. */
-  const partnersFor = (people: number) => {
-    if (!usable) return null;
-    const p = nearestPartners(store, figure.id, people - 1);
-    return p.length === people - 1 ? p : null;
-  };
-  const together = (id: string, name: string, partners: string[]) => {
-    const why = usable ? motionProblem(store, id, [figure.id, ...partners]) : null;
-    if (why) { notify(why); return; }
-    if (!usable || !applyMotion(store, figure.id, id, partners)) return;
-    notifyUndo(`${[figure.name, ...partners.map(nameOf)].join(' and ')}: ${name}`);
-    onPick?.();
-  };
-
-  const [mapping, setMapping] = useState<{ file: File; err: MissingBones } | null>(null);
-  const read = async (file: File, map?: BoneMap) => {
-    setReading(true);
-    try {
-      // The loaders are only fetched when a motion is imported.
-      const { importMotion } = await import('@/lib/importmotion');
-      const motion = await importMotion(file.name, await file.arrayBuffer(), map);
-      saveMotion(store, motion);
-      notifyUndo(`Imported “${motion.name}” (${motion.duration.toFixed(1)} s) to My motions`);
-    } catch (e) {
-      if (e instanceof MissingBones && !map) setMapping({ file, err: e });
-      else notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setReading(false);
-    }
-  };
-
-  return (
-    <div className="side-scroll">
-      <Target>
-        {usable ? <>On <strong>{figure.name}</strong>, at the playhead</> : 'Select a figure to give it a motion'}
-      </Target>
-      <div className="library-row">
-        <button
-          type="button"
-          className="btn subtle library-import"
-          disabled={reading}
-          onClick={() => fileRef.current?.click()}
-          data-tip="A BVH, FBX or glTF/GLB animation (motion capture, Mixamo…), fitted to the mannequin"
-        >
-          <Upload size={14} aria-hidden /> {reading ? 'Importing…' : 'Import motion…'}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".bvh,.fbx,.glb,.gltf"
-          hidden
-          aria-label="Motion file"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void read(f);
-            e.target.value = '';
-          }}
-        />
-      </div>
-      <section aria-label="Motions">
-        {MOTION_GROUPS.map((g) => {
-          const motions = MOTIONS.filter((m) => m.group === g);
-          return (
-            <Group key={g} title={g} count={motions.length}>
-              {motions.map((m) => {
-                // One person's motion goes on the selected figure, several people's on it and the nearest.
-                const solo = m.people === 1;
-                const partners = m.people > 1 ? partnersFor(m.people) : null;
-                const note = solo
-                  ? (usable ? `Click to give it to ${figure.name}` : undefined)
-                  : partners && figure
-                    ? `Click to put it on ${figure.name} (leading) and ${partners.map(nameOf).join(', ')}, at the playhead`
-                    : `For ${m.people} people: select a figure with ${m.people - 1 === 1 ? 'another' : `${m.people - 1} others`} in the scene (or start from the ${m.name} template)`;
-                return (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      aria-disabled={solo ? !usable : !partners}
-                      onClick={() => (solo ? give(m.id, m.name) : partners && together(m.id, m.name, partners))}
-                      {...preview(m.name, note, () => motionPreview(m.id, m.build, style))}
-                    >
-                      {solo ? <Film size={14} aria-hidden /> : <UsersRound size={14} aria-hidden />}
-                      <span className="side-list-name">{m.name}</span>
-                      <em>{solo ? `${motionLength(m.id).toFixed(1)} s` : `${m.people} people`}</em>
-                    </button>
-                    {solo && !m.travel && usable && <IconButton icon={Layers} label={`${m.name}: upper body only, over what ${figure.name} is doing`} className="row-action" size={13} onClick={() => over(m.id, m.name)} />}
-                  </li>
-                );
-              })}
-            </Group>
-          );
-        })}
-        {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
-        {mine.length > 0 && (
-          <Group title="My motions" count={mine.length}>
-            {mine.map((m) => (
-              <li key={m.id}>
-                <button
-                  type="button"
-                  aria-disabled={!usable}
-                  onClick={() => give(m.id, m.name)}
-                  {...preview(m.name, usable ? `Click to give it to ${figure.name}` : undefined, () => motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style))}
-                >
-                  <Film size={14} aria-hidden />
-                  <span className="side-list-name">{m.name}</span>
-                  <em>{m.duration.toFixed(1)} s</em>
-                </button>
-                <IconButton icon={Trash2} label={`Delete my motion ${m.name}`} className="row-delete" size={13} onClick={() => { deleteMotion(store, m.id); notifyUndo(`Deleted “${m.name}”`); }} />
-              </li>
-            ))}
-          </Group>
-        )}
-      </section>
-    </div>
-  );
-}
-
-/** Characters to draw figures as: the mannequin, or one imported (a glTF/GLB or FBX with a skeleton). */
-function Characters({ notify, notifyUndo, preview }: Listed) {
-  const style = useFilm().style;
-  const store = useStore();
-  const figure = useActiveFigure();
-  const mine = useStudio((s) => s.library.models) ?? [];
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [reading, setReading] = useState(false);
-  const [mapping, setMapping] = useState<{ file: File; err: MissingBones } | null>(null);
-  const usable = !!figure && !figure.proxy;
-  const give = (id: string | null, name: string) => {
-    if (!usable) return;
-    setFigureModel(store, figure.id, id);
-    notifyUndo(`${figure.name}: drawn as ${name}`);
-  };
-  const read = async (file: File, map?: BoneMap) => {
-    setReading(true);
-    try {
-      const info = await importModel(file.name, await file.arrayBuffer(), map);
-      addModel(store, info);
-      if (usable) setFigureModel(store, figure.id, info.id);
-      notifyUndo(`Imported “${info.name}”${usable ? `: ${figure.name} is drawn as it` : ''}`);
-    } catch (e) {
-      if (e instanceof MissingBones && !map) setMapping({ file, err: e });
-      else notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setReading(false);
-    }
-  };
-  const row = (id: string | null, name: string, mineToo = false) => (
-    <li key={id ?? 'mannequin'}>
-      <button
-        type="button"
-        aria-disabled={!usable}
-        aria-pressed={usable ? (figure.model ?? null) === id : undefined}
-        onClick={() => give(id, name)}
-        {...(id ? preview(name, usable ? `Click to draw ${figure.name} as ${name}` : undefined, () => characterPreview(id, style)) : {})}
-      >
-        <PersonStanding size={14} aria-hidden />
-        <span className="side-list-name">{name}</span>
-        {usable && (figure.model ?? null) === id && <em>{figure.name}</em>}
-      </button>
-      {id && mineToo && <IconButton icon={Trash2} label={`Delete my character ${name}`} className="row-delete" size={13} onClick={() => { deleteModel(store, id); notifyUndo(`Deleted “${name}”`); }} />}
-    </li>
-  );
-  return (
-    <div className="side-scroll">
-      <Target>
-        {usable ? <>On <strong>{figure.name}</strong></> : 'Select a figure to draw as a character'}
-      </Target>
-      <div className="library-row">
-        <button
-          type="button"
-          className="btn subtle library-import"
-          disabled={reading}
-          onClick={() => fileRef.current?.click()}
-          data-tip="A character with a skeleton (glTF/GLB or FBX: Mixamo, VRoid…), posed and animated like the mannequin"
-        >
-          <Upload size={14} aria-hidden /> {reading ? 'Importing…' : 'Import character…'}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".glb,.gltf,.fbx"
-          hidden
-          aria-label="Character file"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void read(f);
-            e.target.value = '';
-          }}
-        />
-      </div>
-      <section aria-label="Characters">
-        <Group title="Built in" count={1 + BUILT_IN_CHARACTERS.length}>{row(null, 'Mannequin')}{BUILT_IN_CHARACTERS.map((c) => row(c.id, c.name))}</Group>
-        {mine.length > 0 && <Group title="My characters" count={mine.length}>{mine.map((m) => row(m.id, m.name, true))}</Group>}
-      </section>
-      {mapping && <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void read(mapping.file, map); }} />}
-    </div>
-  );
-}
-
-/** Scene templates: each as a new scene, or into the open one (its first role on the selected figure). */
-function Templates({ notifyUndo, onPick, preview }: Listed) {
-  const store = useStore();
-  const scene = useScene();
-  const figure = useActiveFigure();
-  const library = useStudio((s) => s.library);
-  const style = useFilm().style;
-  const all = templatesOf(library);
-  const groups = [...TEMPLATE_GROUPS, 'Mine'] as const;
-  const [making, setMaking] = useState(false);
-  return (
-    <div className="side-scroll">
-      <Target>
-        Opens as a new scene{figure && <>; <Layers size={11} aria-label="Put into this scene" /> puts it around <strong>{figure.name}</strong></>}
-      </Target>
-      <div className="library-row">
-        <button type="button" className="btn subtle library-import" onClick={() => saveAsTemplate(store, { notifyUndo })} data-tip="Its cast, set, actions and light, without cameras or cuts">
-          <BookmarkPlus size={14} aria-hidden /> Save scene as template…
-        </button>
-      </div>
-      <section aria-label="Shoot presets">
-        {[{ title: 'Ready to shoot', list: SHOOT_PRESETS, mine: false }, { title: 'My presets', list: shootsOf(library).filter((p) => !SHOOT_PRESETS.includes(p)), mine: true }].map((g) => g.list.length > 0 && (
-          <Group key={g.title} title={g.title} count={g.list.length}>
-            {g.list.map((p) => {
-              const t = all.find((x) => x.id === p.template)!;
-              const how = COVERAGES.find((c) => c.id === p.coverage)!;
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => { if (newShoot(store, p.id)) { notifyUndo(`${p.name}: ${t.name}, filmed as ${how.name.toLowerCase()}`); onPick?.(); } }}
-                    {...preview(p.name, `${t.name}, filmed as ${how.name.toLowerCase()}: opens as a new scene, cameras and cuts made`, () => templatePreview(t.id, t.build, style))}
-                  >
-                    <Clapperboard size={14} aria-hidden />
-                    <span className="side-list-name">{p.name}</span>
-                    <em>{how.name}</em>
-                  </button>
-                  {g.mine && <IconButton icon={Trash2} label={`Delete the shoot preset ${p.name}`} className="row-action" size={13} onClick={() => { deleteShoot(store, p.id); notifyUndo(`Deleted the shoot preset ${p.name}`); }} />}
-                </li>
-              );
-            })}
-          </Group>
-        ))}
-        <div className="library-row">
-          <button type="button" className="btn subtle library-import" onClick={() => setMaking(true)} data-tip="A template filmed with a coverage, opened in one go">
-            <Clapperboard size={14} aria-hidden /> New shoot preset…
-          </button>
-        </div>
-        {making && <ShootDialog onClose={() => setMaking(false)} onMade={(p) => notifyUndo(`Made the shoot preset ${p.name}`)} />}
-      </section>
-      <section aria-label="Scene templates">
-        {groups.map((g) => {
-          const list = all.filter((t) => t.group === g);
-          if (!list.length) return null;
-          return (
-            <Group key={g} title={g === 'Mine' ? 'My templates' : g} count={list.length}>
-              {list.map((t) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onClick={() => { sceneFromTemplate(store, t.id); onPick?.(); }}
-                    {...preview(t.name, 'Click to open it as a new scene', () => templatePreview(t.id, t.build, style))}
-                  >
-                    {t.people > 1 ? <UsersRound size={14} aria-hidden /> : <PersonStanding size={14} aria-hidden />}
-                    <span className="side-list-name">{t.name}</span>
-                    <em>{t.people === 1 ? '1 person' : `${t.people} people`}</em>
-                  </button>
-                  <IconButton
-                    icon={Layers}
-                    label={figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`}
-                    className="row-action"
-                    size={13}
-                    onClick={() => { if (placeTemplate(store, t.id)) { notifyUndo(`${t.name} put into ${scene.name}`); onPick?.(); } }}
-                  />
-                  {g === 'Mine' && <IconButton icon={Trash2} label={`Delete the template ${t.name}`} className="row-action" size={13} onClick={() => { const gone = deleteTemplate(store, t.id); notifyUndo(`Deleted the template ${t.name}${gone.length ? ` and the shoot presets filming it (${gone.join(', ')})` : ''}`); }} />}
-                </li>
-              ))}
-            </Group>
-          );
-        })}
-      </section>
-    </div>
-  );
-}
-
-/** Make a shoot preset: a name, a template, a coverage that fits its cast and (a still template) a length. */
-function ShootDialog({ onClose, onMade }: { onClose(): void; onMade(p: ShootPreset): void }) {
-  const store = useStore();
-  const library = useStudio((s) => s.library);
-  const all = templatesOf(library);
-  const [name, setName] = useState('');
-  const [template, setTemplate] = useState(all[0].id);
-  const chosen = all.some((x) => x.id === template) ? template : all[0].id;
-  const t = all.find((x) => x.id === chosen)!;
-  const fitting = COVERAGES.filter((c) => c.roles.length <= t.people);
-  const [coverage, setCoverage] = useState(fitting[0]?.id ?? '');
-  const how = fitting.find((c) => c.id === coverage) ?? fitting[0];
-  // A template that does not move is filmed for a length of its own (worked out as one is picked).
-  const isStill = (id: string) => !all.find((x) => x.id === id)?.build().animation;
-  const [still, setStill] = useState(() => isStill(chosen));
-  const [length, setLength] = useState(6);
-  const make = () => {
-    if (!how) return;
-    const p = saveShoot(store, { name: name || `${t.name}, ${how.name.toLowerCase()}`, template: t.id, coverage: how.id, ...(still ? { duration: length } : {}) });
-    onMade(p);
-    onClose();
-  };
-  return (
-    <Modal
-      title="New shoot preset"
-      icon={Clapperboard}
-      onClose={onClose}
-      footer={<button type="button" className="btn primary" disabled={!how} onClick={make}>Make preset</button>}
-    >
-      <div className="form">
-        <label className="field">
-          <span>Name</span>
-          <input type="text" value={name} placeholder={how ? `${t.name}, ${how.name.toLowerCase()}` : t.name} aria-label="Preset name" onChange={(e) => setName(e.target.value)} data-autofocus />
-        </label>
-        <Field label="Template">
-          <Select<string> label="Template" value={t.id} onChange={(id) => { setTemplate(id); setStill(isStill(id)); }} options={all.map((x) => ({ value: x.id, label: `${x.name}${x.group === 'Mine' ? ' (mine)' : ''}`, hint: x.people === 1 ? '1 person' : `${x.people} people` }))} />
-        </Field>
-        <Field label="Coverage">
-          {fitting.length
-            ? <Select<string> label="Coverage" value={how.id} onChange={setCoverage} options={fitting.map((c) => ({ value: c.id, label: c.name }))} />
-            : <Hint>None films one person alone yet</Hint>}
-        </Field>
-        {still && (
-          <Field label="Length">
-            <NumberField prefix="s" label="Length (seconds)" value={length} step={1} min={1} max={60} digits={0} onChange={setLength} />
-          </Field>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-function CameraMoves({ notify, onPick, preview }: Listed) {
-  const store = useStore();
-  const scene = useScene();
-  const style = useFilm().style;
-  const selection = useStudio((s) => s.selection);
-  const time = useStudio((s) => s.time);
-  const a = scene.animation;
-  const selected = a && selection?.kind === 'shot' ? shotSpans(a).find((sp) => sp.shot.id === selection.shot) : undefined;
-  const span = selected ?? (a ? spanAt(a, time) : undefined);
-  const cam = selection?.kind === 'camera' ? scene.cameras.find((c) => c.id === selection.camera) : undefined;
-  const active = useStudio((s) => s.activeFigure);
-  const name = (id: string | undefined) => scene.figures.find((f) => f.id === id)?.name ?? '?';
-  return (
-    <div className="side-scroll">
-      <section aria-label="Coverage">
-        <Group title="Coverage of the whole animation">
-          {COVERAGES.map((c) => {
-            const cast = scene.coverage?.id === c.id ? scene.coverage.roles : castCoverage(scene, c, active ?? undefined);
-            const who = cast ? c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ') : `needs ${c.roles.length} people`;
-            return (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  disabled={!cast}
-                  data-tip={`${c.description} (${who})`}
-                  onClick={() => {
-                    if (!coverScene(store, c.id)) return;
-                    const n = store.scene;
-                    notify(`${c.name}: ${n.cameras.filter((x) => x.made?.startsWith(`${c.id}:`)).length} cameras, ${shotSpans(n.animation!).length} shots`);
-                    onPick?.();
-                  }}
-                >
-                  <Clapperboard size={14} aria-hidden />
-                  <span className="side-list-name">{c.name}</span>
-                  <em>{scene.coverage?.id === c.id ? 'again' : who}</em>
-                </button>
-              </li>
-            );
-          })}
-        </Group>
-      </section>
-      <Target>
-        {cam ? <>On <strong>{cam.name}</strong></> : span ? <>On <strong>{span.shot.name}</strong></> : 'Animates this still scene and films it'}
-      </Target>
-      <section aria-label="Camera moves">
-        {CAMERA_GROUPS.map((g) => (
-          <Group key={g} title={g}>
-            {CAMERA_MOVES.filter((m) => m.group === g).map((m) => (
-              <li key={m.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!cam && span) store.setTime(span.start);
-                    applyCameraMove(store, m.id, cam?.id);
-                    notify(`${m.name}: ${m.description}`);
-                    onPick?.();
-                  }}
-                  {...preview(m.name, m.description, () => cameraPreview(m, scene, style))}
-                >
-                  <Video size={14} aria-hidden />
-                  <span className="side-list-name">{m.name}</span>
-                </button>
-              </li>
-            ))}
-          </Group>
-        ))}
-      </section>
     </div>
   );
 }

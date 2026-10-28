@@ -223,6 +223,11 @@ export class PropObject {
     this.refresh();
   }
 
+  /** Outline it (it is linked to the pointer elsewhere). */
+  setLinked(on: boolean) {
+    this.parts.setLinked(on);
+  }
+
   /** Tint it: a drag would move it. */
   setHover(on: boolean) {
     if (on === this.hovered) return;

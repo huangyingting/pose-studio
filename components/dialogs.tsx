@@ -23,7 +23,7 @@ import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
 import { FRAME_SHAPES, type BodyParams, type Figure, type FrameShape, type Style } from '@/lib/types';
 import { useFilm, useScene, useStore, useStudio } from './store-context';
-import { SHORTCUTS } from './shortcuts';
+import { COMMANDS, GESTURES, keyLabel, titleOf } from './commands';
 import { Field, Hint, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
 /* ---------------- Export ---------------- */
@@ -580,18 +580,23 @@ export function ProjectSettingsDialog({ onClose }: { onClose(): void }) {
 
 /* ---------------- Help ---------------- */
 
+/** The keys (from the commands) and the gestures. */
 export function HelpDialog({ onClose }: { onClose(): void }) {
+  const store = useStore();
+  const c = { store };
   return (
     <Modal title="Keyboard shortcuts" icon={Keyboard} onClose={onClose} wide>
       <div className="shortcuts">
-        {SHORTCUTS.map(([what, keys]) => (
-          <div key={what} className="shortcut"><span>{what}</span><kbd>{keys}</kbd></div>
+        {/* One row per key: commands on different things share some (Del deletes whatever is selected). */}
+        {COMMANDS.filter((cmd, i) => cmd.keys && COMMANDS.findIndex((x) => x.keys?.[0] === cmd.keys![0]) === i).map((cmd) => (
+          <div key={cmd.id} className="shortcut"><span>{cmd.help ?? titleOf(cmd, c)}</span><kbd>{cmd.keys!.map(keyLabel).join(' · ')}</kbd></div>
         ))}
       </div>
-      <div className="shortcuts more">
-        <div className="shortcut"><span>Type an exact value</span><span>Click a slider&apos;s value</span></div>
-        <div className="shortcut"><span>Keep a file of the project</span><span>Main menu → Save project</span></div>
-        <div className="shortcut"><span>Send one scene</span><span>Scene menu → Copy share link</span></div>
+      <h3 className="shortcuts-head">Gestures</h3>
+      <div className="shortcuts">
+        {GESTURES.map(([what, how]) => (
+          <div key={what} className="shortcut"><span>{what}</span><span>{how}</span></div>
+        ))}
       </div>
     </Modal>
   );

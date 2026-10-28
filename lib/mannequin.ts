@@ -669,6 +669,11 @@ export class Mannequin {
     this.object.updateMatrixWorld(true);
   }
 
+  /** Outline the whole figure (it is linked to the pointer elsewhere). */
+  setLinked(on: boolean) {
+    this.parts.setLinked(on);
+  }
+
   /** Tint the parts a drag would move: these joints' parts, or the whole figure. */
   setHover(joints: readonly JointName[] | 'all' | null) {
     const next = joints === 'all' || joints === null ? joints : new Set(joints);

@@ -1,9 +1,10 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { SideSection } from '@/lib/store';
 import { useStore, useStudio } from '../store-context';
-import { IconButton } from '../ui';
+import { IconButton, PanelEdge } from '../ui';
 import { SECTIONS, type SectionProps } from './sections';
 
 export interface RailAction {
@@ -21,6 +22,7 @@ export interface RailAction {
 export default function SidePanel({ actions, drawer, ...props }: SectionProps & { actions: RailAction[]; drawer: boolean }) {
   const store = useStore();
   const saved = useStudio((s) => s.settings.side);
+  const widths = useStudio((s) => s.settings.widths);
   // As a drawer (small screens) a section is always shown.
   const side: SideSection = saved === 'none' && drawer ? 'scene' : saved;
   const open = SECTIONS.find((s) => s.id === side);
@@ -52,8 +54,26 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
         ))}
       </nav>
       {open && (
-        <div className={`side-panel${open.wide ? ' wide' : ''}`} id="side-panel" role="tabpanel" aria-labelledby={`side-tab-${open.id}`}>
+        <div
+          className={`side-panel${open.wide ? ' wide' : ''}`}
+          id="side-panel"
+          role="tabpanel"
+          aria-labelledby={`side-tab-${open.id}`}
+          // Each section keeps the width it was dragged to.
+          style={widths[open.id] ? ({ '--side-w': `${widths[open.id]}px` } as CSSProperties) : undefined}
+        >
           <open.Panel {...props} />
+          <PanelEdge
+            label="Resize the side panel"
+            side="right"
+            width={() => document.getElementById('side-panel')?.getBoundingClientRect().width ?? 240}
+            onWidth={(w) => {
+              const next = { ...store.getState().settings.widths };
+              if (w === null) delete next[open.id];
+              else next[open.id] = w;
+              store.setSettings({ widths: next });
+            }}
+          />
         </div>
       )}
     </aside>

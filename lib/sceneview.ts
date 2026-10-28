@@ -159,6 +159,7 @@ export class SceneView {
       this.version++;
       this.applySelection();
       this.applyHover();
+      this.applyLinked();
       for (const l of this.listeners) l();
     }
     return changed;
@@ -187,6 +188,19 @@ export class SceneView {
     const sel = this.selection;
     for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, sel?.kind === 'figure' && sel.figure === id);
     for (const [id, p] of this.props) p.setSelected(sel?.kind === 'prop' && sel.prop === id);
+  }
+
+  /** Outline a whole figure or prop: the pointer is on it elsewhere (its row in the outline). */
+  setLinked(id: string | null) {
+    this.linkedId = id;
+    this.applyLinked();
+  }
+
+  private linkedId: string | null = null;
+  private applyLinked() {
+    for (const [id, m] of this.figures) m.setLinked(id === this.linkedId);
+    for (const [id, r] of this.models) r.setLinked(id === this.linkedId);
+    for (const [id, p] of this.props) p.setLinked(id === this.linkedId);
   }
 
   /** Tint what a drag would move (the editor shows it under the pointer). */

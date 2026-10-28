@@ -11,7 +11,7 @@ import type { Scene, Style } from '@/lib/types';
 import { drawShot } from '@/lib/video';
 import { useFilm, useStore, useStudio } from './store-context';
 import { IconButton, NumberField } from './ui';
-import { KEYS } from './shortcuts';
+import { shortcutOf } from './commands';
 
 const previewCache = new Map<string, string>();
 
@@ -100,7 +100,7 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
         <button type="button" className="btn primary" disabled={!shots.length} onClick={onExport}>
           <Download size={15} aria-hidden /> Export
         </button>
-        <IconButton icon={X} label="Close storyboard" shortcut={KEYS.deselect} onClick={onClose} />
+        <IconButton icon={X} label="Close storyboard" shortcut={shortcutOf('app.deselect')} onClick={onClose} />
       </header>
       {addList}
       {shots.length ? (
