@@ -24,7 +24,7 @@ import type { ShootPreset } from '@/lib/types';
 import { useFilm, useScene, useStore, useStudio } from '../store-context';
 import { saveAsTemplate } from '../menus';
 import BoneMapDialog from '../BoneMapDialog';
-import { Field, IconButton, Modal, NumberField, Select } from '../ui';
+import { Field, Hint, IconButton, Modal, NumberField, Select } from '../ui';
 import type { SectionProps } from './sections';
 
 /**
@@ -188,7 +188,7 @@ function Poses({ notifyUndo, onPick, preview }: Listed) {
   return (
     <div className="side-scroll">
       <Target>
-        {usable ? <>Click a pose to put it on <strong>{figure.name}</strong>.</> : figure?.proxy ? 'Stand-ins take postures, not poses: pick a figure.' : 'Select a figure to pose it.'}
+        {usable ? <>On <strong>{figure.name}</strong></> : figure?.proxy ? 'Stand-ins take postures: select a figure' : 'Select a figure to pose'}
       </Target>
       <div className="library-row">
         <label className="search">
@@ -285,7 +285,7 @@ function Motions({ notify, notifyUndo, onPick, preview }: Listed) {
   return (
     <div className="side-scroll">
       <Target>
-        {usable ? <>Motions go on <strong>{figure.name}</strong>&apos;s track at the playhead (with the nearest figures for two people).</> : 'Select a figure to give it a motion.'}
+        {usable ? <>On <strong>{figure.name}</strong>, at the playhead</> : 'Select a figure to give it a motion'}
       </Target>
       <div className="library-row">
         <button
@@ -416,7 +416,7 @@ function Characters({ notify, notifyUndo, preview }: Listed) {
   return (
     <div className="side-scroll">
       <Target>
-        {usable ? <>Click a character to draw <strong>{figure.name}</strong> as it.</> : 'Select a figure to draw it as a character.'}
+        {usable ? <>On <strong>{figure.name}</strong></> : 'Select a figure to draw as a character'}
       </Target>
       <div className="library-row">
         <button
@@ -463,8 +463,7 @@ function Templates({ notifyUndo, onPick, preview }: Listed) {
   return (
     <div className="side-scroll">
       <Target>
-        A template is a cast, a set and what they do, without cameras; a shoot preset films one with a coverage. Click to open it as a new scene;
-        {' '}{figure ? <>or put it here, its first role on <strong>{figure.name}</strong>.</> : 'or select a figure to put it into this scene around it.'}
+        Opens as a new scene{figure && <>; <Layers size={11} aria-label="Put into this scene" /> puts it around <strong>{figure.name}</strong></>}
       </Target>
       <div className="library-row">
         <button type="button" className="btn subtle library-import" onClick={() => saveAsTemplate(store, { notifyUndo })} data-tip="Its cast, set, actions and light, without cameras or cuts">
@@ -576,14 +575,13 @@ function ShootDialog({ onClose, onMade }: { onClose(): void; onMade(p: ShootPres
         <Field label="Coverage">
           {fitting.length
             ? <Select<string> label="Coverage" value={how.id} onChange={setCoverage} options={fitting.map((c) => ({ value: c.id, label: c.name }))} />
-            : <p className="hint-text">No coverage films one person alone yet.</p>}
+            : <Hint>None films one person alone yet</Hint>}
         </Field>
         {still && (
           <Field label="Length">
             <NumberField prefix="s" label="Length (seconds)" value={length} step={1} min={1} max={60} digits={0} onChange={setLength} />
           </Field>
         )}
-        <p className="hint-text">It keeps the template and the coverage by reference: open it from Ready to shoot as a new scene, already filmed.</p>
       </div>
     </Modal>
   );
@@ -631,7 +629,7 @@ function CameraMoves({ notify, onPick, preview }: Listed) {
         </Group>
       </section>
       <Target>
-        {cam ? <>Moves reshape <strong>{cam.name}</strong>, over the shots it films.</> : span ? <>Moves apply to <strong>{span.shot.name}</strong>{a && shotSpans(a).length > 1 ? ' (select another shot in the Scene outline)' : ''}.</> : 'A move animates this still scene and films it.'}
+        {cam ? <>On <strong>{cam.name}</strong></> : span ? <>On <strong>{span.shot.name}</strong></> : 'Animates this still scene and films it'}
       </Target>
       <section aria-label="Camera moves">
         {CAMERA_GROUPS.map((g) => (

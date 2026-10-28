@@ -10,7 +10,7 @@ import { allPoses, poseScene } from '@/lib/poses';
 import { useScene, useStudio } from './store-context';
 import { CircleCheck, Pause, Play, SkipBack, SkipForward, Timer, X } from 'lucide-react';
 import { STYLE_LIST } from '@/lib/styles';
-import { Field, Segmented, Select, Toggle } from './ui';
+import { Field, Info, Segmented, Select, Toggle } from './ui';
 
 const PRACTICE_KEY = 'pose-studio-practice-v1';
 
@@ -70,8 +70,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
 
   return (
     <div className="practice-setup">
-      <h2><Timer size={18} aria-hidden /> Gesture practice</h2>
-      <p className="muted">A timed slideshow of poses to draw from. Keys: <kbd>Space</kbd> pause, <kbd>←</kbd> <kbd>→</kbd> previous / next, <kbd>Esc</kbd> stop.</p>
+      <h2><Timer size={18} aria-hidden /> Gesture practice <Info text="A timed slideshow of poses to draw from. Space pauses, ← and → go back and on, Esc stops." label="About gesture practice" /></h2>
       <div className="form">
         <Field label="Poses">
           <Segmented<PracticeOptions['source']> label="Poses"
@@ -80,7 +79,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
             options={[{ value: 'all', label: `Pose library (${scenes.length})` }, { value: 'current', label: scene.animation ? 'This scene’s moments, random angles' : 'This scene, random angles' }]}
           />
         </Field>
-        <Field label="Time per pose">
+        <Field label="Each pose">
           <Segmented<string> label="Time per pose"
             value={String(o.seconds)}
             onChange={(v) => set({ seconds: Number(v) })}
@@ -94,12 +93,12 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
             options={COUNTS.map((c) => ({ value: String(c), label: c === 0 ? (o.source === 'all' ? 'All' : '10') : String(c) }))}
           />
         </Field>
-        <label>Style
+        <Field label="Style">
           <Select<Style> label="Style" value={o.style} onChange={(style) => set({ style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
-        </label>
+        </Field>
         {o.source === 'all' && <Toggle label="Shuffle" checked={o.shuffle} onChange={(shuffle) => set({ shuffle })} />}
-        {o.source === 'all' && <Toggle label="Random camera angles" checked={o.randomAngle} onChange={(randomAngle) => set({ randomAngle })} />}
-        <Toggle label="Randomly mirror poses" checked={o.mirror} onChange={(mirror) => set({ mirror })} />
+        {o.source === 'all' && <Toggle label="Random angles" checked={o.randomAngle} onChange={(randomAngle) => set({ randomAngle })} />}
+        <Toggle label="Random mirroring" checked={o.mirror} onChange={(mirror) => set({ mirror })} />
         <Toggle label="Face features" hint="Nose, eyes, brows and mouth, so you can tell where a figure looks" checked={o.faces} onChange={(faces) => set({ faces })} />
       </div>
       <div className="row practice-actions">

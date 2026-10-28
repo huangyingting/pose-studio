@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Clapperboard, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { Box, Clapperboard, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Settings2, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneShots, storyLength, storyShots } from '@/lib/board';
 import { boardSheet, boardSize, recordStory } from '@/lib/boardExport';
 import { sceneAt } from '@/lib/evaluate';
-import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
+import { addCamera, applyPhotoPose, editFilm, setReferenceImage } from '@/lib/actions';
+import { VIDEO_MODELS } from '@/lib/shots';
 import { newFigure } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
@@ -20,10 +21,10 @@ import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import type { BodyParams, Figure, Style } from '@/lib/types';
+import { FRAME_SHAPES, type BodyParams, type Figure, type FrameShape, type Style } from '@/lib/types';
 import { useFilm, useScene, useStore, useStudio } from './store-context';
 import { SHORTCUTS } from './shortcuts';
-import { Field, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
+import { Field, Hint, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
 /* ---------------- Export ---------------- */
 
@@ -325,57 +326,42 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
               />
             </Field>
           )}
-          {!model && <div className="row">
-            <label>Style
+          {!model && (
+            <Field label="Style">
               <Select<Style | ''>
                 label="Style"
                 value={o.style ?? ''}
                 onChange={(v) => set({ style: v || undefined })}
                 options={[{ value: '', label: `The film's (${styleDef(film.style).label})` }, ...STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))]}
               />
-            </label>
-            {filmed ? (
-              <label>Size
-                <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${film.frame})` }))} />
-              </label>
-            ) : (
-              <label>Format
-                <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
-              </label>
-            )}
-          </div>}
-          {model ? (
-            <p className="muted small">
-              The open scene as a binary glTF for Blender, game engines and other 3D tools{animated ? ': an animation per person, one for the props and one for the shot camera' : ', posed as shown'}.
-            </p>
-          ) : pack ? (
-            <>
-              {animated && <Toggle label="Greybox clip of each shot" hint="A clay-shaded video of the motion and camera, as a reference for the model" checked={o.greybox} onChange={(greybox) => set({ greybox })} />}
-              <p className="muted small">
-                Per shot: first and last frame with depth and normals, the camera for every frame and a prompt
-                {animated ? ', plus the cut list (OTIO)' : ''}. Give them to an AI video model so it follows your blocking.
-              </p>
-            </>
+            </Field>
+          )}
+          {!model && (filmed ? (
+            <Field label="Size">
+              <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${film.frame})` }))} />
+            </Field>
+          ) : (
+            <Field label="Format">
+              <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
+            </Field>
+          ))}
+          {model ? null : pack ? (
+            animated && <Toggle label="Greybox clips" hint="A clay-shaded video of each shot's motion and camera, as a reference for the model" checked={o.greybox} onChange={(greybox) => set({ greybox })} />
           ) : scope === 'board' ? (
             <>
-              <div className="row">
-                <label>Columns {num('columns', 1, 12)}</label>
-              </div>
-              <Toggle label="Captions under each panel" checked={o.labels} onChange={(labels) => set({ labels })} />
-              <p className="muted small">{story.length} panels, one per shot, in story order, in the film&apos;s {film.frame} frame.</p>
+              <label className="field"><span>Columns</span>{num('columns', 1, 12)}</label>
+              <Toggle label="Captions" checked={o.labels} onChange={(labels) => set({ labels })} />
+              <Hint>{story.length} panels</Hint>
             </>
           ) : scope === 'story-video' ? (
             <>
-              <Toggle label="Captions as subtitles" checked={o.labels} onChange={(labels) => set({ labels })} />
+              <Toggle label="Subtitles" hint="The captions" checked={o.labels} onChange={(labels) => set({ labels })} />
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
-              <p className="muted small">
-                Every scene&apos;s shots in story order ({storyLength(story).toFixed(1)} s); a still scene stays on screen for its time on the storyboard.
-                {!canRecord && ' This browser cannot record video.'}
-              </p>
+              {!canRecord && <Hint>This browser cannot record video</Hint>}
             </>
           ) : video ? (
             <>
-              <Field label="Play the animation">
+              <Field label="Plays">
                 <Segmented<string>
                   label="Play the animation"
                   value={String(o.videoLoops)}
@@ -384,40 +370,36 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
                 />
               </Field>
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
-              <p className="muted small">
-                Filmed through the shots&apos; cameras: frame a shot or pick a camera move for it.
-                {!canRecord && ' This browser cannot record video.'}
-              </p>
+              {!canRecord && <Hint>This browser cannot record video</Hint>}
             </>
           ) : (
             <>
-              <div className="row">
-                {/* One scene is one cell: its size is the picture's. */}
-                {scope !== 'current' && <label>Columns {num('columns', 1, 12)}</label>}
-                <label>{scope === 'current' ? 'Width' : 'Cell width'} {num('cellWidth', 100, 4000)}</label>
-                <label>{scope === 'current' ? 'Height' : 'Cell height'} {num('cellHeight', 100, 4000)}</label>
-              </div>
+              {/* One scene is one cell: its size is the picture's. */}
+              {scope !== 'current' && <label className="field"><span>Columns</span>{num('columns', 1, 12)}</label>}
+              <label className="field"><span>{scope === 'current' ? 'Width' : 'Cell width'}</span>{num('cellWidth', 100, 4000)}</label>
+              <label className="field"><span>{scope === 'current' ? 'Height' : 'Cell height'}</span>{num('cellHeight', 100, 4000)}</label>
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
               <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
               <div className="stack">
-                <Toggle label="Captions under each cell" checked={o.labels} onChange={(labels) => set({ labels })} />
+                <Toggle label="Captions" checked={o.labels} onChange={(labels) => set({ labels })} />
                 {(scope === 'all' || scope === 'poses') && (
                   <Toggle
-                    label="Same scale in every cell"
+                    label="Same scale"
                     hint="Keep figures comparable in size instead of filling each cell"
                     checked={o.sameScale}
                     onChange={(sameScale) => set({ sameScale })}
                   />
                 )}
                 <Toggle
-                  label="Transparent background (PNG)"
+                  label="Transparent"
+                  hint="No background (PNG)"
                   checked={o.transparent && o.format === 'png'}
                   onChange={(transparent) => set({ transparent, format: transparent ? 'png' : o.format })}
                 />
               </div>
             </>
           )}
-          {styleDef(style).lit && <p className="muted small">Each scene is lit by its own light (select the scene in the inspector).</p>}
+          {styleDef(style).lit && <Hint>Lit by each scene&apos;s own light</Hint>}
         </div>
         <div className="preview" ref={preview} aria-label="Preview" />
       </div>
@@ -545,9 +527,9 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
             <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} data-autofocus />
             <ImagePlus size={22} strokeWidth={1.5} aria-hidden />
             <strong>Choose a photo</strong>
-            <span className="muted small">or drop it here. Full-body shots work best. The photo never leaves your computer.</span>
+            <span className="muted small">or drop it here · it stays on this computer</span>
           </label>
-          <Field label="Put the pose on">
+          <Field label="Pose goes on">
             <Segmented<'new' | 'current'>
               label="Put the pose on"
               full
@@ -556,13 +538,41 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
               options={[{ value: 'new', label: 'A new scene' }, ...(posable ? [{ value: 'current' as const, label: 'The selected figure' }] : [])]}
             />
           </Field>
-          <Toggle label="Keep the photo as the scene's reference image" checked={asReference} onChange={setAsReference} />
+          <Toggle label="Keep as reference" hint="The photo over the scene, as its reference image" checked={asReference} onChange={setAsReference} />
         </div>
         <div className="preview">
           {status === 'loading' && <div className="spinner" aria-label="Working" />}
           <canvas ref={canvas} className={url ? '' : 'hidden'} />
-          {!url && <p className="muted">The detected skeleton will appear here.</p>}
+          {!url && <Hint>The detected skeleton shows here</Hint>}
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- Project settings ---------------- */
+
+const FRAME_LABELS: Record<FrameShape, string> = { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' };
+
+/** The project's settings, for every scene: its frame, the video model it is cut for, face features. (Its render style is the top bar's.) */
+export function ProjectSettingsDialog({ onClose }: { onClose(): void }) {
+  const store = useStore();
+  const film = useFilm();
+  return (
+    <Modal title="Project settings" icon={Settings2} onClose={onClose}>
+      <div className="form">
+        <Field label="Frame" info="The letterbox, the storyboard, videos and keyframe packs take this frame.">
+          <Select<FrameShape> label="Frame" value={film.frame} onChange={(frame) => editFilm(store, { frame })} options={FRAME_SHAPES.map((f) => ({ value: f, label: FRAME_LABELS[f] }))} />
+        </Field>
+        <Field label="Cut for" info="Shots longer than the model allows are flagged.">
+          <Select
+            label="Cut for"
+            value={film.target ?? 'none'}
+            onChange={(v) => editFilm(store, { target: v === 'none' ? null : v })}
+            options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
+          />
+        </Field>
+        <Toggle label="Face features" hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks" checked={film.faces} onChange={(faces) => editFilm(store, { faces })} />
       </div>
     </Modal>
   );
@@ -578,10 +588,11 @@ export function HelpDialog({ onClose }: { onClose(): void }) {
           <div key={what} className="shortcut"><span>{what}</span><kbd>{keys}</kbd></div>
         ))}
       </div>
-      <p className="muted small" style={{ marginTop: 14 }}>
-        Click a slider&apos;s value to type an exact number. Scenes are saved in this browser automatically; use <b>Save project</b> in
-        the main menu to keep a file, and <b>Copy share link</b> in a scene&apos;s menu to send one scene.
-      </p>
+      <div className="shortcuts more">
+        <div className="shortcut"><span>Type an exact value</span><span>Click a slider&apos;s value</span></div>
+        <div className="shortcut"><span>Keep a file of the project</span><span>Main menu → Save project</span></div>
+        <div className="shortcut"><span>Send one scene</span><span>Scene menu → Copy share link</span></div>
+      </div>
     </Modal>
   );
 }

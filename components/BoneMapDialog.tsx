@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Bone as BoneIcon } from 'lucide-react';
 import { NEEDED, type BoneMap } from '@/lib/model';
 import type { Bone } from '@/lib/types';
-import { Modal, Select } from './ui';
+import { Hint, Modal, Select } from './ui';
 
 /** The skeleton's bones, as people call them. */
 const LABEL = (b: Bone) => b.replace(/^(left|right)/, (s) => `${s === 'left' ? 'Left' : 'Right'} `).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()).replace(/ (\w)/g, (_, c: string) => ` ${c.toLowerCase()}`);
@@ -36,11 +36,11 @@ export default function BoneMapDialog({ file, names, found, onDone, onClose }: {
         </>
       )}
     >
-      <p className="muted small">Not all of its bones have names this app knows. Pick which of its bones is each part of the body{missing.length ? ` (${missing.length} to go)` : ''}.</p>
-      <div className="bone-map">
+      <Hint>Pick its bone for each part{missing.length ? ` · ${missing.length} to go` : ''}</Hint>
+      <div className="form bone-map">
         {bones.map((b) => (
           <div className="field" key={b}>
-            <span>{LABEL(b)}{NEEDED.includes(b as (typeof NEEDED)[number]) ? '' : ' (if it has one)'}</span>
+            <span data-tip={NEEDED.includes(b as (typeof NEEDED)[number]) ? 'Needed' : 'If it has one'}>{LABEL(b)}</span>
             <Select<string>
               label={LABEL(b)}
               value={map[b] ?? ''}

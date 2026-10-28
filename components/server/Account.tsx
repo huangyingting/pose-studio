@@ -8,7 +8,7 @@ import { withBase } from '@/lib/paths';
 import type { SaveStatus } from '@/lib/store';
 import SaveIndicator from '../SaveIndicator';
 import { useStore } from '../store-context';
-import { Menu, type MenuItem } from '../ui';
+import { Hint, Menu, type MenuItem } from '../ui';
 
 /*
  * Server edition: accounts (NextAuth) and library sync around the studio. Loaded only in the
@@ -68,7 +68,7 @@ const signInWith = (id: string) => {
 export function SignInButtons() {
   const providers = useProviders();
   if (!providers) return null;
-  if (!providers.length) return <p className="hint-text">Sign-in is not set up on this server.</p>;
+  if (!providers.length) return <Hint>Sign-in is not set up on this server</Hint>;
   return (
     <div className="signin-buttons">
       {providers.map((p) => (

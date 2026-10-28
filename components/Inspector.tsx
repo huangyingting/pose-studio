@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import {
   ArrowLeftRight, ChevronRight, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, FlipHorizontal2, Hand, ImagePlus, Mars, Navigation,
-  PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X, type LucideIcon,
+  PanelLeft, PanelRight, PanelRightClose, PersonStanding, Pin, Repeat, RotateCcw, Trash2, Unlink, UserRound, Venus, X,
 } from 'lucide-react';
 import {
-  arrange, copyPose, editFilm, editReference, setCaption, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
+  arrange, copyPose, editReference, setCaption, holdOn, setFigureModel, holdProp, letGo, renameScene, setFigureColor, setGaze, setPosture, setSceneLight, lookAtFigure, mirrorPose, pastePose,
   reachFor, renameFigure, renameProp, resetPose, setDistance, setGrounded, setHand, setJoint, setPlacement, setPropPhysics, setReferenceImage, symmetrizePose,
 } from '@/lib/actions';
-import { VIDEO_MODELS } from '@/lib/shots';
+import { videoModel } from '@/lib/shots';
 import { travelAt } from '@/lib/evaluate';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
@@ -22,7 +22,7 @@ import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import type { CameraView } from '@/lib/cameras';
-import { FIGURE_COLORS, FINGERS, FRAME_SHAPES, POSTURES, type FrameShape, type Style, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type JointName, type Scene, type Posture, type Hand as HandPose, type Light, type Side, type Vec3, PROP_LABELS } from '@/lib/types';
 import BodyMap from './BodyMap';
 import ActionInspector from './ActionInspector';
 import CameraInspector from './CameraInspector';
@@ -40,6 +40,8 @@ export interface InspectorContext {
   notify: Notify;
   /** Toast with an Undo button. */
   notifyUndo(text: string): void;
+  /** Open the project's settings (the film's frame, what it is cut for, face features). */
+  projectSettings(): void;
 }
 
 /**
@@ -108,7 +110,7 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
     return (
       <>
         <FigureHeader figure={figure} chrome={chrome} ui={ctx} />
-        <Section title="Stand-in">
+        <Section id="standin" title="Stand-in" summary={POSTURE_LABELS[figure.proxy]} info="A simple shape for blocking a scene: place it, turn it and key it like a figure.">
           <Segmented<Posture>
             label="Posture"
             full
@@ -116,7 +118,6 @@ function FigureInspector({ figure, ctx, chrome }: { figure: Figure; ctx: Inspect
             onChange={(p) => setPosture(store, figure.id, p)}
             options={POSTURES.map((p) => ({ value: p, label: POSTURE_LABELS[p] }))}
           />
-          <p className="hint-text">A simple shape for blocking a scene: place it, turn it and key it like a figure.</p>
           <button type="button" className="btn subtle" onClick={() => setPosture(store, figure.id, null)}>Make it a posable figure</button>
         </Section>
         <PlacementSection figure={figure} ctx={ctx} />
@@ -146,7 +147,10 @@ function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
   const rot = angle(figure.bones, joint);
   return (
     <Section
+      id="joint"
       title={JOINT_LABELS[joint]}
+      summary={`${rot.map((r) => Math.round(r)).join(' / ')}°`}
+      info={joint === 'hips' ? 'To move the whole figure, drag its torso; to turn it, the ring on the floor.' : undefined}
       actions={(
         <>
           <IconButton icon={RotateCcw} label="Reset joint" onClick={() => setJoint(store, figure.id, joint, [0, 0, 0], '')} />
@@ -176,7 +180,6 @@ function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
               />
             );
           })}
-          {joint === 'hips' && <p className="hint-text">To move the whole figure drag its torso; to turn it, the ring on the floor.</p>}
         </div>
       </div>
     </Section>
@@ -187,9 +190,8 @@ function JointSection({ figure, joint }: { figure: Figure; joint: JointName }) {
 function JointPicker({ figure }: { figure: Figure }) {
   const store = useStore();
   return (
-    <Section id="joints" title="Joints" collapsible defaultOpen={false}>
+    <Section id="joints" title="Joints" defaultOpen={false} summary="Pick a part" info="Pick a part here, or click it on the canvas, to fine-tune it with sliders.">
       <BodyMap selected={null} onSelect={(j) => store.select({ kind: 'joint', figure: figure.id, joint: j })} />
-      <p className="hint-text">Pick a part here or click it on the canvas to fine-tune it with sliders.</p>
     </Section>
   );
 }
@@ -197,7 +199,7 @@ function JointPicker({ figure }: { figure: Figure }) {
 function PoseSection({ ctx }: { ctx: InspectorContext }) {
   const store = useStore();
   return (
-    <Section title="Pose">
+    <Section id="pose" title="Pose" summary="Mirror, copy, reset">
       <div className="toolrow">
         <IconButton icon={FlipHorizontal2} label="Mirror pose" shortcut={KEYS.mirror} onClick={() => mirrorPose(store)} />
         <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => symmetrizePose(store, 'L')}>L→R</button>
@@ -221,7 +223,7 @@ function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorConte
   const travel = animation ? travelAt(animation, figure.id, time) : null;
   const moving = travel && time > travel.start + 1e-6 && time < travel.start + travel.duration - 1e-6;
   return (
-    <Section title="Placement">
+    <Section id="placement" title="Placement" summary={`${figure.position[0].toFixed(1)}, ${figure.position[2].toFixed(1)} · ${Math.round(facing(figure))}°${figure.grounded ? '' : ' · raised'}`}>
       <div className="prop-row">
         <span className="prop-row-label">Floor</span>
         <NumberField prefix="X" label="Position X" value={figure.position[0]} step={0.05} onChange={(x) => setPlacement(store, figure.id, { x }, `place:${figure.id}:x`)} />
@@ -230,22 +232,13 @@ function PlacementSection({ figure, ctx }: { figure: Figure; ctx: InspectorConte
       </div>
       {!moving && (
         <Toggle
-          label="Stand on the floor"
+          label="On the floor"
           checked={figure.grounded}
-          hint="Turn off to keep the figure's height, e.g. to sit on a chair"
+          hint="Off: the figure keeps its height (to sit on a chair, say)"
           onChange={(on) => setGrounded(store, figure.id, on, ctx.rootPosition(figure.id) ?? undefined)}
         />
       )}
     </Section>
-  );
-}
-
-function Action({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick(): void }) {
-  return (
-    <button type="button" className="action" onClick={onClick}>
-      <Icon size={15} strokeWidth={1.75} aria-hidden />
-      <span>{label}</span>
-    </button>
   );
 }
 
@@ -272,7 +265,7 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
   const d = other ? distance(figure, other) : 0;
   const holds = (scene.animation?.constraints ?? []).filter((c) => c.figure === figure.id);
   return (
-    <Section id="others" title="With others" collapsible>
+    <Section id="others" title="With others" defaultOpen={false} summary={figure.gaze ? 'Eyes on someone' : holds.length ? `${holds.length} ${holds.length === 1 ? 'hold' : 'holds'}` : 'No holds'}>
       {!figure.proxy && (
         <div className="relation-target">
           <span>Eyes on</span>
@@ -294,13 +287,13 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
             <span>To</span>
             <Select label="Other figure" value={other.id} onChange={setOtherId} options={others.map((f) => ({ value: f.id, label: f.name }))} />
           </div>
-          <div className="action-grid">
-            <Action icon={Navigation} label="Turn to" onClick={() => arrange(store, figure.id, other.id, 'face')} />
-            <Action icon={ArrowLeftRight} label="Face each other" onClick={() => arrange(store, figure.id, other.id, 'faceEachOther')} />
-            <Action icon={Eye} label="Look at" onClick={() => lookAtFigure(store, figure.id, other.id)} />
-            <Action icon={PanelLeft} label="Beside (left)" onClick={() => arrange(store, figure.id, other.id, 'besideL')} />
-            <Action icon={PanelRight} label="Beside (right)" onClick={() => arrange(store, figure.id, other.id, 'besideR')} />
-            <Action icon={Repeat} label="Back to back" onClick={() => arrange(store, figure.id, other.id, 'backToBack')} />
+          <div className="toolrow" role="group" aria-label="Place with the other figure">
+            <IconButton icon={Navigation} label="Turn to" onClick={() => arrange(store, figure.id, other.id, 'face')} />
+            <IconButton icon={ArrowLeftRight} label="Face each other" onClick={() => arrange(store, figure.id, other.id, 'faceEachOther')} />
+            <IconButton icon={Eye} label="Look at" onClick={() => lookAtFigure(store, figure.id, other.id)} />
+            <IconButton icon={PanelLeft} label="Beside (left)" onClick={() => arrange(store, figure.id, other.id, 'besideL')} />
+            <IconButton icon={PanelRight} label="Beside (right)" onClick={() => arrange(store, figure.id, other.id, 'besideR')} />
+            <IconButton icon={Repeat} label="Back to back" onClick={() => arrange(store, figure.id, other.id, 'backToBack')} />
           </div>
           <Slider
             label="Distance"
@@ -364,18 +357,16 @@ function OthersSection({ figure, ctx }: { figure: Figure; ctx: InspectorContext 
   );
 }
 
+/** The hand preset a hand is in, if any. */
+const presetOf = (hand: HandPose) => HAND_PRESETS.find((p) => p.hand.spread === hand.spread && p.hand.curl.every((c, i) => c === hand.curl[i]))?.name ?? '';
+
 function HandsSection({ hands }: { hands: Record<Side, HandPose> }) {
   const store = useStore();
   const [side, setSide] = useState<Side>('L');
   const hand = hands[side];
-  const preset = HAND_PRESETS.find((p) => p.hand.spread === hand.spread && p.hand.curl.every((c, i) => c === hand.curl[i]))?.name ?? '';
+  const preset = presetOf(hand);
   return (
-    <Section
-      id="hands"
-      title="Hands"
-      collapsible
-      defaultOpen={false}
-    >
+    <Section id="hands" title="Hands" defaultOpen={false} summary={(['L', 'R'] as const).map((s) => presetOf(hands[s]) || 'Custom').join(' / ')}>
       <Segmented<Side> label="Hand" full value={side} onChange={setSide} options={[{ value: 'L', label: 'Left hand' }, { value: 'R', label: 'Right hand' }]} />
       <div className="chips">
         {HAND_PRESETS.map((p) => (
@@ -425,7 +416,7 @@ function BodySection({ figure }: { figure: Figure }) {
   const mine = useStudio((s) => s.library.models);
   const models = [...BUILT_IN_CHARACTERS, ...(mine ?? [])];
   return (
-    <Section id="body" title="Body & colour" collapsible defaultOpen={false}>
+    <Section id="body" title="Body & colour" defaultOpen={false} summary={models.find((m) => m.id === figure.model)?.name ?? BODY_PRESETS.find((p) => (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]))?.name ?? 'Mannequin'}>
       <div className="field">
         <span>Drawn as</span>
         <Select<string>
@@ -461,7 +452,6 @@ function BodySection({ figure }: { figure: Figure }) {
             display={heightField.format(body.height)}
             onChange={(height) => setBody({ height }, 'body:height')}
           />
-          <p className="hint-text">The character sets the rest of the body: the mannequin under it, which picking, contacts and the motion check use, is fitted to its build.</p>
         </>
       ) : (
         <>
@@ -541,8 +531,20 @@ function PropEditor({ id, chrome, ui }: { id: string; chrome: HeaderChrome; ui: 
         onRename={(name) => renameProp(store, id, name)}
         menu={propMenu(store, id, ui)}
       />
+      <Section
+        id="transform"
+        title="Transform"
+        summary={`${prop.position.map((n) => n.toFixed(1)).join(', ')}${prop.hold ? ' · in the hand' : ''}`}
+        info={prop.hold
+          ? 'Relative to the hand: it follows the pose and the animation. Drag it on the canvas to move the hand; W adjusts the grip.'
+          : 'Drag a letter to scrub. On the canvas, drag the prop to move it and its ring to turn it; W also moves it up and down, R scales it.'}
+      >
+        {row('position', 'Position', 0.05)}
+        {row('rotation', 'Rotation', 5)}
+        {row('scale', 'Size', 0.05)}
+      </Section>
       {(HOLDABLE.includes(prop.kind) || prop.hold) && (
-        <Section title="Held by">
+        <Section id="heldby" title="Held by" defaultOpen={false} summary={prop.hold ? scene.figures.find((f) => f.id === prop.hold!.figure)?.name : 'Nobody'}>
           <Select
             label="Held by"
             value={prop.hold ? `${prop.hold.figure}:${prop.hold.hand}` : 'none'}
@@ -560,31 +562,22 @@ function PropEditor({ id, chrome, ui }: { id: string; chrome: HeaderChrome; ui: 
       )}
       {(HOLDABLE.includes(prop.kind) || prop.physics) && (
         <Section
+          id="physics"
           title="Physics"
+          defaultOpen={false}
+          summary={`Bounce ${Math.round(physicsOf(prop).bounce * 100)}% · grip ${Math.round(physicsOf(prop).friction * 100)}%`}
+          info="How it bounces off the floor and grips it when it flies free: thrown, passed, dropped or let go."
           actions={prop.physics && <IconButton icon={RotateCcw} label={`Reset to the default for ${PROP_LABELS[prop.kind].toLowerCase()}s`} onClick={() => setPropPhysics(store, id, null)} />}
         >
           <Slider label="Bounce" min={0} max={1} step={0.01} value={physicsOf(prop).bounce} display={`${Math.round(physicsOf(prop).bounce * 100)}%`} onChange={(bounce) => setPropPhysics(store, id, { bounce }, `physics:${id}:bounce`)} />
           <Slider label="Grip" min={0} max={1} step={0.01} value={physicsOf(prop).friction} display={`${Math.round(physicsOf(prop).friction * 100)}%`} onChange={(friction) => setPropPhysics(store, id, { friction }, `physics:${id}:grip`)} />
-          <p className="hint-text">How it bounces off the floor and grips it when it flies free: thrown, passed, dropped or let go.</p>
         </Section>
       )}
-      <Section title="Transform">
-        {row('position', 'Position', 0.05)}
-        {row('rotation', 'Rotation', 5)}
-        {row('scale', 'Size', 0.05)}
-        <p className="hint-text">
-          {prop.hold
-            ? <>Relative to the hand: it follows the pose and the animation. Drag it on the canvas to move the hand; <kbd>W</kbd> adjusts the grip.</>
-            : <>Drag a letter to scrub. On the canvas: drag the prop to move it, its ring to turn it; <kbd>W</kbd> also moves it up and down, <kbd>R</kbd> scales it.</>}
-        </p>
-      </Section>
     </>
   );
 }
 
 /* ---------------- Scene ---------------- */
-
-const FRAME_LABELS: Record<FrameShape, string> = { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' };
 
 const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label).join(', ');
 
@@ -599,61 +592,46 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
   const reference = scene.reference;
   const setLight = (patch: Partial<Light>, key = 'light') => setSceneLight(store, { ...light, ...patch }, key);
   const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
+  const preset = LIGHT_PRESETS.find((p) => same(p.light, light));
   return (
     <>
       <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={scene.name} label="Scene name" onRename={(name) => renameScene(store, name)} menu={sceneMenu(store, sceneIndex, ctx)} />
+      <div className="psec">
+        {/* The film's settings are the project's: a link to their one home, not a copy of them. */}
+        <button type="button" className="summary-row" onClick={ctx.projectSettings} data-tip="The frame, what it is cut for and face features, for every scene">
+          <span>Project settings…</span>
+          <em>{film.frame}{film.target ? ` · ${videoModel(film.target)?.name}` : ''}</em>
+          <ChevronRight size={14} aria-hidden />
+        </button>
+      </div>
       {!scene.animation && (
-        <Section title="Scene">
+        <Section id="caption" title="Scene" defaultOpen={false} summary={scene.caption || 'No caption'}>
           <label className="field">
-            <span>What happens</span>
+            <span>Caption</span>
             <textarea
               value={scene.caption ?? ''}
               aria-label="Scene caption"
               rows={2}
-              placeholder="Its caption in the story (an animated scene's are its shots')"
+              placeholder="What happens…"
               onChange={(e) => setCaption(store, scene.id, null, e.target.value)}
             />
           </label>
         </Section>
       )}
-      <Section title="Film">
+      <Section
+        id="light"
+        title="Light"
+        summary={preset?.name ?? 'Custom'}
+        info={`Saved with the scene and used by its exports.${def.lit ? '' : ` It shows in the lit styles (${LIT}): pick one in the top bar.`}`}
+      >
         <div className="field">
-          <span>Style</span>
-          <Select<Style> label="Film style" value={film.style} onChange={(style) => editFilm(store, { style })} options={STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))} />
-        </div>
-        <Toggle
-          label="Simple face features"
-          hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks"
-          checked={film.faces}
-          onChange={(faces) => editFilm(store, { faces })}
-        />
-        <div className="field">
-          <span>Frame</span>
-          <Select<FrameShape>
-            label="Frame"
-            value={film.frame}
-            onChange={(frame) => editFilm(store, { frame })}
-            options={FRAME_SHAPES.map((f) => ({ value: f, label: FRAME_LABELS[f] }))}
-          />
-        </div>
-        <div className="field">
-          <span>Cut for</span>
+          <span>Preset</span>
           <Select
-            label="Cut for"
-            value={film.target ?? 'none'}
-            onChange={(v) => editFilm(store, { target: v === 'none' ? null : v })}
-            options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
+            label="Lighting preset"
+            value={preset?.id ?? 'custom'}
+            onChange={(id) => { const p = LIGHT_PRESETS.find((x) => x.id === id); if (p) setLight(p.light, ''); }}
+            options={[...LIGHT_PRESETS.map((p) => ({ value: p.id, label: p.name })), ...(preset ? [] : [{ value: 'custom', label: 'Custom' }])]}
           />
-        </div>
-        <p className="hint-text">The project&apos;s, for every scene: {def.label} ({def.description.toLowerCase()}; <kbd>L</kbd> switches); the letterbox, the storyboard, videos and keyframe packs take this frame; shots longer than the model allows are flagged.</p>
-      </Section>
-      <Section title="Light">
-        <div className="chips" role="group" aria-label="Lighting presets">
-          {LIGHT_PRESETS.map((p) => (
-            <button key={p.id} type="button" className={same(p.light, light) ? 'chip on' : 'chip'} onClick={() => setLight(p.light, '')}>
-              {p.name}
-            </button>
-          ))}
         </div>
         <div className="stack">
           <Slider label="Direction" min={-180} max={180} value={light.azimuth} display={`${Math.round(light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
@@ -669,16 +647,14 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
             onChange={(warmth) => setLight({ warmth })}
           />
         </div>
-        <Toggle label="Cast shadows" checked={light.shadows} onChange={(shadows) => setLight({ shadows }, '')} />
-        <p className="hint-text">
-          Saved with the scene and used by its exports.{def.lit ? '' : ` It shows in the lit styles (${LIT}): pick one in the top bar.`}
-        </p>
+        <Toggle label="Shadows" checked={light.shadows} onChange={(shadows) => setLight({ shadows }, '')} />
       </Section>
       <Section
         id="reference"
         title="Reference image"
-        collapsible
-        defaultOpen={!!reference}
+        defaultOpen={false}
+        summary={reference ? `${Math.round(reference.opacity * 100)}%${reference.visible ? '' : ' · hidden'}` : 'None'}
+        info="Saved with the scene; it is not filmed or exported."
         actions={reference && (
           <>
             <IconButton
@@ -700,7 +676,7 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
               e.target.value = '';
             }}
           />
-          <ImagePlus size={14} aria-hidden /> {reference ? 'Replace image…' : 'Overlay a photo or drawing…'}
+          <ImagePlus size={14} aria-hidden /> {reference ? 'Replace image…' : 'Add an image…'}
         </label>
         {reference && (
           <Slider
@@ -713,7 +689,6 @@ function SceneInspector({ ctx, chrome }: { ctx: InspectorContext; chrome: Header
             onChange={(opacity) => editReference(store, { opacity }, 'reference')}
           />
         )}
-        <p className="hint-text">Saved with the scene; it is not filmed or exported.</p>
       </Section>
     </>
   );

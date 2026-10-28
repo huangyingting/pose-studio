@@ -15,7 +15,7 @@ import { PROP_ICONS } from '../icons';
 import { cameraMenu, figureMenu, propMenu, shotMenu } from '../menus';
 import { startRename, useRenaming } from '../rename';
 import { useFilm, useScene, useStore, useStudio } from '../store-context';
-import { IconButton, Menu } from '../ui';
+import { Hint, IconButton, Menu } from '../ui';
 import type { SectionProps } from './sections';
 import { KEYS } from '../shortcuts';
 
@@ -216,7 +216,7 @@ export default function OutlineSection({ notify, notifyUndo, onPhoto }: SectionP
             </ul>
           ) : (
             <div className="outline-still">
-              <p className="hint-text">A still image. Animate it to act it out and film it in shots.</p>
+              <Hint>A still image: animate it to film it in shots</Hint>
               <button type="button" className="btn subtle" onClick={() => { startAnimation(store); notify('Animation started: pose the figures at other times on the timeline'); }}>
                 <Play size={14} aria-hidden /> Animate
               </button>

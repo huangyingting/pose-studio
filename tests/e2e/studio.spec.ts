@@ -67,6 +67,24 @@ async function choose(page: Page, select: string, option: string | RegExp) {
   await page.getByRole('listbox', { name: select }).getByRole('option', { name: option }).click();
 }
 
+/** Unfold an inspector section (a folded one shows its title and a summary). */
+async function unfold(page: Page, title: string) {
+  const head = page.getByRole('complementary', { name: 'Inspector' }).locator('.psec-title').filter({ has: page.locator('h3', { hasText: new RegExp(`^${title}$`) }) });
+  if ((await head.getAttribute('aria-expanded')) === 'false') await head.click();
+}
+
+/** From the shot inspector to its camera's (the shot shows its camera as one row). */
+async function openShotCamera(page: Page) {
+  await page.getByRole('complementary', { name: 'Inspector' }).locator('.summary-row').click();
+}
+
+/** Open the project's settings (from the main menu). */
+async function projectSettings(page: Page) {
+  await page.getByRole('button', { name: 'Main menu' }).click();
+  await page.getByRole('menuitem', { name: 'Project settings…' }).click();
+  return page.getByRole('dialog', { name: 'Project settings' });
+}
+
 /** Pick an item of the top bar's View menu. */
 async function viewMenu(page: Page, item: string | RegExp) {
   await page.getByRole('button', { name: 'View', exact: true }).click();
@@ -342,6 +360,7 @@ test('Shift-drag twists a part; handheld props go in the hand; the scene exports
   const prop = (await state(page)).scene.props[0] as unknown as { hold?: { hand: string } };
   expect(prop.hold?.hand).toBe('R');
   expect((await figure()).hands.R.curl[1]).toBeGreaterThan(0.4);
+  await unfold(page, 'Held by');
   await expect(page.getByRole('combobox', { name: 'Held by' })).toContainText('right hand');
   // Let go (the prop's menu, in its inspector's header): it lands on the floor.
   await page.getByRole('button', { name: 'Phone menu' }).click();
@@ -374,7 +393,7 @@ test('figures, props, body and hand presets', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('textbox', { name: 'Scene name' }).last()).toBeVisible();
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
-  await page.getByRole('button', { name: 'Hands', exact: true }).click();
+  await unfold(page, 'Hands');
   await page.getByRole('button', { name: 'Fist' }).click();
   s = (await state(page)).scene;
   expect(s.figures[1].hands.L.curl[1]).toBe(1);
@@ -533,7 +552,7 @@ test('deleting a pose can be undone from the toast, which shows the pose again',
 });
 
 test('typing an exact joint angle', async ({ page }) => {
-  await page.getByRole('button', { name: 'Joints' }).click();
+  await unfold(page, 'Joints');
   await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
   await page.getByRole('button', { name: /^Swing \(− forward\): .*Click to type a value$/ }).click();
   await page.keyboard.press('Control+a');
@@ -590,7 +609,7 @@ test('changes made in another tab are picked up', async ({ page, context }) => {
   await other.close();
 });
 
-test('render styles switch from the toolbar: the project\'s look, shown in the scene inspector\'s Film section', async ({ page }) => {
+test('render styles switch from the toolbar: the project\'s look', async ({ page }) => {
   const style = async () => (await state(page) as unknown as { library: { film?: { style: string } } }).library.film?.style;
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Ink wash' }).click();
@@ -598,10 +617,13 @@ test('render styles switch from the toolbar: the project\'s look, shown in the s
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Anime' }).click();
   expect(await style()).toBe('anime');
-  // The scene (the crumb in the inspector's header): its light, and the film's settings.
+  await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
+  // The scene (the crumb in the inspector's header): its light, and a link to the project's settings.
   await page.locator('.crumb').click();
-  await expect(page.getByRole('group', { name: 'Lighting presets' })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Film style' })).toHaveText('Anime');
+  await expect(page.getByRole('combobox', { name: 'Lighting preset' })).toBeVisible();
+  await page.getByRole('button', { name: /^Project settings…/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+  await page.keyboard.press('Escape');
   // L cycles through every style.
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('l');
@@ -633,6 +655,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   let [a, b] = await figs(page);
   expect(Math.abs(facingOf(a.bones) - facingOf(b.bones))).toBeCloseTo(180, 0);
 
+  await unfold(page, 'With others');
   await page.getByRole('button', { name: 'Back to back' }).click();
   [a, b] = await figs(page);
   expect(Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2])).toBeCloseTo(0.32, 2);
@@ -701,8 +724,7 @@ test('placement fields move and turn the figure, and faces can be hidden', async
   expect(f.position[0]).toBe(0.5);
   expect(facingOf(f.bones)).toBe(90);
 
-  await page.locator('.crumb').click();
-  await page.getByRole('switch', { name: 'Simple face features' }).uncheck();
+  await (await projectSettings(page)).getByRole('switch', { name: 'Face features' }).uncheck();
   expect(((await state(page)) as unknown as { library: { film: { faces: boolean } } }).library.film.faces).toBe(false);
 });
 
@@ -763,9 +785,11 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
     const { animation, cameras } = await anim(page);
     return cameras.find((c) => c.id === animation!.shots[0].camera) as PathCamera;
   };
+  await openShotCamera(page);
+  await unfold(page, 'Moves');
   await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Along a path' }).click();
   // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
-  await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true }).click();
+  await choose(page, 'Shot size', /^MS ·/);
   let s = await shot();
   expect(s.points[0].t).toBe(0);
   const near = Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]));
@@ -774,7 +798,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   s = await shot();
   expect(s.points[0].lens).toBe(85);
   expect(Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]))).toBeCloseTo((near * 85) / lens, 1);
-  await expect(inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MS', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(inspector.getByRole('combobox', { name: 'Shot size' })).toHaveText(/^MS ·/);
   // Looking through it with framing guides: the frame's thirds and safe areas.
   await viewMenu(page, 'The shot camera (the cut)');
   await viewMenu(page, /Framing guides/);
@@ -782,7 +806,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await viewMenu(page, 'The editor’s view');
   // A close-up through a wide lens (the camera near the figure); seen from above and aside, the
   // shot's camera is dragged across the floor, its height kept.
-  await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'CU', exact: true }).click();
+  await choose(page, 'Shot size', /^CU ·/);
   await choose(page, 'Lens', '24 mm');
   s = await shot();
   await page.keyboard.press('Escape');
@@ -798,10 +822,12 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   // The camera is an object of the scene: listed in the outline, with an inspector of its own.
   await page.getByRole('list', { name: 'Cameras' }).getByRole('button', { name: /^Camera 1/ }).click();
   await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
+  await unfold(page, 'Films');
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
   // Following its subject instead: the shot size is a rule, kept every frame.
+  await unfold(page, 'Moves');
   await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Follows' }).click();
-  await inspector.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MCU', exact: true }).click();
+  await choose(page, 'Shot size', /^MCU ·/);
   expect(await shot()).toMatchObject({ kind: 'rig', rig: { body: 'follow', size: 'mcu' } });
 });
 
@@ -845,7 +871,7 @@ test('a still scene can be animated with auto-keys', async ({ page }) => {
   await page.getByRole('button', { name: 'Animate' }).first().click();
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
   expect((await anim(page)).time).toBeCloseTo(0.5, 2);
-  await page.getByRole('button', { name: 'Joints' }).click();
+  await unfold(page, 'Joints');
   await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
   const slider = page.locator('.slider input').first();
   await slider.focus();
@@ -869,9 +895,10 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
   await page.keyboard.press('Escape');
-  // Filmed square (the film's frame, in the scene's inspector): the video follows.
-  await page.locator('.crumb').click();
+  // Filmed square (the film's frame, in the project's settings): the video follows.
+  await projectSettings(page);
   await choose(page, 'Frame', '1:1 square');
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/720 × 720 px/)).toBeVisible();
@@ -895,7 +922,7 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
 
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Keyframe pack' }).click();
-  await page.getByRole('switch', { name: 'Greybox clip of each shot' }).uncheck();
+  await page.getByRole('switch', { name: 'Greybox clips' }).uncheck();
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download pack' }).click()]);
   expect(download.suggestedFilename()).toBe('Wave_hello_keyframes.zip');
   const zip = readFileSync((await download.path())!);
@@ -982,18 +1009,18 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
 
 test('stand-ins block a scene in a posture and can become posable figures', async ({ page }) => {
   await addLayer(page, 'Stand-in');
-  await expect(page.getByRole('button', { name: 'Stand-in', exact: true })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Stand-in', exact: true })).toBeVisible();
   await page.getByRole('radio', { name: 'Sit' }).click();
   let s = await state(page);
   const standIn = () => s.scene.figures.find((f) => f.id === s.activeFigure) as unknown as { proxy?: string; bones: Bones };
   expect(standIn().proxy).toBe('sit');
   expect(angle(standIn().bones, 'leftLowerLeg')[0]).toBeGreaterThan(80);
   // Not posed joint by joint: no IK handles, no joint panel.
-  await expect(page.getByRole('button', { name: 'Joints' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Joints/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Make it a posable figure' }).click();
   s = await state(page);
   expect(standIn().proxy).toBeUndefined();
-  await expect(page.getByRole('button', { name: 'Joints' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Joints/ })).toBeVisible();
 });
 
 async function signIn(page: Page) {
@@ -1267,6 +1294,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   let s = await live(page);
   const [first, second] = s.scene.figures;
   expect(s.active).toBe(second.id);
+  await unfold(page, 'With others');
   await choose(page, 'Eyes on', first.name);
   s = await live(page);
   expect(s.scene.figures[1].gaze).toEqual({ figure: first.id });
@@ -1280,6 +1308,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await openSection(page, 'Scene');
   await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
   await page.locator('.tl-shot').first().click();
+  await openShotCamera(page);
   await choose(page, 'Camera subject', second.name);
   s = await live(page);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.subject).toBe(second.id);
@@ -1299,7 +1328,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Clay' }).click();
   await page.locator('.crumb').click();
-  await page.getByRole('group', { name: 'Lighting presets' }).getByRole('button', { name: 'Dusk' }).click();
+  await choose(page, 'Lighting preset', 'Dusk');
   s = await live(page);
   expect(s.scene.light?.warmth).toBeGreaterThan(0.5);
 });
@@ -1413,8 +1442,11 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
   await page.getByRole('button', { name: 'Playback speed' }).click();
   await page.getByRole('menuitemradio', { name: /^0\.5×/ }).click();
   await expect(page.getByRole('button', { name: 'Playback speed' })).toHaveText('0.5×');
-  await page.getByRole('button', { name: 'Repeat this shot' }).click();
-  await expect(page.getByRole('button', { name: 'Repeat this shot' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Animation options' }).click();
+  await page.getByRole('menuitemradio', { name: 'Repeat this shot' }).click();
+  await page.getByRole('button', { name: 'Animation options' }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'Repeat this shot' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
 
   // Folded down to its toolbar (remembered).
   await page.getByRole('button', { name: 'Fold the timeline' }).click();

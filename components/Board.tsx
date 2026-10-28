@@ -73,7 +73,6 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
     onClose();
   };
 
-  const scenes = library.scenes.length;
   const addList = adding && (
     <ul className="board-add-list" aria-label="Scenes to add">
       {library.scenes.map((s) => (
@@ -153,7 +152,6 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
         <div className="board-empty">
           <LayoutPanelTop size={28} strokeWidth={1.5} aria-hidden />
           <h3>Tell a story, one scene at a time</h3>
-          <p className="muted">A scene shows as a panel per shot, each through its camera with its caption; a still scene as one panel, on screen for as long as you set. {scenes > 1 ? 'Add the scenes in story order.' : ''}</p>
           {!adding && <button type="button" className="btn primary" onClick={() => setAdding(true)}><Plus size={15} aria-hidden /> Add a scene</button>}
         </div>
       )}

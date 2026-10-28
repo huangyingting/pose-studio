@@ -11,7 +11,7 @@ import { actionLabel } from '@/lib/track';
 import type { Action, Scene, Travel } from '@/lib/types';
 import { useScene, useStore } from './store-context';
 import { actionMenu } from './menus';
-import { Menu, NumberField, Section, Segmented, Select, Toggle, type HeaderChrome } from './ui';
+import { Hint, Menu, NumberField, PropertyRow, Section, Segmented, Select, Toggle, type HeaderChrome } from './ui';
 
 const JUMP_HEIGHTS = [0.3, 0.5, 0.8, 1.2];
 
@@ -43,37 +43,37 @@ export default function ActionInspector({ id, figure, chrome }: { id: string; fi
         </Menu>
         {chrome.after}
       </div>
-      <Section title="Timing">
-        <p className="shot-time">
-          {who?.name}{act.layer === 'upper' ? ' · upper body' : act.layer === 'correction' ? ' · correction' : ''} · {act.start.toFixed(2)}–{end.toFixed(2)} s
-        </p>
-        <div className="action-times">
+      <Section id="timing" title="Timing" summary={`${act.start.toFixed(2)}–${end.toFixed(2)} s`} info="Drag it on the timeline to move it, its right edge to retime it, the ramp before it to blend into it. What follows moves along.">
+        <PropertyRow label="Who">
+          <span className="shot-time">{who?.name}{act.layer === 'upper' ? ' · upper body' : act.layer === 'correction' ? ' · correction' : ''}</span>
+        </PropertyRow>
+        <label className="field">
+          <span>Starts</span>
+          <NumberField prefix="s" label="Start" value={act.start} step={1 / a.fps} min={0} max={60} onChange={(v) => moveAction(store, id, v, `act:${id}:start`)} />
+        </label>
+        <label className="field">
+          <span>Takes</span>
+          <NumberField prefix="s" label="Length" value={act.duration} step={1 / a.fps} min={1 / a.fps} max={60} onChange={(v) => retime(store, id, v, `act:${id}:length`)} />
+        </label>
+        {!act.layer && src.kind !== 'keys' && (
           <label className="field">
-            <span>Starts</span>
-            <NumberField prefix="s" label="Start" value={act.start} step={1 / a.fps} min={0} max={60} onChange={(v) => moveAction(store, id, v, `act:${id}:start`)} />
+            <span>Blends in</span>
+            <NumberField prefix="s" label="Blend in" value={act.blendIn ?? 0} step={0.05} min={0} max={2} onChange={(v) => setBlend(store, id, v, `act:${id}:blend`)} />
           </label>
-          <label className="field">
-            <span>Takes</span>
-            <NumberField prefix="s" label="Length" value={act.duration} step={1 / a.fps} min={1 / a.fps} max={60} onChange={(v) => retime(store, id, v, `act:${id}:length`)} />
-          </label>
-          {!act.layer && src.kind !== 'keys' && (
-            <label className="field">
-              <span>Blends in</span>
-              <NumberField prefix="s" label="Blend in" value={act.blendIn ?? 0} step={0.05} min={0} max={2} onChange={(v) => setBlend(store, id, v, `act:${id}:blend`)} />
-            </label>
-          )}
-        </div>
-        <p className="hint-text">Drag it on the timeline to move it, its right edge to retime it, the ramp before it to blend into it. What follows moves along.</p>
+        )}
       </Section>
       {src.kind === 'clip' && <ClipSection act={act} figure={figure} scene={scene} />}
       {src.kind === 'travel' && <TravelSection act={act} figure={figure} />}
       {src.kind === 'keys' && (
-        <Section title={act.layer === 'correction' ? 'Correction' : 'Posed'}>
-          <p className="hint-text">
-            {act.layer === 'correction'
-              ? 'Changes made over a motion or a walk: pose the figure at a time inside it to add one.'
-              : `${src.clip.parts[0].tracks[0]?.times.length ?? 1} keys, posed by hand: pose the figure at a key to change it; right-click its track to walk, run or jump between keys.`}
-          </p>
+        <Section
+          id="posed"
+          title={act.layer === 'correction' ? 'Correction' : 'Posed'}
+          summary={act.layer === 'correction' ? 'Over a motion or a walk' : `${src.clip.parts[0].tracks[0]?.times.length ?? 1} keys`}
+          info={act.layer === 'correction'
+            ? 'Changes made over a motion or a walk: pose the figure at a time inside it to add one.'
+            : 'Posed by hand: pose the figure at a key to change it; Move to… in the figure inspector (or right-click the floor) walks, runs or jumps between keys.'}
+        >
+          <Hint>{act.layer === 'correction' ? 'Over a motion or a walk' : `${src.clip.parts[0].tracks[0]?.times.length ?? 1} keys`}</Hint>
         </Section>
       )}
     </>
@@ -91,7 +91,7 @@ function ClipSection({ act, figure, scene }: { act: Action; figure: string; scen
   const target = act.target;
   return (
     <>
-      <Section title="Motion">
+      <Section id="motion" title="Motion" summary={`×${Math.round(speed * 100) / 100}${src.mirror ? ' · mirrored' : ''}${over ? ' · too far' : ''}`} info={act.layer ? undefined : 'Drag its mark on the floor to where it ends: the motion stretches up to ±25% and turns up to ±30° to get there.'}>
         <label className="field">
           <span>Speed</span>
           <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(store, act.id, { speed: v }, `act:${act.id}:speed`)} />
@@ -105,12 +105,10 @@ function ClipSection({ act, figure, scene }: { act: Action; figure: string; scen
               <button type="button" className="btn subtle" onClick={() => fitWarp(store, act.id, figure, 'walk')}>Walk the rest</button>
             </div>
           </div>
-        ) : (
-          <p className="hint-text">Drag its mark on the floor to where it ends: the motion stretches up to ±25% and turns up to ±30° to get there.</p>
-        ))}
+        ) : null)}
       </Section>
       {act.roles.length > 1 && (
-        <Section title="People">
+        <Section id="people" title="People" summary={act.roles.map((r) => scene.figures.find((f) => f.id === r.figure)?.name).join(', ')} info="Dragging one of their marks moves them all, as a formation.">
           {act.roles.map((r, n) => (
             <div className="field" key={n}>
               <span>{names(n)}</span>
@@ -122,11 +120,10 @@ function ClipSection({ act, figure, scene }: { act: Action; figure: string; scen
               />
             </div>
           ))}
-          <p className="hint-text">Dragging one of their marks moves them all, as a formation.</p>
         </Section>
       )}
       {act.prop && target && (
-        <Section title={scene.props.find((p) => p.id === act.prop)?.name ?? 'Prop'}>
+        <Section id="actionprop" title={scene.props.find((p) => p.id === act.prop)?.name ?? 'Prop'} summary={'figure' in target ? (target.figure === act.roles[0].figure ? 'Tossed up' : 'Passed') : 'hoop' in target ? (target.miss ? 'Off the rim' : 'Shot') : 'at' in target ? 'Thrown' : 'Bounced'}>
           {'figure' in target && target.figure !== act.roles[0].figure && (
             <div className="field">
               <span>Passed to</span>
@@ -138,12 +135,12 @@ function ClipSection({ act, figure, scene }: { act: Action; figure: string; scen
               />
             </div>
           )}
-          {'figure' in target && target.figure === act.roles[0].figure && <p className="hint-text">Tossed up {target.rise ?? 2} m and caught again.</p>}
+          {'figure' in target && target.figure === act.roles[0].figure && <PropertyRow label="Throw"><span>Up {target.rise ?? 2} m and caught</span></PropertyRow>}
           {'hoop' in target && (
             <Toggle label="Off the rim" hint="The shot misses: it hits the front of the rim" checked={!!target.miss} onChange={(miss) => setActionTarget(store, act.id, { hoop: target.hoop, ...(miss ? { miss } : {}) })} />
           )}
-          {'at' in target && <p className="hint-text">Thrown to the floor at {target.at[0].toFixed(1)}, {target.at[1].toFixed(1)}.</p>}
-          {'bounce' in target && <p className="hint-text">Bounced off the floor back into the hand.</p>}
+          {'at' in target && <PropertyRow label="Throw"><span>To {target.at[0].toFixed(1)}, {target.at[1].toFixed(1)}</span></PropertyRow>}
+          {'bounce' in target && <PropertyRow label="Throw"><span>Bounced back to the hand</span></PropertyRow>}
         </Section>
       )}
     </>
@@ -163,7 +160,7 @@ function TravelSection({ act, figure }: { act: Action; figure: string }) {
   const height = src.mode === 'jump' ? jumpHeight(Math.max(0, act.duration - 2 * JUMP_PREP)) : 0;
   const nearest = JUMP_HEIGHTS.reduce((b, h) => (Math.abs(h - height) < Math.abs(b - height) ? h : b));
   return (
-    <Section title="Getting there">
+    <Section id="getting" title="Getting there" summary={`${src.mode[0].toUpperCase()}${src.mode.slice(1)}${src.strafe ? ' · keeps facing' : ''}`} info="Its steps are generated between the marks. Drag its mark on the floor to change where it goes; Glide moves it there as posed instead.">
       <Segmented<Getting>
         label="Getting there"
         full
@@ -205,7 +202,6 @@ function TravelSection({ act, figure }: { act: Action; figure: string }) {
           </div>
         </>
       )}
-      <p className="hint-text">Its steps are generated between the marks. Drag its mark on the floor to change where it goes; Glide moves it there as posed instead.</p>
     </Section>
   );
 }

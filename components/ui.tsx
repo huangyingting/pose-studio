@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, Ellipsis, X, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleHelp, Ellipsis, X, type LucideIcon } from 'lucide-react';
 
 const FOCUSABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
 
@@ -267,18 +267,23 @@ function TitleInput({ name, label, onRename }: { name: string; label: string; on
   );
 }
 
-/** Panel section with a title row; optionally collapsible (state remembered per id). */
-export function Section({ id, title, actions, children, collapsible, defaultOpen = true }: {
+/**
+ * An inspector section. With an `id` it folds and remembers whether it is open; folded, its header
+ * shows `summary` (what is inside: "Studio", "Relaxed / Fist").
+ */
+export function Section({ id, title, actions, children, defaultOpen = true, summary, info }: {
   id?: string;
-  title: ReactNode;
+  title: string;
   actions?: ReactNode;
   children: ReactNode;
-  collapsible?: boolean;
   defaultOpen?: boolean;
+  summary?: ReactNode;
+  /** What the section is about, behind an ⓘ in its header. */
+  info?: string;
 }) {
   const key = id ? `pose-studio-section-${id}` : null;
   const [open, setOpen] = useState(() => {
-    if (!collapsible || !key || typeof localStorage === 'undefined') return defaultOpen;
+    if (!key || typeof localStorage === 'undefined') return defaultOpen;
     const v = localStorage.getItem(key);
     return v === null ? defaultOpen : v === '1';
   });
@@ -291,19 +296,55 @@ export function Section({ id, title, actions, children, collapsible, defaultOpen
   return (
     <section className={`psec${open ? '' : ' closed'}`}>
       <div className="psec-head">
-        {collapsible ? (
+        {key ? (
           <button type="button" className="psec-title" aria-expanded={open} onClick={toggle}>
             {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
             <h3>{title}</h3>
+            {!open && summary && <span className="psec-summary">{summary}</span>}
           </button>
         ) : (
           <h3 className="psec-title">{title}</h3>
         )}
-        {actions && <div className="psec-actions">{actions}</div>}
+        {(actions || info) && <div className="psec-actions">{info && <Info text={info} label={`About ${title.toLowerCase()}`} />}{actions}</div>}
       </div>
       {open && <div className="psec-body">{children}</div>}
     </section>
   );
+}
+
+/** ⓘ beside a label: its explanation, as a tooltip on hover, or shown under the row with a tap (touch). */
+export function Info({ text, label = 'More about this' }: { text: string; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="info-wrap">
+      <button type="button" className="info" aria-label={label} aria-expanded={open} data-tip={open ? undefined : text} onClick={() => setOpen(!open)} onBlur={() => setOpen(false)}>
+        <Info16 aria-hidden />
+      </button>
+      {open && <span className="info-pop" role="note">{text}</span>}
+    </span>
+  );
+}
+
+const Info16 = (props: { 'aria-hidden': boolean }) => <CircleHelp size={12} strokeWidth={2} {...props} />;
+
+/** A property: its label (and ⓘ) on the left, its control on the right. */
+export function PropertyRow({ label, info, children }: { label: string; info?: string; children: ReactNode }) {
+  return (
+    <div className="field">
+      <span>{label}{info && <Info text={info} label={`About ${label.toLowerCase()}`} />}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Properties that belong together. */
+export function PropertyGroup({ children }: { children: ReactNode }) {
+  return <div className="pgroup">{children}</div>;
+}
+
+/** One line of secondary text: an empty state, a note under a row. */
+export function Hint({ children }: { children: ReactNode }) {
+  return <p className="hint">{children}</p>;
 }
 
 /* ---------------- Inputs ---------------- */
@@ -389,18 +430,18 @@ export function Slider({ label, value, min, max, step = 1, display, onChange, ty
 /** On/off switch with a label. */
 export function Toggle({ label, checked, onChange, hint }: { label: string; checked: boolean; onChange(v: boolean): void; hint?: string }) {
   return (
-    <label className="switch" title={hint}>
+    <label className="switch" data-tip={hint}>
       <span>{label}</span>
       <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
     </label>
   );
 }
 
-/** Caption above a control that is not a single labelable input (e.g. a Segmented group). */
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+/** A dialog's property: its caption (and ⓘ) beside a control that is not a single labelable input. */
+export function Field({ label, info, children }: { label: string; info?: string; children: ReactNode }) {
   return (
     <div className="field">
-      <span aria-hidden>{label}</span>
+      <span>{label}{info && <Info text={info} label={`About ${label.toLowerCase()}`} />}</span>
       {children}
     </div>
   );

@@ -398,7 +398,6 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
           >
             {speed}×
           </Menu>
-          {!compact && <IconButton icon={Repeat1} label="Repeat this shot" tipSide="top" active={clock.repeatShot} pressed={clock.repeatShot} onClick={() => clock.setRepeatShot(!clock.repeatShot)} />}
         </div>
         <span className="tl-sep" />
         <button
@@ -419,6 +418,19 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
             </button>
           </>
         )}
+        <IconButton
+          icon={Camera}
+          label={`${onCamKey ? 'Update' : 'Set'} ${rowCam.name}${rowCam.kind === 'path' ? '’s point' : ''} from the view`}
+          tipSide="top"
+          active={onCamKey}
+          onClick={() => {
+            const shot = captureShot();
+            if (!shot) return;
+            setCameraPoint(store, shot.position, shot.target, shot.fov, '', rowCam.id);
+            if (!through) store.lookThrough(picked ? { camera: rowCam.id } : {});
+            notify(`${rowCam.name} set from the view`);
+          }}
+        />
         <span className="tl-sep" />
         <div className="tl-duration" data-tip="Length (seconds)" data-tip-side="top">
           <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={60} digits={1} onChange={(duration) => setAnimationOptions(store, { duration })} />
@@ -446,22 +458,9 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
             <IconButton icon={ZoomOut} label="Zoom out" tipSide="top" disabled={!zoom} onClick={() => zoomBy(2)} />
             <IconButton icon={ZoomIn} label="Zoom in (or Ctrl + wheel)" tipSide="top" disabled={span <= Math.min(0.5, a.duration) + 1e-6} onClick={() => zoomBy(0.5)} />
             <IconButton icon={MoveHorizontal} label="Fit the whole animation" tipSide="top" disabled={!zoom} onClick={() => setZoom(null)} />
-            <span className="tl-sep" />
           </span>
         )}
-        <IconButton
-          icon={Camera}
-          label={`${onCamKey ? 'Update' : 'Set'} ${rowCam.name}${rowCam.kind === 'path' ? '’s point' : ''} from the view`}
-          tipSide="top"
-          active={onCamKey}
-          onClick={() => {
-            const shot = captureShot();
-            if (!shot) return;
-            setCameraPoint(store, shot.position, shot.target, shot.fov, '', rowCam.id);
-            if (!through) store.lookThrough(picked ? { camera: rowCam.id } : {});
-            notify(`${rowCam.name} set from the view`);
-          }}
-        />
+        {!folded && <span className="tl-sep" />}
         <Menu
           label="Animation options"
           side="top"
@@ -472,9 +471,9 @@ export default function Timeline({ clock, captureShot, notify, notifyUndo }: {
               { label: `Delete ${keyLabel}`, icon: Trash2, disabled: !onKey || activeKeys.length <= 1, onSelect: () => deleteKeyframe(store) },
               { label: 'Cut: start a new shot here', icon: Scissors, shortcut: KEYS.cut, onSelect: () => cutShot(store) },
               { label: issues?.length ? `Motion check: ${qaLabel}` : 'Check the motion', icon: issues?.length ? TriangleAlert : Activity, disabled: checking, onSelect: check },
-              { label: 'Repeat this shot', icon: Repeat1, checked: clock.repeatShot, onSelect: () => clock.setRepeatShot(!clock.repeatShot) },
               '-' as const,
             ] : []),
+            { label: 'Repeat this shot', icon: Repeat1, checked: clock.repeatShot, onSelect: () => clock.setRepeatShot(!clock.repeatShot) },
             { label: 'Loop the animation', icon: Repeat, checked: a.loop, onSelect: () => setAnimationOptions(store, { loop: !a.loop }) },
             '-',
             { label: `Delete ${rowCam.name}’s point`, icon: Trash2, disabled: !onCamKey || camTimes.length <= 1, onSelect: () => deleteCameraPoint(store, time, rowCam.id) },

@@ -7,7 +7,7 @@ import { assistantTurn } from '@/lib/agent/turn';
 import { withBase } from '@/lib/paths';
 import type { Store } from '@/lib/store';
 import { useStore } from '../store-context';
-import { IconButton } from '../ui';
+import { Hint, IconButton } from '../ui';
 import { SignInButtons } from './Account';
 
 type Item =
@@ -103,7 +103,7 @@ export default function Assistant() {
     return (
       <div className="assistant-setup">
         <h3><Sparkles size={15} aria-hidden /> Assistant</h3>
-        <p className="hint-text">Sign in to pose, stage and animate by describing what you want. Your library also syncs across your devices.</p>
+        <Hint>Sign in to pose and animate by describing it</Hint>
         <SignInButtons />
       </div>
     );
@@ -112,7 +112,7 @@ export default function Assistant() {
     return (
       <div className="assistant-setup">
         <h3><Sparkles size={15} aria-hidden /> Assistant</h3>
-        <p className="hint-text">The assistant is not set up on this server.</p>
+        <Hint>Not set up on this server</Hint>
       </div>
     );
   }
@@ -129,7 +129,7 @@ export default function Assistant() {
       <div className="assistant-log" aria-live="polite">
         {!session.items.length && (
           <div className="assistant-empty">
-            <p className="hint-text">Describe a pose, a scene or a shot. The assistant uses the same tools as you, and every change can be undone.</p>
+            <Hint>Describe a pose, a scene or a shot</Hint>
             {SUGGESTIONS.map((s) => (
               <button key={s} type="button" className="assistant-suggestion" onClick={() => send(s)}>{s}</button>
             ))}

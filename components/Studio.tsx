@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Eye, FileUp, Focus, FolderOpen,
-  Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, SlidersHorizontal, Timer, Undo2,
+  ChevronDown, Download, Ellipsis, Eye, FileUp, Focus, FolderOpen,
+  Ghost, Grid3x3, Hand, Keyboard, LayoutPanelTop, Lock, LockOpen, Video, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Redo2, Save, Scale3d, Settings2, SlidersHorizontal, Timer, Undo2,
 } from 'lucide-react';
 import {
   addKeyframe, addMotions, appendScenes, editFilm, cutShot, copyPose, deleteSelection, duplicateSelection, mirrorPose, pastePose, replaceLibrary,
@@ -26,7 +26,7 @@ import { VIEW_PRESETS } from '@/lib/views';
 /** The editor's line weights (exports set their own). */
 const LINE_WEIGHTS = [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }];
 import Board from './Board';
-import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
+import { ExportDialog, HelpDialog, PhotoDialog, ProjectSettingsDialog } from './dialogs';
 // Accounts, library sync and AI: the server edition only (null in the static build).
 import { Account, SaveState, ServerRoot } from '@edition/server';
 import SaveIndicator from './SaveIndicator';
@@ -79,7 +79,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board';
+type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project';
 
 function App() {
   const store = useStore();
@@ -330,6 +330,7 @@ function App() {
     rootPosition: (id) => apiRef.current?.rootPosition(id) ?? null,
     notify,
     notifyUndo,
+    projectSettings: () => setDialog('project'),
   };
 
   // Move works on any figure; Scale only on props.
@@ -357,7 +358,9 @@ function App() {
               { label: 'Import scenes from a project…', icon: FileUp, onSelect: () => openFilePicker('append') },
               { label: 'Open project (replace)…', icon: FolderOpen, onSelect: () => openFilePicker('replace') },
               '-',
+              { label: 'Project settings…', icon: Settings2, onSelect: () => setDialog('project') },
               { label: 'Gesture practice', icon: Timer, shortcut: KEYS.practice, onSelect: () => setDialog('practice') },
+              { label: 'Keyboard shortcuts', icon: Keyboard, shortcut: KEYS.help, onSelect: () => setDialog('help') },
             ]}
           >
             <Logo />
@@ -440,9 +443,8 @@ function App() {
         </div>
         <div className="tb-right">
           <IconButton icon={Undo2} label="Undo" shortcut={KEYS.undo} onClick={() => store.undo()} disabled={!canUndo} />
-          <IconButton icon={Redo2} label="Redo" shortcut={KEYS.redo} onClick={() => store.redo()} disabled={!canRedo} />
+          <IconButton icon={Redo2} label="Redo" shortcut={KEYS.redo} onClick={() => store.redo()} disabled={!canRedo} className="hide-narrow" />
           <span className="tb-sep hide-mobile" />
-          <IconButton icon={Keyboard} label="Keyboard shortcuts" shortcut={KEYS.help} onClick={() => setDialog('help')} className="hide-mobile" />
           {Account && <Account />}
           <button type="button" className="btn primary" onClick={() => setDialog('export')} data-tip={withKey('Export', 'export')}>
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
@@ -455,6 +457,19 @@ function App() {
             pressed={settings.inspector}
             onClick={toggleInspector}
           />
+          {/* Narrow: what is used less folds into one menu. */}
+          <Menu
+            label="More"
+            className="ibtn only-narrow"
+            align="end"
+            tip="More"
+            items={[
+              { label: 'Redo', icon: Redo2, shortcut: KEYS.redo, disabled: !canRedo, onSelect: () => store.redo() },
+              { label: 'Show the inspector', icon: PanelRightOpen, shortcut: KEYS.inspector, checked: settings.inspector, onSelect: toggleInspector },
+            ]}
+          >
+            <Ellipsis size={16} aria-hidden />
+          </Menu>
           <IconButton icon={SlidersHorizontal} label="Inspector" className="only-mobile" onClick={() => setDrawer(drawer === 'inspector' ? null : 'inspector')} />
         </div>
         <input
@@ -495,8 +510,7 @@ function App() {
           onMenu={openCanvasMenu}
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
-        {scene.animation && !through && <CorrectionBadge scene={scene} figureId={activeFigure} time={time} />}
-        {settings.tips && (
+        {settings.tips && !through && (
           <section className="tips" aria-label="Tips">
             <ul>
               <li><b>Drag</b> an arm, a leg or the head to pose it</li>
@@ -519,9 +533,13 @@ function App() {
             notifyUndo={notifyUndo}
           />
         )}
-        {settings.gizmo !== 'rotate' && !gizmoForSelection && (
-          <div className="hint">Select a prop to {settings.gizmo === 'translate' ? 'move' : 'scale'} it</div>
-        )}
+        {(() => {
+          // The canvas's one hint, while it applies: the tool's, or that posing corrects a motion.
+          const hint = settings.gizmo !== 'rotate' && !gizmoForSelection
+            ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
+            : scene.animation && !through ? correction(scene, activeFigure, time) : null;
+          return hint && <div className="canvas-hint" role="status">{hint}</div>;
+        })()}
       </main>
 
       <Inspector ctx={ctx} onHide={toggleInspector} />
@@ -537,6 +555,7 @@ function App() {
         />
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
+      {dialog === 'project' && <ProjectSettingsDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
       {dialog === 'board' && <Board onClose={() => setDialog(null)} onExport={() => setDialog('export-story')} />}
       <ContextMenuHost />
@@ -557,7 +576,7 @@ function Logo() {
 }
 
 /** Over a motion or a walk, edits to the figure correct it: this says which (and that it is a correction). */
-function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: string | null; time: number }) {
+function correction(scene: Scene, figureId: string | null, time: number) {
   const a = scene.animation!;
   const f = scene.figures.find((x) => x.id === figureId);
   if (!f || f.proxy) return null;
@@ -565,7 +584,7 @@ function CorrectionBadge({ scene, figureId, time }: { scene: Scene; figureId: st
   if (!over) return null;
   const src = over.source;
   const what = src.kind === 'travel' ? `${f.name}'s ${src.mode}` : `${f.name}'s ${clipById(src.kind === 'clip' ? src.clip : '')?.name ?? 'motion'}${over.layer === 'upper' ? ' (upper body)' : ''}`;
-  return <div className="correcting" role="status">Posing here corrects {what}</div>;
+  return `Posing here corrects ${what}`;
 }
 
 /** The shot's frame over the canvas, and (looking through one camera) its name. */
