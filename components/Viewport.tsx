@@ -293,7 +293,7 @@ export default function Viewport({
             position={[0, 0.0005, 0]}
           />
         )}
-        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
+        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={handles} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
         {target && !shotMode && (
           <TransformControls
             object={target}

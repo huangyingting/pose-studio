@@ -237,11 +237,13 @@ const TWIST = 0.5;
  * figure or prop). What a drag would move is tinted under the pointer. Pressing starts nothing
  * until the pointer moves a few pixels, so a click still selects and the gizmo keeps its drags.
  */
-export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }: {
+export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, onClick }: {
   sv: SceneView;
   store: Store;
   scene: Scene;
   limits: boolean;
+  /** Whether the drag handles (a joint's arcs, the dots) are shown: the hint says how to show them if not. */
+  handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
   onClick(e: ThreeEvent<MouseEvent>): void;
@@ -535,7 +537,11 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     // Its row in the outline shows it too; the header's hint says what each gesture on it does.
     store.setLinked(t.kind === 'prop' || t.kind === 'held' ? t.prop : t.figure);
     const name = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? scene.props.find((p) => p.id === id)?.name ?? '';
-    setPointerHint(t.kind === 'prop' || t.kind === 'held' ? propHint(name(t.prop), t.kind === 'held') : bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint));
+    if (t.kind === 'prop' || t.kind === 'held') setPointerHint(propHint(name(t.prop), t.kind === 'held'));
+    else {
+      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint);
+      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Drag handles hidden: H shows the arcs`);
+    }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };
 

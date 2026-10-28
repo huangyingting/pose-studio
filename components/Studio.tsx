@@ -428,7 +428,9 @@ function App() {
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             quiet={!!through || clock.playing}
             // (A part selected with the handles hidden: its arcs, and the dots, are hidden too.)
-            alert={!settings.showHandles && !through && selection?.kind === 'joint' ? `The drag handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Drag handles) for the joint's arcs and the dots` : null}
+            alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
+              ? `The drag handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Drag handles) for the joint's arcs and the dots`
+              : null}
           />
         </div>
         <div className="tb-center">
@@ -601,7 +603,7 @@ function Hint({ pick, note, quiet, alert }: { pick: { hint: string; ghost?: Plac
   const pointerHint = usePointerHint();
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
-  const hint = pick ? (pick.ghost ? pointerHint ?? pick.hint : pick.hint) : alert ?? pointerHint ?? note;
+  const hint = pick ? (pick.ghost ? pointerHint ?? pick.hint : pick.hint) : pointerHint ?? alert ?? note;
   if (hint) return <div className="bar-hint" role="status">{hint}</div>;
   const step = !quiet ? nextStep(store) : null;
   if (!step) return overCanvas && !quiet ? <div className="bar-hint" role="status">{FLOOR_HINT}</div> : null;
