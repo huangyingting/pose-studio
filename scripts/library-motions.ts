@@ -217,13 +217,21 @@ for (const clip of clips.values()) {
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: string; loop?: true }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: string; loop?: true; starts?: { at: [number, number]; facing: number }[] }[] = [];
+/** Where each of a motion's people starts, and their way (for scenes made with it: lib/films.ts). */
+const startsOf = (clip: Clip) => clip.parts.map((p) => {
+  const v = p.tracks.find((t) => t.name === 'hips.position')!.values;
+  return { at: [round(v[0]), round(v[2])] as [number, number], facing: p.facing ?? 0 };
+});
 for (const clip of out.sort((a, b) => a.name.localeCompare(b.name))) {
   const id = `library:${slug(clip.name)}`;
   if (index.some((m) => m.id === id)) throw new Error(`Two motions are called ${clip.name}`);
   const ready: Clip = { ...clip, id, loop: loops(clip) };
   await writeFile(join(to, `${slug(clip.name)}.json`), JSON.stringify(ready));
-  index.push({ id, name: ready.name, duration: ready.duration, people: ready.parts.length, group: groupOf(ready.name, ready.parts.length), ...(ready.loop ? { loop: true } : {}) });
+  index.push({
+    id, name: ready.name, duration: ready.duration, people: ready.parts.length, group: groupOf(ready.name, ready.parts.length),
+    ...(ready.loop ? { loop: true as const } : {}), ...(ready.parts.length > 1 ? { starts: startsOf(ready) } : {}),
+  });
 }
 await writeFile(join(to, 'index.json'), JSON.stringify(index, null, 1) + '\n');
 rig.dispose();

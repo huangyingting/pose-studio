@@ -537,20 +537,21 @@ export function insertClip(scene: Scene, cast: string[], clipId: string, start: 
   const t1 = Math.min(MAX_DURATION, Math.round((t0 + clip.duration) * a.fps) / a.fps);
   a = longer(a, t1);
   for (const id of cast) a = clear({ ...scene, animation: a }, id, t0, t1);
-  let s: Scene = { ...scene, animation: a };
-  // Where the partners go: placed around the lead as in the clip, spaced for the biggest of them.
-  const lead = figurePoseAt(s, cast[0], t0)!;
+  const act: Action = { id: uid('act'), start: t0, duration: t1 - t0, blendIn: BLEND, roles: cast.map((figure) => ({ figure })), source: { kind: 'clip', clip: clipId } };
+  let s: Scene = { ...scene, animation: sorted({ ...a, actions: [...a.actions, act] }) };
+  // Where the partners go: placed around the lead as in the clip (from where the lead starts it,
+  // turned as the lead's part is turned there), spaced for the biggest of them.
+  const lead = marksOf(s, act, cast[0])!.start;
   const firsts = clip.parts.map((p) => keyPose(p, 0));
-  const by = facingOf(lead.bones) - startFacing(clip.parts[0], firsts[0]);
+  const by = lead.facing - startFacing(clip.parts[0], firsts[0]);
   const size = Math.max(...cast.map((id, n) => legsOf(scene.figures.find((f) => f.id === id)!.body).rootY / legsOf(clip.parts[n].body ?? scene.figures.find((f) => f.id === id)!.body).rootY));
   for (const [n, id] of cast.entries()) {
     if (!n) continue;
     const off = turn((firsts[n].position[0] - firsts[0].position[0]) * size, (firsts[n].position[2] - firsts[0].position[2]) * size, by);
-    const spot: Mark = { at: [r3(lead.position[0] + off[0]), r3(lead.position[2] + off[1])], facing: Math.round(wrapDeg(startFacing(clip.parts[n], firsts[n]) + by) * 10) / 10 };
+    const spot: Mark = { at: [r3(lead.at[0] + off[0]), r3(lead.at[1] + off[1])], facing: Math.round(wrapDeg(startFacing(clip.parts[n], firsts[n]) + by) * 10) / 10 };
     s = { ...s, animation: goTo(s, id, spot, t0) };
   }
-  const act: Action = { id: uid('act'), start: t0, duration: t1 - t0, blendIn: BLEND, roles: cast.map((figure) => ({ figure })), source: { kind: 'clip', clip: clipId } };
-  return { ...s, animation: sorted({ ...s.animation!, actions: [...s.animation!.actions, act] }) };
+  return { ...s, animation: sorted(s.animation!) };
 }
 
 function turn(x: number, z: number, deg: number): [number, number] {

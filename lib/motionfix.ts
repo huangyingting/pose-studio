@@ -16,8 +16,9 @@ const track = (part: ClipPart, bone: JointName) => part.tracks.find((t) => t.nam
 const quatAt = (values: number[], i: number) => new THREE.Quaternion(values[i * 4], values[i * 4 + 1], values[i * 4 + 2], values[i * 4 + 3]);
 
 /**
- * Where a part's person looks at its start, to the nearest quarter turn (yaw, degrees): the head's
- * way over its first quarter second (a glance aside does not count).
+ * Where a part's person looks at its start (yaw, degrees): the head's way over its first quarter
+ * second, square on when within 20° of a quarter turn (captures mostly are; their heads bob and
+ * glance), as it is otherwise (one recorded at an angle).
  */
 export function lookFacing(part: ClipPart): number {
   const chain: JointName[] = ['hips', 'spine', 'chest', 'neck', 'head'];
@@ -31,7 +32,9 @@ export function lookFacing(part: ClipPart): number {
     x += ahead.x;
     z += ahead.z;
   }
-  return wrapDeg(Math.round(Math.atan2(x, z) / (Math.PI / 2)) * 90) || 0;
+  const look = (Math.atan2(x, z) * 180) / Math.PI;
+  const square = Math.round(look / 90) * 90;
+  return wrapDeg(Math.abs(look - square) <= 20 ? square : Math.round(look)) || 0;
 }
 
 /** A part with its wrists' roll moved to the forearms (as far as they turn), each hand left where it was. */

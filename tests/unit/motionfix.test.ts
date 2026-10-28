@@ -85,4 +85,36 @@ describe("the Library's motion files", () => {
     expect(gap).toBeGreaterThan(0.5);
     expect(gap).toBeLessThan(1.6);
   });
+
+  it('puts the other in front of the lead even after a clip whose stance is turned at the pelvis', () => {
+    const [idle, shake] = [motion('idle'), motion('handshake')];
+    putClips([idle, shake]);
+    const store = new Store(new MemoryStorage());
+    const a = store.figure!.id;
+    addFigure(store, [3, 0, 3]);
+    const b = store.scene.figures.find((f) => f.id !== a)!.id;
+    startAnimation(store, 12);
+    expect(applyMotion(store, a, idle.id, [])).toBe(true);
+    store.setTime(idle.duration);
+    expect(applyMotion(store, a, shake.id, [b])).toBe(true);
+    // The lead faces +Z still (its Idle turned at the pelvis only); the other is across from it, in front.
+    const t = idle.duration;
+    const [pa, pb] = [figurePoseAt(store.scene, a, t + 0.01)!, figurePoseAt(store.scene, b, t + 0.01)!];
+    const [dx, dz] = [pb.position[0] - pa.position[0], pb.position[2] - pa.position[2]];
+    expect(dz).toBeGreaterThan(0.8);
+    expect(Math.abs(dx)).toBeLessThan(0.5);
+  });
+});
+
+describe('the way a capture looks at its start', () => {
+  it('is square on near a quarter turn, as recorded otherwise', () => {
+    const f = newFigure();
+    const turned = (deg: number) => {
+      const pose = (): Pose => ({ bones: { ...f.bones, hips: toQuat(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (deg * Math.PI) / 180)) }, position: [0, 0.9, 0], hands: f.hands, grounded: false });
+      return partFromPoses('Look', [{ t: 0, pose: pose() }, { t: 1, pose: pose() }], 'linear');
+    };
+    expect(lookFacing(turned(10))).toBe(0);
+    expect(lookFacing(turned(-85))).toBe(-90);
+    expect(lookFacing(turned(40))).toBe(40);
+  });
 });

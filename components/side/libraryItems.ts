@@ -193,13 +193,15 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       }] : undefined,
     };
   });
-  // The Library's motion files: each fetched the first time it is used or shown. One of several
-  // people goes on the figure and the nearest others, as the built-in ones.
-  const files = libraryMotions().map((m): LibraryItem => {
-    const solo = m.people === 1;
+  /**
+   * An imported clip's item (the Library's motion files, my motions): one of several people goes on
+   * the figure and the nearest others, as the built-in ones; `load` brings it to hand first.
+   */
+  const clipItem = (m: { id: string; name: string; duration: number; people: number; group: string }, load: () => Promise<boolean>): LibraryItem => {
+    const solo = m.people <= 1;
     const partners = !solo && figure ? nearestPartners(store, figure.id, m.people - 1) : [];
     const together = !solo && figure && partners.length === m.people - 1;
-    const giveTo = (id: string) => void fetchLibraryClip(m.id).then((ok) => {
+    const giveTo = (id: string) => void load().then((ok) => {
       const f = posableById(store, id);
       if (!ok) return ui.notify(`Could not load ${m.name}`);
       if (!f) return;
@@ -224,26 +226,16 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       run: () => { if (figure && (solo || together)) { giveTo(figure.id); ui.onPick?.(); } },
       drop: { figure: giveTo, length: m.duration },
       preview: () => {
-        void fetchLibraryClip(m.id);
-        return { ...motionPreview(m.id, () => clipScene(clipById(m.id)!), style(store)), ready: () => hasClip(m.id) };
+        void load();
+        return { ...motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style(store)), ready: () => hasClip(m.id) };
       },
-      ghost: solo && figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void fetchLibraryClip(m.id), null)) : undefined,
+      ghost: solo && figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void load(), null)) : undefined,
     };
-  });
+  };
+  // The Library's motion files: each fetched the first time it is used or shown.
+  const files = libraryMotions().map((m) => clipItem(m, () => fetchLibraryClip(m.id)));
   const mine = (store.getState().library.clips ?? []).map((m): LibraryItem => ({
-    key: `motion:${m.id}`,
-    tab: 'motions',
-    part: 'Motions',
-    group: 'My motions',
-    name: m.name,
-    icon: Film,
-    meta: `${m.duration.toFixed(1)} s`,
-    note: figure ? `Click to give it to ${figure.name}` : undefined,
-    disabled: !figure,
-    run: () => give(m.id, m.name),
-    drop: { figure: (id) => { const f = posableById(store, id); if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`); }, length: m.duration },
-    preview: () => motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style(store)),
-    ghost: figure ? () => motionGhost(store, figure.id, m.id) : undefined,
+    ...clipItem({ ...m, people: m.people.length, group: 'My motions' }, () => Promise.resolve(hasClip(m.id))),
     actions: [{ icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
   }));
   return [...built, ...files, ...mine];
