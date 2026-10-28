@@ -5,9 +5,11 @@
  *
  * - Page navigations: network first, falling back to the cached shell when offline.
  * - Hashed build assets (/_next/static) and the MediaPipe runtime: cache first (immutable).
+ * - The motion library (/motions: its index and files change with a release, by the same names):
+ *   network first, the kept copy offline.
  * - Other same-origin GETs: stale-while-revalidate.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 // The app may live under a sub-path (e.g. /pose-studio/ on GitHub Pages): the scope is its root.
 const BASE = new URL(self.registration.scope).pathname;
 const SHELL = `pose-studio-shell-${VERSION}`;
@@ -45,6 +47,17 @@ async function cacheFirst(request) {
   return res;
 }
 
+async function networkFirstAsset(request) {
+  const cache = await caches.open(ASSETS);
+  try {
+    const res = await fetch(request);
+    if (res.ok) cache.put(request, res.clone());
+    return res;
+  } catch {
+    return (await cache.match(request)) ?? Response.error();
+  }
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(ASSETS);
   const hit = await cache.match(request);
@@ -64,5 +77,6 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(BASE) || path.startsWith('/api/')) return;
   if (request.mode === 'navigate') event.respondWith(networkFirst(request));
   else if (path.startsWith('/_next/static/') || path.startsWith('/mediapipe/')) event.respondWith(cacheFirst(request));
+  else if (path.startsWith('/motions/')) event.respondWith(networkFirstAsset(request));
   else event.respondWith(staleWhileRevalidate(request));
 });
