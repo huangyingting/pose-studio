@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { moveShotCut, setDirector, startAnimation, travelTo, unpinShot } from '@/lib/actions';
 import { Store } from '@/lib/store';
 
@@ -100,5 +100,26 @@ describe('a film of a chosen length', () => {
     const loops = a.actions.filter((x) => x.source.kind === 'keys' && x.source.clip.loop);
     expect(loops.length).toBeGreaterThan(0);
     for (const x of loops) expect(x.start + x.duration).toBeCloseTo(60, 3);
+  });
+
+  it('plays the film through its cuts, and gives the free view back when it stops', async () => {
+    const { Clock, startPlayback } = await import('@/components/clock');
+    const { startFilm } = await import('@/lib/actions');
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const store = new Store(new MemoryStorage());
+    expect(startFilm(store, { shoot: 'shoot-interview' }, 15)).toBe(true);
+    const clock = new Clock();
+    startPlayback(clock, store);
+    expect(store.getState().through).toEqual({});
+    clock.pause();
+    expect(store.getState().through).toBeNull();
+    // Already looking through a camera: it stays so.
+    const cam = store.scene.cameras[0].id;
+    store.lookThrough({ camera: cam });
+    startPlayback(clock, store);
+    clock.pause();
+    expect(store.getState().through).toEqual({ camera: cam });
+    vi.unstubAllGlobals();
   });
 });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
+  ChevronDown, Download, Ellipsis, Eye, Film, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -79,7 +79,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start';
+type Dialog = null | 'export' | 'export-story' | 'export-video' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start';
 
 function App() {
   const store = useStore();
@@ -475,6 +475,12 @@ function App() {
           <span className="tb-sep hide-mobile" />
           <CommandButton id="app.palette" ctx={cx} className="hide-mobile" />
           {Account && <Account />}
+          {scene.animation && (
+            // The film as a video (the Export dialog, on video).
+            <button type="button" className="btn subtle hide-mobile" onClick={() => command('app.exportVideo').run!(cx)} data-tip={tipOf('app.exportVideo')}>
+              <Film size={14} aria-hidden /> <span className="hide-sm">Video</span>
+            </button>
+          )}
           <button type="button" className="btn primary" onClick={() => command('app.export').run!(cx)} data-tip={tipOf('app.export')}>
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>
@@ -561,8 +567,8 @@ function App() {
       <Inspector ctx={ctx} onHide={toggleInspector} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
-      {(dialog === 'export' || dialog === 'export-story') && (
-        <ExportDialog onClose={() => setDialog(null)} notify={notify} editorCamera={ctx.editorCamera} initial={dialog === 'export-story' ? 'board' : undefined} />
+      {(dialog === 'export' || dialog === 'export-story' || dialog === 'export-video') && (
+        <ExportDialog onClose={() => setDialog(null)} notify={notify} editorCamera={ctx.editorCamera} initial={dialog === 'export-story' ? 'board' : dialog === 'export-video' ? 'video' : undefined} />
       )}
       {dialog === 'photo' && (
         <PhotoDialog

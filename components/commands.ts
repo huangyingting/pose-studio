@@ -54,7 +54,7 @@ import { DIRECTOR_STYLES, coverageById } from '@/lib/coverage';
 export interface App {
   notify: Notify;
   notifyUndo(text: string): void;
-  dialog(d: 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start'): void;
+  dialog(d: 'export' | 'export-story' | 'export-video' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start'): void;
   frameAll(): void;
   /** Frame what is selected (everything when nothing is). */
   frameSelected(): void;
@@ -481,6 +481,7 @@ export const COMMANDS: Command[] = [
   { id: 'app.redo', title: 'Redo', icon: Redo2, keys: ['mod+shift+z', 'mod+y'], enabled: (c) => c.store.getState().canRedo, run: (c) => c.store.redo() },
   { id: 'app.save', title: 'Save project (.json)', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
   { id: 'app.newFilm', title: 'New film…', help: 'A new scene that starts as a film: what you are filming and how long', icon: Clapperboard, run: () => App().dialog('start') },
+  { id: 'app.exportVideo', title: 'Export the film as a video', icon: Film, when: animated, run: () => App().dialog('export-video') },
   { id: 'app.import', title: 'Import scenes from a project…', icon: FileUp, run: () => App().openFile('append') },
   { id: 'app.open', title: 'Open project (replace)…', icon: FolderOpen, run: () => App().openFile('replace') },
   { id: 'app.export', title: 'Export', icon: Download, keys: ['mod+e'], run: () => App().dialog('export') },

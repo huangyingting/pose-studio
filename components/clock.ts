@@ -91,6 +91,7 @@ export class Clock {
  * with "repeat this shot" just the shot under the playhead, over and over.
  */
 export function startPlayback(clock: Clock, store: Store) {
+  if (clock.playing) return;
   clock.set(store.getState().time);
   let shot: { start: number; end: number } | null = null;
   clock.play(() => {
@@ -103,4 +104,16 @@ export function startPlayback(clock: Clock, store: Store) {
     shot = null;
     return { start: 0, end: a.duration, loop: a.loop };
   }, (t) => store.setTime(t));
+  // Playing plays the film (#14): through its cuts, unless a camera is being looked through or
+  // edited; the editor's view comes back when it stops.
+  const s = store.getState();
+  if (clock.playing && store.scene.cameras.length && !s.through && s.selection?.kind !== 'camera') {
+    store.lookThrough({});
+    const off = clock.subscribe(() => {
+      if (clock.playing) return;
+      off();
+      const now = store.getState().through;
+      if (now && !now.camera) store.lookThrough(null);
+    });
+  }
 }
