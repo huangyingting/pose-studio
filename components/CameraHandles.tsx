@@ -7,6 +7,7 @@ import { cameraById, frameAspect, LENSES, placeCamera, SHOT_SIZES, viewOf } from
 import type { Store } from '@/lib/store';
 import type { RigCamera, Scene, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
+import { STEPS, snap, snapping } from './modifiers';
 
 /*
  * The selected camera edited where it is: what it frames (its view cone, also for the camera the
@@ -110,7 +111,7 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
         const h = floorAt(ev.clientX, ev.clientY);
         if (!h) return;
         let yaw = yaw0 + Math.atan2(h.x - center.x, h.z - center.z) * R2D - a0;
-        if (ev.shiftKey) yaw = Math.round(yaw / 15) * 15;
+        if (snapping(ev)) yaw = snap(yaw, STEPS.turn);
         yaw = ((((yaw + 180) % 360) + 360) % 360) - 180;
         editRig(store, cam.id, { yaw }, key);
         setReadout(`${cam.name} ${rigAngle(yaw)}`);
@@ -122,7 +123,7 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
       const key = `rigpitch:${cam.id}:${drags++}`;
       follow(e, (ev) => {
         let pitch = Math.min(80, Math.max(-60, pitch0 + (y0 - ev.clientY) * 0.3));
-        if (ev.shiftKey) pitch = Math.round(pitch / 5) * 5;
+        if (snapping(ev)) pitch = snap(pitch, STEPS.height);
         editRig(store, cam.id, { pitch }, key);
         setReadout(`${cam.name} ${heightText(pitch)}`);
       });
@@ -138,7 +139,7 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
           <ringGeometry args={[radius - 0.012, radius + 0.012, 96]} />
           <meshBasicMaterial color={ACCENT} transparent opacity={0.55} depthWrite={false} />
         </mesh>
-        <mesh position={[center.x, 0.006, center.z]} rotation-x={-Math.PI / 2} visible={false} onPointerDown={turn} {...over(`Drag round: ${cam.name}'s angle on its subject (${rigAngle(cam.rig.yaw)}) · Shift: 15° steps`, 'ew-resize')}>
+        <mesh position={[center.x, 0.006, center.z]} rotation-x={-Math.PI / 2} visible={false} onPointerDown={turn} {...over(`Drag round: ${cam.name}'s angle on its subject (${rigAngle(cam.rig.yaw)}) · Ctrl: 15° steps`, 'ew-resize')}>
           <ringGeometry args={[radius - 0.15, radius + 0.15, 64]} />
         </mesh>
         <mesh position={[foot.x, 0.03, foot.z]} onPointerDown={turn} {...over(`Drag round: ${cam.name}'s angle on its subject (${rigAngle(cam.rig.yaw)})`, 'ew-resize')}>
@@ -147,7 +148,7 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
         </mesh>
         {/* The height: a handle on a line up from its foot. */}
         <Line points={[[foot.x, 0, foot.z], view.position.toArray() as Vec3]} color={ACCENT} lineWidth={1} dashed dashSize={0.06} gapSize={0.05} transparent opacity={0.6} />
-        <mesh position={[foot.x, Math.max(0.1, view.position.y - 0.2), foot.z]} onPointerDown={lift} {...over(`Drag up or down: ${cam.name}'s height (${heightText(cam.rig.pitch)}) · Shift: 5° steps`, 'ns-resize')}>
+        <mesh position={[foot.x, Math.max(0.1, view.position.y - 0.2), foot.z]} onPointerDown={lift} {...over(`Drag up or down: ${cam.name}'s height (${heightText(cam.rig.pitch)}) · Ctrl: 5° steps`, 'ns-resize')}>
           <octahedronGeometry args={[0.045]} />
           <meshBasicMaterial color={ACCENT} />
         </mesh>

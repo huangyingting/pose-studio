@@ -23,6 +23,7 @@ import type { Contact } from '@/lib/relations';
 import JointArcs, { type JointOnScreen } from './JointArcs';
 import CameraHandles, { stepRig } from './CameraHandles';
 import LightHandles from './LightHandles';
+import { STEPS, snapping } from './modifiers';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
 import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
@@ -103,6 +104,16 @@ export default function Viewport({
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
   const gizmoBusy = useRef(0);
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
+  // Ctrl (Cmd) held: the gizmo snaps.
+  const [snapKey, setSnapKey] = useState(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => setSnapKey(snapping(e));
+    const blur = () => setSnapKey(false);
+    window.addEventListener('keydown', key);
+    window.addEventListener('keyup', key);
+    window.addEventListener('blur', blur);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('keyup', key); window.removeEventListener('blur', blur); };
+  }, []);
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
   const longPress = useRef(0);
@@ -305,6 +316,9 @@ export default function Viewport({
             space={mode === 'translate' ? 'world' : 'local'}
             size={0.8}
             showY={showY}
+            // (Ctrl: the 25 cm grid, 10 % of the size.)
+            translationSnap={snapKey ? STEPS.move : null}
+            scaleSnap={snapKey ? STEPS.scale : null}
             onMouseDown={() => { gizmoBusy.current = Infinity; gizmoFrom.current = target!.position.clone(); }}
             onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; setReadout(null); }}
             onObjectChange={() => {

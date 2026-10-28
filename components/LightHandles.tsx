@@ -3,11 +3,12 @@ import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import { setSceneLight } from '@/lib/actions';
-import { DEFAULT_LIGHT, lampAt, lightDome, lightFrom, lightText } from '@/lib/lighting';
+import { DEFAULT_LIGHT, clampLight, lampAt, lightDome, lightFrom, lightText } from '@/lib/lighting';
 import type { SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import type { Scene, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
+import { STEPS, snap, snapping } from './modifiers';
 
 /*
  * The scene's key light on the canvas, in the lit styles: a lamp (drawn as simply as a camera)
@@ -51,7 +52,9 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
       ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
       // On the dome, or (past its edge) the nearest point of it.
       const hit = ray.ray.intersectSphere(sphere, new THREE.Vector3()) ?? ray.ray.closestPointToPoint(base, new THREE.Vector3());
-      const next = lightFrom(store.scene.light ?? DEFAULT_LIGHT, hit.sub(base));
+      let next = lightFrom(store.scene.light ?? DEFAULT_LIGHT, hit.sub(base));
+      // (Ctrl: 15° steps round, 5° up.)
+      if (snapping(ev)) next = clampLight({ ...next, azimuth: snap(next.azimuth, STEPS.turn), elevation: snap(next.elevation, STEPS.height) });
       setSceneLight(store, next, key);
       setReadout(lightText(next));
     };

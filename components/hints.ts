@@ -57,7 +57,7 @@ export function dotHint(id: string) {
   return `Pale dot: drag to point the ${/Arm$/.test(id) ? 'elbow' : 'knee'}, the limb turns about its own line`;
 }
 
-export const ringHint = (name: string) => `Drag the ring: turn ${name} · Shift: 15° steps`;
+export const ringHint = (name: string) => `Drag the ring: turn ${name} · Ctrl: 15° steps`;
 export const cameraHint = (name: string, rig = false) => (rig
   ? `${name} places itself on its subject · Wheel: shot size · Shift-wheel: lens · Click: its angle and height handles`
   : `Drag: move ${name} across the floor · Shift-drag: up and down · Double-click its path: add a point`);
@@ -98,7 +98,7 @@ const degrees = (v: number) => `${Math.round(v) === 0 ? 0 : Math.round(v)}°`.re
 
 export const movedText = (dx: number, dz: number, x: number, z: number) => `Moved ${metres(Math.hypot(dx, dz))} m · X ${metres(x)}  Z ${metres(z)}`;
 /** How far something has turned (and, where Shift snaps, whether it does). */
-export const turnedText = (by: number, steps?: boolean) => `Turned ${degrees(((by % 360) + 540) % 360 - 180)}${steps === undefined ? '' : steps ? ' · 15° steps' : ' · Shift: 15° steps'}`;
+export const turnedText = (by: number, steps?: boolean) => `Turned ${degrees(((by % 360) + 540) % 360 - 180)}${steps === undefined ? '' : steps ? ' · 15° steps' : ' · Ctrl: 15° steps'}`;
 
 /** A joint's slider by its short name ("Bend"). */
 export const sliderName = (joint: JointName, axis: number) => axisLabels(joint)[axis].split(' (')[0];
@@ -106,7 +106,7 @@ export const sliderName = (joint: JointName, axis: number) => axisLabels(joint)[
 export const sliderText = (joint: JointName, axis: number, value: number) => `${JOINT_LABELS[joint]} · ${sliderName(joint, axis)} ${degrees(value)}`;
 /** A drag held at a joint's limit (with the limits lock on). */
 export const limitText = (joint: JointName, value: number) => `${JOINT_LABELS[joint]}: limit ${degrees(value)}`;
-export const arcHint = (joint: JointName, axis: number) => `Drag: ${sliderName(joint, axis)} of the ${part(joint)} · Shift: 5° steps · Ctrl: fine · Double-click: type the value`;
+export const arcHint = (joint: JointName, axis: number) => `Drag: ${sliderName(joint, axis)} of the ${part(joint)} · Ctrl: 5° steps · Shift: fine · Double-click: type the value`;
 
 /** A joint's slider that a drag has changed most, and its value. */
 export function jointText(joint: JointName, before: Vec3, now: Vec3) {

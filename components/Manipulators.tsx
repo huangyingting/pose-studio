@@ -17,13 +17,14 @@ import { JOINTS, type Figure, type JointName, type Scene, type Vec3 } from '@/li
 import { jointLimits, wrapDeg } from '@/lib/joints';
 import { openContextMenu } from './ContextMenu';
 import { bodyHint, dotHint, jointText, limitText, metres, movedText, propHint, ringHint, setPointerHint, setReadout, sliderText, turnedText } from './hints';
+import { STEPS, fine, snap, snapping } from './modifiers';
 
 /*
  * Direct manipulation on the canvas. The things themselves are the handles:
  *   drag a prop, a stand-in or a figure's torso   → move it on the floor
  *   drag a hand or a foot                         → move it, the limb follows (IK)
  *   drag any other body part (limbs, neck, head)  → swing it from its joint
- *   drag the ring on the floor                    → turn the figure or prop (Shift: 15° steps)
+ *   drag the ring on the floor                    → turn the figure or prop (Ctrl: 15° steps)
  * A click (no drag) still selects, for the gizmo and the inspector. Alt-drag always orbits.
  */
 
@@ -178,8 +179,8 @@ export function sliderAxis(obj: THREE.Object3D, v: Vec3, axis: number) {
 
 /**
  * One of a joint's sliders turned by a drag: the value follows the pointer's travel along the way
- * the grabbed point goes on screen as the value grows, so a rough straight drag works. Shift: 5°
- * steps; Ctrl: a fifth of the speed. With the limits on, it stops at them (`limit` says where).
+ * the grabbed point goes on screen as the value grows, so a rough straight drag works. Ctrl: 5°
+ * steps; Shift: a fifth of the speed. With the limits on, it stops at them (`limit` says where).
  */
 function sliderDrag(m: Mannequin, joint: JointName, axis: number, grab: THREE.Vector3, camera: THREE.Camera, size: { width: number; height: number }, limits: boolean) {
   const obj = m.joints[joint];
@@ -194,9 +195,9 @@ function sliderDrag(m: Mannequin, joint: JointName, axis: number, grab: THREE.Ve
   const perDegree = Math.max(way.length(), 0.5);
   way.normalize();
   let last = start;
-  return (dx: number, dy: number, shift: boolean, fine: boolean) => {
-    let v = start[axis] + ((dx * way.x + dy * way.y) / perDegree) * (fine ? 0.2 : 1);
-    if (shift) v = Math.round(v / 5) * 5;
+  return (dx: number, dy: number, steps: boolean, slow: boolean) => {
+    let v = start[axis] + ((dx * way.x + dy * way.y) / perDegree) * (slow ? 0.2 : 1);
+    if (steps) v = snap(v, STEPS.joint);
     const [lo, hi] = limits ? jointLimits(joint)[axis] : [-Infinity, Infinity];
     const value = limits ? Math.min(hi, Math.max(lo, v)) : wrapDeg(v);
     const next: Vec3 = [...start];
@@ -297,7 +298,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
       return {
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => {},
-        move: (ray, dx) => {
+        move: (ray, dx, _dy, e) => {
           if (twist) {
             const turn = new THREE.Quaternion().setFromAxisAngle(up, dx * TWIST * D2R);
             for (const x of things) {
@@ -309,7 +310,8 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
           } else {
             const h = hit(ray, floorPlane);
             if (!h) return;
-            const [mx, mz] = [h.x - point.x, h.z - point.z];
+            // (Ctrl: by the 25 cm grid.)
+            const [mx, mz] = snapping(e) ? [snap(h.x - point.x, STEPS.move), snap(h.z - point.z, STEPS.move)] : [h.x - point.x, h.z - point.z];
             for (const x of things) x.obj.position.set(x.p.x + mx, x.p.y, x.p.z + mz);
             setReadout(movedText(mx, mz, middle.x + mx, middle.z + mz));
           }
@@ -328,14 +330,16 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
       return {
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => store.select({ kind: 'prop', prop: t.prop }),
-        move: (ray, dx) => {
+        move: (ray, dx, _dy, e) => {
           if (twist) {
             p.object.rotation.y = yaw + dx * TWIST * D2R;
             setReadout(turnedText(dx * TWIST));
           } else {
             const h = hit(ray, floorPlane);
             if (!h) return;
-            p.object.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+            const [x, z] = [start.x + h.x - point.x, start.z + h.z - point.z];
+            // (Ctrl: on the 25 cm grid.)
+            p.object.position.set(snapping(e) ? snap(x, STEPS.move) : x, start.y, snapping(e) ? snap(z, STEPS.move) : z);
             propReadout(start, p.object.position);
           }
           p.object.updateMatrixWorld(true);
@@ -358,14 +362,16 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
       return {
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => store.select({ kind: 'figure', figure: t.figure }),
-        move: (ray, dx) => {
+        move: (ray, dx, _dy, e) => {
           if (twist) {
             root.rotation.y = yaw + dx * TWIST * D2R;
             setReadout(turnedText(dx * TWIST));
           } else {
             const h = hit(ray, floorPlane);
             if (!h) return;
-            root.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+            const [x, z] = [start.x + h.x - point.x, start.z + h.z - point.z];
+            // (Ctrl: on the 25 cm grid.)
+            root.position.set(snapping(e) ? snap(x, STEPS.move) : x, start.y, snapping(e) ? snap(z, STEPS.move) : z);
             const r = root.position;
             setReadout(movedText(r.x - start.x, r.z - start.z, r.x, r.z) + nearestText(sv, scene, t.figure, r));
           }
@@ -385,7 +391,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
         cursor: 'grabbing',
         begin: () => { m.setGroundLock(true); select(); },
         move: (_, dx, dy, e) => {
-          const r = drag(dx, dy, e.shiftKey, e.ctrlKey || e.metaKey);
+          const r = drag(dx, dy, snapping(e), fine(e));
           setReadout(r.limit !== null ? limitText(joint, r.limit) : sliderText(joint, axis, r.value), undefined, axis);
         },
         end: commit,
@@ -564,7 +570,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   );
 }
 
-/** Drag around a point on the floor to turn something; Shift snaps to 15° steps. */
+/** Drag around a point on the floor to turn something; Ctrl snaps to 15° steps. */
 function useTurn() {
   const pointer = usePointer();
   return (e: ThreeEvent<PointerEvent>, center: THREE.Vector3, startYaw: number, apply: (yaw: number) => void, commit: () => void) => {
@@ -585,11 +591,11 @@ function useTurn() {
         const a = angle(ev.clientX, ev.clientY);
         if (a === null) return;
         let yaw = startYaw + a - a0;
-        if (ev.shiftKey) yaw = Math.round(yaw / 15) * 15;
+        if (snapping(ev)) yaw = snap(yaw, STEPS.turn);
         yaw = ((((yaw + 180) % 360) + 360) % 360) - 180;
         turned = true;
         apply(yaw);
-        setReadout(turnedText(yaw - startYaw, ev.shiftKey));
+        setReadout(turnedText(yaw - startYaw, snapping(ev)));
       },
       () => {
         pointer.orbit(true);

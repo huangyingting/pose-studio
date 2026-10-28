@@ -6,6 +6,7 @@ import { jointLimits, wrapDeg } from '@/lib/joints';
 import type { Store } from '@/lib/store';
 import type { JointName, Vec3 } from '@/lib/types';
 import { arcHint, limitText, setPointerHint, setReadout, sliderName, sliderText } from './hints';
+import { STEPS, fine, snap, snapping } from './modifiers';
 
 /** The selected joint on screen: where it is, the way away from the parts next to it, and the way its part goes on screen as each slider grows. */
 export type JointOnScreen = { x: number; y: number; away: number; turns: [number, number][] };
@@ -23,7 +24,7 @@ const at = (a: number, r: number) => [r * Math.cos(a), r * Math.sin(a)] as const
  * The selected joint's sliders as three short arcs beside it on screen, each in its axis's colour
  * with an arrowhead at its + end (the way the part then goes). Thin to look at, wide to grab, above
  * the body; travel along an arc is degrees, and a rough straight drag works (the travel along the
- * arc where it was grabbed counts). Shift: 5° steps; Ctrl: a fifth of the speed. With the limits
+ * arc where it was grabbed counts). Ctrl: 5° steps; Shift: a fifth of the speed. With the limits
  * on, a drag stops at them and the arc flashes. A double-click types the value.
  */
 export default function JointArcs({ store, figure, joint, value, limits, onScreen, onLimit }: {
@@ -86,8 +87,8 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
     const move = (ev: PointerEvent) => {
       if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 3) return;
       moved = true;
-      let v = start[axis] + (((ev.clientX - x0) * way[0] + (ev.clientY - y0) * way[1]) / perDegree) * (ev.ctrlKey || ev.metaKey ? 0.2 : 1);
-      if (ev.shiftKey) v = Math.round(v / 5) * 5;
+      let v = start[axis] + (((ev.clientX - x0) * way[0] + (ev.clientY - y0) * way[1]) / perDegree) * (fine(ev) ? 0.2 : 1);
+      if (snapping(ev)) v = snap(v, STEPS.joint);
       const [lo, hi] = jointLimits(joint)[axis];
       const value = limits ? Math.min(hi, Math.max(lo, v)) : wrapDeg(v);
       const limit = limits && value !== v;

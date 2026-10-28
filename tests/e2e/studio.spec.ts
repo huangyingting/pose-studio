@@ -40,7 +40,7 @@ const project = (page: Page, joint: string) =>
 const projectPoint = (page: Page, p: number[]) =>
   page.evaluate((q) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.projectPoint(q), p);
 
-async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, modifier?: 'Shift') {
+async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, modifier?: 'Shift' | 'Control') {
   await page.mouse.move(from.x, from.y);
   if (modifier) await page.keyboard.down(modifier);
   await page.mouse.down();
@@ -346,9 +346,9 @@ test('figures and props move by dragging them and turn by their floor ring', asy
   expect(f.bones.rightUpperArm).toEqual(before.bones.rightUpperArm);
   expect((await state(page)).selection).toMatchObject({ kind: 'figure' });
 
-  // Drag its floor ring around a quarter turn, with Shift: whole 15° steps.
+  // Drag its floor ring around a quarter turn, with Ctrl: whole 15° steps.
   const [x, , z] = f.position;
-  await drag(page, await projectPoint(page, [x, 0, z + 0.3]), await projectPoint(page, [x + 0.3, 0, z]), 'Shift');
+  await drag(page, await projectPoint(page, [x, 0, z + 0.3]), await projectPoint(page, [x + 0.3, 0, z]), 'Control');
   f = await figure();
   expect(facingOf(f.bones) % 15).toBe(0);
   expect(facingOf(f.bones)).not.toBe(facingOf(before.bones));
@@ -398,7 +398,7 @@ test('the axes show on the view widget and in the fields; drags read out how far
   await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
 });
 
-test('a selected joint has an arc per slider: dragged roughly, in 5° steps with Shift, stopped at the limit, typed', async ({ page }) => {
+test('a selected joint has an arc per slider: dragged roughly, in 5° steps with Ctrl, stopped at the limit, typed', async ({ page }) => {
   test.setTimeout(240_000);
   await page.keyboard.press('1');
   const shin = await project(page, 'leftLowerLeg');
@@ -414,7 +414,7 @@ test('a selected joint has an arc per slider: dragged roughly, in 5° steps with
     const m = p.getScreenCTM()!;
     return { x: m.a * pt.x + m.c * pt.y + m.e, y: m.b * pt.x + m.d * pt.y + m.f };
   }, along);
-  // Over the Bend arc: its name and value; a drag with Shift goes in 5° steps (if + is held at the limit, the other way).
+  // Over the Bend arc: its name and value; a drag with Ctrl goes in 5° steps (if + is held at the limit, the other way).
   const at = await on(0);
   await page.mouse.move(at.x, at.y);
   await expect(page.locator('.drag-readout')).toHaveText(/^Left shin · Bend −?\d+°$/);
@@ -423,11 +423,11 @@ test('a selected joint has an arc per slider: dragged roughly, in 5° steps with
     const a = await on(0, from);
     const b = await on(0, to);
     await page.mouse.move(a.x, a.y);
-    await page.keyboard.down('Shift');
+    await page.keyboard.down('Control');
     await page.mouse.down();
     for (let i = 1; i <= 6; i++) await page.mouse.move(a.x + ((b.x - a.x) * i) / 6, a.y + ((b.y - a.y) * i) / 6);
     await page.mouse.up();
-    await page.keyboard.up('Shift');
+    await page.keyboard.up('Control');
     if ((await bend()) !== before) break;
   }
   const after = await bend();
