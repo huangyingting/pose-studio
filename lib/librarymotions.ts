@@ -20,6 +20,8 @@ let list: LibraryMotion[] = [];
 let asked = false;
 const listeners = new Set<() => void>();
 const coming = new Map<string, Promise<boolean>>();
+/** Those not found (asked for once). */
+const missing = new Set<string>();
 
 /** The Library's motion files (none until the index has come: asked for the first time this is). */
 export function libraryMotions(): LibraryMotion[] {
@@ -45,13 +47,17 @@ export function onLibraryMotions(f: () => void) {
 /** Bring one of them to hand (once): whether it is. */
 export function fetchLibraryClip(id: string): Promise<boolean> {
   if (hasClip(id)) return Promise.resolve(true);
+  if (missing.has(id)) return Promise.resolve(false);
   let p = coming.get(id);
   if (!p) {
     p = fetch(withBase(`/motions/${encodeURIComponent(id.slice(LIBRARY.length))}.json`))
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
         const clip = json && parseClip(json);
-        if (!clip || clip.id !== id) return false;
+        if (!clip || clip.id !== id) {
+          missing.add(id);
+          return false;
+        }
         putClips([clip]);
         return true;
       })

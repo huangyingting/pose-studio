@@ -232,6 +232,8 @@ export class Store {
   private set(patch: Partial<State>, persist = true) {
     if (patch.library && patch.library.models !== this.state.library.models) setModels(patch.library.models);
     if (patch.library && patch.library.film !== this.state.library.film) setFilm(patch.library.film);
+    // (Scenes come in or change, opened, shared or placed from a template: the Library's motion files they play.)
+    if (patch.library && patch.library.scenes !== this.state.library.scenes) void fetchLibraryClips(playedClips(patch.library));
     const pending = persist && this.storage !== null;
     this.state = this.normalize({ ...this.state, ...patch, ...(pending ? { saveStatus: 'pending' as const } : {}) });
     if (pending) this.scheduleSave();

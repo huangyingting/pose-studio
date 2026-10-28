@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, addStandIn, placeTemplate, startAnimation } from '@/lib/actions';
+import { addFigure, addProp, addStandIn, holdProp, placeTemplate, startAnimation } from '@/lib/actions';
 import { Store } from '@/lib/store';
 import { COMMANDS, command, commandForKey, keyLabel, matchesKey, menu, selectionCtx } from '@/components/commands';
 import { LIBRARY_CATEGORIES, searchLibrary } from '@/components/side/libraryItems';
@@ -99,5 +99,21 @@ describe('the Library: categories as data, one search', () => {
     const lead = store.scene.figures.find((f) => f.id === cast[0])!;
     expect(lead.position[0]).toBeCloseTo(3, 5);
     expect(lead.position[2]).toBeCloseTo(-2, 5);
+  });
+
+  it('carries a held prop: the arms keep still over what the figure does (an upper-body Carry)', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    addProp(store, 'box', [0.3, 0, 0.3]);
+    const box = store.scene.props[0].id;
+    holdProp(store, box, { figure: id, hand: 'R' });
+    startAnimation(store, 4);
+    const carry = command('prop.carry');
+    expect(carry.when!({ store, prop: box })).toBe(true);
+    carry.run!({ store, prop: box });
+    expect(store.scene.animation!.actions.some((x) => x.layer === 'upper' && x.roles[0].figure === id && x.source.kind === 'clip' && x.source.clip === 'motion:carry')).toBe(true);
+    // Not held: nothing to carry.
+    holdProp(store, box, null);
+    expect(carry.when!({ store, prop: box })).toBe(false);
   });
 });

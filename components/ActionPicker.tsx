@@ -55,7 +55,7 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
     { title: 'Everyday', rows: common },
     ...held.map((p) => ({
       title: p.name,
-      rows: commandRows(['prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot', 'prop.give', 'prop.letGo', 'prop.drop'], { store, prop: p.id }),
+      rows: commandRows(['prop.throwTo', 'prop.toss', 'prop.carry', 'prop.dribble', 'prop.shoot', 'prop.give', 'prop.letGo', 'prop.drop'], { store, prop: p.id }),
     })),
     { title: 'With others', rows: commandRows(['figure.eyes', 'figure.holdOn'], c) },
     { title: 'Poses', grid: true, rows: items('poses').map(row) },

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyMotion, startAnimation } from '@/lib/actions';
+import { appendScenes, applyMotion, startAnimation } from '@/lib/actions';
 import { clipById, clipIdsOf } from '@/lib/assets';
 import { parseClip } from '@/lib/doc';
 import { actionsOf } from '@/lib/evaluate';
@@ -55,5 +55,11 @@ describe("the Library's motion files (public/motions)", () => {
     // Comes with the app: not one of the project's own clips (saved, synced).
     expect(clipIdsOf(store.getState().library)).not.toContain('library:waving');
     expect(await fetchLibraryClip('library:no-such-motion')).toBe(false);
+
+    // A scene that plays one, come from a file (or a link, a template): its motion is fetched.
+    const scene = JSON.parse(JSON.stringify(store.scene).replaceAll('library:waving', 'library:salute'));
+    const other = new Store(new MemoryStorage());
+    appendScenes(other, [{ ...scene, id: 'opened' }]);
+    await vi.waitFor(() => expect(clipById('library:salute')).not.toBeNull());
   });
 });

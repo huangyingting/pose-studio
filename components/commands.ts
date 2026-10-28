@@ -1,11 +1,11 @@
 import {
-  Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, applyUpperBody, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
@@ -829,6 +829,11 @@ export const COMMANDS: Command[] = [
     id: 'prop.toss', title: 'Toss up and catch', icon: ArrowUpFromDot, when: (c) => !!(c.prop && propNow(c.store, c.prop)?.hold),
     run: (c) => { const p = propNow(c.store, c.prop!)!; throwProp(c.store, p.id, { figure: p.hold!.figure, hand: p.hold!.hand }); },
   },
+  {
+    // (The arms kept still from the playhead on, as long as the figure walks or does what it is doing.)
+    id: 'prop.carry', title: 'Carry', help: 'Carry it: the arms keep still as the figure walks', icon: Briefcase, when: (c) => !!(c.prop && propNow(c.store, c.prop)?.hold),
+    run: (c) => { const p = propNow(c.store, c.prop!)!; applyUpperBody(c.store, p.hold!.figure, 'carry'); },
+  },
   { id: 'prop.dribble', title: 'Dribble (2 s)', icon: ChevronsDown, when: (c) => { const p = c.prop && propNow(c.store, c.prop); return !!p && !!p.hold && p.kind === 'sphere'; }, run: (c) => dribbleProp(c.store, c.prop!) },
   {
     id: 'prop.shoot', title: 'Shoot at', icon: Goal,
@@ -1293,7 +1298,7 @@ export const MENUS = {
   // A selected part of a figure: added to the figure's menu (see figureMenu).
   joint: ['hand.letGo', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
   prop: [
-    'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot',
+    'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.carry', 'prop.dribble', 'prop.shoot',
     '-', 'prop.otherEnd', 'prop.lieOn', '-', 'prop.delete',
   ],
   shot: ['rename', 'shot.move', 'shot.camera', 'shot.unpin', '-', 'shot.describe', '-', 'shot.removeCut'],
