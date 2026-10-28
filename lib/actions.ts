@@ -1529,7 +1529,7 @@ export function toggleSelected(store: Store, thing: { figure: string } | { prop:
   else store.select(null);
 }
 
-/** Delete several figures and props (one undo step); the scene keeps at least one figure. */
+/** Delete several figures and props (one undo step); the scene keeps at least one figure. How many went. */
 export function deleteMany(store: Store, figures: string[], props: string[]) {
   const keep = store.scene.figures.filter((f) => !figures.includes(f.id));
   const gone = keep.length ? figures : figures.slice(1);
@@ -1539,6 +1539,7 @@ export function deleteMany(store: Store, figures: string[], props: string[]) {
     props: s.props.filter((p) => !props.includes(p.id)).map((p) => (p.hold && gone.includes(p.hold.figure) ? released(p, s) : p)),
   }));
   store.select(null);
+  return gone.length + props.length;
 }
 
 /** Copies of several figures and props, beside them (one undo step), selected together. */

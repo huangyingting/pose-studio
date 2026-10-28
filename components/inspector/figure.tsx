@@ -17,7 +17,7 @@ import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/
 import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type Hand as HandPose, type Posture, type Scene, type Side, type Vec3 } from '@/lib/types';
 import BodyMap from '../BodyMap';
 import { CommandButton } from '../CommandButton';
-import { command, menu, menuItems, selectionCtx, shortcutOf } from '../commands';
+import { command, figureMenu, menuItems, selectionCtx, shortcutOf } from '../commands';
 import { useScene, useStore, useStudio } from '../store-context';
 import { IconButton, Menu, NameHeader, NumberField, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
@@ -36,7 +36,7 @@ export function FigureHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
       name={figure.name}
       label="Figure name"
       onRename={(name) => renameFigure(t.store, figure.id, name)}
-      menu={() => menu('figure', { store: t.store, figure: figure.id, joint: t.joint })}
+      menu={() => figureMenu(t.store, figure.id, t.joint)}
     >
       {figure.hidden && <span className="title-note">Hidden</span>}
     </NameHeader>

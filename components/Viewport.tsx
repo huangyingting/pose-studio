@@ -51,7 +51,7 @@ export interface ViewportApi {
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
 /** What is under a point of the canvas: a figure (and the point of its body a hand would hold), a prop, a camera (and its path's point), the floor there. */
-export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3 };
+export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; light?: boolean };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -130,6 +130,8 @@ export default function Viewport({
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
+    // (The light's lamp, drawn over the body, takes the click.)
+    if (e.intersections.some((i) => i.object.userData.lamp)) return;
     // (The click that picked something: what was selected stays so.)
     if (performance.now() - pickedAt.current < 300) { e.stopPropagation(); return; }
     // Alt-click: light that point from where the view is.
@@ -641,6 +643,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   useEffect(() => { figures.current = docs; }, [docs]);
   const controls = useThree((s) => s.controls) as unknown as Controls;
   const gl = useThree((s) => s.gl);
+  const r3fScene = useThree((s) => s.scene);
   const latestView = useRef(sceneView);
   useEffect(() => { latestView.current = sceneView; }, [sceneView]);
 
@@ -731,7 +734,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const hit: CanvasHit = {};
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (floor) hit.floor = [floor.x, 0, floor.z];
-        // A camera (or one of its points) in front of everything: it is drawn over the scene.
+        // The light's lamp, and a camera (or one of its points), in front of everything: they are drawn over the scene.
+        const lamp = r3fScene.getObjectByName('light-lamp');
+        if (lamp?.visible && ray.intersectObject(lamp, true).length) return { ...hit, light: true };
         for (const { object } of rigRef.current ? ray.intersectObject(rigRef.current, true) : []) {
           let o: THREE.Object3D | null = object;
           while (o && !o.userData.camera) o = o.parent;
@@ -755,7 +760,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         return hit;
       },
     };
-  }, [apiRef, camera, controls, sv, gl, rigRef]);
+  }, [apiRef, camera, controls, sv, gl, rigRef, r3fScene]);
 
   const frame = (view: FrameRequest['view'], only?: string) => {
     if (!controls) return 0;

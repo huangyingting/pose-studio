@@ -35,7 +35,7 @@ import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
-import { COMMANDS, choices, command, commandForKey, matchesKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
+import { COMMANDS, choices, command, commandForKey, figureMenu, matchesKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewBall from './ViewBall';
@@ -324,6 +324,11 @@ function App() {
   // Right-click on the canvas: the menu of what is under the pointer, or of the empty floor.
   const openCanvasMenu = (e: { clientX: number; clientY: number }, hit: CanvasHit) => {
     const sel = store.getState().selection;
+    if (hit.light) {
+      store.select({ kind: 'light' });
+      openContextMenu(e, menu('light', { store, light: true }), 'Light');
+      return;
+    }
     // Several selected: a right-click on one of them is the menu of them all.
     if (sel?.kind === 'many' && ((hit.figure && sel.figures.includes(hit.figure)) || (hit.prop && sel.props.includes(hit.prop)))) {
       openContextMenu(e, menu('many', { store, many: { figures: sel.figures, props: sel.props } }), `${sel.figures.length + sel.props.length} selected`);
@@ -339,7 +344,7 @@ function App() {
       // (Its selected joint stays selected, and the menu has the joint's commands.)
       const joint = sel?.kind === 'joint' && sel.figure === hit.figure ? sel.joint : undefined;
       if (!joint) store.select({ kind: 'figure', figure: hit.figure });
-      openContextMenu(e, menu('figure', { store, figure: hit.figure, joint }), store.scene.figures.find((f) => f.id === hit.figure)?.name);
+      openContextMenu(e, figureMenu(store, hit.figure, joint), store.scene.figures.find((f) => f.id === hit.figure)?.name);
     } else {
       const floor = hit.floor && ([Math.round(hit.floor[0] * 100) / 100, 0, Math.round(hit.floor[2] * 100) / 100] as Vec3);
       openContextMenu(e, menu('floor', { store, floor }));

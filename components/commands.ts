@@ -27,7 +27,7 @@ import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, type Contact } from '@/lib/relations';
-import { mirrorJointName } from '@/lib/joints';
+import { JOINT_LABELS, mirrorJointName } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
 import { mirrorBones } from '@/lib/pose';
 import { LENSES, SHOT_SIZES, viewOf } from '@/lib/cameras';
@@ -330,7 +330,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'many.delete', title: (c) => `Delete ${count(c)}`, help: 'Delete the things selected', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.many,
-    run: (c) => { const n = count(c); deleteMany(c.store, c.many!.figures, c.many!.props); App().notifyUndo(`Deleted ${n}`); },
+    run: (c) => { const n = deleteMany(c.store, c.many!.figures, c.many!.props); App().notifyUndo(`Deleted ${n} ${n === 1 ? 'thing' : 'things'}`); },
   },
   {
     id: 'many.hide', title: 'Hide the figures', icon: EyeOff, when: (c) => !!c.many?.figures.length,
@@ -960,9 +960,10 @@ export const MENUS = {
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
     { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw',
-    'figure.eyes', 'figure.holdOn', 'figure.copyMoves',
-    { group: 'Joint' }, 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide', '-', 'figure.delete',
+    'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
   ],
+  // A selected part of a figure: added to the figure's menu (see figureMenu).
+  joint: ['joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
   prop: [
     'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot',
     '-', 'prop.otherEnd', 'prop.lieOn', '-', 'prop.delete',
@@ -985,6 +986,12 @@ export const MENUS = {
 } satisfies Record<string, MenuEntry[]>;
 
 export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name], c);
+
+/** A figure's menu; with one of its parts selected, that part's commands too (the figure's own, Delete among them, act on the whole figure). */
+export function figureMenu(store: Store, figure: string, joint?: JointName): MenuItem[] {
+  const own = menu('figure', { store, figure });
+  return joint ? [...own, '-', { group: JOINT_LABELS[joint] }, ...menu('joint', { store, figure, joint })] : own;
+}
 
 /** A command's choices as a menu of their own (the render styles). */
 export const choices = (id: string, c: Ctx): MenuItem[] => (command(id).items?.(c) ?? []).map((ch) => ({ label: ch.title, icon: ch.icon, checked: ch.checked, disabled: ch.disabled, onSelect: ch.run }));

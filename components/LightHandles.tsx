@@ -7,8 +7,6 @@ import { DEFAULT_LIGHT, lampAt, lightDome, lightFrom, lightText } from '@/lib/li
 import type { SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import type { Scene, Vec3 } from '@/lib/types';
-import { openContextMenu } from './ContextMenu';
-import { menu } from './commands';
 import { setPointerHint, setReadout } from './hints';
 
 /*
@@ -84,19 +82,23 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
     <>
       <group
         ref={glyph}
+        // (Found by the canvas's pick: a right-click on it opens the light's menu there.)
+        name="light-lamp"
         position={lamp}
         onPointerDown={down}
-        onContextMenu={(e) => { e.stopPropagation(); store.select({ kind: 'light' }); openContextMenu(e.nativeEvent, menu('light', { store, light: true }), 'Light'); }}
+        // (The click that follows the press is the lamp's: not a figure's behind it.)
+        onClick={(e) => e.stopPropagation()}
         onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `The light, ${lightText(light).toLowerCase()} · Drag: move it over the dome · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime and Clay: switch to one in the top bar, or from the light\'s menu'); }}
         onPointerOut={() => { document.body.style.cursor = ''; setPointerHint(null); }}
         userData={{ light: true }}
       >
         {/* A lamp, drawn as simply as a camera: a bulb, and its shade opening towards the scene (its +Z). */}
-        <mesh renderOrder={8}>
+        {/* (Handles: a press on the lamp is not a drag of the body behind it.) */}
+        <mesh renderOrder={8} userData={{ handle: true, lamp: true }}>
           <sphereGeometry args={[0.045, 16, 12]} />
           <meshBasicMaterial color={selected ? ACCENT : LAMP} depthTest={false} transparent opacity={0.9} />
         </mesh>
-        <mesh position={[0, 0, 0.06]} rotation-x={-Math.PI / 2} renderOrder={8}>
+        <mesh position={[0, 0, 0.06]} rotation-x={-Math.PI / 2} renderOrder={8} userData={{ handle: true, lamp: true }}>
           <coneGeometry args={[0.075, 0.1, 16, 1, true]} />
           <meshBasicMaterial color={selected ? ACCENT : LAMP} side={THREE.DoubleSide} depthTest={false} transparent opacity={0.6} />
         </mesh>
