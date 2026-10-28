@@ -1324,7 +1324,14 @@ const live = (page: Page) =>
 
 /** Right-click a point on the floor and pick from its menu. */
 async function floorMenu(page: Page, at: number[], item: string | RegExp) {
-  const p = await projectPoint(page, at);
+  // (Once the view has stopped moving: the point is where it stays on screen.)
+  let p = await projectPoint(page, at);
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(100);
+    const q = await projectPoint(page, at);
+    if (Math.hypot(q.x - p.x, q.y - p.y) < 0.5) break;
+    p = q;
+  }
   const canvas = (await page.locator('.stage canvas').boundingBox())!;
   expect(p.y, 'the point is on screen').toBeLessThan(canvas.y + canvas.height - 10);
   await page.mouse.click(p.x, p.y, { button: 'right' });
