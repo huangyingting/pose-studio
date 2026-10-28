@@ -1,3 +1,5 @@
+import { LIBRARY, hasClip } from './assets';
+import { fetchLibraryClips } from './librarymotions';
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { newFigure, newScene } from './doc';
@@ -107,7 +109,12 @@ export function characterPreview(id: string, style: Style): PreviewJob {
 export function templatePreview(id: string, build: () => Scene, style: Style): PreviewJob {
   const key = `template:${style}:${id}`;
   const scene = build();
-  if (scene.animation) return filmed(key, () => filmWith(scene, 'static', { follow: true }), style);
+  if (scene.animation) {
+    // (The Library's motions it plays, fetched first: a film's.)
+    const clips = [...new Set(scene.animation.actions.flatMap((x) => (x.source.kind === 'clip' && x.source.clip.startsWith(LIBRARY) ? [x.source.clip] : [])))];
+    void fetchLibraryClips(clips);
+    return { ...filmed(key, () => filmWith(scene, 'static', { follow: true }), style), ready: () => clips.every(hasClip) };
+  }
   return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1, angle: angleAt(scene) }).toDataURL('image/png') };
 }
 

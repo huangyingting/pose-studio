@@ -469,24 +469,38 @@ const placements = new WeakMap<object, Map<string, Placement | undefined>>();
 function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: number) {
   const subject = cameraFigures(scene, cam);
   const other = r.clear && r.clear !== cam.subject && scene.figures.some((f) => f.id === r.clear && !f.hidden) ? r.clear : null;
+  const away = r.yaw < 0 ? -1 : 1;
   const solve = (time: number, place: Placement | undefined) => {
     const body = smoothBody(scene, subject, time, r.smooth ?? 0);
     const spin = r.body === 'orbit' ? (r.spin ?? 0) * (time - firstFilmed(scene, cam)) : 0;
     const yaw = rigHeading(scene, cam, r, time, body) + r.yaw + spin;
     const at = (extra: number) => compose(body, r.size, yaw + extra, r.pitch, r.lens, place, aspect);
     const them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null;
-    if (!them || !seen(at(0), them, r.lens, aspect)) return { shot: at(0), clear: true };
+    if (!them || !seen(at(0), them, r.lens, aspect)) return { shot: at(0), clear: true, extra: 0 };
     // Round, away from the other, by the least angle that leaves them out (found by halving; it
     // moves smoothly as they do).
-    const away = r.yaw < 0 ? -1 : 1;
     let [lo, hi] = [0, 70];
-    if (seen(at(away * hi), them, r.lens, aspect)) return { shot: at(away * hi), clear: false };
+    if (seen(at(away * hi), them, r.lens, aspect)) return { shot: at(away * hi), clear: false, extra: away * hi };
     for (let i = 0; i < 12; i++) {
       const mid = (lo + hi) / 2;
       if (seen(at(away * mid), them, r.lens, aspect)) lo = mid;
       else hi = mid;
     }
-    return { shot: at(away * hi), clear: true };
+    return { shot: at(away * hi), clear: true, extra: away * hi };
+  };
+  /** Never in someone, or with someone right in front of the lens: swung round the subject until it is not. */
+  const unblocked = (time: number, place: Placement | undefined) => {
+    const got = solve(time, place);
+    const others = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => figurePoseAt(scene, f.id, time)?.position).filter((p): p is Vec3 => !!p);
+    if (!others.length || !blocked(got.shot, others)) return got;
+    const body = smoothBody(scene, subject, time, r.smooth ?? 0);
+    const spin = r.body === 'orbit' ? (r.spin ?? 0) * (time - firstFilmed(scene, cam)) : 0;
+    const yaw = rigHeading(scene, cam, r, time, body) + r.yaw + spin;
+    for (const step of [20, -20, 40, -40, 60, -60, 90, -90]) {
+      const shot = compose(body, r.size, yaw + got.extra + away * step, r.pitch, r.lens, place, aspect);
+      if (!blocked(shot, others)) return { ...got, shot };
+    }
+    return got;
   };
   // Where the subject sits: as asked, unless that leaves no room to keep the other out (they
   // stand too close), then centred, then on the other third; chosen once, at the camera's first
@@ -504,8 +518,26 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     }
     place = known.get(key);
   }
-  const { shot } = solve(t, place);
+  const { shot } = unblocked(t, place);
   return { position: shot.position, target: shot.look, lens: r.lens };
+}
+
+/**
+ * Whether a camera stands in someone's reach (where they stand, `people`: an arm swung would cross
+ * the lens) or has them right in front of it: across its line of sight within a metre and a half
+ * of it, between it and what it films.
+ */
+function blocked(shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) {
+  const [cx, cz] = [shot.position.x, shot.position.z];
+  const [dx, dz] = [shot.look.x - cx, shot.look.z - cz];
+  const len = Math.hypot(dx, dz) || 1;
+  return people.some((p) => {
+    const [px, pz] = [p[0] - cx, p[2] - cz];
+    if (Math.hypot(px, pz) < 0.7) return true;
+    const along = (px * dx + pz * dz) / len;
+    if (along <= 0 || along > Math.min(1.5, len - 0.3)) return false;
+    return Math.abs(px * dz - pz * dx) / len < 0.45;
+  });
 }
 
 /** Whether any of a body (its chest, give or take its shoulders) is in a camera's frame. */

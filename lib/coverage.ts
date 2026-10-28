@@ -103,6 +103,26 @@ export const COVERAGES: Coverage[] = [
     ],
   },
   {
+    id: 'fight',
+    name: 'Fight',
+    description: 'A wide shot of both, a low angle on each fighter and close ones, a little hand-held, cutting to whoever strikes',
+    roles: ['A', 'B'],
+    cameras: [
+      { key: 'wide', name: 'Wide on the fight', subject: 'A', also: 'B', shake: 0.15, rig: { body: 'follow', yaw: 90, pitch: 4, toward: 'B', size: 'fs', lens: 28, smooth: 0.7 } },
+      { key: 'low-a', name: 'Low on {A}', subject: 'A', shake: 0.2, rig: { body: 'follow', yaw: 40, pitch: -12, toward: 'B', clear: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.5 } },
+      { key: 'low-b', name: 'Low on {B}', subject: 'B', shake: 0.2, rig: { body: 'follow', yaw: -40, pitch: -12, toward: 'A', clear: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.5 } },
+      { key: 'close-a', name: '{A} close', subject: 'A', shake: 0.25, rig: { body: 'follow', yaw: 25, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 70, smooth: 0.5 } },
+      { key: 'close-b', name: '{B} close', subject: 'B', shake: 0.25, rig: { body: 'follow', yaw: -25, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 70, smooth: 0.5 } },
+    ],
+    cuts: [
+      { on: 'start', camera: 'wide' },
+      { on: 'action', role: 'A', kind: 'travel', camera: 'wide' },
+      { on: 'action', role: 'A', kind: 'motion', camera: 'low-a' },
+      { on: 'action', role: 'B', kind: 'motion', camera: 'low-b' },
+      { on: 'beat', every: 2, cameras: ['close-a', 'close-b', 'wide'] },
+    ],
+  },
+  {
     id: 'one-take',
     name: 'One take',
     description: 'A single camera that goes with them, turning as they turn: no cuts',
@@ -139,6 +159,7 @@ export const DIRECTOR_STYLES: { id: string; label: string }[] = [
   { id: 'one-take', label: 'One take' },
   { id: 'documentary', label: 'Documentary' },
   { id: 'sports', label: 'Sports' },
+  { id: 'fight', label: 'Fight' },
 ];
 
 /** The camera a coverage makes for one of its cameras, with these figures in its roles. */

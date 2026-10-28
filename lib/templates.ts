@@ -6,19 +6,20 @@ import { STAGINGS } from './stagings';
 import { clear } from './track';
 import { uid } from './uid';
 import { COVERAGES } from './coverage';
+import { FILMS } from './films';
 import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset, Vec3 } from './types';
 
 /*
  * Scene templates: what is filmed, without how it is filmed. A template is a cast (its roles:
  * people as they start), a set (props, around a stage origin), what they do (actions) and the
  * light; no cameras and no cuts, so any template can be filmed with any coverage
- * (lib/coverage.ts). Built in: people standing together, several people's motions (as made, key
- * by key, to edit), and set-ups with their props; the user's own are saved from any scene. A template opens as a new scene, or
+ * (lib/coverage.ts). Built in: films staged beat by beat, people standing together, several
+ * people's motions (as made, key by key, to edit), and set-ups with their props; the user's own are saved from any scene. A template opens as a new scene, or
  * goes into the open one: its first role taken by the selected figure (where it stands, facing
  * its way), the others by the figures nearest it, new figures for the rest.
  */
 
-export const TEMPLATE_GROUPS = ['Standing together', 'Moving together', 'Set-ups'] as const;
+export const TEMPLATE_GROUPS = ['Films', 'Standing together', 'Moving together', 'Set-ups'] as const;
 
 export interface SceneTemplate {
   id: string;
@@ -30,6 +31,8 @@ export interface SceneTemplate {
 
 
 export const SCENE_TEMPLATES: SceneTemplate[] = [
+  // Staged as a director would, beat by beat (lib/films.ts).
+  ...FILMS.map((f) => ({ id: f.id, name: f.name, group: 'Films' as const, people: f.people, build: f.build })),
   ...STAGINGS.map((s) => ({ id: s.id, name: s.name, group: 'Standing together' as const, people: s.people, build: s.build })),
   ...MOTIONS.filter((m) => m.people > 1).map((m) => ({ id: m.id, name: m.name, group: 'Moving together' as const, people: m.people, build: m.build })),
   { id: 'high-jump', name: 'High jump', group: 'Set-ups', people: 1, build: highJump },
@@ -41,6 +44,7 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
  * given an animation this long first.
  */
 export const SHOOT_PRESETS: ShootPreset[] = [
+  ...FILMS.map((f) => ({ id: `shoot-${f.id}`, name: f.name, template: f.id, coverage: f.coverage, ...(f.cast ? { cast: f.cast } : {}) })),
   { id: 'shoot-interview', name: 'Interview', template: 'conversation', coverage: 'dialogue', duration: 9 },
   { id: 'shoot-deal', name: 'Closing the deal', template: 'handshake', coverage: 'dialogue', duration: 6 },
   { id: 'shoot-bout', name: 'The bout', template: 'boxing', coverage: 'dialogue' },

@@ -1258,7 +1258,7 @@ export function moveShotCut(store: Store, id: string, t: number, key = '') {
  * The director (#14): the scene filmed in a style (a coverage, cast from who is in it) and cut
  * again as what they do changes; null: by hand from now on (its cameras and cuts stay as they are).
  */
-export function setDirector(store: Store, style: string | null): boolean {
+export function setDirector(store: Store, style: string | null, roles?: Record<string, string>): boolean {
   return store.group(() => {
     if (!style) {
       store.updateScene((s) => (s.coverage?.live ? { ...s, coverage: { id: s.coverage.id, roles: s.coverage.roles } } : s));
@@ -1266,7 +1266,7 @@ export function setDirector(store: Store, style: string | null): boolean {
     }
     // (Already filming in this style: as it is, its pinned shots kept.)
     if (store.scene.coverage?.live && store.scene.coverage.id === style) return true;
-    const cast = cover(store, style);
+    const cast = cover(store, style, roles);
     if (cast) store.updateScene((s) => (s.coverage ? { ...s, coverage: { ...s.coverage, live: true } } : s));
     return !!cast;
   });
@@ -1432,7 +1432,7 @@ export function startFilm(store: Store, what: { template?: string; shoot?: strin
     store.updateScene((s) => fitted(s, length));
     const people = store.scene.figures.filter((f) => !f.hidden && !f.proxy).length;
     const fallback = people > 1 ? 'dialogue' : 'follow';
-    if (!setDirector(store, preset?.coverage ?? fallback)) setDirector(store, fallback);
+    if (!setDirector(store, preset?.coverage ?? fallback, preset && presetCast(store, preset))) setDirector(store, fallback);
     store.setTime(0);
     return true;
   });
@@ -1449,7 +1449,15 @@ function shoot(store: Store, id: string) {
   if (!p || !t) return false;
   addScene(store, { ...t.build(), name: p.name });
   if (!store.scene.animation) startAnimation(store, p.duration ?? 6);
-  return !!cover(store, p.coverage);
+  return !!cover(store, p.coverage, presetCast(store, p));
+}
+
+/** Who plays a shoot preset's coverage's roles in the scene just made from its template (its cast, if it says). */
+function presetCast(store: Store, p: ShootPreset): Record<string, string> | undefined {
+  const roles = coverageById(p.coverage)?.roles;
+  const figures = store.scene.figures;
+  if (!p.cast || !roles || p.cast.some((i) => !figures[i])) return undefined;
+  return Object.fromEntries(roles.map((r, i) => [r, figures[p.cast![i]].id]));
 }
 
 /**

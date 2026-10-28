@@ -217,7 +217,28 @@ for (const clip of clips.values()) {
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: string; loop?: true; starts?: { at: [number, number]; facing: number }[] }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: string; loop?: true; starts?: { at: [number, number]; facing: number }[]; impact?: number }[] = [];
+/**
+ * When a strike lands (s): its hand or foot as far out from the hips as it goes (for scenes made
+ * with it, the one struck reacting then: lib/films.ts).
+ */
+function impactOf(clip: Clip): number | undefined {
+  if (!/kick|punch|jab|uppercut|cross|hook/i.test(clip.name)) return undefined;
+  const part = clip.parts[0];
+  let best = { t: 0, reach: 0 };
+  for (let k = 0; k <= 60; k++) {
+    const t = (clip.duration * k) / 60;
+    const m = rig.model({ ...newFigure({ body: part.body }), ...samplePart(part, t, clip.duration, false) });
+    const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
+    for (const j of ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const) {
+      const p = m.joints[j].getWorldPosition(new THREE.Vector3());
+      const reach = Math.hypot(p.x - hips.x, p.z - hips.z);
+      if (reach > best.reach) best = { t, reach };
+    }
+  }
+  return Math.round(best.t * 100) / 100;
+}
+
 /** Where each of a motion's people starts, and their way (for scenes made with it: lib/films.ts). */
 const startsOf = (clip: Clip) => clip.parts.map((p) => {
   const v = p.tracks.find((t) => t.name === 'hips.position')!.values;
@@ -232,6 +253,8 @@ for (const clip of out.sort((a, b) => a.name.localeCompare(b.name))) {
     id, name: ready.name, duration: ready.duration, people: ready.parts.length, group: groupOf(ready.name, ready.parts.length),
     ...(ready.loop ? { loop: true as const } : {}), ...(ready.parts.length > 1 ? { starts: startsOf(ready) } : {}),
   });
+  const impact = impactOf(ready);
+  if (impact !== undefined) index[index.length - 1].impact = impact;
 }
 await writeFile(join(to, 'index.json'), JSON.stringify(index, null, 1) + '\n');
 rig.dispose();

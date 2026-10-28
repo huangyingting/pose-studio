@@ -463,6 +463,8 @@ export interface ShootPreset {
   coverage: string;
   /** Seconds, for a template that does not move. */
   duration?: number;
+  /** Who plays its coverage's roles (A, B), by their place in the template's cast: else the first and the one nearest them. */
+  cast?: number[];
 }
 
 /** A scene saved as a template: its cast, set, actions and light, around the stage origin; no cameras or cuts. */

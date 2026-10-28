@@ -545,7 +545,8 @@ class Evaluator {
     const to = act.roles.find((r) => r.figure === f.id)?.end ?? start;
     // It arrives in the pose the next action starts with, or (none, or another travel) as it left, at the mark.
     const next = acts[i + 1];
-    const arrive = next && next.source.kind !== 'travel' && Math.abs(next.start - end(act)) < 1e-3
+    // (Not into a clip not at hand yet, still coming: as it left, until it comes.)
+    const arrive = next && next.source.kind !== 'travel' && Math.abs(next.start - end(act)) < 1e-3 && (next.source.kind !== 'clip' || clipOf(next))
       ? this.at(f, next, next.start)
       : turned({ ...from, position: [to.at[0], from.position[1], to.at[1]] }, wrapDeg(to.facing - facingOf(from.bones)));
     const via = src.mode === 'jump' ? [] : src.via ?? [];
