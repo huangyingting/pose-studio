@@ -37,7 +37,7 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
     const box = sv.bounds();
     const c = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
     const size = box.isEmpty() ? 2 : box.getSize(new THREE.Vector3()).length();
-    return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(1.8, size * 0.6) };
+    return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(2.6, size * 0.8) };
     // (Worked out again as the scene changes.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sv, scene]);
