@@ -297,7 +297,9 @@ function App() {
         : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes'))) return;
       // Space presses the button that has the focus when the keyboard brought it there (Tab, as
       // browsers have it); after the pointer was last used (a click, a dialog closed), Space plays.
-      if (e.key === ' ' && tabbing.current && el.closest?.('button, [role="button"]')) return;
+      // (In a menu or a list, Space chooses the item it is on, however the focus got there.)
+      if (e.key === ' ' && (el.closest?.('[role="menu"], [role^="menuitem"], [role="listbox"], [role="option"], .action-picker')
+        || (tabbing.current && el.closest?.('button, [role="button"]')))) return;
       // Tab goes from thing to thing only with the focus on the canvas (last clicked, nothing focused);
       // elsewhere, and before the canvas is clicked, it moves the focus.
       if (e.key === 'Tab' && (el !== document.body || !onCanvas)) return;
