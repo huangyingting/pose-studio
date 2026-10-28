@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
-import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
+import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
 import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint, setSceneLight, toggleSelected } from '@/lib/actions';
@@ -26,7 +26,7 @@ import type { Contact } from '@/lib/relations';
 import TurnButtons from './TurnButtons';
 import CameraHandles, { stepRig } from './CameraHandles';
 import LightHandles from './LightHandles';
-import { STEPS, snapping } from './modifiers';
+import { STEPS, fine, snapping } from './modifiers';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
 import { cameraHint, jointText, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
@@ -109,11 +109,13 @@ export default function Viewport({
   const gizmo = useRef<TransformControlsImpl>(null);
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
   const jointFrom = useRef<Vec3 | null>(null);
-  // Ctrl (Cmd) held: the gizmo snaps.
+  // Ctrl (Cmd) held: the gizmo snaps; Shift held: a joint turns finely (a fifth as far).
   const [snapKey, setSnapKey] = useState(false);
+  const fineKey = useRef(false);
+  const turnFrom = useRef<THREE.Quaternion | null>(null);
   useEffect(() => {
-    const key = (e: KeyboardEvent) => setSnapKey(snapping(e));
-    const blur = () => setSnapKey(false);
+    const key = (e: KeyboardEvent) => { setSnapKey(snapping(e)); fineKey.current = fine(e); };
+    const blur = () => { setSnapKey(false); fineKey.current = false; };
     window.addEventListener('keydown', key);
     window.addEventListener('keyup', key);
     window.addEventListener('blur', blur);
@@ -175,8 +177,8 @@ export default function Viewport({
     } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
   };
 
-  // The gizmo: Move (W: a whole figure or a prop, also up and down), Scale (R: props), and under the
-  // Pose tool a selected joint's rotate gizmo (with the drag handles shown). Joints are also posed
+  // The gizmo: a selected joint's rotate gizmo (with the drag handles shown), Move (W: a whole figure
+  // or a prop, also up and down) and Scale (R: props). Joints are also posed
   // by dragging the body (Shift-drag twists) and the inspector's sliders; figures and props turn by
   // their floor ring.
   const handles = settings.showHandles && !shotMode;
@@ -196,7 +198,8 @@ export default function Viewport({
   const moving = settings.gizmo === 'translate';
   // (Not on a figure when something else is what is selected: one target at a time.)
   const other = selection?.kind === 'prop' || selection?.kind === 'shot' || selection?.kind === 'camera' || selection?.kind === 'light' || selection?.kind === 'many';
-  const gizmoFigure = moving && !other ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
+  // (A selected joint always has its rotate gizmo; the Move tool moves a selected figure.)
+  const gizmoFigure = moving && !other && selection?.kind !== 'joint' ? (selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
@@ -210,7 +213,7 @@ export default function Viewport({
         setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
       };
     }
-  } else if (selection?.kind === 'joint' && !moving && handles) {
+  } else if (selection?.kind === 'joint' && handles) {
     // A selected joint (Pose tool): the rotate gizmo in its own axes, the rings in its sliders'
     // colours, kept within its limits (as Blender, Maya and posing apps have it).
     const m = sv.figures.get(selection.figure);
@@ -337,6 +340,7 @@ export default function Viewport({
           />
         )}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
+        <GizmoWarmup />
         {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * settings.gizmoSize * (coarse ? 1.3 : 1)} />}
         {target && !shotMode && (
           <TransformControls
@@ -355,9 +359,15 @@ export default function Viewport({
               gizmoBusy.current = Infinity;
               gizmoFrom.current = target!.position.clone();
               jointFrom.current = selection?.kind === 'joint' ? angle(figureDoc(selection.figure)!.bones, selection.joint) : null;
+              turnFrom.current = target!.quaternion.clone();
             }}
-            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; setReadout(null); }}
+            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; turnFrom.current = null; setReadout(null); }}
             onObjectChange={() => {
+              // Shift: a fifth of the turn the drag makes (not with Ctrl, which keeps to its steps).
+              if (mode === 'rotate' && fineKey.current && !snapKey && turnFrom.current) {
+                const now = target!.quaternion.clone();
+                target!.quaternion.copy(turnFrom.current).slerp(now, 0.2);
+              }
               onGizmoChange();
               if (gizmoFrom.current) readout(gizmoFrom.current);
             }}
@@ -484,6 +494,44 @@ function GizmoScale({ controls, size }: { controls: RefObject<TransformControlsI
     const factor = o.getWorldPosition(at).distanceTo(camera.position) * Math.min((1.9 * Math.tan((Math.PI * camera.fov) / 360)) / camera.zoom, 7);
     setGizmoSize(c, factor > 1e-6 ? (7 * size) / factor : 1);
   });
+  return null;
+}
+
+/**
+ * The gizmo's shaders compiled when the canvas starts, not when one first shows (a pause on the
+ * first click of a joint and the first drag): a gizmo of each mode, too small to see, with its drag
+ * guide on, drawn in the first frames through the real pipeline and then taken away. Its materials
+ * are kept, so their programs stay for the real gizmo's, which match them.
+ */
+class Warmup {
+  private readonly at = new THREE.Object3D();
+  private readonly gizmos: TransformControlsImpl[] = [];
+  private frames = 0;
+  tick(scene: THREE.Scene, camera: THREE.Camera) {
+    if (this.frames < 0) return;
+    if (!this.gizmos.length) {
+      for (const mode of ['translate', 'rotate', 'scale'] as const) {
+        // (On an element of its own: it never takes the pointer.)
+        const g = new TransformControlsImpl(camera, document.createElement('div'));
+        g.setMode(mode);
+        g.attach(this.at);
+        const sized = g as unknown as Sizable & { axis: string | null };
+        sized.axis = 'X';
+        setGizmoSize(sized, 1e-4);
+        thicken(sized);
+        this.gizmos.push(g);
+      }
+      scene.add(this.at, ...this.gizmos);
+    }
+    if (++this.frames < 3) return;
+    scene.remove(this.at, ...this.gizmos);
+    this.frames = -1;
+  }
+}
+
+function GizmoWarmup() {
+  const [warmup] = useState(() => new Warmup());
+  useFrame(({ scene, camera }) => warmup.tick(scene, camera));
   return null;
 }
 
@@ -917,8 +965,9 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   // (Sampled over the whole animation: worked out once a drag rests, not as the playhead moves the figures.)
   const settled = useSettled(scene);
   const { cameras: sc, animation: sa } = settled;
+  // (Each with its camera: the settled list may not be the one shown yet.)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const trails = useMemo(() => sc.map((c) => cameraTrail(settled, c)), [sc, sa]);
+  const trails = useMemo(() => sc.map((c) => ({ id: c.id, rig: c.kind === 'rig', ...cameraTrail(settled, c) })), [sc, sa]);
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect());
@@ -1068,8 +1117,8 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
           </group>
         );
       })}
-      {trails.map((trail, i) => trail.points.length > 1 && (
-        <Line key={cameras[i].id} points={trail.points} color="#3b6cff" lineWidth={cameras[i].id === picked || cameras[i].id === linked ? 3 : 1.5} transparent opacity={0.7} dashed={cameras[i].kind === 'rig'} dashSize={0.15} gapSize={0.1} onDoubleClick={cameras[i].kind === 'rig' ? undefined : addPoint(cameras[i].id, trail.times)} />
+      {trails.filter((trail) => trail.points.length > 1 && cameras.some((c) => c.id === trail.id)).map((trail) => (
+        <Line key={trail.id} points={trail.points} color="#3b6cff" lineWidth={trail.id === picked || trail.id === linked ? 3 : 1.5} transparent opacity={0.7} dashed={trail.rig} dashSize={0.15} gapSize={0.1} onDoubleClick={trail.rig ? undefined : addPoint(trail.id, trail.times)} />
       ))}
       {markers.map((m) => {
         const on = Math.abs(m.t - now) < 0.5 / fps && liveCamera(scene, now).id === m.cam.id;
