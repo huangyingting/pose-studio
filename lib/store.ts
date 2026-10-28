@@ -241,7 +241,8 @@ export class Store {
       const acts = patch.library.scenes.map((s) => s.animation?.actions);
       if (acts.length !== this.played.length || acts.some((x, i) => x !== this.played[i])) {
         this.played = acts;
-        void fetchLibraryClips(playedClips(patch.library));
+        // (One not come, offline: looked for again on a later change, at most every 30 s.)
+        void fetchLibraryClips(playedClips(patch.library)).then((again) => { if (again) this.played = []; });
       }
     }
     const pending = persist && this.storage !== null;

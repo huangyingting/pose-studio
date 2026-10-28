@@ -22,7 +22,7 @@ const listeners = new Set<() => void>();
 const coming = new Map<string, Promise<boolean>>();
 /** Those not found (asked for once). */
 const missing = new Set<string>();
-/** Those that could not be fetched (offline): when they are tried again. */
+/** Those that could not be fetched (offline): not before when they may be asked for again. */
 const retry = new Map<string, number>();
 /** How long to wait before trying again (ms). */
 const RETRY_MS = 30_000;
@@ -55,20 +55,21 @@ export function fetchLibraryClip(id: string): Promise<boolean> {
   let p = coming.get(id);
   if (!p) {
     p = fetch(withBase(`/motions/${encodeURIComponent(id.slice(LIBRARY.length))}.json`))
-      .then((r) => (r.ok ? r.json() : null))
+      // (Not a clip, as a host's page for a missing file: missing.)
+      .then((r) => (r.ok ? r.json().catch(() => null) : null))
       .then((json) => {
         const clip = json && parseClip(json);
         if (!clip || clip.id !== id) {
           missing.add(id);
           return false;
         }
+        retry.delete(id);
         putClips([clip]);
         return true;
       })
       .catch(() => {
-        // (Offline: tried again in a while, by itself; it plays once it comes.)
+        // (Offline: asked for again when wanted again, after a while.)
         retry.set(id, Date.now() + RETRY_MS);
-        setTimeout(() => { retry.delete(id); void fetchLibraryClip(id); }, RETRY_MS);
         return false;
       })
       .finally(() => coming.delete(id));
@@ -77,7 +78,12 @@ export function fetchLibraryClip(id: string): Promise<boolean> {
   return p;
 }
 
-/** Bring those of `ids` that are the Library's to hand (the motions a project's scenes play). */
-export function fetchLibraryClips(ids: string[]) {
-  return Promise.all(ids.filter((id) => id.startsWith(LIBRARY)).map(fetchLibraryClip));
+/**
+ * Bring those of `ids` that are the Library's to hand (the motions a project's scenes play).
+ * Whether any could not be fetched (offline), to be asked for again later.
+ */
+export async function fetchLibraryClips(ids: string[]): Promise<boolean> {
+  const mine = ids.filter((id) => id.startsWith(LIBRARY));
+  await Promise.all(mine.map(fetchLibraryClip));
+  return mine.some((id) => retry.has(id));
 }

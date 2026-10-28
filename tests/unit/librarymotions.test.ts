@@ -66,7 +66,7 @@ describe("the Library's motion files (public/motions)", () => {
     await vi.waitFor(() => expect(clipById('library:salute')).not.toBeNull());
   });
 
-  it('offline: asked for once, not again as the playhead moves, and again by itself after a while', async () => {
+  it('offline: asked for once, not again as the playhead moves; again after a while, while it is played', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const asked: string[] = [];
     vi.stubGlobal('fetch', async (url: string) => {
@@ -85,12 +85,13 @@ describe("the Library's motion files (public/motions)", () => {
       await new Promise((r) => setTimeout(r, 1));
     }
     expect(asked.filter((u) => u.includes('yawn'))).toHaveLength(1);
-    // Back online: tried again by itself after a while, and it comes.
+    // Back online: asked for again (still played) after a while, as the playhead moves, and it comes.
     vi.stubGlobal('fetch', async (url: string) => {
       asked.push(url);
       return new Response(file(decodeURIComponent(url)));
     });
     await vi.advanceTimersByTimeAsync(31_000);
+    store.setTime(2.5);
     await vi.waitFor(() => expect(clipById('library:yawn')).not.toBeNull());
   });
 });
