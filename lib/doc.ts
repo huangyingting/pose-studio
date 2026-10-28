@@ -343,6 +343,7 @@ export function parseClip(v: unknown): Clip | null {
     name: str(p.name, `Part ${i + 1}`).slice(0, 80),
     ...(isObj(p.body) ? { body: clampBody(p.body as Partial<Figure['body']>) } : {}),
     tracks: (Array.isArray(p.tracks) ? p.tracks.slice(0, 64) : []).map(parseTrack).filter((t): t is ClipTrack => t !== null),
+    ...(Array.isArray(p.eases) ? { eases: p.eases.slice(0, 20000).map((e) => (e === 'linear' || e === 'step' ? e : 'smooth') as ClipTrack['interpolation']) } : {}),
   })).filter((p) => p.tracks.some((t) => t.name === 'hips.position'));
   if (!parts.length) return null;
   const n = parts.length;

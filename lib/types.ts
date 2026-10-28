@@ -183,6 +183,8 @@ export interface ClipPart {
   /** Proportions it was made on (the root's travel and heights scale with the body playing it). */
   body?: BodyParams;
   tracks: ClipTrack[];
+  /** How each key goes on to the next, by key (smooth where not given): a hand-keyed part's, per key. */
+  eases?: ClipTrack['interpolation'][];
 }
 
 /** Something that happens at a moment of a Clip (a release, a catch, a footstep). Reserved. */

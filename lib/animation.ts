@@ -164,7 +164,7 @@ export function placeAnimation(a: Animation, deg: number, place: (x: number, z: 
     const target = y.target && 'at' in y.target ? { at: at(y.target.at[0], y.target.at[1]) } : y.target;
     const roles = y.roles.map((r) => (r.end ? { ...r, end: mark(r.end) } : r));
     const src = y.source;
-    const source = src.kind === 'keys' ? { ...src, clip: placeClip(src.clip, deg, at) } : src.kind === 'travel' && src.via ? { ...src, via: src.via.map(mark) } : src;
+    const source = src.kind === 'keys' ? { ...src, clip: placeClip(src.clip, deg, at, y.layer === 'correction') } : src.kind === 'travel' && src.via ? { ...src, via: src.via.map(mark) } : src;
     return { ...y, start: y.start + dt, roles, source, ...(target ? { target } : {}) };
   });
   const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.map((k) => (k.hold

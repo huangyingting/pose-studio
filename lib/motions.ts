@@ -92,7 +92,7 @@ function travelling(scene: Scene, figure: string, t0: number, t1: number, mode: 
   const a = scene.animation!;
   const act = a.actions.find((x) => x.roles[0].figure === figure)!;
   const clip = (act.source as Extract<Action['source'], { kind: 'keys' }>).clip;
-  const keys = partKeys(clip.parts[0]).map((k) => ({ t: act.start + k.t, pose: k.pose }));
+  const keys = partKeys(clip.parts[0]).map((k) => ({ ...k, t: act.start + k.t }));
   const mark = (p: Pose) => ({ at: [p.position[0], p.position[2]] as [number, number], facing: Math.round(facingOf(p.bones) * 10) / 10 || 0 });
   const on = (t: number) => (k: { t: number }) => Math.abs(k.t - t) < 1e-4;
   const inner = keys.filter((k) => k.t > t0 + 1e-4 && k.t < t1 - 1e-4);

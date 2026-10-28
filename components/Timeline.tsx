@@ -31,8 +31,8 @@ export function usePlayhead(clock: Clock) {
 }
 
 /** Ruler spacings (seconds), finest first: the finest that keeps ticks (and labels) apart is used. */
-const TICKS = [1 / 24, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30];
-const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
+const TICKS = [1 / 24, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
+const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60, 120];
 
 /** The timeline's height, for the canvas above it (and, on phones, the canvas tools); its width too. */
 function useHeight(root: RefObject<HTMLDivElement | null>, setWidth?: (w: number) => void) {
@@ -161,13 +161,23 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     setWindow(t >= v0 && t <= v1 ? t - ((t - v0) / span) * sp : t - sp / 2, sp);
   };
 
-  // A shorter length asks first whether to scale what is there into it or cut it.
-  const [shorten, setShorten] = useState<number | null>(null);
+  // A shorter length asks first whether to scale what is there into it or cut it (for this scene).
+  const [asked, setShorten] = useState<{ scene: string; d: number } | null>(null);
+  const shorten = asked?.scene === scene.id ? asked.d : null;
+  const ask = useRef<HTMLDivElement>(null);
   const length = (d: number) => {
     const busy = a.actions.some((x) => x.duration > 1e-6) || Object.values(a.props ?? {}).some((k) => k.length) || a.shots.length > 1;
-    if (d < a.duration - 1e-6 && busy) setShorten(d);
+    if (d < a.duration - 1e-6 && busy) setShorten({ scene: scene.id, d });
     else setAnimationOptions(store, { duration: d });
   };
+  // The question takes the focus (Esc answers Cancel) and a click elsewhere puts it away.
+  useEffect(() => {
+    if (shorten === null) return;
+    ask.current?.focus();
+    const away = (e: PointerEvent) => { if (!ask.current?.contains(e.target as Node)) setShorten(null); };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [shorten]);
 
   const frame = Math.round(time * a.fps);
   // Each figure has its own key track; the key buttons work on the active figure's.
@@ -504,7 +514,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={MAX_DURATION} digits={1} onChange={length} />
           {shorten !== null && (
             // Shorter: everything is scaled to fit, or (Cut instead) what is past the new end goes.
-            <div className="tl-ask" role="alertdialog" aria-label="Shorten the animation" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShorten(null); } }}>
+            <div ref={ask} tabIndex={-1} className="tl-ask" role="alertdialog" aria-label="Shorten the animation" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShorten(null); } }}>
               <span>Scale everything into {shorten.toFixed(1)} s?</span>
               <button type="button" className="btn primary" onClick={() => { setAnimationOptions(store, { duration: shorten }); setShorten(null); }}>Scale</button>
               <button type="button" className="btn" onClick={() => { cutAnimation(store, shorten); setShorten(null); }}>Cut instead</button>

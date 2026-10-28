@@ -58,4 +58,20 @@ describe('a timeline that grows (#13)', () => {
     expect(travel.start).toBeCloseTo(walk.from, 3);
     expect(travel.start + travel.duration).toBeCloseTo(walk.to, 3);
   });
+
+  it('cuts a walk under way where it has got to, at its pace', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    startAnimation(store);
+    setAnimationOptions(store, { duration: 8 });
+    store.setTime(1);
+    const [x0, , z0] = store.figure!.position;
+    const walk = travelTo(store, id, [x0, z0 - 4], 'walk')!;
+    const mid = (walk.from + walk.to) / 2;
+    store.setTime(mid);
+    const halfway = store.figure!.position[2];
+    cutAnimation(store, mid);
+    store.setTime(mid);
+    expect(store.figure!.position[2]).toBeCloseTo(halfway, 1);
+  });
 });

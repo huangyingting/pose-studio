@@ -1,5 +1,5 @@
 import { jointLimits, wrapDeg } from './joints';
-import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat, turnBones } from './pose';
+import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
 import { uid } from './uid';
 import { EXTRA_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
 
@@ -16,8 +16,15 @@ export const handTrack = (s: Side) => `hands.${s}`;
 
 type Interpolation = ClipTrack['interpolation'];
 
+/** A key: a pose at a time, and how it goes on to the next (smooth where not given; `step`: held until the next). */
+export interface Key {
+  t: number;
+  pose: Pose;
+  ease?: Interpolation;
+}
+
 /** A part keyed with these poses (every track keyed at the same times). */
-export function partFromPoses(name: string, keys: { t: number; pose: Pose }[], interpolation: Exclude<Interpolation, 'step'>, body?: ClipPart['body']): ClipPart {
+export function partFromPoses(name: string, keys: Key[], interpolation: Exclude<Interpolation, 'step'>, body?: ClipPart['body']): ClipPart {
   const times = keys.map((k) => Math.round(k.t * 1e6) / 1e6);
   const track = (n: string, values: (p: Pose) => number[], interp: Interpolation = interpolation): ClipTrack => ({ name: n, times: [...times], values: keys.flatMap((k) => values(k.pose)), interpolation: interp });
   const hand = (s: Side) => (p: Pose) => [...p.hands[s].curl, p.hands[s].spread];
@@ -33,11 +40,12 @@ export function partFromPoses(name: string, keys: { t: number; pose: Pose }[], i
       track(handTrack('R'), hand('R')),
       track(GROUNDED, (p) => [p.grounded ? 1 : 0], 'step'),
     ],
+    ...(keys.some((k) => k.ease && k.ease !== 'smooth') ? { eases: keys.map((k) => k.ease ?? 'smooth') } : {}),
   };
 }
 
 /** A clip of poses keyed by hand (one part, smooth), e.g. the keys of an action. */
-export function keysClip(keys: { t: number; pose: Pose }[], loop = false, duration = keys.length ? keys[keys.length - 1].t : 0): Clip {
+export function keysClip(keys: Key[], loop = false, duration = keys.length ? keys[keys.length - 1].t : 0): Clip {
   return { id: uid('clip'), name: 'Keys', duration, loop, parts: [partFromPoses('Keys', keys, 'smooth')], events: [], contacts: [] };
 }
 
@@ -47,8 +55,11 @@ const trackOf = (part: ClipPart, name: string) => part.tracks.find((t) => t.name
 export const keyTimes = (part: ClipPart) => trackOf(part, ROOT)?.times ?? [];
 
 /** The poses a part is keyed with, at its key times. */
-export function partKeys(part: ClipPart): { t: number; pose: Pose }[] {
-  return keyTimes(part).map((t, i) => ({ t, pose: keyPose(part, i) }));
+export function partKeys(part: ClipPart): Key[] {
+  return keyTimes(part).map((t, i) => {
+    const ease = part.eases?.[i];
+    return { t, pose: keyPose(part, i), ...(ease && ease !== 'smooth' ? { ease } : {}) };
+  });
 }
 
 /** The pose keyed at index i. */
@@ -126,24 +137,29 @@ function trackAngles(j: JointName, track: ClipTrack): Vec3[] {
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
+/** How a track goes from its key i to the next: a part's per-key ease over the track's own (`grounded` always steps). */
+const easeAt = (track: ClipTrack, i: number, eases?: Interpolation[]): Interpolation =>
+  track.interpolation === 'step' || !eases?.[i] || eases[i] === 'smooth' ? track.interpolation : eases[i];
+
 /** A rotation track's value at time t, turned the short way between its keys. */
-function slerpTrack(track: ClipTrack, t: number, duration: number, loop: boolean): [number, number, number, number] {
+function slerpTrack(track: ClipTrack, t: number, duration: number, loop: boolean, eases?: Interpolation[]): [number, number, number, number] {
   const seg = segment(track.times, t, duration, loop);
   const v = (i: number) => fromQuat(track.values.slice(i * 4, i * 4 + 4) as [number, number, number, number]);
-  const u = seg.t[2] - seg.t[1] > 1e-9 && track.interpolation !== 'step' ? (seg.time - seg.t[1]) / (seg.t[2] - seg.t[1]) : 0;
+  const u = seg.t[2] - seg.t[1] > 1e-9 && easeAt(track, seg.i[1], eases) !== 'step' ? (seg.time - seg.t[1]) / (seg.t[2] - seg.t[1]) : 0;
   return toQuat(v(seg.i[1]).slerp(v(seg.i[2]), u));
 }
 
 /** One track's value at time t. */
-function sampleTrack(track: ClipTrack, size: number, t: number, duration: number, loop: boolean, bone?: JointName): number[] {
+function sampleTrack(track: ClipTrack, size: number, t: number, duration: number, loop: boolean, bone?: JointName, eases?: Interpolation[]): number[] {
   const { times, values } = track;
   if (!times.length) return [];
   const seg = segment(times, t, duration, loop);
   const [i0, i1, i2, i3] = seg.i;
   const v = (i: number) => values.slice(i * size, i * size + size);
-  if (track.interpolation === 'step' || seg.t[2] - seg.t[1] <= 1e-9) return v(i1);
+  const ease = easeAt(track, i1, eases);
+  if (ease === 'step' || seg.t[2] - seg.t[1] <= 1e-9) return v(i1);
   const u = (seg.time - seg.t[1]) / (seg.t[2] - seg.t[1]);
-  if (track.interpolation === 'linear') {
+  if (ease === 'linear') {
     if (bone) return toQuat(fromQuat(v(i1) as [number, number, number, number]).slerp(fromQuat(v(i2) as [number, number, number, number]), u));
     return v(i1).map((x, c) => x + (v(i2)[c] - x) * u);
   }
@@ -186,7 +202,7 @@ function extrasOf(part: ClipPart) {
 export function samplePart(part: ClipPart, t: number, duration: number, loop: boolean): Pose {
   const get = (name: string, size: number, bone?: JointName) => {
     const tr = trackOf(part, name);
-    return tr ? sampleTrack(tr, size, t, duration, loop, bone) : null;
+    return tr ? sampleTrack(tr, size, t, duration, loop, bone, part.eases) : null;
   };
   const bones: Pose['bones'] = {};
   for (const j of JOINTS) {
@@ -194,7 +210,7 @@ export function samplePart(part: ClipPart, t: number, duration: number, loop: bo
     if (q) bones[j] = q as [number, number, number, number];
   }
   // The bones beyond the mannequin's: turned the short way between keys.
-  for (const [b, tr] of extrasOf(part)) bones[b] = slerpTrack(tr, t, duration, loop);
+  for (const [b, tr] of extrasOf(part)) bones[b] = slerpTrack(tr, t, duration, loop, part.eases);
   const hand = (s: Side): Hand => {
     const v = get(handTrack(s), 6) ?? [0, 0, 0, 0, 0, 0];
     return { curl: v.slice(0, 5).map(clamp01) as Hand['curl'], spread: clamp01(v[5]) };
@@ -212,8 +228,11 @@ export function samplePart(part: ClipPart, t: number, duration: number, loop: bo
 
 /** The part with the pose keyed at time t (replacing a key within half a frame of it). */
 export function setPartKey(part: ClipPart, t: number, pose: Pose, tolerance: number): ClipPart {
-  const keys = partKeys(part).filter((k) => Math.abs(k.t - t) >= tolerance);
-  keys.push({ t, pose });
+  const all = partKeys(part);
+  const keys = all.filter((k) => Math.abs(k.t - t) >= tolerance);
+  // (A key replaced keeps how it goes on.)
+  const ease = all.find((k) => Math.abs(k.t - t) < tolerance)?.ease;
+  keys.push({ t, pose, ...(ease ? { ease } : {}) });
   keys.sort((a, b) => a.t - b.t);
   return partFromPoses(part.name, keys, 'smooth', part.body);
 }
@@ -223,18 +242,30 @@ export function mirrorPose(p: Pose): Pose {
   return { ...p, bones: mirrorBones(p.bones), position: [-p.position[0] || 0, p.position[1], p.position[2]], hands: { L: { ...p.hands.R, curl: [...p.hands.R.curl] }, R: { ...p.hands.L, curl: [...p.hands.L.curl] } } };
 }
 
-/** A clip of keys in the world turned by `deg` about the vertical, its floor points moved by `place`. */
-export function placeClip(c: Clip, deg: number, place: (x: number, z: number) => [number, number]): Clip {
-  return {
-    ...c,
-    parts: c.parts.map((part) => {
-      const keys = partKeys(part).map((k) => {
-        const [x, z] = place(k.pose.position[0], k.pose.position[2]);
-        return { t: k.t, pose: { ...k.pose, bones: turnBones(k.pose.bones, deg), position: [x, k.pose.position[1], z] as Vec3 } };
-      });
-      return partFromPoses(part.name, keys, trackOf(part, ROOT)?.interpolation === 'linear' ? 'linear' : 'smooth', part.body);
-    }),
+/**
+ * A clip of keys in the world turned by `deg` about the vertical, its floor points moved by `place`
+ * (its keys and how they go on kept). `offsets`: a correction's, whose offsets only turn.
+ */
+export function placeClip(c: Clip, deg: number, place: (x: number, z: number) => [number, number], offsets = false): Clip {
+  const r = (deg * Math.PI) / 180;
+  const [s, q] = [Math.sin(r / 2), Math.cos(r / 2)];
+  const round = (v: number) => Math.round(v * 1e4) / 1e4 || 0;
+  const track = (tr: ClipTrack): ClipTrack => {
+    const v = [...tr.values];
+    if (tr.name === ROOT) {
+      for (let i = 0; i < v.length; i += 3) {
+        [v[i], v[i + 2]] = offsets ? [round(v[i] * Math.cos(r) + v[i + 2] * Math.sin(r)), round(-v[i] * Math.sin(r) + v[i + 2] * Math.cos(r))] : place(v[i], v[i + 2]);
+      }
+    } else if (tr.name === boneTrack('hips') && !offsets && deg) {
+      // The turn about the vertical put before each root rotation.
+      for (let i = 0; i < v.length; i += 4) {
+        const [x, y, z, w] = v.slice(i, i + 4);
+        v.splice(i, 4, q * x + s * z, q * y + s * w, q * z - s * x, q * w - s * y);
+      }
+    } else return tr;
+    return { ...tr, values: v };
   };
+  return { ...c, parts: c.parts.map((part) => ({ ...part, tracks: part.tracks.map(track) })) };
 }
 
 /** What the library lists of an imported clip (its frames are kept apart). */

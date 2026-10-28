@@ -318,6 +318,17 @@ function App() {
     };
   }, [dialog, store, pick]);
 
+  // Right-click is the app's everywhere: the browser's own menu shows only in text fields (to copy and paste).
+  useEffect(() => {
+    const menu = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest?.('input, textarea, [contenteditable="true"]')) return;
+      e.preventDefault();
+    };
+    window.addEventListener('contextmenu', menu);
+    return () => window.removeEventListener('contextmenu', menu);
+  }, []);
+
   // Offline support (production only: in development the cache would serve stale code).
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;

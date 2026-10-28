@@ -1,4 +1,4 @@
-import { keyPose, keysClip, partKeys, setPartKey } from './clip';
+import { keyPose, keysClip, partKeys, placeClip, setPartKey, type Key } from './clip';
 import { clipById } from './assets';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
@@ -7,7 +7,7 @@ import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
 import { wrapDeg } from './joints';
 import { shiftPropTrack } from './propmotion';
-import type { Action, ActionSource, Animation, Clip, Mark, Pose, Scene, Travel, Vec3 } from './types';
+import type { Action, ActionSource, Animation, Mark, Pose, Scene, Travel, Vec3 } from './types';
 
 /*
  * Editing figures' tracks: their actions in time. Keys are set where the figure is keyed (or a
@@ -22,14 +22,14 @@ const BLEND = 0.2;
 const end = (a: Action) => a.start + a.duration;
 const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
 const markOf = (p: Pose): Mark => ({ at: [r3(p.position[0]), r3(p.position[2])], facing: Math.round(facingOf(p.bones) * 10) / 10 || 0 });
-const keysOf = (act: Action) => (act.source.kind === 'keys' ? partKeys(act.source.clip.parts[0]).map((k) => ({ t: act.start + k.t, pose: k.pose })) : []);
+const keysOf = (act: Action) => (act.source.kind === 'keys' ? partKeys(act.source.clip.parts[0]).map((k) => ({ ...k, t: act.start + k.t })) : []);
 const isKeys = (act: Action) => act.source.kind === 'keys' && !act.layer;
 const clipOfKeys = (act: Action) => (act.source as Extract<ActionSource, { kind: 'keys' }>).clip;
 
 /** A keys action holding these poses (times in the animation), from the first to the last. */
-export function keysAction(figure: string, keys: { t: number; pose: Pose }[], layer?: Action['layer']): Action {
+export function keysAction(figure: string, keys: Key[], layer?: Action['layer']): Action {
   const start = keys[0].t;
-  const clip = keysClip(keys.map((k) => ({ t: k.t - start, pose: k.pose })));
+  const clip = keysClip(keys.map((k) => ({ ...k, t: k.t - start })));
   return { id: uid('act'), start, duration: clip.duration, roles: [{ figure }], source: { kind: 'keys', clip }, ...(layer ? { layer } : {}) };
 }
 
@@ -148,7 +148,7 @@ export function moveKeyTo(a: Animation, figure: string, from: number, to: number
  */
 export function ripple(a: Animation, figure: string | string[], from: number, by: number): Animation {
   const who = typeof figure === 'string' ? [figure] : figure;
-  const shift = (t: number) => Math.min(60, Math.round((t + by) * a.fps) / a.fps);
+  const shift = (t: number) => Math.min(MAX_DURATION, Math.round((t + by) * a.fps) / a.fps);
   const actions = a.actions.map((x) => {
     if (!x.roles.some((r) => who.includes(r.figure))) return x;
     if (x.source.kind === 'keys' && x.start < from - EPS && end(x) >= from - EPS) {
@@ -187,7 +187,7 @@ export function rippleInStep(a: Animation, figures: string[], from: number, by: 
     }
   }
   // Each action moved once (one done by several moves for all of them).
-  const shift = (t: number) => Math.min(60, Math.round((t + by) * a.fps) / a.fps);
+  const shift = (t: number) => Math.min(MAX_DURATION, Math.round((t + by) * a.fps) / a.fps);
   const actions = a.actions.map((x) => {
     if (x.source.kind === 'keys' && x.roles.length === 1 && since.has(x.roles[0].figure)) {
       const t0 = since.get(x.roles[0].figure)! - half;
@@ -432,7 +432,7 @@ export function insertClip(scene: Scene, cast: string[], clipId: string, start: 
   if (!clip || cast.length > clip.parts.length || new Set(cast).size < cast.length || cast.some((id) => !scene.figures.some((f) => f.id === id))) return scene;
   let a: Animation = scene.animation ?? { ...newAnimation(scene, Math.max(0.2, start + clip.duration)), loop: clip.loop && start === 0 };
   const t0 = snapTime({ ...a, duration: MAX_DURATION }, start);
-  const t1 = Math.min(60, Math.round((t0 + clip.duration) * a.fps) / a.fps);
+  const t1 = Math.min(MAX_DURATION, Math.round((t0 + clip.duration) * a.fps) / a.fps);
   a = longer(a, t1);
   for (const id of cast) a = clear({ ...scene, animation: a }, id, t0, t1);
   let s: Scene = { ...scene, animation: a };
@@ -480,8 +480,20 @@ export function clear(scene: Scene, figure: string, t0: number, t1: number): Ani
 export function cutTo(scene: Scene, d: number): Scene {
   if (!scene.animation) return scene;
   let a = scene.animation;
+  // A walk under way at the cut goes only as far as it has got by then, at its pace.
+  const under = new Map(a.actions.filter((x) => x.source.kind === 'travel' && x.start < d - EPS && end(x) > d + EPS)
+    .map((x) => [x.id, markOf(figurePoseAt(scene, x.roles[0].figure, d)!)]));
   for (const f of scene.figures) a = clear({ ...scene, animation: a }, f.id, d, Infinity);
-  const actions = a.actions.flatMap((x) => (x.start >= d - EPS && x.start > 0 ? [] : end(x) > d + EPS ? [{ ...x, duration: d - x.start }] : [x]));
+  const actions = a.actions.flatMap((x): Action[] => {
+    if (x.start >= d - EPS && x.start > 0) return [];
+    const mark = under.get(x.id);
+    if (mark && x.source.kind === 'travel') {
+      const { via: _via, ...source } = x.source;
+      void _via;
+      return [{ ...x, duration: d - x.start, roles: [{ ...x.roles[0], end: mark }], source }];
+    }
+    return end(x) <= d + EPS ? [x] : [{ ...x, duration: d - x.start }];
+  });
   const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.filter((k) => k.t <= d + EPS)]));
   const shots = a.shots.filter((x, i) => i === 0 || x.start < d - EPS);
   const constraints = a.constraints?.filter((c) => c.start < d - EPS).map((c) => ({ ...c, end: Math.min(c.end, d) }));
@@ -578,36 +590,12 @@ export function restage(a: Animation, figures: string[], o: Offset): Animation {
     return [r3(o.about[0] + ox + o.dx), r3(o.about[1] + oz + o.dz)];
   };
   const move = (m: Mark): Mark => ({ at: place(...m.at), facing: Math.round(wrapDeg(m.facing + o.turn) * 10) / 10 || 0 });
-  // The yaw as a quaternion, put before a root's rotation.
-  const [qs, qc] = [Math.sin((o.turn * Math.PI) / 360), Math.cos((o.turn * Math.PI) / 360)];
-  // A keyed clip's root: its places moved (a correction's offsets turned only) and its rotations turned.
-  const tracks = (clip: Clip, correction: boolean): Clip => ({
-    ...clip,
-    parts: clip.parts.map((part) => ({
-      ...part,
-      tracks: part.tracks.map((tr) => {
-        const v = [...tr.values];
-        if (tr.name === 'hips.position') {
-          for (let i = 0; i < v.length; i += 3) {
-            if (correction) [v[i], v[i + 2]] = turn(v[i], v[i + 2], o.turn).map(r3);
-            else [v[i], v[i + 2]] = place(v[i], v[i + 2]);
-          }
-        } else if (tr.name === 'hips.quaternion' && !correction) {
-          for (let i = 0; i < v.length; i += 4) {
-            const [x, y, z, w] = v.slice(i, i + 4);
-            v.splice(i, 4, qc * x + qs * z, qc * y + qs * w, qc * z - qs * x, qc * w - qs * y);
-          }
-        } else return tr;
-        return { ...tr, values: v };
-      }),
-    })),
-  });
   const actions = a.actions.map((x): Action => {
     if (!x.roles.every((r) => ids.has(r.figure))) return x;
     const roles = x.roles.map((r) => (r.end ? { ...r, end: move(r.end) } : r));
     const target = x.target && 'at' in x.target ? { target: { at: place(...x.target.at) } } : {};
     const src = x.source;
-    const source: ActionSource = src.kind === 'keys' ? { kind: 'keys', clip: tracks(src.clip, x.layer === 'correction') }
+    const source: ActionSource = src.kind === 'keys' ? { kind: 'keys', clip: placeClip(src.clip, o.turn, place, x.layer === 'correction') }
       : src.kind === 'travel' && src.via ? { ...src, via: src.via.map(move) } : src;
     return { ...x, roles, source, ...target };
   });
