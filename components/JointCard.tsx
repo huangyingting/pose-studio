@@ -49,6 +49,12 @@ export default function JointCard({ store, figure, joint, value, limits, onScree
     return () => cancelAnimationFrame(raf);
   }, [onScreen]);
 
+  /** From the keyboard (Enter or Space on − or +): one step (Shift: three). */
+  const keyStep = (axis: number, by: number) => (e: React.MouseEvent) => {
+    if (e.detail !== 0) return;
+    stepJoint(store, figure, joint, axis, by * STEPS.joint * (e.shiftKey ? 3 : 1));
+  };
+
   /** A − or + held down: a step at once, then more while it is held. */
   const stepper = (axis: number, by: number) => (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -96,7 +102,7 @@ export default function JointCard({ store, figure, joint, value, limits, onScree
           return (
             <div key={axis} className={`joint-card-row axis-${'xyz'[axis]}`}>
               <span className="joint-card-name">{name}</span>
-              <button type="button" className="joint-card-step" aria-label={`${name} −5°`} data-tip="−5° (Shift: 15°; hold for more)" onPointerDown={stepper(axis, -1)}>
+              <button type="button" className="joint-card-step" aria-label={`${name} −5°`} data-tip="−5° (Shift: 15°; hold for more)" onPointerDown={stepper(axis, -1)} onClick={keyStep(axis, -1)}>
                 <Minus size={12} aria-hidden />
               </button>
               {typing === axis ? (
@@ -119,7 +125,7 @@ export default function JointCard({ store, figure, joint, value, limits, onScree
                   {Math.round(value[axis])}°
                 </button>
               )}
-              <button type="button" className="joint-card-step" aria-label={`${name} +5°`} data-tip="+5° (Shift: 15°; hold for more)" onPointerDown={stepper(axis, 1)}>
+              <button type="button" className="joint-card-step" aria-label={`${name} +5°`} data-tip="+5° (Shift: 15°; hold for more)" onPointerDown={stepper(axis, 1)} onClick={keyStep(axis, 1)}>
                 <Plus size={12} aria-hidden />
               </button>
             </div>

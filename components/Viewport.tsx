@@ -40,7 +40,7 @@ export interface ViewportApi {
   editorCamera(): CameraView;
   /** Where a figure's pelvis currently is (including auto-grounding). */
   rootPosition(figure: string): Vec3 | null;
-  /** Screen (client) coordinates of a joint, for tests and tooling. */
+  /** Screen (client) coordinates of a joint (null: not drawn, or behind the view), for the joint's card, tests and tooling. */
   project(figure: string, joint: JointName): { x: number; y: number } | null;
   /** Screen (client) coordinates of a world point. */
   projectPoint(p: Vec3): { x: number; y: number };
@@ -846,7 +846,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       rootPosition: (id) => sv.figures.get(id)?.read().position ?? null,
       project: (id, joint) => {
         const m = sv.figures.get(id);
-        return m ? toScreen(m.joints[joint].getWorldPosition(new THREE.Vector3())) : null;
+        const p = m?.joints[joint].getWorldPosition(new THREE.Vector3());
+        // (Behind the view: not on screen.)
+        return p && p.clone().project(camera).z <= 1 ? toScreen(p) : null;
       },
       projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
       captureShot: () => captureRef.current(),
