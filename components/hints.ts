@@ -38,24 +38,17 @@ export function useCanvasPointer() {
 const part = (j: JointName) => JOINT_LABELS[j].toLowerCase();
 
 /** On a figure's body: what a drag of the torso, a hand or foot, or another part does. */
-export function bodyHint(name: string, kind: 'body' | 'end' | 'swing', joint?: JointName) {
-  if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn ${name} · Right-click: more`;
+export function bodyHint(name: string, kind: 'body' | 'pelvis' | 'end' | 'swing', joint?: JointName) {
+  if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn ${name} · Y, X or Z with ← →: turn, lean · Right-click: more`;
+  if (kind === 'pelvis') return `Drag: the hips (squat, shift), the feet stay planted · Shift-drag: turn the body · Double-click: all of ${name}`;
   const p = part(joint!);
-  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll it · Click: select it (arcs to turn it)`;
-  return `Drag: swing the ${p} · Shift-drag: twist it · X, Y or Z held: one slider · Click: select it (arcs to turn it)`;
+  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll it · X, Y or Z with ← →: 5° · Double-click: all of ${name}`;
+  return `Drag: swing the ${p} (Ctrl: 5° steps) · Shift-drag: twist it · X, Y or Z held: one slider (with ← →: 5°) · Double-click: all of ${name}`;
 }
 
 export const propHint = (name: string, held: boolean) => (held
   ? `Drag: move ${name} and the hand holding it · Shift-drag: turn the hand · Right-click: more`
   : `Drag: move ${name} · Shift-drag: turn it · Right-click: more`);
-
-/** The coloured dots: hands and feet (IK), the hips, and the elbows and knees. */
-export function dotHint(id: string) {
-  if (id === 'hips') return 'Purple dot: drag to raise, lower or shift the hips; the feet stay planted';
-  if (/Hand$/.test(id)) return `Orange dot: drag to put the ${id.startsWith('left') ? 'left' : 'right'} hand there, the arm follows`;
-  if (/Foot$/.test(id)) return `Green dot: drag to put the ${id.startsWith('left') ? 'left' : 'right'} foot there, the leg follows`;
-  return `Pale dot: drag to point the ${/Arm$/.test(id) ? 'elbow' : 'knee'}, the limb turns about its own line`;
-}
 
 export const ringHint = (name: string) => `Drag the ring: turn ${name} · Ctrl: 15° steps`;
 export const cameraHint = (name: string, rig = false) => (rig

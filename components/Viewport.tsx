@@ -21,7 +21,7 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { Figure, JointName, Light, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText } from './Manipulators';
+import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText } from './Manipulators';
 import type { Contact } from '@/lib/relations';
 import TurnButtons from './TurnButtons';
 import JointCard from './JointCard';
@@ -175,6 +175,15 @@ export default function Viewport({
       store.select({ kind: 'figure', figure: o.userData.figure as string });
     } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
   };
+  /** A double-click on a figure: all of it (it moves when dragged; Y, X or Z with ← → turn and lean it). */
+  const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (e.delta > 4 || e.nativeEvent.shiftKey || e.nativeEvent.altKey) return;
+    let o: THREE.Object3D | null = e.object;
+    while (o && !o.userData.joint && !o.userData.prop) o = o.parent;
+    if (!o?.userData.figure) return;
+    e.stopPropagation();
+    store.select({ kind: 'figure', figure: o.userData.figure as string });
+  };
 
   // The gizmo is for the explicit tools: Move (W: a whole figure or a prop, also up and down) and
   // Scale (R: props). Joints are posed by dragging the body (Ctrl: 5° steps; Shift-drag twists), by
@@ -233,8 +242,6 @@ export default function Viewport({
     }
   }
 
-  const active = activeFigure ? sv.figures.get(activeFigure) : undefined;
-  const activeDoc = activeFigure ? figureDoc(activeFigure) : undefined;
 
   return (
     <div
@@ -323,7 +330,7 @@ export default function Viewport({
             position={[0, 0.0005, 0]}
           />
         )}
-        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} />
+        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} onDoubleClick={handleDoubleClick} />
         <GizmoWarmup />
         {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * settings.gizmoSize * (coarse ? 1.3 : 1)} />}
         {target && !shotMode && (
@@ -347,19 +354,6 @@ export default function Viewport({
               onGizmoChange();
               if (gizmoFrom.current) readout(gizmoFrom.current);
             }}
-          />
-        )}
-        {/* (Not while a prop or a camera is what is selected: one target at a time.) */}
-        {handles && active && activeDoc && !activeDoc.proxy && selection?.kind !== 'prop' && selection?.kind !== 'camera' && selection?.kind !== 'light' && selection?.kind !== 'many' && (
-          <IKHandles
-            key={`${activeDoc.id}:${version}`}
-            m={active}
-            figure={activeDoc}
-            limits={settings.limits}
-            onCommit={(read) => store.updateFigure(activeDoc.id, (f) => ({ ...f, ...read }), 'ik')}
-            sv={sv}
-            scene={scene}
-            store={store}
           />
         )}
         {handles && (

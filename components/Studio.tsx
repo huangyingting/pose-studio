@@ -280,8 +280,9 @@ function App() {
     });
   }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store]);
 
-  // Whether the keyboard (Tab), not the pointer, last moved the focus.
+  // Whether the keyboard (Tab), not the pointer, last moved the focus; whether the canvas was last clicked.
   const tabbing = useRef(false);
+  const onCanvas = useRef(false);
   // Keyboard shortcuts: the command a key is bound to, on the selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -302,7 +303,7 @@ function App() {
         || (tabbing.current && el.closest?.('button, [role="button"]')))) return;
       // Tab goes from thing to thing only with the focus on the canvas (last clicked, nothing focused);
       // elsewhere, and before the canvas is clicked, it moves the focus.
-      if (e.key === 'Tab' && (el !== document.body || !onCanvas)) return;
+      if (e.key === 'Tab' && (el !== document.body || !onCanvas.current)) return;
       if (pick && e.key === 'Escape') {
         e.preventDefault();
         setPick(null);
@@ -320,12 +321,11 @@ function App() {
       cmd.run!(c);
     };
     let inPanel = false;
-    let onCanvas = false;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Element;
       tabbing.current = false;
       inPanel = !!t.closest?.('aside');
-      onCanvas = t instanceof HTMLCanvasElement && !!t.closest('.stage');
+      onCanvas.current = t instanceof HTMLCanvasElement && !!t.closest('.stage');
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown, true);
@@ -469,9 +469,9 @@ function App() {
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}
-            // (A part selected with the handles hidden: its card, and the dots, are hidden too.)
+            // (A part selected with the handles hidden: its card is hidden too.)
             alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
-              ? `The drag handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Drag handles) for the joint's card and the dots`
+              ? `The handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Handles) for the joint's card`
               : null}
           />
         </div>

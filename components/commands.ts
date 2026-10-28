@@ -40,6 +40,7 @@ import { placingFigure, placingProp, type Placing } from './placing';
 import type { CanvasHit } from './Viewport';
 import { rigAngle, rigPitch, stepRig } from './CameraHandles';
 import { flashReadout, metres, sliderText, viaPointer } from './hints';
+import { heldAxis } from './modifiers';
 
 /*
  * Every operation, written once: its title, icon, keys, when it applies and what it does. Key
@@ -262,14 +263,14 @@ const goTo = (c: Ctx, kind: Travel, opts: { strafe?: boolean } = {}) => {
 /* ---------------- steps from the keyboard ---------------- */
 
 const STEP_KEYS = [
-  { id: 'left', key: 'arrowleft', title: 'Step left', help: 'Move what is selected left (a joint: the other side)' },
-  { id: 'right', key: 'arrowright', title: 'Step right', help: 'Move what is selected right' },
+  { id: 'left', key: 'arrowleft', title: 'Step left', help: 'Move what is selected left (a joint: the other side; X, Y or Z held: that slider down)' },
+  { id: 'right', key: 'arrowright', title: 'Step right', help: 'Move what is selected right (a joint, X, Y or Z held: that slider up)' },
   { id: 'up', key: 'arrowup', title: 'Step away', help: 'Move what is selected away (a camera: in)' },
   { id: 'down', key: 'arrowdown', title: 'Step nearer', help: 'Move what is selected nearer (a camera: out)' },
-  { id: 'turnLeft', key: 'alt+arrowleft', title: 'Turn left', help: 'Turn what is selected left (a joint: its slider down)' },
-  { id: 'turnRight', key: 'alt+arrowright', title: 'Turn right', help: 'Turn what is selected right (a joint: its slider up)' },
-  { id: 'turnUp', key: 'alt+arrowup', title: 'Tilt up', help: 'Tilt a camera up, raise a rig camera (a joint: the slider before)' },
-  { id: 'turnDown', key: 'alt+arrowdown', title: 'Tilt down', help: 'Tilt a camera down, lower a rig camera (a joint: the next slider)' },
+  { id: 'turnLeft', key: 'alt+arrowleft', title: 'Turn left', help: 'Turn what is selected left' },
+  { id: 'turnRight', key: 'alt+arrowright', title: 'Turn right', help: 'Turn what is selected right' },
+  { id: 'turnUp', key: 'alt+arrowup', title: 'Tilt up', help: 'Tilt a camera up, raise a rig camera' },
+  { id: 'turnDown', key: 'alt+arrowdown', title: 'Tilt down', help: 'Tilt a camera down, lower a rig camera' },
   { id: 'raise', key: 'pageup', title: 'Raise', help: 'Raise what is selected (a rig camera: a closer shot; the light: higher)' },
   { id: 'lower', key: 'pagedown', title: 'Lower', help: 'Lower what is selected (a rig camera: a wider shot; the light: lower)' },
 ] as const;
@@ -277,8 +278,6 @@ type StepKey = (typeof STEP_KEYS)[number]['id'];
 
 /** How far one step goes: metres and degrees (Shift: three steps). */
 const STEP = { move: 0.05, turn: 15, joint: 5, pan: 5, height: 5 };
-/** The slider of the selected joint that Alt + ← → turn (Alt + ↑ ↓ change it). */
-let slider = 0;
 
 /** What a step key acts on here, if anything: the camera looked through first, else the selection. */
 function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'camera' | 'rig' | 'light' | 'joint'; id?: string } | null {
@@ -288,7 +287,8 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
     const cam = through.camera ? cameraById(sceneOf(c), through.camera) : liveCamera(sceneOf(c), s.getState().time);
     return cam ? { kind: cam.kind === 'rig' ? 'rig' : 'camera', id: cam.id } : null;
   }
-  if (c.joint) return k.startsWith('turn') ? { kind: 'joint' } : null;
+  // A joint: X, Y or Z held with ← → steps that slider (the arrows alone go to another joint).
+  if (c.joint) return heldAxis() !== undefined && (k === 'left' || k === 'right') ? { kind: 'joint' } : null;
   if (c.many) return k === 'turnUp' || k === 'turnDown' || k === 'raise' || k === 'lower' ? null : { kind: 'many' };
   if (c.figure) return k === 'turnUp' || k === 'turnDown' || ((k === 'raise' || k === 'lower') && figureOf(c)?.grounded !== false) ? null : { kind: 'figure', id: c.figure };
   if (c.prop) return k === 'turnUp' || k === 'turnDown' || propNow(s, c.prop)?.hold ? null : { kind: 'prop', id: c.prop };
@@ -322,12 +322,22 @@ function step(c: Ctx, k: StepKey) {
   const name = (id?: string) => sceneOf(c).figures.find((f) => f.id === id)?.name ?? sceneOf(c).props.find((p) => p.id === id)?.name ?? sceneOf(c).cameras.find((x) => x.id === id)?.name ?? '';
   const where = (p: Vec3) => `X ${metres(p[0])}  Z ${metres(p[2])}${p[1] > 0.005 ? `  ↑ ${metres(p[1])}` : ''}`;
   switch (at.kind) {
-    case 'figure':
+    case 'figure': {
+      // X, Y or Z held with ← →: lean it forward or back, turn it, lean it to the side.
+      const axis = sx && !sy ? heldAxis() : undefined;
+      if (axis !== undefined) {
+        if (axis === 1) turnFigure(s, at.id!, -sx * STEP.joint * n);
+        else stepJoint(s, at.id!, 'hips', axis, sx * STEP.joint * n);
+        const f = figureOf({ store: s, figure: at.id })!;
+        flashReadout(`${name(at.id)} · ${axis === 1 ? `faces ${Math.round(facing(f))}°` : sliderText('hips', axis, angle(f.bones, 'hips')[axis])}`);
+        break;
+      }
       if (moving) stepFigure(s, at.id!, dx, dz);
       else if (lift) stepFigure(s, at.id!, 0, 0, sy * STEP.move * n);
       else turnFigure(s, at.id!, -sx * STEP.turn * n);
       flashReadout(`${name(at.id)} · ${k.startsWith('turn') ? `faces ${Math.round(facing(figureOf({ store: s, figure: at.id })!))}°` : where(figureOf({ store: s, figure: at.id })!.position)}`);
       break;
+    }
     case 'prop':
       if (moving) stepProp(s, at.id!, dx, dz);
       else if (lift) stepProp(s, at.id!, 0, 0, sy * STEP.move * n);
@@ -340,14 +350,9 @@ function step(c: Ctx, k: StepKey) {
       flashReadout(moving ? `Moved ${metres(Math.hypot(dx, dz))} m` : `Turned ${-sx * STEP.turn * n}°`);
       break;
     case 'joint': {
-      if (sy) {
-        slider = (slider + (sy > 0 ? 2 : 1)) % 3;
-        const v = angle(figureOf(c)!.bones, c.joint!)[slider];
-        flashReadout(sliderText(c.joint!, slider, v));
-        break;
-      }
-      const v = stepJoint(s, c.figure!, c.joint!, slider, sx * STEP.joint * n);
-      if (v !== null) flashReadout(sliderText(c.joint!, slider, v));
+      const axis = heldAxis() ?? 0;
+      const v = stepJoint(s, c.figure!, c.joint!, axis, sx * STEP.joint * n);
+      if (v !== null) flashReadout(sliderText(c.joint!, axis, v));
       break;
     }
     case 'camera':
@@ -449,10 +454,10 @@ export function stepHint(c: Ctx): string | null {
   // (Under the Pose tool the Move gizmo is a key away.)
   const tool = c.store.getState().settings.gizmo === 'rotate' ? 'W: move tool · ' : '';
   switch (at?.kind) {
-    case 'figure': return `${tool}← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
+    case 'figure': return `${tool}← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15° · Y, X, Z with ← →: turn, lean 5°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
     case 'prop': return `${tool}← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
     case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${c.many?.figures.length ? whole : ''}${shift}`;
-    case 'joint': return `Alt ← →: its slider −/+ 5° · Alt ↑ ↓: Bend, Twist, Side · ↑ ↓ ← →: another joint${shift}`;
+    case 'joint': return `X, Y or Z with ← →: Bend, Twist, Side −/+ 5° · ↑ ↓ ← →: another joint · Double-click: the whole figure${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
     case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
     case 'light': return `← →: round 15° · Page Up / Down: higher, lower${shift}`;
@@ -535,7 +540,7 @@ export const COMMANDS: Command[] = [
       ];
     },
   },
-  { id: 'view.handles', title: 'Drag handles', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
+  { id: 'view.handles', title: 'Handles', help: 'Show the handles: a joint’s card, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
   { id: 'view.grid', title: 'Floor grid', checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
   { id: 'view.onion', title: 'Onion skin (the keys either side)', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
   { id: 'view.guides', title: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
@@ -1346,7 +1351,8 @@ export const SELECTION_KEYS: [string, string][] = [
   ['A figure, a prop, several things: move 5 cm the way the screen shows · turn 15°', '← → ↑ ↓ · Alt ← →'],
   ['A prop (or a figure off the floor): raise · lower', 'Page Up · Page Down'],
   ['A figure: move · turn all it does (no key)', 'Ctrl ← → ↑ ↓ · Ctrl Alt ← →'],
-  ['A joint: another joint · its slider 5° · another slider', '← → ↑ ↓ · Alt ← → · Alt ↑ ↓'],
+  ['A joint: another joint · Bend, Twist, Side 5°', '← → ↑ ↓ · X, Y or Z with ← →'],
+  ['All of a figure (double-click it): turn · lean forward, sideways 5°', 'Y with ← → · X or Z with ← →'],
   ['A path camera: across, in and out · up and down · pan, tilt', '← → ↑ ↓ · Page Up / Down · Alt + arrows'],
   ['A rig camera: round its subject · its height · closer, wider', '← → · Alt ↑ ↓ · Page Up / Down'],
   ['The light: round · higher, lower', '← → · Page Up / Down'],

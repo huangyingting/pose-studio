@@ -12,14 +12,14 @@ import { HOLDABLE } from '@/lib/hold';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
-import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
+import { IK_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
 import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import { JOINTS, type Figure, type JointName, type Scene, type Vec3 } from '@/lib/types';
 import { jointLimits, wrapDeg } from '@/lib/joints';
 import { openContextMenu } from './ContextMenu';
-import { bodyHint, dotHint, jointText, limitText, metres, movedText, propHint, ringHint, setPointerHint, setReadout, sliderText, turnedText } from './hints';
-import { STEPS, fine, snap, snapping } from './modifiers';
+import { bodyHint, jointText, limitText, metres, movedText, propHint, ringHint, setPointerHint, setReadout, sliderText, turnedText } from './hints';
+import { STEPS, fine, heldAxis, lockOf, snap, snapping } from './modifiers';
 
 /*
  * Direct manipulation on the canvas. The things themselves are the handles:
@@ -33,7 +33,6 @@ import { STEPS, fine, snap, snapping } from './modifiers';
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
 const DRAG_PX = 4;
-const TORSO: readonly JointName[] = ['hips', 'spine', 'chest'];
 const ENDS: Partial<Record<JointName, keyof typeof IK_CHAINS>> = { leftHand: 'leftHand', rightHand: 'rightHand', leftFoot: 'leftFoot', rightFoot: 'rightFoot' };
 
 type Controls = { enabled: boolean } | null;
@@ -218,17 +217,6 @@ function sliderDrag(m: Mannequin, joint: JointName, axis: number, grab: THREE.Ve
   };
 }
 
-/** Keys held now: X, Y or Z held as a part is dragged turns only that slider (1, 2 or 3 pressed during the drag, too). */
-const held = new Set<string>();
-if (typeof window !== 'undefined') {
-  // (On macOS a key let go while Cmd is down sends no keyup: a key pressed with Cmd is not counted
-  // (Cmd+Z), and Cmd coming up forgets what was held. Ctrl lets keys go normally: Ctrl then X locks X.)
-  window.addEventListener('keydown', (e) => { if (!e.metaKey) held.add(e.key.toLowerCase()); });
-  window.addEventListener('keyup', (e) => { if (e.key === 'Meta') held.clear(); else held.delete(e.key.toLowerCase()); });
-  window.addEventListener('blur', () => held.clear());
-}
-const LOCKS: Record<string, number> = { x: 0, y: 1, z: 2, '1': 0, '2': 1, '3': 2 };
-const heldAxis = () => ['x', 'y', 'z'].filter((k) => held.has(k)).map((k) => LOCKS[k])[0];
 
 type Plan = { begin(): void; move(ray: THREE.Ray, dx: number, dy: number, e: PointerEvent): void; end(): void; cursor: string };
 
@@ -237,6 +225,7 @@ type Target =
   | { kind: 'prop'; prop: string }
   | { kind: 'held'; prop: string; figure: string; wrist: 'leftHand' | 'rightHand' }
   | { kind: 'body'; figure: string }
+  | { kind: 'pelvis'; figure: string }
   | { kind: 'end' | 'swing'; figure: string; joint: JointName };
 
 /** Degrees per pixel when Shift-dragging to twist or turn. */
@@ -247,16 +236,17 @@ const TWIST = 0.5;
  * figure or prop). What a drag would move is tinted under the pointer. Pressing starts nothing
  * until the pointer moves a few pixels, so a click still selects and the gizmo keeps its drags.
  */
-export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, onClick }: {
+export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, onClick, onDoubleClick }: {
   sv: SceneView;
   store: Store;
   scene: Scene;
   limits: boolean;
-  /** Whether the drag handles (a joint's card, the dots) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
+  /** Whether the handles (a joint's card, the floor rings) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
   onClick(e: ThreeEvent<MouseEvent>): void;
+  onDoubleClick(e: ThreeEvent<MouseEvent>): void;
 }) {
   const pointer = usePointer();
 
@@ -272,7 +262,11 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     }
     const figure = o.userData.figure as string;
     const joint = o.userData.joint as JointName;
-    if (scene.figures.find((f) => f.id === figure)?.proxy || TORSO.includes(joint)) return { kind: 'body', figure };
+    // The whole figure (a stand-in, or it selected by a double-click, or among several): it moves.
+    const sel = store.getState().selection;
+    if (scene.figures.find((f) => f.id === figure)?.proxy || (sel?.kind === 'figure' && sel.figure === figure) || (sel?.kind === 'many' && sel.figures.includes(figure))) return { kind: 'body', figure };
+    // The hips: the body moves on the legs, the feet planted; the rest turns at its joint.
+    if (joint === 'hips') return { kind: 'pelvis', figure };
     return { kind: ENDS[joint] ? 'end' : 'swing', figure, joint };
   };
 
@@ -282,7 +276,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     const m = sv.figures.get(t.figure);
     if (!m) return null;
     if (t.kind === 'held') return { prop: t.prop, figure: t.figure, joints: m.jointsUnder(twist ? t.wrist : IK_CHAINS[t.wrist][0]) };
-    if (t.kind === 'body') return { figure: t.figure };
+    if (t.kind === 'body' || t.kind === 'pelvis') return { figure: t.figure };
     return { figure: t.figure, joints: m.jointsUnder(t.kind === 'end' && !twist ? IK_CHAINS[ENDS[t.joint]!][0] : t.joint) };
   };
 
@@ -388,7 +382,37 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
       };
     }
 
-    const joint = t.kind === 'held' ? t.wrist : t.joint;
+    if (t.kind === 'pelvis' && !twist && axis === undefined) {
+      // The hips moved (lowered into a squat, shifted, raised): the feet stay where they are.
+      const root = m.joints.hips;
+      const plane = facingPlane;
+      const rootStart = root.position.clone();
+      const feet = (['leftFoot', 'rightFoot'] as const).map((f) => ({ id: f, pos: m.joints[f].getWorldPosition(new THREE.Vector3()), q: m.joints[f].getWorldQuaternion(new THREE.Quaternion()) }));
+      const plant = () => {
+        m.object.updateMatrixWorld(true);
+        for (const f of feet) m.solveIK(IK_CHAINS[f.id], f.pos, f.q, limits);
+      };
+      return {
+        cursor: 'grabbing',
+        begin: () => { m.setGroundLock(true); store.select({ kind: 'joint', figure: t.figure, joint: 'hips' }); },
+        move: (ray) => {
+          const h = hit(ray, plane);
+          if (!h) return;
+          root.position.copy(rootStart).add(h.sub(point));
+          plant();
+          // The hips go down only until the body meets the floor.
+          const below = m.lowest();
+          if (below < 0) {
+            root.position.setY(root.position.y - below);
+            plant();
+          }
+          setReadout(`Pelvis ${metres(root.getWorldPosition(new THREE.Vector3()).y)} m high`);
+        },
+        end: commit,
+      };
+    }
+
+    const joint = t.kind === 'held' ? t.wrist : t.kind === 'pelvis' ? 'hips' : t.joint;
     const select = () => store.select(t.kind === 'held' ? { kind: 'prop', prop: t.prop } : { kind: 'joint', figure: t.figure, joint });
 
     if (axis !== undefined && t.kind !== 'held') {
@@ -490,7 +514,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0 || e.altKey) return;
-    // Handles drawn over the body (the IK dots) take precedence.
+    // Handles drawn over the body (the light's lamp) take precedence.
     if (e.intersections.some((i) => i.object.userData.handle)) return;
     const o = tagged(e.object);
     const t = o && target(o);
@@ -509,7 +533,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     const m = t.kind === 'end' || t.kind === 'swing' ? sv.figures.get(t.figure) : undefined;
     const pose = m ? JOINTS.map((j) => m.joints[j].quaternion.clone()) : [];
     const lockKey = (ev: KeyboardEvent) => {
-      const axis = LOCKS[ev.key.toLowerCase()];
+      const axis = lockOf(ev.key);
       if (!m || axis === undefined || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       ev.preventDefault();
       ev.stopPropagation();
@@ -561,8 +585,8 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     const name = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? scene.props.find((p) => p.id === id)?.name ?? '';
     if (t.kind === 'prop' || t.kind === 'held') setPointerHint(propHint(name(t.prop), t.kind === 'held'));
     else {
-      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint);
-      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Drag handles hidden: H shows the card`);
+      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint);
+      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the card`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };
@@ -571,6 +595,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     <primitive
       object={sv.root}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerOut={(e: ThreeEvent<PointerEvent>) => {
@@ -740,171 +765,6 @@ export function PropRing({ sv, id, version, onTurn }: { sv: SceneView; id: strin
   );
 }
 
-type HandleId = 'leftHand' | 'rightHand' | 'leftFoot' | 'rightFoot' | 'hips' | 'leftLowerArm' | 'rightLowerArm' | 'leftLowerLeg' | 'rightLowerLeg';
-
-/** Size on the body (r, metres for a 1.8 m figure): they scale with the model, as the gizmo and the floor rings do; grabbed within twice that. */
-const HANDLES: { id: HandleId; color: string; r: number }[] = [
-  { id: 'leftHand', color: '#f97316', r: 0.034 },
-  { id: 'rightHand', color: '#f97316', r: 0.034 },
-  { id: 'leftFoot', color: '#10b981', r: 0.038 },
-  { id: 'rightFoot', color: '#10b981', r: 0.038 },
-  { id: 'hips', color: '#8b5cf6', r: 0.045 },
-  { id: 'leftLowerArm', color: '#fdba74', r: 0.024 },
-  { id: 'rightLowerArm', color: '#fdba74', r: 0.024 },
-  { id: 'leftLowerLeg', color: '#6ee7b7', r: 0.026 },
-  { id: 'rightLowerLeg', color: '#6ee7b7', r: 0.026 },
-];
-
-const isPole = (id: HandleId): id is keyof typeof POLE_CHAINS => id in POLE_CHAINS;
-
-interface Drag {
-  id: HandleId;
-  plane: THREE.Plane;
-  grab: THREE.Vector3;
-  start: THREE.Vector3;
-  rootStart: THREE.Vector3;
-  endQ: THREE.Quaternion;
-  feet: { id: 'leftFoot' | 'rightFoot'; pos: THREE.Vector3; q: THREE.Quaternion }[];
-}
-
-/**
- * Draggable dots: hands/feet move with two-bone IK, the hips move the body while the feet
- * stay planted, and the small elbow/knee dots swing the limb around its own axis. They keep a
- * minimum size on screen, and each has a larger invisible area to grab.
- */
-export function IKHandles({ m, figure, limits, onCommit, sv, scene, store }: {
-  m: Mannequin;
-  figure: Figure;
-  limits: boolean;
-  onCommit(read: Pick<Figure, 'bones' | 'position'>): void;
-  /** (For a hand let go on someone: it holds on there.) */
-  sv: SceneView;
-  scene: Scene;
-  store: Store;
-}) {
-  const refs = useRef<Partial<Record<HandleId, THREE.Group | null>>>({});
-  const hovered = useRef<HandleId | null>(null);
-  const drag = useRef<Drag | null>(null);
-  const readout = useRef<(() => void) | null>(null);
-  const onto = useRef<ReturnType<typeof holdTarget>>(null);
-  const camera = useThree((s) => s.camera);
-  const pointer = usePointer();
-  const scale = figure.body.height / 1.8;
-
-  useFrame(() => {
-    for (const h of HANDLES) {
-      const g = refs.current[h.id];
-      if (!g) continue;
-      m.joints[h.id].getWorldPosition(g.position);
-      const r = h.r * scale * (hovered.current === h.id || drag.current?.id === h.id ? 1.3 : 1);
-      g.children[0].scale.setScalar(r);
-      g.children[1].scale.setScalar(r * 2);
-    }
-  });
-
-  const down = (id: HandleId) => (e: ThreeEvent<PointerEvent>) => {
-    if (e.button !== 0 || e.altKey) return;
-    e.stopPropagation();
-    const start = m.joints[id].getWorldPosition(new THREE.Vector3());
-    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), start);
-    const hit = e.ray.intersectPlane(plane, new THREE.Vector3());
-    if (!hit) return;
-    (e.target as Element).setPointerCapture(e.pointerId);
-    const endJoint: JointName = isPole(id) ? POLE_CHAINS[id][2] : id;
-    drag.current = {
-      id,
-      plane,
-      start,
-      grab: start.clone().sub(hit),
-      rootStart: m.joints.hips.position.clone(),
-      endQ: m.joints[endJoint].getWorldQuaternion(new THREE.Quaternion()),
-      feet: (['leftFoot', 'rightFoot'] as const).map((f) => ({
-        id: f,
-        pos: m.joints[f].getWorldPosition(new THREE.Vector3()),
-        q: m.joints[f].getWorldQuaternion(new THREE.Quaternion()),
-      })),
-    };
-    m.setGroundLock(true);
-    pointer.orbit(false);
-    // The readout: the pelvis's height; else the elbow or knee the dot bends (an elbow or knee dot: the limb's roll).
-    readout.current = id === 'hips'
-      ? () => setReadout(`Pelvis ${metres(m.joints.hips.getWorldPosition(new THREE.Vector3()).y)} m high`)
-      : jointReadout(m, isPole(id) ? POLE_CHAINS[id][0] : IK_CHAINS[id][1]);
-  };
-
-  const move = (e: ThreeEvent<PointerEvent>) => {
-    const d = drag.current;
-    if (!d) return;
-    e.stopPropagation();
-    const hit = e.ray.intersectPlane(d.plane, new THREE.Vector3());
-    if (!hit) return;
-    onto.current = d.id === 'leftHand' || d.id === 'rightHand' ? holdTarget(sv, scene, figure.id, e.ray) : null;
-    const target = onto.current ? onto.current.at.clone() : hit.add(d.grab);
-    if (d.id === 'hips') {
-      const root = m.joints.hips;
-      const plant = () => {
-        m.object.updateMatrixWorld(true);
-        for (const f of d.feet) m.solveIK(IK_CHAINS[f.id], f.pos, f.q, limits);
-      };
-      root.position.copy(d.rootStart).add(target.sub(d.start));
-      plant();
-      // The hips can go down only until the body meets the floor.
-      const below = m.lowest();
-      if (below < 0) {
-        root.position.setY(root.position.y - below);
-        plant();
-      }
-    } else if (isPole(d.id)) {
-      const obj = m.joints[POLE_CHAINS[d.id][0]];
-      keepAboveFloor(m, obj, () => m.swivel(POLE_CHAINS[d.id as keyof typeof POLE_CHAINS], target, d.endQ, limits), POLE_CHAINS[d.id]);
-    } else {
-      reachAboveFloor(m, IK_CHAINS[d.id as keyof typeof IK_CHAINS], target, d.endQ, limits);
-    }
-    readout.current?.();
-  };
-
-  const up = (e: ThreeEvent<PointerEvent>) => {
-    if (!drag.current) return;
-    (e.target as Element).releasePointerCapture(e.pointerId);
-    const hand = drag.current.id;
-    drag.current = null;
-    setReadout(null);
-    m.setGroundLock(false);
-    pointer.orbit(true);
-    const on = onto.current;
-    onto.current = null;
-    // (The pose and the hold: one undo step.)
-    store.group(() => {
-      onCommit(m.read());
-      if (on) letGoOn(store, scene, figure.id, hand, on);
-    });
-  };
-
-  return (
-    <>
-      {HANDLES.map((h) => (
-        <group
-          key={h.id}
-          name={`handle:${h.id}`}
-          ref={(el) => { refs.current[h.id] = el; }}
-          onPointerDown={down(h.id)}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerOver={() => { hovered.current = h.id; document.body.style.cursor = 'grab'; setPointerHint(dotHint(h.id)); }}
-          onPointerOut={() => { hovered.current = null; document.body.style.cursor = ''; setPointerHint(null); }}
-        >
-          <mesh renderOrder={10} userData={{ handle: true }}>
-            <sphereGeometry args={[1, 20, 14]} />
-            <meshBasicMaterial color={h.color} transparent opacity={0.88} depthTest={false} />
-          </mesh>
-          <mesh visible={false} userData={{ handle: true }}>
-            <sphereGeometry args={[1, 12, 8]} />
-          </mesh>
-        </group>
-      ))}
-    </>
-  );
-}
 
 /** A mark's facing arrow: a small triangle just beyond its ring (pointing along the floor's -y before it is laid down, i.e. +z). */
 const ARROW = new THREE.Shape([new THREE.Vector2(-0.06, -0.14), new THREE.Vector2(0.06, -0.14), new THREE.Vector2(0, -0.21)]);

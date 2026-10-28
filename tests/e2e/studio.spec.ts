@@ -342,8 +342,10 @@ test('figures and props move by dragging them and turn by their floor ring', asy
   const figure = async () => (await state(page)).scene.figures[0] as unknown as Placed;
   const before = await figure();
 
-  // Drag the torso: the figure moves on the floor, its pose unchanged.
+  // Double-click it (all of it), then drag it: the figure moves on the floor, its pose unchanged.
   const chest = await project(page, 'chest');
+  await page.mouse.dblclick(chest.x, chest.y - 20);
+  await expect.poll(async () => (await state(page)).selection).toMatchObject({ kind: 'figure' });
   await drag(page, { x: chest.x, y: chest.y - 20 }, { x: chest.x + 100, y: chest.y - 20 });
   let f = await figure();
   expect(f.position[0]).toBeGreaterThan(before.position[0] + 0.1);
