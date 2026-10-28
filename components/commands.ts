@@ -54,7 +54,7 @@ import { DIRECTOR_STYLES, coverageById } from '@/lib/coverage';
 export interface App {
   notify: Notify;
   notifyUndo(text: string): void;
-  dialog(d: 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette'): void;
+  dialog(d: 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start'): void;
   frameAll(): void;
   /** Frame what is selected (everything when nothing is). */
   frameSelected(): void;
@@ -480,6 +480,7 @@ export const COMMANDS: Command[] = [
   { id: 'app.undo', title: 'Undo', icon: Undo2, keys: ['mod+z'], enabled: (c) => c.store.getState().canUndo, run: (c) => c.store.undo() },
   { id: 'app.redo', title: 'Redo', icon: Redo2, keys: ['mod+shift+z', 'mod+y'], enabled: (c) => c.store.getState().canRedo, run: (c) => c.store.redo() },
   { id: 'app.save', title: 'Save project (.json)', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
+  { id: 'app.newFilm', title: 'New film…', help: 'A new scene that starts as a film: what you are filming and how long', icon: Clapperboard, run: () => App().dialog('start') },
   { id: 'app.import', title: 'Import scenes from a project…', icon: FileUp, run: () => App().openFile('append') },
   { id: 'app.open', title: 'Open project (replace)…', icon: FolderOpen, run: () => App().openFile('replace') },
   { id: 'app.export', title: 'Export', icon: Download, keys: ['mod+e'], run: () => App().dialog('export') },
@@ -932,7 +933,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'camera.delete', title: 'Delete', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.camera && c.at === undefined, enabled: (c) => sceneOf(c).cameras.length > 1,
-    run: (c) => { const cam = cameraById(sceneOf(c), c.camera); deleteCamera(c.store, c.camera!); if (cam) App().notifyUndo(`Deleted ${cam.name}`); },
+    run: (c) => { const cam = cameraById(sceneOf(c), c.camera); const byHand = deleteCamera(c.store, c.camera!); if (cam) App().notifyUndo(`Deleted ${cam.name}${byHand ? ': the director is off, cameras and cuts by hand from now on' : ''}`); },
   },
 
   // A scene of the project.
@@ -1278,7 +1279,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
 }
 
 export const MENUS = {
-  main: ['app.save', 'app.import', 'app.open', '-', 'app.project', 'app.practice', 'app.help', 'app.theme'],
+  main: ['app.newFilm', '-', 'app.save', 'app.import', 'app.open', '-', 'app.project', 'app.practice', 'app.help', 'app.theme'],
   view: [
     'view.frameAll', 'view.isolate', 'view.through',
     { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',

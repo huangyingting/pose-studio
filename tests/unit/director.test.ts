@@ -50,3 +50,42 @@ describe('the director (#14)', () => {
     expect(JSON.stringify(shots(store))).toBe(cuts);
   });
 });
+
+describe('a new film (#14)', () => {
+  it('starts from a result: a shoot preset or an empty scene, as long as asked, the director filming it', async () => {
+    const { startFilm } = await import('@/lib/actions');
+    const store = new Store(new MemoryStorage());
+    const scenes = store.getState().library.scenes.length;
+    expect(startFilm(store, { shoot: 'shoot-interview' }, 30)).toBe(true);
+    expect(store.getState().library.scenes.length).toBe(scenes + 1);
+    expect(store.scene.animation!.duration).toBe(30);
+    expect(store.scene.coverage).toMatchObject({ id: 'dialogue', live: true });
+    expect(store.scene.figures.length).toBeGreaterThanOrEqual(2);
+
+    expect(startFilm(store, {}, 15)).toBe(true);
+    expect(store.scene.animation!.duration).toBe(15);
+    expect(store.scene.coverage).toMatchObject({ id: 'follow', live: true });
+  });
+});
+
+describe('the director, by hand', () => {
+  it('a cut by hand in the first shot stays; a shot renamed keeps its name; a deleted camera of its own turns it off', async () => {
+    const { cutShot, editShot, deleteCamera, startFilm } = await import('@/lib/actions');
+    const store = new Store(new MemoryStorage());
+    startFilm(store, {}, 15);
+    const first = shots(store)[0];
+    store.setTime(Math.min(0.6, (shots(store)[1]?.start ?? 15) / 2));
+    cutShot(store);
+    const cut = shots(store).find((s) => Math.abs(s.start - store.getState().time) < 0.05);
+    expect(cut?.pinned).toBeGreaterThan(0);
+    expect(shots(store)[0].id).not.toBe(cut?.id);
+    void first;
+    const last = shots(store).at(-1)!;
+    editShot(store, last.id, { name: 'The end' });
+    expect(shots(store).find((s) => s.id === last.id)?.name).toBe('The end');
+    const made = store.scene.cameras.find((c) => c.made?.startsWith('follow:'))!;
+    expect(deleteCamera(store, made.id)).toBe(true);
+    expect(store.scene.coverage?.live).toBeUndefined();
+    expect(store.scene.cameras.some((c) => c.id === made.id)).toBe(false);
+  });
+});

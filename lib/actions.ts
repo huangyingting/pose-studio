@@ -16,7 +16,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretch
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { fitBody, modelInfo } from './model';
@@ -1174,9 +1174,17 @@ export function duplicateCamera(store: Store, id: string): string | null {
 }
 
 /** Remove a camera (not the scene's last): the shots it filmed are filmed by the first of the others. */
-export function deleteCamera(store: Store, id: string) {
-  store.updateScene((s) => removeCamera(s, id));
+export function deleteCamera(store: Store, id: string): boolean {
+  const s0 = store.scene;
+  const cam = cameraById(s0, id);
+  // One of the director's cameras deleted: the cameras and cuts are the user's from now on (By hand).
+  const takeOver = !!s0.coverage?.live && !!cam?.made?.startsWith(`${s0.coverage.id}:`);
+  store.updateScene((s) => {
+    const next = removeCamera(s, id);
+    return takeOver && next.coverage ? { ...next, coverage: { id: next.coverage.id, roles: next.coverage.roles } } : next;
+  });
   if (store.getState().selection?.kind === 'camera') store.select(null);
+  return takeOver;
 }
 
 /**
@@ -1193,7 +1201,9 @@ function cover(store: Store, id: string, roles?: Record<string, string>): Record
   if (!c) return null;
   if (!store.scene.animation) startAnimation(store, 4);
   const s = store.scene;
-  const cast = roles ?? (s.coverage?.id === id ? s.coverage.roles : castCoverage(s, c, store.getState().activeFigure ?? undefined));
+  // (The roles it had, if those figures are all still there; else cast again.)
+  const had = s.coverage?.id === id && c.roles.every((r) => s.figures.some((f) => f.id === s.coverage!.roles[r] && !f.hidden)) ? s.coverage.roles : null;
+  const cast = roles ?? had ?? castCoverage(s, c, store.getState().activeFigure ?? undefined);
   if (!cast || c.roles.some((r) => !s.figures.some((f) => f.id === cast[r])) || new Set(c.roles.map((r) => cast[r])).size < c.roles.length) return null;
   store.updateScene((x) => applyCoverage(x, id, cast as Record<'A', string>));
   return cast;
@@ -1217,8 +1227,10 @@ export function cutShot(store: Store) {
   const t = store.getState().time;
   store.updateScene((s) => {
     if (!s.animation) return s;
-    const a = cutAt(s.animation, snapTime(s.animation, t));
-    const made = a.shots.find((x) => !s.animation!.shots.some((y) => y.id === x.id));
+    const at = snapTime(s.animation, t);
+    const a = cutAt(s.animation, at);
+    // (The shot that starts at the cut: the one made.)
+    const made = a !== s.animation ? a.shots.find((x) => Math.abs(x.start - at) < 0.5 / a.fps) : undefined;
     return { ...s, animation: made ? pinShots(a, [made.id]) : a };
   });
 }
@@ -1397,6 +1409,28 @@ export function sceneFromTemplate(store: Store, id: string) {
   if (!t) return false;
   addScene(store, t.build());
   return true;
+}
+
+/**
+ * A new scene that is a film from the start (#14): empty, a template, or a shoot preset (a template
+ * and how to film it), `length` seconds long, filmed by the director (the preset's way, else one
+ * that suits who is in it). Whether it was made.
+ */
+export function startFilm(store: Store, what: { template?: string; shoot?: string }, length: number): boolean {
+  return store.group(() => {
+    if (what.shoot) {
+      if (!shoot(store, what.shoot)) return false;
+    } else if (what.template) {
+      if (!sceneFromTemplate(store, what.template)) return false;
+    } else addScene(store);
+    if (!store.scene.animation) startAnimation(store, length);
+    store.updateScene((s) => fitted(s, length));
+    const people = store.scene.figures.filter((f) => !f.hidden && !f.proxy).length;
+    const style = store.scene.coverage?.id ?? (people > 1 ? 'dialogue' : 'follow');
+    setDirector(store, style);
+    store.setTime(0);
+    return true;
+  });
 }
 
 /** A shoot preset (lib/templates.ts): its template as a new scene, filmed with its coverage. */

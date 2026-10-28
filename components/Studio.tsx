@@ -18,6 +18,7 @@ import { styleDef } from '@/lib/styles';
 import type { Scene, Vec3, View } from '@/lib/types';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog, ProjectSettingsDialog } from './dialogs';
+import { StartDialog } from './StartDialog';
 // Accounts, library sync and AI: the server edition only (null in the static build).
 import { Account, SaveState, ServerRoot } from '@edition/server';
 import SaveIndicator from './SaveIndicator';
@@ -78,7 +79,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette';
+type Dialog = null | 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start';
 
 function App() {
   const store = useStore();
@@ -570,6 +571,7 @@ function App() {
         />
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
+      {dialog === 'start' && <StartDialog onClose={() => setDialog(null)} notify={notify} />}
       {dialog === 'palette' && <CommandPalette onClose={() => setDialog(null)} ui={{ notify, notifyUndo }} />}
       {dialog === 'project' && <ProjectSettingsDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}

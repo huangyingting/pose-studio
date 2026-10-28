@@ -218,7 +218,7 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
  * coverage, that one's cameras go, except those edited by hand; cameras made otherwise are left
  * alone. Captions stay with shots that still start where they did.
  */
-export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRole, string> | Record<'A', string>): Scene {
+export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRole, string> | Record<'A', string>, director = false): Scene {
   const c = coverageById(id);
   const a = scene.animation;
   if (!c || !a || c.roles.some((r) => !(r in roles))) return scene;
@@ -250,7 +250,7 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   // after one the coverage's camera of the time comes back.
   // (Only the director, keeping its coverage live, keeps them: a coverage applied anew cuts it all
   // anew. A pinned shot whose camera has just gone is cut anew too.)
-  const keep = !!scene.coverage?.live && scene.coverage.id === id;
+  const keep = director && !!scene.coverage?.live && scene.coverage.id === id;
   const pins = shotSpans(a).filter((s) => keep && s.shot.pinned && cameras.some((x) => x.id === s.shot.camera)).map((s) => ({ shot: s.shot, start: s.start, end: Math.min(a.duration, s.start + s.shot.pinned!) }));
   const inPin = (t: number) => pins.some((p) => t >= p.start - 1e-6 && t < p.end - 1e-6);
   const cuts = cutsFor(scene, c, roles);
@@ -264,18 +264,23 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   let merged = [...pins.map((p) => p.shot), ...fresh].sort((p, q) => p.start - q.start);
   merged = merged.filter((s, i) => s.pinned || i === 0 || s.camera !== merged[i - 1].camera);
   merged = merged.filter((s, i) => s.pinned || i === 0 || (merged[i + 1]?.start ?? a.duration) - s.start >= MIN_SHOT);
-  // (A shot that still starts where one did keeps its id: what was selected stays so.)
-  const ids0 = new Map(a.shots.filter((s) => !s.pinned).map((s) => [Math.round(s.start * a.fps), s.id]));
+  // A shot that still starts where one did keeps what was given it: its id (what was selected stays
+  // so), a name of its own, its blend.
+  const was = new Map(a.shots.filter((s) => !s.pinned).map((s) => [Math.round(s.start * a.fps), s]));
+  const own = (name: string) => (name && !/^Shot \d+$/.test(name) ? name : '');
   const shots: Shot[] = merged.map((s0, i) => {
     // (Cut anew: no longer taken over.)
     const { pinned: _was, ...bare } = s0;
     void _was;
     const s: Shot = keep ? s0 : bare;
+    const before = s.pinned ? s : was.get(Math.round(s.start * a.fps));
     const caption = s.caption ?? captions.get(Math.round(s.start * a.fps));
-    const id = s.pinned ? s.id : i === 0 ? 'main' : (ids0.get(Math.round(s.start * a.fps)) ?? s.id);
-    return { ...s, id, ...(i === 0 ? { start: 0 } : {}), name: s.pinned && s.name ? s.name : `Shot ${i + 1}`, ...(caption ? { caption } : {}) };
+    const id = s.pinned ? s.id : i === 0 ? 'main' : (before?.id ?? s.id);
+    const blend = i > 0 ? before?.blend : undefined;
+    return { ...s, id, ...(i === 0 ? { start: 0 } : {}), name: own(before?.name ?? '') || `Shot ${i + 1}`, ...(caption ? { caption } : {}), ...(blend ? { blend } : {}) };
   });
-  return { ...scene, cameras, coverage: { id, roles: { ...roles }, ...(scene.coverage?.id === id && scene.coverage.live ? { live: true } : {}) }, animation: { ...a, shots } };
+  // (The director keeps its coverage live; applied from the Library, it is cut once, by hand after.)
+  return { ...scene, cameras, coverage: { id, roles: { ...roles }, ...(keep || (director && scene.coverage?.live) ? { live: true } : {}) }, animation: { ...a, shots } };
 }
 
 /**
@@ -287,7 +292,7 @@ export function directed(scene: Scene): Scene {
   const c = cv?.live && scene.animation ? coverageById(cv.id) : null;
   if (!c) return scene;
   const cast = c.roles.every((r) => scene.figures.some((f) => f.id === cv!.roles[r] && !f.hidden)) ? cv!.roles : castCoverage(scene, c);
-  return cast ? applyCoverage(scene, c.id, cast as Record<'A', string>) : scene;
+  return cast ? applyCoverage(scene, c.id, cast as Record<'A', string>, true) : scene;
 }
 
 /** Who plays a coverage's roles: A the given figure (else the first), B the one nearest A. */

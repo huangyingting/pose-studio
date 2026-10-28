@@ -576,6 +576,22 @@ export function clear(scene: Scene, figure: string, t0: number, t1: number): Ani
 }
 
 /**
+ * A scene's animation made `length` seconds long, keeping its timing (#14, a film of a chosen
+ * length): longer, a motion that loops and is the last of what its figures do goes on (a dance
+ * keeps dancing; the rest is idle life); shorter, what is past the end is cut.
+ */
+export function fitted(scene: Scene, length: number): Scene {
+  const a = scene.animation;
+  if (!a) return scene;
+  if (length < a.duration - EPS) return cutTo(scene, length);
+  const actions = a.actions.map((x) => {
+    if (x.layer || x.source.kind !== 'clip' || !clipById(x.source.clip)?.loop || end(x) < a.duration - 0.05) return x;
+    return x.roles.every((r) => actionsOf(a, r.figure).at(-1) === x) ? { ...x, duration: length - x.start } : x;
+  });
+  return { ...scene, animation: { ...a, actions, duration: length } };
+}
+
+/**
  * The animation cut to `d` seconds, keeping its timing (where the length field scales it): what is
  * past the cut goes (a key kept there), what runs into it ends there.
  */
