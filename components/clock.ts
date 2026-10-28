@@ -60,7 +60,8 @@ export class Clock {
         this.pause();
         return;
       }
-      this.time += Math.min(0.1, (now - this.last) / 1000) * this.speed;
+      // (A frame's time is when it began: the first can be before play() was called, never back.)
+      this.time += Math.max(0, Math.min(0.1, (now - this.last) / 1000)) * this.speed;
       this.last = now;
       if (this.time >= cur.end) {
         if (cur.loop) this.time = cur.start + ((this.time - cur.start) % Math.max(1e-3, cur.end - cur.start));

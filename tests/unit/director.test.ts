@@ -148,4 +148,21 @@ describe('a film of a chosen length', () => {
     step.actions[0].run();
     expect(store.scene.coverage).toMatchObject({ id: 'follow', live: true });
   });
+
+  it('never plays backwards: a first frame that began before play was pressed does not take the time back', async () => {
+    const { Clock } = await import('@/components/clock');
+    let frame: ((t: number) => void) | null = null;
+    vi.stubGlobal('requestAnimationFrame', (f: (t: number) => void) => { frame = f; return 1; });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const clock = new Clock();
+    clock.set(0.5);
+    clock.play(() => ({ start: 0, end: 2, loop: true }));
+    // (Its timestamp is when the frame began: 840 ms before play() was called, on a slow machine.)
+    frame!(performance.now() - 840);
+    expect(clock.time).toBeGreaterThanOrEqual(0.5);
+    frame!(performance.now() + 50);
+    expect(clock.time).toBeGreaterThan(0.5);
+    clock.pause();
+    vi.unstubAllGlobals();
+  });
 });
