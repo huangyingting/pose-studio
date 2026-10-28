@@ -5,7 +5,7 @@
 
 From aoi.glb (scripts/vrm-character.py made it):
   - silver-white hair and brows, grey-green eyes (their textures' light and dark mapped onto the
-    new colours, their painting kept);
+    new colours, their painting kept; her hair's glow off, Aoi's orange strands in it);
   - a white bandeau: her T-shirt cut to a band round her chest, recoloured white, its shade a
     neutral grey; the rest of her T-shirt in her skin's colour, without outlines (her body has no
     skin where her clothes covered it: those patches fill it, a few millimetres over it);
@@ -176,6 +176,12 @@ def main():
         }},
     }
     materials.append(patch)
+
+    # Her hair's glow off: Aoi's glow textures have orange strands in them.
+    for m in materials:
+        if '_HAIR' in m['name']:
+            m['emissiveFactor'] = [0, 0, 0]
+            m.pop('emissiveTexture', None)
 
     # Her cardigan and shorts off; her T-shirt cut: the band round her chest, the rest skin.
     extra = []
