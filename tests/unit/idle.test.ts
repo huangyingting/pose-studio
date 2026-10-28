@@ -38,6 +38,29 @@ describe('idle life (#14)', () => {
   });
 });
 
+describe('idle life over a loop and a hold', () => {
+  it('goes round with a looping film (no jump where it starts over) and keeps still while holding on to someone', async () => {
+    const { addFigure, holdOn } = await import('@/lib/actions');
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    startAnimation(store, 6);
+    store.updateScene((s) => ({ ...s, animation: { ...s.animation!, loop: true } }));
+    const chest = (t: number) => sceneAt(store.scene, t, true).figures[0].bones.chest;
+    const end = chest(6);
+    const start = chest(0);
+    end.forEach((v, i) => expect(v).toBeCloseTo(start[i], 4));
+    // Holding a partner's hand: no idle life then.
+    addFigure(store, [0.6, 0, 0]);
+    const other = store.scene.figures[1].id;
+    store.setTime(0);
+    holdOn(store, id, 'R', other, 'leftHand');
+    const held = store.scene.animation!.constraints?.[0];
+    expect(held).toBeTruthy();
+    const t = (held!.start + Math.min(held!.end, 6)) / 2;
+    expect(sceneAt(store.scene, t, true).figures[0].bones.chest).toEqual(sceneAt(store.scene, t, false).figures[0].bones.chest);
+  });
+});
+
 describe('the scene posed for a time', () => {
   it('keeps what was changed on a figure since the animation (a new name, a colour)', async () => {
     const { renameFigure, setFigureColor } = await import('@/lib/actions');

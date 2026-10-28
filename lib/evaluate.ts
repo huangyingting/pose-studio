@@ -295,14 +295,20 @@ class Evaluator {
    * A figure with its idle life at t (#14): in the gaps between what it does (eased in and out at
    * their edges), it breathes, sways, and now and then looks at the nearest figure.
    */
-  lived(f: Figure, t: number): Figure {
+  lived(f: Figure, t: number, scene: Scene): Figure {
     const w = this.gap(f.id, t);
     if (w <= 0) return f;
-    const turns = idleTurns(f.id, t);
+    // (A looping film: its idle life loops with it, no jump where it starts over.)
+    const cycle = this.a.loop ? this.a.duration : 0;
+    const turns = idleTurns(f.id, t, cycle);
+    // Holding something in a hand: the arms keep still (a two-handed hold stays on its handles).
+    if (scene.props.some((p) => this.propAt(p.id, t)?.hold?.figure === f.id)) {
+      for (const j of ['leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm'] as const) delete turns[j];
+    }
     // A look at the nearest figure now and then (the head and neck turn to it, as far as they go).
-    const g = glanceAt(f.id, t);
+    const g = glanceAt(f.id, t, cycle);
     if (g > 0) {
-      const others = [...this.figures.values()].filter((o) => o.id !== f.id && !o.hidden);
+      const others = scene.figures.filter((o) => o.id !== f.id && !o.hidden);
       const near = others.map((o) => this.pose(o.id, t)).filter((p): p is Pose => !!p)
         .map((p) => ({ p, d: Math.hypot(p.position[0] - f.position[0], p.position[2] - f.position[2]) })).sort((a, b) => a.d - b.d)[0];
       if (near && near.d < 8) {
@@ -323,10 +329,15 @@ class Evaluator {
   /** How much idle life a figure has at t: none during what it does, full in a gap, eased between (over half a second). */
   private gap(id: string, t: number): number {
     const spans = busySpans(this.a, id);
+    // (A looping film: what it does at the start comes right after its end.)
+    const laps = this.a.loop ? [-this.a.duration, 0, this.a.duration] : [0];
     let d = Infinity;
-    for (const [a, b] of spans) {
-      if (t >= a - EPS && t <= b + EPS) return 0;
-      d = Math.min(d, t < a ? a - t : t - b);
+    for (const [a0, b0] of spans) {
+      for (const k of laps) {
+        const [a, b] = [a0 + k, b0 + k];
+        if (t >= a - EPS && t <= b + EPS) return 0;
+        d = Math.min(d, t < a ? a - t : t - b);
+      }
     }
     return smooth(Math.min(1, d / IDLE_EASE));
   }
@@ -618,9 +629,14 @@ export function actionPoseAt(scene: Scene, act: Action, id: string, t: number): 
   return f && scene.animation ? evaluator(scene).at(f, act, t) : null;
 }
 
-/** When a figure is doing something (an action, a keyed block, from its blend-in on): idle life fills the rest. */
+/**
+ * When a figure is doing something (an action, a keyed block, from its blend-in on) or holds on to
+ * someone, or is held: idle life fills the rest.
+ */
 export function busySpans(a: Animation, id: string): [number, number][] {
-  return [...actionsOf(a, id), ...actionsOf(a, id, 'upper')].filter((x) => x.duration > EPS).map((x): [number, number] => [x.start - (x.blendIn ?? 0), end(x)]).sort((p, q) => p[0] - q[0]);
+  const acting = [...actionsOf(a, id), ...actionsOf(a, id, 'upper')].filter((x) => x.duration > EPS).map((x): [number, number] => [x.start - (x.blendIn ?? 0), end(x)]);
+  const holding = (a.constraints ?? []).filter((c) => c.figure === id || ('figure' in c.target && c.target.figure === id)).map((c): [number, number] => [c.start, c.end]);
+  return [...acting, ...holding].sort((p, q) => p[0] - q[0]);
 }
 
 /** Where an action starts and ends for one of its figures. */
@@ -686,7 +702,7 @@ export function sceneAt(scene: Scene, t: number, live = false): Scene {
   const figures = scene.figures.map((f) => {
     const p = ev.figureAt(f.id, t)!;
     const posed = { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded };
-    return live && !f.proxy && !f.hidden && !f.still ? ev.lived(posed, t) : posed;
+    return live && !f.proxy && !f.hidden && !f.still ? ev.lived(posed, t, scene) : posed;
   });
   // A ribbon trails where its stick's tip has just been.
   const props = scene.props.map((p) => {

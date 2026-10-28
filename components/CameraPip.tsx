@@ -13,6 +13,9 @@ const WIDTH = 240;
  * The selected camera's picture, live, in the canvas's bottom-right corner (above the timeline):
  * in the frame's aspect, with its name and lens. A click looks through it.
  */
+/** Whether the film is playing now (read when the picture is drawn). */
+const playing = (clock: Clock) => clock.playing;
+
 export default function CameraPip({ camera, clock }: { camera: string; clock: Clock }) {
   const store = useStore();
   const scene = useScene();
@@ -32,11 +35,12 @@ export default function CameraPip({ camera, clock }: { camera: string; clock: Cl
       draw: () => {
         const ctx = canvas.current?.getContext('2d');
         if (!ctx) return;
-        const doc = scene.animation ? sceneAt(scene, t) : scene;
+        // (Playing: as the film plays, with idle life; else as the canvas shows it.)
+        const doc = scene.animation ? sceneAt(scene, t, playing(clock)) : scene;
         ctx.drawImage(sharedRenderer().renderShot(doc, WIDTH, height, 1.1, { camera: viewOf(scene, cam, t, aspect), style }), 0, 0, WIDTH, height);
       },
     } : null;
-  }, [scene, t, cam, style, height, aspect]);
+  }, [scene, t, cam, style, height, aspect, clock]);
   useEffect(() => {
     let raf = 0;
     let last = -Infinity;

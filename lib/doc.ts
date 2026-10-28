@@ -267,7 +267,7 @@ export function parseScene(v: unknown, i = 0): Scene {
   if (!scene.cameras.length) scene.cameras = [defaultCamera()];
   if (isObj(v.coverage) && typeof v.coverage.id === 'string' && isObj(v.coverage.roles)) {
     const roles = Object.entries(v.coverage.roles).filter((e): e is [string, string] => typeof e[1] === 'string' && ids.has(e[1])).slice(0, 8);
-    scene.coverage = { id: v.coverage.id.slice(0, 40), roles: Object.fromEntries(roles) };
+    scene.coverage = { id: v.coverage.id.slice(0, 40), roles: Object.fromEntries(roles), ...(v.coverage.live === true ? { live: true } : {}) };
   }
   const animation = parseAnimation(v.animation, ids, new Set(scene.props.map((p) => p.id)), scene.cameras.map((c) => c.id));
   if (animation) scene.animation = normalize(animation, figures);

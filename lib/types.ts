@@ -132,7 +132,7 @@ export interface Scene {
    */
   cameras: Camera[];
   /** The coverage its cameras and cuts were made with, and the figures playing its roles (lib/coverage.ts). */
-  coverage?: { id: string; roles: Record<string, string> };
+  coverage?: { id: string; roles: Record<string, string>; live?: boolean };
   /** The scene's key light (lib/lighting.ts DEFAULT_LIGHT without one). */
   light?: Light;
   /** What happens in it (a still scene's caption in the story; an animated one's are its shots'). */
@@ -336,6 +336,8 @@ export interface Shot {
   camera: string;
   /** Comes in by blending from the camera before over this long (s); none: a cut. */
   blend?: number;
+  /** Taken over by hand from the director (#14): kept as it is, this long (s), when it cuts anew. */
+  pinned?: number;
 }
 
 /**

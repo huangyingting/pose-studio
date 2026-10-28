@@ -100,6 +100,25 @@ export function moveCut(a: Animation, id: string, t: number): Animation {
   return { ...a, shots: shots.map((s, k) => (k === i ? { ...s, start, ...(blend ? { blend } : {}) } : s)) };
 }
 
+/** These shots taken over by hand: the director (a live coverage) keeps them, each as long as it is now. */
+export function pinShots(a: Animation, ids: string[]): Animation {
+  const spans = shotSpans(a);
+  return { ...a, shots: shotsOf(a).map((s) => {
+    const sp = spans.find((x) => x.shot.id === s.id);
+    return ids.includes(s.id) && sp ? { ...s, pinned: Math.round((sp.end - sp.start) * 1000) / 1000 } : s;
+  }) };
+}
+
+/** A shot handed back to the director. */
+export function unpinShot(a: Animation, id: string): Animation {
+  return { ...a, shots: shotsOf(a).map((s) => {
+    if (s.id !== id) return s;
+    const { pinned: _p, ...rest } = s;
+    void _p;
+    return rest;
+  }) };
+}
+
 export function updateShot(a: Animation, id: string, patch: Partial<Omit<Shot, 'id' | 'start'>>): Animation {
   return { ...a, shots: shotsOf(a).map((s) => (s.id === id ? { ...s, ...patch } : s)) };
 }

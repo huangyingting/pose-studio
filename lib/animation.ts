@@ -147,7 +147,7 @@ export function remapCameras(scene: Pick<Scene, 'cameras' | 'coverage'>, ids: Ma
   });
   const coverage = scene.coverage;
   const roles = coverage && Object.entries(coverage.roles).filter(([, f]) => ids.has(f)).map(([r, f]) => [r, ids.get(f)!]);
-  return { cameras, ...(coverage && roles!.length === Object.keys(coverage.roles).length ? { coverage: { id: coverage.id, roles: Object.fromEntries(roles!) } } : {}) };
+  return { cameras, ...(coverage && roles!.length === Object.keys(coverage.roles).length ? { coverage: { id: coverage.id, roles: Object.fromEntries(roles!), ...(coverage.live ? { live: true } : {}) } } : {}) };
 }
 
 /**
@@ -235,6 +235,7 @@ export function parseShots(raw: unknown, duration: number, cameras: string[]): S
       camera: typeof x.camera === 'string' && cameras.includes(x.camera) ? x.camera : cameras[0],
       ...(typeof x.caption === 'string' && x.caption ? { caption: x.caption.slice(0, 500) } : {}),
       ...(typeof x.blend === 'number' && x.blend > 0 ? { blend: num(x.blend, 0, 0, 10) } : {}),
+      ...(typeof x.pinned === 'number' && x.pinned > 0 ? { pinned: num(x.pinned, 0, 0, MAX_DURATION) } : {}),
     }))
     .sort((p, q) => p.start - q.start);
   if (!shots.length) return [{ id: 'main', start: 0, name: 'Shot 1', camera: cameras[0] }];
