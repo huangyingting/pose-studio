@@ -139,7 +139,7 @@ describe('lighting settings', () => {
     const s = new Store(fake).getState().settings;
     expect('style' in s).toBe(false);
     expect(s.showGrid).toBe(false);
-    expect(s.gizmo).toBe('rotate');
+    expect(s.gizmo).toBe('translate');
   });
 });
 
