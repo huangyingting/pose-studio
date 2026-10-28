@@ -1178,6 +1178,8 @@ test('the command palette finds commands, scenes and Library items; Move to… w
 });
 
 test('the view widget, isolate, hover links, dragging from the Library, resizable panels and the dark theme', async ({ page }) => {
+  // Many steps, each a frame or more of software rendering.
+  test.setTimeout(240_000);
   const yaw = () => page.evaluate(() => Math.round((window as unknown as { __poseStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__poseStudio.viewport.current.getView().yaw));
   // The view widget turns the view as the keys 1–6 do.
   await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the left' }).click();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, SunMedium, TriangleAlert, UserRound } from 'lucide-react';
 import {
   addCamera, addFigure, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden,
@@ -36,6 +36,10 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
   // Resting on a row outlines its figure, prop or camera on the canvas (and the canvas marks the row).
   const linked = useStudio((s) => s.linked);
   const link = (id: string) => ({ onPointerEnter: () => store.setLinked(id), onPointerLeave: () => store.setLinked(null) });
+  // What the pointer rested on is gone (deleted from its row's menu): nothing is linked.
+  useEffect(() => {
+    if (linked && !scene.figures.some((f) => f.id === linked) && !scene.props.some((p) => p.id === linked) && !scene.cameras.some((c) => c.id === linked)) store.setLinked(null);
+  }, [linked, scene, store]);
 
   return (
     <div className="side-section outline">

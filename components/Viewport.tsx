@@ -598,7 +598,8 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
       });
     }
     scale(dot.current);
-    nowGlyphs.current.forEach((g, i) => { if (g) { scale(g); g.visible &&= !onPoint.current[i]; } });
+    // (The camera whose outline row the pointer rests on, larger.)
+    nowGlyphs.current.forEach((g, i) => { if (g) { scale(g, cameras[i]?.id === store.getState().linked ? 0.17 : 0.12); g.visible &&= !onPoint.current[i]; } });
   });
 
   /** Follow the pointer across a plane through `from` (level, or upright facing the view with Shift). */
@@ -661,7 +662,6 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
             key={`now:${c.id}`}
             ref={(g) => { nowGlyphs.current[i] = g; }}
             userData={{ camera: c.id }}
-            scale={c.id === linked ? 1.4 : 1}
             onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
             {...link(c.id)}
           >

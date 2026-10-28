@@ -125,6 +125,8 @@ const sceneOf = (c: Ctx) => c.store.scene;
 const figureOf = (c: Ctx) => c.store.scene.figures.find((f) => f.id === c.figure);
 const activeFigure = (c: Ctx) => c.store.figure;
 const animated = (c: Ctx) => !!c.store.scene.animation;
+/** About the scene, not one thing in it: the empty floor (a spot on it, or none: off the floor), or nothing selected. */
+const onScene = (c: Ctx) => !c.figure && !c.prop && !c.camera && !c.shot && !c.action && c.scene === undefined;
 
 /** The context of the keyboard and the palette: the selection (and the active figure for pose edits). */
 export function selectionCtx(store: Store): Ctx {
@@ -568,10 +570,10 @@ export const COMMANDS: Command[] = [
   },
 
   // Empty floor: add things there.
-  { id: 'floor.figure', title: 'Add figure', icon: PersonStanding, when: (c) => !!c.floor, run: (c) => addFigure(c.store, c.floor) },
-  { id: 'floor.standIn', title: 'Add stand-in', icon: UserRound, when: (c) => !!c.floor, run: (c) => addStandIn(c.store, c.floor) },
+  { id: 'floor.figure', title: 'Add figure', icon: PersonStanding, when: onScene, run: (c) => addFigure(c.store, c.floor) },
+  { id: 'floor.standIn', title: 'Add stand-in', icon: UserRound, when: onScene, run: (c) => addStandIn(c.store, c.floor) },
   {
-    id: 'floor.prop', title: 'Add a prop', when: (c) => !!c.floor,
+    id: 'floor.prop', title: 'Add a prop', when: onScene,
     items: (c) => PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ title: PROP_LABELS[k], icon: PROP_ICONS[k], run: () => addProp(c.store, k, c.floor) })),
   },
 

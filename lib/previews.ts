@@ -154,9 +154,14 @@ function drain() {
   }
   const [key, job] = next.value;
   waiting.delete(key);
-  const url = job.make();
-  thumbs.set(key, url);
-  job.done.forEach((fn) => fn(url));
+  try {
+    const url = job.make();
+    thumbs.set(key, url);
+    job.done.forEach((fn) => fn(url));
+  } catch (err) {
+    // One that cannot be drawn (a template that fails to build) stays blank; the others still come.
+    console.warn(`Could not draw the thumbnail ${key}:`, err);
+  }
   idle(drain);
 }
 

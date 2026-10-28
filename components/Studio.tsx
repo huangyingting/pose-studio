@@ -520,12 +520,19 @@ function App() {
   );
 }
 
-/** The scene as the canvas shows it while isolating one figure (and what it holds) or one prop. */
+/** The scene as the canvas shows it while isolating one figure (and the props it handles) or one prop. */
 function isolatedScene(scene: Scene, id: string): Scene {
+  // The props it handles at any time: holds, is handed, throws, catches.
+  const a = scene.animation;
+  const handled = new Set(scene.props.filter((p) => p.id === id || p.hold?.figure === id).map((p) => p.id));
+  for (const [prop, keys] of Object.entries(a?.props ?? {})) if (keys.some((k) => k.hold?.figure === id)) handled.add(prop);
+  for (const x of a?.actions ?? []) {
+    if (x.prop && (x.roles.some((r) => r.figure === id) || (x.target && 'figure' in x.target && x.target.figure === id))) handled.add(x.prop);
+  }
   return {
     ...scene,
     figures: scene.figures.map((f) => (f.id === id ? f : { ...f, hidden: true })),
-    props: scene.props.filter((p) => p.id === id || p.hold?.figure === id),
+    props: scene.props.filter((p) => handled.has(p.id)),
   };
 }
 
