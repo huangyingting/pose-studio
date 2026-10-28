@@ -242,7 +242,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   store: Store;
   scene: Scene;
   limits: boolean;
-  /** Whether the drag handles (a joint's arcs, the dots) are shown: the hint says how to show them if not. */
+  /** Whether the drag handles (a joint's arcs, the dots) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
