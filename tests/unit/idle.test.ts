@@ -45,7 +45,7 @@ describe('idle life over a loop and a hold', () => {
     const id = store.figure!.id;
     startAnimation(store, 6);
     store.updateScene((s) => ({ ...s, animation: { ...s.animation!, loop: true } }));
-    const chest = (t: number) => sceneAt(store.scene, t, true).figures[0].bones.chest;
+    const chest = (t: number) => sceneAt(store.scene, t, true).figures[0].bones.chest!;
     const end = chest(6);
     const start = chest(0);
     end.forEach((v, i) => expect(v).toBeCloseTo(start[i], 4));

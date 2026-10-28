@@ -28,7 +28,7 @@ import {
 } from './relations';
 import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
 import { angle, bonesOf, withAngles } from './pose';
-import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
+import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, unpinShot as unpin, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
@@ -1211,18 +1211,56 @@ export function applyCameraMove(store: Store, id: string, camera?: string) {
 /* Shots */
 
 /** Cut at the playhead: a new shot starts there, filming with the same camera until given another. */
+/* (A shot cut, moved, joined or given another camera by hand is the user's: the director keeps it.) */
+
 export function cutShot(store: Store) {
   const t = store.getState().time;
-  store.updateScene((s) => (s.animation ? { ...s, animation: cutAt(s.animation, snapTime(s.animation, t)) } : s));
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const a = cutAt(s.animation, snapTime(s.animation, t));
+    const made = a.shots.find((x) => !s.animation!.shots.some((y) => y.id === x.id));
+    return { ...s, animation: made ? pinShots(a, [made.id]) : a };
+  });
 }
 
 export function removeShotCut(store: Store, id: string) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: removeCut(s.animation, id) } : s));
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const i = s.animation.shots.findIndex((x) => x.id === id);
+    const a = removeCut(s.animation, id);
+    return { ...s, animation: i > 0 ? pinShots(a, [s.animation.shots[i - 1].id]) : a };
+  });
 }
 
 /** Move the cut at the start of a shot (dragged on the timeline): no camera changes. */
 export function moveShotCut(store: Store, id: string, t: number, key = '') {
-  store.updateScene((s) => (s.animation ? { ...s, animation: moveCut(s.animation, id, t) } : s), key);
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const i = s.animation.shots.findIndex((x) => x.id === id);
+    const a = moveCut(s.animation, id, t);
+    return { ...s, animation: pinShots(a, [id, ...(i > 0 ? [s.animation.shots[i - 1].id] : [])]) };
+  }, key);
+}
+
+/**
+ * The director (#14): the scene filmed in a style (a coverage, cast from who is in it) and cut
+ * again as what they do changes; null: by hand from now on (its cameras and cuts stay as they are).
+ */
+export function setDirector(store: Store, style: string | null): boolean {
+  return store.group(() => {
+    if (!style) {
+      store.updateScene((s) => (s.coverage?.live ? { ...s, coverage: { id: s.coverage.id, roles: s.coverage.roles } } : s));
+      return true;
+    }
+    const cast = cover(store, style);
+    if (cast) store.updateScene((s) => (s.coverage ? { ...s, coverage: { ...s.coverage, live: true } } : s));
+    return !!cast;
+  });
+}
+
+/** A shot taken over by hand handed back to the director (cut again as it would be). */
+export function unpinShot(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: unpin(s.animation, id) } : s));
 }
 
 /** A shot's name and caption, the camera it films with (one of the scene's) and how long it blends in from the one before (0: a cut). */
@@ -1230,7 +1268,9 @@ export function editShot(store: Store, id: string, patch: { name?: string; capti
   store.updateScene((s) => {
     if (!s.animation) return s;
     const { camera, blend, ...rest } = patch;
-    const a = updateShot(s.animation, id, { ...rest, ...(camera && cameraById(s, camera) ? { camera } : {}) });
+    const given = camera && cameraById(s, camera) ? { camera } : {};
+    const a0 = updateShot(s.animation, id, { ...rest, ...given });
+    const a = 'camera' in given ? pinShots(a0, [id]) : a0;
     const shots = a.shots.map((x) => {
       if (x.id !== id || blend === undefined) return x;
       const { blend: _old, ...shot } = x;

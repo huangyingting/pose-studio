@@ -69,6 +69,16 @@ function uid(prefix: string) {
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 const renamed = (shots: Shot[]) => shots.map((s, i) => ({ ...s, name: s.name && !/^Shot \d+$/.test(s.name) ? s.name : `Shot ${i + 1}` }));
 
+/** Pinned shots as long as they are now (a cut by hand changed where one ends). */
+function repinned(a: Animation): Animation {
+  if (!a.shots.some((s) => s.pinned)) return a;
+  const spans = shotSpans(a);
+  return { ...a, shots: a.shots.map((s) => {
+    const sp = spans.find((x) => x.shot.id === s.id);
+    return s.pinned && sp ? { ...s, pinned: Math.round((sp.end - sp.start) * 1000) / 1000 } : s;
+  }) };
+}
+
 /** Cut the shot under time t in two: the later one films with the same camera, until it is given another. */
 export function cutAt(a: Animation, t: number): Animation {
   const shots = shotsOf(a);
@@ -78,14 +88,14 @@ export function cutAt(a: Animation, t: number): Animation {
   const old = shots[i];
   const first = { ...old, id: old.id === 'main' ? uid('sh') : old.id };
   const second: Shot = { id: uid('sh'), start: t, name: '', camera: old.camera };
-  return { ...a, shots: renamed([...shots.slice(0, i), first, second, ...shots.slice(i + 1)]) };
+  return repinned({ ...a, shots: renamed([...shots.slice(0, i), first, second, ...shots.slice(i + 1)]) });
 }
 
 /** Remove a cut: the shot before it runs on over its time. */
 export function removeCut(a: Animation, id: string): Animation {
   const i = a.shots.findIndex((s) => s.id === id);
   if (i <= 0) return a;
-  return { ...a, shots: renamed(a.shots.filter((_, j) => j !== i)) };
+  return repinned({ ...a, shots: renamed(a.shots.filter((_, j) => j !== i)) });
 }
 
 /** Move a cut (the start of a shot after the first) to t, on a frame, keeping every shot at least a frame long. */
@@ -97,7 +107,7 @@ export function moveCut(a: Animation, id: string, t: number): Animation {
   const end = shots[i + 1]?.start ?? a.duration;
   const start = Math.min(end - frame, Math.max(shots[i - 1].start + frame, Math.round(t * a.fps) / a.fps));
   const blend = shots[i].blend && Math.min(shots[i].blend!, end - start);
-  return { ...a, shots: shots.map((s, k) => (k === i ? { ...s, start, ...(blend ? { blend } : {}) } : s)) };
+  return repinned({ ...a, shots: shots.map((s, k) => (k === i ? { ...s, start, ...(blend ? { blend } : {}) } : s)) });
 }
 
 /** These shots taken over by hand: the director (a live coverage) keeps them, each as long as it is now. */

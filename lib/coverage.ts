@@ -21,6 +21,8 @@ interface CoverageCamera {
   name: string;
   subject: CoverageRole;
   also?: CoverageRole;
+  /** Hand-held shake, 0–1. */
+  shake?: number;
   rig: Omit<CameraRig, 'toward' | 'clear'> & { toward?: CoverageRole; clear?: CoverageRole };
 }
 
@@ -100,16 +102,51 @@ export const COVERAGES: Coverage[] = [
       { on: 'beat', every: 4, cameras: ['wide'] },
     ],
   },
+  {
+    id: 'one-take',
+    name: 'One take',
+    description: 'A single camera that goes with them, turning as they turn: no cuts',
+    roles: ['A'],
+    cameras: [
+      { key: 'take', name: 'One take on {A}', subject: 'A', rig: { body: 'follow', yaw: 35, pitch: 5, turn: true, size: 'mws', lens: 35, smooth: 1.5 } },
+    ],
+    cuts: [{ on: 'start', camera: 'take' }],
+  },
+  {
+    id: 'documentary',
+    name: 'Documentary',
+    description: 'Hand-held cameras and longer shots: a wide one, a close one, one from behind, cutting when they set off',
+    roles: ['A'],
+    cameras: [
+      { key: 'wide', name: 'Hand-held wide on {A}', subject: 'A', shake: 0.35, rig: { body: 'follow', yaw: 40, pitch: 6, size: 'ws', lens: 28, smooth: 1.4 } },
+      { key: 'close', name: 'Hand-held close on {A}', subject: 'A', shake: 0.5, rig: { body: 'follow', yaw: 20, pitch: 2, turn: true, size: 'mcu', place: 'right', lens: 70, smooth: 1.2 } },
+      { key: 'behind', name: 'Hand-held behind {A}', subject: 'A', shake: 0.45, rig: { body: 'follow', yaw: 150, pitch: 8, turn: true, size: 'mws', lens: 35, smooth: 1.2 } },
+    ],
+    cuts: [
+      { on: 'start', camera: 'wide' },
+      { on: 'action', role: 'A', kind: 'travel', camera: 'behind' },
+      { on: 'beat', every: 6, cameras: ['close', 'wide'] },
+    ],
+  },
 ];
 
 export const coverageById = (id: string) => COVERAGES.find((c) => c.id === id) ?? null;
+
+/** The director's styles (#14): a coverage each, cast and kept up to date as what they do changes. */
+export const DIRECTOR_STYLES: { id: string; label: string }[] = [
+  { id: 'dialogue', label: 'Conversation' },
+  { id: 'follow', label: 'Follow the action' },
+  { id: 'one-take', label: 'One take' },
+  { id: 'documentary', label: 'Documentary' },
+  { id: 'sports', label: 'Sports' },
+];
 
 /** The camera a coverage makes for one of its cameras, with these figures in its roles. */
 function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): Omit<RigCamera, 'id'> {
   const name = cc.name.replace(/\{(A|B)\}/g, (_, r: string) => roles[`name:${r}`] ?? r);
   const { toward, clear, ...rig } = cc.rig;
   return {
-    name, subject: roles[cc.subject], ...(cc.also ? { also: [roles[cc.also]] } : {}), made: `${c.id}:${cc.key}`,
+    name, subject: roles[cc.subject], ...(cc.also ? { also: [roles[cc.also]] } : {}), ...(cc.shake ? { shake: cc.shake } : {}), made: `${c.id}:${cc.key}`,
     kind: 'rig', rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}), ...(clear ? { clear: roles[clear] } : {}) },
   };
 }
@@ -209,11 +246,48 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
     ids.set(cc.key, cam.id);
   }
   const captions = new Map(shotSpans(a).filter((s) => s.shot.caption).map((s) => [Math.round(s.start * a.fps), s.shot.caption!]));
-  const shots: Shot[] = cutsFor(scene, c, roles).map((cut, i) => {
-    const caption = captions.get(Math.round(cut.t * a.fps));
-    return { ...newShot(cut.t, `Shot ${i + 1}`, ids.get(cut.camera) ?? cameras[0].id, i === 0 ? 'main' : undefined), ...(caption ? { caption } : {}) };
+  // Shots taken over by hand stay as they are, as long as they were: the cuts fall round them, and
+  // after one the coverage's camera of the time comes back.
+  // (Only the director, keeping its coverage live, keeps them: a coverage applied anew cuts it all
+  // anew. A pinned shot whose camera has just gone is cut anew too.)
+  const keep = !!scene.coverage?.live && scene.coverage.id === id;
+  const pins = shotSpans(a).filter((s) => keep && s.shot.pinned && cameras.some((x) => x.id === s.shot.camera)).map((s) => ({ shot: s.shot, start: s.start, end: Math.min(a.duration, s.start + s.shot.pinned!) }));
+  const inPin = (t: number) => pins.some((p) => t >= p.start - 1e-6 && t < p.end - 1e-6);
+  const cuts = cutsFor(scene, c, roles);
+  const cameraAt = (t: number) => [...cuts].reverse().find((x) => x.t <= t + 1e-6)?.camera ?? cuts[0].camera;
+  const fresh: Shot[] = [
+    ...cuts.filter((cut) => !inPin(cut.t)).map((cut) => ({ ...newShot(cut.t, '', ids.get(cut.camera) ?? cameras[0].id) })),
+    ...pins.filter((p) => p.end < a.duration - 1e-6 && !inPin(p.end) && !cuts.some((x) => Math.abs(x.t - p.end) < 1e-6)).map((p) => newShot(p.end, '', ids.get(cameraAt(p.end)) ?? cameras[0].id)),
+  ];
+  // The coverage's own shots round the pins: none shorter than a second, none cutting to the camera
+  // already filming (a pinned shot stays whatever its length).
+  let merged = [...pins.map((p) => p.shot), ...fresh].sort((p, q) => p.start - q.start);
+  merged = merged.filter((s, i) => s.pinned || i === 0 || s.camera !== merged[i - 1].camera);
+  merged = merged.filter((s, i) => s.pinned || i === 0 || (merged[i + 1]?.start ?? a.duration) - s.start >= MIN_SHOT);
+  // (A shot that still starts where one did keeps its id: what was selected stays so.)
+  const ids0 = new Map(a.shots.filter((s) => !s.pinned).map((s) => [Math.round(s.start * a.fps), s.id]));
+  const shots: Shot[] = merged.map((s0, i) => {
+    // (Cut anew: no longer taken over.)
+    const { pinned: _was, ...bare } = s0;
+    void _was;
+    const s: Shot = keep ? s0 : bare;
+    const caption = s.caption ?? captions.get(Math.round(s.start * a.fps));
+    const id = s.pinned ? s.id : i === 0 ? 'main' : (ids0.get(Math.round(s.start * a.fps)) ?? s.id);
+    return { ...s, id, ...(i === 0 ? { start: 0 } : {}), name: s.pinned && s.name ? s.name : `Shot ${i + 1}`, ...(caption ? { caption } : {}) };
   });
-  return { ...scene, cameras, coverage: { id, roles: { ...roles } }, animation: { ...a, shots } };
+  return { ...scene, cameras, coverage: { id, roles: { ...roles }, ...(scene.coverage?.id === id && scene.coverage.live ? { live: true } : {}) }, animation: { ...a, shots } };
+}
+
+/**
+ * The director (#14): a live coverage cut again for the scene as it is now (after what they do
+ * changed), its cast found again if one of them is gone; shots taken over by hand stay.
+ */
+export function directed(scene: Scene): Scene {
+  const cv = scene.coverage;
+  const c = cv?.live && scene.animation ? coverageById(cv.id) : null;
+  if (!c) return scene;
+  const cast = c.roles.every((r) => scene.figures.some((f) => f.id === cv!.roles[r] && !f.hidden)) ? cv!.roles : castCoverage(scene, c);
+  return cast ? applyCoverage(scene, c.id, cast as Record<'A', string>) : scene;
 }
 
 /** Who plays a coverage's roles: A the given figure (else the first), B the one nearest A. */

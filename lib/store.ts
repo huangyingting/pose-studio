@@ -1,4 +1,5 @@
 import { grown, lastTime, normalize, propKeyOf } from './animation';
+import { directed } from './coverage';
 import { clipIdsOf } from './assets';
 import { loadClips } from './assetstore';
 import { setFilm } from './film';
@@ -274,7 +275,7 @@ export class Store {
     const prevIndex = this.state.sceneIndex;
     let next = update(prev);
     if (next === prev) return;
-    next = this.grown(this.autoKey(prev, next));
+    next = this.directed(prev, this.grown(this.autoKey(prev, next)));
     const now = Date.now();
     const merge = (this.grouped === true && this.past.length > 0) || (key && key === this.lastKey && now - this.lastTime < MERGE_MS && this.past.length > 0);
     if (this.grouped === false) this.grouped = true;
@@ -314,6 +315,24 @@ export class Store {
     animation = keepProps(animation, new Set(after.props.map((p) => p.id)));
     if (animation === after.animation) return next;
     return { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
+  }
+
+  /**
+   * The director (#14): the open scene's live coverage cut again when what is filmed changed (what
+   * they do, who is in it, props, its shots), shots taken over by hand kept.
+   */
+  private directed(prev: Library, next: Library): Library {
+    const i = this.state.sceneIndex;
+    const before = prev.scenes[i];
+    const after = next.scenes[i];
+    if (!after?.coverage?.live || !after.animation) return next;
+    const who = (s?: Scene) => JSON.stringify(s?.figures.map((f) => [f.id, !!f.hidden]));
+    const changed = !before || before.id !== after.id || before.coverage !== after.coverage || before.animation?.actions !== after.animation.actions
+      || before.animation?.props !== after.animation.props || before.animation?.shots !== after.animation.shots || before.animation?.duration !== after.animation.duration
+      || who(before) !== who(after);
+    if (!changed) return next;
+    const cut = directed(after);
+    return cut === after ? next : { ...next, scenes: next.scenes.map((x, j) => (j === i ? cut : x)) };
   }
 
   /** The open scene's animation lengthened to what was put past its end. */

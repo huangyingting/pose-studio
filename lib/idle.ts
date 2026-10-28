@@ -33,6 +33,8 @@ const GLANCE = { length: 1.8, every: 9 };
  */
 export function glanceAt(id: string, t: number, cycle = 0): number {
   const every = fit(GLANCE.every * (0.8 + 0.4 * seed(id, 7)), cycle);
+  // (A loop too short to look away and back now and then: no looks.)
+  if (every < GLANCE.length * 3) return 0;
   const u = (t + every * seed(id, 8)) % every;
   if (u > GLANCE.length) return 0;
   const x = u / GLANCE.length;

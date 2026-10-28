@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
   deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
@@ -12,6 +12,7 @@ import { actionLabel, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, mome
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { cameraById, liveCamera, rigRule } from '@/lib/cameras';
+import { DIRECTOR_STYLES } from '@/lib/coverage';
 import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
@@ -568,6 +569,10 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           </>
         )}
         <CommandButton id="timeline.cameraPoint" ctx={c} tipSide="top" />
+        {/* The director: cameras and cuts made from what they do, kept up to date (or by hand). */}
+        <Menu label="Director" className="btn ghost tl-btn" tip={tipOf('timeline.director', 'Director')} items={() => choices('timeline.director', c)}>
+          <Clapperboard size={15} aria-hidden /> <span className="tl-label">{scene.coverage?.live ? DIRECTOR_STYLES.find((d) => d.id === scene.coverage!.id)?.label ?? 'Director' : 'By hand'}</span>
+        </Menu>
         <span className="tl-sep" />
         <div className="tl-duration" data-tip="Length (seconds)" data-tip-side="top">
           <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={MAX_DURATION} digits={1} onChange={length} />
@@ -712,6 +717,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       </>
                     )}
                     {over && <TriangleAlert size={11} aria-hidden />}
+                    {/* Taken over by hand: the director keeps it as it is. */}
+                    {sp.shot.pinned && scene.coverage?.live && <Pin size={10} aria-label="Taken over by hand" />}
                     <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(scene, sp.shot.camera) ? ` · ${cameraById(scene, sp.shot.camera)!.name}` : ''}</span>
                     <em>{(sp.end - sp.start).toFixed(1)}s</em>
                   </button>

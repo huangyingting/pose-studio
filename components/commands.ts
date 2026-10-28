@@ -7,7 +7,7 @@ import {
 import {
   addCamera, addFigure, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
-  holdKeyframe, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
+  holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
   setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
@@ -41,6 +41,7 @@ import type { CanvasHit } from './Viewport';
 import { rigAngle, rigPitch, stepRig } from './CameraHandles';
 import { flashReadout, metres, sliderText, viaPointer } from './hints';
 import { heldAxis } from './modifiers';
+import { DIRECTOR_STYLES, coverageById } from '@/lib/coverage';
 
 /*
  * Every operation, written once: its title, icon, keys, when it applies and what it does. Key
@@ -1120,6 +1121,23 @@ export const COMMANDS: Command[] = [
     run: (c) => deleteCameraPoint(c.store, c.store.getState().time, rowCamera(c).id),
   },
   { id: 'timeline.check', title: 'Check the motion', icon: Activity, when: animated, run: () => App().checkMotion?.() },
+  {
+    // The director (#14): the scene filmed in a style, cut again as what they do changes; or by hand.
+    id: 'timeline.director', title: 'Director', help: 'The director: cameras and cuts made from what they do, kept up to date (or by hand)', icon: Clapperboard, when: animated,
+    items: (c) => {
+      const cv = sceneOf(c).coverage;
+      return [
+        { title: 'By hand', checked: !cv?.live, run: () => setDirector(c.store, null) },
+        ...DIRECTOR_STYLES.map((d) => ({ title: d.label, checked: !!cv?.live && cv.id === d.id, run: () => {
+          if (!setDirector(c.store, d.id)) App().notify(`${d.label} needs ${coverageById(d.id)!.roles.length} people in the scene`);
+        } })),
+      ];
+    },
+  },
+  {
+    id: 'shot.unpin', title: 'Hand back to the director', help: 'A shot taken over by hand: let the director cut it again', icon: Clapperboard,
+    when: (c) => !!spanOf(c)?.shot.pinned && !!sceneOf(c).coverage?.live, run: (c) => unpinShot(c.store, spanOf(c)!.shot.id),
+  },
   { id: 'timeline.repeat', title: 'Repeat this shot', icon: Repeat1, when: animated, checked: () => App().repeatShot(), run: () => App().setRepeatShot(!App().repeatShot()) },
   { id: 'timeline.loop', title: 'Loop the animation', icon: Repeat, when: animated, checked: (c) => !!sceneOf(c).animation?.loop, run: (c) => setAnimationOptions(c.store, { loop: !sceneOf(c).animation!.loop }) },
   {
@@ -1276,7 +1294,7 @@ export const MENUS = {
     'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot',
     '-', 'prop.otherEnd', 'prop.lieOn', '-', 'prop.delete',
   ],
-  shot: ['rename', 'shot.move', 'shot.camera', '-', 'shot.describe', '-', 'shot.removeCut'],
+  shot: ['rename', 'shot.move', 'shot.camera', 'shot.unpin', '-', 'shot.describe', '-', 'shot.removeCut'],
   camera: [
     'camera.deletePoint', '-', 'rename', 'camera.through', 'camera.fromView', 'camera.pointHere', 'duplicate',
     'camera.size', 'camera.lens', '-', 'camera.delete',
