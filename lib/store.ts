@@ -436,6 +436,9 @@ export class Store {
   }
 
   select(selection: Selection) {
+    // (The same figure selected again, by its ring, its menu: still picked as a whole if it was.)
+    const was = this.state.selection;
+    if (selection?.kind === 'figure' && !selection.whole && was?.kind === 'figure' && was.whole && was.figure === selection.figure) selection = was;
     this.set({ selection }, false);
   }
 

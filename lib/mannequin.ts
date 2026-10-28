@@ -497,9 +497,7 @@ export class Mannequin {
   /** The height of the figure's lowest point (below 0: it goes through the floor). */
   lowest() {
     this.object.updateMatrixWorld(true);
-    let min = Infinity;
-    this.parts.forEachPoint((p) => { if (p.y < min) min = p.y; });
-    return min;
+    return this.parts.lowest();
   }
 
   /** Raise the figure if any part is below the floor (it never goes through it). */
@@ -530,9 +528,7 @@ export class Mannequin {
     const root = this.joints.hips;
     root.position.y = 1;
     this.object.updateMatrixWorld(true);
-    let min = Infinity;
-    this.parts.forEachPoint((p) => { if (p.y < min) min = p.y; });
-    root.position.y -= min;
+    root.position.y -= this.parts.lowest();
     if (this.surface) {
       // Standing on a box or a step: up onto the highest top under either foot.
       const on = Math.max(...(['leftFoot', 'rightFoot'] as const).map((j) => {

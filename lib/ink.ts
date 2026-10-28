@@ -351,6 +351,37 @@ export class InkedParts {
     }
   }
 
+  /**
+   * The lowest point of what is drawn (world height), exactly, at a fraction of going through every
+   * point: the parts whose bounding spheres reach lowest are looked at first, and a part that cannot
+   * reach below the lowest point found so far is skipped (standing, only the feet are looked at).
+   */
+  lowest(): number {
+    const centre = new THREE.Vector3();
+    const parts: { mesh: THREE.Mesh; low: number }[] = [];
+    for (const mesh of this.bodies) {
+      if (!mesh.visible) continue;
+      const g = mesh.geometry;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      const s = g.boundingSphere!;
+      centre.copy(s.center).applyMatrix4(mesh.matrixWorld);
+      parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() });
+    }
+    parts.sort((a, b) => a.low - b.low);
+    let min = Infinity;
+    for (const { mesh, low } of parts) {
+      if (low >= min) break;
+      // (Only the height: the matrix's second row.)
+      const e = mesh.matrixWorld.elements;
+      const pos = mesh.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const y = e[1] * pos.getX(i) + e[5] * pos.getY(i) + e[9] * pos.getZ(i) + e[13];
+        if (y < min) min = y;
+      }
+    }
+    return min;
+  }
+
   forEachPoint(cb: (p: THREE.Vector3) => void) {
     const p = new THREE.Vector3();
     for (const mesh of this.bodies) {
