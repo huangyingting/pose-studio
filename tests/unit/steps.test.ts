@@ -67,6 +67,14 @@ describe('steps from the keyboard (#13)', () => {
     expect(keyTimesOf(store.scene.animation!, id)).toContain(1);
   });
 
+  it('goes round past 180° with the joint limits off', () => {
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    store.setSettings({ limits: false });
+    setJoint(store, id, 'head', [0, 175, 0], '');
+    expect(stepJoint(store, id, 'head', 1, 10)).toBeCloseTo(-175, 3);
+  });
+
   it('moves a path camera across and pans it', () => {
     const store = new Store(new MemoryStorage());
     const cam = addCamera(store);
@@ -81,5 +89,13 @@ describe('steps from the keyboard (#13)', () => {
     const d0 = at.target.clone().sub(at.position).normalize();
     const d1 = view().target.clone().sub(view().position).normalize();
     expect((Math.acos(Math.min(1, d0.dot(d1))) * 180) / Math.PI).toBeCloseTo(5, 0);
+  });
+
+  it('keeps a path camera\'s roll', () => {
+    const store = new Store(new MemoryStorage());
+    const cam = addCamera(store);
+    store.updateScene((s) => ({ ...s, cameras: s.cameras.map((c) => (c.id === cam && c.kind === 'path' ? { ...c, points: c.points.map((p) => ({ ...p, roll: 10 })) } : c)) }));
+    stepCamera(store, cam, { right: 0.1 });
+    expect(viewOf(store.scene, cameraById(store.scene, cam)!, 0).roll).toBeCloseTo(10, 3);
   });
 });

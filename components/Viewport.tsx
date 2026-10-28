@@ -985,7 +985,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
               const now = performance.now();
               const quiet = now - wheelAt.current > 180;
               wheelAt.current = now;
-              if (d && quiet) stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey);
+              if (d && quiet) setPointerHint(`${stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey)} · ${e.nativeEvent.shiftKey ? 'Wheel: shot size' : 'Shift-wheel: lens'}`);
             } : undefined}
             {...link(c.id)}
           >

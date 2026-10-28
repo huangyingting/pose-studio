@@ -37,8 +37,8 @@ import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
 import { placingFigure, placingProp, type Placing } from './placing';
 import type { CanvasHit } from './Viewport';
-import { rigAngle, stepRig } from './CameraHandles';
-import { flashReadout, metres, sliderName, sliderText, viaPointer } from './hints';
+import { rigAngle, rigPitch, stepRig } from './CameraHandles';
+import { flashReadout, metres, sliderText, viaPointer } from './hints';
 
 /*
  * Every operation, written once: its title, icon, keys, when it applies and what it does. Key
@@ -278,7 +278,7 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
     return cam ? { kind: cam.kind === 'rig' ? 'rig' : 'camera', id: cam.id } : null;
   }
   if (c.joint) return k.startsWith('turn') ? { kind: 'joint' } : null;
-  if (c.many) return k === 'turnUp' || k === 'turnDown' ? null : { kind: 'many' };
+  if (c.many) return k === 'turnUp' || k === 'turnDown' || k === 'raise' || k === 'lower' ? null : { kind: 'many' };
   if (c.figure) return k === 'turnUp' || k === 'turnDown' || ((k === 'raise' || k === 'lower') && figureOf(c)?.grounded !== false) ? null : { kind: 'figure', id: c.figure };
   if (c.prop) return k === 'turnUp' || k === 'turnDown' || propNow(s, c.prop)?.hold ? null : { kind: 'prop', id: c.prop };
   if (c.camera) {
@@ -321,7 +321,7 @@ function step(c: Ctx, k: StepKey) {
       break;
     case 'many':
       if (moving) stepMany(s, c.many!.figures, c.many!.props, { dx, dz });
-      else if (!lift) stepMany(s, c.many!.figures, c.many!.props, { turn: -sx * STEP.turn * n });
+      else stepMany(s, c.many!.figures, c.many!.props, { turn: -sx * STEP.turn * n });
       flashReadout(moving ? `Moved ${metres(Math.hypot(dx, dz))} m` : `Turned ${-sx * STEP.turn * n}°`);
       break;
     case 'joint': {
@@ -343,10 +343,9 @@ function step(c: Ctx, k: StepKey) {
       break;
     case 'rig': {
       const cam = cameraById(sceneOf(c), at.id) as RigCamera;
-      if (lift) stepRig(s, cam, sy, false);
-      else if (k === 'turnUp' || k === 'turnDown') editRig(s, cam.id, { pitch: cam.rig.pitch + sy * STEP.height * n }, `step:${cam.id}`);
-      else if (sx) editRig(s, cam.id, { yaw: cam.rig.yaw + sx * STEP.turn * n }, `step:${cam.id}`);
-      else stepRig(s, cam, sy, false);
+      if (lift || (!sx && moving)) stepRig(s, cam, sy * n, false);
+      else if (k === 'turnUp' || k === 'turnDown') editRig(s, cam.id, { pitch: rigPitch(cam.rig.pitch + sy * STEP.height * n) }, `step:${cam.id}`);
+      else editRig(s, cam.id, { yaw: cam.rig.yaw + sx * STEP.turn * n }, `step:${cam.id}`);
       const now = cameraById(sceneOf(c), at.id) as RigCamera;
       flashReadout(`${now.name} · ${rigAngle(now.rig.yaw)}, ${Math.round(now.rig.pitch)}° up`);
       break;
@@ -369,7 +368,7 @@ export function stepHint(c: Ctx): string | null {
     case 'figure': return `← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${shift}`;
     case 'prop': return `← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
     case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${shift}`;
-    case 'joint': return `Alt ← →: ${sliderName(c.joint!, slider)} −/+ 5° · Alt ↑ ↓: another slider · ↑ ↓ ← →: another joint${shift}`;
+    case 'joint': return `Alt ← →: its slider −/+ 5° · Alt ↑ ↓: Bend, Twist, Side · ↑ ↓ ← →: another joint${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
     case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
     case 'light': return `← →: round 15° · Page Up / Down: higher, lower${shift}`;
@@ -377,9 +376,15 @@ export function stepHint(c: Ctx): string | null {
   }
 }
 
-/** Whether the last step key was pressed with Shift (the keys run commands without their event). */
+/**
+ * Whether the step key just pressed was pressed with Shift (the keys run commands without their
+ * event); a step from a menu or the palette is one step.
+ */
 let lastStepShift = false;
-if (typeof window !== 'undefined') window.addEventListener('keydown', (e) => { lastStepShift = e.shiftKey; }, true);
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => { lastStepShift = e.shiftKey && /^(Arrow|Page)/.test(e.key); }, true);
+  window.addEventListener('pointerdown', () => { lastStepShift = false; }, true);
+}
 
 export const COMMANDS: Command[] = [
   // The app.

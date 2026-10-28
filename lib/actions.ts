@@ -1641,9 +1641,12 @@ export function stepJoint(store: Store, figure: string, joint: JointName, axis: 
   const f = store.scene.figures.find((x) => x.id === figure);
   if (!f) return null;
   const v = angle(f.bones, joint);
-  const [lo, hi] = store.getState().settings.limits ? jointLimits(joint)[axis] : [-180, 180];
   const next: Vec3 = [...v];
-  next[axis] = Math.min(hi, Math.max(lo, v[axis] + by));
+  // Within the joint's limits; without them it goes round (as a drag does).
+  if (store.getState().settings.limits) {
+    const [lo, hi] = jointLimits(joint)[axis];
+    next[axis] = Math.min(hi, Math.max(lo, v[axis] + by));
+  } else next[axis] = wrapDeg(v[axis] + by);
   setJoint(store, figure, joint, next, `step:${figure}:${joint}:${axis}`);
   return next[axis];
 }
@@ -1665,5 +1668,10 @@ export function stepCamera(store: Store, id: string, step: { right?: number; for
   if (step.pan) look.applyAxisAngle(new THREE.Vector3(0, 1, 0), (-step.pan * Math.PI) / 180);
   if (step.tilt) look.applyAxisAngle(new THREE.Vector3().crossVectors(look, new THREE.Vector3(0, 1, 0)).normalize(), (step.tilt * Math.PI) / 180);
   look = position.clone().add(look);
-  setCameraPoint(store, position, look, view.fov, `step:${id}`, id);
+  const { t, fps } = here(store);
+  // Its roll stays.
+  store.updateScene((s) => {
+    const c = pathCamera(s, id);
+    return c ? withCamera(s, setPointAt(c, fps, t, { ...capturePoint(s, c, t, position, look, view.fov), ...(view.roll ? { roll: view.roll } : {}) })) : s;
+  }, `step:${id}`);
 }

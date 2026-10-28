@@ -288,10 +288,10 @@ function App() {
       const typing = el.closest('textarea, select, [contenteditable="true"]')
         || (el instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(el.type));
       if (typing) return;
-      // The arrow and Page keys belong to what has focus if it uses them (a slider, a menu, a list, tabs); a
-      // plain button just clicked keeps no hold on them.
-      if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && el !== document.body
-        && el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes')) return;
+      // The arrow and Page keys belong to what has focus if it uses them (a slider, a menu, a list, tabs), and
+      // scroll a side panel last clicked in; a plain button just clicked keeps no hold on them.
+      if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && (el === document.body ? inPanel
+        : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes'))) return;
       if (pick && e.key === 'Escape') {
         e.preventDefault();
         setPick(null);
@@ -308,8 +308,14 @@ function App() {
       e.preventDefault();
       cmd.run!(c);
     };
+    let inPanel = false;
+    const onDown = (e: PointerEvent) => { inPanel = !!(e.target as Element).closest?.('aside'); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onDown, true);
+    };
   }, [dialog, store, pick]);
 
   // Offline support (production only: in development the cache would serve stale code).

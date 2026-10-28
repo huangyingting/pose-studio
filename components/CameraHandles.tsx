@@ -32,19 +32,21 @@ export function rigAngle(yaw: number) {
 const heightText = (pitch: number) => (Math.abs(pitch) < 1 ? 'level with the subject' : `${Math.round(Math.abs(pitch))}° ${pitch > 0 ? 'above' : 'below'}`);
 
 /** A rig camera's shot size or lens a step closer (+1) or wider (−1): the wheel over it. */
-export function stepRig(store: Store, cam: RigCamera, by: number, lens: boolean) {
+export function stepRig(store: Store, cam: RigCamera, by: number, lens: boolean): string {
   if (lens) {
     const i = LENSES.reduce((b, mm, j) => (Math.abs(mm - cam.rig.lens) < Math.abs(LENSES[b] - cam.rig.lens) ? j : b), 0);
     const mm = LENSES[Math.min(LENSES.length - 1, Math.max(0, i + by))];
     editRig(store, cam.id, { lens: mm }, `wheel:${cam.id}`);
-    setPointerHint(`${cam.name}: ${mm} mm lens · Wheel: shot size`);
-  } else {
-    const i = SHOT_SIZES.findIndex((x) => x.id === cam.rig.size);
-    const size = SHOT_SIZES[Math.min(SHOT_SIZES.length - 1, Math.max(0, i + by))];
-    editRig(store, cam.id, { size: size.id }, `wheel:${cam.id}`);
-    setPointerHint(`${cam.name}: ${size.name.toLowerCase()} shot · Shift-wheel: lens`);
+    return `${cam.name}: ${mm} mm lens`;
   }
+  const i = SHOT_SIZES.findIndex((x) => x.id === cam.rig.size);
+  const size = SHOT_SIZES[Math.min(SHOT_SIZES.length - 1, Math.max(0, i + by))];
+  editRig(store, cam.id, { size: size.id }, `wheel:${cam.id}`);
+  return `${cam.name}: ${size.name.toLowerCase()} shot`;
 }
+
+/** A rig camera's height as its handle allows it (degrees above the subject; below as far as the floor allows). */
+export const rigPitch = (pitch: number) => Math.min(80, Math.max(-60, pitch));
 
 export default function CameraHandles({ store, scene, time, picked, hovered }: { store: Store; scene: Scene; time: number; picked: string | null; hovered: string | null }) {
   const get = useThree((s) => s.get);
@@ -122,7 +124,7 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
       const pitch0 = cam.rig.pitch;
       const key = `rigpitch:${cam.id}:${drags++}`;
       follow(e, (ev) => {
-        let pitch = Math.min(80, Math.max(-60, pitch0 + (y0 - ev.clientY) * 0.3));
+        let pitch = rigPitch(pitch0 + (y0 - ev.clientY) * 0.3);
         if (snapping(ev)) pitch = snap(pitch, STEPS.height);
         editRig(store, cam.id, { pitch }, key);
         setReadout(`${cam.name} ${heightText(pitch)}`);

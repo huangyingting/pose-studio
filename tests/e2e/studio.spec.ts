@@ -1503,7 +1503,8 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   await page.waitForTimeout(300);
   const cast = page.getByRole('list', { name: 'Cast' });
   await cast.getByRole('button', { name: /^Figure$/ }).click();
-  // The hint says what the keys do.
+  // The hint says what the keys do (once the next step it suggests is put off).
+  while (await page.getByRole('button', { name: 'Not now' }).isVisible()) await page.getByRole('button', { name: 'Not now' }).click();
   await expect(page.locator('.bar-hint')).toContainText('← → ↑ ↓: move Figure 5 cm');
   const at = async () => (await live(page)).scene.figures[0].position;
   const x0 = (await at())[0];
