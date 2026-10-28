@@ -144,7 +144,15 @@ export default function Viewport({
     || (selection.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold)
     || (selection.kind === 'camera' && scene.cameras.find((c) => c.id === selection.camera)?.kind === 'rig'));
   const ringOnScreen = useCallback(() => (selection ? apiRef.current?.ringOnScreen(selection) ?? null : null), [selection, apiRef]);
-  const jointOnScreen = useCallback(() => (selection?.kind === 'joint' ? apiRef.current?.project(selection.figure, selection.joint) ?? null : null), [selection, apiRef]);
+  // The joint on screen, and the side away from the body's middle (where its card goes, clear of the body).
+  const jointOnScreen = useCallback(() => {
+    if (selection?.kind !== 'joint') return null;
+    const at = apiRef.current?.project(selection.figure, selection.joint);
+    const middle = apiRef.current?.project(selection.figure, 'chest');
+    // (A joint on the body's middle: the card goes clear of the arms too.)
+    const gap = at && middle && Math.abs(at.x - middle.x) < 30 ? 110 : 28;
+    return at ? { ...at, side: middle && at.x < middle.x - 1 ? -1 : 1, gap } : null;
+  }, [selection, apiRef]);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
@@ -178,11 +186,13 @@ export default function Viewport({
   /** A double-click on a figure: all of it (it moves when dragged; Y, X or Z with ← → turn and lean it). */
   const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4 || e.nativeEvent.shiftKey || e.nativeEvent.altKey) return;
+    // (The lamp drawn over the body, and a click that picked something, keep their selection.)
+    if (e.intersections.some((i) => i.object.userData.lamp) || performance.now() - pickedAt.current < 600) return;
     let o: THREE.Object3D | null = e.object;
     while (o && !o.userData.joint && !o.userData.prop) o = o.parent;
     if (!o?.userData.figure) return;
     e.stopPropagation();
-    store.select({ kind: 'figure', figure: o.userData.figure as string });
+    store.select({ kind: 'figure', figure: o.userData.figure as string, whole: true });
   };
 
   // The gizmo is for the explicit tools: Move (W: a whole figure or a prop, also up and down) and

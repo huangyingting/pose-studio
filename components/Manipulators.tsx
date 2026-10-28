@@ -262,9 +262,9 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     }
     const figure = o.userData.figure as string;
     const joint = o.userData.joint as JointName;
-    // The whole figure (a stand-in, or it selected by a double-click, or among several): it moves.
+    // The whole figure (a stand-in, or picked as a whole by a double-click, or among several): it moves.
     const sel = store.getState().selection;
-    if (scene.figures.find((f) => f.id === figure)?.proxy || (sel?.kind === 'figure' && sel.figure === figure) || (sel?.kind === 'many' && sel.figures.includes(figure))) return { kind: 'body', figure };
+    if (scene.figures.find((f) => f.id === figure)?.proxy || (sel?.kind === 'figure' && sel.whole && sel.figure === figure) || (sel?.kind === 'many' && sel.figures.includes(figure))) return { kind: 'body', figure };
     // The hips: the body moves on the legs, the feet planted; the rest turns at its joint.
     if (joint === 'hips') return { kind: 'pelvis', figure };
     return { kind: ENDS[joint] ? 'end' : 'swing', figure, joint };
@@ -362,7 +362,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
       const yaw = root.rotation.y;
       return {
         cursor: twist ? 'ew-resize' : 'move',
-        begin: () => store.select({ kind: 'figure', figure: t.figure }),
+        begin: () => store.select({ kind: 'figure', figure: t.figure, whole: true }),
         move: (ray, dx, _dy, e) => {
           if (twist) {
             root.rotation.y = yaw + dx * TWIST * D2R;

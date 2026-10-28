@@ -21,15 +21,15 @@ export default function JointCard({ store, figure, joint, value, limits, onScree
   /** The joint's slider values now. */
   value: Vec3;
   limits: boolean;
-  /** The joint on screen (client coordinates), or null when it is not drawn. */
-  onScreen(): { x: number; y: number } | null;
+  /** The joint on screen (client coordinates) and the side away from the body (−1: left), or null when it is not drawn. */
+  onScreen(): { x: number; y: number; side: number; gap: number } | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<{ x: number; y: number; left: boolean } | null>(null);
   const [typing, setTyping] = useState<number | null>(null);
 
-  // Follow the joint on screen (as the view turns, as it moves); beside it, on the side with room.
+  // Follow the joint on screen (as the view turns, as it moves); beside it, away from the body.
   useEffect(() => {
     let raf = 0;
     const tick = () => {
@@ -39,8 +39,11 @@ export default function JointCard({ store, figure, joint, value, limits, onScree
       let next: { x: number; y: number; left: boolean } | null = null;
       if (s && box) {
         const x = s.x - box.left;
-        const left = x + 28 + w > box.width - 8;
-        next = { x: left ? x - 28 - w : x + 28, y: Math.max(8, s.y - box.top - 44), left };
+        // Away from the body, unless there is no room there.
+        const roomLeft = x - s.gap - w >= 8;
+        const roomRight = x + s.gap + w <= box.width - 8;
+        const left = s.side < 0 ? roomLeft || !roomRight : !roomRight && roomLeft;
+        next = { x: left ? x - s.gap - w : x + s.gap, y: Math.max(8, s.y - box.top - 44), left };
       }
       setPlace((p) => (p && next && Math.abs(p.x - next.x) < 0.5 && Math.abs(p.y - next.y) < 0.5 ? p : next));
       raf = requestAnimationFrame(tick);

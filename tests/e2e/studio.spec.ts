@@ -1604,13 +1604,16 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   const y0 = await yaw();
   await page.keyboard.press('Alt+ArrowLeft');
   expect(Math.round((((await yaw()) - y0 + 540) % 360) - 180)).toBe(15);
-  // A joint: Alt + → turns its slider 5°.
+  // A joint: X held with ← steps its Bend 5°.
   const elbow = await project(page, 'leftLowerArm');
   const hand = await project(page, 'leftHand');
   await page.mouse.click((elbow.x + hand.x) / 2, (elbow.y + hand.y) / 2);
+  await expect(page.locator('.bar-hint')).toContainText('X, Y or Z with ← →:');
   const bend = async () => angle((await live(page)).scene.figures[0].bones, 'leftLowerArm')[0];
   const b0 = await bend();
-  await page.keyboard.press('Alt+ArrowLeft');
+  await page.keyboard.down('x');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.up('x');
   expect(await bend()).toBeCloseTo(b0 - 5, 0);
   await expect(page.locator('.drag-readout')).toHaveText(/^Left forearm · Bend −?\d+°$/);
   // The light: ← moves it round 15°.

@@ -448,7 +448,8 @@ function cycleSelection(c: Ctx, dir: 1 | -1) {
 
 /** What the step keys do for what is selected, for the hint ("← → ↑ ↓: move · Alt ← →: turn"). */
 export function stepHint(c: Ctx): string | null {
-  const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
+  // (A joint's keys go with X, Y or Z held: said for it all the same.)
+  const at = stepping(c, 'turnLeft') ?? stepping(c, 'left') ?? (c.joint && !c.store.getState().through ? { kind: 'joint' as const } : null);
   const shift = ' · Shift: ×3';
   const whole = animated(c) ? ' · Ctrl: the whole performance' : '';
   // (Under the Pose tool the Move gizmo is a key away.)
