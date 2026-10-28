@@ -430,9 +430,11 @@ export function stepHint(c: Ctx): string | null {
   const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
   const shift = ' · Shift: ×3';
   const whole = animated(c) ? ' · Ctrl: the whole performance' : '';
+  // (Under the Pose tool the Move gizmo is a key away.)
+  const tool = c.store.getState().settings.gizmo === 'rotate' ? 'W: move tool · ' : '';
   switch (at?.kind) {
-    case 'figure': return `← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
-    case 'prop': return `← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
+    case 'figure': return `${tool}← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
+    case 'prop': return `${tool}← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
     case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${c.many?.figures.length ? whole : ''}${shift}`;
     case 'joint': return `Alt ← →: its slider −/+ 5° · Alt ↑ ↓: Bend, Twist, Side · ↑ ↓ ← →: another joint${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
@@ -521,6 +523,12 @@ export const COMMANDS: Command[] = [
   { id: 'view.grid', title: 'Floor grid', checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
   { id: 'view.onion', title: 'Onion skin (the keys either side)', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
   { id: 'view.guides', title: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
+  {
+    id: 'view.gizmoSize', title: 'Gizmo size',
+    items: (c) => [{ label: 'Small', x: 0.75 }, { label: 'Medium', x: 1 }, { label: 'Large', x: 1.35 }, { label: 'Extra large', x: 1.7 }].map((g) => ({
+      title: g.label, checked: Math.abs(c.store.getState().settings.gizmoSize - g.x) < 0.01, run: () => c.store.setSettings({ gizmoSize: g.x }),
+    })),
+  },
   {
     id: 'view.line', title: 'Line weight', when: (c) => !!styleDef(filmOf(c.store.getState().library).style).outline,
     items: (c) => [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }].map((w) => ({
@@ -1238,7 +1246,7 @@ export const MENUS = {
   main: ['app.save', 'app.import', 'app.open', '-', 'app.project', 'app.practice', 'app.help', 'app.theme'],
   view: [
     { group: 'Angle' }, ...VIEW_PRESETS.map((v) => `view.${v.key}`), 'view.isolate', 'view.through',
-    { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',
+    { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line', 'view.gizmoSize',
   ],
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',

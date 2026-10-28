@@ -1701,6 +1701,12 @@ test('steps found on the canvas: a joint arc\'s − and +, ⟲ and ⟳ beside th
   expect(await facing()).toBeCloseTo(f0 + 15, 0);
   await page.getByRole('button', { name: /^Turn 15° clockwise/ }).click();
   expect(await facing()).toBeCloseTo(f0, 0);
+  // Under the Pose tool the hint says W gives the Move gizmo, whose size the View menu sets.
+  await page.mouse.move(5, 400);
+  while (await page.getByRole('button', { name: 'Not now' }).isVisible()) await page.getByRole('button', { name: 'Not now' }).click();
+  await expect(page.locator('.bar-hint')).toContainText('W: move tool');
+  await viewMenu(page, /^Large$/);
+  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { settings: { gizmoSize: number } } } } }).__poseStudio.store.getState().settings.gizmoSize)).toBe(1.35);
 });
 
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {

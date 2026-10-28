@@ -183,6 +183,8 @@ export default function Viewport({
   // it and caught the drags meant for them) and the inspector's sliders; figures and props turn by
   // their floor ring.
   const handles = settings.showHandles && !shotMode;
+  // (A finger needs a bigger gizmo.)
+  const [coarse] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
   // A scene is first shown from where its camera films it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const openAngle = useMemo(() => angleAt(scene, 0), [scene.id]);
@@ -322,7 +324,8 @@ export default function Viewport({
             object={target}
             mode={mode}
             space={mode === 'translate' ? 'world' : 'local'}
-            size={0.8}
+            // (About 1.3 times drei's own by default, half as much again on touch screens; View → Gizmo size.)
+            size={1.05 * settings.gizmoSize * (coarse ? 1.5 : 1)}
             showY={showY}
             // (Ctrl: the 25 cm grid, 10 % of the size.)
             translationSnap={snapKey ? STEPS.move : null}

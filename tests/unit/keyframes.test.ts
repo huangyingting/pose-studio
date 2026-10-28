@@ -4,7 +4,9 @@ import { clipById } from '@/lib/assets';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { angle } from '@/lib/pose';
 import { Store } from '@/lib/store';
-import { keyEaseAt, keyTimesOf } from '@/lib/track';
+import { keyEaseAt, keyTimesOf, keysAction, moveKeysBy } from '@/lib/track';
+import { newFigure } from '@/lib/doc';
+import type { Animation } from '@/lib/types';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -118,5 +120,13 @@ describe('keyframes: pose to pose (#13)', () => {
     repeatAction(k.store, block.id, 2);
     expect(keyEaseAt(k.store.scene.animation!, k.id, 2)).toBe('step');
     expect(keyEaseAt(k.store.scene.animation!, k.id, 4)).toBe('smooth');
+  });
+
+  it('refuses to move picked keys of two blocks so that the blocks overlap', () => {
+    const f = newFigure();
+    const pose = { bones: f.bones, position: f.position, hands: f.hands, grounded: f.grounded };
+    const a: Animation = { duration: 4, fps: 24, loop: false, actions: [keysAction(f.id, [{ t: 0, pose }, { t: 1, pose }]), keysAction(f.id, [{ t: 2, pose }, { t: 3, pose }])], shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: 'c' }] };
+    expect(moveKeysBy(a, f.id, [1, 3], 1.5)).toBe(a);
+    expect(keyTimesOf(moveKeysBy(a, f.id, [0, 1, 2, 3], 0.5), f.id)).toEqual([0.5, 1.5, 2.5, 3.5]);
   });
 });

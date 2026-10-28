@@ -141,9 +141,9 @@ export function moveKeysBy(a: Animation, figure: string, times: number[], by: nu
     if (moved[0].t < -EPS || moved[moved.length - 1].t > MAX_DURATION + EPS || moved.some((k, i) => i > 0 && k.t - moved[i - 1].t < tol)) return a;
     nexts.push({ ...keysAction(figure, moved, act.layer), id: act.id });
   }
-  // Not over the actions that stay (those moving together keep their order).
-  const staying = actionsOf(a, figure).filter((x) => !touched.includes(x));
-  if (nexts.some((n) => staying.some((x) => x.start < end(n) - EPS && end(x) > n.start + EPS))) return a;
+  // Not over another action, staying or moved.
+  const after = [...actionsOf(a, figure).filter((x) => !touched.includes(x)), ...nexts];
+  if (nexts.some((n) => after.some((x) => x !== n && x.start < end(n) - EPS && end(x) > n.start + EPS))) return a;
   return sorted({ ...a, actions: [...a.actions.filter((x) => !touched.includes(x)), ...nexts] });
 }
 
@@ -597,7 +597,13 @@ export function cutTo(scene: Scene, d: number): Scene {
       const k = Math.min(1, Math.max(0, ((here.at[0] - p[0]) * (q[0] - p[0]) + (here.at[1] - p[1]) * (q[1] - p[1])) / len2));
       return Math.hypot(here.at[0] - (p[0] + (q[0] - p[0]) * k), here.at[1] - (p[1] + (q[1] - p[1]) * k));
     };
-    const leg = legs.reduce((best, _, i) => (off(i) < off(best) - 1e-6 ? i : best), 0);
+    // (Legs over one another, as on a way out and back: the one about as far along as its time.)
+    const nearest = Math.min(...legs.map((_, i) => off(i)));
+    const total = legs.reduce((t, l) => t + l, 0) || 1;
+    const u = (d - x.start) / x.duration;
+    const from = (i: number) => legs.slice(0, i).reduce((t, l) => t + l, 0) / total;
+    const mid = (i: number) => Math.abs((from(i) + from(i + 1)) / 2 - u);
+    const leg = legs.map((_, i) => i).filter((i) => off(i) < nearest + 0.05).reduce((best, i) => (mid(i) < mid(best) ? i : best));
     return [x.id, { mark: here, via: via.slice(0, leg) }];
   }));
   for (const f of scene.figures) a = clear({ ...scene, animation: a }, f.id, d, Infinity);
