@@ -37,7 +37,7 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
     const box = sv.bounds();
     const c = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
     const size = box.isEmpty() ? 2 : box.getSize(new THREE.Vector3()).length();
-    return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(2.5, size * 0.9) };
+    return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(1.8, size * 0.6) };
     // (Worked out again as the scene changes.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sv, scene]);
@@ -85,8 +85,8 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
   if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
   const lift = new THREE.Vector3().crossVectors(side, toward).normalize();
   const rays = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => {
-    const from = lamp.clone().addScaledVector(side, a * 0.25).addScaledVector(lift, b * 0.25).addScaledVector(toward, 0.3);
-    return [from.toArray() as Vec3, from.clone().addScaledVector(toward, radius * 0.45).toArray() as Vec3];
+    const from = lamp.clone().addScaledVector(side, a * 0.08).addScaledVector(lift, b * 0.08).addScaledVector(toward, 0.15);
+    return [from.toArray() as Vec3, from.clone().addScaledVector(toward, 0.35).toArray() as Vec3];
   });
   // The dome's rim on the floor and its arc through the lamp.
   const rim = Array.from({ length: 65 }, (_, i) => lampAt(base, radius, (i / 64) * 360, 0).toArray() as Vec3);
@@ -115,9 +115,9 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
       </group>
       {selected && (
         <>
-          <Line points={rim} color={LAMP} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.15} />
-          <Line points={arc} color={LAMP} lineWidth={1} transparent opacity={0.5} />
-          {rays.map(([a, b], i) => <Line key={i} points={[a, b]} color={LAMP} lineWidth={1.5} transparent opacity={0.7} />)}
+          <Line points={rim} color={LAMP} lineWidth={1} transparent opacity={0.3} dashed dashSize={0.12} gapSize={0.1} />
+          <Line points={arc} color={LAMP} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.08} gapSize={0.06} />
+          {rays.map(([a, b], i) => <Line key={i} points={[a, b]} color={LAMP} lineWidth={1.5} transparent opacity={0.8} />)}
         </>
       )}
     </>
