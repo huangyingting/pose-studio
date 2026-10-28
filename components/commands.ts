@@ -290,7 +290,7 @@ export const COMMANDS: Command[] = [
   ...VIEW_PRESETS.map((v): Command => ({ id: `view.${v.key}`, title: v.label, keys: [v.key], run: (c) => { c.store.lookThrough(null); App().frameView(v); } })),
   { id: 'view.frameAll', title: 'Frame all', icon: Focus, run: () => App().frameAll() },
   {
-    id: 'view.frame', title: (c) => (c.store.getState().selection ? 'Frame the selection' : 'Frame all'), help: 'Frame the selection (everything when nothing is selected)',
+    id: 'view.frame', title: (c) => (['figure', 'joint', 'prop', 'light', 'many'].includes(c.store.getState().selection?.kind ?? '') ? 'Frame the selection' : 'Frame all'), help: 'Frame the selection (everything when nothing is selected)',
     icon: Focus, keys: ['f'], run: () => App().frameSelected(),
   },
   {

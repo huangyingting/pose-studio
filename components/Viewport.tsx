@@ -56,8 +56,8 @@ export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; cam
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
   n: number;
-  /** Only this figure or prop (the selection), not everything. */
-  only?: string;
+  /** Only these figures or props (the selection), or 'light' (the scene and its lamp), not everything. */
+  only?: string | string[];
 }
 
 interface Props {
@@ -764,14 +764,16 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     };
   }, [apiRef, camera, controls, sv, gl, rigRef, r3fScene]);
 
-  const frame = (view: FrameRequest['view'], only?: string) => {
+  const frame = (view: FrameRequest['view'], only?: string | string[]) => {
     if (!controls) return 0;
     // Wait a frame so the scene has been synced.
     return requestAnimationFrame(() => {
-      const one = only ? (sv.figures.get(only) ?? sv.props.get(only)) : undefined;
+      const ids = typeof only === 'string' ? (only === 'light' ? [] : [only]) : only ?? [];
+      const things = ids.flatMap((id) => { const t = sv.figures.get(id) ?? sv.props.get(id); return t ? [t] : []; });
+      const one = things.length ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => things.forEach((t) => t.forEachPoint(cb)) } : undefined;
       // (The light: the scene and its lamp.)
       const lamp = only === 'light' ? lampAt(lightDome(sv.bounds()), lightRef.current) : null;
-      const source = one ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => one.forEachPoint(cb) } : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
+      const source = one ? one : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
       controls.target.copy(fitCamera(camera, source, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2));
       camera.near = 0.01; // fitCamera tightens these for export; keep room for zooming
       camera.far = 200;

@@ -25,6 +25,8 @@ export interface Placing {
   text: string;
   /** Work out where it goes for the pointer (the floor under it, Alt, what is under it): the ghost to draw. */
   ghost(floor: Vec3 | undefined, alt: boolean, hit: CanvasHit): Scene | null;
+  /** Whether Alt (off the grid) was down for the last ghost. */
+  alt: boolean;
   drop(hit: CanvasHit): void;
 }
 
@@ -60,7 +62,9 @@ export function placingFigure(store: Store, standIn = false): Placing {
     turn: (by) => { p.yaw = (p.yaw + by + 360) % 360; },
     at: null,
     text: '',
+    alt: false,
     ghost: (floor, alt) => {
+      p.alt = alt;
       if (!floor) return (p.at = null);
       const s = figureSpot(store, floor, alt, p.yaw);
       p.at = s.at;
@@ -87,7 +91,9 @@ export function placingProp(store: Store, kind: PropKind): Placing {
     turn: (by) => { p.yaw = (p.yaw + by + 360) % 360; },
     at: null,
     text: '',
+    alt: false,
     ghost: (floor, alt, hit) => {
+      p.alt = alt;
       const into = hand && hit.figure ? store.scene.figures.find((f) => f.id === hit.figure && !f.proxy) : undefined;
       if (into) {
         // In its right hand (the figure as it is at the playhead, drawn with it).
@@ -124,7 +130,9 @@ export function placingTemplate(store: Store, id: string): Placing {
     turn: (by) => { p.yaw = (p.yaw + by + 360) % 360; },
     at: null,
     text: '',
+    alt: false,
     ghost: (floor, alt, hit) => {
+      p.alt = alt;
       const lead = hit.figure ? store.scene.figures.find((f) => f.id === hit.figure) : undefined;
       if (lead) {
         p.at = null;
