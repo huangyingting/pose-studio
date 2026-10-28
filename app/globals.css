@@ -1874,8 +1874,9 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 .joint-arc.y { --c: var(--axis-y); }
 .joint-arc.z { --c: var(--axis-z); }
 .joint-arc-line { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; transition: stroke-width 0.1s, opacity 0.1s; }
-/* (A pale edge, so they read on the figure and the floor alike.) */
-.joint-arcs { filter: drop-shadow(0 0 1.5px var(--panel)) drop-shadow(0 0 1px var(--panel)); }
+/* (A pale edge under each, so they read on the figure and the floor alike.) */
+.joint-arc-edge { fill: none; stroke: var(--panel); stroke-width: 6; stroke-linecap: round; opacity: 0.85; }
+.joint-arc.on .joint-arc-edge { stroke-width: 9; }
 .joint-arc-head { fill: var(--c); }
 .joint-arc-hit { fill: none; stroke: transparent; stroke-width: 20; pointer-events: stroke; cursor: grab; touch-action: none; }
 .joint-arc-hit:active { cursor: grabbing; }

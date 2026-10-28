@@ -140,6 +140,7 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
             const faded = active && active.axis !== i;
             return (
               <g key={i} className={`joint-arc ${'xyz'[i]}${on ? ' on' : ''}${faded ? ' faded' : ''}${active?.axis === i && active.limit ? ' limit' : ''}`}>
+                <path d={d} className="joint-arc-edge" />
                 <path d={d} className="joint-arc-line" />
                 <path d="M -5 -5.5 L 6 0 L -5 5.5 Z" className="joint-arc-head" transform={`translate(${ex} ${ey}) rotate(${turn})`} />
                 <path
