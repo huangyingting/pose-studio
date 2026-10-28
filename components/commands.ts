@@ -515,7 +515,8 @@ export const COMMANDS: Command[] = [
           if (f) holdProp(c.store, c.prop!, { figure: f.id, hand: hit.contact === 'leftHand' || hit.contact === 'leftUpperArm' ? 'L' : 'R' });
         }),
       },
-      ...sceneOf(c).figures.filter((x) => !x.hidden && !x.proxy).flatMap((x) => (['R', 'L'] as const).map((h) => ({
+      // (Anyone but whoever Hold puts it with.)
+      ...sceneOf(c).figures.filter((x) => !x.hidden && !x.proxy && x.id !== holderOf(c)?.id).flatMap((x) => (['R', 'L'] as const).map((h) => ({
         title: `${x.name}'s ${hand(h)} hand`, icon: Hand, run: () => holdProp(c.store, c.prop!, { figure: x.id, hand: h }),
       }))),
     ],

@@ -668,6 +668,21 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                     openContextMenu(e, menuItems(['travel.how', 'travel.facing', 'travel.height', 'travel.turns'], { store, figure: f.id, at: next }), `${f.name} · to ${next.toFixed(2)} s`);
                   }}
                 >
+                  {/* What it does next, from the playhead (under the blocks: one there takes the click). */}
+                  {!f.proxy && time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
+                    <button
+                      type="button"
+                      className="tl-add"
+                      style={{ left: pct(time) }}
+                      aria-label={`What ${f.name} does next, from ${time.toFixed(2)} s`}
+                      data-tip={`What ${f.name} does next, from here`}
+                      data-tip-side="top"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => openPicker(f.id, e.currentTarget)}
+                    >
+                      <Plus size={11} aria-hidden />
+                    </button>
+                  )}
                   {[...actionsOf(a, f.id), ...actionsOf(a, f.id, 'upper')].filter((x) => x.duration > 1e-6).map((x) => {
                     const label = actionLabel(x);
                     const kind = x.layer === 'upper' ? 'upper' : x.source.kind === 'travel' ? x.source.mode : x.source.kind;
@@ -718,21 +733,6 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   {!actionsOf(a, f.id).some((x) => x.source.kind !== 'keys') && times.length <= 1 && !f.proxy && (
                     <button type="button" className="tl-empty" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => openPicker(f.id, e.currentTarget)}>
                       <Plus size={12} aria-hidden /> Add an action
-                    </button>
-                  )}
-                  {/* What it does next, from the playhead. */}
-                  {!f.proxy && time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
-                    <button
-                      type="button"
-                      className="tl-add"
-                      style={{ left: pct(time) }}
-                      aria-label={`What ${f.name} does next, from ${time.toFixed(2)} s`}
-                      data-tip={`What ${f.name} does next, from here`}
-                      data-tip-side="top"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => openPicker(f.id, e.currentTarget)}
-                    >
-                      <Plus size={11} aria-hidden />
                     </button>
                   )}
                   {dropAt?.figure === f.id && (

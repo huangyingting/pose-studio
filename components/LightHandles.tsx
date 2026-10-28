@@ -12,16 +12,18 @@ import { menu } from './commands';
 import { setPointerHint, setReadout } from './hints';
 
 /*
- * The scene's key light on the canvas, in the lit styles: a sun where the light comes from. A click
- * selects the light; selected, it rides a dome over the scene with rays towards its middle, and a
- * drag moves it over the dome (the shadows follow).
+ * The scene's key light on the canvas, in the lit styles: a lamp (drawn as simply as a camera)
+ * where the light comes from, aimed at the scene. A click selects the light; selected, it rides a
+ * dome over the scene with rays towards its middle, and a drag moves it over the dome (the
+ * shadows follow).
  */
 
-const SUN = '#f5a524';
+const LAMP = '#f5a524';
+const ACCENT = '#3b6cff';
 let drags = 0;
 
-/** Where the light comes from at a distance r from `base` (azimuth 0: the front, +Z; up to the zenith). */
-const sunAt = (base: THREE.Vector3, r: number, azimuth: number, elevation: number) => {
+/** Where the light comes from (its lamp) at a distance r from `base` (azimuth 0: the front, +Z; up to the zenith). */
+const lampAt = (base: THREE.Vector3, r: number, azimuth: number, elevation: number) => {
   const [az, el] = [(azimuth * Math.PI) / 180, (elevation * Math.PI) / 180];
   return base.clone().add(new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).multiplyScalar(r));
 };
@@ -39,12 +41,14 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
     // (Worked out again as the scene changes.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sv, scene]);
-  const sun = sunAt(base, radius, light.azimuth, light.elevation);
+  const lamp = lampAt(base, radius, light.azimuth, light.elevation);
 
-  // A constant size on screen, however far.
+  // A constant size on screen, however far, the lamp aimed at the middle of the scene.
   useFrame(({ camera }) => {
     const g = glyph.current;
-    if (g) g.scale.setScalar(camera.position.distanceTo(g.position) * 0.022);
+    if (!g) return;
+    g.scale.setScalar(camera.position.distanceTo(g.position) * 0.12);
+    g.lookAt(base);
   });
 
   const down = (e: ThreeEvent<PointerEvent>) => {
@@ -55,7 +59,7 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
     if (controls) controls.enabled = false;
     const sphere = new THREE.Sphere(base, radius);
     const ray = new THREE.Raycaster();
-    const key = `sun:${drags++}`;
+    const key = `lamp:${drags++}`;
     const move = (ev: PointerEvent) => {
       const r = gl.domElement.getBoundingClientRect();
       ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
@@ -75,45 +79,45 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
     window.addEventListener('pointerup', up);
   };
 
-  // Rays: a few lines from the sun towards the middle.
-  const toward = base.clone().sub(sun).normalize();
+  // Rays: a few lines from the lamp towards the middle.
+  const toward = base.clone().sub(lamp).normalize();
   const side = new THREE.Vector3().crossVectors(toward, new THREE.Vector3(0, 1, 0)).normalize();
   if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
   const lift = new THREE.Vector3().crossVectors(side, toward).normalize();
   const rays = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => {
-    const from = sun.clone().addScaledVector(side, a * 0.25).addScaledVector(lift, b * 0.25).addScaledVector(toward, 0.3);
+    const from = lamp.clone().addScaledVector(side, a * 0.25).addScaledVector(lift, b * 0.25).addScaledVector(toward, 0.3);
     return [from.toArray() as Vec3, from.clone().addScaledVector(toward, radius * 0.45).toArray() as Vec3];
   });
-  // The dome's rim on the floor and its arc through the sun.
-  const rim = Array.from({ length: 65 }, (_, i) => sunAt(base, radius, (i / 64) * 360, 0).toArray() as Vec3);
-  const arc = Array.from({ length: 33 }, (_, i) => sunAt(base, radius, light.azimuth, (i / 32) * 90).toArray() as Vec3);
+  // The dome's rim on the floor and its arc through the lamp.
+  const rim = Array.from({ length: 65 }, (_, i) => lampAt(base, radius, (i / 64) * 360, 0).toArray() as Vec3);
+  const arc = Array.from({ length: 33 }, (_, i) => lampAt(base, radius, light.azimuth, (i / 32) * 90).toArray() as Vec3);
 
   return (
     <>
       <group
         ref={glyph}
-        position={sun}
+        position={lamp}
         onPointerDown={down}
         onContextMenu={(e) => { e.stopPropagation(); store.select({ kind: 'light' }); openContextMenu(e.nativeEvent, menu('light', { store, light: true }), 'Light'); }}
         onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `The light, ${lightText(light).toLowerCase()} · Drag: move it over the dome · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime and Clay: switch to one in the top bar, or from the light\'s menu'); }}
         onPointerOut={() => { document.body.style.cursor = ''; setPointerHint(null); }}
         userData={{ light: true }}
       >
+        {/* A lamp, drawn as simply as a camera: a bulb, and its shade opening towards the scene (its +Z). */}
         <mesh renderOrder={8}>
-          <sphereGeometry args={[1, 20, 14]} />
-          <meshBasicMaterial color={SUN} depthTest={false} transparent opacity={selected ? 1 : 0.85} />
+          <sphereGeometry args={[0.045, 16, 12]} />
+          <meshBasicMaterial color={selected ? ACCENT : LAMP} depthTest={false} transparent opacity={0.9} />
         </mesh>
-        {/* Its corona: a wire shell round it. */}
-        <mesh renderOrder={8}>
-          <icosahedronGeometry args={[1.7, 0]} />
-          <meshBasicMaterial color={SUN} wireframe depthTest={false} transparent opacity={0.6} />
+        <mesh position={[0, 0, 0.06]} rotation-x={-Math.PI / 2} renderOrder={8}>
+          <coneGeometry args={[0.075, 0.1, 16, 1, true]} />
+          <meshBasicMaterial color={selected ? ACCENT : LAMP} side={THREE.DoubleSide} depthTest={false} transparent opacity={0.6} />
         </mesh>
       </group>
       {selected && (
         <>
-          <Line points={rim} color={SUN} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.15} />
-          <Line points={arc} color={SUN} lineWidth={1} transparent opacity={0.5} />
-          {rays.map(([a, b], i) => <Line key={i} points={[a, b]} color={SUN} lineWidth={1.5} transparent opacity={0.7} />)}
+          <Line points={rim} color={LAMP} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.15} />
+          <Line points={arc} color={LAMP} lineWidth={1} transparent opacity={0.5} />
+          {rays.map(([a, b], i) => <Line key={i} points={[a, b]} color={LAMP} lineWidth={1.5} transparent opacity={0.7} />)}
         </>
       )}
     </>

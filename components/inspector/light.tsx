@@ -13,7 +13,7 @@ import { Thumbnail } from '../side/LibrarySection';
 import { NameHeader, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
-/* The scene's key light, selected (in the outline, or its sun on the canvas): see sections.ts. */
+/* The scene's key light, selected (in the outline, or its lamp on the canvas): see sections.ts. */
 
 const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label);
 const lightOf = (t: Target) => t.scene.light ?? DEFAULT_LIGHT;
@@ -21,7 +21,7 @@ const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'war
 const lit = (t: Target) => styleDef(filmOf(t.store.getState().library).style).lit;
 
 export const lightSummary = (t: Target) => LIGHT_PRESETS.find((p) => same(p.light, lightOf(t)))?.name ?? lightText(lightOf(t));
-export const lightInfo = () => 'Saved with the scene and used by its exports. Drag its sun on the canvas, or Alt-click a figure to light it from where you look.';
+export const lightInfo = () => 'Saved with the scene and used by its exports. Drag its lamp on the canvas, or Alt-click a figure to light it from where you look.';
 
 export function LightHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   return <NameHeader chrome={chrome} lead={<SunMedium size={16} strokeWidth={1.75} aria-hidden />} name="Light" label="Light" menu={() => menu('light', { store: t.store, light: true })} />;

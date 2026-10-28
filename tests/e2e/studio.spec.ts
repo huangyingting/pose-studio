@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { builtInPoses, poseScene } from '../../lib/poses';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
-import { keyTimesOf, moments } from '../../lib/track';
+import { correctionTimesOf, keyTimesOf, moments } from '../../lib/track';
 import type { Animation, Camera, PathCamera, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
@@ -1433,14 +1433,14 @@ test('the timeline is always there: what a figure does next from its + at the pl
   s = await live(page);
   const wave = actionsOf(s.scene.animation!, s.active).find((x) => x.source.kind === 'clip')!;
   expect(wave.start).toBeCloseTo(end, 1);
-  // A pose dragged from the Library onto the row, a quarter of the way along: keyed there.
+  // A pose dragged from the Library onto the row, a quarter of the way along: keyed there (over the walk: a correction to it).
   await openSection(page, 'Library');
   const row = page.getByRole('region', { name: 'Timeline' }).locator('.tl-row').nth(1);
   const box = (await row.boundingBox())!;
   await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: 'Cobra', exact: true }).dragTo(row, { targetPosition: { x: box.width / 4, y: box.height / 2 } });
   s = await live(page);
   const at = s.scene.animation!.duration / 4;
-  expect(keyTimesOf(s.scene.animation!, s.active).some((t) => Math.abs(t - at) < 0.15)).toBe(true);
+  expect([...keyTimesOf(s.scene.animation!, s.active), ...correctionTimesOf(s.scene.animation!, s.active)].some((t) => Math.abs(t - at) < 0.15)).toBe(true);
 });
 
 test('relations by pointing: a hand let go on someone holds on there; who to look at is clicked on the canvas', async ({ page }) => {
