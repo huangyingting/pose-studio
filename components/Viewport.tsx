@@ -659,7 +659,8 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
       jointOnScreen: (id, joint) => {
         const m = sv.figures.get(id);
-        if (!m || !m.object.visible) return null;
+        // (A figure drawn as a character: its mannequin is hidden but still posed, and the character follows it.)
+        if (!m || (!m.object.visible && !sv.models.get(id))) return null;
         const obj = m.joints[joint];
         const pivot = obj.getWorldPosition(new THREE.Vector3());
         const at = toScreen(pivot.clone());

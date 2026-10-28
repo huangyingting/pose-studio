@@ -7,10 +7,10 @@ on:
     branches: [main]
   pull_request:
 
-# A newer push makes an older run moot.
+# One run at a time: a run in progress finishes (its results are read); only the newest push waits.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check:
