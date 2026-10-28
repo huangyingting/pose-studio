@@ -48,7 +48,7 @@ const MIN_SHOT = 1;
 export const COVERAGES: Coverage[] = [
   {
     id: 'dialogue',
-    name: 'Two-person dialogue',
+    name: 'Conversation',
     description: 'A master two-shot, over-the-shoulder shots and singles, all on one side of the line between them',
     roles: ['A', 'B'],
     cameras: [
@@ -85,7 +85,7 @@ export const COVERAGES: Coverage[] = [
   },
   {
     id: 'sports',
-    name: 'Sports: a pass',
+    name: 'Sports',
     description: 'A wide shot of both, cutting to the one who gets the ball as it is let go, tracking a run',
     roles: ['A', 'B'],
     cameras: [
@@ -153,14 +153,8 @@ export const COVERAGES: Coverage[] = [
 export const coverageById = (id: string) => COVERAGES.find((c) => c.id === id) ?? null;
 
 /** The director's styles (#14): a coverage each, cast and kept up to date as what they do changes. */
-export const DIRECTOR_STYLES: { id: string; label: string }[] = [
-  { id: 'dialogue', label: 'Conversation' },
-  { id: 'follow', label: 'Follow the action' },
-  { id: 'one-take', label: 'One take' },
-  { id: 'documentary', label: 'Documentary' },
-  { id: 'sports', label: 'Sports' },
-  { id: 'fight', label: 'Fight' },
-];
+export const DIRECTOR_STYLES: { id: string; label: string }[] = ['dialogue', 'follow', 'one-take', 'documentary', 'sports', 'fight']
+  .map((id) => ({ id, label: coverageById(id)!.name }));
 
 /** The camera a coverage makes for one of its cameras, with these figures in its roles. */
 function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): Omit<RigCamera, 'id'> {

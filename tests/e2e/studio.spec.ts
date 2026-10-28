@@ -792,7 +792,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   const dialog = page.getByRole('dialog', { name: 'New shoot preset' });
   await dialog.getByRole('textbox', { name: 'Preset name' }).fill('Small talk');
   await choose(page, 'Template', /^Handshake/);
-  await choose(page, 'Coverage', 'Two-person dialogue');
+  await choose(page, 'Coverage', 'Conversation');
   await dialog.getByRole('button', { name: 'Make preset' }).click();
   await page.getByRole('region', { name: 'Shoot presets' }).getByRole('button', { name: /^Small talk/ }).click();
   const small = (await live(page)).scene;
@@ -1893,7 +1893,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   // Or filmed with a coverage of the two: a master, over-the-shoulder shots and singles.
   await openSection(page, 'Library');
   await libraryShows(page, 'Camera');
-  await page.getByRole('region', { name: 'Coverage' }).getByRole('button', { name: /Two-person dialogue/ }).click();
+  await page.getByRole('region', { name: 'Coverage' }).getByRole('button', { name: /^Conversation/ }).click();
   s = await live(page);
   expect(s.scene.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.name).toBe('Master');

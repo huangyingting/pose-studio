@@ -150,7 +150,7 @@ describe('assistant tools', () => {
     run(store, 'new_scene', { template: 'handshake', name: 'Deal' });
     const [a, b] = store.scene.figures;
     run(store, 'animate', { duration: 8, loop: false });
-    expect(run(store, 'film_coverage', { coverage: 'dialogue', a: b.name, b: a.name })).toMatch(new RegExp(`^Two-person dialogue \\(A: ${b.name}, B: ${a.name}\\): 0 s Master, 3 s ${b.name} single`));
+    expect(run(store, 'film_coverage', { coverage: 'dialogue', a: b.name, b: a.name })).toMatch(new RegExp(`^Conversation \\(A: ${b.name}, B: ${a.name}\\): 0 s Master, 3 s ${b.name} single`));
     expect(runTool(store, 'film_coverage', { coverage: 'sports', a: a.name, b: a.name }).ok).toBe(false);
     // A shot and a camera, each edited on its own.
     expect(run(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Master', size: 'ws', lens: 28 })).toMatch(/^Master: follows .* at wide, 28mm\.$/);
