@@ -148,7 +148,7 @@ export function PlacementPanel({ t }: { t: Target }) {
       {start && (
         // Where its performance starts: changing it moves (or turns, about there) all it does, without a key.
         <div className="prop-row" data-tip="Where it starts: changing it moves all it does, without a key (Ctrl + arrows)">
-          <span className="prop-row-label">Whole performance</span>
+          <span className="prop-row-label">Starts at</span>
           <NumberField prefix="X" label="Whole performance X" value={start.position[0]} step={0.05} onChange={(x) => offsetPerformance(store, [figure.id], { dx: x - start.position[0] }, `whole:${figure.id}:x`)} />
           <NumberField prefix="Z" label="Whole performance Z" value={start.position[2]} step={0.05} onChange={(z) => offsetPerformance(store, [figure.id], { dz: z - start.position[2] }, `whole:${figure.id}:z`)} />
           <NumberField prefix="↻" label="Whole performance facing" value={facing(start)} step={5} digits={0} onChange={(yaw) => offsetPerformance(store, [figure.id], { turn: wrapDeg(yaw - facing(start)), about: [start.position[0], start.position[2]] }, `whole:${figure.id}:yaw`)} />

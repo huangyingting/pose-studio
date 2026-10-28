@@ -2,7 +2,7 @@ import { newFigure } from '@/lib/doc';
 import { setDirector } from '@/lib/actions';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import { command, type Ctx } from './commands';
+import { App, command, type Ctx } from './commands';
 
 /*
  * The next step the header bar's hint suggests for where the scene is: one at a time, each with
@@ -73,7 +73,12 @@ export function nextStep(store: Store): Suggestion | null {
     // (The director: in the style that suits who is in it.)
     const style = people.length > 1 ? 'dialogue' : 'follow';
     out.actions = [
-      ...(scene.coverage?.live ? [] : [{ label: 'Director', run: () => { stepDone(scene.id, 'cut'); setDirector(store, style); } }]),
+      ...(scene.coverage?.live ? [] : [{ label: 'Director', run: () => {
+        // (Filming the one the hint is about: who is active is who the director follows.)
+        if (lead) store.setActiveFigure(lead.id);
+        if (setDirector(store, style)) stepDone(scene.id, 'cut');
+        else App().notify('The director could not film this scene');
+      } }]),
       act('timeline.cut', 'Cut here'),
     ];
   }
