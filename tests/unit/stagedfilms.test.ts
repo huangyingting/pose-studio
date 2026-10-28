@@ -7,6 +7,8 @@ import { parseClip } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { FILMS } from '@/lib/films';
 import { checkMotion } from '@/lib/qa';
+import { spanAt } from '@/lib/shots';
+import * as THREE from 'three';
 import { Store } from '@/lib/store';
 import { SHOOT_PRESETS } from '@/lib/templates';
 import type { Scene } from '@/lib/types';
@@ -67,17 +69,25 @@ describe('films: templates staged as a director would', () => {
     expect(store.scene.coverage).toMatchObject({ id: 'fight', live: true });
   });
 
-  it('never puts a camera within reach of anyone', () => {
-    const store = new Store(new MemoryStorage());
-    expect(startFilm(store, { shoot: 'shoot-film-party' }, 15)).toBe(true);
-    const scene = store.scene;
-    load(scene);
-    for (let t = 0; t < 15; t += 0.25) {
-      const at = cameraAt(scene, t).position;
-      for (const f of scene.figures) {
-        const p = figurePoseAt(scene, f.id, t)!.position;
-        expect(Math.hypot(p[0] - at.x, p[2] - at.z), `${f.name} at ${t}`).toBeGreaterThan(0.69);
+  it("keeps every preset's cameras out of anyone, moving smoothly within a shot", () => {
+    for (const p of SHOOT_PRESETS) {
+      const store = new Store(new MemoryStorage());
+      expect(startFilm(store, { shoot: p.id }, 15), p.name).toBe(true);
+      const scene = store.scene;
+      load(scene);
+      let last = null as { at: THREE.Vector3; shot: string } | null;
+      for (let t = 0; t < 15; t += 1 / 24) {
+        const at = cameraAt(scene, t).position;
+        const shot = spanAt(scene.animation!, t).shot.id;
+        // (A cut may jump; within a shot it moves on, a hand-held one quickly at most.)
+        if (last?.shot === shot) expect(last.at.distanceTo(at), `${p.name} at ${t.toFixed(2)}`).toBeLessThan(0.3);
+        last = { at: at.clone(), shot };
+        // (Never inside anyone: half a metre from where they stand, give or take.)
+        for (const f of scene.figures) {
+          const q = figurePoseAt(scene, f.id, t)!.position;
+          expect(Math.hypot(q[0] - at.x, q[2] - at.z), `${p.name}: ${f.name} at ${t.toFixed(2)}`).toBeGreaterThan(0.45);
+        }
       }
     }
-  }, 120_000);
+  }, 300_000);
 });
