@@ -298,6 +298,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
         if (started) {
           document.body.style.cursor = '';
           sv.setHover(null);
+          store.setLinked(null);
           p.end();
         }
       },

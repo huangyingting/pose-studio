@@ -274,7 +274,8 @@ function App() {
       const cmd = commandForKey(e, c);
       if (!cmd) {
         // A Ctrl key of ours that does nothing here still does not reach the browser (Ctrl D would bookmark the page).
-        if ((e.ctrlKey || e.metaKey) && COMMANDS.some((x) => x.keys?.some((k) => matchesKey(k, e)))) e.preventDefault();
+        // (Not Ctrl C with text selected: that copies the text.)
+        if ((e.ctrlKey || e.metaKey) && !window.getSelection()?.toString() && COMMANDS.some((x) => x.keys?.some((k) => matchesKey(k, e)))) e.preventDefault();
         return;
       }
       e.preventDefault();
