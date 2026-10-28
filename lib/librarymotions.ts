@@ -13,7 +13,11 @@ export interface LibraryMotion {
   id: string;
   name: string;
   duration: number;
+  /** How many people it is for (each a part of the clip). */
+  people: number;
   group: (typeof MOTION_GROUPS)[number];
+  /** It goes round (an idle, a dance, a walk cycle). */
+  loop?: true;
 }
 
 let list: LibraryMotion[] = [];

@@ -193,12 +193,19 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       }] : undefined,
     };
   });
-  // The Library's motion files: each fetched the first time it is used or shown.
+  // The Library's motion files: each fetched the first time it is used or shown. One of several
+  // people goes on the figure and the nearest others, as the built-in ones.
   const files = libraryMotions().map((m): LibraryItem => {
+    const solo = m.people === 1;
+    const partners = !solo && figure ? nearestPartners(store, figure.id, m.people - 1) : [];
+    const together = !solo && figure && partners.length === m.people - 1;
     const giveTo = (id: string) => void fetchLibraryClip(m.id).then((ok) => {
       const f = posableById(store, id);
-      if (!ok) ui.notify(`Could not load ${m.name}`);
-      else if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`);
+      if (!ok) return ui.notify(`Could not load ${m.name}`);
+      if (!f) return;
+      const cast = solo ? [] : nearestPartners(store, f.id, m.people - 1);
+      if (cast.length < m.people - 1) return ui.notify(`${m.name} needs ${m.people} people`);
+      if (applyMotion(store, f.id, m.id, cast)) ui.notifyUndo(`${[f.name, ...cast.map(nameOf)].join(' and ')}: ${m.name}`);
     });
     return {
       key: `motion:${m.id}`,
@@ -206,17 +213,21 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       part: 'Motions',
       group: m.group,
       name: m.name,
-      icon: Film,
-      meta: `${m.duration.toFixed(1)} s`,
-      note: figure ? `Click to give it to ${figure.name}` : undefined,
-      disabled: !figure,
-      run: () => { if (figure) { giveTo(figure.id); ui.onPick?.(); } },
+      icon: solo ? Film : UsersRound,
+      meta: solo ? `${m.duration.toFixed(1)} s` : `${m.people} people`,
+      note: solo
+        ? (figure ? `Click to give it to ${figure.name}` : undefined)
+        : together
+          ? `Click to put it on ${figure.name} (leading) and ${partners.map(nameOf).join(', ')}, at the playhead`
+          : `For ${m.people} people: select a figure with ${m.people - 1 === 1 ? 'another' : `${m.people - 1} others`} in the scene`,
+      disabled: solo ? !figure : !together,
+      run: () => { if (figure && (solo || together)) { giveTo(figure.id); ui.onPick?.(); } },
       drop: { figure: giveTo, length: m.duration },
       preview: () => {
         void fetchLibraryClip(m.id);
         return { ...motionPreview(m.id, () => clipScene(clipById(m.id)!), style(store)), ready: () => hasClip(m.id) };
       },
-      ghost: figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void fetchLibraryClip(m.id), null)) : undefined,
+      ghost: solo && figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void fetchLibraryClip(m.id), null)) : undefined,
     };
   });
   const mine = (store.getState().library.clips ?? []).map((m): LibraryItem => ({

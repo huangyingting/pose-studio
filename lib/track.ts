@@ -1,4 +1,4 @@
-import { keyPose, keyTimes, keysClip, partKeys, placeClip, setPartKey, type Key } from './clip';
+import { keyPose, keyTimes, keysClip, partKeys, placeClip, setPartKey, startFacing, type Key } from './clip';
 import { clipById } from './assets';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
@@ -541,12 +541,12 @@ export function insertClip(scene: Scene, cast: string[], clipId: string, start: 
   // Where the partners go: placed around the lead as in the clip, spaced for the biggest of them.
   const lead = figurePoseAt(s, cast[0], t0)!;
   const firsts = clip.parts.map((p) => keyPose(p, 0));
-  const by = facingOf(lead.bones) - facingOf(firsts[0].bones);
+  const by = facingOf(lead.bones) - startFacing(clip.parts[0], firsts[0]);
   const size = Math.max(...cast.map((id, n) => legsOf(scene.figures.find((f) => f.id === id)!.body).rootY / legsOf(clip.parts[n].body ?? scene.figures.find((f) => f.id === id)!.body).rootY));
   for (const [n, id] of cast.entries()) {
     if (!n) continue;
     const off = turn((firsts[n].position[0] - firsts[0].position[0]) * size, (firsts[n].position[2] - firsts[0].position[2]) * size, by);
-    const spot: Mark = { at: [r3(lead.position[0] + off[0]), r3(lead.position[2] + off[1])], facing: Math.round(wrapDeg(facingOf(firsts[n].bones) + by) * 10) / 10 };
+    const spot: Mark = { at: [r3(lead.position[0] + off[0]), r3(lead.position[2] + off[1])], facing: Math.round(wrapDeg(startFacing(clip.parts[n], firsts[n]) + by) * 10) / 10 };
     s = { ...s, animation: goTo(s, id, spot, t0) };
   }
   const act: Action = { id: uid('act'), start: t0, duration: t1 - t0, blendIn: BLEND, roles: cast.map((figure) => ({ figure })), source: { kind: 'clip', clip: clipId } };

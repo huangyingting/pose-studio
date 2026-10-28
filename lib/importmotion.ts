@@ -13,6 +13,7 @@ import { toQuat, type Bones } from './pose';
 import { PARENT } from './skeleton';
 import { uid } from './uid';
 import { BONES, type Bone, type Clip, type Pose, type Vec3 } from './types';
+import { refineClip } from './motionfix';
 
 /*
  * Importing a motion from another tool: BVH (motion capture), FBX (e.g. Mixamo) or glTF/GLB with
@@ -122,7 +123,8 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
     });
     return partFromPoses(people.length > 1 ? `${name} ${n + 1}` : name, keys, 'linear', DEFAULT_BODY);
   });
-  const clip: Clip = { id: uid('clip'), name, duration: r3(duration), loop: false, parts, events: [], contacts: [] };
+  // (Each person facing where they look, the wrists' roll the forearms': lib/motionfix.ts.)
+  const clip = refineClip({ id: uid('clip'), name, duration: r3(duration), loop: false, parts, events: [], contacts: [] });
   return { ...clip, contacts: parts.flatMap((_, n) => detectContacts(clip, n, RATE)) };
 }
 

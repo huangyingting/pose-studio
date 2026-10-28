@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart } from './clip';
+import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart, startFacing } from './clip';
 import { clipById, clipsVersion } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
@@ -454,7 +454,7 @@ class Evaluator {
       return { pose, mark: start, part: null, u: 0, mirror: false };
     }
     const mirror = !!src.mirror;
-    const sample = (u: number) => (mirror ? mirrorPose(samplePart(part, u, clip.duration, clip.loop)) : samplePart(part, u, clip.duration, clip.loop));
+    const sample = (u: number, loop = clip.loop) => (mirror ? mirrorPose(samplePart(part, u, clip.duration, loop)) : samplePart(part, u, clip.duration, loop));
     // Time in the clip; a loop played longer than once goes round again from where it got to.
     let u = (t - act.start) * (src.speed ?? 1);
     let laps = 0;
@@ -465,7 +465,8 @@ class Evaluator {
     const first = sample(0);
     let raw = sample(u);
     if (laps) {
-      const last = sample(clip.duration);
+      // (Where a lap ends: its last frame, not wrapped round to its first.)
+      const last = sample(clip.duration, false);
       const lapTurn = facingOf(last.bones) - facingOf(first.bones);
       for (let k = 0; k < laps; k++) {
         const [dx, dz] = turn(raw.position[0] - first.position[0], raw.position[2] - first.position[2], lapTurn);
@@ -473,7 +474,9 @@ class Evaluator {
       }
     }
     const size = legsOf(f.body).rootY / legsOf(part.body ?? f.body).rootY;
-    const by = start.facing - facingOf(first.bones);
+    // (Turned so it starts facing the figure's way: where its person looks, not just its pelvis.)
+    const facing0 = startFacing(part, first, mirror);
+    const by = start.facing - facing0;
     const [dx, dz] = turn((raw.position[0] - first.position[0]) * size, (raw.position[2] - first.position[2]) * size, by);
     let y = raw.grounded ? raw.position[1] : legsOf(f.body).rootY + (raw.position[1] - legsOf(part.body ?? f.body).rootY) * size;
     // Off the ground, what touches the floor in the clip (a hand in a cartwheel) touches it on any body.
@@ -498,7 +501,10 @@ class Evaluator {
       pose = turned({ ...pose, position: [natural.at[0] + ox + shift[0], pose.position[1], natural.at[1] + oz + shift[1]] }, turnBy);
     }
     pose = { ...pose, position: pose.position.map((v) => Math.round(v * 1000) / 1000 || 0) as Vec3 };
-    return { pose, mark: markOf(pose), part, u, mirror };
+    // Where it is left facing: as it started, turned as far as its pelvis has turned since.
+    const mark = markOf(pose);
+    if (part.facing !== undefined) mark.facing = Math.round(wrapDeg(mark.facing - facingOf(first.bones) + facing0) * 10) / 10 || 0;
+    return { pose, mark, part, u, mirror };
   }
 
   /** Where a clip action would leave a figure, unwarped. */

@@ -1,5 +1,5 @@
 import { jointLimits, wrapDeg } from './joints';
-import { angleToQuat, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
+import { angleToQuat, facingOf, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
 import { uid } from './uid';
 import { EXTRA_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
 
@@ -235,6 +235,15 @@ export function setPartKey(part: ClipPart, t: number, pose: Pose, tolerance: num
   keys.push({ t, pose, ...(ease ? { ease } : {}) });
   keys.sort((a, b) => a.t - b.t);
   return partFromPoses(part.name, keys, 'smooth', part.body);
+}
+
+/**
+ * The way a part's person faces at its start (yaw, degrees): as it says, or its pelvis's in its
+ * first pose (`first`, mirrored when the part plays mirrored).
+ */
+export function startFacing(part: ClipPart, first: Pose, mirror = false): number {
+  if (part.facing === undefined) return facingOf(first.bones);
+  return mirror ? -part.facing : part.facing;
 }
 
 /** The pose mirrored left ↔ right (across the plane x = 0). */

@@ -187,6 +187,11 @@ export interface ClipPart {
   tracks: ClipTrack[];
   /** How each key goes on to the next, by key (smooth where not given): a hand-keyed part's, per key. */
   eases?: ClipTrack['interpolation'][];
+  /**
+   * The way its person faces at the start (yaw, degrees): where they look, which motion capture
+   * often has apart from the pelvis (a stance turned to one side). The pelvis's when not given.
+   */
+  facing?: number;
 }
 
 /** Something that happens at a moment of a Clip (a release, a catch, a footstep). Reserved. */

@@ -1616,7 +1616,11 @@ export function applyMotion(store: Store, figureId: string, motionId: string, pa
   const start = store.scene.animation ? store.getState().time : 0;
   // (An imported clip: one of my motions, or the local motion library's, at hand.)
   if (store.getState().library.clips?.some((c) => c.id === motionId) || hasClip(motionId)) {
-    store.updateScene((s) => insertClip(s, [figureId], motionId, start));
+    // (Of several people: the nearest take the others' parts.)
+    const people = clipById(motionId)?.parts.length ?? 1;
+    const cast = [figureId, ...(people > 1 ? partners ?? nearestPartners(store, figureId, people - 1) : [])];
+    if (cast.length < people) return false;
+    store.updateScene((s) => insertClip(s, cast, motionId, start));
     store.setTime(start);
     return true;
   }
