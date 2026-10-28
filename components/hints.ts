@@ -41,8 +41,8 @@ const part = (j: JointName) => JOINT_LABELS[j].toLowerCase();
 export function bodyHint(name: string, kind: 'body' | 'end' | 'swing', joint?: JointName) {
   if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn ${name} · Right-click: more`;
   const p = part(joint!);
-  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll it · Click: fine-tune`;
-  return `Drag: swing the ${p} · Shift-drag: twist it · X, Y or Z held: one slider · Click: fine-tune`;
+  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll it · Click: select it (arcs to turn it)`;
+  return `Drag: swing the ${p} · Shift-drag: twist it · X, Y or Z held: one slider · Click: select it (arcs to turn it)`;
 }
 
 export const propHint = (name: string, held: boolean) => (held

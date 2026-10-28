@@ -45,7 +45,7 @@ export interface ViewportApi {
   captureShot(): CameraView | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
   pick(x: number, y: number): CanvasHit;
-  /** Where on screen to label what is selected: just above it (a joint: at it). Null if it is not drawn. */
+  /** Where on screen to label what is selected: just above it (a joint: beside it, opposite its arcs). Null if it is not drawn. */
   labelPoint(sel: NonNullable<Selection>): { x: number; y: number } | null;
 }
 
@@ -690,8 +690,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       captureShot: () => captureRef.current(),
       labelPoint: (sel) => {
         if (sel.kind === 'joint') {
-          const m = sv.figures.get(sel.figure);
-          return m ? toScreen(m.joints[sel.joint].getWorldPosition(new THREE.Vector3())) : null;
+          // Beside the joint, on the side away from its arcs.
+          const j = apiRef.current?.jointOnScreen(sel.figure, sel.joint);
+          return j ? { x: j.x - Math.cos(j.away) * 36, y: j.y - Math.sin(j.away) * 36 } : null;
         }
         if (sel.kind === 'figure') {
           // Above the head (cheap enough to follow every frame).

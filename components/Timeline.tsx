@@ -638,7 +638,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                     const t = snapTime(a, timeAt(e.clientX));
                     if (dropAt?.figure !== f.id || dropAt.t !== t) setDropAt({ figure: f.id, t, length: d.length });
                   }}
-                  onDragLeave={() => setDropAt(null)}
+                  // (Not when it only passes over a block or a key of the row.)
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null); }}
                   onDrop={(e) => {
                     const d = dragged();
                     setDropAt(null);

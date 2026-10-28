@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Search, type LucideIcon } from 'lucide-react';
+import { propNow } from '@/lib/actions';
 import { App, applies, command, enabled, iconOf, titleOf, type Ctx } from './commands';
 import { LIBRARY_CATEGORIES, type Thumb } from './side/libraryItems';
 import { Thumbnail } from './side/LibrarySection';
@@ -41,7 +42,8 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
   const library = (id: 'poses' | 'motions') => LIBRARY_CATEGORIES.find((x) => x.id === id)!.items(store, ui)
     .filter((it) => it.drop?.figure)
     .map((it): Row => ({ label: it.name, icon: it.icon, thumb: it.thumb, meta: it.meta, run: () => it.drop!.figure!(at.figure) }));
-  const held = store.scene.props.filter((p) => p.hold?.figure === at.figure);
+  // What it holds at the playhead.
+  const held = store.scene.props.filter((p) => propNow(store, p.id)?.hold?.figure === at.figure);
   const parts: Part[] = [
     { title: 'Go somewhere', rows: commandRows(['figure.walk', 'figure.run', 'figure.jump', 'figure.step'], c) },
     ...held.map((p) => ({

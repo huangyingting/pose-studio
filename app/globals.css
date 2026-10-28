@@ -1873,12 +1873,14 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 .joint-arc.x { --c: var(--axis-x); }
 .joint-arc.y { --c: var(--axis-y); }
 .joint-arc.z { --c: var(--axis-z); }
-.joint-arc-line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; transition: stroke-width 0.1s, opacity 0.1s; }
+.joint-arc-line { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; transition: stroke-width 0.1s, opacity 0.1s; }
+/* (A pale edge, so they read on the figure and the floor alike.) */
+.joint-arcs { filter: drop-shadow(0 0 1.5px var(--panel)) drop-shadow(0 0 1px var(--panel)); }
 .joint-arc-head { fill: var(--c); }
 .joint-arc-hit { fill: none; stroke: transparent; stroke-width: 20; pointer-events: stroke; cursor: grab; touch-action: none; }
 .joint-arc-hit:active { cursor: grabbing; }
 @media (pointer: coarse) { .joint-arc-hit { stroke-width: 28; } }
-.joint-arc.on .joint-arc-line { stroke-width: 5; }
+.joint-arc.on .joint-arc-line { stroke-width: 6; }
 .joint-arc.faded { opacity: 0.3; }
 .joint-arc.limit { animation: arc-limit 0.25s steps(2) infinite; }
 @keyframes arc-limit { 50% { opacity: 0.25; } }
