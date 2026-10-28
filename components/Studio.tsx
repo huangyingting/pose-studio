@@ -292,6 +292,8 @@ function App() {
       // scroll a side panel last clicked in; a plain button just clicked keeps no hold on them.
       if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && (el === document.body ? inPanel
         : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes'))) return;
+      // Space presses the button that has the focus (as browsers have it), not play.
+      if (e.key === ' ' && el.closest('button, [role="button"]')) return;
       // Tab goes from thing to thing only with the focus on the canvas (last clicked, nothing focused);
       // elsewhere, and before the canvas is clicked, it moves the focus.
       if (e.key === 'Tab' && (el !== document.body || !onCanvas)) return;
