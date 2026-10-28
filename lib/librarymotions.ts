@@ -22,7 +22,7 @@ const listeners = new Set<() => void>();
 const coming = new Map<string, Promise<boolean>>();
 /** Those not found (asked for once). */
 const missing = new Set<string>();
-/** Those that could not be fetched (offline): when to try again. */
+/** Those that could not be fetched (offline): when they are tried again. */
 const retry = new Map<string, number>();
 /** How long to wait before trying again (ms). */
 const RETRY_MS = 30_000;
@@ -66,7 +66,9 @@ export function fetchLibraryClip(id: string): Promise<boolean> {
         return true;
       })
       .catch(() => {
+        // (Offline: tried again in a while, by itself; it plays once it comes.)
         retry.set(id, Date.now() + RETRY_MS);
+        setTimeout(() => { retry.delete(id); void fetchLibraryClip(id); }, RETRY_MS);
         return false;
       })
       .finally(() => coming.delete(id));
