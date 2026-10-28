@@ -174,7 +174,9 @@ export default function Viewport({
   // The readout of a gizmo drag, from where its object was when the drag began.
   let readout: (from: THREE.Vector3) => void = () => {};
   const moving = settings.gizmo === 'translate';
-  const gizmoFigure = moving && selection?.kind !== 'prop' && selection?.kind !== 'shot' ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
+  // (Not on a figure when something else is what is selected: one target at a time.)
+  const other = selection?.kind === 'prop' || selection?.kind === 'shot' || selection?.kind === 'camera' || selection?.kind === 'light' || selection?.kind === 'many';
+  const gizmoFigure = moving && !other ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);

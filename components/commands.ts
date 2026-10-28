@@ -52,6 +52,8 @@ export interface App {
   notifyUndo(text: string): void;
   dialog(d: 'export' | 'export-story' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette'): void;
   frameAll(): void;
+  /** Frame what is selected (everything when nothing is). */
+  frameSelected(): void;
   frameView(v: { yaw: number; pitch: number }): void;
   saveFile(): void;
   openFile(mode: 'append' | 'replace'): void;
@@ -85,7 +87,7 @@ export interface App {
 // Until the studio has set it (menus are built while it first renders): nothing playing, nothing to open.
 const none = () => {};
 let app: App = {
-  notify: none, notifyUndo: none, dialog: none, frameAll: none, frameView: none, saveFile: none, openFile: none,
+  notify: none, notifyUndo: none, dialog: none, frameAll: none, frameSelected: none, frameView: none, saveFile: none, openFile: none,
   playing: () => false, togglePlay: none, stopPlayback: none, speed: () => 1, setSpeed: none, repeatShot: () => false, setRepeatShot: none,
   onion: () => false, setOnion: none, isolated: () => null, setIsolated: none, captureShot: () => null,
 };
@@ -286,7 +288,11 @@ export const COMMANDS: Command[] = [
 
   // The view.
   ...VIEW_PRESETS.map((v): Command => ({ id: `view.${v.key}`, title: v.label, keys: [v.key], run: (c) => { c.store.lookThrough(null); App().frameView(v); } })),
-  { id: 'view.frameAll', title: 'Frame all', icon: Focus, keys: ['f'], run: () => App().frameAll() },
+  { id: 'view.frameAll', title: 'Frame all', icon: Focus, run: () => App().frameAll() },
+  {
+    id: 'view.frame', title: (c) => (c.store.getState().selection ? 'Frame the selection' : 'Frame all'), help: 'Frame the selection (everything when nothing is selected)',
+    icon: Focus, keys: ['f'], run: () => App().frameSelected(),
+  },
   {
     // Only the selection on the canvas (the scene, the shot camera and exports are not affected).
     id: 'view.isolate', title: 'Isolate the selection', icon: Focus, keys: ['/'],

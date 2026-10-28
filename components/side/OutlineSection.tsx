@@ -299,7 +299,7 @@ function Row({ icon: Icon, lead, name, title, renaming, onRename, onClick, onMen
       data-tip-side="right"
       onClick={onClick}
       // Double-click: frame it on the canvas (F2 or its menu renames it).
-      onDoubleClick={(e) => { onClick(e); command('view.frameAll').run!({ store }); }}
+      onDoubleClick={(e) => { onClick(e); command('view.frame').run!({ store }); }}
       onContextMenu={onMenu}
     >
       {head}

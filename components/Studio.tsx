@@ -268,7 +268,7 @@ function App() {
   // What the commands reach outside the store.
   useEffect(() => {
     setApp({
-      notify, notifyUndo, dialog: setDialog, frameAll: frameCurrent, frameView: frame, saveFile, openFile: openFilePicker,
+      notify, notifyUndo, dialog: setDialog, frameAll: () => frame(apiRef.current?.getView() ?? angleAt(store.scene, store.getState().time)), frameSelected: frameCurrent, frameView: frame, saveFile, openFile: openFilePicker,
       playing: () => clock.playing, togglePlay, stopPlayback, speed: () => clock.speed, setSpeed: (x) => clock.setSpeed(x),
       repeatShot: () => clock.repeatShot, setRepeatShot: (on) => clock.setRepeatShot(on), onion: () => onion, setOnion,
       isolated: () => isolate, setIsolated,
@@ -516,7 +516,11 @@ function App() {
           onion={onion}
           onMenu={openCanvasMenu}
           onPick={pick && ((hit) => {
-            if (pick.ghost) pick.ghost.drop(hit);
+            if (pick.ghost) {
+              // (A tap on touch has no move before it: where it goes is worked out from the tap itself.)
+              if (!pick.ghost.at) pick.ghost.ghost(hit.floor, false, hit);
+              pick.ghost.drop(hit);
+            }
             else if (pick.take) pick.take(hit);
             else if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.floor);
             setPick(null);
