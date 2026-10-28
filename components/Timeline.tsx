@@ -95,7 +95,15 @@ function Still({ openPicker }: { openPicker(figure: string, el: Element): void }
           <Diamond size={15} aria-hidden /> <span className="tl-label">Key</span>
         </button>
         {active && (
-          <button type="button" className="btn ghost tl-btn" onClick={(e) => openPicker(active.id, e.currentTarget)} data-tip={`What ${active.name} does: walk somewhere, a motion, a pose…`} data-tip-side="top">
+          <button
+            type="button"
+            className="btn ghost tl-btn"
+            // (Named also when a narrow timeline shows only its icon.)
+            aria-label="Add an action"
+            onClick={(e) => openPicker(active.id, e.currentTarget)}
+            data-tip={`What ${active.name} does: walk somewhere, a motion, a pose…`}
+            data-tip-side="top"
+          >
             <Plus size={15} aria-hidden /> <span className="tl-label">Add an action</span>
           </button>
         )}
@@ -493,6 +501,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               className={`btn ghost tl-qa${issues?.length ? ' warn' : ''}`}
               onClick={() => command('timeline.check').run!(c)}
               disabled={checking}
+              aria-label={qaLabel}
               aria-expanded={issues?.length ? qaOpen : undefined}
               data-tip="Check for foot sliding, interpenetration, joint limits and pops"
               data-tip-side="top"
