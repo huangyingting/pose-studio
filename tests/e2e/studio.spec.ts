@@ -1494,6 +1494,8 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
 });
 
 test('the timeline zooms, retimes a stretch, plays slower and folds away', async ({ page }) => {
+  // Two boxers drawn in software (no GPU here) make every step slow.
+  test.setTimeout(240_000);
   await templateScene(page, 'Boxing exchange');
   const keys = () => live(page).then(({ scene }) => keyTimesOf(scene.animation!, scene.figures[0].id).map((t) => Math.round(t * 1000) / 1000));
   // Zoom in about the playhead, then back to the whole animation.

@@ -189,7 +189,12 @@ const rowCamera = (c: Ctx) => {
   const { selection, time } = c.store.getState();
   return cameraById(c.store.scene, selection?.kind === 'camera' ? selection.camera : undefined) ?? liveCamera(c.store.scene, time);
 };
-const stepTo = (c: Ctx, t: number) => { App().stopPlayback(); c.store.setTime(snapTime(c.store.scene.animation!, t)); };
+/** Go to a time worked out from the playhead (playback stops first: the stored time is the frame on screen then). */
+const stepTo = (c: Ctx, to: (now: number) => number | undefined) => {
+  App().stopPlayback();
+  const t = to(c.store.getState().time);
+  if (t !== undefined) c.store.setTime(snapTime(c.store.scene.animation!, t));
+};
 const stops = (c: Ctx) => { const a = c.store.scene.animation!; const f = activeFigure(c); return f ? moments(a, f.id) : moments(a); };
 /** Walk, run, jump or step the figure to a spot (the context's, or one picked on the floor). */
 const goTo = (c: Ctx, kind: Travel, opts: { strafe?: boolean } = {}) => {
@@ -282,8 +287,9 @@ export const COMMANDS: Command[] = [
   // The selection.
   {
     id: 'rename', title: 'Rename', help: 'Rename the selection', icon: Pencil, keys: ['f2'],
-    when: (c) => !!(c.figure || c.prop || c.shot || c.camera) && !c.action,
-    run: (c) => renameInOutline(c.store, (c.prop ?? c.shot ?? c.camera ?? c.figure)!),
+    // (With nothing selected: the active figure.)
+    when: (c) => (!!(c.figure || c.prop || c.shot || c.camera) && !c.action) || (!c.action && !c.floor && c.scene === undefined && !!c.store.figure),
+    run: (c) => renameInOutline(c.store, (c.prop ?? c.shot ?? c.camera ?? c.figure ?? c.store.figure!.id)),
   },
   {
     id: 'duplicate', title: 'Duplicate', help: 'Duplicate the selection', icon: Copy, keys: ['mod+d'],
@@ -571,15 +577,15 @@ export const COMMANDS: Command[] = [
 
   // The animation and the timeline.
   { id: 'timeline.play', title: () => (App().playing() ? 'Pause' : 'Play'), help: 'Play / pause', iconFor: () => (App().playing() ? Pause : Play), keys: ['space'], when: animated, run: () => App().togglePlay() },
-  { id: 'timeline.back', title: 'Back a frame', keys: [','], when: animated, run: (c) => stepTo(c, c.store.getState().time - 1 / sceneOf(c).animation!.fps) },
-  { id: 'timeline.forward', title: 'On a frame', keys: ['.'], when: animated, run: (c) => stepTo(c, c.store.getState().time + 1 / sceneOf(c).animation!.fps) },
+  { id: 'timeline.back', title: 'Back a frame', keys: [','], when: animated, run: (c) => stepTo(c, (now) => now - 1 / sceneOf(c).animation!.fps) },
+  { id: 'timeline.forward', title: 'On a frame', keys: ['.'], when: animated, run: (c) => stepTo(c, (now) => now + 1 / sceneOf(c).animation!.fps) },
   {
     id: 'timeline.prevKey', title: 'Previous keyframe', icon: StepBack, when: animated,
-    enabled: (c) => stops(c).some((t) => t < c.store.getState().time - 1e-3), run: (c) => { const t = [...stops(c)].reverse().find((x) => x < c.store.getState().time - 1e-3); if (t !== undefined) stepTo(c, t); },
+    enabled: (c) => stops(c).some((t) => t < c.store.getState().time - 1e-3), run: (c) => stepTo(c, (now) => [...stops(c)].reverse().find((x) => x < now - 1e-3)),
   },
   {
     id: 'timeline.nextKey', title: 'Next keyframe', icon: StepForward, when: animated,
-    enabled: (c) => stops(c).some((t) => t > c.store.getState().time + 1e-3), run: (c) => { const t = stops(c).find((x) => x > c.store.getState().time + 1e-3); if (t !== undefined) stepTo(c, t); },
+    enabled: (c) => stops(c).some((t) => t > c.store.getState().time + 1e-3), run: (c) => stepTo(c, (now) => stops(c).find((x) => x > now + 1e-3)),
   },
   {
     id: 'timeline.key', title: (c) => `${keysHere(c).on ? 'Update' : 'Add'} ${keyName(c)}`, help: 'Key the selected figure', icon: Diamond, keys: ['k'], when: animated, checked: (c) => keysHere(c).on,
@@ -732,9 +738,12 @@ export function menuItems(entries: MenuEntry[], c: Ctx): MenuItem[] {
       onSelect: () => cmd.run?.(c),
     });
   }
-  while (out[out.length - 1] === '-') out.pop();
-  while (out[0] === '-') out.shift();
-  return out;
+  // A heading with nothing under it (its commands do not apply here) goes, and so do dividers left doubled or at the ends.
+  const kept = out.filter((it, i) => !(typeof it === 'object' && 'group' in it && (i === out.length - 1 || out[i + 1] === '-' || (typeof out[i + 1] === 'object' && 'group' in (out[i + 1] as object)))));
+  const tidy = kept.filter((it, i) => !(it === '-' && kept[i - 1] === '-'));
+  while (tidy[tidy.length - 1] === '-') tidy.pop();
+  while (tidy[0] === '-') tidy.shift();
+  return tidy;
 }
 
 export const MENUS = {

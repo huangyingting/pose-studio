@@ -161,10 +161,10 @@ export default function Viewport({
       className={`canvas-wrap${onPick ? ' picking' : ''}`}
       onPointerDown={(e) => { downAt.current = [e.clientX, e.clientY]; }}
       onPointerUpCapture={(e) => {
-        // Picking: a click (dragging still orbits) is the pick, not a selection.
+        // Picking: a click (dragging still orbits) is the pick. (The release goes on to the view's
+        // controls; a figure under the pointer is selected, which ends the pick mode.)
         const [x, y] = downAt.current;
         if (!onPick || e.button !== 0 || Math.hypot(e.clientX - x, e.clientY - y) > 4 || !(e.target instanceof HTMLCanvasElement)) return;
-        e.stopPropagation();
         pickedAt.current = performance.now();
         onPick(apiRef.current?.pick(e.clientX, e.clientY) ?? {});
       }}

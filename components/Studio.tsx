@@ -35,7 +35,7 @@ import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
-import { choices, command, commandForKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
+import { COMMANDS, choices, command, commandForKey, matchesKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewCube from './ViewCube';
@@ -272,7 +272,11 @@ function App() {
       }
       const c = selectionCtx(store);
       const cmd = commandForKey(e, c);
-      if (!cmd) return;
+      if (!cmd) {
+        // A Ctrl key of ours that does nothing here still does not reach the browser (Ctrl D would bookmark the page).
+        if ((e.ctrlKey || e.metaKey) && COMMANDS.some((x) => x.keys?.some((k) => matchesKey(k, e)))) e.preventDefault();
+        return;
+      }
       e.preventDefault();
       cmd.run!(c);
     };

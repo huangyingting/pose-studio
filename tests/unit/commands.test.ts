@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, placeTemplate, startAnimation } from '@/lib/actions';
+import { addFigure, addProp, addStandIn, placeTemplate, startAnimation } from '@/lib/actions';
 import { Store } from '@/lib/store';
 import { COMMANDS, command, commandForKey, keyLabel, matchesKey, menu, selectionCtx } from '@/components/commands';
 import { LIBRARY_CATEGORIES, searchLibrary } from '@/components/side/libraryItems';
@@ -64,6 +64,15 @@ describe('commands: one list for keys, menus, toolbars and the palette', () => {
     expect(labels.some((l, i) => l === '-' && labels[i + 1] === '-')).toBe(false);
     // Deleting the only other figure is fine; the last one is kept.
     expect(command('figure.delete').enabled!({ store, figure: b.id })).toBe(true);
+  });
+
+  it('leaves out a heading whose commands do not apply (a stand-in cannot be sent anywhere)', () => {
+    const store = new Store(new MemoryStorage());
+    addStandIn(store);
+    const proxy = store.scene.figures.find((f) => f.proxy)!;
+    const items = menu('figure', { store, figure: proxy.id });
+    expect(items.some((it) => typeof it === 'object' && 'group' in it && it.group === 'Move to')).toBe(false);
+    expect(items.filter((it, i) => it === '-' && items[i + 1] === '-')).toHaveLength(0);
   });
 
   it('the timeline commands apply only to an animated scene', () => {
