@@ -546,7 +546,8 @@ export type Selection =
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
 export const STYLES = ['line', 'sketch', 'ink', 'anime', 'shaded', 'minimal', 'silhouette'] as const;
 export type Style = (typeof STYLES)[number];
-export type GizmoMode = 'rotate' | 'translate' | 'scale';
+/** What a selected prop's gizmo does: move it, or (R) scale it. */
+export type GizmoMode = 'translate' | 'scale';
 
 /** Key light for the shaded style. azimuth 0 = from the front, elevation 90 = from above. */
 export interface Light {

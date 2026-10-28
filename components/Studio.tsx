@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, Hand, X, LayoutPanelTop, Lock, LockOpen, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Scale3d, SlidersHorizontal,
+  ChevronDown, Download, Ellipsis, Eye, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -15,7 +15,7 @@ import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
 import { styleDef } from '@/lib/styles';
-import type { GizmoMode, Scene, Vec3, View } from '@/lib/types';
+import type { Scene, Vec3, View } from '@/lib/types';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog, ProjectSettingsDialog } from './dialogs';
 // Accounts, library sync and AI: the server edition only (null in the static build).
@@ -31,7 +31,7 @@ import { PracticeMode } from './Practice';
 import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
-import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './ui';
+import { IconButton, Menu, Toasts, type Notify, type Toast } from './ui';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
@@ -397,8 +397,6 @@ function App() {
     projectSettings: () => setDialog('project'),
   };
 
-  // Move works on any figure; Scale only on props.
-  const gizmoForSelection = selection?.kind === 'prop' || (settings.gizmo === 'translate' && !!activeFigure);
   const style = styleDef(film.style);
   const StyleIcon = STYLE_ICONS[film.style];
 
@@ -418,28 +416,14 @@ function App() {
           </Menu>
           <span className="tb-sep hide-mobile" />
           <div className="toolbar" role="toolbar" aria-label="Canvas tools">
-            <Segmented<GizmoMode>
-              label="Gizmo"
-              value={settings.gizmo}
-              onChange={(g) => command(g === 'rotate' ? 'tool.pose' : g === 'translate' ? 'tool.move' : 'tool.scale').run!(cx)}
-              iconOnly
-              options={[
-                { value: 'rotate', label: 'Pose', icon: Hand, title: tipOf('tool.pose', 'Pose: drag parts (Shift twists), floor rings turn') },
-                { value: 'translate', label: 'Move', icon: Move3d, title: tipOf('tool.move', 'Move figure or prop') },
-                { value: 'scale', label: 'Scale', icon: Scale3d, title: tipOf('tool.scale', selection?.kind === 'prop' ? 'Scale the prop' : 'Scale a prop (select one first)'), disabled: selection?.kind !== 'prop' },
-              ]}
+            {/* Joints bend only as far as a body's do (dragging, the card, the keys). */}
+            <IconButton
+              icon={settings.limits ? Lock : LockOpen}
+              label={titleOf(command('tool.limits'), cx)}
+              pressed={settings.limits}
+              active={settings.limits}
+              onClick={() => command('tool.limits').run!(cx)}
             />
-            {settings.gizmo === 'rotate' && (
-              // The Pose tool's option: joints bend only as far as a body's do (dragging, IK, sliders).
-              <IconButton
-                icon={settings.limits ? Lock : LockOpen}
-                label={titleOf(command('tool.limits'), cx)}
-                pressed={settings.limits}
-                active={settings.limits}
-                onClick={() => command('tool.limits').run!(cx)}
-              />
-            )}
-            <span className="tb-sep" />
             <Menu
               label="View"
               className="btn ghost"
@@ -448,7 +432,6 @@ function App() {
             >
               <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
             </Menu>
-            <CommandButton id="view.frameAll" ctx={cx} />
             <span className="tb-sep" />
             <Menu
               label="Render style"
@@ -463,9 +446,7 @@ function App() {
         <div className="tb-hint hide-mobile">
           <Hint
             pick={pick}
-            note={settings.gizmo !== 'rotate' && !gizmoForSelection
-              ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
-              : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
+            note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}

@@ -840,7 +840,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active, 'correction')).toHaveLength(1);
 
-  await viewMenu(page, 'The shot camera (the cut)');
+  await viewMenu(page, 'Shot camera');
   await expect(page.locator('.letterbox')).toBeVisible();
   // The shot's camera move: from its inspector to the library's camera moves.
   await openSection(page, 'Scene');
@@ -885,10 +885,10 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   expect(Math.hypot(...s.points[0].position.map((v, i) => v - s.points[0].look[i]))).toBeCloseTo((near * 85) / lens, 1);
   await expect(inspector.getByRole('combobox', { name: 'Shot size' })).toHaveText(/^MS ·/);
   // Looking through it with framing guides: the frame's thirds and safe areas.
-  await viewMenu(page, 'The shot camera (the cut)');
+  await viewMenu(page, 'Shot camera');
   await viewMenu(page, /Framing guides/);
   await expect(page.locator('.letterbox .third')).toHaveCount(4);
-  await viewMenu(page, 'The editor’s view');
+  await viewMenu(page, 'Free view');
   // A close-up through a wide lens (the camera near the figure); seen from above and aside, the
   // shot's camera is dragged across the floor, its height kept.
   await choose(page, 'Shot size', /^CU ·/);
@@ -1591,7 +1591,7 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   await cast.getByRole('button', { name: /^Figure$/ }).click();
   // The hint says what the keys do (once the next step it suggests is put off).
   while (await page.getByRole('button', { name: 'Not now' }).isVisible()) await page.getByRole('button', { name: 'Not now' }).click();
-  await expect(page.locator('.bar-hint')).toContainText('← → ↑ ↓: move Figure 5 cm');
+  await expect(page.locator('.bar-hint')).toContainText('Arrows: move Figure');
   const at = async () => (await live(page)).scene.figures[0].position;
   const x0 = (await at())[0];
   // From the front, → is +X: 5 cm, then three steps with Shift.
@@ -1608,7 +1608,7 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   const elbow = await project(page, 'leftLowerArm');
   const hand = await project(page, 'leftHand');
   await page.mouse.click((elbow.x + hand.x) / 2, (elbow.y + hand.y) / 2);
-  await expect(page.locator('.bar-hint')).toContainText('X, Y or Z with ← →:');
+  await expect(page.locator('.bar-hint')).toContainText('X / Y / Z + ← →:');
   const bend = async () => angle((await live(page)).scene.figures[0].bones, 'leftLowerArm')[0];
   const b0 = await bend();
   await page.keyboard.down('x');
@@ -1670,7 +1670,7 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
   expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
 });
 
-test('steps found on the canvas: ⟲ and ⟳ beside the floor ring; the gizmo\'s size', async ({ page }) => {
+test('steps found on the canvas: ⟲ and ⟳ beside the floor ring', async ({ page }) => {
   // The figure: ⟲ turns it 15° anticlockwise seen from above (to its left).
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
   const facing = async () => facingOf((await figs(page))[0].bones as Bones);
@@ -1679,12 +1679,6 @@ test('steps found on the canvas: ⟲ and ⟳ beside the floor ring; the gizmo\'s
   expect(await facing()).toBeCloseTo(f0 + 15, 0);
   await page.getByRole('button', { name: /^Turn 15° clockwise/ }).click();
   expect(await facing()).toBeCloseTo(f0, 0);
-  // Under the Pose tool the hint says W gives the Move gizmo, whose size the View menu sets.
-  await page.mouse.move(5, 400);
-  while (await page.getByRole('button', { name: 'Not now' }).isVisible()) await page.getByRole('button', { name: 'Not now' }).click();
-  await expect(page.locator('.bar-hint')).toContainText('W: move tool');
-  await viewMenu(page, /^Large$/);
-  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { settings: { gizmoSize: number } } } } }).__poseStudio.store.getState().settings.gizmoSize)).toBe(1.35);
 });
 
 test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {

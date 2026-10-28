@@ -451,14 +451,12 @@ export function stepHint(c: Ctx): string | null {
   // (A joint's keys go with X, Y or Z held: said for it all the same.)
   const at = stepping(c, 'turnLeft') ?? stepping(c, 'left') ?? (c.joint && !c.store.getState().through ? { kind: 'joint' as const } : null);
   const shift = ' · Shift: ×3';
-  const whole = animated(c) ? ' · Ctrl: the whole performance' : '';
-  // (Under the Pose tool the Move gizmo is a key away.)
-  const tool = c.store.getState().settings.gizmo === 'rotate' ? 'W: move tool · ' : '';
+  const whole = animated(c) ? ' · Ctrl: all it does' : '';
   switch (at?.kind) {
-    case 'figure': return `${tool}← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15° · Y, X, Z with ← →: turn, lean 5°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${whole}${shift}`;
-    case 'prop': return `${tool}← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
-    case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${c.many?.figures.length ? whole : ''}${shift}`;
-    case 'joint': return `X, Y or Z with ← →: Bend, Twist, Side −/+ 5° · ↑ ↓ ← →: another joint · Double-click: the whole figure${shift}`;
+    case 'figure': return `Arrows: move ${figureOf(c)?.name} · Alt ← →: turn · Y / X / Z + ← →: turn, lean${figureOf(c)?.grounded === false ? ' · Page ↑ ↓: up, down' : ''}${whole}${shift}`;
+    case 'prop': return `Arrows: move · Alt ← →: turn · Page ↑ ↓: up, down · R: scale${shift}`;
+    case 'many': return `Arrows: move them · Alt ← →: turn them${c.many?.figures.length ? whole : ''}${shift}`;
+    case 'joint': return `X / Y / Z + ← →: Bend / Twist / Side 5° · Arrows: next joint · Double-click: whole figure${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
     case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
     case 'light': return `← →: round 15° · Page Up / Down: higher, lower${shift}`;
@@ -509,13 +507,12 @@ export const COMMANDS: Command[] = [
   },
 
   // The canvas's tools.
-  { id: 'tool.pose', title: 'Pose tool', icon: Hand, keys: ['e'], checked: (c) => c.store.getState().settings.gizmo === 'rotate', run: (c) => c.store.setSettings({ gizmo: 'rotate' }) },
-  { id: 'tool.move', title: 'Move tool', icon: Move3d, keys: ['w'], checked: (c) => c.store.getState().settings.gizmo === 'translate', run: (c) => c.store.setSettings({ gizmo: 'translate' }) },
   {
-    id: 'tool.scale', title: 'Scale tool', icon: Scale3d, keys: ['r'], enabled: (c) => c.store.getState().selection?.kind === 'prop',
-    checked: (c) => c.store.getState().settings.gizmo === 'scale', run: (c) => c.store.setSettings({ gizmo: 'scale' }),
+    // A selected prop's gizmo: R switches it between moving and scaling.
+    id: 'tool.scale', title: 'Scale the prop', help: 'Scale the prop with its gizmo (R again: move it)', icon: Scale3d, keys: ['r'], when: (c) => c.store.getState().selection?.kind === 'prop',
+    checked: (c) => c.store.getState().settings.gizmo === 'scale', run: (c) => c.store.setSettings({ gizmo: c.store.getState().settings.gizmo === 'scale' ? 'translate' : 'scale' }),
   },
-  { id: 'tool.limits', title: 'Natural joint limits', icon: Lock, checked: (c) => c.store.getState().settings.limits, run: (c) => c.store.setSettings({ limits: !c.store.getState().settings.limits }) },
+  { id: 'tool.limits', title: 'Joint limits', help: 'Joint limits: parts bend only as far as a body does', icon: Lock, checked: (c) => c.store.getState().settings.limits, run: (c) => c.store.setSettings({ limits: !c.store.getState().settings.limits }) },
 
   // The view.
   ...VIEW_PRESETS.map((v): Command => ({ id: `view.${v.key}`, title: v.label, keys: [v.key], run: (c) => { c.store.lookThrough(null); App().frameView(v); } })),
@@ -526,7 +523,7 @@ export const COMMANDS: Command[] = [
   },
   {
     // Only the selection on the canvas (the scene, the shot camera and exports are not affected).
-    id: 'view.isolate', title: 'Isolate the selection', icon: Focus, keys: ['/'],
+    id: 'view.isolate', title: 'Show only the selection', icon: Focus, keys: ['/'],
     when: (c) => !!App().isolated() || !!(c.prop || (c.figure && !c.action)), checked: () => !!App().isolated(),
     run: (c) => App().setIsolated(App().isolated() ? null : c.prop ?? c.figure ?? null),
   },
@@ -535,22 +532,16 @@ export const COMMANDS: Command[] = [
     items: (c) => {
       const through = c.store.getState().through;
       return [
-        { title: 'The editor’s view', checked: !through, run: () => c.store.lookThrough(null) },
-        { title: 'The shot camera (the cut)', checked: !!through && !through.camera, run: () => c.store.lookThrough({}) },
+        { title: 'Free view', checked: !through, run: () => c.store.lookThrough(null) },
+        { title: 'Shot camera', checked: !!through && !through.camera, run: () => c.store.lookThrough({}) },
         ...sceneOf(c).cameras.map((cam) => ({ title: cam.name, icon: Video, checked: through?.camera === cam.id, run: () => c.store.lookThrough({ camera: cam.id }) })),
       ];
     },
   },
   { id: 'view.handles', title: 'Handles', help: 'Show the handles: a joint’s card, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
   { id: 'view.grid', title: 'Floor grid', checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
-  { id: 'view.onion', title: 'Onion skin (the keys either side)', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
-  { id: 'view.guides', title: 'Framing guides (thirds, safe areas)', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
-  {
-    id: 'view.gizmoSize', title: 'Gizmo size',
-    items: (c) => [{ label: 'Small', x: 0.75 }, { label: 'Medium', x: 1 }, { label: 'Large', x: 1.35 }, { label: 'Extra large', x: 1.7 }].map((g) => ({
-      title: g.label, checked: Math.abs(c.store.getState().settings.gizmoSize - g.x) < 0.01, run: () => c.store.setSettings({ gizmoSize: g.x }),
-    })),
-  },
+  { id: 'view.onion', title: 'Onion skin', help: 'Onion skin: the keys before and after, faint', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
+  { id: 'view.guides', title: 'Framing guides', help: 'Framing guides: thirds and safe areas', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
   {
     id: 'view.line', title: 'Line weight', when: (c) => !!styleDef(filmOf(c.store.getState().library).style).outline,
     items: (c) => [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }].map((w) => ({
@@ -1271,8 +1262,8 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
 export const MENUS = {
   main: ['app.save', 'app.import', 'app.open', '-', 'app.project', 'app.practice', 'app.help', 'app.theme'],
   view: [
-    { group: 'Angle' }, ...VIEW_PRESETS.map((v) => `view.${v.key}`), 'view.isolate', 'view.through',
-    { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line', 'view.gizmoSize',
+    'view.frameAll', 'view.isolate', 'view.through',
+    { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',
   ],
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',

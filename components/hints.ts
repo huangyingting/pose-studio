@@ -39,11 +39,11 @@ const part = (j: JointName) => JOINT_LABELS[j].toLowerCase();
 
 /** On a figure's body: what a drag of the torso, a hand or foot, or another part does. */
 export function bodyHint(name: string, kind: 'body' | 'pelvis' | 'end' | 'swing', joint?: JointName) {
-  if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn ${name} · Y, X or Z with ← →: turn, lean · Right-click: more`;
-  if (kind === 'pelvis') return `Drag: the hips (squat, shift), the feet stay planted · Shift-drag: turn the body · Double-click: all of ${name}`;
+  if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn · Right-click: more`;
+  if (kind === 'pelvis') return `Drag: squat or shift, feet stay · Shift-drag: turn · Double-click: whole ${name}`;
   const p = part(joint!);
-  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll it · X, Y or Z with ← →: 5° · Double-click: all of ${name}`;
-  return `Drag: swing the ${p} (Ctrl: 5° steps) · Shift-drag: twist it · X, Y or Z held: one slider (with ← →: 5°) · Double-click: all of ${name}`;
+  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll · Double-click: whole ${name}`;
+  return `Drag: turn the ${p} (Ctrl: 5° steps) · Shift-drag: twist · Hold X / Y / Z: one way · Double-click: whole ${name}`;
 }
 
 export const propHint = (name: string, held: boolean) => (held

@@ -215,10 +215,8 @@ export default function Viewport({
   let onGizmoChange = () => {};
   // The readout of a gizmo drag, from where its object was when the drag began.
   let readout: (from: THREE.Vector3) => void = () => {};
-  const moving = settings.gizmo === 'translate';
-  // (Not on a figure when something else is what is selected: one target at a time.)
-  const other = selection?.kind === 'prop' || selection?.kind === 'shot' || selection?.kind === 'camera' || selection?.kind === 'light' || selection?.kind === 'many';
-  const gizmoFigure = moving && !other ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
+  // A figure picked as a whole (a double-click), or a stand-in: its Move gizmo (also up and down).
+  const gizmoFigure = selection?.kind === 'figure' && (selection.whole || figureDoc(selection.figure)?.proxy) ? selection.figure : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
@@ -232,7 +230,7 @@ export default function Viewport({
         setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
       };
     }
-  } else if (selection?.kind === 'prop' && settings.gizmo !== 'rotate') {
+  } else if (selection?.kind === 'prop') {
     const p = sv.props.get(selection.prop);
     if (p) {
       target = p.object;
@@ -342,7 +340,7 @@ export default function Viewport({
         )}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} onDoubleClick={handleDoubleClick} />
         <GizmoWarmup />
-        {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * settings.gizmoSize * (coarse ? 1.3 : 1)} />}
+        {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * (coarse ? 1.3 : 1)} />}
         {target && !shotMode && (
           <TransformControls
             ref={gizmo}

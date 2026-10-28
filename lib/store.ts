@@ -18,8 +18,6 @@ export interface Settings {
   gizmo: GizmoMode;
   /** Outline width in the editor (CSS px). */
   editorLine: number;
-  /** The Move and Scale gizmo's size (1: as made; larger on touch screens). */
-  gizmoSize: number;
   /** The left side panel's open section, or 'none' when it is collapsed to the rail. */
   side: SideSection;
   /** The library's open tab. */
@@ -79,7 +77,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  showHandles: true, showGrid: true, limits: true, gizmo: 'rotate', editorLine: 1.6, gizmoSize: 1, side: 'scene', libraryTab: 'poses', inspector: true, timelineFolded: false, timelineHeight: 0, guides: false, widths: {}, theme: 'system',
+  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', libraryTab: 'poses', inspector: true, timelineFolded: false, timelineHeight: 0, guides: false, widths: {}, theme: 'system',
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -120,9 +118,8 @@ function loadSettings(storage: Storage | null): Settings {
         showHandles: s.showHandles !== false,
         showGrid: s.showGrid !== false,
         limits: s.limits !== false,
-        gizmo: s.gizmo === 'translate' || s.gizmo === 'scale' ? s.gizmo : 'rotate',
+        gizmo: s.gizmo === 'scale' ? 'scale' : 'translate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
-        gizmoSize: typeof s.gizmoSize === 'number' ? Math.min(2, Math.max(0.6, s.gizmoSize)) : DEFAULT_SETTINGS.gizmoSize,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
         libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',
         inspector: s.inspector !== false,
@@ -454,7 +451,8 @@ export class Store {
   setActiveFigure(activeFigure: string) {
     const sel = this.state.selection;
     // A selected figure follows (the inspector shows the active one); another figure's part or action is let go.
-    const selection: Selection = sel?.kind === 'figure' ? { kind: 'figure', figure: activeFigure } : (sel?.kind === 'joint' || sel?.kind === 'action') && sel.figure !== activeFigure ? null : sel;
+    // (The same figure stays as it was: picked as a whole, still.)
+    const selection: Selection = sel?.kind === 'figure' ? (sel.figure === activeFigure ? sel : { kind: 'figure', figure: activeFigure }) : (sel?.kind === 'joint' || sel?.kind === 'action') && sel.figure !== activeFigure ? null : sel;
     this.set({ activeFigure, selection }, false);
   }
 
