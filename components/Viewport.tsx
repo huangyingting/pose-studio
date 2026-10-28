@@ -20,6 +20,7 @@ import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
+import { cameraHint, setCanvasPointer, setPointerHint } from './hints';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -159,6 +160,8 @@ export default function Viewport({
   return (
     <div
       className={`canvas-wrap${onPick ? ' picking' : ''}`}
+      onPointerEnter={() => setCanvasPointer(true)}
+      onPointerLeave={() => { setCanvasPointer(false); setPointerHint(null); }}
       onPointerDown={(e) => { downAt.current = [e.clientX, e.clientY]; }}
       onPointerUpCapture={(e) => {
         // Picking: a click (dragging still orbits) is the pick. (The release goes on to the view's
@@ -651,7 +654,10 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
   // The camera whose outline row the pointer rests on (larger, in the accent); resting on one here marks its row.
   const linked = useStudio((st) => st.linked);
-  const link = (id: string) => ({ onPointerOver: () => store.setLinked(id), onPointerOut: () => store.setLinked(null) });
+  const link = (id: string) => ({
+    onPointerOver: () => { store.setLinked(id); setPointerHint(cameraHint(cameras.find((c) => c.id === id)?.name ?? 'the camera')); },
+    onPointerOut: () => { store.setLinked(null); setPointerHint(null); },
+  });
   let n = 0;
   return (
     <group ref={groupRef}>

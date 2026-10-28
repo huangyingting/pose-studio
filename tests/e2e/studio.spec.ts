@@ -162,7 +162,7 @@ test.beforeEach(async ({ page }) => {
   await page.evaluate((lib) => {
     localStorage.clear();
     localStorage.setItem('pose-studio-library', lib);
-    localStorage.setItem('pose-studio-settings', JSON.stringify({ tips: false }));
+    localStorage.setItem('pose-studio-settings', JSON.stringify({}));
   }, SEEDED);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
@@ -180,14 +180,15 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByLabel('Scene name')).toHaveValue('Scene 1');
   await expect(page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure', exact: true })).toBeVisible();
-  // A new user sees the core gestures once.
-  const tips = page.getByRole('region', { name: 'Tips' });
-  await expect(tips).toBeVisible();
-  await tips.getByRole('button', { name: 'Got it' }).click();
-  await expect(tips).toHaveCount(0);
-  await page.reload();
-  await page.locator('.stage canvas').waitFor();
-  await expect(tips).toHaveCount(0);
+  // The canvas suggests a next step; one dismissed does not come back for the scene.
+  const step = page.getByRole('status', { name: 'Next step' });
+  await expect(step).toContainText('Pose Figure');
+  await step.getByRole('button', { name: 'Not now' }).click();
+  await expect(step).toContainText('Make Figure walk somewhere');
+  // Resting on a part says what dragging it does.
+  const hand = await project(page, 'leftHand');
+  await page.mouse.move(hand.x, hand.y + 2);
+  await expect(page.locator('.canvas-hint')).toContainText('left hand');
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
   // In groups (standing, sitting, kneeling, lying); resting on one shows it.
@@ -1170,7 +1171,7 @@ test('the command palette finds commands, scenes and Library items; Move to… w
   await expect(page.locator('.canvas-hint')).toHaveText(/^Click the floor where Figure should walk/);
   const p = await projectPoint(page, [0.8, 0, -1.2]);
   await page.mouse.click(p.x, p.y);
-  await expect(page.locator('.canvas-hint')).toHaveCount(0);
+  await expect(page.locator('.canvas-hint')).not.toHaveText(/^Click the floor/);
   const s = await live(page);
   const track = actionsOf(s.scene.animation!, s.active);
   expect(track[1].source).toMatchObject({ mode: 'walk' });
@@ -1195,7 +1196,7 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   await page.keyboard.press('/');
   await expect(page.locator('.canvas-hint')).toHaveText(/^Only Figure 2/);
   await page.keyboard.press('/');
-  await expect(page.locator('.canvas-hint')).toHaveCount(0);
+  await expect(page.locator('.canvas-hint')).not.toHaveText(/^Only/);
 
   // Resting on an outline row links its figure on the canvas.
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure$/ }).hover();

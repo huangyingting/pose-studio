@@ -13,6 +13,7 @@ import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import type { Figure, JointName, Scene } from '@/lib/types';
 import { openContextMenu } from './ContextMenu';
+import { bodyHint, dotHint, propHint, ringHint, setPointerHint } from './hints';
 
 /*
  * Direct manipulation on the canvas. The things themselves are the handles:
@@ -313,8 +314,10 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     const t = o && target(o);
     if (!t) return;
     sv.setHover(hover(t, e.shiftKey));
-    // Its row in the outline shows it too.
+    // Its row in the outline shows it too; the hint chip says what each gesture on it does.
     store.setLinked(t.kind === 'prop' || t.kind === 'held' ? t.prop : t.figure);
+    const name = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? scene.props.find((p) => p.id === id)?.name ?? '';
+    setPointerHint(t.kind === 'prop' || t.kind === 'held' ? propHint(name(t.prop), t.kind === 'held') : bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint));
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };
 
@@ -328,6 +331,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
         if (e.buttons) return;
         sv.setHover(null);
         store.setLinked(null);
+        setPointerHint(null);
         document.body.style.cursor = '';
       }}
     />
@@ -434,8 +438,8 @@ export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
             key={f.id}
             ref={(el) => { groups.current[f.id] = el; }}
             onClick={on ? undefined : (e) => { if (e.delta > 4) return; e.stopPropagation(); onPick(f.id); }}
-            onPointerOver={on ? undefined : () => { document.body.style.cursor = 'pointer'; }}
-            onPointerOut={on ? undefined : () => { document.body.style.cursor = ''; }}
+            onPointerOver={() => { if (!on) document.body.style.cursor = 'pointer'; setPointerHint(on ? ringHint(f.name) : `Click the ring: select ${f.name}`); }}
+            onPointerOut={() => { if (!on) document.body.style.cursor = ''; setPointerHint(null); }}
           >
             <FloorRing
               radius={0.275 * (f.body.height / 1.8)}
@@ -620,8 +624,8 @@ export function IKHandles({ m, figure, limits, onCommit }: {
           onPointerDown={down(h.id)}
           onPointerMove={move}
           onPointerUp={up}
-          onPointerOver={() => { hovered.current = h.id; document.body.style.cursor = 'grab'; }}
-          onPointerOut={() => { hovered.current = null; document.body.style.cursor = ''; }}
+          onPointerOver={() => { hovered.current = h.id; document.body.style.cursor = 'grab'; setPointerHint(dotHint(h.id)); }}
+          onPointerOut={() => { hovered.current = null; document.body.style.cursor = ''; setPointerHint(null); }}
         >
           <mesh renderOrder={10} userData={{ handle: true }}>
             <sphereGeometry args={[1, 20, 14]} />

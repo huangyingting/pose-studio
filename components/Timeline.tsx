@@ -18,6 +18,7 @@ import { openContextMenu } from './ContextMenu';
 import { choices, command, menu, menuItems, setApp, tipOf, titleOf, type Ctx } from './commands';
 import { CommandButton } from './CommandButton';
 import { dragged, endDrag } from './dragdrop';
+import { stepDone } from './nextStep';
 import { useFilm, useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
@@ -282,6 +283,7 @@ export default function Timeline({ clock, notify }: { clock: Clock; notify: Noti
   };
 
   const check = () => {
+    stepDone(scene.id, 'check');
     if (issues) { setQaOpen(!qaOpen); return; }
     pause();
     setChecking(true);

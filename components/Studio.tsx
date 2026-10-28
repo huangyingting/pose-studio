@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, Hand, LayoutPanelTop, Lock, LockOpen, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Scale3d, SlidersHorizontal,
+  ChevronDown, Download, Ellipsis, Eye, Hand, X, LayoutPanelTop, Lock, LockOpen, Move3d, PanelLeft, PanelRightClose, PanelRightOpen, Scale3d, SlidersHorizontal,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -39,6 +39,8 @@ import { COMMANDS, choices, command, commandForKey, matchesKey, menu, menuItems,
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewCube from './ViewCube';
+import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
+import { nextStep, stepDone } from './nextStep';
 
 function webglAvailable() {
   try {
@@ -142,6 +144,10 @@ function App() {
     setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
   }, []);
 
+  // The canvas hint's parts: what is under the pointer, whether it is over the canvas, and the next steps dismissed.
+  const pointerHint = usePointerHint();
+  const overCanvas = useCanvasPointer();
+  const [, setSteps] = useState(0);
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
@@ -468,17 +474,6 @@ function App() {
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
         {!through && <ViewCube ctx={cx} view={viewNow} />}
-        {settings.tips && !through && (
-          <section className="tips" aria-label="Tips">
-            <ul>
-              <li><b>Drag</b> an arm, a leg or the head to pose it</li>
-              <li><b>Drag</b> the body to move a figure, the <b>ring</b> under it to turn it</li>
-              <li><kbd>Shift</kbd>-drag to twist a part or turn a figure</li>
-              <li><b>Right-click</b> anything for what you can do with it</li>
-            </ul>
-            <button type="button" className="btn subtle" onClick={() => store.setSettings({ tips: false })}>Got it</button>
-          </section>
-        )}
         {referenceUrl && scene.reference?.visible && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={referenceUrl} alt="" style={{ opacity: scene.reference.opacity }} />
@@ -487,12 +482,26 @@ function App() {
           <Timeline clock={clock} notify={notify} />
         )}
         {(() => {
-          // The canvas's one hint, while it applies: the tool's, or that posing corrects a motion.
-          const hint = pick ? pick.hint : settings.gizmo !== 'rotate' && !gizmoForSelection
+          // The canvas's one hint: a pick in progress; what the gestures on what is under the
+          // pointer do; the tool's, a correction's or Isolate's note; else a next step for the scene.
+          const hint = pick ? pick.hint : pointerHint ?? (settings.gizmo !== 'rotate' && !gizmoForSelection
             ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
             : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
-              ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null);
-          return hint && <div className="canvas-hint" role="status">{hint}</div>;
+              ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null));
+          if (hint) return <div className="canvas-hint" role="status">{hint}</div>;
+          const step = !through && !clock.playing ? nextStep(store) : null;
+          if (!step) return overCanvas && !through ? <div className="canvas-hint" role="status">{FLOOR_HINT}</div> : null;
+          return (
+            <div className="canvas-hint step" role="status" aria-label="Next step">
+              <span>{step.text}</span>
+              {step.actions.map((a) => (
+                <button key={a.label} type="button" className="hint-action" onClick={() => { a.run(); setSteps((n) => n + 1); }}>{a.label}</button>
+              ))}
+              <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => { stepDone(scene.id, step.id); setSteps((n) => n + 1); }}>
+                <X size={13} aria-hidden />
+              </button>
+            </div>
+          );
         })()}
       </main>
 
