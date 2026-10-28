@@ -118,7 +118,8 @@ function loadSettings(storage: Storage | null): Settings {
         showHandles: s.showHandles !== false,
         showGrid: s.showGrid !== false,
         limits: s.limits !== false,
-        gizmo: s.gizmo === 'scale' ? 'scale' : 'translate',
+        // (A prop's gizmo starts each visit moving it.)
+        gizmo: 'translate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
         side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
         libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',
@@ -436,7 +437,9 @@ export class Store {
     // (The same figure selected again, by its ring, its menu: still picked as a whole if it was.)
     const was = this.state.selection;
     if (selection?.kind === 'figure' && !selection.whole && was?.kind === 'figure' && was.whole && was.figure === selection.figure) selection = was;
-    this.set({ selection }, false);
+    // (Scaling a prop with R is for that prop: another selection's gizmo moves again.)
+    const scaling = this.state.settings.gizmo === 'scale' && !(selection?.kind === 'prop' && was?.kind === 'prop' && selection.prop === was.prop);
+    this.set(scaling ? { selection, settings: { ...this.state.settings, gizmo: 'translate' } } : { selection }, false);
   }
 
   lookThrough(through: Through) {

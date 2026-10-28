@@ -39,7 +39,7 @@ export const ISSUE_LABELS: Record<IssueKind, string> = {
 const HINTS: Record<IssueKind, string> = {
   slide: 'Keep the foot still while it is on the floor: match its position at both keys, or lift it.',
   overlap: 'Move the figures apart or adjust the pose at these keys.',
-  limit: 'Re-pose this key with “Natural joint limits” on.',
+  limit: 'Re-pose this key with “Joint limits” on.',
   pop: 'Add an in-between key, or move the keys further apart.',
   hidden: 'Move the camera, the prop, or the figure out from behind it.',
   miss: 'Something got in its way, or the hand cannot reach it then: clear the way, or move the catch.',

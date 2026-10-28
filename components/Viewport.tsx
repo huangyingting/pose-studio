@@ -121,6 +121,7 @@ export default function Viewport({
   }, []);
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
+  const lastTap = useRef<{ figure?: string; t: number }>({ t: 0 });
   const longPress = useRef(0);
 
   // Characters' files are read after the first frame: drawn as them once they are.
@@ -172,6 +173,15 @@ export default function Viewport({
     // A see-through prop (in front of the figure being edited) lets the click through.
     if (o.userData.prop && sv.props.get(o.userData.prop as string)?.parts.faded) return;
     e.stopPropagation();
+    // A second tap on the same figure soon after (touch has no double-click on the canvas): all of it.
+    const now = performance.now();
+    const touch = (e.nativeEvent as PointerEvent).pointerType === 'touch';
+    const twice = touch && o.userData.figure && lastTap.current.figure === o.userData.figure && now - lastTap.current.t < 350;
+    lastTap.current = { figure: o.userData.figure as string | undefined, t: twice ? 0 : now };
+    if (twice && !e.nativeEvent.shiftKey) {
+      store.select({ kind: 'figure', figure: o.userData.figure as string, whole: true });
+      return;
+    }
     // Shift-click: add it to what is selected (a figure as a whole), or take it away.
     if (e.nativeEvent.shiftKey) {
       toggleSelected(store, o.userData.prop ? { prop: o.userData.prop as string } : { figure: o.userData.figure as string });
@@ -195,11 +205,9 @@ export default function Viewport({
     store.select({ kind: 'figure', figure: o.userData.figure as string, whole: true });
   };
 
-  // The gizmo is for the explicit tools: Move (W: a whole figure or a prop, also up and down) and
-  // Scale (R: props). Joints are posed by dragging the body (Ctrl: 5° steps; Shift-drag twists), by
-  // the selected joint's card (− and + for each slider, its value typed) and the inspector's sliders;
-  // figures and props turn by their floor ring. Joints are also posed
-  // by dragging the body (Shift-drag twists) and the inspector's sliders; figures and props turn by
+  // The gizmo: a selected prop's, or a figure's picked as a whole (a double-click), moves it (also up
+  // and down; R scales a prop). Joints are posed by dragging the body (Ctrl: 5° steps; Shift-drag
+  // twists), by the selected joint's card and the inspector's sliders; figures and props turn by
   // their floor ring.
   const handles = settings.showHandles && !shotMode;
   // (A finger needs a bigger gizmo.)

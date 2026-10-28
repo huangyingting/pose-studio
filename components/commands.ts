@@ -454,7 +454,7 @@ export function stepHint(c: Ctx): string | null {
   const whole = animated(c) ? ' · Ctrl: all it does' : '';
   switch (at?.kind) {
     case 'figure': return `Arrows: move ${figureOf(c)?.name} · Alt ← →: turn · Y / X / Z + ← →: turn, lean${figureOf(c)?.grounded === false ? ' · Page ↑ ↓: up, down' : ''}${whole}${shift}`;
-    case 'prop': return `Arrows: move · Alt ← →: turn · Page ↑ ↓: up, down · R: scale${shift}`;
+    case 'prop': return `Arrows: move · Alt ← →: turn · Page ↑ ↓: up, down · R: ${c.store.getState().settings.gizmo === 'scale' ? 'move' : 'scale'}${shift}`;
     case 'many': return `Arrows: move them · Alt ← →: turn them${c.many?.figures.length ? whole : ''}${shift}`;
     case 'joint': return `X / Y / Z + ← →: Bend / Twist / Side 5° · Arrows: next joint · Double-click: whole figure${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
