@@ -97,7 +97,8 @@ describe('films: templates staged as a director would', () => {
     const fresh = (s: Scene) => structuredClone(s);
     const t = 6;
     // Worked out before the Library's motions are at hand (everyone standing), then as they come.
-    const cam = store.scene.cameras.find((c) => c.kind === 'rig' && c.name.startsWith('Low on'))!;
+    // (A close one keeping the other out: where it puts its subject is worked out again too.)
+    const cam = store.scene.cameras.find((c) => c.kind === 'rig' && !!c.rig.clear)!;
     viewOf(store.scene, cam, t);
     load(store.scene);
     expect(viewOf(store.scene, cam, t).position.distanceTo(viewOf(fresh(store.scene), cam, t).position)).toBeLessThan(1e-6);

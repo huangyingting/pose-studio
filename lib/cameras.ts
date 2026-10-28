@@ -463,7 +463,7 @@ function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Bo
 }
 
 /** Where a rig camera is at t, worked out from its subject's body. */
-// Where a clean single puts its subject, once worked out (per animation, camera and rig).
+// Where a clean single puts its subject, once worked out (per how the figures move, camera, subject and rig).
 const placements = new WeakMap<object, Map<string, Placement | undefined>>();
 
 function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: number) {
@@ -499,10 +499,10 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
   // shot, so it does not jump about.
   let place = r.place;
   if (other) {
-    const owner: object = scene.animation ?? scene.figures;
+    const owner = movesOf(scene);
     let known = placements.get(owner);
     if (!known) placements.set(owner, (known = new Map()));
-    const key = `${cam.id}:${JSON.stringify(r)}:${aspect}`;
+    const key = `${cam.id}:${subject?.join()}:${JSON.stringify(r)}:${aspect}`;
     if (!known.has(key)) {
       const t0 = firstFilmed(scene, cam);
       const flip: Placement | undefined = r.place === 'left' ? 'right' : r.place === 'right' ? 'left' : undefined;
