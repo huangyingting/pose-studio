@@ -72,14 +72,17 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
     e.stopPropagation();
     const controls = get().controls as unknown as Controls;
     if (controls) controls.enabled = false;
+    // (Let go, or cancelled: a touch taken over by the system.)
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       if (controls) controls.enabled = true;
       setReadout(null);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
     return true;
   };
   const floorAt = (x: number, y: number) => {

@@ -55,14 +55,17 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
       setSceneLight(store, next, key);
       setReadout(lightText(next));
     };
+    // (Let go, or cancelled: a touch taken over by the system.)
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       if (controls) controls.enabled = true;
       setReadout(null);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   // Rays: a few lines from the lamp towards the middle.

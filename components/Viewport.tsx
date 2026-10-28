@@ -928,6 +928,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   // Over a rig camera the wheel steps its shot size, not the view's zoom. (One removed, or made a
   // path camera, while the pointer rests on it: the zoom comes back then, or when these go.)
   const zoomOff = useRef<string | null>(null);
+  const wheelAt = useRef(0);
   const setZoom = useCallback((on: boolean) => { const controls = get().controls as unknown as { enableZoom: boolean } | null; if (controls) controls.enableZoom = on; }, [get]);
   useEffect(() => {
     if (zoomOff.current && !cameras.some((c) => c.id === zoomOff.current && c.kind === 'rig')) { zoomOff.current = null; setZoom(true); }
@@ -957,7 +958,15 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
             ref={(g) => { nowGlyphs.current[i] = g; }}
             userData={{ camera: c.id }}
             onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
-            onWheel={c.kind === 'rig' ? (e) => { e.stopPropagation(); stepRig(store, c, e.deltaY < 0 ? 1 : -1, e.nativeEvent.shiftKey); } : undefined}
+            onWheel={c.kind === 'rig' ? (e) => {
+              e.stopPropagation();
+              // (Shift turns the wheel sideways in most browsers; a trackpad sends many small events: one step a notch, not one an event.)
+              const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+              const now = performance.now();
+              if (!d || now - wheelAt.current < 180) return;
+              wheelAt.current = now;
+              stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey);
+            } : undefined}
             {...link(c.id)}
           >
             <mesh>

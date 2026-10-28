@@ -1546,9 +1546,32 @@ export function deleteMany(store: Store, figures: string[], props: string[]) {
 /** Copies of several figures and props, beside them (one undo step), selected together. */
 export function duplicateMany(store: Store, figures: string[], props: string[]) {
   const before = { figures: new Set(store.scene.figures.map((f) => f.id)), props: new Set(store.scene.props.map((p) => p.id)) };
+  const newest = <T extends { id: string }>(list: T[]) => list[list.length - 1].id;
   store.group(() => {
-    figures.forEach((id) => duplicateFigure(store, id));
-    props.forEach((id) => duplicateProp(store, id));
+    // Copies beside the originals, all moved alike (as a figure's copy is), so the group keeps its layout.
+    const copyOf = new Map<string, string>();
+    for (const id of figures) {
+      duplicateFigure(store, id);
+      copyOf.set(id, newest(store.scene.figures));
+    }
+    for (const id of props) {
+      const src = store.scene.props.find((p) => p.id === id);
+      if (!src) continue;
+      duplicateProp(store, id);
+      const copy = newest(store.scene.props);
+      const holder = src.hold && copyOf.get(src.hold.figure);
+      store.updateScene((s) => {
+        const p = s.props.find((x) => x.id === copy)!;
+        // In the copy of the hand that held it (not a second one in the original's hand).
+        if (holder && src.hold) {
+          const h = held({ ...p, hold: undefined }, s.figures.find((f) => f.id === holder)!, src.hold.hand);
+          return { ...s, props: s.props.map((x) => (x.id === copy ? h.prop : x)), figures: s.figures.map((f) => (f.id === holder ? h.figure : f)) };
+        }
+        // (Held by someone not copied: as a single copy of it is.)
+        if (src.hold) return s;
+        return { ...s, props: s.props.map((x) => (x.id === copy ? { ...x, position: [src.position[0] + 0.8, src.position[1], src.position[2]] as Vec3 } : x)) };
+      });
+    }
   });
   store.select({ kind: 'many', figures: store.scene.figures.filter((f) => !before.figures.has(f.id)).map((f) => f.id), props: store.scene.props.filter((p) => !before.props.has(p.id)).map((p) => p.id) });
 }

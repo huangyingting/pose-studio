@@ -59,15 +59,18 @@ export default function Letterbox({ aspect, guides, camera, project }: {
       el.style.transform = `translate(${ev.clientX - box.left}px, ${ev.clientY - box.top}px) translate(-50%, -50%)`;
       setReadout(`${scene.figures.find((f) => f.id === subject)?.name ?? 'The subject'} ${PLACES[placeAt(ev.clientX)]}`);
     };
+    // (Let go: framed there; cancelled, a touch taken over by the system: left as it was.)
     const up = (ev: PointerEvent) => {
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
       setReadout(null);
       setDragging(false);
-      editRig(store, rig.id, { place: placeAt(ev.clientX) }, '');
+      if (ev.type === 'pointerup') editRig(store, rig.id, { place: placeAt(ev.clientX) }, '');
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
   };
 
   const sizes = cam ? command('camera.size').items!({ store, camera: cam.id }) : [];
