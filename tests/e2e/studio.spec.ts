@@ -362,6 +362,37 @@ test('figures and props move by dragging them and turn by their floor ring', asy
   expect((await prop()).position).toEqual(p0.position);
 });
 
+test('the axes show at the origin, on the view widget and in the fields; drags read out how far', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.keyboard.press('1');
+  // The origin's mark says where the front is; the view widget's Z end is the front view.
+  await expect(page.locator('.origin-front')).toHaveText(/front/i);
+  const front = page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' });
+  await expect(front).toHaveText('Z');
+  await expect(front).toHaveAttribute('aria-pressed', 'true');
+
+  /** Drag from a point by steps, checking the readout before letting go. */
+  const readout = async (from: { x: number; y: number }, dx: number, text: RegExp) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 5; i++) await page.mouse.move(from.x + (dx * i) / 5, from.y);
+    await expect(page.locator('.drag-readout')).toHaveText(text);
+    await page.mouse.up();
+    await expect(page.locator('.drag-readout')).toHaveCount(0);
+  };
+  // A forearm swung: its slider's name and value.
+  const [elbow, hand] = [await project(page, 'leftLowerArm'), await project(page, 'leftHand')];
+  await readout({ x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 }, 60, /^Left forearm · \w+ −?\d+°$/);
+  // A second figure moved by its torso: how far, where, and how far from the other.
+  await addLayer(page, 'Figure');
+  await page.waitForTimeout(400);
+  const chest = await project(page, 'chest');
+  await readout({ x: chest.x, y: chest.y - 20 }, 80, /^Moved \d\.\d\d m · X −?\d\.\d\d {2}Z −?\d\.\d\d · \d\.\d\d m from Figure$/);
+  // A prop's position fields carry the axes' colours.
+  await addLayer(page, 'Box');
+  await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
+});
+
 test('Shift-drag twists a part; handheld props go in the hand; the scene exports as a 3D model', async ({ page }) => {
   await page.keyboard.press('1');
   await page.waitForTimeout(400);

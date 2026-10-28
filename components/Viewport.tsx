@@ -10,6 +10,7 @@ import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
+import { AXIS_COLORS } from '@/lib/views';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
@@ -17,10 +18,10 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough } from './Manipulators';
+import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestText } from './Manipulators';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
-import { cameraHint, setCanvasPointer, setPointerHint } from './hints';
+import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useReadout } from './hints';
 import { openPie } from './commands';
 import type { Placing } from './placing';
 
@@ -95,6 +96,8 @@ export default function Viewport({
   // Re-render when sync() replaces three.js objects, so the gizmo/handles get the new joints.
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
   const gizmoBusy = useRef(0);
+  const gizmoFrom = useRef<THREE.Vector3 | null>(null);
+  const frontLabel = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
   const longPress = useRef(0);
@@ -143,6 +146,8 @@ export default function Viewport({
   let mode: 'translate' | 'scale' = 'translate';
   let showY = true;
   let onGizmoChange = () => {};
+  // The readout of a gizmo drag, from where its object was when the drag began.
+  let readout: (from: THREE.Vector3) => void = () => {};
   const moving = settings.gizmo === 'translate';
   const gizmoFigure = moving && selection?.kind !== 'prop' && selection?.kind !== 'shot' ? (selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure) : null;
   if (gizmoFigure) {
@@ -152,6 +157,10 @@ export default function Viewport({
       target = m.joints.hips;
       showY = !doc.grounded;
       onGizmoChange = () => store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}`);
+      readout = (p) => {
+        const r = m.joints.hips.position;
+        setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
+      };
     }
   } else if (selection?.kind === 'prop' && settings.gizmo !== 'rotate') {
     const p = sv.props.get(selection.prop);
@@ -160,6 +169,14 @@ export default function Viewport({
       mode = settings.gizmo;
       const id = selection.prop;
       onGizmoChange = () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() }), `gizmo:${id}`);
+      readout = (from) => {
+        const o = p.object;
+        if (mode === 'scale') setReadout(`Size ${[o.scale.x, o.scale.y, o.scale.z].map(metres).join(' × ')}`);
+        else {
+          const high = o.position.y > 0.005;
+          setReadout(movedText(o.position.x - from.x, o.position.z - from.z, o.position.x, o.position.z) + (high ? ` · ${metres(o.position.y)} m high` : ''), high ? [o.position.x, o.position.y, o.position.z] : undefined);
+        }
+      };
     }
   }
 
@@ -238,6 +255,13 @@ export default function Viewport({
       >
         <color attach="background" args={[styleDef(film.style).background]} />
         <Lights sv={sv} style={film.style} scene={scene} />
+        {settings.showGrid && !shotMode && <OriginMark label={(at) => {
+          const el = frontLabel.current;
+          if (!el) return;
+          el.style.display = at ? '' : 'none';
+          if (at) el.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
+        }} />}
+        <DropLine />
         {settings.showGrid && (
           // The floor goes on forever; the grid covers all of it, fading toward the horizon.
           <Grid
@@ -261,9 +285,12 @@ export default function Viewport({
             space={mode === 'translate' ? 'world' : 'local'}
             size={0.8}
             showY={showY}
-            onMouseDown={() => { gizmoBusy.current = Infinity; }}
-            onMouseUp={() => { gizmoBusy.current = performance.now(); }}
-            onObjectChange={onGizmoChange}
+            onMouseDown={() => { gizmoBusy.current = Infinity; gizmoFrom.current = target!.position.clone(); }}
+            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; setReadout(null); }}
+            onObjectChange={() => {
+              onGizmoChange();
+              if (gizmoFrom.current) readout(gizmoFrom.current);
+            }}
           />
         )}
         {/* (Not while a prop or a camera is what is selected: one target at a time.) */}
@@ -322,8 +349,44 @@ export default function Viewport({
         />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
       </Canvas>
+      {settings.showGrid && !shotMode && <div ref={frontLabel} className="origin-front" style={{ display: 'none' }}>front</div>}
+      <DragReadout />
     </div>
   );
+}
+
+/** The world's axes at the origin (X red, Y green, Z blue: the way figures face, "front", put on screen by `label`); gone from afar. */
+function OriginMark({ label }: { label(at: { x: number; y: number } | null): void }) {
+  const group = useRef<THREE.Group>(null);
+  const tmp = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera, size }) => {
+    const near = camera.position.length() < 16;
+    if (group.current) group.current.visible = near;
+    tmp.set(0, 0, 0.52).project(camera);
+    label(near && tmp.z < 1 ? { x: ((tmp.x + 1) / 2) * size.width, y: ((1 - tmp.y) / 2) * size.height } : null);
+  });
+  const [x, y, z] = AXIS_COLORS;
+  return (
+    <group ref={group}>
+      <Line points={[[0, 0.002, 0], [0.4, 0.002, 0]]} color={x} lineWidth={2} />
+      <Line points={[[0, 0, 0], [0, 0.3, 0]]} color={y} lineWidth={2} />
+      <Line points={[[0, 0.002, 0], [0, 0.002, 0.4]]} color={z} lineWidth={2} />
+    </group>
+  );
+}
+
+/** While something above the floor is dragged: a dashed line from it down to the floor. */
+function DropLine() {
+  const at = useReadout()?.drop;
+  if (!at) return null;
+  return <Line points={[at, [at[0], 0, at[2]]]} color="#3b6cff" lineWidth={1} dashed dashSize={0.04} gapSize={0.03} depthTest={false} renderOrder={6} />;
+}
+
+/** The readout beside the pointer while something is dragged. */
+function DragReadout() {
+  const r = useReadout();
+  if (!r) return null;
+  return <div className="drag-readout" role="status" style={{ transform: `translate(${r.x + 16}px, ${r.y + 20}px)` }}>{r.text}</div>;
 }
 
 /** The shared key light + shadow floor, re-aimed when the scene or light changes. */
@@ -744,8 +807,10 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
       // Level: across the floor at its height; upright: only up and down.
       const to = upright ? new THREE.Vector3(from.x, Math.max(0.05, hit.y), from.z) : new THREE.Vector3(hit.x, from.y, hit.z);
       apply(to, key);
+      setReadout(`${upright ? '' : `${movedText(to.x - from.x, to.z - from.z, to.x, to.z)} · `}${metres(to.y)} m high`, [to.x, to.y, to.z]);
     };
     const up = () => {
+      setReadout(null);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', up);
       if (controls) controls.enabled = true;

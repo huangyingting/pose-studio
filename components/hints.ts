@@ -1,8 +1,8 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { JOINT_LABELS } from '@/lib/joints';
-import type { JointName } from '@/lib/types';
+import { JOINT_LABELS, axisLabels } from '@/lib/joints';
+import type { JointName, Vec3 } from '@/lib/types';
 
 /*
  * What the canvas's hint chip says about the pointer: what each gesture does on what is under it
@@ -63,8 +63,42 @@ export const FLOOR_HINT = 'Drag: orbit · Right-click: walk here, add something 
 
 /** Whether the last input was the pointer's (a click), not the keyboard's: what was asked for with a click is placed with the pointer. */
 let pointerLast = true;
+let pointerAt = { x: 0, y: 0 };
 if (typeof window !== 'undefined') {
   window.addEventListener('pointerdown', () => { pointerLast = true; }, true);
+  window.addEventListener('pointermove', (e) => { pointerAt = { x: e.clientX, y: e.clientY }; }, true);
   window.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') pointerLast = false; }, true);
 }
 export const viaPointer = () => pointerLast;
+
+/*
+ * The readout beside the pointer while something is dragged: how far it has moved, how far it has
+ * turned, a joint's value, a prop's height (with `drop`, the point a dashed line goes down from).
+ */
+export interface Readout { text: string; x: number; y: number; drop?: Vec3 }
+let readout: Readout | null = null;
+const readers = new Set<() => void>();
+
+export function setReadout(text: string | null, drop?: Vec3) {
+  if (!text && !readout) return;
+  readout = text ? { text, ...pointerAt, drop } : null;
+  readers.forEach((l) => l());
+}
+
+export function useReadout() {
+  return useSyncExternalStore((l) => { readers.add(l); return () => readers.delete(l); }, () => readout, () => null);
+}
+
+/** A length or coordinate in metres, as read out (a true minus sign). */
+export const metres = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2).replace('-', '−'));
+const degrees = (v: number) => `${Math.round(v) === 0 ? 0 : Math.round(v)}°`.replace('-', '−');
+
+export const movedText = (dx: number, dz: number, x: number, z: number) => `Moved ${metres(Math.hypot(dx, dz))} m · X ${metres(x)}  Z ${metres(z)}`;
+/** How far something has turned (and, where Shift snaps, whether it does). */
+export const turnedText = (by: number, steps?: boolean) => `Turned ${degrees(((by % 360) + 540) % 360 - 180)}${steps === undefined ? '' : steps ? ' · 15° steps' : ' · Shift: 15° steps'}`;
+
+/** A joint's slider that a drag has changed most: its name and value ("Left forearm · Bend −42°"). */
+export function jointText(joint: JointName, before: Vec3, now: Vec3) {
+  const axis = [0, 1, 2].reduce((b, a) => (Math.abs(now[a] - before[a]) > Math.abs(now[b] - before[b]) ? a : b));
+  return `${JOINT_LABELS[joint]} · ${axisLabels(joint)[axis].split(' (')[0]} ${degrees(now[axis])}`;
+}

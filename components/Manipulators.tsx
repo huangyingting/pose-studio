@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import { fitWarp, moveMark } from '@/lib/actions';
 import { actionsOf, footprints, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
-import { facingOf } from '@/lib/pose';
+import { angle, facingOf } from '@/lib/pose';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
@@ -13,7 +13,7 @@ import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import type { Figure, JointName, Scene } from '@/lib/types';
 import { openContextMenu } from './ContextMenu';
-import { bodyHint, dotHint, propHint, ringHint, setPointerHint } from './hints';
+import { bodyHint, dotHint, jointText, metres, movedText, propHint, ringHint, setPointerHint, setReadout, turnedText } from './hints';
 
 /*
  * Direct manipulation on the canvas. The things themselves are the handles:
@@ -98,6 +98,35 @@ const tagged = (o: THREE.Object3D | null) => {
   return o;
 };
 
+/** " · 0.80 m from Kai": how far a figure stands from the nearest other one. */
+export function nearestText(sv: SceneView, scene: Scene, id: string, at: THREE.Vector3) {
+  let best: { name: string; d: number } | null = null;
+  for (const f of scene.figures) {
+    const m = f.id !== id && !f.hidden ? sv.figures.get(f.id) : undefined;
+    if (!m) continue;
+    const p = m.joints.hips.position;
+    const d = Math.hypot(p.x - at.x, p.z - at.z);
+    if (!best || d < best.d) best = { name: f.name, d };
+  }
+  return best ? ` · ${metres(best.d)} m from ${best.name}` : '';
+}
+
+/** A readout of a joint's value as it is dragged, from its value when the drag began. */
+function jointReadout(m: Mannequin, joint: JointName) {
+  const before = angle(m.read().bones, joint);
+  let last = before;
+  return () => {
+    last = angle(m.read().bones, joint, last);
+    setReadout(jointText(joint, before, last));
+  };
+}
+
+/** A prop's readout as it is moved: how far, and its height (with a line down to the floor) when it is off the floor. */
+function propReadout(start: THREE.Vector3, now: THREE.Vector3) {
+  const high = now.y > 0.005;
+  setReadout(movedText(now.x - start.x, now.z - start.z, now.x, now.z) + (high ? ` · ${metres(now.y)} m high` : ''), high ? [now.x, now.y, now.z] : undefined);
+}
+
 type Plan = { begin(): void; move(ray: THREE.Ray, dx: number): void; end(): void; cursor: string };
 
 /** What a press on a part would move. */
@@ -167,11 +196,14 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => store.select({ kind: 'prop', prop: t.prop }),
         move: (ray, dx) => {
-          if (twist) p.object.rotation.y = yaw + dx * TWIST * D2R;
-          else {
+          if (twist) {
+            p.object.rotation.y = yaw + dx * TWIST * D2R;
+            setReadout(turnedText(dx * TWIST));
+          } else {
             const h = hit(ray, floorPlane);
             if (!h) return;
             p.object.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+            propReadout(start, p.object.position);
           }
           p.object.updateMatrixWorld(true);
         },
@@ -194,11 +226,15 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => store.select({ kind: 'figure', figure: t.figure }),
         move: (ray, dx) => {
-          if (twist) root.rotation.y = yaw + dx * TWIST * D2R;
-          else {
+          if (twist) {
+            root.rotation.y = yaw + dx * TWIST * D2R;
+            setReadout(turnedText(dx * TWIST));
+          } else {
             const h = hit(ray, floorPlane);
             if (!h) return;
             root.position.set(start.x + h.x - point.x, start.y, start.z + h.z - point.z);
+            const r = root.position;
+            setReadout(movedText(r.x - start.x, r.z - start.z, r.x, r.z) + nearestText(sv, scene, t.figure, r));
           }
           m.object.updateMatrixWorld(true);
         },
@@ -219,13 +255,17 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
       const axis = child
         ? m.joints[child].getWorldPosition(new THREE.Vector3()).sub(pivot).normalize()
         : new THREE.Vector3(0, joint === 'head' ? 1 : -1, 0).applyQuaternion(startQ);
+      const readout = jointReadout(m, joint);
       return {
         cursor: 'ew-resize',
         begin: () => { m.setGroundLock(true); select(); },
-        move: (_, dx) => keepAboveFloor(m, obj, () => {
-          setWorldQuaternion(obj, q.setFromAxisAngle(axis, dx * TWIST * D2R).multiply(startQ));
-          if (limits) m.constrain([joint]);
-        }),
+        move: (_, dx) => {
+          keepAboveFloor(m, obj, () => {
+            setWorldQuaternion(obj, q.setFromAxisAngle(axis, dx * TWIST * D2R).multiply(startQ));
+            if (limits) m.constrain([joint]);
+          });
+          readout();
+        },
         end: commit,
       };
     }
@@ -234,12 +274,16 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
       // A hand or a foot (or what a hand holds): it follows the pointer and keeps its orientation.
       const chain = IK_CHAINS[t.kind === 'held' ? t.wrist : ENDS[t.joint]!];
       const grab = obj.getWorldPosition(new THREE.Vector3()).sub(point);
+      // (The elbow or knee is what the reach bends.)
+      const readout = jointReadout(m, chain[1]);
       return {
         cursor: 'grab',
         begin: () => { m.setGroundLock(true); select(); },
         move: (ray) => {
           const h = hit(ray, facingPlane);
-          if (h) reachAboveFloor(m, chain, h.add(grab), startQ, limits);
+          if (!h) return;
+          reachAboveFloor(m, chain, h.add(grab), startQ, limits);
+          readout();
         },
         end: commit,
       };
@@ -248,6 +292,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     // Any other part swings from its joint so that the grabbed point follows the pointer.
     const pivot = obj.getWorldPosition(new THREE.Vector3());
     const from = point.clone().sub(pivot).normalize();
+    const readout = jointReadout(m, joint);
     return {
       cursor: 'grab',
       begin: () => { m.setGroundLock(true); select(); },
@@ -260,6 +305,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
           setWorldQuaternion(obj, q.setFromUnitVectors(from, to.normalize()).multiply(startQ));
           if (limits) m.constrain([joint]);
         });
+        readout();
       },
       end: commit,
     };
@@ -298,6 +344,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
         if (!cancelled) pointer.orbit(true);
         if (started) {
           document.body.style.cursor = '';
+          setReadout(null);
           sv.setHover(null);
           store.setLinked(null);
           p.end();
@@ -363,10 +410,12 @@ function useTurn() {
         yaw = ((((yaw + 180) % 360) + 360) % 360) - 180;
         turned = true;
         apply(yaw);
+        setReadout(turnedText(yaw - startYaw, ev.shiftKey));
       },
       () => {
         pointer.orbit(true);
         document.body.style.cursor = '';
+        setReadout(null);
         if (turned) commit();
       },
     );
@@ -533,6 +582,7 @@ export function IKHandles({ m, figure, limits, onCommit }: {
   const refs = useRef<Partial<Record<HandleId, THREE.Group | null>>>({});
   const hovered = useRef<HandleId | null>(null);
   const drag = useRef<Drag | null>(null);
+  const readout = useRef<(() => void) | null>(null);
   const camera = useThree((s) => s.camera);
   const pointer = usePointer();
   const scale = figure.body.height / 1.8;
@@ -574,6 +624,10 @@ export function IKHandles({ m, figure, limits, onCommit }: {
     };
     m.setGroundLock(true);
     pointer.orbit(false);
+    // The readout: the pelvis's height; else the elbow or knee the dot bends (an elbow or knee dot: the limb's roll).
+    readout.current = id === 'hips'
+      ? () => setReadout(`Pelvis ${metres(m.joints.hips.getWorldPosition(new THREE.Vector3()).y)} m high`)
+      : jointReadout(m, isPole(id) ? POLE_CHAINS[id][0] : IK_CHAINS[id][1]);
   };
 
   const move = (e: ThreeEvent<PointerEvent>) => {
@@ -603,12 +657,14 @@ export function IKHandles({ m, figure, limits, onCommit }: {
     } else {
       reachAboveFloor(m, IK_CHAINS[d.id as keyof typeof IK_CHAINS], target, d.endQ, limits);
     }
+    readout.current?.();
   };
 
   const up = (e: ThreeEvent<PointerEvent>) => {
     if (!drag.current) return;
     (e.target as Element).releasePointerCapture(e.pointerId);
     drag.current = null;
+    setReadout(null);
     m.setGroundLock(false);
     pointer.orbit(true);
     onCommit(m.read());

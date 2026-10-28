@@ -38,7 +38,7 @@ import { TooltipHost } from './Tooltip';
 import { COMMANDS, choices, command, commandForKey, matchesKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
-import ViewCube from './ViewCube';
+import ViewBall from './ViewBall';
 import type { Placing } from './placing';
 import SelectionPie from './SelectionPie';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
@@ -493,7 +493,7 @@ function App() {
           placing={pick?.ghost ?? null}
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
-        {!through && <ViewCube ctx={cx} view={viewNow} />}
+        {!through && <ViewBall ctx={cx} view={viewNow} />}
         <SelectionPie labelPoint={labelPoint} hidden={!!through || !!pick} />
         {referenceUrl && scene.reference?.visible && (
           // eslint-disable-next-line @next/next/no-img-element
