@@ -368,11 +368,10 @@ test('figures and props move by dragging them and turn by their floor ring', asy
   expect((await prop()).position).toEqual(p0.position);
 });
 
-test('the axes show at the origin, on the view widget and in the fields; drags read out how far', async ({ page }) => {
+test('the axes show on the view widget and in the fields; drags read out how far', async ({ page }) => {
   test.setTimeout(240_000);
   await page.keyboard.press('1');
-  // The origin's mark says where the front is; the view widget's Z end is the front view.
-  await expect(page.locator('.origin-front')).toHaveText(/front/i);
+  // The view widget's Z end is the front view.
   const front = page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' });
   await expect(front).toHaveText('Z');
   await expect(front).toHaveAttribute('aria-pressed', 'true');

@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { setDuration, frameTimes } from '@/lib/animation';
 import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
-import { addFigure, addKeyframe, applyCameraMove, applyMotion, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
-import { BODY_PRESETS } from '@/lib/body';
+import { addFigure, addKeyframe, applyCameraMove, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
 import { duplicateScene, newFigure, newScene, parseScene } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
@@ -135,18 +134,6 @@ describe('animation templates', () => {
   it('gives motions that pass the motion check (no slides, pops, bad joints or people through each other)', () => {
     for (const m of MOTIONS) expect(checkMotion(m.build()).map((i) => i.message), m.id).toEqual([]);
   }, 60_000);
-
-  it('keeps one-person motions clean on figures of every build (feet locked, travel scaled)', () => {
-    for (const preset of BODY_PRESETS) {
-      for (const m of MOTIONS.filter((x) => x.people === 1)) {
-        const store = new Store(new MemoryStorage());
-        const id = store.figure!.id;
-        store.updateScene((s) => ({ ...s, figures: s.figures.map((f) => ({ ...f, body: { ...preset.body } })) }));
-        applyMotion(store, id, m.id);
-        expect(checkMotion(store.scene).map((i) => i.message), `${m.id} on ${preset.name}`).toEqual([]);
-      }
-    }
-  }, 900_000);
 
 
   it('builds every motion with valid keys within joint limits', () => {

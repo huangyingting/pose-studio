@@ -11,7 +11,6 @@ import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig, lightFrom } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
-import { AXIS_COLORS } from '@/lib/views';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
@@ -104,7 +103,6 @@ export default function Viewport({
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
   const gizmoBusy = useRef(0);
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
-  const frontLabel = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
   const longPress = useRef(0);
@@ -279,12 +277,6 @@ export default function Viewport({
       >
         <color attach="background" args={[styleDef(film.style).background]} />
         <Lights sv={sv} style={film.style} scene={scene} />
-        {settings.showGrid && !shotMode && <OriginMark label={(at) => {
-          const el = frontLabel.current;
-          if (!el) return;
-          el.style.display = at ? '' : 'none';
-          if (at) el.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
-        }} />}
         <DropLine />
         {settings.showGrid && (
           // The floor goes on forever; the grid covers all of it, fading toward the horizon.
@@ -381,7 +373,6 @@ export default function Viewport({
         />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
       </Canvas>
-      {settings.showGrid && !shotMode && <div ref={frontLabel} className="origin-front" style={{ display: 'none' }}>front</div>}
       <DragReadout />
       {handles && selection?.kind === 'joint' && figureDoc(selection.figure) && !figureDoc(selection.figure)!.proxy && (
         <JointArcs
@@ -396,26 +387,6 @@ export default function Viewport({
         />
       )}
     </div>
-  );
-}
-
-/** The world's axes at the origin (X red, Y green, Z blue: the way figures face, "front", put on screen by `label`); gone from afar. */
-function OriginMark({ label }: { label(at: { x: number; y: number } | null): void }) {
-  const group = useRef<THREE.Group>(null);
-  const tmp = useMemo(() => new THREE.Vector3(), []);
-  useFrame(({ camera, size }) => {
-    const near = camera.position.length() < 16;
-    if (group.current) group.current.visible = near;
-    tmp.set(0, 0, 0.52).project(camera);
-    label(near && tmp.z < 1 ? { x: ((tmp.x + 1) / 2) * size.width, y: ((1 - tmp.y) / 2) * size.height } : null);
-  });
-  const [x, y, z] = AXIS_COLORS;
-  return (
-    <group ref={group}>
-      <Line points={[[0, 0.002, 0], [0.4, 0.002, 0]]} color={x} lineWidth={2} />
-      <Line points={[[0, 0, 0], [0, 0.3, 0]]} color={y} lineWidth={2} />
-      <Line points={[[0, 0.002, 0], [0, 0.002, 0.4]]} color={z} lineWidth={2} />
-    </group>
   );
 }
 
@@ -694,16 +665,17 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const at = toScreen(pivot.clone());
         const child = m.jointsUnder(joint)[1];
         const end = child ? m.joints[child].getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, joint === 'head' ? 0.1 : -0.1, 0).applyQuaternion(obj.getWorldQuaternion(new THREE.Quaternion())).add(pivot);
-        // Away from the parts next to it on screen (a straight limb: beside it).
+        // Away from the parts next to it on screen, and from the body (a limb's arcs go outside it).
         const away = { x: 0, y: 0 };
-        const from = (p: THREE.Vector3) => {
+        const from = (p: THREE.Vector3, weight = 1) => {
           const q = toScreen(p.clone());
           const l = Math.hypot(q.x - at.x, q.y - at.y);
-          if (l > 1) { away.x -= (q.x - at.x) / l; away.y -= (q.y - at.y) / l; }
+          if (l > 1) { away.x -= ((q.x - at.x) / l) * weight; away.y -= ((q.y - at.y) / l) * weight; }
           return q;
         };
         if (joint !== 'hips') from(obj.parent!.getWorldPosition(new THREE.Vector3()));
         const e = from(end);
+        if (joint !== 'hips' && joint !== 'spine' && joint !== 'chest') from(m.joints.chest.getWorldPosition(new THREE.Vector3()), 1.5);
         const angle = Math.hypot(away.x, away.y) > 0.3 ? Math.atan2(away.y, away.x) : Math.atan2(e.y - at.y, e.x - at.x) + Math.PI / 2;
         // Which way a point of the part (in front of its end) goes on screen as each slider grows.
         const probe = end.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), -0.06);

@@ -20,7 +20,7 @@
   --accent-ring: rgba(61, 99, 255, 0.26);
   --danger: #e5484d;
   --ok: #30a46c;
-  /* The world's axes, as on the gizmo (and AXIS_COLORS in lib/views.ts). */
+  /* The world's axes, as on the gizmo. */
   --axis-x: #e5484d;
   --axis-y: #30a46c;
   --axis-z: #3d7bff;
@@ -1613,7 +1613,9 @@ button.psec-title svg { color: var(--text-3); }
 .outline-still { display: grid; gap: 8px; padding: 0 14px; }
 .layer-main .layer-tag { margin-left: auto; color: var(--text-3); }
 .layer-main .layer-tag.warn { color: var(--warn); }
-.layer-main em { margin-left: auto; font-size: 11px; font-weight: 500; font-style: normal; color: var(--text-3); }
+.layer-main em { min-width: 0; margin-left: auto; overflow: hidden; font-size: 11px; font-weight: 500; font-style: normal; color: var(--text-3); text-overflow: ellipsis; white-space: nowrap; }
+/* (A short name keeps its place; the note beside it gives way.) */
+.layer-main .layer-name { flex: none; }
 .layer-main .layer-tag + em { margin-left: 4px; }
 .layers li.here { background: var(--panel-2); }
 .shot-no {
@@ -1885,8 +1887,6 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 .drag-readout.axis-x { box-shadow: inset 3px 0 0 var(--axis-x); }
 .drag-readout.axis-y { box-shadow: inset 3px 0 0 var(--axis-y); }
 .drag-readout.axis-z { box-shadow: inset 3px 0 0 var(--axis-z); }
-/* The origin's "front" (the way figures face, +Z). */
-.origin-front { position: absolute; top: 0; left: 0; z-index: 1; color: var(--axis-z); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; pointer-events: none; user-select: none; }
 
 /* A side panel's inner edge: drag to resize (double-click: its own width). */
 .panel-edge { position: absolute; top: 0; bottom: 0; z-index: 5; width: 6px; cursor: col-resize; }

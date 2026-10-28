@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
-const PAIRS = 'tests/unit/pairs-*.test.ts';
+/** The slow ones: two-person motions on every pair of builds, one-person motions on every build, the coverages on every build, whole films and scenarios. */
+const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 'tests/unit/coverage-matrix.test.ts', 'tests/unit/films.test.ts', 'tests/unit/scenarios.test.ts'];
 
 export default defineConfig({
   resolve: {
@@ -15,11 +16,11 @@ export default defineConfig({
     environment: 'node',
     // The suite runs its files side by side: under that load even a light test can take seconds.
     testTimeout: 60_000,
-    // Two sets: the unit tests (quick), and the two-person motions solved for every pair of builds
-    // (most of the time; `npm run test:pairs`, run when holds, bodies or locomotion change).
+    // Two sets: the unit tests (a minute or two), and the slow ones (`npm run test:slow`: the
+    // matrices over builds, whole films; most of the time, run in CI).
     projects: [
-      { extends: true, test: { name: 'unit', include: ['tests/unit/**/*.test.ts'], exclude: [PAIRS] } },
-      { extends: true, test: { name: 'pairs', include: [PAIRS] } },
+      { extends: true, test: { name: 'unit', include: ['tests/unit/**/*.test.ts'], exclude: SLOW } },
+      { extends: true, test: { name: 'slow', include: SLOW } },
     ],
   },
 });
