@@ -216,7 +216,8 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await expect(step).toContainText('Give Figure something to do');
   // Resting on a part says what dragging it does.
   const hand = await project(page, 'leftHand');
-  await page.mouse.move(hand.x, hand.y + 2);
+  // (Just below the wrist, on the hand.)
+  await page.mouse.move(hand.x, hand.y + 10);
   await expect(page.locator('.bar-hint')).toContainText('left hand');
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
@@ -398,6 +399,8 @@ test('the axes show on the view widget and in the fields; drags read out how far
   await addLayer(page, 'Figure');
   await page.waitForTimeout(400);
   const chest = await project(page, 'chest');
+  // (Picked as a whole with a double-click: a drag then moves it.)
+  await page.mouse.dblclick(chest.x, chest.y - 20);
   await readout({ x: chest.x, y: chest.y - 20 }, 80, /^Moved \d\.\d\d m · X −?\d\.\d\d {2}Z −?\d\.\d\d · \d\.\d\d m from Figure$/);
   // A prop's position fields carry the axes' colours.
   await addLayer(page, 'Box');
