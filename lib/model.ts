@@ -306,9 +306,11 @@ export class ModelRig {
     this.linked = on;
     const outlined = !!styleDef(this.style).outline;
     this.hulls.forEach((h, i) => {
-      // (In its own look: its own outline, or none.)
-      const look = this.own(i) ? this.looks[i]!.outline : null;
-      h.material = on ? this.ink.linked : look ? this.ink.outlineAs(look.width, look.color) : this.ink.outline;
+      // (In its own look: its own outline, or none; none where it is cut out or see-through.)
+      const own = this.own(i) ? this.looks[i]! : null;
+      const look = own?.outline;
+      const cutout = own && own.alpha !== 'opaque' && own.map ? { map: own.map, cutoff: own.alpha === 'mask' ? own.cutoff : 0.5 } : undefined;
+      h.material = on ? this.ink.linked : look ? this.ink.outlineAs(look.width, look.color, cutout) : this.ink.outline;
       h.visible = on || (outlined && (!look || look.width > 0));
     });
   }
@@ -494,9 +496,9 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   if (!format) throw new Error('Use a VRM, glTF/GLB or FBX character');
   const root = await parseModel(format, data);
   if (!rigBones(root).some((o) => (o as THREE.Bone).isBone)) throw new Error('The file has no skeleton');
-  // (A VRM says which bone is which; others are found by their names.)
+  // (A VRM says which bone is which; the rest, and others' bones, are found by their names.)
   const vrm = root.userData.vrm as VrmInfo | undefined;
-  const bones = map ?? (vrm && !missingBones(vrm.bones).length ? vrm.bones : mapBones(root));
+  const bones = map ?? { ...mapBones(root), ...vrm?.bones };
   const missing = missingBones(bones);
   if (missing.length) throw new MissingBones(rigBones(root).map((o) => o.name), bones, missing);
   const info: ModelInfo = {

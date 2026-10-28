@@ -6,19 +6,28 @@ import type { Style, Vec3 } from './types';
 
 /**
  * Inverted-hull outline with a constant on-screen thickness (in CSS pixels). `jitter` modulates
- * the width with noise over the surface, which reads as a brush or pencil stroke.
+ * the width with noise over the surface, which reads as a brush or pencil stroke. `cutout`: none
+ * where the surface's texture is clearer than its cut-off (lace, a frill: what is not there has no
+ * outline).
  */
-function createOutlineMaterial(uniforms: Ink['uniforms']) {
+function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.Texture; cutoff: number }) {
   return new THREE.ShaderMaterial({
-    uniforms,
+    uniforms: cutout ? { ...uniforms, map: { value: cutout.map }, cutoff: { value: cutout.cutoff } } : uniforms,
+    ...(cutout ? { defines: { CUTOUT: '' } } : {}),
     side: THREE.BackSide,
     vertexShader: /* glsl */ `
       uniform float thickness;
       uniform float jitter;
       uniform vec2 resolution;
       #include <skinning_pars_vertex>
+      #ifdef CUTOUT
+        varying vec2 vUv;
+      #endif
       ${NOISE_GLSL}
       void main() {
+        #ifdef CUTOUT
+          vUv = uv;
+        #endif
         #include <beginnormal_vertex>
         #include <skinbase_vertex>
         #include <skinnormal_vertex>
@@ -37,7 +46,15 @@ function createOutlineMaterial(uniforms: Ink['uniforms']) {
     fragmentShader: /* glsl */ `
       uniform vec3 color;
       uniform float opacity;
+      #ifdef CUTOUT
+        uniform sampler2D map;
+        uniform float cutoff;
+        varying vec2 vUv;
+      #endif
       void main() {
+        #ifdef CUTOUT
+          if (texture2D(map, vUv).a < cutoff) discard;
+        #endif
         gl_FragColor = vec4(color, opacity);
         #include <colorspace_fragment>
       }`,
@@ -158,14 +175,17 @@ export class Ink {
     for (const own of this.ownOutlines.values()) own.thickness.value = this.uniforms.thickness.value * own.width;
   }
 
-  /** An outline `width` times the style's, in its own colour (null: the style's): a look's (lib/toon.ts). */
-  outlineAs(width: number, color: THREE.Color | null): THREE.ShaderMaterial {
+  /**
+   * An outline `width` times the style's, in its own colour (null: the style's), none where its
+   * surface is cut out (`cutout`): a look's (lib/toon.ts).
+   */
+  outlineAs(width: number, color: THREE.Color | null, cutout?: { map: THREE.Texture; cutoff: number }): THREE.ShaderMaterial {
     if (this.ghost) return this.outline;
-    const key = `${width.toFixed(3)}|${color?.getHexString() ?? ''}`;
+    const key = `${width.toFixed(3)}|${color?.getHexString() ?? ''}|${cutout ? `${cutout.map.uuid}@${cutout.cutoff}` : ''}`;
     let own = this.ownOutlines.get(key);
     if (!own) {
       const thickness = { value: this.uniforms.thickness.value * width };
-      own = { material: createOutlineMaterial({ ...this.uniforms, thickness, ...(color ? { color: { value: color.clone() } } : {}) }), width, thickness };
+      own = { material: createOutlineMaterial({ ...this.uniforms, thickness, ...(color ? { color: { value: color.clone() } } : {}) }, cutout), width, thickness };
       this.ownOutlines.set(key, own);
     }
     return own.material;

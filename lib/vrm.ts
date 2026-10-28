@@ -59,11 +59,17 @@ export async function readVrm(gltf: GLTF): Promise<VrmInfo | null> {
 
   // Each mesh's look, from its material's MToon settings (1.0 on the material; 0.x by its name).
   const old = new Map<string, Json>(((v0.materialProperties as unknown[] | undefined) ?? []).map((m) => [String(obj(m).name), obj(m)]));
-  // (One it does not have, or that does not load: none; the rest of its look still is.)
+  // (A colour texture, as sRGB: the loader says so only of those it puts on a material itself.
+  // One it does not have, or that does not load: none; the rest of its look still is.)
   const texture = async (info: unknown) => {
     const i = obj(info).index;
     if (typeof i !== 'number' || !parser.json.textures?.[i]) return null;
-    return ((await parser.getDependency('texture', i).catch(() => null)) as THREE.Texture | null);
+    const t = (await parser.getDependency('texture', i).catch(() => null)) as THREE.Texture | null;
+    if (t && t.colorSpace !== THREE.SRGBColorSpace) {
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.needsUpdate = true;
+    }
+    return t;
   };
   const meshes: THREE.Mesh[] = [];
   gltf.scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
@@ -110,15 +116,17 @@ async function fromMtoon(m: THREE.MeshStandardMaterial, x: Json, texture: (info:
 /** A look from VRM 0.x MToon properties (by name, as Unity's shader has them). */
 async function fromLegacy(m: THREE.MeshStandardMaterial, x: Json, texture: (info: unknown) => Promise<THREE.Texture | null>): Promise<ToonLook> {
   const f = obj(x.floatProperties), v = obj(x.vectorProperties), t = obj(x.textureProperties);
-  const vec = (k: string, d: [number, number, number]) => rgb(v[k], d);
+  // (0.x keeps its colours as Unity shows them: sRGB.)
+  const vec = (k: string, d: [number, number, number]) => { const c = rgb(v[k], d); return new THREE.Color().setRGB(c.r, c.g, c.b, THREE.SRGBColorSpace); };
   const tex = (k: string) => (typeof t[k] === 'number' ? texture({ index: t[k] }) : Promise.resolve(null));
   const blend = num(f._BlendMode, 0);
-  // (0.x puts its edge on the half-Lambert scale, at shift + half its softness: the same edge on ours.)
-  const toony = num(f._ShadeToony, 0.9);
+  // (0.x blends from its shift to its shift + (1 − toony) of the light's −1…1: the same band on ours.)
+  const t0 = num(f._ShadeToony, 0.9), s0 = num(f._ShadeShift, 0);
+  const toony = (1 + t0) / 2;
   return {
     color: vec('_Color', [1, 1, 1]), opacity: num(obj(v._Color)[3], 1), map: (await tex('_MainTex')) ?? m.map,
     shade: vec('_ShadeColor', [0.6, 0.6, 0.6]), shadeMap: await tex('_ShadeTexture'),
-    shift: toony - 2 * num(f._ShadeShift, 0), toony,
+    shift: -s0 - (1 - t0) / 2, toony,
     rim: vec('_RimColor', [0, 0, 0]), rimPower: num(f._RimFresnelPower, 5), rimLift: num(f._RimLift, 0),
     emissive: vec('_EmissionColor', [0, 0, 0]), emissiveMap: await tex('_EmissionMap'),
     alpha: blend === 1 ? 'mask' : blend >= 2 ? 'blend' : 'opaque', cutoff: num(f._Cutoff, 0.5),

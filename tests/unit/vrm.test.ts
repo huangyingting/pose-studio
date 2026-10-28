@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Ink } from '@/lib/ink';
-import { ModelRig, importModel, mapBones, missingBones, parseModel } from '@/lib/model';
+import { MissingBones, ModelRig, importModel, mapBones, missingBones, parseModel } from '@/lib/model';
 import { ownLooks, type ToonLook } from '@/lib/toon';
 import { vrmGltf } from '../fixtures/gltf';
 
@@ -25,6 +25,14 @@ describe('VRM avatars made our own (#15)', () => {
     expect(info.credit).toBe('by Ueda · personal use · credit required · not to be shared');
   });
 
+  it('asks only for the bones its humanoid leaves out (the rest found by it)', async () => {
+    const gltf = JSON.parse(vrmGltf(1));
+    delete gltf.extensions.VRMC_vrm.humanoid.humanBones.neck;
+    const err = await importModel('NoNeck.vrm', bytes(JSON.stringify(gltf))).catch((e) => e);
+    expect(err).toBeInstanceOf(MissingBones);
+    expect(err.missing).toEqual(['neck']);
+  });
+
   it('reads each material’s MToon settings as its look: shade, its edge, rim, outline', async () => {
     const [look] = looksOf(await parseModel('glb', bytes(vrmGltf(1))));
     expect(look.shade.toArray().map((v) => +v.toFixed(3))).toEqual([0.6, 0.3, 0.4]);
@@ -42,9 +50,13 @@ describe('VRM avatars made our own (#15)', () => {
     expect(info.bones.leftThumbMetacarpal).toMatch(/^Bone_/);
     expect(info.credit).toBe('by Ueda · personal use');
     const [look] = looksOf(await parseModel('glb', bytes(vrmGltf(0))));
-    // (Its edge at shift + half its softness on the half-Lambert scale: 0.8 − 2 × 0.1 on ours.)
-    expect(look.toony).toBeCloseTo(0.8, 6);
-    expect(look.shift).toBeCloseTo(0.6, 6);
+    // (0.x blends from 0.1 to 0.1 + (1 − 0.8) of the light's −1…1: a band 0.2 wide about 0.2, as ours has it.)
+    expect(look.toony).toBeCloseTo(0.9, 6);
+    expect(look.shift).toBeCloseTo(-0.2, 6);
+    const soft = 1 - look.toony;
+    expect([-look.shift - soft, -look.shift + soft].map((v) => +v.toFixed(6))).toEqual([0.1, 0.3]);
+    // (Its colours as sRGB: the shade's red 0.6 is 0.319 in linear.)
+    expect(look.shade.r).toBeCloseTo(new THREE.Color().setRGB(0.6, 0, 0, THREE.SRGBColorSpace).r, 6);
     expect(look.outline.width).toBeCloseTo(1.5, 6);
   });
 
@@ -65,6 +77,22 @@ describe('VRM avatars made our own (#15)', () => {
     model.setLook('line', null);
     expect(body.material).toBe(ink.materialsFor('line').body);
     expect(hull.material).toBe(ink.outline);
+  });
+});
+
+describe('outlines of a look of its own', () => {
+  it('are none where its surface is cut out, and follow the style’s width', () => {
+    const ink = new Ink();
+    const map = new THREE.Texture();
+    const plain = ink.outlineAs(1.5, null);
+    const cut = ink.outlineAs(1.5, null, { map, cutoff: 0.4 });
+    expect(plain.defines?.CUTOUT).toBeUndefined();
+    expect(cut.defines?.CUTOUT).toBe('');
+    expect(cut.uniforms.map.value).toBe(map);
+    expect(cut.uniforms.cutoff.value).toBe(0.4);
+    expect(ink.outlineAs(1.5, null, { map, cutoff: 0.4 })).toBe(cut);
+    ink.setThickness(2);
+    expect(cut.uniforms.thickness.value).toBeCloseTo(ink.uniforms.thickness.value * 1.5, 6);
   });
 });
 
