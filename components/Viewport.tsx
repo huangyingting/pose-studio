@@ -505,7 +505,12 @@ class Ghost {
     const move = (e: PointerEvent) => { last = { x: e.clientX, y: e.clientY, alt: e.altKey }; show(); };
     const turn = (by: number) => { placing.turn(by); show(); };
     const wheel = (e: WheelEvent) => { e.preventDefault(); e.stopPropagation(); turn(e.deltaY > 0 ? 15 : -15); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); turn(15); } };
+    const key = (e: KeyboardEvent) => {
+      // (Not typed into a field, nor with a modifier: Ctrl R still reloads.)
+      const el = e.target as HTMLElement;
+      if (e.ctrlKey || e.metaKey || e.altKey || el.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); turn(15); }
+    };
     el.addEventListener('pointermove', move);
     el.addEventListener('wheel', wheel, { capture: true, passive: false });
     window.addEventListener('keydown', key, true);
