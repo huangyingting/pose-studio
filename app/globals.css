@@ -269,6 +269,10 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 
 .slider { display: grid; gap: 2px; }
 .slider-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-2); min-height: 20px; }
+.slider.axis-x { --axis: var(--axis-x); }
+.slider.axis-y { --axis: var(--axis-y); }
+.slider.axis-z { --axis: var(--axis-z); }
+.slider[class*='axis-'] .slider-head > span:first-child { padding-left: 7px; box-shadow: inset 3px 0 0 var(--axis); }
 .slider em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
 .slider button.slider-value {
   height: 20px;
@@ -1801,6 +1805,22 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
   position: fixed; top: 0; left: 0; z-index: 40; padding: 3px 8px; border-radius: 6px; background: var(--ink); color: var(--on-accent);
   font-size: 11.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
 }
+/* The selected joint's arcs, one per slider: thin to look at, wide to grab. */
+.joint-arcs { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.joint-arc.x { --c: var(--axis-x); }
+.joint-arc.y { --c: var(--axis-y); }
+.joint-arc.z { --c: var(--axis-z); }
+.joint-arc-line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; transition: stroke-width 0.1s, opacity 0.1s; }
+.joint-arc-head { fill: var(--c); }
+.joint-arc-hit { fill: none; stroke: transparent; stroke-width: 20; pointer-events: stroke; cursor: grab; touch-action: none; }
+.joint-arc-hit:active { cursor: grabbing; }
+@media (pointer: coarse) { .joint-arc-hit { stroke-width: 28; } }
+.joint-arc.on .joint-arc-line { stroke-width: 5; }
+.joint-arc.faded { opacity: 0.3; }
+.joint-arc.limit { animation: arc-limit 0.25s steps(2) infinite; }
+@keyframes arc-limit { 50% { opacity: 0.25; } }
+/* A joint arc's value, typed where it was double-clicked. */
+.arc-value { position: absolute; z-index: 40; width: 72px; height: 26px; padding: 0 6px; font-variant-numeric: tabular-nums; }
 /* The origin's "front" (the way figures face, +Z). */
 .origin-front { position: absolute; top: 0; left: 0; z-index: 1; color: var(--axis-z); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; pointer-events: none; user-select: none; }
 

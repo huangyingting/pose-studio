@@ -382,8 +382,10 @@ export function PanelEdge({ label, side, width, onWidth }: { label: string; side
  * Labelled range slider. With `typeable`, clicking the value turns it into a number field for
  * precise entry (Enter or blur applies, Esc cancels); values are in the slider's own units.
  */
-export function Slider({ label, value, min, max, step = 1, display, onChange, typeable }: {
+export function Slider({ label, value, min, max, step = 1, display, onChange, typeable, axis }: {
   label: string;
+  /** A joint's slider: marked in its axis's colour (as its arc on the canvas). */
+  axis?: number;
   value: number;
   min: number;
   max: number;
@@ -437,7 +439,7 @@ export function Slider({ label, value, min, max, step = 1, display, onChange, ty
   }
   const pct = ((value - min) / (max - min)) * 100;
   return (
-    <div className="slider">
+    <div className={`slider${axis === undefined ? '' : ` axis-${'xyz'[axis]}`}`}>
       <span className="slider-head">
         <span id={id}>{label}</span>
         {valueEl}

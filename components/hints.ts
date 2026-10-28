@@ -42,7 +42,7 @@ export function bodyHint(name: string, kind: 'body' | 'end' | 'swing', joint?: J
   if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn ${name} · Right-click: more`;
   const p = part(joint!);
   if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll it · Click: fine-tune`;
-  return `Drag: swing the ${p} · Shift-drag: twist it · Click: fine-tune`;
+  return `Drag: swing the ${p} · Shift-drag: twist it · X, Y or Z held: one slider · Click: fine-tune`;
 }
 
 export const propHint = (name: string, held: boolean) => (held
@@ -97,8 +97,16 @@ export const movedText = (dx: number, dz: number, x: number, z: number) => `Move
 /** How far something has turned (and, where Shift snaps, whether it does). */
 export const turnedText = (by: number, steps?: boolean) => `Turned ${degrees(((by % 360) + 540) % 360 - 180)}${steps === undefined ? '' : steps ? ' · 15° steps' : ' · Shift: 15° steps'}`;
 
-/** A joint's slider that a drag has changed most: its name and value ("Left forearm · Bend −42°"). */
+/** A joint's slider by its short name ("Bend"). */
+export const sliderName = (joint: JointName, axis: number) => axisLabels(joint)[axis].split(' (')[0];
+/** A joint's slider and its value ("Left forearm · Bend −42°"). */
+export const sliderText = (joint: JointName, axis: number, value: number) => `${JOINT_LABELS[joint]} · ${sliderName(joint, axis)} ${degrees(value)}`;
+/** A drag held at a joint's limit (with the limits lock on). */
+export const limitText = (joint: JointName, value: number) => `${JOINT_LABELS[joint]}: limit ${degrees(value)}`;
+export const arcHint = (joint: JointName, axis: number) => `Drag: ${sliderName(joint, axis)} of the ${part(joint)} · Shift: 5° steps · Ctrl: fine · Double-click: type the value`;
+
+/** A joint's slider that a drag has changed most, and its value. */
 export function jointText(joint: JointName, before: Vec3, now: Vec3) {
   const axis = [0, 1, 2].reduce((b, a) => (Math.abs(now[a] - before[a]) > Math.abs(now[b] - before[b]) ? a : b));
-  return `${JOINT_LABELS[joint]} · ${axisLabels(joint)[axis].split(' (')[0]} ${degrees(now[axis])}`;
+  return sliderText(joint, axis, now[axis]);
 }

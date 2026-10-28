@@ -4,16 +4,17 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import { fitWarp, moveMark } from '@/lib/actions';
 import { actionsOf, footprints, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
-import { angle, facingOf } from '@/lib/pose';
+import { angle, facingOf, nearer } from '@/lib/pose';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
 import { IK_CHAINS, POLE_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
 import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
-import type { Figure, JointName, Scene } from '@/lib/types';
+import { JOINTS, type Figure, type JointName, type Scene, type Vec3 } from '@/lib/types';
+import { jointLimits, wrapDeg } from '@/lib/joints';
 import { openContextMenu } from './ContextMenu';
-import { bodyHint, dotHint, jointText, metres, movedText, propHint, ringHint, setPointerHint, setReadout, turnedText } from './hints';
+import { bodyHint, dotHint, jointText, limitText, metres, movedText, propHint, ringHint, setPointerHint, setReadout, sliderText, turnedText } from './hints';
 
 /*
  * Direct manipulation on the canvas. The things themselves are the handles:
@@ -57,6 +58,7 @@ function usePointer() {
         if (controls) controls.enabled = enabled;
       },
       camera: () => get().camera,
+      size: () => get().size,
     };
   }, [get]);
 }
@@ -127,7 +129,63 @@ function propReadout(start: THREE.Vector3, now: THREE.Vector3) {
   setReadout(movedText(now.x - start.x, now.z - start.z, now.x, now.z) + (high ? ` · ${metres(now.y)} m high` : ''), high ? [now.x, now.y, now.z] : undefined);
 }
 
-type Plan = { begin(): void; move(ray: THREE.Ray, dx: number): void; end(): void; cursor: string };
+/** A joint's slider values as its rig holds them now (the angles nearest `near`). */
+export const valuesOf = (obj: THREE.Object3D, joint: JointName, near: Vec3 = [0, 0, 0]) => nearer(joint, [obj.rotation.x * R2D, obj.rotation.y * R2D, obj.rotation.z * R2D], near);
+
+/** The world axis a joint's slider turns it about, with the joint at `v`. */
+export function sliderAxis(obj: THREE.Object3D, v: Vec3, axis: number) {
+  const e = new THREE.Euler(v[0] * D2R, v[1] * D2R, v[2] * D2R, obj.rotation.order);
+  const q0 = new THREE.Quaternion().setFromEuler(e);
+  e[(['x', 'y', 'z'] as const)[axis]] += 1e-3;
+  const dq = new THREE.Quaternion().setFromEuler(e).multiply(q0.invert());
+  return new THREE.Vector3(dq.x, dq.y, dq.z).normalize().applyQuaternion(obj.parent!.getWorldQuaternion(new THREE.Quaternion()));
+}
+
+/**
+ * One of a joint's sliders turned by a drag: the value follows the pointer's travel along the way
+ * the grabbed point goes on screen as the value grows, so a rough straight drag works. Shift: 5°
+ * steps; Ctrl: a fifth of the speed. With the limits on, it stops at them (`limit` says where).
+ */
+function sliderDrag(m: Mannequin, joint: JointName, axis: number, grab: THREE.Vector3, camera: THREE.Camera, size: { width: number; height: number }, limits: boolean) {
+  const obj = m.joints[joint];
+  const start = valuesOf(obj, joint);
+  const pivot = obj.getWorldPosition(new THREE.Vector3());
+  const screen = (p: THREE.Vector3) => {
+    const v = p.clone().project(camera);
+    return new THREE.Vector2(((v.x + 1) / 2) * size.width, ((1 - v.y) / 2) * size.height);
+  };
+  // Where the grabbed point goes on screen for 1° more.
+  const way = screen(grab.clone().sub(pivot).applyAxisAngle(sliderAxis(obj, start, axis), D2R).add(pivot)).sub(screen(grab));
+  const perDegree = Math.max(way.length(), 0.5);
+  way.normalize();
+  let last = start;
+  return (dx: number, dy: number, shift: boolean, fine: boolean) => {
+    let v = start[axis] + ((dx * way.x + dy * way.y) / perDegree) * (fine ? 0.2 : 1);
+    if (shift) v = Math.round(v / 5) * 5;
+    const [lo, hi] = limits ? jointLimits(joint)[axis] : [-Infinity, Infinity];
+    const value = limits ? Math.min(hi, Math.max(lo, v)) : wrapDeg(v);
+    const next: Vec3 = [...start];
+    next[axis] = value;
+    keepAboveFloor(m, obj, () => {
+      obj.rotation.set(next[0] * D2R, next[1] * D2R, next[2] * D2R);
+      obj.updateMatrixWorld(true);
+    });
+    last = valuesOf(obj, joint, last);
+    return { value: last[axis], limit: limits && value !== v ? value : null };
+  };
+}
+
+/** Keys held now: X, Y or Z held as a part is dragged turns only that slider (1, 2 or 3 pressed during the drag, too). */
+const held = new Set<string>();
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => { held.add(e.key.toLowerCase()); });
+  window.addEventListener('keyup', (e) => { held.delete(e.key.toLowerCase()); });
+  window.addEventListener('blur', () => held.clear());
+}
+const LOCKS: Record<string, number> = { x: 0, y: 1, z: 2, '1': 0, '2': 1, '3': 2 };
+const heldAxis = () => ['x', 'y', 'z'].filter((k) => held.has(k)).map((k) => LOCKS[k])[0];
+
+type Plan = { begin(): void; move(ray: THREE.Ray, dx: number, dy: number, e: PointerEvent): void; end(): void; cursor: string };
 
 /** What a press on a part would move. */
 type Target =
@@ -181,7 +239,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     return { figure: t.figure, joints: m.jointsUnder(t.kind === 'end' && !twist ? IK_CHAINS[ENDS[t.joint]!][0] : t.joint) };
   };
 
-  const plan = (t: Target, point: THREE.Vector3, twist: boolean): Plan | null => {
+  const plan = (t: Target, point: THREE.Vector3, twist: boolean, axis?: number): Plan | null => {
     const camera = pointer.camera();
     const facingPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), point);
     const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -point.y);
@@ -244,6 +302,20 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
 
     const joint = t.kind === 'held' ? t.wrist : t.joint;
     const select = () => store.select(t.kind === 'held' ? { kind: 'prop', prop: t.prop } : { kind: 'joint', figure: t.figure, joint });
+
+    if (axis !== undefined && t.kind !== 'held') {
+      // One slider of the part's joint.
+      const drag = sliderDrag(m, joint, axis, point, camera, pointer.size(), limits);
+      return {
+        cursor: 'grabbing',
+        begin: () => { m.setGroundLock(true); select(); },
+        move: (_, dx, dy, e) => {
+          const r = drag(dx, dy, e.shiftKey, e.ctrlKey || e.metaKey);
+          setReadout(r.limit !== null ? limitText(joint, r.limit) : sliderText(joint, axis, r.value));
+        },
+        end: commit,
+      };
+    }
     const obj = m.joints[joint];
     const startQ = obj.getWorldQuaternion(new THREE.Quaternion());
     const q = new THREE.Quaternion();
@@ -320,12 +392,29 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     if (!t) return;
     e.stopPropagation();
     const twist = e.shiftKey;
-    const p = plan(t, e.point.clone(), twist);
-    if (!p) return;
+    const point = e.point.clone();
+    const first = plan(t, point, twist, heldAxis());
+    if (!first) return;
+    let p: Plan = first;
     const [x0, y0] = [e.nativeEvent.clientX, e.nativeEvent.clientY];
     let started = false;
     let cancelled = false;
     pointer.orbit(false);
+    // 1, 2 or 3 (or X, Y, Z) pressed during a part's drag: from where it began, on that slider only.
+    const m = t.kind === 'end' || t.kind === 'swing' ? sv.figures.get(t.figure) : undefined;
+    const pose = m ? JOINTS.map((j) => m.joints[j].quaternion.clone()) : [];
+    const lockKey = (ev: KeyboardEvent) => {
+      const axis = LOCKS[ev.key.toLowerCase()];
+      if (!m || axis === undefined || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.repeat) return;
+      pose.forEach((q, i) => m.joints[JOINTS[i]].quaternion.copy(q));
+      m.object.updateMatrixWorld(true);
+      p = plan(t, point, false, axis) ?? p;
+      if (started) p.begin();
+    };
+    window.addEventListener('keydown', lockKey, true);
     follow(
       (ev) => {
         if (cancelled) return;
@@ -338,9 +427,10 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
           sv.setHover(hover(t, twist));
           p.begin();
         }
-        p.move(pointer.ray(ev.clientX, ev.clientY), ev.clientX - x0);
+        p.move(pointer.ray(ev.clientX, ev.clientY), ev.clientX - x0, ev.clientY - y0, ev);
       },
       () => {
+        window.removeEventListener('keydown', lockKey, true);
         if (!cancelled) pointer.orbit(true);
         if (started) {
           document.body.style.cursor = '';
@@ -894,3 +984,4 @@ export function HoldPins({ sv, scene, time }: { sv: SceneView; scene: Scene; tim
     </>
   );
 }
+

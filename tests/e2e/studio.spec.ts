@@ -393,6 +393,50 @@ test('the axes show at the origin, on the view widget and in the fields; drags r
   await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
 });
 
+test('a selected joint has an arc per slider: dragged roughly, in 5° steps with Shift, stopped at the limit, typed', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.keyboard.press('1');
+  const shin = await project(page, 'leftLowerLeg');
+  const ankle = await project(page, 'leftFoot');
+  await page.mouse.click((shin.x + ankle.x) / 2, (shin.y + ankle.y) / 2);
+  await expect(page.locator('.panel h3').first()).toHaveText('Left shin');
+  const arc = (axis: number) => page.locator(`.joint-arc-hit[data-axis="${axis}"]`);
+  const bend = () => state(page).then((s) => angle(s.scene.figures[0].bones, 'leftLowerLeg')[0]);
+  /** A point along an arc on screen (0: its start, 1: its end). */
+  const on = (axis: number, along = 0.5) => arc(axis).evaluate((el, t) => {
+    const p = el as SVGPathElement;
+    const pt = p.getPointAtLength(p.getTotalLength() * t);
+    const m = p.getScreenCTM()!;
+    return { x: m.a * pt.x + m.c * pt.y + m.e, y: m.b * pt.x + m.d * pt.y + m.f };
+  }, along);
+  // Over the Bend arc: its name and value; a drag with Shift goes in 5° steps (if + is held at the limit, the other way).
+  const at = await on(0);
+  await page.mouse.move(at.x, at.y);
+  await expect(page.locator('.drag-readout')).toHaveText(/^Left shin · Bend −?\d+°$/);
+  const before = await bend();
+  for (const [from, to] of [[0.5, 0.95], [0.5, 0.05]]) {
+    const a = await on(0, from);
+    const b = await on(0, to);
+    await page.mouse.move(a.x, a.y);
+    await page.keyboard.down('Shift');
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) await page.mouse.move(a.x + ((b.x - a.x) * i) / 6, a.y + ((b.y - a.y) * i) / 6);
+    await page.mouse.up();
+    await page.keyboard.up('Shift');
+    if ((await bend()) !== before) break;
+  }
+  const after = await bend();
+  expect(after).not.toBe(before);
+  expect(Math.abs(after % 5)).toBe(0);
+  // Double-click the arc: type its value.
+  const again = await on(0);
+  await page.mouse.dblclick(again.x, again.y);
+  const input = page.getByRole('spinbutton', { name: 'Bend value' });
+  await input.fill('40');
+  await input.press('Enter');
+  await expect.poll(bend).toBe(40);
+});
+
 test('Shift-drag twists a part; handheld props go in the hand; the scene exports as a 3D model', async ({ page }) => {
   await page.keyboard.press('1');
   await page.waitForTimeout(400);

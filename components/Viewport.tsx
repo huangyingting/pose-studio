@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
 import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint } from '@/lib/actions';
+import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
 import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
@@ -18,7 +19,8 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestText } from './Manipulators';
+import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestText, sliderAxis, valuesOf } from './Manipulators';
+import JointArcs, { type JointOnScreen } from './JointArcs';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
 import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useReadout } from './hints';
@@ -36,6 +38,8 @@ export interface ViewportApi {
   project(figure: string, joint: JointName): { x: number; y: number } | null;
   /** Screen (client) coordinates of a world point. */
   projectPoint(p: Vec3): { x: number; y: number };
+  /** A joint on screen, for its arcs (null if it is not drawn). */
+  jointOnScreen(figure: string, joint: JointName): JointOnScreen | null;
   /** The camera of the current view (looking through the shot camera: as the shot frames it). */
   captureShot(): CameraView | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
@@ -118,6 +122,10 @@ export default function Viewport({
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
+  const jointOnScreen = useCallback(
+    () => (selection?.kind === 'joint' ? apiRef.current?.jointOnScreen(selection.figure, selection.joint) ?? null : null),
+    [selection, apiRef],
+  );
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
@@ -135,9 +143,10 @@ export default function Viewport({
   };
 
   // The gizmo is for the explicit tools: Move (W: a whole figure or a prop, also up and down) and
-  // Scale (R: props). Joints are posed by dragging the body (Shift-drag twists) and the inspector's
-  // sliders; figures and props turn by their floor ring. (Rotation rings around a joint crossed
-  // the parts next to it and caught the drags meant for them.)
+  // Scale (R: props). Joints are posed by dragging the body (Shift-drag twists), by the selected
+  // joint's arcs (one per slider, outside the body: rings around a joint crossed the parts next to
+  // it and caught the drags meant for them) and the inspector's sliders; figures and props turn by
+  // their floor ring.
   const handles = settings.showHandles && !shotMode;
   // A scene is first shown from where its camera films it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -351,6 +360,17 @@ export default function Viewport({
       </Canvas>
       {settings.showGrid && !shotMode && <div ref={frontLabel} className="origin-front" style={{ display: 'none' }}>front</div>}
       <DragReadout />
+      {handles && selection?.kind === 'joint' && figureDoc(selection.figure) && !figureDoc(selection.figure)!.proxy && (
+        <JointArcs
+          key={`${selection.figure}:${selection.joint}`}
+          store={store}
+          figure={selection.figure}
+          joint={selection.joint}
+          value={angle(figureDoc(selection.figure)!.bones, selection.joint)}
+          limits={settings.limits}
+          onScreen={jointOnScreen}
+        />
+      )}
     </div>
   );
 }
@@ -623,6 +643,35 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         return m ? toScreen(m.joints[joint].getWorldPosition(new THREE.Vector3())) : null;
       },
       projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
+      jointOnScreen: (id, joint) => {
+        const m = sv.figures.get(id);
+        if (!m || !m.object.visible) return null;
+        const obj = m.joints[joint];
+        const pivot = obj.getWorldPosition(new THREE.Vector3());
+        const at = toScreen(pivot.clone());
+        const child = m.jointsUnder(joint)[1];
+        const end = child ? m.joints[child].getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, joint === 'head' ? 0.1 : -0.1, 0).applyQuaternion(obj.getWorldQuaternion(new THREE.Quaternion())).add(pivot);
+        // Away from the parts next to it on screen (a straight limb: beside it).
+        const away = { x: 0, y: 0 };
+        const from = (p: THREE.Vector3) => {
+          const q = toScreen(p.clone());
+          const l = Math.hypot(q.x - at.x, q.y - at.y);
+          if (l > 1) { away.x -= (q.x - at.x) / l; away.y -= (q.y - at.y) / l; }
+          return q;
+        };
+        if (joint !== 'hips') from(obj.parent!.getWorldPosition(new THREE.Vector3()));
+        const e = from(end);
+        const angle = Math.hypot(away.x, away.y) > 0.3 ? Math.atan2(away.y, away.x) : Math.atan2(e.y - at.y, e.x - at.x) + Math.PI / 2;
+        // Which way a point of the part (in front of its end) goes on screen as each slider grows.
+        const probe = end.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), -0.06);
+        const p0 = toScreen(probe.clone());
+        const v = valuesOf(obj, joint);
+        const turns = [0, 1, 2].map((i): [number, number] => {
+          const p = toScreen(probe.clone().sub(pivot).applyAxisAngle(sliderAxis(obj, v, i), 0.1).add(pivot));
+          return [p.x - p0.x, p.y - p0.y];
+        });
+        return { x: at.x, y: at.y, away: angle, turns };
+      },
       captureShot: () => captureRef.current(),
       labelPoint: (sel) => {
         if (sel.kind === 'joint') {

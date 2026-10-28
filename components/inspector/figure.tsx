@@ -75,6 +75,7 @@ export function JointPanel({ t }: { t: Target }) {
             <Slider
               key={axis}
               label={label}
+              axis={axis}
               min={min}
               max={max}
               value={Math.min(max, Math.max(min, rot[axis]))}
