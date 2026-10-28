@@ -21,7 +21,7 @@ type Hook = {
       selection: unknown;
     };
   };
-  viewport: { current: { project(figure: string, joint: string): { x: number; y: number } | null; projectPoint(p: number[]): { x: number; y: number } } | null };
+  viewport: { current: { project(figure: string, joint: string): { x: number; y: number } | null; projectPoint(p: number[]): { x: number; y: number }; getView(): unknown } | null };
 };
 
 const state = (page: Page) =>
@@ -825,11 +825,17 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   let s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'clip']);
 
+  const editorView = () => page.evaluate(() => JSON.stringify((window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.getView()));
+  const free = await editorView();
   await page.getByRole('button', { name: 'Play', exact: true }).click();
-  // Playing: the playhead moves on (however busy the machine).
+  // Playing: the film as filmed (the shot camera), the playhead moving on (however busy the machine).
+  await expect(page.locator('.letterbox')).toBeVisible();
   await expect(page.locator('.tl-time')).not.toHaveText(/^0\.00/);
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   expect((await anim(page)).time).toBeGreaterThan(0);
+  // Stopped: the free view as it was.
+  await expect(page.locator('.letterbox')).toBeHidden();
+  await expect.poll(editorView).toBe(free);
 
   // Step to a frame between keys and add a key there.
   await page.getByRole('button', { name: 'Previous keyframe' }).click();

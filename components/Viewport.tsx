@@ -967,23 +967,51 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     });
   };
 
+  // The free view while the shot camera has the editor's camera (looking through, playing the
+  // film): it comes back after; null when another scene was opened meanwhile (its own angle then).
+  const freeView = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+
   // Switching to another scene shows it from its camera's angle (the shot camera takes over in shot mode).
   const shotRef = useRef(shotMode);
   useEffect(() => { shotRef.current = shotMode; }, [shotMode]);
   useEffect(() => {
-    if (shotRef.current) return;
+    if (shotRef.current) {
+      freeView.current = null;
+      return;
+    }
     const id = frame({ ...latestView.current, fov: 35 });
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId, controls]);
 
-  // Leaving shot mode returns to the normal editor lens.
+  // Leaving shot mode returns to the free view as it was, with the normal editor lens.
   const get = useThree((s) => s.get);
+  const entered = useRef(false);
   useEffect(() => {
-    if (shotMode) return;
     const cam = get().camera as THREE.PerspectiveCamera;
+    const orbit = get().controls as unknown as Controls | null;
+    if (shotMode) {
+      entered.current = true;
+      freeView.current = { position: cam.position.clone(), target: (orbit?.target ?? new THREE.Vector3(0, 1, 0)).clone() };
+      return;
+    }
     cam.fov = 35;
+    cam.near = 0.01;
+    cam.far = 200;
+    cam.up.set(0, 1, 0);
     cam.updateProjectionMatrix();
+    if (!entered.current) return;
+    entered.current = false;
+    const was = freeView.current;
+    freeView.current = null;
+    if (!was) {
+      const id = frame({ ...latestView.current, fov: 35 });
+      return () => cancelAnimationFrame(id);
+    }
+    cam.position.copy(was.position);
+    orbit?.target.copy(was.target);
+    orbit?.update();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shotMode, get]);
 
   useEffect(() => {
