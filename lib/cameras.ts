@@ -781,18 +781,17 @@ export function cameraPath(scene: Scene, start: number, end: number, aspect: num
 }
 
 /**
- * The path a camera takes (world points every tenth of a second, and their times), for drawing
- * it: over its points' time, and the time of the shots it films.
+ * The times a camera's path is drawn through (where it is then, for its trail): ten a second over
+ * its points' time and the time of the shots it films.
  */
-export function cameraTrail(scene: Scene, cam: Camera, aspect = frameAspect()): { times: number[]; points: THREE.Vector3[] } {
+export function trailTimes(scene: Scene, cam: Camera): number[] {
   const a = scene.animation;
-  if (!a) return { times: [], points: [] };
+  if (!a) return [];
   const spans = shotSpans(a).filter((s) => s.shot.camera === cam.id);
   const ends = [...(cam.kind === 'path' ? cam.points.map((p) => p.t) : []), ...spans.flatMap((s) => [s.start, s.end])];
-  if (!ends.length) return { times: [], points: [] };
+  if (!ends.length) return [];
   const from = Math.max(0, Math.min(...ends));
   const to = Math.min(a.duration, Math.max(...ends));
   const n = Math.max(2, Math.ceil((to - from) * 10));
-  const times = Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
-  return { times, points: times.map((t) => viewOf(scene, cam, t, aspect).position) };
+  return Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 }

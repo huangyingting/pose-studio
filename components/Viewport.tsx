@@ -16,7 +16,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { SceneView } from '@/lib/sceneview';
-import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
+import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { Figure, JointName, Light, Scene, Selection, Style, Vec3, View } from '@/lib/types';
@@ -535,6 +535,40 @@ function GizmoWarmup() {
   return null;
 }
 
+type Trail = { id: string; rig: boolean; times: number[]; points: THREE.Vector3[] };
+
+/**
+ * The cameras' trails (where each is every tenth of a second), worked out once a drag rests and a
+ * little at a time between frames (a camera on someone poses them at each sample: a long block of
+ * work at once would hold up the drop). The trails before stay shown until the new ones are done;
+ * each keeps to its own camera.
+ */
+function useTrails(scene: Scene): Trail[] {
+  const [trails, setTrails] = useState<Trail[]>([]);
+  const { cameras, animation } = scene;
+  useEffect(() => {
+    const aspect = frameAspect();
+    const jobs = cameras.map((c) => ({ cam: c, trail: { id: c.id, rig: c.kind === 'rig', times: trailTimes(scene, c), points: [] as THREE.Vector3[] } }));
+    let job = 0;
+    let timer = 0;
+    const work = () => {
+      const until = performance.now() + 8;
+      while (job < jobs.length && performance.now() < until) {
+        const { cam, trail } = jobs[job];
+        if (trail.points.length < trail.times.length) trail.points.push(viewOf(scene, cam, trail.times[trail.points.length], aspect).position);
+        else job++;
+      }
+      if (job < jobs.length) timer = window.setTimeout(work, 0);
+      else setTrails(jobs.map((j) => j.trail));
+    };
+    timer = window.setTimeout(work, 0);
+    return () => window.clearTimeout(timer);
+    // (The cameras and the motion, not the figures as the playhead poses them.)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameras, animation]);
+  return trails;
+}
+
 /** While something above the floor is dragged: a dashed line from it down to the floor. */
 function DropLine() {
   const at = useReadout()?.drop;
@@ -962,12 +996,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
   const cameras = scene.cameras;
   // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
-  // (Sampled over the whole animation: worked out once a drag rests, not as the playhead moves the figures.)
-  const settled = useSettled(scene);
-  const { cameras: sc, animation: sa } = settled;
-  // (Each with its camera: the settled list may not be the one shown yet.)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const trails = useMemo(() => sc.map((c) => ({ id: c.id, rig: c.kind === 'rig', ...cameraTrail(settled, c) })), [sc, sa]);
+  const trails = useTrails(useSettled(scene));
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect());
