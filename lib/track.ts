@@ -129,6 +129,71 @@ export function removeKeyAt(a: Animation, figure: string, t: number): Animation 
   return sorted(replace(a, hit.act, [{ ...keysAction(figure, keys), id: hit.act.id }]));
 }
 
+/** How a figure's key at t goes on to the next (null: no key there). */
+export function keyEaseAt(a: Animation, figure: string, t: number): Key['ease'] | null {
+  const hit = keyAtTime(a, figure, t);
+  return hit ? (keysOf(hit.act)[hit.i].ease ?? 'smooth') : null;
+}
+
+/** Set how a figure's key at t goes on to the next: smoothly, at an even speed, or held until the next key (`step`). */
+export function setKeyEase(a: Animation, figure: string, t: number, ease: NonNullable<Key['ease']>): Animation {
+  const hit = keyAtTime(a, figure, t);
+  if (!hit) return a;
+  const keys = keysOf(hit.act).map((k, i) => (i === hit.i ? { ...k, ease } : k));
+  return replace(a, hit.act, [{ ...keysAction(figure, keys, hit.act.layer), id: hit.act.id }]);
+}
+
+/** Hold a figure's key at t for `by` seconds: a copy of it then, and what comes after moved on by as much. */
+export function holdKeyFor(a: Animation, figure: string, t: number, by: number): Animation {
+  const hit = keyAtTime(a, figure, t);
+  if (!hit || by <= EPS) return a;
+  const key = keysOf(hit.act)[hit.i];
+  const moved = ripple(a, figure, key.t + 0.5 / a.fps, by);
+  const act = moved.actions.find((x) => x.id === hit.act.id)!;
+  const at = Math.round((key.t + by) * a.fps) / a.fps;
+  // The first holds still (smooth between equal poses) and the copy goes on as the key did.
+  const keys = [...keysOf(act).map((k, i) => (i === hit.i ? { t: k.t, pose: k.pose } : k)), { ...key, t: at }].sort((p, q) => p.t - q.t);
+  return longer(sorted(replace(moved, act, [{ ...keysAction(figure, keys, act.layer), id: act.id }])), at);
+}
+
+/**
+ * An action played `times` times in all, one after another (what follows moved on): a keyed block's
+ * keys repeated (its travel carried on each time: a cycle walks on), a clip played again.
+ */
+export function repeatAction(a: Animation, id: string, times: number): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  if (!act || times < 1) return a;
+  const src = act.source;
+  if (src.kind === 'clip') {
+    const clip = clipById(src.clip);
+    if (!clip) return a;
+    // (One play takes as long as it does now: its speed is kept.)
+    const once = clip.duration / (src.speed ?? 1);
+    const { repeat: _repeat, ...rest } = src;
+    void _repeat;
+    const source = clip.loop || times === 1 ? rest : { ...rest, repeat: times };
+    return retimeAction(replace(a, act, [{ ...act, source }]), id, once * times);
+  }
+  if (src.kind !== 'keys' || times < 2) return a;
+  const keys = keysOf(act);
+  if (keys.length < 2) return a;
+  const [first, last] = [keys[0], keys[keys.length - 1]];
+  const span = last.t - first.t;
+  const [dx, dz] = [last.pose.position[0] - first.pose.position[0], last.pose.position[2] - first.pose.position[2]];
+  const all = [...keys];
+  for (let r = 1; r < times; r++) {
+    for (const k of keys.slice(1)) {
+      const p = k.pose.position;
+      all.push({ ...k, t: Math.round((k.t + r * span) * a.fps) / a.fps, pose: { ...k.pose, position: [r3(p[0] + r * dx), p[1], r3(p[2] + r * dz)] } });
+    }
+  }
+  const by = span * (times - 1);
+  const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
+  const now = moved.actions.find((x) => x.id === id)!;
+  const next = { ...keysAction(act.roles[0].figure, all, act.layer), id };
+  return longer(sorted(replace(moved, now, [next])), end(next));
+}
+
 /** Retime a figure's key (refused onto another key, or past the actions around its own). */
 export function moveKeyTo(a: Animation, figure: string, from: number, to: number): Animation {
   const hit = keyAtTime(a, figure, from);
@@ -371,10 +436,10 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
   const src = act.source;
   if (src.kind === 'clip') {
     const clip = clipById(src.clip);
-    if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round((clip.duration / d) * 1000) / 1000 } };
+    if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round(((clip.duration * (src.repeat ?? 1)) / d) * 1000) / 1000 } };
   } else if (src.kind === 'keys') {
     const k = d / Math.max(EPS, act.duration);
-    const keys = keysOf(act).map((x) => ({ t: snapTime({ ...a, duration: MAX_DURATION }, act.start + (x.t - act.start) * k), pose: x.pose }));
+    const keys = keysOf(act).map((x) => ({ ...x, t: snapTime({ ...a, duration: MAX_DURATION }, act.start + (x.t - act.start) * k) }));
     next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
   }
   const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
@@ -385,7 +450,7 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
 export function actionLabel(act: Action): string {
   const src = act.source;
   if (src.kind === 'keys') return act.layer === 'correction' ? 'Correction' : 'Posed';
-  if (src.kind === 'clip') return clipById(src.clip)?.name ?? 'Motion';
+  if (src.kind === 'clip') return `${clipById(src.clip)?.name ?? 'Motion'}${src.repeat ? ` ×${src.repeat}` : ''}`;
   let label = src.mode === 'walk' ? 'Walk' : src.mode === 'run' ? 'Run' : 'Jump';
   if (src.mode === 'jump') {
     label += ` ${jumpHeight(Math.max(0, act.duration - 2 * JUMP_PREP)).toFixed(1)} m`;

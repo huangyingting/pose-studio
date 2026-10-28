@@ -890,6 +890,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   cursor: grab;
 }
 .tl-key:hover { background: var(--accent); }
+/* How a key goes on: at an even speed (hollow), held until the next (square). */
+.tl-key.linear:not(.on) { background: var(--panel); box-shadow: inset 0 0 0 2px var(--key), 0 0 0 1.5px var(--panel); }
+.tl-key.step { transform: none; border-radius: 1px; }
 .tl-key.on { background: var(--accent); box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 4px var(--accent-ring); }
 .tl-key.cam { background: var(--run); border-radius: 50%; transform: none; cursor: pointer; }
 /* Keys closer together than a key is wide (a motion keyed every frame): small and light. */

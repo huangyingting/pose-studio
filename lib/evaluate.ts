@@ -399,9 +399,9 @@ class Evaluator {
     // Time in the clip; a loop played longer than once goes round again from where it got to.
     let u = (t - act.start) * (src.speed ?? 1);
     let laps = 0;
-    if (clip.loop && clip.duration > EPS) {
-      laps = Math.min(50, Math.floor(u / clip.duration + EPS));
-      u = Math.max(0, u - laps * clip.duration);
+    if ((clip.loop || src.repeat) && clip.duration > EPS) {
+      laps = Math.min(clip.loop ? 50 : src.repeat! - 1, Math.floor(u / clip.duration + EPS));
+      u = Math.min(clip.duration, Math.max(0, u - laps * clip.duration));
     } else u = Math.min(clip.duration, Math.max(0, u));
     const first = sample(0);
     let raw = sample(u);

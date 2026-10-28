@@ -1036,6 +1036,40 @@ test('the timeline grows: the playhead goes past the end and a key there lengthe
   expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1]);
 });
 
+test('keyframes pose to pose: a key held until the next, a pose held for a time, a keyed block repeated and kept as a motion', async ({ page }) => {
+  await animate(page);
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  for (let i = 0; i < 24; i++) await page.keyboard.press('.');
+  await page.keyboard.press('k');
+  let s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1]);
+  const keysClip = (x: typeof s) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'keys')!;
+
+  // The first key held until the next: a square on the timeline.
+  // (Its right half: the key at 0 sits half outside the lanes.)
+  await page.getByRole('button', { name: 'Keyframe at 0.00 s' }).click({ button: 'right', position: { x: 9, y: 5 } });
+  await page.getByRole('menuitemradio', { name: /held until the next/ }).click();
+  s = await live(page);
+  expect((keysClip(s).source as { clip: { parts: { eases?: string[] }[] } }).clip.parts[0].eases?.[0]).toBe('step');
+  await expect(page.getByRole('button', { name: 'Keyframe at 0.00 s' })).toHaveClass(/\bstep\b/);
+
+  // Hold the second pose for a second: a copy of it a second on.
+  await page.getByRole('button', { name: 'Keyframe at 1.00 s' }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: /^1 s/ }).click();
+  s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1, 2]);
+
+  // The block played twice in all, then kept in My motions.
+  await page.locator('.tl-travel.keys').first().click({ button: 'right', position: { x: 30, y: 8 } });
+  await page.getByRole('menuitem', { name: /^2 times in all/ }).click();
+  s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1, 2, 3, 4]);
+  await page.locator('.tl-travel.keys').first().click({ button: 'right', position: { x: 30, y: 8 } });
+  await page.getByRole('menuitem', { name: 'Save as a motion' }).click();
+  await expect(page.getByText(/Saved as “Figure's motion” in My motions/)).toBeVisible();
+  expect(s.motions.length + 1).toBe((await live(page)).motions.length);
+});
+
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
   // Software rendering and encoding on CI machines without a GPU is slow.
   test.setTimeout(300_000);

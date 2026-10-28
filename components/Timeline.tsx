@@ -8,7 +8,7 @@ import {
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
-import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { actionLabel, correctionTimesOf, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { cameraById, liveCamera, rigRule } from '@/lib/cameras';
@@ -805,14 +805,17 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       }}
                     />
                   ))}
-                  {times.map((t, n) => (
+                  {times.map((t, n) => {
+                    // How it goes on to the next: a hollow diamond at an even speed, a square held.
+                    const ease = keyEaseAt(a, f.id, t);
+                    return (
                     <button
                       key={t}
                       type="button"
-                      className={`tl-key${near(t) ? ' on' : ''}${tight[n] ? ' dense' : ''}`}
+                      className={`tl-key${near(t) ? ' on' : ''}${tight[n] ? ' dense' : ''}${ease && ease !== 'smooth' ? ` ${ease}` : ''}`}
                       style={{ left: pct(t) }}
                       aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
-                      data-tip={"Drag to retime; Shift-drag to move the keys after it too\nRight-click for more"}
+                      data-tip={`${ease === 'step' ? 'Held until the next key. ' : ease === 'linear' ? 'Goes on at an even speed. ' : ''}Drag to retime; Shift-drag to move the keys after it too\nRight-click for more`}
                       onPointerDown={dragKey(t, f.id)}
                       onContextMenu={(e) => {
                         e.stopPropagation();
@@ -821,7 +824,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         openContextMenu(e, menu('key', { store, figure: f.id, at: t }), `${f.name} · ${t.toFixed(2)} s`);
                       }}
                     />
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })}

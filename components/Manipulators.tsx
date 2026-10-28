@@ -6,7 +6,8 @@ import { fitWarp, moveMark } from '@/lib/actions';
 import { actionsOf, footprints, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
 import { angle, facingOf, nearer } from '@/lib/pose';
 import { CONTACT_LABELS, contactPoint, type Contact } from '@/lib/relations';
-import { holdOn } from '@/lib/actions';
+import { holdOn, holdProp } from '@/lib/actions';
+import { HOLDABLE } from '@/lib/hold';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
@@ -128,14 +129,19 @@ export function nearestContact(m: Mannequin, f: Figure, p: THREE.Vector3) {
  * A hand dragged over someone else's body: the point it would hold on to there (within reach of
  * the pointer), the hint offering it. Let go there, it holds on (a hold from the playhead).
  */
-function holdTarget(sv: SceneView, scene: Scene, figure: string, ray: THREE.Ray) {
+function holdTarget(sv: SceneView, scene: Scene, figure: string, ray: THREE.Ray): { prop: string; at: THREE.Vector3 } | { figure: string; contact: Contact; at: THREE.Vector3 } | null {
   setPointerHint(null);
   const hits = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(sv.root, true);
   for (const h of hits) {
     const o = tagged(h.object);
     if (!o) continue;
-    // (A prop in front hides who is behind it.)
-    if (o.userData.prop) return null;
+    // A prop that can be held, free: picked up (a prop in front hides who is behind it).
+    if (o.userData.prop) {
+      const p = scene.props.find((x) => x.id === o.userData.prop);
+      if (!p || p.hold || !HOLDABLE.includes(p.kind)) return null;
+      setPointerHint(`Let go: pick up ${p.name}`);
+      return { prop: p.id, at: h.point.clone() };
+    }
     const id = o.userData.figure as string;
     if (id === figure) continue;
     const f = scene.figures.find((x) => x.id === id);
@@ -147,6 +153,13 @@ function holdTarget(sv: SceneView, scene: Scene, figure: string, ray: THREE.Ray)
     return { figure: id, ...near };
   }
   return null;
+}
+
+/** A hand let go on what `holdTarget` found: it holds on to someone there, or picks the prop up (from the playhead). */
+function letGoOn(store: Store, scene: Scene, figure: string, hand: JointName, on: NonNullable<ReturnType<typeof holdTarget>>) {
+  const side = hand === 'leftHand' ? 'L' : 'R';
+  if ('prop' in on) holdProp(store, on.prop, { figure, hand: side });
+  else if (!holdOn(store, figure, side, on.figure, on.contact)) setPointerHint(`${scene.figures.find((f) => f.id === on.figure)?.name} is out of reach`);
 }
 
 /** A readout of a joint's value as it is dragged, from its value when the drag began. */
@@ -445,9 +458,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
         // (The pose and the hold: one undo step.)
         end: () => store.group(() => {
           commit();
-          if (hand && onto && !holdOn(store, t.figure, hand === 'leftHand' ? 'L' : 'R', onto.figure, onto.contact)) {
-            setPointerHint(`${scene.figures.find((f) => f.id === onto!.figure)?.name} is out of reach`);
-          }
+          if (hand && onto) letGoOn(store, scene, t.figure, hand, onto);
         }),
       };
     }
@@ -864,7 +875,7 @@ export function IKHandles({ m, figure, limits, onCommit, sv, scene, store }: {
     // (The pose and the hold: one undo step.)
     store.group(() => {
       onCommit(m.read());
-      if (on && !holdOn(store, figure.id, hand === 'leftHand' ? 'L' : 'R', on.figure, on.contact)) setPointerHint(`${scene.figures.find((f) => f.id === on.figure)?.name} is out of reach`);
+      if (on) letGoOn(store, scene, figure.id, hand, on);
     });
   };
 

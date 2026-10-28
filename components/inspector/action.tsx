@@ -1,6 +1,6 @@
 'use client';
 
-import { Diamond, Ellipsis, Film, Footprints, Layers, TriangleAlert, Users } from 'lucide-react';
+import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
 import { fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById } from '@/lib/assets';
@@ -8,7 +8,7 @@ import { overWarp } from '@/lib/evaluate';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { actionLabel } from '@/lib/track';
 import type { Action, Travel } from '@/lib/types';
-import { menu } from '../commands';
+import { applies, command, menu, menuItems, type Ctx } from '../commands';
 import { Hint, Menu, NumberField, PropertyRow, Segmented, Select, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
@@ -43,6 +43,7 @@ export function TimingPanel({ t }: { t: Target }) {
   const a = t.scene.animation!;
   const id = act.id;
   const who = t.scene.figures.find((f) => f.id === t.actionFigure);
+  const ctx: Ctx = { store: t.store, action: id, figure: t.actionFigure ?? undefined };
   return (
     <>
       <PropertyRow label="Who">
@@ -61,6 +62,17 @@ export function TimingPanel({ t }: { t: Target }) {
           <span>Blends in</span>
           <NumberField prefix="s" label="Blend in" value={act.blendIn ?? 0} step={0.05} min={0} max={2} onChange={(v) => setBlend(t.store, id, v, `act:${id}:blend`)} />
         </label>
+      )}
+      {/* Played again, one after another; a keyed block kept as a motion. */}
+      {applies(command('action.repeat'), ctx) && (
+        <Menu label="Repeat" className="btn subtle move-to" items={() => menuItems(['action.repeat'], ctx)}>
+          <Repeat size={14} aria-hidden /> Repeat <ChevronDown size={13} aria-hidden />
+        </Menu>
+      )}
+      {applies(command('action.saveMotion'), ctx) && (
+        <button type="button" className="btn subtle move-to" onClick={() => command('action.saveMotion').run!(ctx)}>
+          <BookmarkPlus size={14} aria-hidden /> Save as a motion
+        </button>
       )}
     </>
   );

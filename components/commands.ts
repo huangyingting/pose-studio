@@ -7,7 +7,7 @@ import {
 import {
   addCamera, addFigure, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
-  mirrorPose, pastePose, propNow, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
+  holdKeyframe, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
   setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
@@ -24,7 +24,8 @@ import { shareUrl } from '@/lib/share';
 import { shotSpans } from '@/lib/shots';
 import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { actionLabel, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { clipById } from '@/lib/assets';
 import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
@@ -198,6 +199,16 @@ export function saveAsTemplate(store: Store, { notifyUndo }: { notifyUndo(text: 
 const hand = (h: 'L' | 'R') => (h === 'L' ? 'left' : 'right');
 const spanOf = (c: Ctx) => { const a = c.store.scene.animation; return a && c.shot ? shotSpans(a).find((sp) => sp.shot.id === c.shot) : undefined; };
 const actionOf = (c: Ctx) => c.store.scene.animation?.actions.find((x) => x.id === c.action);
+/** The prop the selected hand holds at the playhead. */
+const heldIn = (c: Ctx) => {
+  const side = c.joint === 'leftHand' ? 'L' : c.joint === 'rightHand' ? 'R' : null;
+  return side ? c.store.scene.props.find((p) => { const h = propNow(c.store, p.id)?.hold; return h?.figure === c.figure && h?.hand === side; }) : undefined;
+};
+/** An action that can be played again: a motion, or a keyed block of two keys or more. */
+const repeatable = (c: Ctx) => {
+  const act = actionOf(c);
+  return !!act && !act.layer && (act.source.kind === 'clip' || (act.source.kind === 'keys' && act.duration > 1e-6));
+};
 /** The time a travel ends at: the context's key, or the end of its walk, run or jump. */
 const travelAt = (c: Ctx) => {
   const act = actionOf(c);
@@ -602,6 +613,11 @@ export const COMMANDS: Command[] = [
   { id: 'pose.reset', title: 'Reset pose', icon: RotateCcw, run: (c) => resetPose(c.store) },
 
   // A part of a figure (the selected joint).
+  {
+    // What a selected hand holds: let go of it here (at the playhead; it falls).
+    id: 'hand.letGo', title: (c) => `Let go of ${heldIn(c)?.name ?? 'it'} here`, icon: ArrowDownToLine, when: (c) => !!heldIn(c),
+    run: (c) => holdProp(c.store, heldIn(c)!.id, null),
+  },
   { id: 'joint.reset', title: 'Reset the joint', icon: RotateCcw, when: (c) => !!c.joint, run: (c) => setJoint(c.store, c.figure!, c.joint!, [0, 0, 0], '') },
   {
     id: 'joint.mirror', title: 'Mirror to the other side', icon: FlipHorizontal2, when: (c) => !!c.joint && mirrorJointName(c.joint) !== c.joint,
@@ -955,13 +971,42 @@ export const COMMANDS: Command[] = [
     checked: (c) => { const s = actionOf(c)!.source; return s.kind === 'clip' && !!s.mirror; },
     run: (c) => { const s = actionOf(c)!.source; if (s.kind === 'clip') setClipOptions(c.store, c.action!, { mirror: !s.mirror }); },
   },
+  {
+    // Played again, one after another (a wave, a nod; a keyed walk cycle walks on); what follows moves on.
+    id: 'action.repeat', title: 'Repeat', icon: Repeat, when: (c) => repeatable(c),
+    items: (c) => {
+      const act = actionOf(c)!;
+      const src = act.source;
+      const now = src.kind === 'clip' ? (src.repeat ?? (clipById(src.clip)?.loop ? Math.round(act.duration / (clipById(src.clip)!.duration / (src.speed ?? 1))) : 1)) : 1;
+      return (src.kind === 'clip' ? [1, 2, 3, 4] : [2, 3, 4]).map((n) => ({
+        title: n === 1 ? 'Once' : src.kind === 'keys' ? `${n} times in all (its keys copied)` : `${n} times`, checked: src.kind === 'clip' ? now === n : undefined, run: () => repeatAction(c.store, act.id, n),
+      }));
+    },
+  },
+  {
+    id: 'action.saveMotion', title: 'Save as a motion', help: 'Keep a keyed block in My motions, to give to any figure', icon: BookmarkPlus,
+    when: (c) => { const act = actionOf(c); return !!act && act.source.kind === 'keys' && !act.layer && act.duration > 1e-6; },
+    run: (c) => { const name = saveKeysAsMotion(c.store, c.action!); if (name) App().notify(`Saved as “${name}” in My motions`); },
+  },
   { id: 'action.edit', title: 'Edit in the inspector', icon: Pencil, when: (c) => !!actionOf(c), run: (c) => c.store.select({ kind: 'action', action: c.action!, figure: c.figure! }) },
   {
     id: 'action.remove', title: (c) => `Remove ${actionOf(c) ? actionLabel(actionOf(c)!) : ''}`, icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!actionOf(c),
     run: (c) => { const act = actionOf(c)!; deleteAction(c.store, act.id); App().notifyUndo(`Deleted ${actionLabel(act)}`); },
   },
 
-  // A key on a figure's track (`at`).
+  // A key on a figure's track (`at`): how it goes on to the next, and holding it.
+  {
+    id: 'key.ease', title: 'Goes on to the next key', icon: Spline, when: (c) => !!c.figure && c.at !== undefined && !c.action && !!keyEaseAt(sceneOf(c).animation!, c.figure, c.at),
+    items: (c) => {
+      const now = keyEaseAt(sceneOf(c).animation!, c.figure!, c.at!);
+      return ([['smooth', 'Smoothly'], ['linear', 'At an even speed (linear)'], ['step', 'Not at all: held until the next (stepped)']] as const)
+        .map(([ease, title]) => ({ title, checked: now === ease, run: () => setKeyframeEase(c.store, c.figure!, c.at!, ease) }));
+    },
+  },
+  {
+    id: 'key.hold', title: 'Hold this pose for', icon: Pause, when: (c) => !!c.figure && c.at !== undefined && !c.action && !!keyEaseAt(sceneOf(c).animation!, c.figure, c.at),
+    items: (c) => [0.5, 1, 2].map((s) => ({ title: `${s} s (what follows moves on)`, run: () => holdKeyframe(c.store, c.figure!, c.at!, s) })),
+  },
   {
     id: 'key.delete', title: 'Delete key', icon: Trash2, danger: true, when: (c) => !!c.figure && c.at !== undefined && !c.action,
     enabled: (c) => keyTimesOf(sceneOf(c).animation!, c.figure!).length > 1, run: (c) => deleteKeyframe(c.store, c.figure!),
@@ -1188,7 +1233,7 @@ export const MENUS = {
     'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
-  joint: ['joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
+  joint: ['hand.letGo', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
   prop: [
     'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot',
     '-', 'prop.otherEnd', 'prop.lieOn', '-', 'prop.delete',
@@ -1199,8 +1244,8 @@ export const MENUS = {
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
-  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', '-', 'action.edit', 'action.remove'],
-  key: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
+  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', 'action.repeat', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
+  key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.shadows'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [

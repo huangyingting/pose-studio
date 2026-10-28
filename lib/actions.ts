@@ -16,7 +16,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretch
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, insertClip, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, cutTo, holdKeyFor, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { fitBody, modelInfo } from './model';
@@ -842,6 +842,38 @@ export function deleteKeyframe(store: Store, figureId = store.getState().activeF
   if (!figureId) return;
   store.updateScene((s) => (s.animation ? { ...s, animation: removeKeyAt(s.animation, figureId, t) } : s));
   store.setTime(t);
+}
+
+/** How a figure's key at t goes on to the next: smoothly, at an even speed, or held until the next (`step`). */
+export function setKeyframeEase(store: Store, figure: string, t: number, ease: 'smooth' | 'linear' | 'step') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: setKeyEase(s.animation, figure, t, ease) } : s));
+  store.setTime(store.getState().time);
+}
+
+/** Hold a figure's key at t for `seconds` (a copy of it then; what comes after moves on). */
+export function holdKeyframe(store: Store, figure: string, t: number, seconds: number) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: holdKeyFor(s.animation, figure, t, seconds) } : s));
+  store.setTime(store.getState().time);
+}
+
+/** Play an action `times` times in all, one after another (what follows moves on). */
+export function repeatAction(store: Store, id: string, times: number) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: repeatTrack(s.animation, id, times) } : s));
+  store.setTime(store.getState().time);
+}
+
+/**
+ * A keyed block kept in the Library (My motions) as a motion of its own, to give to any figure: its
+ * keys from where it starts, made on its figure's proportions. Returns its name.
+ */
+export function saveKeysAsMotion(store: Store, id: string): string | null {
+  const act = store.scene.animation?.actions.find((x) => x.id === id);
+  const f = act && store.scene.figures.find((x) => x.id === act.roles[0].figure);
+  if (!act || !f || act.source.kind !== 'keys' || act.layer || act.duration <= 1e-6) return null;
+  const name = nextName(`${f.name}'s motion`, (store.getState().library.clips ?? []).map((c) => c.name));
+  const part = act.source.clip.parts[0];
+  saveMotion(store, { ...act.source.clip, id: uid('clip'), name, loop: false, duration: act.duration, parts: [{ ...part, name: f.name, body: { ...f.body } }] });
+  return name;
 }
 
 /** Retime one figure's key (or, without `figureId`, every figure's key at that time). */
