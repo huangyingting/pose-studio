@@ -30,8 +30,8 @@ function Target({ children }: { children: ReactNode }) {
 function usePosable() {
   const scene = useScene();
   const id = useStudio((s) => s.activeFigure);
-  // (A prop or a camera selected: no figure is the target.)
-  const other = useStudio((s) => s.selection?.kind === 'prop' || s.selection?.kind === 'camera');
+  // (A prop, a camera, the light or several things selected: no figure is the target.)
+  const other = useStudio((s) => s.selection?.kind === 'prop' || s.selection?.kind === 'camera' || s.selection?.kind === 'light' || s.selection?.kind === 'many');
   const f = other ? null : scene.figures.find((x) => x.id === id) ?? null;
   return { figure: f && !f.proxy ? f : null, proxy: !!f?.proxy };
 }

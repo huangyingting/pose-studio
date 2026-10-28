@@ -26,7 +26,7 @@ const at = (a: number, r: number) => [r * Math.cos(a), r * Math.sin(a)] as const
  * arc where it was grabbed counts). Shift: 5° steps; Ctrl: a fifth of the speed. With the limits
  * on, a drag stops at them and the arc flashes. A double-click types the value.
  */
-export default function JointArcs({ store, figure, joint, value, limits, onScreen }: {
+export default function JointArcs({ store, figure, joint, value, limits, onScreen, onLimit }: {
   store: Store;
   figure: string;
   joint: JointName;
@@ -34,6 +34,8 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
   value: Vec3;
   limits: boolean;
   onScreen(): JointOnScreen | null;
+  /** Held at a limit (or no longer): the part flashes with the arc. */
+  onLimit(on: boolean): void;
 }) {
   const svg = useRef<SVGSVGElement>(null);
   const [place, setPlace] = useState<{ x: number; y: number; away: number; signs: number[] } | null>(null);
@@ -93,13 +95,15 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
       next[axis] = Math.round(value * 10) / 10;
       setJoint(store, figure, joint, next, key);
       setActive({ axis, limit, drag: true });
-      setReadout(limit ? limitText(joint, value) : sliderText(joint, axis, next[axis]));
+      onLimit(limit);
+      setReadout(limit ? limitText(joint, value) : sliderText(joint, axis, next[axis]), undefined, axis);
     };
     const up = () => {
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', up);
       setActive(null);
+      onLimit(false);
       setReadout(null);
       setPointerHint(null);
     };
@@ -147,7 +151,7 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
                     if (active?.drag) return;
                     setActive({ axis: i, limit: false, drag: false });
                     setPointerHint(arcHint(joint, i));
-                    setReadout(sliderText(joint, i, live.current[i]));
+                    setReadout(sliderText(joint, i, live.current[i]), undefined, i);
                   }}
                   onPointerLeave={() => {
                     if (active?.drag) return;

@@ -26,7 +26,8 @@ export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 90_000,
   expect: { timeout: 15_000 },
-  fullyParallel: false,
+  // One browser at a time (each shares the server's database); tests are spread over CI's shards one by one.
+  fullyParallel: true,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
@@ -38,7 +39,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1500, height: 900 } } },
+    // (A laptop's size: the canvas is drawn in software, and fewer pixels draw faster.)
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
   ],
   webServer: process.env.BASE_URL
     ? undefined

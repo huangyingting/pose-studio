@@ -1,15 +1,17 @@
 import {
-  Activity, Aperture, ArrowDown, CircleDot, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
-  Spline, StepBack, StepForward, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, ZoomIn, ZoomOut, type LucideIcon,
+  Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, addFigure, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
   mirrorPose, pastePose, propNow, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
+  setSceneLight, deleteMany, duplicateMany,
 } from '@/lib/actions';
+import { DEFAULT_LIGHT, LIGHT_PRESETS, lightFrom } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
@@ -23,8 +25,8 @@ import { shotSpans } from '@/lib/shots';
 import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
-import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Travel, type Vec3 } from '@/lib/types';
-import { CONTACT_LABELS } from '@/lib/relations';
+import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type Travel, type Vec3 } from '@/lib/types';
+import { CONTACT_LABELS, type Contact } from '@/lib/relations';
 import { mirrorJointName } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
 import { mirrorBones } from '@/lib/pose';
@@ -34,6 +36,7 @@ import { PROP_ICONS, STYLE_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
 import { placingFigure, placingProp, type Placing } from './placing';
+import type { CanvasHit } from './Viewport';
 import { viaPointer } from './hints';
 
 /*
@@ -71,8 +74,8 @@ export interface App {
   zoomTimeline?(how: 'in' | 'out' | 'fit'): void;
   /** Ask for a spot on the floor (a pick mode), then do something there. */
   pickFloor?(hint: string, done: (at: Vec3) => void): void;
-  /** Open the selection's radial menu (at a point of the page: the pointer's by default). */
-  openPie?(at?: { x: number; y: number }): void;
+  /** Ask for something on the canvas (a figure, a point of its body, a prop), then do something with it. */
+  pickThing?(hint: string, take: (hit: CanvasHit) => void): void;
   /** Place something new: its ghost follows the pointer until a click drops it. */
   place?(p: Placing): void;
   /** Frame the selection (if it is out of view, say). */
@@ -89,7 +92,7 @@ let app: App = {
 export function setApp(patch: Partial<App>) {
   app = { ...app, ...patch };
 }
-const App = () => app;
+export const App = () => app;
 
 /** Add something: placed with the pointer when asked for with a click; else put where it goes, and framed if out of view. */
 export function placeOrAdd(p: Placing, now: () => void) {
@@ -99,9 +102,6 @@ export function placeOrAdd(p: Placing, now: () => void) {
     app.frameSelection?.();
   }
 }
-/** Open the selection's radial menu at a point of the page (a long press on touch). */
-export const openPie = (at: { x: number; y: number }) => app.openPie?.(at);
-
 /** What a command acts on. */
 export interface Ctx {
   store: Store;
@@ -118,6 +118,10 @@ export interface Ctx {
   floor?: Vec3;
   /** A time on a track (a key, a camera's point). */
   at?: number;
+  /** The scene's key light. */
+  light?: boolean;
+  /** Several figures and props at once. */
+  many?: { figures: string[]; props: string[] };
 }
 
 /** A choice of a command that takes one ("Copy moves to: Kai"). */
@@ -148,9 +152,13 @@ export interface Command {
 const sceneOf = (c: Ctx) => c.store.scene;
 const figureOf = (c: Ctx) => c.store.scene.figures.find((f) => f.id === c.figure);
 const activeFigure = (c: Ctx) => c.store.figure;
+/** "3 things" (several selected). */
+const count = (c: Ctx) => { const n = (c.many?.figures.length ?? 0) + (c.many?.props.length ?? 0); return `${n} things`; };
+const lightOf = (c: Ctx) => c.store.scene.light ?? DEFAULT_LIGHT;
+const sameLight = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
 const animated = (c: Ctx) => !!c.store.scene.animation;
 /** About the scene, not one thing in it: the empty floor (a spot on it, or none: off the floor), or nothing selected. */
-const onScene = (c: Ctx) => !c.figure && !c.prop && !c.camera && !c.shot && !c.action && c.scene === undefined;
+const onScene = (c: Ctx) => !c.figure && !c.prop && !c.camera && !c.shot && !c.action && !c.light && !c.many && c.scene === undefined;
 
 /** The context of the keyboard and the palette: the selection (and the active figure for pose edits). */
 export function selectionCtx(store: Store): Ctx {
@@ -163,6 +171,8 @@ export function selectionCtx(store: Store): Ctx {
     case 'camera': return { store, camera: sel.camera };
     case 'shot': return { store, shot: sel.shot };
     case 'action': return { store, action: sel.action, figure: sel.figure };
+    case 'light': return { store, light: true };
+    case 'many': return { store, many: { figures: sel.figures, props: sel.props } };
   }
 }
 
@@ -261,10 +271,9 @@ export const COMMANDS: Command[] = [
     run: (c) => c.store.setSceneIndex(c.store.getState().sceneIndex + 1),
   },
   {
-    id: 'app.pie', title: 'Actions for the selection', icon: CircleDot, keys: ['q'],
-    when: (c) => !c.action && !c.shot && !!(c.figure || c.prop || c.camera), run: () => App().openPie?.(),
+    id: 'app.deselect', title: (c) => (c.store.getState().through ? 'Stop looking through' : 'Deselect'), help: 'Deselect (looking through a camera: stop)', icon: X, keys: ['escape'],
+    run: (c) => (c.store.getState().through ? c.store.lookThrough(null) : c.store.select(null)),
   },
-  { id: 'app.deselect', title: 'Deselect', icon: X, keys: ['escape'], run: (c) => c.store.select(null) },
 
   // The canvas's tools.
   { id: 'tool.pose', title: 'Pose tool', icon: Hand, keys: ['e'], checked: (c) => c.store.getState().settings.gizmo === 'rotate', run: (c) => c.store.setSettings({ gizmo: 'rotate' }) },
@@ -312,6 +321,41 @@ export const COMMANDS: Command[] = [
   {
     id: 'view.nextStyle', title: 'Next render style', keys: ['l'],
     run: (c) => { const style = filmOf(c.store.getState().library).style; editFilm(c.store, { style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] }); },
+  },
+
+  // Several things at once.
+  {
+    id: 'many.duplicate', title: (c) => `Duplicate ${count(c)}`, help: 'Duplicate the things selected (Shift-click adds one)', icon: Copy, keys: ['mod+d'], when: (c) => !!c.many,
+    run: (c) => duplicateMany(c.store, c.many!.figures, c.many!.props),
+  },
+  {
+    id: 'many.delete', title: (c) => `Delete ${count(c)}`, help: 'Delete the things selected', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.many,
+    run: (c) => { const n = count(c); deleteMany(c.store, c.many!.figures, c.many!.props); App().notifyUndo(`Deleted ${n}`); },
+  },
+  {
+    id: 'many.hide', title: 'Hide the figures', icon: EyeOff, when: (c) => !!c.many?.figures.length,
+    run: (c) => c.store.group(() => c.many!.figures.forEach((id) => setFigureHidden(c.store, id, true))),
+  },
+
+  // The scene's key light.
+  {
+    id: 'light.preset', title: 'Lighting preset', icon: SunMedium, when: (c) => !!c.light,
+    items: (c) => LIGHT_PRESETS.map((p) => ({ title: p.name, checked: sameLight(lightOf(c), p.light), run: () => setSceneLight(c.store, p.light, '') })),
+  },
+  {
+    id: 'light.fromView', title: 'Light from here (from the view)', icon: Lightbulb, when: (c) => !!c.light || onScene(c),
+    run: (c) => {
+      const v = App().captureShot();
+      if (v) setSceneLight(c.store, lightFrom(lightOf(c), v.position.clone().sub(v.target)), '');
+    },
+  },
+  {
+    id: 'light.shadows', title: 'Shadows', icon: SunMedium, when: (c) => !!c.light, checked: (c) => lightOf(c).shadows,
+    run: (c) => setSceneLight(c.store, { ...lightOf(c), shadows: !lightOf(c).shadows }, ''),
+  },
+  {
+    id: 'light.clay', title: 'Show the light: switch to Clay', icon: SunMedium, when: (c) => !!c.light && !styleDef(filmOf(c.store.getState().library).style).lit,
+    run: (c) => editFilm(c.store, { style: 'shaded' }),
   },
 
   // The selection.
@@ -400,6 +444,13 @@ export const COMMANDS: Command[] = [
       const f = figureOf(c)!;
       const on = f.gaze;
       return [
+        {
+          title: 'What you click…', icon: Eye,
+          run: () => App().pickThing?.(`Click a figure or a prop for ${f.name} to look at · Esc cancels`, (hit) => {
+            if (hit.figure && hit.figure !== f.id) setGaze(c.store, f.id, { figure: hit.figure });
+            else if (hit.prop) setGaze(c.store, f.id, { prop: hit.prop });
+          }),
+        },
         { title: 'Free (as posed)', icon: Eye, checked: !on, run: () => setGaze(c.store, f.id, null) },
         ...sceneOf(c).figures.filter((x) => x.id !== f.id && !x.hidden).map((x) => ({ title: x.name, icon: Eye, checked: !!on && 'figure' in on && on.figure === x.id, run: () => setGaze(c.store, f.id, { figure: x.id }) })),
         ...sceneOf(c).props.map((p) => ({ title: p.name, icon: Eye, checked: !!on && 'prop' in on && on.prop === p.id, run: () => setGaze(c.store, f.id, { prop: p.id }) })),
@@ -410,13 +461,23 @@ export const COMMANDS: Command[] = [
     // A hand kept on someone else's body from now to the end of what it is doing.
     id: 'figure.holdOn', title: 'Hold on to', icon: Hand,
     when: (c) => !!figureOf(c) && !figureOf(c)!.proxy && !c.action && sceneOf(c).figures.some((x) => x.id !== c.figure && !x.hidden && !x.proxy),
-    items: (c) => sceneOf(c).figures.filter((x) => x.id !== c.figure && !x.hidden && !x.proxy).flatMap((x) => (['shoulder', 'waist', 'hand'] as const).map((part) => {
-      const contact = part === 'shoulder' ? 'leftUpperArm' : part === 'waist' ? 'waist' : 'rightHand';
-      return {
-        title: `${x.name}'s ${CONTACT_LABELS[contact].toLowerCase()}`, icon: Hand,
-        run: () => { if (!holdOn(c.store, c.figure!, 'R', x.id, contact)) App().notify(`${x.name} is out of reach`, 'error'); },
+    items: (c) => {
+      const hold = (b: string, contact: Contact) => {
+        if (!holdOn(c.store, c.figure!, 'R', b, contact)) App().notify(`${sceneOf(c).figures.find((x) => x.id === b)?.name} is out of reach`, 'error');
       };
-    })),
+      return [
+        {
+          title: 'Where you click…', icon: Hand,
+          run: () => App().pickThing?.(`Click where ${figureOf(c)!.name} holds on to someone (a head, a shoulder, the chest, the back, the waist, a hand) · Esc cancels`, (hit) => {
+            if (hit.figure && hit.figure !== c.figure && hit.contact) hold(hit.figure, hit.contact);
+          }),
+        },
+        ...sceneOf(c).figures.filter((x) => x.id !== c.figure && !x.hidden && !x.proxy).flatMap((x) => (['shoulder', 'waist', 'hand'] as const).map((part) => {
+          const contact = part === 'shoulder' ? 'leftUpperArm' : part === 'waist' ? 'waist' : 'rightHand';
+          return { title: `${x.name}'s ${CONTACT_LABELS[contact].toLowerCase()}`, icon: Hand, run: () => hold(x.id, contact) };
+        })),
+      ];
+    },
   },
   {
     // The same moves for someone else (a crowd, a synchronised routine).
@@ -446,9 +507,18 @@ export const COMMANDS: Command[] = [
     // Into anyone's hand.
     id: 'prop.give', title: 'Give to', icon: Hand,
     when: (c) => { const p = c.prop && propNow(c.store, c.prop); return !!p && HOLDABLE.includes(p.kind); },
-    items: (c) => sceneOf(c).figures.filter((x) => !x.hidden && !x.proxy).flatMap((x) => (['R', 'L'] as const).map((h) => ({
-      title: `${x.name}'s ${hand(h)} hand`, icon: Hand, run: () => holdProp(c.store, c.prop!, { figure: x.id, hand: h }),
-    }))),
+    items: (c) => [
+      {
+        title: 'Whom you click…', icon: Hand,
+        run: () => App().pickThing?.('Click who takes it (into the hand nearer where you click) · Esc cancels', (hit) => {
+          const f = hit.figure && sceneOf(c).figures.find((x) => x.id === hit.figure && !x.proxy);
+          if (f) holdProp(c.store, c.prop!, { figure: f.id, hand: hit.contact === 'leftHand' || hit.contact === 'leftUpperArm' ? 'L' : 'R' });
+        }),
+      },
+      ...sceneOf(c).figures.filter((x) => !x.hidden && !x.proxy).flatMap((x) => (['R', 'L'] as const).map((h) => ({
+        title: `${x.name}'s ${hand(h)} hand`, icon: Hand, run: () => holdProp(c.store, c.prop!, { figure: x.id, hand: h }),
+      }))),
+    ],
   },
   {
     // Someone else takes it from the hand holding it (a handoff).
@@ -623,7 +693,6 @@ export const COMMANDS: Command[] = [
     id: 'scene.delete', title: 'Delete', icon: Trash2, danger: true, when: (c) => c.scene !== undefined, enabled: (c) => c.store.getState().library.scenes.length > 1,
     run: (c) => { const s = c.store.getState().library.scenes[c.scene!]; if (deleteScene(c.store, c.scene!)) App().notifyUndo(`Deleted “${s.name}”`); },
   },
-  { id: 'scene.animate', title: 'Animate', icon: Play, when: (c) => !animated(c), run: (c) => { startAnimation(c.store); App().notify('Animation started: pose the figures at other times on the timeline'); } },
 
   // How a figure gets to a key (from its previous one): glide as keyed, walk, run or jump; for a jump its height and turns.
   {
@@ -696,14 +765,32 @@ export const COMMANDS: Command[] = [
     enabled: (c) => stops(c).some((t) => t > c.store.getState().time + 1e-3), run: (c) => stepTo(c, (now) => stops(c).find((x) => x > now + 1e-3)),
   },
   {
-    id: 'timeline.key', title: (c) => `${keysHere(c).on ? 'Update' : 'Add'} ${keyName(c)}`, help: 'Key the selected figure', icon: Diamond, keys: ['k'], when: animated, checked: (c) => keysHere(c).on,
-    run: (c) => { App().stopPlayback(); addKeyframe(c.store); },
+    id: 'timeline.key', title: (c) => (animated(c) ? `${keysHere(c).on ? 'Update' : 'Add'} ${keyName(c)}` : 'Key the pose: animate the scene'),
+    help: 'Key the selected figure (in a still scene: start animating it)', icon: Diamond, keys: ['k'], checked: (c) => keysHere(c).on,
+    run: (c) => {
+      App().stopPlayback();
+      // The first key makes a still scene animated: the pose as it is is its first key.
+      if (!animated(c)) {
+        startAnimation(c.store);
+        App().notify('Animated: move the playhead and pose the figures for the next key');
+      } else addKeyframe(c.store);
+    },
   },
   {
     id: 'timeline.deleteKey', title: (c) => `Delete ${keyName(c)}`, icon: Trash2, when: animated,
     enabled: (c) => keysHere(c).on && keysHere(c).times.length > 1, run: (c) => deleteKeyframe(c.store),
   },
-  { id: 'timeline.cut', title: 'Cut: start a new shot here', icon: Scissors, keys: ['c'], when: animated, run: (c) => { App().stopPlayback(); cutShot(c.store); } },
+  {
+    id: 'timeline.cut', title: (c) => (c.store.getState().through ? 'Cut here, filmed from this view by a new camera' : 'Cut: start a new shot here'),
+    help: 'Cut: start a new shot here (looking through a camera: filmed from this view by a new camera)', icon: Scissors, keys: ['c'], when: animated,
+    run: (c) => {
+      App().stopPlayback();
+      const view = c.store.getState().through ? App().captureShot() : null;
+      cutShot(c.store);
+      // Looking through: the new shot is filmed by a new camera as the view is now, and looked through.
+      if (view) c.store.lookThrough({ camera: addCamera(c.store, view) });
+    },
+  },
   {
     id: 'timeline.cameraPoint', title: (c) => { const cam = rowCamera(c); return `${onCameraPoint(c) ? 'Update' : 'Set'} ${cam.name}${cam.kind === 'path' ? '’s point' : ''} from the view`; },
     icon: Camera, when: animated, checked: (c) => onCameraPoint(c),
@@ -868,17 +955,23 @@ export const MENUS = {
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
     { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw',
-    'figure.eyes', 'figure.copyMoves', '-', 'figure.delete',
+    'figure.eyes', 'figure.holdOn', 'figure.copyMoves',
+    { group: 'Joint' }, 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide', '-', 'figure.delete',
   ],
   prop: [
-    'rename', 'duplicate', '-', 'prop.hold', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot',
+    'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot',
     '-', 'prop.otherEnd', 'prop.lieOn', '-', 'prop.delete',
   ],
   shot: ['rename', 'shot.move', 'shot.camera', '-', 'shot.describe', '-', 'shot.removeCut'],
-  camera: ['camera.deletePoint', '-', 'rename', 'camera.through', 'duplicate', '-', 'camera.delete'],
+  camera: [
+    'camera.deletePoint', '-', 'rename', 'camera.through', 'camera.fromView', 'camera.pointHere', 'duplicate',
+    'camera.size', 'camera.lens', '-', 'camera.delete',
+  ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
   action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', '-', 'action.edit', 'action.remove'],
   key: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
+  light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.shadows'],
+  many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
     { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', '-',
     'floor.figure', 'floor.standIn', 'floor.prop', '-', 'view.frameAll',
@@ -888,38 +981,13 @@ export const MENUS = {
 
 export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name], c);
 
-/**
- * The radial menus of what is selected: up to eight sectors each, in fixed places (a command that
- * does not apply now is greyed, not removed), related ones side by side. `label` names a sector
- * where the command's own title says something else.
- */
-export type PieEntry = { id: string; label?: string };
-export const PIES: Record<'figure' | 'joint' | 'prop' | 'camera', PieEntry[]> = {
-  figure: [
-    { id: 'figure.pose', label: 'Pose' }, { id: 'figure.motion', label: 'Motion' }, { id: 'figure.walk', label: 'Walk to…' }, { id: 'figure.run', label: 'Run to…' },
-    { id: 'figure.eyes', label: 'Eyes on' }, { id: 'figure.holdOn', label: 'Hold on to' }, { id: 'duplicate' }, { id: 'figure.hide' },
-  ],
-  joint: [
-    { id: 'joint.reset', label: 'Reset' }, { id: 'joint.mirror', label: 'Mirror' }, { id: 'joint.parent', label: 'Joint above' }, { id: 'joint.child', label: 'Joint below' },
-    { id: 'pose.copy' }, { id: 'pose.paste' }, { id: 'timeline.key', label: 'Key' }, { id: 'tool.limits', label: 'Limits' },
-  ],
-  prop: [
-    { id: 'tool.move', label: 'Move' }, { id: 'tool.pose', label: 'Turn' }, { id: 'tool.scale', label: 'Scale' }, { id: 'prop.give', label: 'Give to' },
-    { id: 'prop.throwTo', label: 'Throw to' }, { id: 'prop.hold', label: 'Hold' }, { id: 'duplicate' }, { id: 'prop.delete' },
-  ],
-  camera: [
-    { id: 'camera.through', label: 'Look through' }, { id: 'camera.fromView', label: 'From the view' }, { id: 'camera.size', label: 'Size' }, { id: 'camera.lens', label: 'Lens' },
-    { id: 'camera.pointHere', label: 'Point here' }, { id: 'duplicate' },
-  ],
-};
-
 /** A command's choices as a menu of their own (the render styles). */
 export const choices = (id: string, c: Ctx): MenuItem[] => (command(id).items?.(c) ?? []).map((ch) => ({ label: ch.title, icon: ch.icon, checked: ch.checked, disabled: ch.disabled, onSelect: ch.run }));
 
 /** Gestures are not commands: the help dialog lists them with the keys. */
 export const GESTURES: [string, string][] = [
   ['Select a body part', 'Click'],
-  ['Menu for a figure, prop, camera, shot or scene', 'Right click'],
+  ['Menu for a figure, prop, camera, shot or scene', 'Right click (touch: long press)'],
   ['Pose a limb · move a hand or foot', 'Drag it'],
   ['Twist a part · turn a figure or prop', 'Shift drag'],
   ['Move a figure or prop on the floor', 'Drag its torso / it'],

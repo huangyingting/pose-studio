@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleHelp, Ellipsis, X, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, CircleCheck, CircleHelp, Ellipsis, X, type LucideIcon } from 'lucide-react';
 import { PANEL_WIDTH } from '@/lib/store';
 import { endDrag, startDrag, type DropTarget } from './dragdrop';
 
@@ -183,10 +183,53 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
   );
 }
 
+/**
+ * ▲ or ▼ at an end of a menu taller than it can show (it scrolls with the wheel), while there is
+ * more that way; resting the pointer on it scrolls.
+ */
+function MenuScroll({ dir }: { dir: 'up' | 'down' }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const raf = useRef(0);
+  useLayoutEffect(() => {
+    const list = ref.current?.parentElement;
+    if (!list) return;
+    const check = () => {
+      const on = dir === 'up' ? list.scrollTop > 1 : list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+      if (!on) cancelAnimationFrame(raf.current);
+      setMore(on);
+    };
+    check();
+    list.addEventListener('scroll', check);
+    window.addEventListener('resize', check);
+    return () => {
+      list.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+      cancelAnimationFrame(raf.current);
+    };
+  }, [dir]);
+  const roll = (on: boolean) => {
+    cancelAnimationFrame(raf.current);
+    const list = ref.current?.parentElement;
+    if (!on || !list) return;
+    const step = () => {
+      list.scrollTop += dir === 'up' ? -6 : 6;
+      raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+  };
+  return (
+    <div ref={ref} className={`menu-scroll ${dir}${more ? ' on' : ''}`} aria-hidden onPointerEnter={() => roll(true)} onPointerLeave={() => roll(false)}>
+      {dir === 'up' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+    </div>
+  );
+}
+
 /** The items of a menu (shared by drop-down and right-click menus). */
 export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void }) {
   return (
     <>
+      <MenuScroll dir="up" />
       {items.map((it, i) =>
         it === '-' ? (
           <div key={i} className="menu-sep" role="separator" />
@@ -211,6 +254,7 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
           </button>
         ),
       )}
+      <MenuScroll dir="down" />
     </>
   );
 }
@@ -227,12 +271,12 @@ export interface HeaderChrome {
   after?: ReactNode;
 }
 
-/** An inspector's header: the thing's name (to rename it) and its menu (as its right-click menu). */
+/** An inspector's header: the thing's name (to rename it, if it has one of its own) and its menu (as its right-click menu). */
 export function NameHeader({ lead, name, label, onRename, children, chrome, menu }: {
   lead: ReactNode;
   name: string;
   label: string;
-  onRename(name: string): void;
+  onRename?(name: string): void;
   children?: ReactNode;
   chrome?: HeaderChrome;
   menu?: MenuItem[] | (() => MenuItem[]);
@@ -241,7 +285,7 @@ export function NameHeader({ lead, name, label, onRename, children, chrome, menu
     <div className="panel-title">
       {chrome?.before}
       {lead}
-      <TitleInput key={name} name={name} label={label} onRename={onRename} />
+      {onRename ? <TitleInput key={name} name={name} label={label} onRename={onRename} /> : <h2 className="panel-name">{name}</h2>}
       {children}
       {menu && (typeof menu === 'function' || menu.length > 0) && (
         <Menu label={`${name} menu`} className="ibtn" align="end" tip="More" items={menu}>

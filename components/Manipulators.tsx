@@ -5,6 +5,8 @@ import { Line } from '@react-three/drei';
 import { fitWarp, moveMark } from '@/lib/actions';
 import { actionsOf, footprints, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
 import { angle, facingOf, nearer } from '@/lib/pose';
+import { CONTACT_LABELS, contactPoint, type Contact } from '@/lib/relations';
+import { holdOn } from '@/lib/actions';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
@@ -111,6 +113,39 @@ export function nearestText(sv: SceneView, scene: Scene, id: string, at: THREE.V
     if (!best || d < best.d) best = { name: f.name, d };
   }
   return best ? ` · ${metres(best.d)} m from ${best.name}` : '';
+}
+
+/** The points of a body a hand can hold on to, as Reach knows them. */
+const HOLDS: Contact[] = ['head', 'leftUpperArm', 'rightUpperArm', 'chest', 'back', 'waist', 'leftHand', 'rightHand'];
+
+/** The point of a figure's body a hand would hold on to, nearest a point on it. */
+export function nearestContact(m: Mannequin, f: Figure, p: THREE.Vector3) {
+  return HOLDS.map((contact) => ({ contact, at: contactPoint(m, f, contact) })).reduce((b, x) => (x.at.distanceTo(p) < b.at.distanceTo(p) ? x : b));
+}
+
+/**
+ * A hand dragged over someone else's body: the point it would hold on to there (within reach of
+ * the pointer), the hint offering it. Let go there, it holds on (a hold from the playhead).
+ */
+function holdTarget(sv: SceneView, scene: Scene, figure: string, ray: THREE.Ray) {
+  setPointerHint(null);
+  const hits = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(sv.root, true);
+  for (const h of hits) {
+    const o = tagged(h.object);
+    if (!o) continue;
+    // (A prop in front hides who is behind it.)
+    if (o.userData.prop) return null;
+    const id = o.userData.figure as string;
+    if (id === figure) continue;
+    const f = scene.figures.find((x) => x.id === id);
+    const m = sv.figures.get(id);
+    if (!f || !m || f.proxy) return null;
+    const near = nearestContact(m, f, h.point);
+    if (near.at.distanceTo(h.point) > 0.25 * (f.body.height / 1.8)) return null;
+    setPointerHint(`Let go: hold on to ${f.name}'s ${CONTACT_LABELS[near.contact].toLowerCase()}`);
+    return { figure: id, ...near };
+  }
+  return null;
 }
 
 /** A readout of a joint's value as it is dragged, from its value when the drag began. */
@@ -245,6 +280,41 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -point.y);
     const hit = (ray: THREE.Ray, plane: THREE.Plane) => ray.intersectPlane(plane, new THREE.Vector3());
 
+    // One of several selected: they all move (or, Shift-dragged, turn about their middle) together.
+    const sel = store.getState().selection;
+    if (sel?.kind === 'many' && (t.kind === 'prop' ? sel.props.includes(t.prop) : t.kind === 'body' && sel.figures.includes(t.figure))) {
+      const things = [
+        ...sel.figures.flatMap((id) => { const m = sv.figures.get(id); return m ? [{ obj: m.joints.hips, top: m.object, commit: () => store.updateFigure(id, (f) => ({ ...f, ...m.read() })) }] : []; }),
+        ...sel.props.flatMap((id) => { const p = sv.props.get(id); return p ? [{ obj: p.object, top: p.object, commit: () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() })) }] : []; }),
+      ].map((x) => ({ ...x, p: x.obj.position.clone(), q: x.obj.quaternion.clone() }));
+      const middle = things.reduce((m, x) => m.add(x.p), new THREE.Vector3()).divideScalar(Math.max(1, things.length));
+      const up = new THREE.Vector3(0, 1, 0);
+      return {
+        cursor: twist ? 'ew-resize' : 'move',
+        begin: () => {},
+        move: (ray, dx) => {
+          if (twist) {
+            const turn = new THREE.Quaternion().setFromAxisAngle(up, dx * TWIST * D2R);
+            for (const x of things) {
+              const off = x.p.clone().sub(middle).applyQuaternion(turn);
+              x.obj.position.set(middle.x + off.x, x.p.y, middle.z + off.z);
+              x.obj.quaternion.copy(turn).multiply(x.q);
+            }
+            setReadout(turnedText(dx * TWIST));
+          } else {
+            const h = hit(ray, floorPlane);
+            if (!h) return;
+            const [mx, mz] = [h.x - point.x, h.z - point.z];
+            for (const x of things) x.obj.position.set(x.p.x + mx, x.p.y, x.p.z + mz);
+            setReadout(movedText(mx, mz, middle.x + mx, middle.z + mz));
+          }
+          for (const x of things) x.top.updateMatrixWorld(true);
+        },
+        // (One undo step.)
+        end: () => store.group(() => things.forEach((x) => x.commit())),
+      };
+    }
+
     if (t.kind === 'prop') {
       const p = sv.props.get(t.prop);
       if (!p) return null;
@@ -311,7 +381,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
         begin: () => { m.setGroundLock(true); select(); },
         move: (_, dx, dy, e) => {
           const r = drag(dx, dy, e.shiftKey, e.ctrlKey || e.metaKey);
-          setReadout(r.limit !== null ? limitText(joint, r.limit) : sliderText(joint, axis, r.value));
+          setReadout(r.limit !== null ? limitText(joint, r.limit) : sliderText(joint, axis, r.value), undefined, axis);
         },
         end: commit,
       };
@@ -348,16 +418,25 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
       const grab = obj.getWorldPosition(new THREE.Vector3()).sub(point);
       // (The elbow or knee is what the reach bends.)
       const readout = jointReadout(m, chain[1]);
+      // A bare hand let go on someone: it holds on there.
+      const hand = t.kind === 'end' && (t.joint === 'leftHand' || t.joint === 'rightHand') ? t.joint : null;
+      let onto: ReturnType<typeof holdTarget> = null;
       return {
         cursor: 'grab',
         begin: () => { m.setGroundLock(true); select(); },
         move: (ray) => {
-          const h = hit(ray, facingPlane);
+          onto = hand ? holdTarget(sv, scene, t.figure, ray) : null;
+          const h = onto ? onto.at.clone() : hit(ray, facingPlane)?.add(grab);
           if (!h) return;
-          reachAboveFloor(m, chain, h.add(grab), startQ, limits);
-          readout();
+          reachAboveFloor(m, chain, h, startQ, limits);
+          if (!onto) readout();
         },
-        end: commit,
+        end: () => {
+          commit();
+          if (hand && onto && !holdOn(store, t.figure, hand === 'leftHand' ? 'L' : 'R', onto.figure, onto.contact)) {
+            setPointerHint(`${scene.figures.find((f) => f.id === onto!.figure)?.name} is out of reach`);
+          }
+        },
       };
     }
 
@@ -451,7 +530,7 @@ export function SceneObjects({ sv, store, scene, limits, gizmoActive, onClick }:
     const t = o && target(o);
     if (!t) return;
     sv.setHover(hover(t, e.shiftKey));
-    // Its row in the outline shows it too; the hint chip says what each gesture on it does.
+    // Its row in the outline shows it too; the header's hint says what each gesture on it does.
     store.setLinked(t.kind === 'prop' || t.kind === 'held' ? t.prop : t.figure);
     const name = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? scene.props.find((p) => p.id === id)?.name ?? '';
     setPointerHint(t.kind === 'prop' || t.kind === 'held' ? propHint(name(t.prop), t.kind === 'held') : bodyHint(name(t.figure), t.kind, t.kind === 'body' ? undefined : t.joint));
@@ -663,16 +742,21 @@ interface Drag {
  * stay planted, and the small elbow/knee dots swing the limb around its own axis. They keep a
  * minimum size on screen, and each has a larger invisible area to grab.
  */
-export function IKHandles({ m, figure, limits, onCommit }: {
+export function IKHandles({ m, figure, limits, onCommit, sv, scene, store }: {
   m: Mannequin;
   figure: Figure;
   limits: boolean;
   onCommit(read: Pick<Figure, 'bones' | 'position'>): void;
+  /** (For a hand let go on someone: it holds on there.) */
+  sv: SceneView;
+  scene: Scene;
+  store: Store;
 }) {
   const refs = useRef<Partial<Record<HandleId, THREE.Group | null>>>({});
   const hovered = useRef<HandleId | null>(null);
   const drag = useRef<Drag | null>(null);
   const readout = useRef<(() => void) | null>(null);
+  const onto = useRef<ReturnType<typeof holdTarget>>(null);
   const camera = useThree((s) => s.camera);
   const pointer = usePointer();
   const scale = figure.body.height / 1.8;
@@ -726,7 +810,8 @@ export function IKHandles({ m, figure, limits, onCommit }: {
     e.stopPropagation();
     const hit = e.ray.intersectPlane(d.plane, new THREE.Vector3());
     if (!hit) return;
-    const target = hit.add(d.grab);
+    onto.current = d.id === 'leftHand' || d.id === 'rightHand' ? holdTarget(sv, scene, figure.id, e.ray) : null;
+    const target = onto.current ? onto.current.at.clone() : hit.add(d.grab);
     if (d.id === 'hips') {
       const root = m.joints.hips;
       const plant = () => {
@@ -753,11 +838,15 @@ export function IKHandles({ m, figure, limits, onCommit }: {
   const up = (e: ThreeEvent<PointerEvent>) => {
     if (!drag.current) return;
     (e.target as Element).releasePointerCapture(e.pointerId);
+    const hand = drag.current.id;
     drag.current = null;
     setReadout(null);
     m.setGroundLock(false);
     pointer.orbit(true);
     onCommit(m.read());
+    const on = onto.current;
+    onto.current = null;
+    if (on && !holdOn(store, figure.id, hand === 'leftHand' ? 'L' : 'R', on.figure, on.contact)) setPointerHint(`${scene.figures.find((f) => f.id === on.figure)?.name} is out of reach`);
   };
 
   return (

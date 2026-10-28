@@ -89,9 +89,11 @@ export function placingProp(store: Store, kind: PropKind): Placing {
     ghost: (floor, alt, hit) => {
       const into = hand && hit.figure ? store.scene.figures.find((f) => f.id === hit.figure && !f.proxy) : undefined;
       if (into) {
+        // In its right hand (the figure as it is at the playhead, drawn with it).
         p.at = null;
         p.text = `into ${into.name}'s hand`;
-        return null;
+        const now = (store.scene.animation ? sceneAt(store.scene, store.getState().time) : store.scene).figures.find((f) => f.id === into.id)!;
+        return { ...newScene('Ghost', [now]), props: [{ ...newProp(kind), id: 'ghost', hold: { figure: into.id, hand: 'R' } }] };
       }
       if (!floor) return (p.at = null);
       p.at = alt ? [r2(floor[0]), 0, r2(floor[2])] : [Math.round(floor[0] / GRID) * GRID, 0, Math.round(floor[2] / GRID) * GRID];

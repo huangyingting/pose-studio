@@ -121,6 +121,12 @@ async function openSection(page: Page, name: 'Scene' | 'Library') {
  * Add to the open scene's cast (Figure, Stand-in…) or set (props), from the Scene outline. Chosen
  * with the keyboard: put where it goes (with a click it would be placed with the pointer).
  */
+/** A still scene animated: its first key, from the timeline. */
+async function animate(page: Page) {
+  await page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Key the pose: animate the scene' }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+}
+
 async function addLayer(page: Page, what: string) {
   await openSection(page, 'Scene');
   const cast = what === 'Figure' || what.startsWith('Stand-in');
@@ -207,7 +213,7 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   // Resting on a part says what dragging it does.
   const hand = await project(page, 'leftHand');
   await page.mouse.move(hand.x, hand.y + 2);
-  await expect(page.locator('.canvas-hint')).toContainText('left hand');
+  await expect(page.locator('.bar-hint')).toContainText('left hand');
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
   // In groups (standing, sitting, kneeling, lying); resting on one shows it.
@@ -591,9 +597,7 @@ test('mobile layout uses drawers', async ({ page }) => {
   await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
   expect((await state(page)).sceneIndex).toBe(2);
   // A narrow timeline keeps the transport and the key; the rest is in its menu.
-  await page.getByRole('button', { name: 'Side panel', exact: true }).click();
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
-  await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
+  await animate(page);
   const timeline = page.getByRole('region', { name: 'Timeline' });
   await expect(timeline.getByRole('button', { name: 'Play', exact: true })).toBeInViewport();
   await expect(timeline.getByRole('button', { name: /^Cut/ })).toHaveCount(0);
@@ -715,9 +719,8 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   await page.getByRole('menuitemradio', { name: 'Anime' }).click();
   expect(await style()).toBe('anime');
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
-  // The scene (the crumb in the inspector's header): its light, and a link to the project's settings.
+  // The scene (the crumb in the inspector's header): a link to the project's settings.
   await page.locator('.crumb').click();
-  await expect(page.getByRole('combobox', { name: 'Lighting preset' })).toBeVisible();
   await page.getByRole('button', { name: /^Project settings…/ }).click();
   await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
   await page.keyboard.press('Escape');
@@ -875,7 +878,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
 
 test('a shot is framed by size and lens, and its camera path edited on the canvas', async ({ page }) => {
   await openSection(page, 'Scene');
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await animate(page);
   await page.locator('.tl-shot').first().click();
   const inspector = page.getByRole('complementary', { name: 'Inspector' });
   // The camera the shot films with, moving along a path.
@@ -931,7 +934,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
 
 test('cuts move on the timeline; the camera row shows one camera, which can be looked through', async ({ page }) => {
   await openSection(page, 'Scene');
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await animate(page);
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
   await page.keyboard.press('c');
   const timeline = page.getByRole('region', { name: 'Timeline' });
@@ -957,16 +960,30 @@ test('cuts move on the timeline; the camera row shows one camera, which can be l
   await cameras.getByRole('button', { name: /^Camera 1/ }).click();
   await expect(timeline.getByRole('button', { name: 'Camera 1', exact: true })).toBeVisible();
   await expect(page.locator('.tl-row.camera')).toContainText('Camera 1 · follows everyone');
-  // Looked through from its menu: the letterbox carries its name; Ctrl+D copies it.
+  // Selected, it shows its picture in the canvas's corner.
+  await expect(page.getByRole('button', { name: 'Look through Camera 1' })).toBeVisible();
+  // Looked through from its menu: a banner says the view moves it; Ctrl+D copies it.
   await cameras.getByRole('button', { name: /^Camera 1/ }).click({ button: 'right' });
   await page.getByRole('menuitemradio', { name: 'Look through it' }).click();
-  await expect(page.locator('.letterbox-name')).toHaveText('Camera 1');
+  await expect(page.locator('.letterbox-banner')).toHaveText(/^Moving Camera 1 at \d+\.\d\d s: drag to change it · Esc to stop$/);
   await page.keyboard.press('Control+d');
   expect((await anim(page)).cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2', 'Camera 1 copy']);
+  // Its shot sizes are chips in the picture.
+  await page.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MCU' }).click();
+  expect(((await anim(page)).cameras[0] as Camera & { rig: { size: string } }).rig.size).toBe('mcu');
+  // C cuts here, the new shot filmed from this view by a new camera (looked through); Esc stops looking through.
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
+  await page.keyboard.press('c');
+  const made = await anim(page);
+  expect(made.cameras).toHaveLength(4);
+  expect(made.animation!.shots.find((x) => Math.abs(x.start - 0.5) < 0.05)!.camera).toBe(made.cameras[3].id);
+  await expect(page.locator('.letterbox-banner')).toContainText(made.cameras[3].name);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.letterbox')).toHaveCount(0);
 });
 
 test('a still scene can be animated with auto-keys', async ({ page }) => {
-  await page.getByRole('button', { name: 'Animate' }).first().click();
+  await animate(page);
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
   expect((await anim(page)).time).toBeCloseTo(0.5, 2);
   await unfold(page, 'Joints');
@@ -976,6 +993,8 @@ test('a still scene can be animated with auto-keys', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   const s = await live(page);
   expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 0.5]);
+  // Auto-key says so: the posed figure's row is marked.
+  await expect(page.locator('.tl-row.autokey')).toHaveCount(1);
 });
 
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
@@ -1048,7 +1067,7 @@ test('storyboard: the story shot by shot, captions, reordering, exported from th
   await page.getByRole('menuitem', { name: 'Add to storyboard' }).click();
   await closeScenes(page);
   await openSection(page, 'Scene');
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await animate(page);
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
   await page.keyboard.press('c');
   await page.keyboard.press('b');
@@ -1189,7 +1208,7 @@ test('the side panel switches sections, folds away and remembers it', async ({ p
   await openSection(page, 'Library');
   await expect(page.getByRole('tabpanel').getByRole('tablist', { name: 'Library' })).toBeVisible();
   await openSection(page, 'Scene');
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await animate(page);
   await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
   // Clicking the open section folds the panel; the canvas gets the room.
   const before = (await page.locator('.stage').boundingBox())!.width;
@@ -1243,6 +1262,26 @@ async function floorMenu(page: Page, at: number[], item: string | RegExp) {
   await page.getByRole('menuitem', { name: item }).click();
 }
 
+test('a right-click menu taller than the window scrolls with the wheel and shows which way there is more', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 440 });
+  const canvas = (await page.locator('.stage canvas').boundingBox())!;
+  await page.mouse.click(canvas.x + 40, canvas.y + 40, { button: 'right' });
+  const list = page.locator('.context-menu');
+  await expect(list).toBeVisible();
+  await expect(list.locator('.menu-scroll.down.on')).toBeVisible();
+  await expect(list.locator('.menu-scroll.up.on')).toHaveCount(0);
+  // The wheel over it scrolls it (it stays open); more above now.
+  const box = (await list.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 400);
+  await expect(list.locator('.menu-scroll.up.on')).toBeVisible();
+  await expect(list).toBeVisible();
+  // The wheel elsewhere closes it.
+  await page.mouse.move(canvas.x + canvas.width - 40, canvas.y + 40);
+  await page.mouse.wheel(0, 100);
+  await expect(list).toHaveCount(0);
+});
+
 test('the command palette finds commands, scenes and Library items; Move to… walks a figure to a spot picked on the floor', async ({ page }) => {
   const find = async (text: string) => {
     await page.keyboard.press('Control+k');
@@ -1265,10 +1304,10 @@ test('the command palette finds commands, scenes and Library items; Move to… w
   // Move to…: pick Walk, then a spot on the floor (the hint says what to do).
   await page.getByRole('button', { name: 'Move to…' }).click();
   await page.getByRole('menuitem', { name: 'Walk to…' }).click();
-  await expect(page.locator('.canvas-hint')).toHaveText(/^Click the floor where Figure should walk/);
+  await expect(page.locator('.bar-hint')).toHaveText(/^Click the floor where Figure should walk/);
   const p = await projectPoint(page, [0.8, 0, -1.2]);
   await page.mouse.click(p.x, p.y);
-  await expect(page.locator('.canvas-hint')).not.toHaveText(/^Click the floor/);
+  await expect(page.locator('.bar-hint')).not.toHaveText(/^Click the floor/);
   const s = await live(page);
   const track = actionsOf(s.scene.animation!, s.active);
   expect(track[1].source).toMatchObject({ mode: 'walk' });
@@ -1291,9 +1330,9 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure 2/ }).click();
   await page.keyboard.press('/');
-  await expect(page.locator('.canvas-hint')).toHaveText(/^Only Figure 2/);
+  await expect(page.locator('.bar-hint')).toHaveText(/^Only Figure 2/);
   await page.keyboard.press('/');
-  await expect(page.locator('.canvas-hint')).not.toHaveText(/^Only/);
+  await expect(page.locator('.bar-hint')).not.toHaveText(/^Only/);
 
   // Resting on an outline row links its figure on the canvas.
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure$/ }).hover();
@@ -1334,7 +1373,7 @@ test('adding is placing: a ghost follows the pointer, snaps beside a figure and 
   const spot = await projectPoint(page, [0.6, 0, 0.05]);
   await page.mouse.move(spot.x - 30, spot.y);
   await page.mouse.move(spot.x, spot.y);
-  await expect(page.locator('.canvas-hint')).toHaveText(/^Beside Figure/);
+  await expect(page.locator('.bar-hint')).toHaveText(/^Beside Figure/);
   await page.mouse.click(spot.x, spot.y);
   let s = await live(page);
   expect(s.scene.figures).toHaveLength(2);
@@ -1359,28 +1398,104 @@ test('adding is placing: a ghost follows the pointer, snaps beside a figure and 
   }).toBe(true);
 });
 
-test('the selection is named on the canvas; its radial menu opens from the hub or with Q and runs commands', async ({ page }) => {
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
-  const pie = page.getByRole('menu', { name: 'Actions for Figure' });
-  // From the hub: a command, then one that takes a choice (a pose, from thumbnails).
-  await page.getByRole('button', { name: 'Actions for Figure' }).click();
-  await expect(pie.getByRole('menuitem', { name: 'Walk to…' })).toBeVisible();
-  await pie.getByRole('menuitem', { name: 'Duplicate' }).click();
-  await expect(pie).toHaveCount(0);
-  expect((await state(page)).scene.figures).toHaveLength(2);
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
-  const before = (await state(page)).scene.figures[0].bones;
-  await page.getByRole('button', { name: 'Actions for Figure' }).click();
-  await pie.getByRole('menuitem', { name: 'Pose' }).click();
-  await page.getByRole('menu', { name: 'Pose' }).getByRole('menuitem', { name: 'Cobra' }).click();
-  expect((await state(page)).scene.figures[0].bones).not.toEqual(before);
-  // Q opens it at the pointer; Esc closes it.
-  const canvas = (await page.locator('.stage canvas').boundingBox())!;
-  await page.mouse.move(canvas.x + canvas.width * 0.3, canvas.y + canvas.height * 0.5);
-  await page.keyboard.press('q');
-  await expect(pie).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(pie).toHaveCount(0);
+test('the selection is named on the canvas; a selected joint\'s menu has the joint\'s commands', async ({ page }) => {
+  await page.keyboard.press('1');
+  const elbow = await project(page, 'leftLowerArm');
+  const hand = await project(page, 'leftHand');
+  const at = { x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 };
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('.sel-label')).toHaveText('Figure · Left forearm');
+  expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).not.toEqual([0, 0, 0]);
+  // Right-click it: the joint stays selected, and its menu resets it.
+  await page.mouse.click(at.x, at.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Reset the joint' }).click();
+  expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).toEqual([0, 0, 0]);
+  await expect(page.locator('.sel-label')).toHaveText('Figure · Left forearm');
+});
+
+test('the timeline is always there: what a figure does next from its + at the playhead; a Library pose dropped on its row at a time', async ({ page }) => {
+  test.setTimeout(240_000);
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  expect((await live(page)).scene.animation).toBeFalsy();
+  // A still scene: Add an action, walk, then a spot on the floor.
+  await timeline.getByRole('button', { name: 'Add an action' }).click();
+  const picker = page.getByRole('dialog', { name: 'What Figure does next' });
+  await picker.getByRole('textbox', { name: 'Find an action' }).fill('walk');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.bar-hint')).toHaveText(/^Click the floor where Figure should walk/);
+  const p = await projectPoint(page, [0.8, 0, -1.2]);
+  await page.mouse.click(p.x, p.y);
+  let s = await live(page);
+  expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'travel']);
+  // The row's + at the playhead (the walk's end): a motion from there.
+  const end = s.time;
+  await timeline.getByRole('button', { name: /^What Figure does next, from/ }).click();
+  await picker.getByRole('menuitem', { name: /^Wave hello/ }).click();
+  s = await live(page);
+  const wave = actionsOf(s.scene.animation!, s.active).find((x) => x.source.kind === 'clip')!;
+  expect(wave.start).toBeCloseTo(end, 1);
+  // A pose dragged from the Library onto the row, a quarter of the way along: keyed there.
+  await openSection(page, 'Library');
+  const row = page.getByRole('region', { name: 'Timeline' }).locator('.tl-row').nth(1);
+  const box = (await row.boundingBox())!;
+  await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: 'Cobra', exact: true }).dragTo(row, { targetPosition: { x: box.width / 4, y: box.height / 2 } });
+  s = await live(page);
+  const at = s.scene.animation!.duration / 4;
+  expect(keyTimesOf(s.scene.animation!, s.active).some((t) => Math.abs(t - at) < 0.15)).toBe(true);
+});
+
+test('relations by pointing: a hand let go on someone holds on there; who to look at is clicked on the canvas', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.keyboard.press('1');
+  await addLayer(page, 'Figure');
+  await page.waitForTimeout(400);
+  await animate(page);
+  const [first, second] = (await live(page)).scene.figures;
+  const at = (figure: string, joint: string) => page.evaluate(([f, j]) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(f, j)!, [figure, joint]);
+  // The second's hand nearer the first, dragged onto the first's chest: it holds on there from the playhead.
+  const [l, r] = [await at(second.id, 'leftHand'), await at(second.id, 'rightHand')];
+  const chest = await at(first.id, 'chest');
+  const hand = Math.abs(l.x - chest.x) < Math.abs(r.x - chest.x) ? l : r;
+  await drag(page, hand, chest);
+  let s = await live(page);
+  expect(s.scene.animation!.constraints?.[0]).toMatchObject({ figure: second.id, target: { figure: first.id } });
+  // Eyes on: what is clicked on the canvas.
+  const head = await at(second.id, 'head');
+  await page.mouse.click(head.x, head.y + 4, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'What you click…' }).click();
+  await expect(page.locator('.bar-hint')).toHaveText(/^Click a figure or a prop for Figure 2 to look at/);
+  const face = await at(first.id, 'head');
+  await page.mouse.click(face.x, face.y + 4);
+  s = await live(page);
+  expect(s.scene.figures.find((f) => f.id === second.id)!.gaze).toEqual({ figure: first.id });
+});
+
+test('several things at once: Shift-click adds to the selection; they move together, duplicate and delete as one', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.keyboard.press('1');
+  await addLayer(page, 'Figure');
+  await page.waitForTimeout(400);
+  const [first, second] = (await live(page)).scene.figures;
+  // Shift-click the other figure in the outline: both selected.
+  const cast = page.getByRole('list', { name: 'Cast' });
+  await cast.getByRole('button', { name: /^Figure$/ }).click();
+  await cast.getByRole('button', { name: /^Figure 2/ }).click({ modifiers: ['Shift'] });
+  await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('2 selected');
+  // Dragging one moves both.
+  const chest = await project(page, 'chest');
+  await drag(page, { x: chest.x, y: chest.y - 20 }, { x: chest.x + 80, y: chest.y - 20 });
+  let s = await live(page);
+  const moved = (id: string, before: { position: number[] }) => s.scene.figures.find((f) => f.id === id)!.position[0] - before.position[0];
+  expect(moved(first.id, first)).toBeGreaterThan(0.1);
+  expect(moved(second.id, second)).toBeCloseTo(moved(first.id, first), 1);
+  // Ctrl+D copies both (one step); Delete removes the copies, one undo brings them back.
+  await page.keyboard.press('Control+d');
+  expect((await live(page)).scene.figures).toHaveLength(4);
+  await page.keyboard.press('Delete');
+  expect((await live(page)).scene.figures).toHaveLength(2);
+  await page.keyboard.press('Control+z');
+  s = await live(page);
+  expect(s.scene.figures).toHaveLength(4);
 });
 
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
@@ -1450,7 +1565,7 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
   await addLayer(page, 'Stick');
   let s = await live(page);
   expect(s.scene.props[0].hold).toBeTruthy();
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await animate(page);
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   for (let i = 0; i < 6; i++) await page.keyboard.press('.');
   await floorMenu(page, [1.2, 0, -1], /^Throw .* here$/);
@@ -1549,7 +1664,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
 
   // A shot that follows one figure.
   await openSection(page, 'Scene');
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Animate' }).click();
+  await animate(page);
   await page.locator('.tl-shot').first().click();
   await openShotCamera(page);
   await choose(page, 'Camera subject', second.name);
@@ -1567,13 +1682,32 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   expect(s.scene.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.name).toBe('Master');
 
-  // Dusk light, kept with the scene.
-  await page.getByRole('button', { name: 'Render style' }).click();
-  await page.getByRole('menuitemradio', { name: 'Clay' }).click();
-  await page.locator('.crumb').click();
-  await choose(page, 'Lighting preset', 'Dusk');
+  // The light, selected in the outline: in Line art it says where it shows, and switches to Clay.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Light' }).getByRole('button').click();
+  await page.getByRole('button', { name: 'Switch to Clay' }).click();
+  await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Clay');
+  // Dusk light, kept with the scene; then lit from the left, from the view (its menu).
+  await page.getByRole('group', { name: 'Lighting presets' }).getByRole('button', { name: 'Dusk' }).click();
   s = await live(page);
   expect(s.scene.light?.warmth).toBeGreaterThan(0.5);
+  await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('3');
+  await page.waitForTimeout(400);
+  await page.getByRole('list', { name: 'Light' }).getByRole('button').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Light from here (from the view)' }).click();
+  s = await live(page);
+  expect(Math.abs(s.scene.light!.azimuth - 90)).toBeLessThan(5);
+  await expect(page.getByRole('list', { name: 'Light' })).toContainText('From the left');
+  // Alt-click a figure from the front: lit from the front.
+  await page.keyboard.press('1');
+  await page.waitForTimeout(400);
+  const chest = await project(page, 'chest');
+  await page.keyboard.down('Alt');
+  await page.mouse.click(chest.x, chest.y);
+  await page.keyboard.up('Alt');
+  s = await live(page);
+  expect(Math.abs(s.scene.light!.azimuth)).toBeLessThan(15);
 });
 
 test('a motion file is imported into My motions and given to the figure', async ({ page }) => {

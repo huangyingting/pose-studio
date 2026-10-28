@@ -40,7 +40,9 @@ import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewBall from './ViewBall';
 import type { Placing } from './placing';
-import SelectionPie from './SelectionPie';
+import SelectionLabel from './SelectionLabel';
+import Letterbox from './Letterbox';
+import CameraPip from './CameraPip';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
 import { nextStep, stepDone } from './nextStep';
 
@@ -148,6 +150,7 @@ function App() {
 
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
   const labelPoint = useCallback((sel: NonNullable<typeof selection>) => apiRef.current?.labelPoint(sel) ?? null, []);
+  const projectChest = useCallback((figure: string) => apiRef.current?.project(figure, 'chest') ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
   /** Toast with an Undo button, for destructive actions. */
@@ -255,7 +258,7 @@ function App() {
 
   // A pick mode (Walk to…, Throw to…): the next click on the floor; Esc or picking anything else
   // (another selection, another scene) cancels.
-  const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; ghost?: Placing; selection: typeof selection; scene: string } | null>(null);
+  const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; take?(hit: CanvasHit): void; ghost?: Placing; selection: typeof selection; scene: string } | null>(null);
   const pick = picked && picked.selection === selection && picked.scene === scene.id ? picked : null;
 
   const openFilePicker = useCallback((mode: 'append' | 'replace') => {
@@ -271,6 +274,7 @@ function App() {
       isolated: () => isolate, setIsolated,
       captureShot: () => apiRef.current?.captureShot() ?? null,
       pickFloor: (hint, done) => setPick({ hint, done, selection: store.getState().selection, scene: store.scene.id }),
+      pickThing: (hint, take) => setPick({ hint, done: () => {}, take, selection: store.getState().selection, scene: store.scene.id }),
       place: (ghost) => setPick({ hint: ghost.hint, done: () => {}, ghost, selection: store.getState().selection, scene: store.scene.id }),
       frameSelection: () => frameSelection(),
     });
@@ -320,6 +324,11 @@ function App() {
   // Right-click on the canvas: the menu of what is under the pointer, or of the empty floor.
   const openCanvasMenu = (e: { clientX: number; clientY: number }, hit: CanvasHit) => {
     const sel = store.getState().selection;
+    // Several selected: a right-click on one of them is the menu of them all.
+    if (sel?.kind === 'many' && ((hit.figure && sel.figures.includes(hit.figure)) || (hit.prop && sel.props.includes(hit.prop)))) {
+      openContextMenu(e, menu('many', { store, many: { figures: sel.figures, props: sel.props } }), `${sel.figures.length + sel.props.length} selected`);
+      return;
+    }
     if (hit.camera) {
       store.select({ kind: 'camera', camera: hit.camera });
       openContextMenu(e, menu('camera', { store, camera: hit.camera, at: hit.point }), store.scene.cameras.find((c) => c.id === hit.camera)?.name);
@@ -327,8 +336,10 @@ function App() {
       store.select({ kind: 'prop', prop: hit.prop });
       openContextMenu(e, menu('prop', { store, prop: hit.prop }), store.scene.props.find((p) => p.id === hit.prop)?.name);
     } else if (hit.figure) {
-      if (!(sel?.kind === 'joint' && sel.figure === hit.figure)) store.select({ kind: 'figure', figure: hit.figure });
-      openContextMenu(e, menu('figure', { store, figure: hit.figure }), store.scene.figures.find((f) => f.id === hit.figure)?.name);
+      // (Its selected joint stays selected, and the menu has the joint's commands.)
+      const joint = sel?.kind === 'joint' && sel.figure === hit.figure ? sel.joint : undefined;
+      if (!joint) store.select({ kind: 'figure', figure: hit.figure });
+      openContextMenu(e, menu('figure', { store, figure: hit.figure, joint }), store.scene.figures.find((f) => f.id === hit.figure)?.name);
     } else {
       const floor = hit.floor && ([Math.round(hit.floor[0] * 100) / 100, 0, Math.round(hit.floor[2] * 100) / 100] as Vec3);
       openContextMenu(e, menu('floor', { store, floor }));
@@ -408,6 +419,16 @@ function App() {
             </Menu>
           </div>
         </div>
+        <div className="tb-hint hide-mobile">
+          <Hint
+            pick={pick}
+            note={settings.gizmo !== 'rotate' && !gizmoForSelection
+              ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
+              : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
+                ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
+            quiet={!!through || clock.playing}
+          />
+        </div>
         <div className="tb-center">
           <input
             className="scene-name"
@@ -471,7 +492,7 @@ function App() {
         actions={[{ label: titleOf(command('app.board'), cx), icon: LayoutPanelTop, shortcut: shortcutOf('app.board'), onSelect: () => command('app.board').run!(cx) }]}
       />
 
-      <main className={`stage${scene.animation ? ' animated' : ''}`} style={{ background: style.background }}>
+      <main className="stage" style={{ background: style.background }}>
         <Viewport
           store={store}
           scene={shown}
@@ -487,29 +508,21 @@ function App() {
           onMenu={openCanvasMenu}
           onPick={pick && ((hit) => {
             if (pick.ghost) pick.ghost.drop(hit);
+            else if (pick.take) pick.take(hit);
             else if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.floor);
             setPick(null);
           })}
           placing={pick?.ghost ?? null}
         />
-        {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
+        {through && <Letterbox aspect={frameAspect()} guides={settings.guides} camera={through.camera} project={projectChest} />}
+        {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} />}
-        <SelectionPie labelPoint={labelPoint} hidden={!!through || !!pick} />
+        <SelectionLabel labelPoint={labelPoint} hidden={!!through || !!pick} />
         {referenceUrl && scene.reference?.visible && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="reference" src={referenceUrl} alt="" style={{ opacity: scene.reference.opacity }} />
         )}
-        {scene.animation && (
-          <Timeline clock={clock} notify={notify} />
-        )}
-        <CanvasHint
-          pick={pick}
-          note={settings.gizmo !== 'rotate' && !gizmoForSelection
-            ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
-            : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
-              ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
-          quiet={!!through || clock.playing}
-        />
+        <Timeline clock={clock} notify={notify} />
       </main>
 
       <Inspector ctx={ctx} onHide={toggleInspector} />
@@ -574,40 +587,24 @@ function correction(scene: Scene, figureId: string | null, time: number) {
   return `Posing here corrects ${what}`;
 }
 
-/** The shot's frame over the canvas, and (looking through one camera) its name. */
-function Letterbox({ aspect, guides, name }: { aspect: number; guides: boolean; name?: string }) {
-  return (
-    <div className="letterbox" aria-hidden>
-      <div style={{ '--aspect': aspect } as CSSProperties}>
-        {name && <span className="letterbox-name">{name}</span>}
-        {guides && (
-          <>
-            <i className="third v1" /><i className="third v2" /><i className="third h1" /><i className="third h2" />
-            <i className="safe action" /><i className="safe title" />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /**
- * The canvas's one hint (its own component: it changes as the pointer moves): a pick in progress;
- * what the gestures on what is under the pointer do; the tool's, a correction's or Isolate's note;
- * else a next step for the scene, with its command as a button.
+ * The hint in the header bar (its own component: it changes as the pointer moves): what a pick in
+ * progress wants; what each gesture does on what is under the pointer; the tool's, a correction's
+ * or Isolate's note; else a next step for the scene, with its commands as buttons (the floor's
+ * gestures while the pointer is on the empty canvas).
  */
-function CanvasHint({ pick, note, quiet }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean }) {
+function Hint({ pick, note, quiet }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean }) {
   const store = useStore();
   useScene();
   const pointerHint = usePointerHint();
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
   const hint = pick ? (pick.ghost ? pointerHint ?? pick.hint : pick.hint) : pointerHint ?? note;
-  if (hint) return <div className="canvas-hint" role="status">{hint}</div>;
+  if (hint) return <div className="bar-hint" role="status">{hint}</div>;
   const step = !quiet ? nextStep(store) : null;
-  if (!step) return overCanvas && !quiet ? <div className="canvas-hint" role="status">{FLOOR_HINT}</div> : null;
+  if (!step) return overCanvas && !quiet ? <div className="bar-hint" role="status">{FLOOR_HINT}</div> : null;
   return (
-    <div className="canvas-hint step" role="status" aria-label="Next step">
+    <div className="bar-hint step" role="status" aria-label="Next step">
       <span>{step.text}</span>
       {step.actions.map((a) => (
         <button key={a.label} type="button" className="hint-action" onClick={() => { a.run(); setSteps((n) => n + 1); }}>{a.label}</button>

@@ -36,7 +36,7 @@ export function FigureHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
       name={figure.name}
       label="Figure name"
       onRename={(name) => renameFigure(t.store, figure.id, name)}
-      menu={() => menu('figure', { store: t.store, figure: figure.id })}
+      menu={() => menu('figure', { store: t.store, figure: figure.id, joint: t.joint })}
     >
       {figure.hidden && <span className="title-note">Hidden</span>}
     </NameHeader>

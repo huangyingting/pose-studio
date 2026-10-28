@@ -6,10 +6,12 @@ import { Check, ChevronDown, ChevronRight, Ellipsis, Search } from 'lucide-react
 import { PREVIEW_SIZE, requestThumb, runPreview, type PreviewJob } from '@/lib/previews';
 import { spanAt } from '@/lib/shots';
 import type { LibraryTab } from '@/lib/store';
+import type { Scene } from '@/lib/types';
 import { styleDef } from '@/lib/styles';
 import { useFilm, useStore, useStudio } from '../store-context';
 import { IconButton, Menu } from '../ui';
 import { endDrag, startDrag } from '../dragdrop';
+import { setHoverGhost } from '../hints';
 import { LIBRARY_CATEGORIES, type LibraryCategory, type LibraryItem, type LibraryUi, type Thumb } from './libraryItems';
 import type { SectionProps } from './sections';
 
@@ -180,7 +182,7 @@ function List({ category, title, items, preview }: { category: LibraryCategory; 
             draggable={!!it.drop}
             onDragStart={it.drop && ((e) => { startDrag(e, it.drop!); })}
             onDragEnd={it.drop && endDrag}
-            {...(it.preview ? preview(it.name, it.note, it.preview) : {})}
+            {...(it.preview ? preview(it.name, it.note, it.preview, it.ghost) : {})}
           >
             {category.grid ? (
               <>
@@ -230,7 +232,7 @@ export function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: b
 /* ---------------- preview on hover ---------------- */
 
 interface Shown { title: string; note?: string; frames: string[]; top: number; left: number }
-type Bind = (title: string, note: string | undefined, job: () => PreviewJob) => {
+type Bind = (title: string, note: string | undefined, job: () => PreviewJob, ghost?: () => Scene | null) => {
   onPointerEnter(e: PointerEvent<HTMLElement>): void;
   onPointerLeave(): void;
   onFocus(e: FocusEvent<HTMLElement>): void;
@@ -252,8 +254,9 @@ function usePreview() {
     window.clearTimeout(timer.current);
     stop.current();
     setShown(null);
+    setHoverGhost(null);
   };
-  const show = (el: HTMLElement, title: string, note: string | undefined, job: () => PreviewJob) => {
+  const show = (el: HTMLElement, title: string, note: string | undefined, job: () => PreviewJob, ghost?: () => Scene | null) => {
     window.clearTimeout(timer.current);
     stop.current();
     // A short wait, so passing over the list does not start every item on the way.
@@ -264,16 +267,19 @@ function usePreview() {
       setShown({ title, note, frames: [], left: panel.right + 8, top: Math.max(56, Math.min(window.innerHeight - height - 8, row.top - 40)) });
       // Frames arrive one by one: the card shows the first at once and plays as more come.
       stop.current = runPreview(job(), (frames) => setShown((s) => (s && s.title === title ? { ...s, frames } : s)));
+      // And on the canvas: the selected figure as it would be.
+      setHoverGhost(ghost?.() ?? null);
     }, 160);
   };
   useEffect(() => () => {
     window.clearTimeout(timer.current);
     stop.current();
+    setHoverGhost(null);
   }, []);
-  const bind: Bind = (title, note, job) => ({
-    onPointerEnter: (e) => { if (e.pointerType === 'mouse') show(e.currentTarget, title, note, job); },
+  const bind: Bind = (title, note, job, ghost) => ({
+    onPointerEnter: (e) => { if (e.pointerType === 'mouse') show(e.currentTarget, title, note, job, ghost); },
     onPointerLeave: hide,
-    onFocus: (e) => { if (e.currentTarget.matches(':focus-visible')) show(e.currentTarget, title, note, job); },
+    onFocus: (e) => { if (e.currentTarget.matches(':focus-visible')) show(e.currentTarget, title, note, job, ghost); },
     onBlur: hide,
     // Used: the preview has done its job (and stops rendering).
     onPointerDown: hide,

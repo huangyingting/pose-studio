@@ -32,6 +32,10 @@ export interface Target {
   action?: Action;
   /** Whose track the action is on. */
   actionFigure?: string;
+  /** The scene's key light. */
+  light?: boolean;
+  /** Several figures and props at once. */
+  many?: { figures: Figure[]; props: Prop[] };
 }
 
 /** The target of the selection; nothing selected (or what was is gone): the scene. */
@@ -43,6 +47,8 @@ export function targetOf(store: Store, ctx: InspectorContext): Target {
   switch (selection?.kind) {
     case 'prop': { const prop = scene.props.find((p) => p.id === selection.prop); return prop ? { ...t, prop } : t; }
     case 'shot': { const span = a && shotSpans(a).find((sp) => sp.shot.id === selection.shot); return span ? { ...t, span } : t; }
+    case 'light': return { ...t, light: true };
+    case 'many': return { ...t, many: { figures: scene.figures.filter((f) => selection.figures.includes(f.id)), props: scene.props.filter((p) => selection.props.includes(p.id)) } };
     case 'camera': { const camera = scene.cameras.find((c) => c.id === selection.camera); return camera ? { ...t, camera } : t; }
     case 'action': { const action = a?.actions.find((x) => x.id === selection.action); return action ? { ...t, action, actionFigure: selection.figure } : t; }
     case 'figure':

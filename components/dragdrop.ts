@@ -8,6 +8,8 @@ import type { Vec3 } from '@/lib/types';
 
 export interface DropTarget {
   figure?(id: string): void;
+  /** How long what it adds to a figure lasts (a motion): its block, where it would go on a track. */
+  length?: number;
   floor?(at: Vec3): void;
   shot?(id: string): void;
 }

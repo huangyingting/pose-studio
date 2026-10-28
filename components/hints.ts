@@ -2,12 +2,12 @@
 
 import { useSyncExternalStore } from 'react';
 import { JOINT_LABELS, axisLabels } from '@/lib/joints';
-import type { JointName, Vec3 } from '@/lib/types';
+import type { JointName, Scene, Vec3 } from '@/lib/types';
 
 /*
- * What the canvas's hint chip says about the pointer: what each gesture does on what is under it
+ * What the header bar's hint says about the pointer: what each gesture does on what is under it
  * (set by the canvas's objects as the pointer comes and goes). Kept apart from the store: it
- * changes as the pointer moves, and only the chip shows it.
+ * changes as the pointer moves, and only the hint shows it.
  */
 
 let current: string | null = null;
@@ -58,7 +58,9 @@ export function dotHint(id: string) {
 }
 
 export const ringHint = (name: string) => `Drag the ring: turn ${name} · Shift: 15° steps`;
-export const cameraHint = (name: string) => `Drag: move ${name} across the floor · Shift-drag: up and down · Double-click its path: add a point`;
+export const cameraHint = (name: string, rig = false) => (rig
+  ? `${name} places itself on its subject · Wheel: shot size · Shift-wheel: lens · Click: its angle and height handles`
+  : `Drag: move ${name} across the floor · Shift-drag: up and down · Double-click its path: add a point`);
 export const FLOOR_HINT = 'Drag: orbit · Right-click: walk here, add something here';
 
 /** Whether the last input was the pointer's (a click), not the keyboard's: what was asked for with a click is placed with the pointer. */
@@ -75,13 +77,14 @@ export const viaPointer = () => pointerLast;
  * The readout beside the pointer while something is dragged: how far it has moved, how far it has
  * turned, a joint's value, a prop's height (with `drop`, the point a dashed line goes down from).
  */
-export interface Readout { text: string; x: number; y: number; drop?: Vec3 }
+export interface Readout { text: string; x: number; y: number; drop?: Vec3; axis?: number }
 let readout: Readout | null = null;
 const readers = new Set<() => void>();
 
-export function setReadout(text: string | null, drop?: Vec3) {
+/** (`axis`: a joint's slider, marked in its axis's colour.) */
+export function setReadout(text: string | null, drop?: Vec3, axis?: number) {
   if (!text && !readout) return;
-  readout = text ? { text, ...pointerAt, drop } : null;
+  readout = text ? { text, ...pointerAt, drop, axis } : null;
   readers.forEach((l) => l());
 }
 
@@ -109,4 +112,18 @@ export const arcHint = (joint: JointName, axis: number) => `Drag: ${sliderName(j
 export function jointText(joint: JointName, before: Vec3, now: Vec3) {
   const axis = [0, 1, 2].reduce((b, a) => (Math.abs(now[a] - before[a]) > Math.abs(now[b] - before[b]) ? a : b));
   return sliderText(joint, axis, now[axis]);
+}
+
+/** What the Library item under the pointer would make of the selected figure: a ghost on the canvas. */
+let ghost: Scene | null = null;
+const ghostReaders = new Set<() => void>();
+
+export function setHoverGhost(scene: Scene | null) {
+  if (scene === ghost) return;
+  ghost = scene;
+  ghostReaders.forEach((l) => l());
+}
+
+export function useHoverGhost() {
+  return useSyncExternalStore((l) => { ghostReaders.add(l); return () => ghostReaders.delete(l); }, () => ghost, () => null);
 }

@@ -420,7 +420,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .topbar {
   grid-area: top;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   padding: 0 8px;
@@ -511,7 +511,14 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .menu-item kbd { border: 0; background: transparent; color: var(--text-3); padding: 0; }
 .menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 .menu-group { padding: 8px 8px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
-.menu-list { max-height: min(70vh, 560px); overflow-y: auto; }
+.menu-list { max-height: min(70vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
+/* ▲ / ▼ over a scrolling menu's ends while there is more that way (resting on one scrolls). */
+.menu-scroll { display: none; }
+.menu-scroll.on {
+  position: sticky; z-index: 1; display: grid; place-items: center; height: 20px; margin: -5px -5px 0; color: var(--text-2); cursor: default;
+}
+.menu-scroll.up.on { top: -5px; margin-bottom: -20px; background: linear-gradient(var(--panel) 60%, transparent); }
+.menu-scroll.down.on { bottom: -5px; margin-top: -20px; margin-bottom: -5px; background: linear-gradient(transparent, var(--panel) 40%); }
 @keyframes pop { from { opacity: 0; transform: translateY(-3px) scale(0.98); } }
 
 /* ---------- left: section rail + panel ---------- */
@@ -706,37 +713,24 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .toolbar .btn svg:last-child { color: var(--text-3); }
 .toolbar .tb-sep { margin: 0 4px; }
 /* The canvas's one hint (a tool's, a correction's, a pick mode's): bottom-left, above the timeline. */
-.canvas-hint {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  z-index: 3;
-  max-width: calc(100% - 24px);
-  overflow: hidden;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--on-accent);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  pointer-events: none;
+/* The hint in the header bar: what a gesture does, what a pick wants, or a next step with its buttons. */
+.tb-hint { display: flex; align-items: center; min-width: 0; height: 100%; padding: 0 8px; }
+.bar-hint {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 0;
+  color: var(--text-2); font-size: 12px; line-height: 15px;
 }
-.stage.animated .canvas-hint { bottom: calc(var(--tl-h, 150px) + 12px); }
-/* A next step: its commands as buttons in the chip (which takes clicks then). */
-.canvas-hint.step { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; pointer-events: auto; }
-.canvas-hint.step span { overflow: hidden; text-overflow: ellipsis; }
+.bar-hint.step { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.bar-hint.step span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-width: 0; overflow: hidden; }
 .hint-action { flex: none; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600; cursor: pointer; }
 .hint-action:hover { background: var(--accent-hover); }
-.hint-dismiss { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; color: color-mix(in srgb, var(--light) 70%, transparent); cursor: pointer; }
-.hint-dismiss:hover { background: color-mix(in srgb, var(--light) 14%, transparent); }
+.hint-dismiss { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-3); cursor: pointer; }
+.hint-dismiss:hover { background: var(--hover); color: var(--text); }
 
 /* ---------- timeline (animation) ---------- */
 
 /* The canvas sits above the timeline, so the shot letterbox matches what is visible. */
-.stage.animated .canvas-wrap, .stage.animated .letterbox { bottom: var(--tl-h, 150px); }
-.stage.animated .reference { height: calc(100% - var(--tl-h, 150px)); }
+.stage .canvas-wrap, .stage .letterbox { bottom: var(--tl-h, 44px); }
+.stage .reference { height: calc(100% - var(--tl-h, 44px)); }
 .timeline {
   position: absolute;
   left: 0;
@@ -900,7 +894,40 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.rig { background: color-mix(in srgb, var(--run) 14%, transparent); color: var(--run-text); }
 .tl-dim { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-2) 8%, transparent) 0 4px, transparent 4px 8px); pointer-events: none; }
 .tl-camera { display: flex; align-items: center; gap: 4px; }
-.tl-empty { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 11px; pointer-events: none; white-space: nowrap; overflow: hidden; max-width: calc(100% - 16px); text-overflow: ellipsis; }
+.tl-empty {
+  position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px;
+  border: 1px dashed var(--border-strong); border-radius: 999px; background: none; color: var(--text-2); font-size: 11px; white-space: nowrap; cursor: pointer;
+}
+.tl-empty:hover { border-color: var(--accent); color: var(--accent); }
+/* Auto-key: posing the selected figure keys it at the playhead. */
+.tl-row.autokey { box-shadow: inset 3px 0 0 var(--danger); }
+.tl-playhead.autokey { width: 3px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent); }
+.tl-playhead.autokey::before { border-radius: 50%; }
+/* Where a Library item dragged over a row would go (a motion: as long as it lasts). */
+.tl-drop { position: absolute; top: 3px; bottom: 3px; z-index: 2; min-width: 3px; border-radius: 5px; border: 1.5px dashed var(--accent); background: var(--accent-soft); opacity: 0.85; pointer-events: none; }
+/* A row's + at the playhead (just after it): what the figure does next. */
+.tl-add {
+  position: absolute; top: 50%; z-index: 3; display: grid; place-items: center; width: 16px; height: 16px; margin-left: 6px; padding: 0; transform: translateY(-50%);
+  border: 0; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text-2); cursor: pointer; opacity: 0.55;
+}
+.tl-row:hover .tl-add, .tl-row.active .tl-add, .tl-add:focus-visible { opacity: 1; }
+.tl-add:hover { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+/* A still scene's timeline: its bar. */
+.tl-still { padding: 0 6px; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.tl-note { color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* What a figure does next: its picker, opening upwards from the timeline. */
+.action-picker {
+  position: fixed; z-index: 60; display: grid; grid-template-rows: auto minmax(0, 1fr); width: 320px; max-height: 60vh;
+  border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-pop); animation: pop 0.12s ease-out;
+}
+.action-picker-search { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-3); }
+.action-picker-search input { flex: 1; height: 26px; border: 0; background: none; box-shadow: none !important; }
+.action-picker-list { overflow-y: auto; padding: 4px 5px 6px; overscroll-behavior: contain; }
+.action-picker-rows { display: grid; }
+.action-picker-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 0 3px; }
+.action-picker-thumb { display: grid; place-items: center; aspect-ratio: 1; padding: 0; border: 0; border-radius: var(--radius-s); background: var(--panel-2); cursor: pointer; }
+.action-picker-thumb:hover, .action-picker-thumb:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); outline: none; }
+.action-picker-none { padding: 8px; }
 .tl-row.shots { background: none; }
 .tl-shot {
   position: absolute;
@@ -1038,7 +1065,41 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .letterbox .safe.title { inset: 10%; }
 /* The Export dialog's outputs: one choice, in groups. */
 .export-outputs { display: grid; gap: 12px; }
-.letterbox-name { position: absolute; left: 8px; top: 6px; font-size: 12px; color: var(--on-accent); text-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 60%, transparent); }
+/* Looking through: moving the view moves the camera (said at the frame's top), its shot sizes, its subject to drag. */
+.letterbox-banner {
+  position: absolute; top: 8px; left: 50%; z-index: 1; max-width: calc(100% - 16px); margin: 0; padding: 4px 12px; transform: translateX(-50%);
+  border-radius: 999px; background: var(--danger); color: var(--on-accent); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.letterbox-sizes {
+  position: absolute; bottom: 8px; left: 50%; display: flex; gap: 2px; padding: 3px; transform: translateX(-50%);
+  border-radius: 999px; background: color-mix(in srgb, var(--ink) 70%, transparent); pointer-events: auto;
+}
+.letterbox-sizes button { height: 22px; padding: 0 7px; border: 0; border-radius: 999px; background: none; color: var(--on-accent); font: 600 10.5px var(--mono); cursor: pointer; }
+.letterbox-sizes button:hover { background: color-mix(in srgb, var(--light) 18%, transparent); }
+.letterbox-sizes button.on { background: var(--accent); }
+.letterbox-subject {
+  position: absolute; left: 0; top: 0; width: 26px; height: 26px; padding: 0; border: 2px solid var(--on-accent); border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--shade) 40%, transparent); cursor: grab; pointer-events: auto; touch-action: none;
+}
+.letterbox-subject:active { cursor: grabbing; }
+/* Several things selected: their commands. */
+.many-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+/* The light's inspector: a header without a name to change, presets with a thumbnail each, a note in unlit styles. */
+.panel-name { flex: 1; min-width: 0; margin: 0; font-size: 13px; font-weight: 600; }
+.light-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.light-presets button { display: grid; justify-items: center; gap: 2px; padding: 3px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); color: var(--text-2); font-size: 10.5px; cursor: pointer; }
+.light-presets button:hover { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.light-presets button.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
+.light-presets .lib-thumb { width: 100%; aspect-ratio: 1; }
+.light-unlit { display: grid; gap: 6px; padding: 8px; border-radius: var(--radius-s); background: var(--warn-soft); color: var(--text); font-size: 12px; }
+/* The selected camera's picture, in the canvas's bottom-right corner; a click looks through it. */
+.camera-pip {
+  position: absolute; right: 12px; bottom: calc(var(--tl-h, 44px) + 12px); z-index: 3; display: grid; padding: 0; border: 0; border-radius: 8px; overflow: hidden;
+  background: var(--panel); box-shadow: var(--shadow-float), 0 0 0 1px var(--border-strong); cursor: pointer;
+}
+.camera-pip:hover { box-shadow: var(--shadow-float), 0 0 0 2px var(--accent); }
+.camera-pip canvas { display: block; width: 240px; height: auto; }
+.camera-pip-name { position: absolute; left: 6px; bottom: 5px; padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 70%, transparent); color: var(--on-accent); font-size: 11px; font-weight: 600; }
 
 /* ---------- right: inspector ---------- */
 
@@ -1505,7 +1566,7 @@ button.psec-title svg { color: var(--text-3); }
     border-radius: 12px;
     box-shadow: var(--shadow-float);
   }
-  .studio:has(.stage.animated) .toolbar { bottom: calc(var(--tl-h, 150px) + 10px); }
+  .studio .toolbar { bottom: calc(var(--tl-h, 44px) + 10px); }
   .toolbar .menu-list.bottom { top: auto; bottom: calc(100% + 8px); }
   .export-grid, .photo-grid { grid-template-columns: 1fr; }
   .shortcuts { grid-template-columns: 1fr; }
@@ -1821,6 +1882,9 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 @keyframes arc-limit { 50% { opacity: 0.25; } }
 /* A joint arc's value, typed where it was double-clicked. */
 .arc-value { position: absolute; z-index: 40; width: 72px; height: 26px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.drag-readout.axis-x { box-shadow: inset 3px 0 0 var(--axis-x); }
+.drag-readout.axis-y { box-shadow: inset 3px 0 0 var(--axis-y); }
+.drag-readout.axis-z { box-shadow: inset 3px 0 0 var(--axis-z); }
 /* The origin's "front" (the way figures face, +Z). */
 .origin-front { position: absolute; top: 0; left: 0; z-index: 1; color: var(--axis-z); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; pointer-events: none; user-select: none; }
 
@@ -1833,38 +1897,15 @@ body.resizing { cursor: col-resize; user-select: none; }
 @media (max-width: 860px) { .panel-edge { display: none; } }
 
 /* A figure's row with nothing in it yet: where to start. */
-.tl-empty { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 11px; white-space: nowrap; pointer-events: none; }
 
 /* The logo, in the theme's colours. */
 .logo .logo-bg { fill: var(--logo-bg); }
 .logo .logo-head { fill: var(--accent); }
 .logo .logo-body { stroke: var(--logo-fg); }
 
-/* What is selected, named on the canvas, with the hub its radial menu opens from. */
-.pie-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+/* What is selected, named on the canvas. */
+.sel-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .sel-label {
-  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 4px; padding: 2px 2px 2px 8px;
-  border-radius: 999px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-float);
-  color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
+  position: absolute; left: 0; top: 0; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: var(--shadow-float); color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
 }
-.sel-hub { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); cursor: pointer; pointer-events: auto; touch-action: none; }
-.sel-hub:hover, .sel-hub[aria-expanded='true'] { background: var(--accent-hover); }
-.pie { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; }
-.pie svg { display: block; filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--shade) 22%, transparent)); }
-.pie-sector { fill: color-mix(in srgb, var(--panel) 96%, transparent); stroke: var(--border); stroke-width: 1; }
-.pie-sector.on { fill: var(--accent-soft); }
-.pie-item { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-2); cursor: pointer; transform: translate(80px, 80px); }
-.pie-item.on { color: var(--accent); }
-.pie-item[aria-disabled='true'] { color: var(--text-3); opacity: 0.45; cursor: default; }
-.pie-hub { position: absolute; left: 50%; top: 50%; display: grid; place-items: center; min-width: 44px; height: 44px; margin: 0; padding: 0 8px; border: 0; border-radius: 999px; background: var(--ink); color: var(--on-accent); transform: translate(-50%, -50%); cursor: pointer; }
-.pie-name { display: inline-flex; align-items: baseline; gap: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.pie-name em { font-style: normal; font-weight: 500; opacity: 0.7; }
-.pie-choice {
-  position: absolute; z-index: 5; display: grid; gap: 1px; max-height: 260px; min-width: 150px; padding: 4px; overflow-y: auto;
-  border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-pop); pointer-events: auto;
-}
-.pie-choice button { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font-size: 12px; text-align: left; cursor: pointer; }
-.pie-choice button:hover:not(:disabled) { background: var(--hover); }
-.pie-choice button[aria-checked='true'] { color: var(--accent); font-weight: 600; }
-.pie-choice.grid { grid-template-columns: repeat(4, 56px); }
-.pie-choice.grid button { height: 56px; padding: 0; justify-content: center; background: var(--panel-2); }

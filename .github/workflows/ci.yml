@@ -1,9 +1,16 @@
 name: CI
 
+# Off the development machine: the checks, the two-person matrix and the browser tests (split
+# across four runners), side by side. Pushes are not held for it; failures are fixed after.
 on:
   push:
     branches: [main]
   pull_request:
+
+# A newer push makes an older run moot.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -20,10 +27,35 @@ jobs:
       - run: npm test
       # The static edition (GitHub Pages) must not contain any account, sync or AI code.
       - run: npm run build:static && ! grep -rlE "next-auth|/api/ai|/api/library" out
+
+  pairs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:pairs
+
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npx playwright test --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: test-results/

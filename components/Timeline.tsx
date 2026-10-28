@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
-import { Activity, Camera, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Trash2, Users } from 'lucide-react';
+import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { Activity, Camera, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
   deleteCorrection, moveAction, moveKeyframe, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
@@ -16,6 +16,7 @@ import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { choices, command, menu, menuItems, setApp, tipOf, titleOf, type Ctx } from './commands';
+import ActionPicker, { type PickerAt } from './ActionPicker';
 import { CommandButton } from './CommandButton';
 import { dragged, endDrag } from './dragdrop';
 import { stepDone } from './nextStep';
@@ -33,6 +34,78 @@ export function usePlayhead(clock: Clock) {
 const TICKS = [1 / 24, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30];
 const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
 
+/** The timeline's height, for the canvas above it (and, on phones, the canvas tools); its width too. */
+function useHeight(root: RefObject<HTMLDivElement | null>, setWidth?: (w: number) => void) {
+  useEffect(() => {
+    const el = root.current;
+    const studio = el?.closest<HTMLElement>('.studio');
+    if (!el || !studio) return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      studio.style.setProperty('--tl-h', `${Math.ceil(r.height)}px`);
+      setWidth?.(r.width);
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); studio.style.removeProperty('--tl-h'); };
+  }, [root, setWidth]);
+}
+
+/**
+ * The timeline under the canvas, always there. A still scene's is its bar: a key, or an action
+ * from the + picker, makes the scene animated. Each figure's row has a + at the playhead for what
+ * it does next.
+ */
+export default function Timeline({ clock, notify }: { clock: Clock; notify: Notify }) {
+  const scene = useScene();
+  const [picker, setPicker] = useState<(PickerAt & { scene: string }) | null>(null);
+  const open = (figure: string, el: Element) => {
+    const r = el.getBoundingClientRect();
+    setPicker({ figure, x: r.left, y: r.top, scene: scene.id });
+  };
+  return (
+    <>
+      {scene.animation ? <Tracks clock={clock} notify={notify} openPicker={open} /> : <Still openPicker={open} />}
+      {picker?.scene === scene.id && <ActionPicker at={picker} onClose={() => setPicker(null)} />}
+    </>
+  );
+}
+
+/** A still scene's timeline: its bar, with a key (which starts the animation) and an action for the selected figure. */
+function Still({ openPicker }: { openPicker(figure: string, el: Element): void }) {
+  const store = useStore();
+  const scene = useScene();
+  const root = useRef<HTMLDivElement>(null);
+  useHeight(root);
+  const activeId = useStudio((st) => st.activeFigure);
+  const active = scene.figures.find((f) => f.id === activeId && !f.proxy) ?? scene.figures.find((f) => !f.proxy);
+  const c: Ctx = { store };
+  return (
+    <div className="timeline folded still" role="region" aria-label="Timeline" ref={root}>
+      <div className="tl-bar">
+        <span className="tl-still">Still image</span>
+        <span className="tl-sep" />
+        <button
+          type="button"
+          className="btn ghost tl-btn"
+          aria-label={titleOf(command('timeline.key'), c)}
+          data-tip={tipOf('timeline.key', titleOf(command('timeline.key'), c))}
+          data-tip-side="top"
+          onClick={() => command('timeline.key').run!(c)}
+        >
+          <Diamond size={15} aria-hidden /> <span className="tl-label">Key</span>
+        </button>
+        {active && (
+          <button type="button" className="btn ghost tl-btn" onClick={(e) => openPicker(active.id, e.currentTarget)} data-tip={`What ${active.name} does: walk somewhere, a motion, a pose…`} data-tip-side="top">
+            <Plus size={15} aria-hidden /> <span className="tl-label">Add an action</span>
+          </button>
+        )}
+        <span className="tl-sep" />
+        <span className="tl-note">A key or an action animates the scene</span>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Keyframe timeline under the canvas: transport, the shots (the cuts between cameras), a key track
  * per figure (and per prop that moves), and one camera's track: the selected camera's, or the one
@@ -40,7 +113,7 @@ const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60];
  * (auto-key). It zooms (Ctrl + wheel, the buttons) and scrolls (Shift + wheel, the bar under it),
  * folds down to its toolbar, and its top edge drags to make it taller.
  */
-export default function Timeline({ clock, notify }: { clock: Clock; notify: Notify }) {
+function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; openPicker(figure: string, el: Element): void }) {
   const store = useStore();
   const scene = useScene();
   const a = scene.animation!;
@@ -51,19 +124,8 @@ export default function Timeline({ clock, notify }: { clock: Clock; notify: Noti
   const root = useRef<HTMLDivElement>(null);
   const [laneWidth, setLaneWidth] = useState(600);
   const [width, setWidth] = useState(1000);
-  // The canvas (and, on phones, the canvas tools) sit above the timeline, whose height grows with the number of figures.
-  useEffect(() => {
-    const el = root.current;
-    const studio = el?.closest<HTMLElement>('.studio');
-    if (!el || !studio) return;
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      studio.style.setProperty('--tl-h', `${Math.ceil(r.height)}px`);
-      setWidth(r.width);
-    });
-    ro.observe(el);
-    return () => { ro.disconnect(); studio.style.removeProperty('--tl-h'); };
-  }, []);
+  // The canvas sits above the timeline, whose height grows with the number of figures.
+  useHeight(root, setWidth);
   useEffect(() => {
     const el = track.current;
     if (!el) return;
@@ -93,6 +155,10 @@ export default function Timeline({ clock, notify }: { clock: Clock; notify: Noti
   // Each figure has its own key track; the key buttons work on the active figure's.
   const activeId = useStudio((st) => st.activeFigure);
   const selected = useStudio((st) => (st.selection?.kind === 'action' ? st.selection.action : null));
+  // Auto-key: posing the selected figure keys it at the playhead (shown in red on its row and the playhead).
+  const keying = useStudio((st) => (st.selection?.kind === 'figure' || st.selection?.kind === 'joint' ? st.selection.figure : null));
+  // A Library item dragged over a row: where (and for how long) it would go.
+  const [dropAt, setDropAt] = useState<{ figure: string; t: number; length?: number } | null>(null);
   const figures = scene.figures;
   const multi = figures.length > 1;
   const active = figures.find((f) => f.id === activeId) ?? figures[0];
@@ -561,8 +627,28 @@ export default function Timeline({ clock, notify }: { clock: Clock; notify: Noti
               return (
                 <div
                   key={f.id}
-                  className={`tl-row${multi && f.id === active?.id ? ' active' : ''}`}
+                  className={`tl-row${multi && f.id === active?.id ? ' active' : ''}${keying === f.id && !f.proxy ? ' autokey' : ''}`}
                   aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}
+                  // A pose or a motion from the Library: onto this figure, at the time it is dropped at.
+                  onDragOver={(e) => {
+                    const d = dragged();
+                    if (!d?.figure || f.proxy) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                    const t = snapTime(a, timeAt(e.clientX));
+                    if (dropAt?.figure !== f.id || dropAt.t !== t) setDropAt({ figure: f.id, t, length: d.length });
+                  }}
+                  onDragLeave={() => setDropAt(null)}
+                  onDrop={(e) => {
+                    const d = dragged();
+                    setDropAt(null);
+                    if (!d?.figure || f.proxy) return;
+                    e.preventDefault();
+                    endDrag();
+                    pause();
+                    store.setTime(snapTime(a, timeAt(e.clientX)));
+                    d.figure(f.id);
+                  }}
                   onContextMenu={(e) => {
                     // How the figure gets from one key (or mark) to the next, for the stretch under the pointer.
                     const at = timeAt(e.clientX);
@@ -620,7 +706,27 @@ export default function Timeline({ clock, notify }: { clock: Clock; notify: Noti
                   })}
                   {/* Nothing to do yet: where to start. */}
                   {!actionsOf(a, f.id).some((x) => x.source.kind !== 'keys') && times.length <= 1 && !f.proxy && (
-                    <span className="tl-empty" aria-hidden>Move to… in the inspector, or right-click the floor</span>
+                    <button type="button" className="tl-empty" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => openPicker(f.id, e.currentTarget)}>
+                      <Plus size={12} aria-hidden /> Add an action
+                    </button>
+                  )}
+                  {/* What it does next, from the playhead. */}
+                  {!f.proxy && time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
+                    <button
+                      type="button"
+                      className="tl-add"
+                      style={{ left: pct(time) }}
+                      aria-label={`What ${f.name} does next, from ${time.toFixed(2)} s`}
+                      data-tip={`What ${f.name} does next, from here`}
+                      data-tip-side="top"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => openPicker(f.id, e.currentTarget)}
+                    >
+                      <Plus size={11} aria-hidden />
+                    </button>
+                  )}
+                  {dropAt?.figure === f.id && (
+                    <span className="tl-drop" style={{ left: pct(dropAt.t), width: dropAt.length ? `${(dropAt.length / span) * 100}%` : undefined }} aria-hidden />
                   )}
                   {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
                     <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} title={ev.title} aria-hidden />
@@ -724,7 +830,14 @@ export default function Timeline({ clock, notify }: { clock: Clock; notify: Noti
                 ))}
               </svg>
             )}
-            {time >= v0 - 1e-6 && time <= v1 + 1e-6 && <div className="tl-playhead" style={{ left: pct(time) }} aria-hidden />}
+            {time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
+              <div
+                className={`tl-playhead${keying ? ' autokey' : ''}`}
+                style={{ left: pct(time) }}
+                title={keying ? `Auto-key: posing ${name(keying)} keys it here` : undefined}
+                aria-hidden
+              />
+            )}
           </div>
           {zoom && (
             <ScrollBar

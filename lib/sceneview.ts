@@ -186,8 +186,8 @@ export class SceneView {
 
   private applySelection() {
     const sel = this.selection;
-    for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, sel?.kind === 'figure' && sel.figure === id);
-    for (const [id, p] of this.props) p.setSelected(sel?.kind === 'prop' && sel.prop === id);
+    for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, (sel?.kind === 'figure' && sel.figure === id) || (sel?.kind === 'many' && sel.figures.includes(id)));
+    for (const [id, p] of this.props) p.setSelected((sel?.kind === 'prop' && sel.prop === id) || (sel?.kind === 'many' && sel.props.includes(id)));
   }
 
   /** Outline a whole figure or prop: the pointer is on it elsewhere (its row in the outline). */

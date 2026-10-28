@@ -4,14 +4,17 @@ import {
   applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate, motionProblem, nearestPartners,
   newShoot, placeTemplate, sceneFromTemplate, setFigureModel,
 } from '@/lib/actions';
-import { clipById, clipScene } from '@/lib/assets';
+import { BUILT_IN, clipById, clipScene } from '@/lib/assets';
+import { sceneAt } from '@/lib/evaluate';
+import { insertClip } from '@/lib/track';
+import type { Figure, Scene } from '@/lib/types';
 import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
 import { BUILT_IN_CHARACTERS, characterImage } from '@/lib/characters';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
 import { newScene } from '@/lib/doc';
 import { filmOf } from '@/lib/film';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
-import { builtInPoses } from '@/lib/poses';
+import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
 import {
   cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, templatePreview, templateThumb, type PreviewJob,
@@ -63,6 +66,8 @@ export interface LibraryItem {
   actions?: { icon: LucideIcon; label: string; run(): void }[];
   /** Dropped on what it applies to (a figure, the floor, a shot), instead of on the selection. */
   drop?: DropTarget;
+  /** What it would make of the selected figure, shown on the canvas while the pointer rests on it. */
+  ghost?(): Scene | null;
 }
 
 export interface LibraryCategory {
@@ -82,13 +87,28 @@ const posableById = (store: Store, id: string) => store.scene.figures.find((f) =
 /** The selected figure, if it can take poses, motions and characters (stand-ins cannot). */
 function posable(store: Store) {
   const { activeFigure, selection } = store.getState();
-  // A prop or a camera selected: nothing for a figure's items to go on (one target at a time).
-  if (selection?.kind === 'prop' || selection?.kind === 'camera') return null;
+  // A prop, a camera, the light or several things selected: nothing for a figure's items to go on (one target at a time).
+  if (selection?.kind === 'prop' || selection?.kind === 'camera' || selection?.kind === 'light' || selection?.kind === 'many') return null;
   const f = store.scene.figures.find((x) => x.id === activeFigure);
   return f && !f.proxy ? f : null;
 }
 
 const style = (store: Store) => filmOf(store.getState().library).style;
+
+/** A figure alone in a scene, for a ghost on the canvas. */
+const ghostOf = (f: Figure) => newScene('Ghost', [{ ...f, id: 'ghost' }]);
+/** A figure as it is at the playhead. */
+const atPlayhead = (store: Store, id: string) => (store.scene.animation ? sceneAt(store.scene, store.getState().time) : store.scene).figures.find((f) => f.id === id);
+
+/** A figure doing a motion from the playhead, half-way through it (a motion's ghost). */
+function motionGhost(store: Store, id: string, clipId: string) {
+  const clip = clipById(clipId);
+  const t = store.scene.animation ? store.getState().time : 0;
+  const s = clip ? insertClip(store.scene, [id], clipId, t) : store.scene;
+  if (s === store.scene) return null;
+  const f = sceneAt(s, t + clip!.duration / 2).figures.find((x) => x.id === id);
+  return f ? ghostOf(f) : null;
+}
 
 function poses(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
@@ -106,6 +126,7 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
     run: () => { if (figure && applyPose(store, figure.id, p.id)) { ui.notifyUndo(`${figure.name}: ${p.name}`); ui.onPick?.(); } },
     drop: { figure: (id) => { const f = posableById(store, id); if (f && applyPose(store, f.id, p.id)) ui.notifyUndo(`${f.name}: ${p.name}`); } },
     preview: () => posePreview(p, style(store)),
+    ghost: figure ? () => { const f = atPlayhead(store, figure.id); return f ? ghostOf(withPose(f, p)) : null; } : undefined,
     thumb: poseThumb(p),
     actions: own ? [{ icon: Trash2, label: `Delete my pose ${p.name}`, run: () => { deletePose(store, p.id); ui.notifyUndo(`Deleted “${p.name}”`); } }] : undefined,
   }));
@@ -159,8 +180,10 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
           if (why) return ui.notify(why);
           if (applyMotion(store, f.id, m.id, solo ? undefined : cast)) ui.notifyUndo(`${[f.name, ...cast.map(nameOf)].join(' and ')}: ${m.name}`);
         },
+        length: m.travel ? undefined : motionLength(m.id),
       },
       preview: () => motionPreview(m.id, m.build, style(store)),
+      ghost: solo && !m.travel && figure ? () => motionGhost(store, figure.id, BUILT_IN + m.id) : undefined,
       // From the waist up, over what the figure is doing (waving while walking).
       actions: solo && !m.travel && figure ? [{
         icon: Layers,
@@ -180,8 +203,9 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     note: figure ? `Click to give it to ${figure.name}` : undefined,
     disabled: !figure,
     run: () => give(m.id, m.name),
-    drop: { figure: (id) => { const f = posableById(store, id); if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`); } },
+    drop: { figure: (id) => { const f = posableById(store, id); if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`); }, length: m.duration },
     preview: () => motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style(store)),
+    ghost: figure ? () => motionGhost(store, figure.id, m.id) : undefined,
     actions: [{ icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
   }));
   return [...built, ...mine];

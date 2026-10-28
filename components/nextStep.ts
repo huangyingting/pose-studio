@@ -4,7 +4,7 @@ import type { Store } from '@/lib/store';
 import { command, type Ctx } from './commands';
 
 /*
- * The next step the canvas's hint chip suggests for where the scene is: one at a time, each with
+ * The next step the header bar's hint suggests for where the scene is: one at a time, each with
  * its command as a button. A suggestion acted on, or dismissed, does not come back for that scene
  * (kept on this device).
  */

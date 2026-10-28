@@ -4,11 +4,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, Line, OrbitControls, TransformControls } from '@react-three/drei';
-import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint } from '@/lib/actions';
+import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint, setSceneLight, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
-import { DEFAULT_LIGHT, LightRig } from '@/lib/lighting';
+import { DEFAULT_LIGHT, LightRig, lightFrom } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { AXIS_COLORS } from '@/lib/views';
@@ -17,14 +17,16 @@ import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
-import type { JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { Figure, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestText, sliderAxis, valuesOf } from './Manipulators';
+import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, sliderAxis, valuesOf } from './Manipulators';
+import type { Contact } from '@/lib/relations';
 import JointArcs, { type JointOnScreen } from './JointArcs';
+import CameraHandles, { stepRig } from './CameraHandles';
+import LightHandles from './LightHandles';
 import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
-import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useReadout } from './hints';
-import { openPie } from './commands';
+import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
 import type { Placing } from './placing';
 
 export interface ViewportApi {
@@ -49,7 +51,8 @@ export interface ViewportApi {
 }
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
-export type CanvasHit = { figure?: string; prop?: string; camera?: string; point?: number; floor?: Vec3 };
+/** What is under a point of the canvas: a figure (and the point of its body a hand would hold), a prop, a camera (and its path's point), the floor there. */
+export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3 };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -129,12 +132,25 @@ export default function Viewport({
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
+    // (The click that picked something: what was selected stays so.)
+    if (performance.now() - pickedAt.current < 300) { e.stopPropagation(); return; }
+    // Alt-click: light that point from where the view is.
+    if (e.nativeEvent.altKey) {
+      e.stopPropagation();
+      setSceneLight(store, lightFrom(scene.light ?? DEFAULT_LIGHT, e.camera.position.clone().sub(e.point)), '');
+      return;
+    }
     let o: THREE.Object3D | null = e.object;
     while (o && !o.userData.joint && !o.userData.prop) o = o.parent;
     if (!o) return;
     // A see-through prop (in front of the figure being edited) lets the click through.
     if (o.userData.prop && sv.props.get(o.userData.prop as string)?.parts.faded) return;
     e.stopPropagation();
+    // Shift-click: add it to what is selected (a figure as a whole), or take it away.
+    if (e.nativeEvent.shiftKey) {
+      toggleSelected(store, o.userData.prop ? { prop: o.userData.prop as string } : { figure: o.userData.figure as string });
+      return;
+    }
     if (o.userData.prop) store.select({ kind: 'prop', prop: o.userData.prop as string });
     else if (figureDoc(o.userData.figure as string)?.proxy) {
       // Stand-ins are placed, not posed: a click picks the whole figure.
@@ -199,7 +215,7 @@ export default function Viewport({
       onPointerLeave={() => { setCanvasPointer(false); setPointerHint(null); }}
       onPointerDown={(e) => {
         downAt.current = [e.clientX, e.clientY];
-        // A long press on touch: what is under the finger, selected, with its radial menu (touch has no right-click).
+        // A long press on touch: what is under the finger, selected, and its menu (touch has no right-click).
         window.clearTimeout(longPress.current);
         if (e.pointerType !== 'touch') return;
         const [x, y] = [e.clientX, e.clientY];
@@ -210,15 +226,14 @@ export default function Viewport({
           if (hit.camera) store.select({ kind: 'camera', camera: hit.camera });
           else if (hit.prop) store.select({ kind: 'prop', prop: hit.prop });
           else if (hit.figure) store.select({ kind: 'figure', figure: hit.figure });
-          else return;
-          openPie({ x, y });
+          onMenu({ clientX: x, clientY: y }, hit);
         }, 550);
       }}
       onPointerMove={(e) => { if (e.pointerType === 'touch' && Math.hypot(e.clientX - downAt.current[0], e.clientY - downAt.current[1]) > 8) window.clearTimeout(longPress.current); }}
       onPointerCancel={() => window.clearTimeout(longPress.current)}
       onPointerUpCapture={(e) => {
         // Picking: a click (dragging still orbits) is the pick. (The release goes on to the view's
-        // controls; a figure under the pointer is selected, which ends the pick mode.)
+        // controls; the click that follows selects nothing.)
         const [x, y] = downAt.current;
         if (!onPick || e.button !== 0 || Math.hypot(e.clientX - x, e.clientY - y) > 4 || !(e.target instanceof HTMLCanvasElement)) return;
         pickedAt.current = performance.now();
@@ -303,13 +318,16 @@ export default function Viewport({
           />
         )}
         {/* (Not while a prop or a camera is what is selected: one target at a time.) */}
-        {handles && active && activeDoc && !activeDoc.proxy && selection?.kind !== 'prop' && selection?.kind !== 'camera' && (
+        {handles && active && activeDoc && !activeDoc.proxy && selection?.kind !== 'prop' && selection?.kind !== 'camera' && selection?.kind !== 'light' && selection?.kind !== 'many' && (
           <IKHandles
             key={`${activeDoc.id}:${version}`}
             m={active}
             figure={activeDoc}
             limits={settings.limits}
             onCommit={(read) => store.updateFigure(activeDoc.id, (f) => ({ ...f, ...read }), 'ik')}
+            sv={sv}
+            scene={scene}
+            store={store}
           />
         )}
         {handles && (
@@ -342,6 +360,10 @@ export default function Viewport({
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         {placing && <PlaceGhost key={placing.hint} placing={placing} apiRef={apiRef} />}
+        {!shotMode && <HoverGhost />}
+        {handles && (styleDef(film.style).lit || selection?.kind === 'light') && (
+          <LightHandles store={store} scene={scene} sv={sv} selected={selection?.kind === 'light'} lit={styleDef(film.style).lit} />
+        )}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
           <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} groupRef={rigRef} />
@@ -355,6 +377,7 @@ export default function Viewport({
           shotMode={shotMode}
           capture={() => captureRef.current?.() ?? null}
           rigRef={rigRef}
+          figures={scene.figures}
         />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
       </Canvas>
@@ -369,6 +392,7 @@ export default function Viewport({
           value={angle(figureDoc(selection.figure)!.bones, selection.joint)}
           limits={settings.limits}
           onScreen={jointOnScreen}
+          onLimit={(on) => sv.setHover(on ? { figure: selection.figure, joints: [selection.joint] } : null)}
         />
       )}
     </div>
@@ -406,7 +430,7 @@ function DropLine() {
 function DragReadout() {
   const r = useReadout();
   if (!r) return null;
-  return <div className="drag-readout" role="status" style={{ transform: `translate(${r.x + 16}px, ${r.y + 20}px)` }}>{r.text}</div>;
+  return <div className={`drag-readout${r.axis === undefined ? '' : ` axis-${'xyz'[r.axis]}`}`} role="status" style={{ transform: `translate(${r.x + 16}px, ${r.y + 20}px)` }}>{r.text}</div>;
 }
 
 /** The shared key light + shadow floor, re-aimed when the scene or light changes. */
@@ -432,7 +456,17 @@ function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Cl
   return null;
 }
 
-/** Translucent ghosts of the previous (blue) and next (orange) keyframes. */
+/** What the Library item under the pointer would make of the selected figure, as a ghost on it. */
+function HoverGhost() {
+  const scene = useHoverGhost();
+  const ghost = useMemo(() => new Ghost(), []);
+  const size = useThree((s) => s.size);
+  useEffect(() => () => ghost.dispose(), [ghost]);
+  useEffect(() => ghost.resize(size.width, size.height), [ghost, size]);
+  useLayoutEffect(() => ghost.show(scene), [ghost, scene]);
+  return <primitive object={ghost.root} />;
+}
+
 /**
  * Placing something new: a ghost of it where it would go under the pointer (the hint says how it
  * relates to the figure nearest), turned by the wheel or R.
@@ -447,7 +481,7 @@ function PlaceGhost({ placing, apiRef }: { placing: Placing; apiRef: Props['apiR
   return <primitive object={ghost.root} />;
 }
 
-/** The ghost itself: a see-through view of what would be added, kept up with the pointer. */
+/** A ghost: a see-through view of what would be added (kept up with the pointer), or of what a Library item would do. */
 class Ghost {
   private view = new SceneView({ color: '#3b6cff', opacity: 0.35 });
   readonly root = this.view.root;
@@ -461,15 +495,19 @@ class Ghost {
     this.view.dispose();
   }
 
+  /** Show a scene (nothing: hide). */
+  show(scene: Scene | null) {
+    this.root.visible = !!scene;
+    if (scene) this.view.sync(scene);
+  }
+
   /** Follow the pointer over `el` for `placing`; the wheel and R turn it. Returns the stop. */
   follow(placing: Placing, apiRef: Props['apiRef'], el: HTMLElement) {
     let last: { x: number; y: number; alt: boolean } | null = null;
     const show = () => {
       if (!last) return;
       const hit = apiRef.current?.pick(last.x, last.y) ?? {};
-      const scene = placing.ghost(hit.floor, last.alt, hit);
-      this.root.visible = !!scene;
-      if (scene) this.view.sync(scene);
+      this.show(placing.ghost(hit.floor, last.alt, hit));
       setPointerHint(placing.at || placing.text
         ? `${placing.text ? `${placing.text[0].toUpperCase()}${placing.text.slice(1)} · ` : ''}Click: put it there · Wheel or R: turn · Esc: cancel`
         : placing.hint);
@@ -491,6 +529,7 @@ class Ghost {
   }
 }
 
+/** Translucent ghosts of the previous (blue) and next (orange) keyframes. */
 function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: Clock }) {
   const views = useMemo(() => [
     new SceneView({ color: '#3b6cff', opacity: 0.1 }),
@@ -608,7 +647,7 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
   return null;
 }
 
-function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef }: {
+function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef, figures: docs }: {
   sv: SceneView;
   apiRef: Props['apiRef'];
   frameRequest: FrameRequest;
@@ -618,8 +657,12 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   capture(): CameraView | null;
   /** The cameras drawn on the canvas, to pick them. */
   rigRef: RefObject<THREE.Group | null>;
+  /** The figures as drawn (for the points of their bodies to hold on to). */
+  figures: Figure[];
 }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const figures = useRef(docs);
+  useEffect(() => { figures.current = docs; }, [docs]);
   const controls = useThree((s) => s.controls) as unknown as Controls;
   const gl = useThree((s) => s.gl);
   const latestView = useRef(sceneView);
@@ -710,7 +753,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           while (o && !o.userData.camera) o = o.parent;
           if (o?.visible) return { ...hit, camera: o.userData.camera as string, ...(o.userData.point !== undefined ? { point: o.userData.point as number } : {}) };
         }
-        for (const { object } of ray.intersectObject(sv.root, true)) {
+        for (const { object, point } of ray.intersectObject(sv.root, true)) {
           let o: THREE.Object3D | null = object;
           let shown = true;
           for (let p: THREE.Object3D | null = o; p; p = p.parent) shown &&= p.visible;
@@ -718,7 +761,12 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           while (o && !o.userData.figure && !o.userData.prop) o = o.parent;
           if (o?.userData.prop && sv.props.get(o.userData.prop as string)?.parts.faded) continue;
           if (o?.userData.prop) return { ...hit, prop: o.userData.prop as string };
-          if (o?.userData.figure) return { ...hit, figure: o.userData.figure as string };
+          if (o?.userData.figure) {
+            const id = o.userData.figure as string;
+            const m = sv.figures.get(id);
+            const f = figures.current.find((x) => x.id === id);
+            return { ...hit, figure: id, ...(m && f && !f.proxy ? { contact: nearestContact(m, f, point).contact } : {}) };
+          }
         }
         return hit;
       },
@@ -882,10 +930,15 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const picked = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : null;
   // The camera whose outline row the pointer rests on (larger, in the accent); resting on one here marks its row.
   const linked = useStudio((st) => st.linked);
-  const link = (id: string) => ({
-    onPointerOver: () => { store.setLinked(id); setPointerHint(cameraHint(cameras.find((c) => c.id === id)?.name ?? 'the camera')); },
-    onPointerOut: () => { store.setLinked(null); setPointerHint(null); },
-  });
+  const link = (id: string) => {
+    const cam = cameras.find((c) => c.id === id);
+    // (Over a rig camera the wheel steps its shot size, not the view's zoom.)
+    const zoom = (on: boolean) => { const controls = get().controls as unknown as { enableZoom: boolean } | null; if (controls && cam?.kind === 'rig') controls.enableZoom = on; };
+    return {
+      onPointerOver: () => { store.setLinked(id); zoom(false); setPointerHint(cameraHint(cam?.name ?? 'the camera', cam?.kind === 'rig')); },
+      onPointerOut: () => { store.setLinked(null); zoom(true); setPointerHint(null); },
+    };
+  };
   let n = 0;
   return (
     <group ref={groupRef}>
@@ -897,6 +950,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
             ref={(g) => { nowGlyphs.current[i] = g; }}
             userData={{ camera: c.id }}
             onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
+            onWheel={c.kind === 'rig' ? (e) => { e.stopPropagation(); stepRig(store, c, e.deltaY < 0 ? 1 : -1, e.nativeEvent.shiftKey); } : undefined}
             {...link(c.id)}
           >
             <mesh>
@@ -958,6 +1012,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
         <sphereGeometry args={[0.035, 16, 12]} />
         <meshBasicMaterial color="#e5484d" />
       </mesh>
+      {!clock.playing && <CameraHandles store={store} scene={scene} time={time} picked={picked ?? null} hovered={linked && cameras.some((c) => c.id === linked) ? linked : null} />}
     </group>
   );
 }

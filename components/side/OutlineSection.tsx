@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Play, Plus, ScanFace, Scissors, SunMedium, TriangleAlert, UserRound } from 'lucide-react';
+import { Camera, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, TriangleAlert, UserRound } from 'lucide-react';
 import {
-  addCamera, addFigure, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden,
+  addCamera, addFigure, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
+import { DEFAULT_LIGHT, lightText } from '@/lib/lighting';
 import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
@@ -42,11 +43,18 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
     if (linked && !scene.figures.some((f) => f.id === linked) && !scene.props.some((p) => p.id === linked) && !scene.cameras.some((c) => c.id === linked)) store.setLinked(null);
   }, [linked, scene, store]);
 
+  // Several selected: a right-click on one of them is the menu of them all.
+  const manyHas = (id: string) => selection?.kind === 'many' && (selection.figures.includes(id) || selection.props.includes(id));
+  const manyMenu = (e: React.MouseEvent) => {
+    if (selection?.kind !== 'many') return;
+    openContextMenu(e, menu('many', { store, many: { figures: selection.figures, props: selection.props } }), `${selection.figures.length + selection.props.length} selected`);
+  };
+
   return (
     <div className="side-section outline">
       <div className="side-head">
         <h2>Scene</h2>
-        <IconButton icon={SunMedium} label="Light and look of the scene" size={15} active={!selection} onClick={() => store.select(null)} />
+        <IconButton icon={Clapperboard} label="The scene: its caption and reference image" size={15} active={!selection} onClick={() => store.select(null)} />
       </div>
       <div className="side-scroll">
         <div className="outline-group">
@@ -70,7 +78,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
           </div>
           <ul className="layers" aria-label="Cast">
             {scene.figures.map((f) => {
-              const on = f.id === active && (!selection || selection.kind === 'figure' || selection.kind === 'joint');
+              const on = (f.id === active && (!selection || selection.kind === 'figure' || selection.kind === 'joint')) || (selection?.kind === 'many' && selection.figures.includes(f.id));
               const moving = !!a && moments(a, f.id).length > 1;
               return (
                 <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}${linked === f.id ? ' linked' : ''}`} {...link(f.id)}>
@@ -80,8 +88,8 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
                     name={f.name}
                     renaming={renaming === f.id}
                     onRename={(name) => renameFigure(store, f.id, name)}
-                    onClick={() => store.select({ kind: 'figure', figure: f.id })}
-                    onMenu={(e) => { store.select({ kind: 'figure', figure: f.id }); openContextMenu(e, menu('figure', { store, figure: f.id }), f.name); }}
+                    onClick={(e) => (e.shiftKey ? toggleSelected(store, { figure: f.id }) : store.select({ kind: 'figure', figure: f.id }))}
+                    onMenu={(e) => { if (manyHas(f.id)) return manyMenu(e); store.select({ kind: 'figure', figure: f.id }); openContextMenu(e, menu('figure', { store, figure: f.id }), f.name); }}
                   >
                     {moving && <Film size={12} className="layer-tag" aria-label="animated" />}
                   </Row>
@@ -125,7 +133,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
           </div>
           <ul className="layers" aria-label="Set">
             {scene.props.map((p) => {
-              const on = selection?.kind === 'prop' && selection.prop === p.id;
+              const on = (selection?.kind === 'prop' && selection.prop === p.id) || (selection?.kind === 'many' && selection.props.includes(p.id));
               return (
                 <li key={p.id} className={`${on ? 'on' : ''}${linked === p.id ? ' linked' : ''}`} {...link(p.id)}>
                   <Row
@@ -134,8 +142,8 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
                     name={p.name}
                     renaming={renaming === p.id}
                     onRename={(name) => renameProp(store, p.id, name)}
-                    onClick={() => store.select({ kind: 'prop', prop: p.id })}
-                    onMenu={(e) => { store.select({ kind: 'prop', prop: p.id }); openContextMenu(e, menu('prop', { store, prop: p.id }), p.name); }}
+                    onClick={(e) => (e.shiftKey ? toggleSelected(store, { prop: p.id }) : store.select({ kind: 'prop', prop: p.id }))}
+                    onMenu={(e) => { if (manyHas(p.id)) return manyMenu(e); store.select({ kind: 'prop', prop: p.id }); openContextMenu(e, menu('prop', { store, prop: p.id }), p.name); }}
                   >
                     {p.hold && <Hand size={12} className="layer-tag" aria-label={`In ${scene.figures.find((f) => f.id === p.hold!.figure)?.name}'s ${p.hold.hand === 'L' ? 'left' : 'right'} hand`} />}
                   </Row>
@@ -187,6 +195,28 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
 
         <div className="outline-group">
           <div className="outline-head">
+            <h3>Light</h3>
+          </div>
+          <ul className="layers" aria-label="Light">
+            <li className={selection?.kind === 'light' ? 'on' : undefined}>
+              <button
+                type="button"
+                className="layer-main"
+                data-tip={`The scene's key light: ${lightText(scene.light ?? DEFAULT_LIGHT)}\nRight-click for more`}
+                data-tip-side="right"
+                onClick={() => store.select({ kind: 'light' })}
+                onContextMenu={(e) => { store.select({ kind: 'light' }); openContextMenu(e, menu('light', { store, light: true }), 'Light'); }}
+              >
+                <SunMedium size={15} strokeWidth={1.75} aria-hidden />
+                <span className="layer-name">Light</span>
+                <em>{lightText(scene.light ?? DEFAULT_LIGHT)}</em>
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div className="outline-group">
+          <div className="outline-head">
             <h3>Shots <span className="count">{spans.length}</span></h3>
             {a && <IconButton icon={Scissors} label="Cut a new shot at the playhead" shortcut={shortcutOf('timeline.cut')} onClick={() => command('timeline.cut').run!({ store })} size={15} />}
           </div>
@@ -219,10 +249,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
             </ul>
           ) : (
             <div className="outline-still">
-              <Hint>A still image: animate it to film it in shots</Hint>
-              <button type="button" className="btn subtle" onClick={() => command('scene.animate').run!({ store })}>
-                <Play size={14} aria-hidden /> Animate
-              </button>
+              <Hint>A still image: a key (K) or an action on the timeline animates it, to film it in shots</Hint>
             </div>
           )}
         </div>
@@ -249,7 +276,7 @@ function Row({ icon: Icon, lead, name, title, renaming, onRename, onClick, onMen
   title?: string;
   renaming: boolean;
   onRename(name: string): void;
-  onClick(): void;
+  onClick(e: React.MouseEvent): void;
   onMenu(e: React.MouseEvent): void;
   children?: React.ReactNode;
 }) {
@@ -271,7 +298,7 @@ function Row({ icon: Icon, lead, name, title, renaming, onRename, onClick, onMen
       data-tip-side="right"
       onClick={onClick}
       // Double-click: frame it on the canvas (F2 or its menu renames it).
-      onDoubleClick={() => { onClick(); command('view.frameAll').run!({ store }); }}
+      onDoubleClick={(e) => { onClick(e); command('view.frameAll').run!({ store }); }}
       onContextMenu={onMenu}
     >
       {head}

@@ -1,15 +1,11 @@
 'use client';
 
 import { ChevronRight, Clapperboard, Eye, EyeOff, ImagePlus, Trash2 } from 'lucide-react';
-import { editReference, renameScene, setCaption, setReferenceImage, setSceneLight } from '@/lib/actions';
-import { filmOf } from '@/lib/film';
-import { DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
+import { editReference, renameScene, setCaption, setReferenceImage } from '@/lib/actions';
 import { videoModel } from '@/lib/shots';
-import { STYLE_LIST, styleDef } from '@/lib/styles';
-import type { Light } from '@/lib/types';
 import { menu } from '../commands';
 import { useFilm } from '../store-context';
-import { IconButton, NameHeader, Select, Slider, Toggle, type HeaderChrome } from '../ui';
+import { IconButton, NameHeader, Slider, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /* The scene's header and sections (nothing selected): see sections.ts for which show when. */
@@ -44,48 +40,6 @@ export function CaptionPanel({ t }: { t: Target }) {
         onChange={(e) => setCaption(t.store, t.scene.id, null, e.target.value)}
       />
     </label>
-  );
-}
-
-const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label).join(', ');
-const lightOf = (t: Target) => t.scene.light ?? DEFAULT_LIGHT;
-const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
-const lightPreset = (t: Target) => LIGHT_PRESETS.find((p) => same(p.light, lightOf(t)));
-export const lightSummary = (t: Target) => lightPreset(t)?.name ?? 'Custom';
-export const lightInfo = (t: Target) => `Saved with the scene and used by its exports.${styleDef(filmOf(t.store.getState().library).style).lit ? '' : ` It shows in the lit styles (${LIT}): pick one in the top bar.`}`;
-
-/** The scene's light: saved with it, used by its exports. */
-export function LightPanel({ t }: { t: Target }) {
-  const light = lightOf(t);
-  const preset = lightPreset(t);
-  const setLight = (patch: Partial<Light>, key = 'light') => setSceneLight(t.store, { ...light, ...patch }, key);
-  return (
-    <>
-      <div className="field">
-        <span>Preset</span>
-        <Select
-          label="Lighting preset"
-          value={preset?.id ?? 'custom'}
-          onChange={(id) => { const p = LIGHT_PRESETS.find((x) => x.id === id); if (p) setLight(p.light, ''); }}
-          options={[...LIGHT_PRESETS.map((p) => ({ value: p.id, label: p.name })), ...(preset ? [] : [{ value: 'custom', label: 'Custom' }])]}
-        />
-      </div>
-      <div className="stack">
-        <Slider label="Direction" min={-180} max={180} value={light.azimuth} display={`${Math.round(light.azimuth)}°`} typeable onChange={(azimuth) => setLight({ azimuth })} />
-        <Slider label="Height" min={5} max={89} value={light.elevation} display={`${Math.round(light.elevation)}°`} typeable onChange={(elevation) => setLight({ elevation })} />
-        <Slider label="Brightness" min={0.2} max={2} step={0.05} value={light.intensity} display={`${Math.round(light.intensity * 100)}%`} onChange={(intensity) => setLight({ intensity })} />
-        <Slider
-          label="Warmth"
-          min={-1}
-          max={1}
-          step={0.05}
-          value={light.warmth}
-          display={light.warmth > 0.05 ? 'Warm' : light.warmth < -0.05 ? 'Cool' : 'White'}
-          onChange={(warmth) => setLight({ warmth })}
-        />
-      </div>
-      <Toggle label="Shadows" checked={light.shadows} onChange={(shadows) => setLight({ shadows }, '')} />
-    </>
   );
 }
 

@@ -27,6 +27,21 @@ export function clampLight(l: Partial<Light> | undefined): Light {
   };
 }
 
+/** The light coming from a direction (towards it, from what it lights), its other settings kept. */
+export function lightFrom(light: Light, dir: { x: number; y: number; z: number }): Light {
+  const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
+  const r = (a: number) => Math.round((a * 180) / Math.PI);
+  return clampLight({ ...light, azimuth: r(Math.atan2(dir.x, dir.z)), elevation: r(Math.asin(dir.y / len)) });
+}
+
+/** Where a light comes from, as said: "40° from the front-left, 45° high" (left and right are the figures'). */
+export function lightText(light: Light) {
+  const a = Math.round(Math.abs(light.azimuth));
+  const side = light.azimuth > 0 ? 'left' : 'right';
+  const from = a <= 3 ? 'From the front' : a >= 177 ? 'From behind' : Math.abs(a - 90) <= 3 ? `From the ${side}` : a < 90 ? `${a}° from the front-${side}` : `${180 - a}° from behind-${side}`;
+  return `${from}, ${Math.round(light.elevation)}° high`;
+}
+
 /**
  * Ambient fill + one key light with an optional shadow-catching floor. Shared by the editor and
  * the exporter; only the shaded style is lit, the line-art and silhouette materials ignore it.

@@ -532,6 +532,10 @@ export type Selection =
   | { kind: 'shot'; shot: string }
   /** A camera of the animation (picked in the outline or on the canvas). */
   | { kind: 'camera'; camera: string }
+  /** The scene's key light (picked in the outline, or its sun on the canvas). */
+  | { kind: 'light' }
+  /** Several figures and props at once (Shift-click adds one or takes it away): moved, turned, duplicated and deleted together. */
+  | { kind: 'many'; figures: string[]; props: string[] }
   /** The scene itself: its light, look and reference image. */
   | null;
 

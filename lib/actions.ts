@@ -32,7 +32,7 @@ import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setP
 import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1505,4 +1505,48 @@ export function applyMotion(store: Store, figureId: string, motionId: string, pa
   store.updateScene((s) => insertClip(s, cast, BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;
+}
+
+/* Several things at once (a selection of many) */
+
+/** What is selected, as lists of whole figures and props (a joint: its figure). */
+export function selectedThings(sel: Selection): { figures: string[]; props: string[] } {
+  if (sel?.kind === 'many') return { figures: sel.figures, props: sel.props };
+  if (sel?.kind === 'figure' || sel?.kind === 'joint') return { figures: [sel.figure], props: [] };
+  if (sel?.kind === 'prop') return { figures: [], props: [sel.prop] };
+  return { figures: [], props: [] };
+}
+
+/** Add a figure or a prop to what is selected, or take it away (Shift-click): one left is selected alone. */
+export function toggleSelected(store: Store, thing: { figure: string } | { prop: string }) {
+  const { figures, props } = selectedThings(store.getState().selection);
+  const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const f = 'figure' in thing ? flip(figures, thing.figure) : figures;
+  const p = 'prop' in thing ? flip(props, thing.prop) : props;
+  if (f.length + p.length > 1) store.select({ kind: 'many', figures: f, props: p });
+  else if (f.length) store.select({ kind: 'figure', figure: f[0] });
+  else if (p.length) store.select({ kind: 'prop', prop: p[0] });
+  else store.select(null);
+}
+
+/** Delete several figures and props (one undo step); the scene keeps at least one figure. */
+export function deleteMany(store: Store, figures: string[], props: string[]) {
+  const keep = store.scene.figures.filter((f) => !figures.includes(f.id));
+  const gone = keep.length ? figures : figures.slice(1);
+  store.updateScene((s) => ({
+    ...s,
+    figures: s.figures.filter((f) => !gone.includes(f.id)),
+    props: s.props.filter((p) => !props.includes(p.id)).map((p) => (p.hold && gone.includes(p.hold.figure) ? released(p, s) : p)),
+  }));
+  store.select(null);
+}
+
+/** Copies of several figures and props, beside them (one undo step), selected together. */
+export function duplicateMany(store: Store, figures: string[], props: string[]) {
+  const before = { figures: new Set(store.scene.figures.map((f) => f.id)), props: new Set(store.scene.props.map((p) => p.id)) };
+  store.group(() => {
+    figures.forEach((id) => duplicateFigure(store, id));
+    props.forEach((id) => duplicateProp(store, id));
+  });
+  store.select({ kind: 'many', figures: store.scene.figures.filter((f) => !before.figures.has(f.id)).map((f) => f.id), props: store.scene.props.filter((p) => !before.props.has(p.id)).map((p) => p.id) });
 }

@@ -12,7 +12,9 @@ import {
   bodySummary, handsSummary, hasOthers, jointSummary, jointTitle, othersSummary, placementSummary,
 } from './figure';
 import { HeldByPanel, PhysicsActions, PhysicsPanel, PropHeader, TransformPanel, transformInfo } from './prop';
-import { CaptionPanel, LightPanel, ReferenceActions, ReferencePanel, SceneHeader, lightInfo, lightSummary, referenceSummary } from './scene';
+import { CaptionPanel, ReferenceActions, ReferencePanel, SceneHeader, referenceSummary } from './scene';
+import { LightHeader, LightPanel, lightInfo, lightSummary } from './light';
+import { ManyHeader, ManyPanel, manySummary } from './many';
 import { FilmedByPanel, ShotHeader, ShotPanel, filmedBySummary, shotSummary } from './shot';
 import type { Target } from './target';
 
@@ -37,7 +39,7 @@ export interface InspectorSection {
 }
 
 const posable = (t: Target) => !!t.figure && !t.figure.proxy;
-const isScene = (t: Target) => !t.figure && !t.prop && !t.span && !t.camera && !t.action;
+const isScene = (t: Target) => !t.figure && !t.prop && !t.span && !t.camera && !t.action && !t.light && !t.many;
 
 export const INSPECTOR_SECTIONS: InspectorSection[] = [
   // A figure (a stand-in has a posture instead of a pose).
@@ -101,9 +103,14 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   },
   { id: 'posed', title: posedTitle, when: (t) => t.action?.source.kind === 'keys', Panel: PosedPanel, summary: posedSummary, info: posedInfo },
 
+  // Several things at once.
+  { id: 'many', title: 'Selected', when: (t) => !!t.many, Panel: ManyPanel, summary: manySummary },
+
+  // The light.
+  { id: 'light', title: 'Light', when: (t) => !!t.light, Panel: LightPanel, summary: lightSummary, info: lightInfo },
+
   // The scene itself (nothing selected).
   { id: 'caption', title: 'Scene', when: (t) => isScene(t) && !t.scene.animation, Panel: CaptionPanel, defaultOpen: false, summary: (t) => t.scene.caption || 'No caption' },
-  { id: 'light', title: 'Light', when: isScene, Panel: LightPanel, summary: lightSummary, info: lightInfo },
   {
     id: 'reference', title: 'Reference image', when: isScene, Panel: ReferencePanel, Actions: ReferenceActions, defaultOpen: false,
     summary: referenceSummary, info: () => 'Saved with the scene; it is not filmed or exported.',
@@ -117,5 +124,7 @@ export function Header({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   if (t.span) return <ShotHeader t={t} chrome={chrome} />;
   if (t.camera) return <CameraHeader t={t} chrome={chrome} />;
   if (t.action) return <ActionHeader t={t} chrome={chrome} />;
+  if (t.light) return <LightHeader t={t} chrome={chrome} />;
+  if (t.many) return <ManyHeader t={t} chrome={chrome} />;
   return <SceneHeader t={t} chrome={chrome} />;
 }
