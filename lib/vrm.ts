@@ -120,13 +120,13 @@ async function fromLegacy(m: THREE.MeshStandardMaterial, x: Json, texture: (info
   const vec = (k: string, d: [number, number, number]) => { const c = rgb(v[k], d); return new THREE.Color().setRGB(c.r, c.g, c.b, THREE.SRGBColorSpace); };
   const tex = (k: string) => (typeof t[k] === 'number' ? texture({ index: t[k] }) : Promise.resolve(null));
   const blend = num(f._BlendMode, 0);
-  // (0.x blends from its shift to its shift + (1 − toony) of the light's −1…1: the same band on ours.)
+  // (0.x blends from its shift up to lerp(1, shift, toony) of the light's −1…1: the same band on ours.)
   const t0 = num(f._ShadeToony, 0.9), s0 = num(f._ShadeShift, 0);
-  const toony = (1 + t0) / 2;
+  const soft = ((1 - t0) * (1 - s0)) / 2;
   return {
     color: vec('_Color', [1, 1, 1]), opacity: num(obj(v._Color)[3], 1), map: (await tex('_MainTex')) ?? m.map,
     shade: vec('_ShadeColor', [0.6, 0.6, 0.6]), shadeMap: await tex('_ShadeTexture'),
-    shift: -s0 - (1 - t0) / 2, toony,
+    shift: -s0 - soft, toony: 1 - soft,
     rim: vec('_RimColor', [0, 0, 0]), rimPower: num(f._RimFresnelPower, 5), rimLift: num(f._RimLift, 0),
     emissive: vec('_EmissionColor', [0, 0, 0]), emissiveMap: await tex('_EmissionMap'),
     alpha: blend === 1 ? 'mask' : blend >= 2 ? 'blend' : 'opaque', cutoff: num(f._Cutoff, 0.5),

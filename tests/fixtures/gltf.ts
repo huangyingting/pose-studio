@@ -50,9 +50,10 @@ export function characterGltf(aPose = false, tall = false): string {
 
 /**
  * The same character as a VRM avatar (1.0 or 0.x): its bones renamed so nothing can be told from
- * their names (only from its humanoid), a material with MToon settings, and who made it.
+ * their names (only from its humanoid; `named`: as they were), a material with MToon settings, and
+ * who made it.
  */
-export function vrmGltf(version: 1 | 0 = 1): string {
+export function vrmGltf(version: 1 | 0 = 1, named = false): string {
   const gltf = JSON.parse(characterGltf()) as { nodes: { name: string }[]; extensions?: unknown; extensionsUsed?: string[]; materials?: unknown[]; meshes: { primitives: { material?: number }[] }[] };
   // Which of our bones each node is, by the Mixamo names it had; then names that say nothing.
   const ours = new Map(Object.entries(mapBones(mixamoRig(false))).map(([bone, name]) => [name, bone]));
@@ -60,7 +61,7 @@ export function vrmGltf(version: 1 | 0 = 1): string {
   gltf.nodes.forEach((n, i) => {
     const bone = ours.get(n.name);
     if (bone) human[bone] = i;
-    if (n.name !== 'Body') n.name = `Bone_${String(i).padStart(3, '0')}`;
+    if (n.name !== 'Body' && !named) n.name = `Bone_${String(i).padStart(3, '0')}`;
   });
   gltf.meshes[0].primitives[0].material = 0;
   const mtoon = {

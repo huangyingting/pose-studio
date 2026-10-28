@@ -33,6 +33,17 @@ describe('VRM avatars made our own (#15)', () => {
     expect(err.missing).toEqual(['neck']);
   });
 
+  it('never takes one bone for two (a bone found by where it sits is not one its humanoid has)', async () => {
+    const gltf = JSON.parse(vrmGltf(1, true));
+    const human = gltf.extensions.VRMC_vrm.humanoid.humanBones;
+    // (A rig without shoulders: its humanoid's upper arm the bone named as a shoulder.)
+    human.leftUpperArm = human.leftShoulder;
+    delete human.leftShoulder;
+    const info = await importModel('NoShoulder.vrm', bytes(JSON.stringify(gltf))).catch((e) => ({ bones: (e as MissingBones).found }));
+    const names = Object.values(info.bones);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
   it('reads each material’s MToon settings as its look: shade, its edge, rim, outline', async () => {
     const [look] = looksOf(await parseModel('glb', bytes(vrmGltf(1))));
     expect(look.shade.toArray().map((v) => +v.toFixed(3))).toEqual([0.6, 0.3, 0.4]);
@@ -50,11 +61,11 @@ describe('VRM avatars made our own (#15)', () => {
     expect(info.bones.leftThumbMetacarpal).toMatch(/^Bone_/);
     expect(info.credit).toBe('by Ueda · personal use');
     const [look] = looksOf(await parseModel('glb', bytes(vrmGltf(0))));
-    // (0.x blends from 0.1 to 0.1 + (1 − 0.8) of the light's −1…1: a band 0.2 wide about 0.2, as ours has it.)
-    expect(look.toony).toBeCloseTo(0.9, 6);
-    expect(look.shift).toBeCloseTo(-0.2, 6);
+    // (0.x blends from 0.1 up to lerp(1, 0.1, 0.8) = 0.28 of the light's −1…1: the same band on ours.)
+    expect(look.toony).toBeCloseTo(0.91, 6);
+    expect(look.shift).toBeCloseTo(-0.19, 6);
     const soft = 1 - look.toony;
-    expect([-look.shift - soft, -look.shift + soft].map((v) => +v.toFixed(6))).toEqual([0.1, 0.3]);
+    expect([-look.shift - soft, -look.shift + soft].map((v) => +v.toFixed(6))).toEqual([0.1, 0.28]);
     // (Its colours as sRGB: the shade's red 0.6 is 0.319 in linear.)
     expect(look.shade.r).toBeCloseTo(new THREE.Color().setRGB(0.6, 0, 0, THREE.SRGBColorSpace).r, 6);
     expect(look.outline.width).toBeCloseTo(1.5, 6);

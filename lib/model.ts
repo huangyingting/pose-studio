@@ -496,9 +496,12 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   if (!format) throw new Error('Use a VRM, glTF/GLB or FBX character');
   const root = await parseModel(format, data);
   if (!rigBones(root).some((o) => (o as THREE.Bone).isBone)) throw new Error('The file has no skeleton');
-  // (A VRM says which bone is which; the rest, and others' bones, are found by their names.)
+  // (A VRM says which bone is which; the rest, and others' bones, are found by their names: only
+  // bones its humanoid does not already have, so none is taken for two.)
   const vrm = root.userData.vrm as VrmInfo | undefined;
-  const bones = map ?? { ...mapBones(root), ...vrm?.bones };
+  const taken = new Set(Object.values(vrm?.bones ?? {}));
+  const byName = Object.fromEntries(Object.entries(mapBones(root)).filter(([, name]) => !taken.has(name!)));
+  const bones = map ?? { ...byName, ...vrm?.bones };
   const missing = missingBones(bones);
   if (missing.length) throw new MissingBones(rigBones(root).map((o) => o.name), bones, missing);
   const info: ModelInfo = {
