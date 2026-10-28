@@ -1497,6 +1497,44 @@ test('several things at once: Shift-click adds to the selection; they move toget
   expect(s.scene.figures).toHaveLength(4);
 });
 
+test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift goes three steps; a joint\'s slider; the light', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.keyboard.press('1');
+  await page.waitForTimeout(300);
+  const cast = page.getByRole('list', { name: 'Cast' });
+  await cast.getByRole('button', { name: /^Figure$/ }).click();
+  // The hint says what the keys do.
+  await expect(page.locator('.bar-hint')).toContainText('← → ↑ ↓: move Figure 5 cm');
+  const at = async () => (await live(page)).scene.figures[0].position;
+  const x0 = (await at())[0];
+  // From the front, → is +X: 5 cm, then three steps with Shift.
+  await page.keyboard.press('ArrowRight');
+  expect((await at())[0]).toBeCloseTo(x0 + 0.05, 3);
+  await page.keyboard.press('Shift+ArrowRight');
+  expect((await at())[0]).toBeCloseTo(x0 + 0.2, 3);
+  // Alt + ←: it turns 15° to its left.
+  const yaw = async () => facingOf((await live(page)).scene.figures[0].bones);
+  const y0 = await yaw();
+  await page.keyboard.press('Alt+ArrowLeft');
+  expect(Math.round((((await yaw()) - y0 + 540) % 360) - 180)).toBe(15);
+  // A joint: Alt + → turns its slider 5°.
+  const elbow = await project(page, 'leftLowerArm');
+  const hand = await project(page, 'leftHand');
+  await page.mouse.click((elbow.x + hand.x) / 2, (elbow.y + hand.y) / 2);
+  const bend = async () => angle((await live(page)).scene.figures[0].bones, 'leftLowerArm')[0];
+  const b0 = await bend();
+  await page.keyboard.press('Alt+ArrowLeft');
+  expect(await bend()).toBeCloseTo(b0 - 5, 0);
+  await expect(page.locator('.drag-readout')).toHaveText(/^Left forearm · Bend −?\d+°$/);
+  // The light: ← moves it round 15°.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Light' }).getByRole('button').click();
+  const az = async () => (await live(page)).scene.light?.azimuth ?? 40;
+  const a0 = await az();
+  await page.keyboard.press('ArrowLeft');
+  expect(await az()).toBeCloseTo(a0 + 15, 0);
+});
+
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);

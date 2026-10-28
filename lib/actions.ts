@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { cloneHand } from './hands';
-import { sided, wrapDeg } from './joints';
+import { jointLimits, sided, wrapDeg } from './joints';
 import {
   NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
@@ -27,7 +27,7 @@ import {
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
 import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
-import { bonesOf, withAngles } from './pose';
+import { angle, bonesOf, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
@@ -1576,4 +1576,94 @@ export function duplicateMany(store: Store, figures: string[], props: string[]) 
     }
   });
   store.select({ kind: 'many', figures: store.scene.figures.filter((f) => !before.figures.has(f.id)).map((f) => f.id), props: store.scene.props.filter((p) => !before.props.has(p.id)).map((p) => p.id) });
+}
+
+/* Steps from the keyboard (#13): small moves and turns of what is selected, at the playhead */
+
+/** Move a figure across the floor (and, off the floor, up or down) by a step; keyed at the playhead in an animated scene. */
+export function stepFigure(store: Store, id: string, dx: number, dz: number, dy = 0) {
+  store.updateFigure(id, (f) => {
+    const moved = withPosition(f, f.position[0] + dx, f.position[2] + dz);
+    return dy && !f.grounded ? { ...moved, position: [moved.position[0], Math.max(0, moved.position[1] + dy), moved.position[2]] } : moved;
+  }, `step:${id}`);
+}
+
+/** Turn a figure about itself by a step (degrees, + to its left). */
+export function turnFigure(store: Store, id: string, by: number) {
+  store.updateFigure(id, (f) => withFacing(f, facing(f) + by), `step:${id}`);
+}
+
+/** Move a prop by a step (one in a hand goes with the hand: not moved). */
+export function stepProp(store: Store, id: string, dx: number, dz: number, dy = 0) {
+  store.updateProp(id, (p) => (p.hold ? p : { ...p, position: [p.position[0] + dx, Math.max(0, p.position[1] + dy), p.position[2] + dz] }), `step:${id}`);
+}
+
+/** Turn a prop about its own up axis by a step (degrees). */
+export function turnProp(store: Store, id: string, by: number) {
+  store.updateProp(id, (p) => (p.hold ? p : { ...p, rotation: [p.rotation[0], wrapDeg(p.rotation[1] + by), p.rotation[2]] }), `step:${id}`);
+}
+
+/** Move several figures and props together by a step, or turn them about their middle (one undo step). */
+export function stepMany(store: Store, figures: string[], props: string[], move: { dx: number; dz: number } | { turn: number }) {
+  const s = store.scene;
+  const spots = [
+    ...s.figures.filter((f) => figures.includes(f.id)).map((f) => f.position),
+    ...s.props.filter((p) => props.includes(p.id) && !p.hold).map((p) => p.position),
+  ];
+  if (!spots.length) return;
+  const [cx, cz] = [spots.reduce((a, p) => a + p[0], 0) / spots.length, spots.reduce((a, p) => a + p[2], 0) / spots.length];
+  const place = (x: number, z: number): [number, number] => {
+    if ('dx' in move) return [x + move.dx, z + move.dz];
+    const r = (move.turn * Math.PI) / 180;
+    const [ox, oz] = [x - cx, z - cz];
+    return [cx + ox * Math.cos(r) + oz * Math.sin(r), cz - ox * Math.sin(r) + oz * Math.cos(r)];
+  };
+  store.group(() => {
+    for (const id of figures) {
+      store.updateFigure(id, (f) => {
+        const [x, z] = place(f.position[0], f.position[2]);
+        const moved = withPosition(f, x, z);
+        return 'turn' in move ? withFacing(moved, facing(moved) + move.turn) : moved;
+      });
+    }
+    for (const id of props) {
+      store.updateProp(id, (p) => {
+        if (p.hold) return p;
+        const [x, z] = place(p.position[0], p.position[2]);
+        return { ...p, position: [x, p.position[1], z], rotation: 'turn' in move ? [p.rotation[0], wrapDeg(p.rotation[1] + move.turn), p.rotation[2]] : p.rotation };
+      });
+    }
+  });
+}
+
+/** Turn one of a joint's sliders by a step (degrees), kept to its limits when they are on. */
+export function stepJoint(store: Store, figure: string, joint: JointName, axis: number, by: number) {
+  const f = store.scene.figures.find((x) => x.id === figure);
+  if (!f) return null;
+  const v = angle(f.bones, joint);
+  const [lo, hi] = store.getState().settings.limits ? jointLimits(joint)[axis] : [-180, 180];
+  const next: Vec3 = [...v];
+  next[axis] = Math.min(hi, Math.max(lo, v[axis] + by));
+  setJoint(store, figure, joint, next, `step:${figure}:${joint}:${axis}`);
+  return next[axis];
+}
+
+/**
+ * Move or turn a path camera by a step at the playhead (a point there, made if there is none):
+ * across, in and out, up and down (metres, as it looks), and panned or tilted (degrees).
+ */
+export function stepCamera(store: Store, id: string, step: { right?: number; forward?: number; up?: number; pan?: number; tilt?: number }) {
+  const cam = cameraById(store.scene, id);
+  if (!cam || cam.kind !== 'path') return;
+  const view = viewOf(store.scene, cam, store.scene.animation ? store.getState().time : 0);
+  const dir = view.target.clone().sub(view.position);
+  const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+  const right = new THREE.Vector3().crossVectors(flat, new THREE.Vector3(0, 1, 0)).normalize();
+  const shift = right.multiplyScalar(step.right ?? 0).add(flat.clone().multiplyScalar(step.forward ?? 0)).add(new THREE.Vector3(0, step.up ?? 0, 0));
+  const position = view.position.clone().add(shift);
+  let look = dir.clone();
+  if (step.pan) look.applyAxisAngle(new THREE.Vector3(0, 1, 0), (-step.pan * Math.PI) / 180);
+  if (step.tilt) look.applyAxisAngle(new THREE.Vector3().crossVectors(look, new THREE.Vector3(0, 1, 0)).normalize(), (step.tilt * Math.PI) / 180);
+  look = position.clone().add(look);
+  setCameraPoint(store, position, look, view.fov, `step:${id}`, id);
 }

@@ -92,6 +92,15 @@ export function useReadout() {
   return useSyncExternalStore((l) => { readers.add(l); return () => readers.delete(l); }, () => readout, () => null);
 }
 
+/** A readout for a moment (after a step from the keyboard: no drag ends it). */
+let flashTimer = 0;
+export function flashReadout(text: string) {
+  setReadout(text);
+  if (typeof window === 'undefined') return;
+  window.clearTimeout(flashTimer);
+  flashTimer = window.setTimeout(() => setReadout(null), 1400);
+}
+
 /** A length or coordinate in metres, as read out (a true minus sign). */
 export const metres = (v: number) => (Math.abs(v) < 0.005 ? '0.00' : v.toFixed(2).replace('-', '−'));
 const degrees = (v: number) => `${Math.round(v) === 0 ? 0 : Math.round(v)}°`.replace('-', '−');

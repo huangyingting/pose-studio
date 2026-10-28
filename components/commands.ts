@@ -9,9 +9,9 @@ import {
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
   mirrorPose, pastePose, propNow, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
-  setSceneLight, deleteMany, duplicateMany,
+  setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera,
 } from '@/lib/actions';
-import { DEFAULT_LIGHT, LIGHT_PRESETS, lightFrom } from '@/lib/lighting';
+import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight, lightFrom, lightText } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
@@ -25,11 +25,11 @@ import { shotSpans } from '@/lib/shots';
 import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
-import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type Travel, type Vec3 } from '@/lib/types';
-import { CONTACT_LABELS, type Contact } from '@/lib/relations';
-import { JOINT_LABELS, mirrorJointName } from '@/lib/joints';
+import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Travel, type Vec3 } from '@/lib/types';
+import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
+import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
-import { mirrorBones } from '@/lib/pose';
+import { angle, mirrorBones } from '@/lib/pose';
 import { LENSES, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import { VIEW_PRESETS } from '@/lib/views';
 import { PROP_ICONS, STYLE_ICONS } from './icons';
@@ -37,7 +37,8 @@ import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
 import { placingFigure, placingProp, type Placing } from './placing';
 import type { CanvasHit } from './Viewport';
-import { viaPointer } from './hints';
+import { rigAngle, stepRig } from './CameraHandles';
+import { flashReadout, metres, sliderName, sliderText, viaPointer } from './hints';
 
 /*
  * Every operation, written once: its title, icon, keys, when it applies and what it does. Key
@@ -74,6 +75,8 @@ export interface App {
   /** The timeline's: the motion check, and its zoom. */
   checkMotion?(): void;
   zoomTimeline?(how: 'in' | 'out' | 'fit'): void;
+  /** The editor's view (its angle), for steps that go the way the screen shows. */
+  view?(): { yaw: number; pitch: number } | null;
   /** Ask for a spot on the floor (a pick mode), then do something there. */
   pickFloor?(hint: string, done: (at: Vec3) => void): void;
   /** Ask for something on the canvas (a figure, a point of its body, a prop), then do something with it. */
@@ -245,6 +248,139 @@ const goTo = (c: Ctx, kind: Travel, opts: { strafe?: boolean } = {}) => {
 
 /* ---------------- the commands ---------------- */
 
+/* ---------------- steps from the keyboard ---------------- */
+
+const STEP_KEYS = [
+  { id: 'left', key: 'arrowleft', title: 'Step left', help: 'Move what is selected left (a joint: the other side)' },
+  { id: 'right', key: 'arrowright', title: 'Step right', help: 'Move what is selected right' },
+  { id: 'up', key: 'arrowup', title: 'Step away', help: 'Move what is selected away (a camera: in)' },
+  { id: 'down', key: 'arrowdown', title: 'Step nearer', help: 'Move what is selected nearer (a camera: out)' },
+  { id: 'turnLeft', key: 'alt+arrowleft', title: 'Turn left', help: 'Turn what is selected left (a joint: its slider down)' },
+  { id: 'turnRight', key: 'alt+arrowright', title: 'Turn right', help: 'Turn what is selected right (a joint: its slider up)' },
+  { id: 'turnUp', key: 'alt+arrowup', title: 'Tilt up', help: 'Tilt a camera up, raise a rig camera (a joint: the slider before)' },
+  { id: 'turnDown', key: 'alt+arrowdown', title: 'Tilt down', help: 'Tilt a camera down, lower a rig camera (a joint: the next slider)' },
+  { id: 'raise', key: 'pageup', title: 'Raise', help: 'Raise what is selected (a rig camera: a closer shot; the light: higher)' },
+  { id: 'lower', key: 'pagedown', title: 'Lower', help: 'Lower what is selected (a rig camera: a wider shot; the light: lower)' },
+] as const;
+type StepKey = (typeof STEP_KEYS)[number]['id'];
+
+/** How far one step goes: metres and degrees (Shift: three steps). */
+const STEP = { move: 0.05, turn: 15, joint: 5, pan: 5, height: 5 };
+/** The slider of the selected joint that Alt + ← → turn (Alt + ↑ ↓ change it). */
+let slider = 0;
+
+/** What a step key acts on here, if anything: the camera looked through first, else the selection. */
+function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'camera' | 'rig' | 'light' | 'joint'; id?: string } | null {
+  const s = c.store;
+  const through = s.getState().through;
+  if (through) {
+    const cam = through.camera ? cameraById(sceneOf(c), through.camera) : liveCamera(sceneOf(c), s.getState().time);
+    return cam ? { kind: cam.kind === 'rig' ? 'rig' : 'camera', id: cam.id } : null;
+  }
+  if (c.joint) return k.startsWith('turn') ? { kind: 'joint' } : null;
+  if (c.many) return k === 'turnUp' || k === 'turnDown' ? null : { kind: 'many' };
+  if (c.figure) return k === 'turnUp' || k === 'turnDown' || ((k === 'raise' || k === 'lower') && figureOf(c)?.grounded !== false) ? null : { kind: 'figure', id: c.figure };
+  if (c.prop) return k === 'turnUp' || k === 'turnDown' || propNow(s, c.prop)?.hold ? null : { kind: 'prop', id: c.prop };
+  if (c.camera) {
+    const cam = cameraById(sceneOf(c), c.camera);
+    if (!cam) return null;
+    if (cam.kind === 'rig') return k === 'turnLeft' || k === 'turnRight' ? null : { kind: 'rig', id: cam.id };
+    return { kind: 'camera', id: cam.id };
+  }
+  if (c.light) return k === 'turnUp' || k === 'turnDown' ? null : { kind: 'light' };
+  return null;
+}
+
+/** Take a step: the way the screen shows for moves, Shift for three. */
+function step(c: Ctx, k: StepKey) {
+  const at = stepping(c, k);
+  if (!at) return;
+  const n = lastStepShift ? 3 : 1;
+  const s = c.store;
+  const sx = k === 'left' || k === 'turnLeft' ? -1 : k === 'right' || k === 'turnRight' ? 1 : 0;
+  const sy = k === 'up' || k === 'turnUp' || k === 'raise' ? 1 : k === 'down' || k === 'turnDown' || k === 'lower' ? -1 : 0;
+  const moving = k === 'left' || k === 'right' || k === 'up' || k === 'down';
+  const lift = k === 'raise' || k === 'lower';
+  // The floor's right and away, as the editor's view sees them.
+  const yaw = ((App().view?.()?.yaw ?? 0) * Math.PI) / 180;
+  const [dx, dz] = [sx * Math.cos(yaw) - sy * Math.sin(yaw), -sx * Math.sin(yaw) - sy * Math.cos(yaw)].map((v) => v * STEP.move * n);
+  const name = (id?: string) => sceneOf(c).figures.find((f) => f.id === id)?.name ?? sceneOf(c).props.find((p) => p.id === id)?.name ?? sceneOf(c).cameras.find((x) => x.id === id)?.name ?? '';
+  const where = (p: Vec3) => `X ${metres(p[0])}  Z ${metres(p[2])}${p[1] > 0.005 ? `  ↑ ${metres(p[1])}` : ''}`;
+  switch (at.kind) {
+    case 'figure':
+      if (moving) stepFigure(s, at.id!, dx, dz);
+      else if (lift) stepFigure(s, at.id!, 0, 0, sy * STEP.move * n);
+      else turnFigure(s, at.id!, -sx * STEP.turn * n);
+      flashReadout(`${name(at.id)} · ${k.startsWith('turn') ? `faces ${Math.round(facing(figureOf({ store: s, figure: at.id })!))}°` : where(figureOf({ store: s, figure: at.id })!.position)}`);
+      break;
+    case 'prop':
+      if (moving) stepProp(s, at.id!, dx, dz);
+      else if (lift) stepProp(s, at.id!, 0, 0, sy * STEP.move * n);
+      else turnProp(s, at.id!, -sx * STEP.turn * n);
+      flashReadout(`${name(at.id)} · ${where(sceneOf(c).props.find((p) => p.id === at.id)!.position)}`);
+      break;
+    case 'many':
+      if (moving) stepMany(s, c.many!.figures, c.many!.props, { dx, dz });
+      else if (!lift) stepMany(s, c.many!.figures, c.many!.props, { turn: -sx * STEP.turn * n });
+      flashReadout(moving ? `Moved ${metres(Math.hypot(dx, dz))} m` : `Turned ${-sx * STEP.turn * n}°`);
+      break;
+    case 'joint': {
+      if (sy) {
+        slider = (slider + (sy > 0 ? 2 : 1)) % 3;
+        const v = angle(figureOf(c)!.bones, c.joint!)[slider];
+        flashReadout(sliderText(c.joint!, slider, v));
+        break;
+      }
+      const v = stepJoint(s, c.figure!, c.joint!, slider, sx * STEP.joint * n);
+      if (v !== null) flashReadout(sliderText(c.joint!, slider, v));
+      break;
+    }
+    case 'camera':
+      stepCamera(s, at.id!, moving
+        ? { right: sx * STEP.move * n * 2, forward: sy * STEP.move * n * 2 }
+        : lift ? { up: sy * STEP.move * n * 2 } : { pan: sx * STEP.pan * n, tilt: sy * STEP.pan * n });
+      flashReadout(`${name(at.id)} · ${moving ? (sx ? 'across' : sy > 0 ? 'in' : 'out') : lift ? (sy > 0 ? 'up' : 'down') : sx ? 'panned' : 'tilted'}`);
+      break;
+    case 'rig': {
+      const cam = cameraById(sceneOf(c), at.id) as RigCamera;
+      if (lift) stepRig(s, cam, sy, false);
+      else if (k === 'turnUp' || k === 'turnDown') editRig(s, cam.id, { pitch: cam.rig.pitch + sy * STEP.height * n }, `step:${cam.id}`);
+      else if (sx) editRig(s, cam.id, { yaw: cam.rig.yaw + sx * STEP.turn * n }, `step:${cam.id}`);
+      else stepRig(s, cam, sy, false);
+      const now = cameraById(sceneOf(c), at.id) as RigCamera;
+      flashReadout(`${now.name} · ${rigAngle(now.rig.yaw)}, ${Math.round(now.rig.pitch)}° up`);
+      break;
+    }
+    case 'light': {
+      const l = sceneOf(c).light ?? DEFAULT_LIGHT;
+      const next = clampLight(lift || sy ? { ...l, elevation: l.elevation + sy * STEP.height * n } : { ...l, azimuth: wrapDeg(l.azimuth - sx * STEP.turn * n) });
+      setSceneLight(s, next, 'step:light');
+      flashReadout(lightText(next));
+      break;
+    }
+  }
+}
+
+/** What the step keys do for what is selected, for the hint ("← → ↑ ↓: move · Alt ← →: turn"). */
+export function stepHint(c: Ctx): string | null {
+  const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
+  const shift = ' · Shift: ×3';
+  switch (at?.kind) {
+    case 'figure': return `← → ↑ ↓: move ${figureOf(c)?.name} 5 cm · Alt ← →: turn 15°${figureOf(c)?.grounded === false ? ' · Page Up / Down: raise, lower' : ''}${shift}`;
+    case 'prop': return `← → ↑ ↓: move it 5 cm · Alt ← →: turn 15° · Page Up / Down: raise, lower${shift}`;
+    case 'many': return `← → ↑ ↓: move them 5 cm · Alt ← →: turn them 15°${shift}`;
+    case 'joint': return `Alt ← →: ${sliderName(c.joint!, slider)} −/+ 5° · Alt ↑ ↓: another slider · ↑ ↓ ← →: another joint${shift}`;
+    case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
+    case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
+    case 'light': return `← →: round 15° · Page Up / Down: higher, lower${shift}`;
+    default: return null;
+  }
+}
+
+/** Whether the last step key was pressed with Shift (the keys run commands without their event). */
+let lastStepShift = false;
+if (typeof window !== 'undefined') window.addEventListener('keydown', (e) => { lastStepShift = e.shiftKey; }, true);
+
 export const COMMANDS: Command[] = [
   // The app.
   { id: 'app.undo', title: 'Undo', icon: Undo2, keys: ['mod+z'], enabled: (c) => c.store.getState().canUndo, run: (c) => c.store.undo() },
@@ -328,6 +464,15 @@ export const COMMANDS: Command[] = [
     id: 'view.nextStyle', title: 'Next render style', keys: ['l'],
     run: (c) => { const style = filmOf(c.store.getState().library).style; editFilm(c.store, { style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] }); },
   },
+
+  // Steps from the keyboard (#13): the arrows move what is selected the way the screen shows,
+  // Alt + arrows turn it, Page Up / Down raise or lower it; Shift: three steps. (A joint keeps the
+  // arrows to go between joints; Alt + arrows turn its slider.)
+  ...STEP_KEYS.map((k): Command => ({
+    id: `step.${k.id}`, title: k.title, help: k.help, keys: [k.key, `${k.key.startsWith('alt+') ? 'alt+shift+' + k.key.slice(4) : 'shift+' + k.key}`],
+    when: (c) => !!stepping(c, k.id),
+    run: (c) => step(c, k.id),
+  })),
 
   // Several things at once.
   {
@@ -911,6 +1056,8 @@ export function matchesKey(spec: string, e: KeyboardEvent) {
   if (parts.includes('mod') !== (e.ctrlKey || e.metaKey) || parts.includes('alt') !== e.altKey) return false;
   const letter = /^[a-z]$/.test(key);
   if (letter && parts.includes('mod') && parts.includes('shift') !== e.shiftKey) return false;
+  // (The arrows and the Page keys go further with Shift: a step is not a Shift step.)
+  if (/^(arrow|page)/.test(key) && parts.includes('shift') !== e.shiftKey) return false;
   const pressed = e.key === ' ' ? 'space' : e.key.toLowerCase();
   return pressed === key;
 }

@@ -35,7 +35,7 @@ import { IconButton, Menu, Segmented, Toasts, type Notify, type Toast } from './
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
-import { COMMANDS, choices, command, commandForKey, figureMenu, matchesKey, menu, menuItems, selectionCtx, setApp, shortcutOf, tipOf, titleOf } from './commands';
+import { COMMANDS, choices, command, commandForKey, figureMenu, matchesKey, menu, menuItems, selectionCtx, setApp, shortcutOf, stepHint, tipOf, titleOf } from './commands';
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewBall from './ViewBall';
@@ -268,7 +268,7 @@ function App() {
   // What the commands reach outside the store.
   useEffect(() => {
     setApp({
-      notify, notifyUndo, dialog: setDialog, frameAll: () => frame(apiRef.current?.getView() ?? angleAt(store.scene, store.getState().time)), frameSelected: frameCurrent, frameView: frame, saveFile, openFile: openFilePicker,
+      notify, notifyUndo, dialog: setDialog, frameAll: () => frame(apiRef.current?.getView() ?? angleAt(store.scene, store.getState().time)), frameSelected: frameCurrent, frameView: frame, view: () => apiRef.current?.getView() ?? null, saveFile, openFile: openFilePicker,
       playing: () => clock.playing, togglePlay, stopPlayback, speed: () => clock.speed, setSpeed: (x) => clock.setSpeed(x),
       repeatShot: () => clock.repeatShot, setRepeatShot: (on) => clock.setRepeatShot(on), onion: () => onion, setOnion,
       isolated: () => isolate, setIsolated,
@@ -288,8 +288,10 @@ function App() {
       const typing = el.closest('textarea, select, [contenteditable="true"]')
         || (el instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(el.type));
       if (typing) return;
-      // The arrow keys belong to what has focus (a slider, a menu, a list), if anything does.
-      if (e.key.startsWith('Arrow') && el !== document.body && el.closest('input, select, button, [role], [tabindex]')) return;
+      // The arrow and Page keys belong to what has focus if it uses them (a slider, a menu, a list, tabs); a
+      // plain button just clicked keeps no hold on them.
+      if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && el !== document.body
+        && el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes')) return;
       if (pick && e.key === 'Escape') {
         e.preventDefault();
         setPick(null);
@@ -431,6 +433,7 @@ function App() {
               ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
               : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
+            keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}
             // (A part selected with the handles hidden: its arcs, and the dots, are hidden too.)
             alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
@@ -607,7 +610,7 @@ function correction(scene: Scene, figureId: string | null, time: number) {
  * or Isolate's note; else a next step for the scene, with its commands as buttons (the floor's
  * gestures while the pointer is on the empty canvas).
  */
-function Hint({ pick, note, quiet, alert }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: string | null }) {
+function Hint({ pick, note, quiet, alert, keys }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: string | null; keys: string | null }) {
   const store = useStore();
   useScene();
   const pointerHint = usePointerHint();
@@ -616,7 +619,8 @@ function Hint({ pick, note, quiet, alert }: { pick: { hint: string; ghost?: Plac
   const hint = pick ? (pick.ghost ? pointerHint ?? pick.hint : pick.hint) : pointerHint ?? alert ?? note;
   if (hint) return <div className="bar-hint" role="status">{hint}</div>;
   const step = !quiet ? nextStep(store) : null;
-  if (!step) return overCanvas && !quiet ? <div className="bar-hint" role="status">{FLOOR_HINT}</div> : null;
+  // (Else what the keys do for what is selected; else, over the canvas, the floor's gestures.)
+  if (!step) return keys && !quiet ? <div className="bar-hint" role="status">{keys}</div> : overCanvas && !quiet ? <div className="bar-hint" role="status">{FLOOR_HINT}</div> : null;
   return (
     <div className="bar-hint step" role="status" aria-label="Next step">
       <span>{step.text}</span>
