@@ -211,6 +211,12 @@ export class Store {
     } else if (selection?.kind === 'camera') {
       const camera = selection.camera;
       if (!scene.cameras.some((c) => c.id === camera)) selection = null;
+    } else if (selection?.kind === 'many') {
+      // Those that are still there: one left is selected alone.
+      const figures = selection.figures.filter((id) => scene.figures.some((f) => f.id === id));
+      const props = selection.props.filter((id) => scene.props.some((p) => p.id === id));
+      if (figures.length + props.length > 1) selection = figures.length === selection.figures.length && props.length === selection.props.length ? selection : { kind: 'many', figures, props };
+      else selection = figures.length ? { kind: 'figure', figure: figures[0] } : props.length ? { kind: 'prop', prop: props[0] } : null;
     }
     const through = s.through?.camera && !scene.cameras.some((c) => c.id === s.through!.camera) ? null : s.through;
     let activeFigure = selection?.kind === 'joint' || selection?.kind === 'figure' || selection?.kind === 'action' ? selection.figure : s.activeFigure;

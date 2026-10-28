@@ -317,7 +317,8 @@ export function addProp(store: Store, kind: PropKind, at?: Vec3, turn?: number) 
   const toward = f ? Math.atan2(f.position[0] - place[0], f.position[2] - place[2]) * (180 / Math.PI) : 180;
   const yaw = turn ?? (kind === 'hoop' ? toward : kind === 'bar' || kind === 'mat' ? toward + 180 : 0);
   const prop = { ...newProp(kind, place, nextName(PROP_LABELS[kind], store.scene.props.map((p) => p.name))), rotation: [0, Math.round(wrapDeg(yaw) * 10) / 10 || 0, 0] as Vec3 };
-  const figure = HANDHELD.includes(kind) ? store.figure : null;
+  // (A hand prop goes into the active figure's hand unless it is put at a spot on the floor.)
+  const figure = HANDHELD.includes(kind) && !at ? store.figure : null;
   const busy = (hand: Side) => store.scene.props.some((p) => p.hold?.figure === figure?.id && p.hold?.hand === hand);
   const hand: Side | null = figure ? (!busy('R') ? 'R' : !busy('L') ? 'L' : null) : null;
   if (figure && hand) {

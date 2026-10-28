@@ -34,7 +34,8 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /** A spot for a new figure: beside or facing the nearest figure if near one, else on the grid. */
 function figureSpot(store: Store, p: Vec3, alt: boolean, yaw: number): { at: Vec3; yaw: number; text: string } {
-  const others = store.scene.figures.filter((f) => !f.hidden);
+  // (Where they are drawn: at the playhead.)
+  const others = (store.scene.animation ? sceneAt(store.scene, store.getState().time) : store.scene).figures.filter((f) => !f.hidden);
   const near = others.map((f) => ({ f, d: Math.hypot(f.position[0] - p[0], f.position[2] - p[2]) })).sort((a, b) => a.d - b.d)[0]?.f;
   if (near && !alt) {
     const [fx, fz] = forward(near);
@@ -106,8 +107,6 @@ export function placingProp(store: Store, kind: PropKind): Placing {
         store.select({ kind: 'figure', figure: into.id });
         addProp(store, kind);
       } else if (p.at) {
-        // (Onto the floor: not into the active figure's hand.)
-        store.select(null);
         addProp(store, kind, p.at, p.yaw);
       }
     },

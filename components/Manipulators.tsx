@@ -213,7 +213,8 @@ function sliderDrag(m: Mannequin, joint: JointName, axis: number, grab: THREE.Ve
 /** Keys held now: X, Y or Z held as a part is dragged turns only that slider (1, 2 or 3 pressed during the drag, too). */
 const held = new Set<string>();
 if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', (e) => { held.add(e.key.toLowerCase()); });
+  // (Not with Cmd or Ctrl: on macOS a key let go while Cmd is down sends no keyup, and Cmd+Z would stay "held".)
+  window.addEventListener('keydown', (e) => { if (!e.metaKey && !e.ctrlKey) held.add(e.key.toLowerCase()); });
   window.addEventListener('keyup', (e) => { held.delete(e.key.toLowerCase()); });
   window.addEventListener('blur', () => held.clear());
 }
