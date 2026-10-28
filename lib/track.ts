@@ -133,18 +133,18 @@ export function removeKeyAt(a: Animation, figure: string, t: number): Animation 
 export function moveKeysBy(a: Animation, figure: string, times: number[], by: number): Animation {
   const tol = 0.5 / a.fps;
   const picked = (t: number) => times.some((x) => Math.abs(x - t) < tol);
-  let out = a;
-  for (const act of actionsOf(a, figure).filter(isKeys)) {
-    const keys = keysOf(act);
-    if (!keys.some((k) => picked(k.t))) continue;
-    const moved = keys.map((k) => (picked(k.t) ? { ...k, t: snapTime({ ...a, duration: MAX_DURATION }, k.t + by) } : k)).sort((p, q) => p.t - q.t);
-    if (moved.some((k, i) => i > 0 && k.t - moved[i - 1].t < tol)) return a;
-    const next = { ...keysAction(figure, moved, act.layer), id: act.id };
-    const others = actionsOf(out, figure).filter((x) => x.id !== act.id);
-    if (others.some((x) => x.start < end(next) - EPS && end(x) > next.start + EPS)) return a;
-    out = replace(out, out.actions.find((x) => x.id === act.id)!, [next]);
+  const touched = actionsOf(a, figure).filter((x) => isKeys(x) && keysOf(x).some((k) => picked(k.t)));
+  const nexts: Action[] = [];
+  for (const act of touched) {
+    const moved = keysOf(act).map((k) => (picked(k.t) ? { ...k, t: Math.round((k.t + by) * a.fps) / a.fps } : k)).sort((p, q) => p.t - q.t);
+    // (All of them go, or none: not past either end, not onto another key.)
+    if (moved[0].t < -EPS || moved[moved.length - 1].t > MAX_DURATION + EPS || moved.some((k, i) => i > 0 && k.t - moved[i - 1].t < tol)) return a;
+    nexts.push({ ...keysAction(figure, moved, act.layer), id: act.id });
   }
-  return sorted(out);
+  // Not over the actions that stay (those moving together keep their order).
+  const staying = actionsOf(a, figure).filter((x) => !touched.includes(x));
+  if (nexts.some((n) => staying.some((x) => x.start < end(n) - EPS && end(x) > n.start + EPS))) return a;
+  return sorted({ ...a, actions: [...a.actions.filter((x) => !touched.includes(x)), ...nexts] });
 }
 
 /** How a figure's keys that do not go on smoothly go on, by their times (as keyTimesOf has them), their poses not read. */
@@ -589,11 +589,16 @@ export function cutTo(scene: Scene, d: number): Scene {
     const m = marksOf(scene, x, id)!;
     const points = [m.start.at, ...via.map((v) => v.at), m.end.at];
     const legs = points.slice(1).map((p, i) => Math.hypot(p[0] - points[i][0], p[1] - points[i][1]));
-    const total = legs.reduce((t, l) => t + l, 0) || 1;
-    const u = (d - x.start) / x.duration;
-    let run = 0;
-    const passed = via.filter((_, i) => (run += legs[i]) / total <= u);
-    return [x.id, { mark: markOf(figurePoseAt(scene, id, d)!), via: passed }];
+    // The marks before the leg it is on at the cut (the one nearest where it is then).
+    const here = markOf(figurePoseAt(scene, id, d)!);
+    const off = (i: number) => {
+      const [p, q] = [points[i], points[i + 1]];
+      const len2 = legs[i] ** 2 || 1;
+      const k = Math.min(1, Math.max(0, ((here.at[0] - p[0]) * (q[0] - p[0]) + (here.at[1] - p[1]) * (q[1] - p[1])) / len2));
+      return Math.hypot(here.at[0] - (p[0] + (q[0] - p[0]) * k), here.at[1] - (p[1] + (q[1] - p[1]) * k));
+    };
+    const leg = legs.reduce((best, _, i) => (off(i) < off(best) - 1e-6 ? i : best), 0);
+    return [x.id, { mark: here, via: via.slice(0, leg) }];
   }));
   for (const f of scene.figures) a = clear({ ...scene, animation: a }, f.id, d, Infinity);
   const actions = a.actions.flatMap((x): Action[] => {

@@ -220,7 +220,8 @@ class Evaluator {
         if (!c.on) {
           const side = bone === 'leftFoot' ? 'L' : 'R';
           // (Each time round a clip played again, where the foot lands then.)
-          const lap = (clip.loop || (act.source as { repeat?: number }).repeat) && clip.duration > EPS ? Math.max(0, Math.floor(((t - act.start) * speed) / clip.duration + EPS)) : 0;
+          const repeat = (act.source as { repeat?: number }).repeat;
+          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? 50 : repeat! - 1, Math.max(0, Math.floor(((t - act.start) * speed) / clip.duration + EPS))) : 0;
           const key = `${act.id}:${f.id}:${n}:${lap}`;
           let at = this.anchors.get(key);
           if (!at) {

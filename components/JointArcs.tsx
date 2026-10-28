@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { setJoint } from '@/lib/actions';
+import { setJoint, stepJoint } from '@/lib/actions';
 import { jointLimits, wrapDeg } from '@/lib/joints';
 import type { Store } from '@/lib/store';
 import type { JointName, Vec3 } from '@/lib/types';
@@ -15,6 +15,8 @@ export type JointOnScreen = { x: number; y: number; away: number; turns: [number
 const RADII = [48, 68, 88];
 const HALF = (50 * Math.PI) / 180;
 const DEG = Math.PI / 180;
+/** How far past an arc's ends its − and + buttons sit (px). */
+const BEYOND = 17;
 let drags = 0;
 
 /** A point at angle `a` (screen radians, y down) and radius `r` from (0, 0). */
@@ -25,7 +27,8 @@ const at = (a: number, r: number) => [r * Math.cos(a), r * Math.sin(a)] as const
  * with an arrowhead at its + end (the way the part then goes). Thin to look at, wide to grab, above
  * the body; travel along an arc is degrees, and a rough straight drag works (the travel along the
  * arc where it was grabbed counts). Ctrl: 5° steps; Shift: a fifth of the speed. With the limits
- * on, a drag stops at them and the arc flashes. A double-click types the value.
+ * on, a drag stops at them and the arc flashes. A double-click types the value. A − and a + past
+ * its ends step it 5° (Shift: 15°), again and again while held down.
  */
 export default function JointArcs({ store, figure, joint, value, limits, onScreen, onLimit }: {
   store: Store;
@@ -113,6 +116,27 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
     el.addEventListener('pointercancel', up);
   };
 
+  /** A − or + button held down: a step at once, then more while it is held. */
+  const stepper = (axis: number, by: number) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const n = e.shiftKey ? 3 : 1;
+    const once = () => {
+      const v = stepJoint(store, figure, joint, axis, by * STEPS.joint * n);
+      if (v !== null) setReadout(sliderText(joint, axis, v), undefined, axis);
+    };
+    once();
+    let timer = window.setTimeout(function again() { once(); timer = window.setTimeout(again, 90); }, 400);
+    const stop = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+  };
+
   const commit = (text: string) => {
     const n = Number(text);
     if (typing && text.trim() !== '' && Number.isFinite(n)) {
@@ -166,6 +190,26 @@ export default function JointArcs({ store, figure, joint, value, limits, onScree
                     setTyping({ axis: i, x: e.clientX - box.left, y: e.clientY - box.top });
                   }}
                 />
+                {!active?.drag && [1, -1].map((by) => {
+                  // + past the arrowhead's end, − past the other.
+                  const gap = BEYOND / r;
+                  const a = by * place.signs[i] > 0 ? a1 + gap : a0 - gap;
+                  const [bx, by2] = at(a, r);
+                  return (
+                    <g
+                      key={by}
+                      className="joint-arc-step"
+                      transform={`translate(${bx} ${by2})`}
+                      onPointerDown={stepper(i, by)}
+                      onPointerEnter={() => setPointerHint(`${sliderName(joint, i)} ${by > 0 ? '+' : '−'}5° (Shift: 15°; hold down for more)`)}
+                      onPointerLeave={() => { setPointerHint(null); setReadout(null); }}
+                    >
+                      <title>{`${sliderName(joint, i)} ${by > 0 ? '+' : '−'}5°`}</title>
+                      <circle r={8} />
+                      <path d={by > 0 ? 'M -4 0 H 4 M 0 -4 V 4' : 'M -4 0 H 4'} />
+                    </g>
+                  );
+                })}
               </g>
             );
           })}

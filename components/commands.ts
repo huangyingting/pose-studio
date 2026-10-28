@@ -412,6 +412,19 @@ function wholeText(c: Ctx, ids: string[], moved: string[]) {
   return others.length ? `${who}, with ${others.map(name).join(', ')} (acting together)` : who;
 }
 
+/**
+ * Turn what is selected a step, anticlockwise as seen from above (`dir` 1) or clockwise (-1): a
+ * figure or prop about itself, a rig camera round its subject, the light round the scene (the
+ * canvas's ⟲ ⟳ buttons). Whether the selection turns so.
+ */
+export function turnSelection(c: Ctx, dir: 1 | -1) {
+  const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
+  const k: StepKey | null = at?.kind === 'figure' || at?.kind === 'prop' || at?.kind === 'many' ? (dir > 0 ? 'turnLeft' : 'turnRight')
+    : at?.kind === 'rig' ? (dir > 0 ? 'right' : 'left') : at?.kind === 'light' ? (dir > 0 ? 'left' : 'right') : null;
+  if (k) step(c, k);
+  return !!k;
+}
+
 /** What the step keys do for what is selected, for the hint ("← → ↑ ↓: move · Alt ← →: turn"). */
 export function stepHint(c: Ctx): string | null {
   const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');

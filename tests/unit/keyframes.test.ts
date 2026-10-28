@@ -97,6 +97,8 @@ describe('keyframes: pose to pose (#13)', () => {
     expect(moveKeyframes(store, id, [1, 2], 0.5)).toBe(true);
     expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1.5, 2.5]);
     expect(moveKeyframes(store, id, [1.5], -1.5)).toBe(false);
+    // None goes past the start (the others do not go on without it).
+    expect(moveKeyframes(store, id, [0, 1.5], -0.5)).toBe(false);
     expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1.5, 2.5]);
   });
 

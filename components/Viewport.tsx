@@ -21,6 +21,7 @@ import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, sliderAxis, valuesOf } from './Manipulators';
 import type { Contact } from '@/lib/relations';
 import JointArcs, { type JointOnScreen } from './JointArcs';
+import TurnButtons from './TurnButtons';
 import CameraHandles, { stepRig } from './CameraHandles';
 import LightHandles from './LightHandles';
 import { STEPS, snapping } from './modifiers';
@@ -48,6 +49,8 @@ export interface ViewportApi {
   pick(x: number, y: number): CanvasHit;
   /** Where on screen to label what is selected: just above it (a joint: beside it, opposite its arcs). Null if it is not drawn. */
   labelPoint(sel: NonNullable<Selection>): { x: number; y: number } | null;
+  /** What turns the selection on screen: a figure's or prop's floor ring (its middle and half its width, px), a camera or the lamp (no width). */
+  ringOnScreen(sel: NonNullable<Selection>): { x: number; y: number; r: number } | null;
 }
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
@@ -138,6 +141,11 @@ export default function Viewport({
     () => (selection?.kind === 'joint' ? apiRef.current?.jointOnScreen(selection.figure, selection.joint) ?? null : null),
     [selection, apiRef],
   );
+  // What ⟲ ⟳ turn: a figure, a prop not in a hand, a rig camera, the light.
+  const turnable = !!selection && (selection.kind === 'figure' || selection.kind === 'light'
+    || (selection.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold)
+    || (selection.kind === 'camera' && scene.cameras.find((c) => c.id === selection.camera)?.kind === 'rig'));
+  const ringOnScreen = useCallback(() => (selection ? apiRef.current?.ringOnScreen(selection) ?? null : null), [selection, apiRef]);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
@@ -393,6 +401,7 @@ export default function Viewport({
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
       </Canvas>
       <DragReadout />
+      {handles && turnable && !through && <TurnButtons key={JSON.stringify(selection)} onScreen={ringOnScreen} />}
       {handles && selection?.kind === 'joint' && figureDoc(selection.figure) && !figureDoc(selection.figure)!.proxy && (
         <JointArcs
           key={`${selection.figure}:${selection.joint}`}
@@ -747,6 +756,28 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         if (box.isEmpty()) return null;
         const c = box.getCenter(new THREE.Vector3());
         return toScreen(new THREE.Vector3(c.x, box.max.y, c.z));
+      },
+      ringOnScreen: (sel) => {
+        const across = (c: THREE.Vector3, radius: number) => {
+          if (c.clone().project(camera).z > 1) return null;
+          const at = toScreen(c.clone());
+          const side = toScreen(c.clone().add(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(radius)));
+          return { ...at, r: Math.hypot(side.x - at.x, side.y - at.y) };
+        };
+        if (sel.kind === 'figure') {
+          const m = sv.figures.get(sel.figure);
+          if (!m || (!m.object.visible && !sv.models.get(sel.figure))) return null;
+          return across(m.joints.hips.getWorldPosition(new THREE.Vector3()).setY(0), 0.275 * m.object.scale.y);
+        }
+        if (sel.kind === 'prop') {
+          const o = sv.props.get(sel.prop)?.object;
+          if (!o?.visible) return null;
+          const size = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+          return across(o.position.clone().setY(0), Math.max(size.x, size.z) / 2 + 0.08);
+        }
+        if (sel.kind === 'light') return across(lampAt(lightDome(sv.bounds()), lightRef.current), 0);
+        const point = apiRef.current?.labelPoint(sel);
+        return point ? { ...point, r: 0 } : null;
       },
       pick: (x, y) => {
         const r = gl.domElement.getBoundingClientRect();

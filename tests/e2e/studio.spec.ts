@@ -1679,6 +1679,30 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
   expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
 });
 
+test('steps found on the canvas: a joint arc\'s − and +, ⟲ and ⟳ beside the floor ring', async ({ page }) => {
+  await unfold(page, 'Joints');
+  await page.getByRole('button', { name: 'Left forearm', exact: true }).click();
+  const bend = async () => angle((await figs(page))[0].bones as Bones, 'leftLowerArm')[0];
+  const before = await bend();
+  // The first arc's + (past its arrowhead): 5°; with Shift, 15°.
+  const plus = page.locator('.joint-arc.x .joint-arc-step').first();
+  await plus.click();
+  expect(await bend()).toBeCloseTo(before + 5, 0);
+  await plus.click({ modifiers: ['Shift'] });
+  expect(await bend()).toBeCloseTo(before + 20, 0);
+  await page.locator('.joint-arc.x .joint-arc-step').nth(1).click();
+  expect(await bend()).toBeCloseTo(before + 15, 0);
+
+  // The figure: ⟲ turns it 15° anticlockwise seen from above (to its left).
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  const facing = async () => facingOf((await figs(page))[0].bones as Bones);
+  const f0 = await facing();
+  await page.getByRole('button', { name: /^Turn 15° anticlockwise/ }).click();
+  expect(await facing()).toBeCloseTo(f0 + 15, 0);
+  await page.getByRole('button', { name: /^Turn 15° clockwise/ }).click();
+  expect(await facing()).toBeCloseTo(f0, 0);
+});
+
 test('figures walk, run and jump to marks from the floor menu; the timeline says how they get there', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);
