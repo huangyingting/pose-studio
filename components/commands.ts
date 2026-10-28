@@ -919,7 +919,8 @@ export function commandForKey(e: KeyboardEvent, c: Ctx) {
 /** A menu: commands by id, dividers, and group titles. A command with choices shows them under its title. */
 export type MenuEntry = string | '-' | { group: string };
 
-export function menuItems(entries: MenuEntry[], c: Ctx): MenuItem[] {
+/** (`keys`: the context the keys act in, when it is not the menu's: a command's key is shown only if it acts on this there.) */
+export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem[] {
   const out: MenuItem[] = [];
   for (const e of entries) {
     if (e === '-') { if (out.length && out[out.length - 1] !== '-') out.push('-'); continue; }
@@ -936,7 +937,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx): MenuItem[] {
     out.push({
       label: titleOf(cmd, c),
       icon: iconOf(cmd, c),
-      shortcut: cmd.keys ? keyLabel(cmd.keys[0]) : undefined,
+      shortcut: cmd.keys && (keys === c || applies(cmd, keys)) ? keyLabel(cmd.keys[0]) : undefined,
       checked: cmd.checked?.(c),
       disabled: !enabled(cmd, c),
       danger: cmd.danger,
@@ -989,11 +990,10 @@ export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name],
 
 /** A figure's menu; with one of its parts selected, that part's commands too (the figure's own, Delete among them, act on the whole figure). */
 export function figureMenu(store: Store, figure: string, joint?: JointName): MenuItem[] {
-  const own = menu('figure', { store, figure });
-  if (!joint) return own;
-  // (With a part selected the keys act on the part: the figure's commands show here without them.)
-  const unkeyed = own.map((it) => (typeof it === 'object' && 'label' in it ? { ...it, shortcut: undefined } : it));
-  return [...unkeyed, '-', { group: JOINT_LABELS[joint] }, ...menu('joint', { store, figure, joint })];
+  if (!joint) return menu('figure', { store, figure });
+  // (With a part selected the keys act in its context: the figure's commands show the keys that still reach the figure.)
+  const part: Ctx = { store, figure, joint };
+  return [...menuItems(MENUS.figure, { store, figure }, part), '-', { group: JOINT_LABELS[joint] }, ...menu('joint', part)];
 }
 
 /** A command's choices as a menu of their own (the render styles). */
