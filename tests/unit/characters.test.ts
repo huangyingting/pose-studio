@@ -33,7 +33,10 @@ describe('built-in characters', () => {
   it('ship small, and their skeletons are found without help, as listed', async () => {
     for (const c of BUILT_IN_CHARACTERS) {
       const path = `public${characterFile(c.id)}`;
-      expect(statSync(path).size, c.name).toBeLessThan(2 * 1024 * 1024);
+      // (Drawn in our styles only: small. One in its own look, its textures (Aoi, in Toon): larger, fetched when first drawn.)
+      const file = readFileSync(path);
+      const textured = !!JSON.parse(file.subarray(20, 20 + file.readUInt32LE(12)).toString()).images?.length;
+      expect(statSync(path).size, c.name).toBeLessThan((textured ? 16 : 2) * 1024 * 1024);
       const root = await parseModel('glb', withoutTextures(readFileSync(path)));
       const map = mapBones(root);
       expect(missingBones(map), c.name).toEqual([]);

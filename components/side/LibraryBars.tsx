@@ -148,8 +148,8 @@ export function CharactersBar({ notify, notifyUndo }: BarProps) {
       <div className="library-row">
         <ImportButton
           label="Import character…"
-          accept=".glb,.gltf,.fbx"
-          tip="A character with a skeleton (glTF/GLB or FBX: Mixamo, VRoid…), posed and animated like the mannequin"
+          accept=".vrm,.glb,.gltf,.fbx"
+          tip="A character with a skeleton (VRM, glTF/GLB or FBX: VRoid, Mixamo…), posed and animated like the mannequin; a VRM in its own toon look in the Toon style"
           fileLabel="Character file"
           reading={imp.reading}
           onFile={(f) => void imp.run(f)}

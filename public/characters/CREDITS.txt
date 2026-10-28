@@ -25,3 +25,18 @@ child.glb, heavy-man.glb, older-woman.glb
   License: the MakeHuman / MPFB assets (base mesh, targets, rigs) are CC0 1.0 Universal, and so
   is what is made from them. (MPFB's program code is GPLv3; none of it ships with the app.)
 
+
+aoi.glb
+
+  "Aoi" (VRM avatar "girl") by Ueda, from https://github.com/uemegu/AnimeVRM.Motions
+  (public/models/aoi.vrm).
+
+  License: the avatar's own VRM 1.0 licence (https://vrm.dev/licenses/1.0/), as its file states:
+  avatar use by everyone; personal, non-profit use only; credit required ("Aoi by Ueda");
+  no excessively violent or sexual use, no political or religious use, no antisocial or hateful
+  use. The original file may not be redistributed; a modified version may
+  (modification: allowModificationRedistribution), under the same terms.
+
+  Changes (scripts/vrm-character.py): its bones renamed as the app's skeleton's, its textures
+  fitted within 1024 px, its spring bones left out. Its meshes, MToon materials, humanoid and
+  licence are as they came.

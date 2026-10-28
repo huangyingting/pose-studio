@@ -74,6 +74,19 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     shadows: true,
     lit: true,
   },
+  toon: {
+    id: 'toon',
+    label: 'Toon',
+    description: 'Toon shading in each character’s own colours and textures (VRM avatars as made), with outlines',
+    background: '#f4f6fb',
+    outline: { color: '#2b2228', scale: 1, jitter: 0 },
+    rings: null,
+    face: '#5d4752',
+    // (Outlines only: lines between parts would box a VRM's see-through cards, its lashes and hair.)
+    interior: null,
+    shadows: true,
+    lit: true,
+  },
   shaded: {
     id: 'shaded',
     label: 'Clay',

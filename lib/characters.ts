@@ -1,8 +1,8 @@
 import { withBase } from './paths';
-import type { ModelInfo } from './types';
+import { BONES as SKELETON, type ModelInfo } from './types';
 
 /*
- * Characters that come with the app (public/characters, CC0: see CREDITS.txt there): listed
+ * Characters that come with the app (public/characters: see CREDITS.txt there): listed
  * with the mannequin, their files fetched the first time a figure is drawn as one (or one is
  * previewed). Scenes refer to them by a stable id, as built-in motions are, so a scene drawn with
  * one opens anywhere without carrying the file.
@@ -40,9 +40,13 @@ const BONES: ModelInfo['bones'] = {
   ...side('l', 'left'), ...side('r', 'right'),
 };
 
+// A VRM avatar made one of ours (scripts/vrm-character.py): its bones named as our skeleton's.
+const OURS: ModelInfo['bones'] = Object.fromEntries(SKELETON.map((b) => [b, b]));
+
 /**
  * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
- * heavier man and an older woman (MakeHuman, shaped with MPFB). Each with the body the mannequin
+ * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
+ * her own toon look (Ueda's VRM, credited as her licence asks). Each with the body the mannequin
  * under it takes (its height, build, head and legs, measured from the character), which contacts
  * and the motion check use.
  */
@@ -52,6 +56,10 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   { id: `${PREFIX}child`, name: 'Child', format: 'glb', bones: MIXAMO, body: { sex: 0.5, height: 1.31, build: 0.3, head: 1.19, legs: 1, bust: 0 } },
   { id: `${PREFIX}heavy-man`, name: 'Heavier man', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.73, build: 0.8, head: 1.05, legs: 1.05, bust: 0 } },
   { id: `${PREFIX}older-woman`, name: 'Older woman', format: 'glb', bones: MIXAMO, body: { sex: 1, height: 1.52, build: 0.5, head: 1.05, legs: 1, bust: 0.5 } },
+  {
+    id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.55, build: 0, head: 1.27, legs: 1.13, bust: 0.3 },
+    credit: 'by Ueda · personal use · credit required',
+  },
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);

@@ -243,14 +243,16 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
 
 function characters(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
-  const item = (id: string | null, name: string, group: string, thumb: Thumb | undefined, own = false): LibraryItem => ({
+  // (`credit`: who made it and on what terms, as its file says: a VRM avatar's.)
+  const item = (id: string | null, name: string, group: string, thumb: Thumb | undefined, own = false, credit?: string): LibraryItem => ({
     key: `character:${id ?? 'mannequin'}`,
     tab: 'characters',
     part: 'Characters',
     group,
     name,
     icon: UserRound,
-    note: figure ? `Click to draw ${figure.name} as ${name}` : undefined,
+    ...(credit ? { meta: credit } : {}),
+    note: [figure ? `Click to draw ${figure.name} as ${name}` : '', credit ?? ''].filter(Boolean).join(' · ') || undefined,
     disabled: !figure,
     on: !!figure && (figure.model ?? null) === id,
     run: () => {
@@ -265,8 +267,8 @@ function characters(store: Store, ui: LibraryUi): LibraryItem[] {
   });
   return [
     item(null, 'Mannequin', 'Built in', characterThumb(null)),
-    ...BUILT_IN_CHARACTERS.map((c) => item(c.id, c.name, 'Built in', { url: characterImage(c.id) })),
-    ...(store.getState().library.models ?? []).map((m) => item(m.id, m.name, 'My characters', m.thumb ? { url: m.thumb } : undefined, true)),
+    ...BUILT_IN_CHARACTERS.map((c) => item(c.id, c.name, 'Built in', { url: characterImage(c.id) }, false, c.credit)),
+    ...(store.getState().library.models ?? []).map((m) => item(m.id, m.name, 'My characters', m.thumb ? { url: m.thumb } : undefined, true, m.credit)),
   ];
 }
 

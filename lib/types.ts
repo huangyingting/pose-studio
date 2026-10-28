@@ -489,6 +489,8 @@ export interface ModelInfo {
   body?: BodyParams;
   /** Its thumbnail for the library (an imported one's, drawn as it is imported). */
   thumb?: string;
+  /** Who made it and on what terms, as its file says (a VRM avatar's): shown with it. */
+  credit?: string;
 }
 
 /** A body's build as shares of its height: hips above the feet, the head above its joint, the shoulders' width. */
@@ -555,7 +557,7 @@ export type Selection =
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
-export const STYLES = ['line', 'sketch', 'ink', 'anime', 'shaded', 'minimal', 'silhouette'] as const;
+export const STYLES = ['line', 'sketch', 'ink', 'anime', 'toon', 'shaded', 'minimal', 'silhouette'] as const;
 export type Style = (typeof STYLES)[number];
 /** What a selected prop's gizmo does: move it, or (R) scale it. */
 export type GizmoMode = 'translate' | 'scale';

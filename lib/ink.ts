@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { NOISE_GLSL, styleMaterial } from './shaders';
 import { styleDef } from './styles';
+import { flatLook, toonMaterial } from './toon';
 import type { Style, Vec3 } from './types';
 
 /**
@@ -96,6 +97,8 @@ export class Ink {
   private baseThickness = 1.6;
   private style: Style = 'line';
   private materials = new Map<string, StyleMaterials>();
+  /** Outlines of their own width and colour (a VRM character's materials': outlineAs). */
+  private ownOutlines = new Map<string, { material: THREE.ShaderMaterial; width: number; thickness: { value: number } }>();
   private idMats = new Map<number, THREE.ShaderMaterial>();
 
   constructor(readonly ghost: Ghost | null = null) {
@@ -152,6 +155,20 @@ export class Ink {
     const o = styleDef(this.style).outline;
     this.uniforms.thickness.value = this.baseThickness * (this.ghost ? 0.8 : o ? o.scale : 0);
     this.linkedUniforms.thickness.value = Math.max(2.5, this.uniforms.thickness.value + 1.5);
+    for (const own of this.ownOutlines.values()) own.thickness.value = this.uniforms.thickness.value * own.width;
+  }
+
+  /** An outline `width` times the style's, in its own colour (null: the style's): a look's (lib/toon.ts). */
+  outlineAs(width: number, color: THREE.Color | null): THREE.ShaderMaterial {
+    if (this.ghost) return this.outline;
+    const key = `${width.toFixed(3)}|${color?.getHexString() ?? ''}`;
+    let own = this.ownOutlines.get(key);
+    if (!own) {
+      const thickness = { value: this.uniforms.thickness.value * width };
+      own = { material: createOutlineMaterial({ ...this.uniforms, thickness, ...(color ? { color: { value: color.clone() } } : {}) }), width, thickness };
+      this.ownOutlines.set(key, own);
+    }
+    return own.material;
   }
 
   /** Surface materials for a style, created on first use. */
@@ -202,6 +219,16 @@ export class Ink {
           prop: shader('anime', '#eef1f6', '#c2c9d8'),
           propSel: shader('anime', '#dce7ff', '#a6b9e6'),
         };
+      case 'toon': {
+        const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms.lightDir);
+        return {
+          body: toon(body('#fdf4ef'), '#dcc0cc'),
+          bodySel: toon('#dce7ff', '#a6b9e6'),
+          hover: toon('#ecedf8', '#bfc3dc'),
+          prop: toon('#f1f3f7', '#c6ccd9'),
+          propSel: toon('#dce7ff', '#a6b9e6'),
+        };
+      }
       case 'minimal':
         return { body: basic(body('#ffffff')), bodySel: basic('#e2e9ff'), hover: basic('#f0f4ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
       case 'silhouette':
@@ -219,6 +246,8 @@ export class Ink {
     for (const m of this.idMats.values()) m.dispose();
     this.idMats.clear();
     this.outline.dispose();
+    for (const own of this.ownOutlines.values()) own.material.dispose();
+    this.ownOutlines.clear();
     this.ring.dispose();
     this.face.dispose();
   }

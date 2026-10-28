@@ -507,7 +507,8 @@ function parseModelInfo(v: unknown): ModelInfo | null {
   const proportions = p && share(p.legs) && share(p.head) && share(p.shoulders) ? { legs: p.legs as number, head: p.head as number, shoulders: p.shoulders as number } : null;
   // A thumbnail is a small PNG drawn on import.
   const thumb = typeof v.thumb === 'string' && v.thumb.startsWith('data:image/png;base64,') && v.thumb.length < 200_000 ? v.thumb : null;
-  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones, ...(proportions ? { proportions } : {}), ...(thumb ? { thumb } : {}) };
+  const credit = typeof v.credit === 'string' && v.credit ? v.credit.slice(0, 160) : null;
+  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones, ...(proportions ? { proportions } : {}), ...(thumb ? { thumb } : {}), ...(credit ? { credit } : {}) };
 }
 
 function parseClipInfo(v: unknown): ClipInfo | null {

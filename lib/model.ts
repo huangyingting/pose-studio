@@ -11,6 +11,8 @@ import type { Ink } from './ink';
 import { styleDef } from './styles';
 import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Proportions, type Style } from './types';
 import { uid } from './uid';
+import { readVrm, type VrmInfo } from './vrm';
+import { ownLooks, toonMaterial, type ToonLook } from './toon';
 
 /*
  * Rigs from other tools (a Mixamo character, a VRM avatar, a BVH capture's skeleton) fitted to the
@@ -243,11 +245,16 @@ export class ModelRig {
   private size = '';
   /** Its meshes, drawn in the scene's style as the mannequin is (not in the file's own materials). */
   private meshes: THREE.Mesh[] = [];
+  /** Their own looks, where the file gives them (a VRM avatar's), for the Toon style; and the materials made of them. */
+  private looks: (ToonLook | undefined)[] = [];
+  private toons: (THREE.ShaderMaterial | undefined)[] = [];
   /** Their outline hulls (posed with them). */
   private hulls: THREE.Mesh[] = [];
 
   constructor(template: THREE.Object3D, readonly info: ModelInfo, private ink: Ink) {
     const copy = cloneSkinned(template);
+    // (The copy's meshes in the same order as the model's, whose looks they take.)
+    template.traverse((o) => { if ((o as THREE.Mesh).isMesh) this.looks.push(ownLooks.get(o)); });
     this.fitted = new Fitted(copy, info.bones);
     this.object.add(this.fitted.frame);
     copy.traverse((o) => {
@@ -279,21 +286,31 @@ export class ModelRig {
   private linked = false;
   private style: Style = 'line';
 
-  /** Draw it in a style, its body tinted as the figure's colour. */
+  /** Draw it in a style, its body tinted as the figure's colour (in Toon, in its own looks where it has them). */
   setLook(style: Style, tint: string | null) {
     this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
-    for (const mesh of this.meshes) mesh.material = m.body;
+    this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? m.body; });
     this.setLinked(this.linked);
+  }
+
+  /** A mesh's own look's material, in the Toon style (made once). */
+  private own(i: number): THREE.ShaderMaterial | undefined {
+    const look = this.looks[i];
+    if (this.style !== 'toon' || !look || this.ink.ghost) return undefined;
+    return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms.lightDir));
   }
 
   /** Outline it in the accent (linked to the pointer elsewhere), whatever the style. */
   setLinked(on: boolean) {
     this.linked = on;
-    for (const h of this.hulls) {
-      h.material = on ? this.ink.linked : this.ink.outline;
-      h.visible = on || !!styleDef(this.style).outline;
-    }
+    const outlined = !!styleDef(this.style).outline;
+    this.hulls.forEach((h, i) => {
+      // (In its own look: its own outline, or none.)
+      const look = this.own(i) ? this.looks[i]!.outline : null;
+      h.material = on ? this.ink.linked : look ? this.ink.outlineAs(look.width, look.color) : this.ink.outline;
+      h.visible = on || (outlined && (!look || look.width > 0));
+    });
   }
 
   /** Flat per-part colours for the line pass (as the mannequin's parts); returns the next free id. */
@@ -327,8 +344,9 @@ export class ModelRig {
     this.object.scale.setScalar((legs.rootY - legs.ankleY) / this.fitted.hipHeight);
   }
 
-  /** (Its geometry is the model's, shared by every figure drawn as it.) */
+  /** (Its geometry and textures are the model's, shared by every figure drawn as it.) */
   dispose() {
+    for (const m of this.toons) m?.dispose();
     this.object.clear();
   }
 }
@@ -450,14 +468,20 @@ export function modelTemplate(id: string): THREE.Object3D | null {
   return null;
 }
 
-/** A model's file → its scene (a glTF/GLB or FBX character). */
+/**
+ * A model's file → its scene (a glTF/GLB or FBX character). A VRM avatar (a GLB) is read as one too
+ * (lib/vrm.ts): its meshes given their own toon looks (`ownLooks`), what it says of itself in `userData.vrm`.
+ */
 export async function parseModel(format: ModelInfo['format'], data: ArrayBuffer): Promise<THREE.Object3D> {
   if (format === 'fbx') {
     const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
     return new FBXLoader().parse(data, '');
   }
   const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-  return (await new GLTFLoader().parseAsync(data, '')).scene;
+  const gltf = await new GLTFLoader().parseAsync(data, '');
+  const vrm = await readVrm(gltf);
+  if (vrm) gltf.scene.userData.vrm = vrm;
+  return gltf.scene;
 }
 
 /**
@@ -466,11 +490,13 @@ export async function parseModel(format: ModelInfo['format'], data: ArrayBuffer)
  */
 export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap): Promise<ModelInfo> {
   const ext = name.toLowerCase().split('.').pop();
-  const format = ext === 'fbx' ? 'fbx' : ext === 'glb' || ext === 'gltf' ? 'glb' : null;
-  if (!format) throw new Error('Use a glTF/GLB or FBX character');
+  const format = ext === 'fbx' ? 'fbx' : ext === 'glb' || ext === 'gltf' || ext === 'vrm' ? 'glb' : null;
+  if (!format) throw new Error('Use a VRM, glTF/GLB or FBX character');
   const root = await parseModel(format, data);
   if (!rigBones(root).some((o) => (o as THREE.Bone).isBone)) throw new Error('The file has no skeleton');
-  const bones = map ?? mapBones(root);
+  // (A VRM says which bone is which; others are found by their names.)
+  const vrm = root.userData.vrm as VrmInfo | undefined;
+  const bones = map ?? (vrm && !missingBones(vrm.bones).length ? vrm.bones : mapBones(root));
   const missing = missingBones(bones);
   if (missing.length) throw new MissingBones(rigBones(root).map((o) => o.name), bones, missing);
   const info: ModelInfo = {
@@ -478,6 +504,7 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   };
   const proportions = characterProportions(root, bones);
   if (proportions) info.proportions = proportions;
+  if (vrm?.credit) info.credit = vrm.credit;
   await saveModelFile(info.id, data);
   infos.set(info.id, info);
   templates.set(info.id, root);
