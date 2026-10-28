@@ -280,9 +280,12 @@ function App() {
     });
   }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store]);
 
+  // Whether the keyboard (Tab), not the pointer, last moved the focus.
+  const tabbing = useRef(false);
   // Keyboard shortcuts: the command a key is bound to, on the selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') tabbing.current = true;
       if (dialog || e.defaultPrevented) return;
       const el = e.target as HTMLElement;
       const typing = el.closest('textarea, select, [contenteditable="true"]')
@@ -292,11 +295,9 @@ function App() {
       // scroll a side panel last clicked in; a plain button just clicked keeps no hold on them.
       if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && (el === document.body ? inPanel
         : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-lanes'))) return;
-      // Space presses a button reached from the keyboard (as browsers have it), not play; one just
-      // clicked keeps no hold on it.
-      if (e.key === 'Tab') clicked = null;
-      const button = el.closest?.('button, [role="button"]');
-      if (e.key === ' ' && button && button !== clicked) return;
+      // Space presses the button that has the focus when the keyboard brought it there (Tab, as
+      // browsers have it); after the pointer was last used (a click, a dialog closed), Space plays.
+      if (e.key === ' ' && tabbing.current && el.closest?.('button, [role="button"]')) return;
       // Tab goes from thing to thing only with the focus on the canvas (last clicked, nothing focused);
       // elsewhere, and before the canvas is clicked, it moves the focus.
       if (e.key === 'Tab' && (el !== document.body || !onCanvas)) return;
@@ -318,11 +319,9 @@ function App() {
     };
     let inPanel = false;
     let onCanvas = false;
-    // The button the pointer last pressed (Space does not press it again).
-    let clicked: Element | null = null;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Element;
-      clicked = t.closest?.('button, [role="button"]') ?? null;
+      tabbing.current = false;
       inPanel = !!t.closest?.('aside');
       onCanvas = t instanceof HTMLCanvasElement && !!t.closest('.stage');
     };
