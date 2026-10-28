@@ -1331,5 +1331,25 @@ export const GESTURES: [string, string][] = [
   ['Move a camera · up and down · add a point', 'Drag it · Shift drag · double-click its path'],
   ['Rename', 'Double-click'],
   ['Type an exact value', 'Click a slider’s value'],
+  ['Turn 15° · a slider 5°', 'Click ⟲ ⟳ beside the ring · − + at an arc’s ends'],
+  ['Pick up a prop', 'Drag a hand onto it'],
+  ['How a key goes on · hold its pose for a time', 'Right-click the key'],
+  ['Pick several keys · move them together', 'Shift-click them (or Shift-drag a box on the row) · drag one'],
+  ['Repeat an action · keep a keyed block as a motion', 'Right-click its block'],
+  ['Make the animation longer', 'Key or add past its end (the faint stretch)'],
   ['Reorder scenes (scene picker)', 'Alt + arrows'],
+];
+
+/** The keys for what is selected (the step commands), for the help: what, and the keys. */
+export const SELECTION_KEYS: [string, string][] = [
+  ['A figure, a prop, several things: move 5 cm the way the screen shows · turn 15°', '← → ↑ ↓ · Alt ← →'],
+  ['A prop (or a figure off the floor): raise · lower', 'Page Up · Page Down'],
+  ['A figure: move · turn all it does (no key)', 'Ctrl ← → ↑ ↓ · Ctrl Alt ← →'],
+  ['A joint: another joint · its slider 5° · another slider', '← → ↑ ↓ · Alt ← → · Alt ↑ ↓'],
+  ['A path camera: across, in and out · up and down · pan, tilt', '← → ↑ ↓ · Page Up / Down · Alt + arrows'],
+  ['A rig camera: round its subject · its height · closer, wider', '← → · Alt ↑ ↓ · Page Up / Down'],
+  ['The light: round · higher, lower', '← → · Page Up / Down'],
+  ['Looking through a camera: move that camera', 'As a camera above'],
+  ['Three steps at once', 'Shift + any of these'],
+  ['The next thing in the scene · the one before', 'Tab · Shift Tab'],
 ];
