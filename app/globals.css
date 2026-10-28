@@ -851,6 +851,10 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.sel { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--accent-ring); }
 .tl-block { display: contents; }
 /* Its right edge retimes it; the ramp before it is how long it blends in (drag it out). */
+/* A correction's band, low on its row over what it corrects. */
+.tl-fixband { position: absolute; bottom: 1px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fix) 45%, transparent); cursor: pointer; }
+.tl-fixband.sel { background: var(--fix); }
+.tl-fixband .tl-edge { width: 5px; }
 .tl-edge { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
 .tl-edge:hover { background: color-mix(in srgb, var(--shade) 12%, transparent); }
 /* An action's menu: a ⋯ while the pointer is over it (always on touch). */
@@ -893,6 +897,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* How a key goes on: at an even speed (hollow), held until the next (square). */
 .tl-key.linear:not(.on) { background: var(--panel); box-shadow: inset 0 0 0 2px var(--key), 0 0 0 1.5px var(--panel); }
 .tl-key.step { transform: none; border-radius: 1px; }
+/* Keys picked to move together, and the box picking them. */
+.tl-key.picked { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3.5px var(--accent); }
+.tl-box { position: absolute; top: 2px; bottom: 2px; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: 3px; pointer-events: none; }
 .tl-key.on { background: var(--accent); box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 4px var(--accent-ring); }
 .tl-key.cam { background: var(--run); border-radius: 50%; transform: none; cursor: pointer; }
 /* Keys closer together than a key is wide (a motion keyed every frame): small and light. */

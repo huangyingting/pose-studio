@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, applyMotion, holdKeyframe, repeatAction, saveKeysAsMotion, setJoint, setKeyframeEase, startAnimation, stepFigure } from '@/lib/actions';
+import { addFigure, applyMotion, holdKeyframe, moveKeyframes, travelTo, repeatAction, saveKeysAsMotion, setJoint, setKeyframeEase, startAnimation, stepFigure } from '@/lib/actions';
 import { clipById } from '@/lib/assets';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { angle } from '@/lib/pose';
@@ -90,5 +90,31 @@ describe('keyframes: pose to pose (#13)', () => {
     store.setTime(0);
     expect(applyMotion(store, other, info.id)).toBe(true);
     expect(angle(figurePoseAt(store.scene, other, 1)!.bones, 'leftUpperArm')[2]).toBeCloseTo(60, 0);
+  });
+
+  it('moves several keys together, and refuses to put one onto another', () => {
+    const { store, id } = keyed();
+    expect(moveKeyframes(store, id, [1, 2], 0.5)).toBe(true);
+    expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1.5, 2.5]);
+    expect(moveKeyframes(store, id, [1.5], -1.5)).toBe(false);
+    expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1.5, 2.5]);
+  });
+
+  it('holding the last key of a block moves on what starts there; a repeated block goes on from each first key as the first did', () => {
+    const { store, id } = keyed();
+    store.setTime(2);
+    const walk = travelTo(store, id, [0, -2], 'walk')!;
+    expect(walk.from).toBeCloseTo(2, 3);
+    holdKeyframe(store, id, 2, 1);
+    const travel = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'travel')!;
+    expect(travel.start).toBeCloseTo(3, 3);
+    expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1, 2, 3]);
+
+    const k = keyed();
+    setKeyframeEase(k.store, k.id, 0, 'step');
+    const block = actionsOf(k.store.scene.animation!, k.id).find((x) => x.source.kind === 'keys')!;
+    repeatAction(k.store, block.id, 2);
+    expect(keyEaseAt(k.store.scene.animation!, k.id, 2)).toBe('step');
+    expect(keyEaseAt(k.store.scene.animation!, k.id, 4)).toBe('smooth');
   });
 });

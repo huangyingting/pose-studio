@@ -91,7 +91,7 @@ export function PosedPanel({ t }: { t: Target }) {
 const speedOf = (act: Action) => {
   if (act.source.kind !== 'clip') return 1;
   const clip = clipById(act.source.clip);
-  return act.source.speed ?? (clip && !clip.loop ? clip.duration / act.duration : 1);
+  return act.source.speed ?? (clip && !clip.loop ? (clip.duration * (act.source.repeat ?? 1)) / act.duration : 1);
 };
 const tooFar = (t: Target) => !t.action!.layer && overWarp(t.scene, t.action!, t.actionFigure!);
 export const motionSummary = (t: Target) => {

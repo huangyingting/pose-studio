@@ -16,7 +16,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretch
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, holdKeyFor, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, cutTo, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { fitBody, modelInfo } from './model';
@@ -759,7 +759,7 @@ export function setClipOptions(store: Store, id: string, patch: { speed?: number
   const act = actionById(store, id);
   if (act?.source.kind !== 'clip') return;
   const clip = clipById(act.source.clip);
-  if (patch.speed !== undefined && clip && !clip.loop) retime(store, id, clip.duration / Math.min(4, Math.max(0.25, patch.speed)), key);
+  if (patch.speed !== undefined && clip && !clip.loop) retime(store, id, (clip.duration * (act.source.repeat ?? 1)) / Math.min(4, Math.max(0.25, patch.speed)), key);
   store.updateScene((s) => {
     if (!s.animation) return s;
     const actions = s.animation.actions.map((x) => {
@@ -842,6 +842,17 @@ export function deleteKeyframe(store: Store, figureId = store.getState().activeF
   if (!figureId) return;
   store.updateScene((s) => (s.animation ? { ...s, animation: removeKeyAt(s.animation, figureId, t) } : s));
   store.setTime(t);
+}
+
+/** Move several of a figure's keys in time together; returns whether they moved. */
+export function moveKeyframes(store: Store, figure: string, times: number[], by: number, key = '') {
+  const before = store.scene.animation;
+  store.updateScene((s) => {
+    const a = s.animation && moveKeysBy(s.animation, figure, times, by);
+    return a && a !== s.animation ? { ...s, animation: a } : s;
+  }, key);
+  store.setTime(store.getState().time);
+  return store.scene.animation !== before;
 }
 
 /** How a figure's key at t goes on to the next: smoothly, at an even speed, or held until the next (`step`). */

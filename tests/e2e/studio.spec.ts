@@ -1070,6 +1070,30 @@ test('keyframes pose to pose: a key held until the next, a pose held for a time,
   expect(s.motions.length + 1).toBe((await live(page)).motions.length);
 });
 
+test('keys picked together with Shift-click move together; a correction is a band of its own', async ({ page }) => {
+  await animate(page);
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  for (const _ of [1, 2]) {
+    for (let i = 0; i < 24; i++) await page.keyboard.press('.');
+    await page.keyboard.press('k');
+  }
+  let s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1, 2]);
+  await page.getByRole('button', { name: 'Keyframe at 1.00 s' }).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Keyframe at 2.00 s' }).click({ modifiers: ['Shift'] });
+  await expect(page.locator('.tl-key.picked')).toHaveCount(2);
+  // Dragged by one of them, half a second on: both go.
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const key = (await page.getByRole('button', { name: 'Keyframe at 1.00 s' }).boundingBox())!;
+  const dx = (lanes.width * 0.5) / shownTime(s.scene.animation!.duration);
+  await page.mouse.move(key.x + key.width / 2, key.y + key.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(key.x + key.width / 2 + (dx * i) / 5, key.y + key.height / 2);
+  await page.mouse.up();
+  s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1.5, 2.5]);
+});
+
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
   // Software rendering and encoding on CI machines without a GPU is slow.
   test.setTimeout(300_000);

@@ -1,4 +1,4 @@
-import { keyPose, keysClip, partKeys, placeClip, setPartKey, type Key } from './clip';
+import { keyPose, keyTimes, keysClip, partKeys, placeClip, setPartKey, type Key } from './clip';
 import { clipById } from './assets';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
@@ -129,6 +129,37 @@ export function removeKeyAt(a: Animation, figure: string, t: number): Animation 
   return sorted(replace(a, hit.act, [{ ...keysAction(figure, keys), id: hit.act.id }]));
 }
 
+/** Move several of a figure's keys (at `times`) by `by` seconds together (refused onto other keys or actions). */
+export function moveKeysBy(a: Animation, figure: string, times: number[], by: number): Animation {
+  const tol = 0.5 / a.fps;
+  const picked = (t: number) => times.some((x) => Math.abs(x - t) < tol);
+  let out = a;
+  for (const act of actionsOf(a, figure).filter(isKeys)) {
+    const keys = keysOf(act);
+    if (!keys.some((k) => picked(k.t))) continue;
+    const moved = keys.map((k) => (picked(k.t) ? { ...k, t: snapTime({ ...a, duration: MAX_DURATION }, k.t + by) } : k)).sort((p, q) => p.t - q.t);
+    if (moved.some((k, i) => i > 0 && k.t - moved[i - 1].t < tol)) return a;
+    const next = { ...keysAction(figure, moved, act.layer), id: act.id };
+    const others = actionsOf(out, figure).filter((x) => x.id !== act.id);
+    if (others.some((x) => x.start < end(next) - EPS && end(x) > next.start + EPS)) return a;
+    out = replace(out, out.actions.find((x) => x.id === act.id)!, [next]);
+  }
+  return sorted(out);
+}
+
+/** How a figure's keys that do not go on smoothly go on, by their times (as keyTimesOf has them), their poses not read. */
+export function keyEasesOf(a: Animation, figure: string): Map<number, NonNullable<Key['ease']>> {
+  const out = new Map<number, NonNullable<Key['ease']>>();
+  for (const act of actionsOf(a, figure).filter(isKeys)) {
+    const part = clipOfKeys(act).parts[0];
+    keyTimes(part).forEach((t, i) => {
+      const e = part.eases?.[i];
+      if (e && e !== 'smooth') out.set(Math.round((act.start + t) * 1e6) / 1e6, e);
+    });
+  }
+  return out;
+}
+
 /** How a figure's key at t goes on to the next (null: no key there). */
 export function keyEaseAt(a: Animation, figure: string, t: number): Key['ease'] | null {
   const hit = keyAtTime(a, figure, t);
@@ -148,12 +179,13 @@ export function holdKeyFor(a: Animation, figure: string, t: number, by: number):
   const hit = keyAtTime(a, figure, t);
   if (!hit || by <= EPS) return a;
   const key = keysOf(hit.act)[hit.i];
-  const moved = ripple(a, figure, key.t + 0.5 / a.fps, by);
+  // The key and all that comes from then on move on (an action starting there too); a copy of it
+  // stays where it was, holding still (smooth between equal poses) until it.
+  const moved = ripple(a, figure, key.t - 0.5 / a.fps, Math.round(by * a.fps) / a.fps);
   const act = moved.actions.find((x) => x.id === hit.act.id)!;
-  const at = Math.round((key.t + by) * a.fps) / a.fps;
-  // The first holds still (smooth between equal poses) and the copy goes on as the key did.
-  const keys = [...keysOf(act).map((k, i) => (i === hit.i ? { t: k.t, pose: k.pose } : k)), { ...key, t: at }].sort((p, q) => p.t - q.t);
-  return longer(sorted(replace(moved, act, [{ ...keysAction(figure, keys, act.layer), id: act.id }])), at);
+  const keys = [{ t: key.t, pose: key.pose }, ...keysOf(act)].sort((p, q) => p.t - q.t);
+  const next = { ...keysAction(figure, keys, act.layer), id: act.id };
+  return longer(sorted(replace(moved, act, [next])), end(next));
 }
 
 /**
@@ -182,6 +214,10 @@ export function repeatAction(a: Animation, id: string, times: number): Animation
   const [dx, dz] = [last.pose.position[0] - first.pose.position[0], last.pose.position[2] - first.pose.position[2]];
   const all = [...keys];
   for (let r = 1; r < times; r++) {
+    // Each time round goes on from its first key as the first did.
+    const join = all[all.length - 1];
+    all[all.length - 1] = { ...join, ...(first.ease ? { ease: first.ease } : {}) };
+    if (!first.ease) delete all[all.length - 1].ease;
     for (const k of keys.slice(1)) {
       const p = k.pose.position;
       all.push({ ...k, t: Math.round((k.t + r * span) * a.fps) / a.fps, pose: { ...k.pose, position: [r3(p[0] + r * dx), p[1], r3(p[2] + r * dz)] } });
@@ -442,7 +478,8 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
     const keys = keysOf(act).map((x) => ({ ...x, t: snapTime({ ...a, duration: MAX_DURATION }, act.start + (x.t - act.start) * k) }));
     next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
   }
-  const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
+  // (A correction is retimed by itself: it is over what it corrects, which stays.)
+  const moved = act.layer === 'correction' ? a : rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
   return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
 }
 
@@ -545,17 +582,27 @@ export function clear(scene: Scene, figure: string, t0: number, t1: number): Ani
 export function cutTo(scene: Scene, d: number): Scene {
   if (!scene.animation) return scene;
   let a = scene.animation;
-  // A walk under way at the cut goes only as far as it has got by then, at its pace.
-  const under = new Map(a.actions.filter((x) => x.source.kind === 'travel' && x.start < d - EPS && end(x) > d + EPS)
-    .map((x) => [x.id, markOf(figurePoseAt(scene, x.roles[0].figure, d)!)]));
+  // A walk under way at the cut goes only as far as it has got by then, by the marks it has passed, at its pace.
+  const under = new Map(a.actions.filter((x) => x.source.kind === 'travel' && x.start < d - EPS && end(x) > d + EPS).map((x) => {
+    const id = x.roles[0].figure;
+    const via = (x.source as Extract<ActionSource, { kind: 'travel' }>).via ?? [];
+    const m = marksOf(scene, x, id)!;
+    const points = [m.start.at, ...via.map((v) => v.at), m.end.at];
+    const legs = points.slice(1).map((p, i) => Math.hypot(p[0] - points[i][0], p[1] - points[i][1]));
+    const total = legs.reduce((t, l) => t + l, 0) || 1;
+    const u = (d - x.start) / x.duration;
+    let run = 0;
+    const passed = via.filter((_, i) => (run += legs[i]) / total <= u);
+    return [x.id, { mark: markOf(figurePoseAt(scene, id, d)!), via: passed }];
+  }));
   for (const f of scene.figures) a = clear({ ...scene, animation: a }, f.id, d, Infinity);
   const actions = a.actions.flatMap((x): Action[] => {
     if (x.start >= d - EPS && x.start > 0) return [];
-    const mark = under.get(x.id);
-    if (mark && x.source.kind === 'travel') {
+    const cut = under.get(x.id);
+    if (cut && x.source.kind === 'travel') {
       const { via: _via, ...source } = x.source;
       void _via;
-      return [{ ...x, duration: d - x.start, roles: [{ ...x.roles[0], end: mark }], source }];
+      return [{ ...x, duration: d - x.start, roles: [{ ...x.roles[0], end: cut.mark }], source: cut.via.length ? { ...source, via: cut.via } : source }];
     }
     return end(x) <= d + EPS ? [x] : [{ ...x, duration: d - x.start }];
   });

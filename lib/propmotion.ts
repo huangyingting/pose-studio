@@ -213,7 +213,7 @@ function happenings(a: Animation, id: string): Happening[] {
     const clip = clipById(act.source.clip);
     if (!clip) continue;
     const speed = act.source.speed ?? 1;
-    const laps = clip.loop && clip.duration > 1e-6 ? Math.max(1, Math.round((act.duration * speed) / clip.duration)) : 1;
+    const laps = clip.loop && clip.duration > 1e-6 ? Math.max(1, Math.round((act.duration * speed) / clip.duration)) : (act.source.repeat ?? 1);
     for (let lap = 0; lap < laps; lap++) {
       for (const e of clip.events) {
         const t = act.start + (e.t + lap * clip.duration) / speed;

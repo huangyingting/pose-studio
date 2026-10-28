@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
-import { actionLabel, correctionTimesOf, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { actionLabel, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
 import { cameraById, liveCamera, rigRule } from '@/lib/cameras';
@@ -161,6 +161,11 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     setWindow(t >= v0 && t <= v1 ? t - ((t - v0) / span) * sp : t - sp / 2, sp);
   };
 
+  // Keys picked to move together, and the box being drawn to pick them (for this scene).
+  const [pickedKeys, setPickedKeys] = useState<{ scene: string; figure: string; times: number[] } | null>(null);
+  const keyPick = pickedKeys && pickedKeys.scene === scene.id ? pickedKeys : null;
+  const setPicked = (p: { figure: string; times: number[] } | null) => setPickedKeys(p && { ...p, scene: scene.id });
+  const [box, setBox] = useState<{ figure: string; t0: number; t1: number } | null>(null);
   // A shorter length asks first whether to scale what is there into it or cut it (for this scene).
   const [asked, setShorten] = useState<{ scene: string; d: number } | null>(null);
   const shorten = asked?.scene === scene.id ? asked.d : null;
@@ -271,6 +276,11 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     e.stopPropagation();
     pause();
     if (figureId !== store.getState().activeFigure) store.setActiveFigure(figureId);
+    // Keys picked together (Shift-click, or a Shift-drag box on the row) move together.
+    const group = !e.shiftKey && keyPick?.figure === figureId && keyPick.times.length > 1 && keyPick.times.some((x) => Math.abs(x - t) < 0.5 / a.fps) ? keyPick.times : null;
+    if (!group && !e.shiftKey && keyPick) setPicked(null);
+    const shift = e.shiftKey && !rippleAlways;
+    let dragged = false;
     const ripple = rippleAlways || e.shiftKey;
     // On the window: the key's button is re-created as its time changes during the drag.
     const el = window;
@@ -289,6 +299,16 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       const near = others.find((x) => Math.abs(x - to) < (6 / laneWidth) * span);
       if (near !== undefined) to = near;
       if (Math.abs(to - from) < 1e-6) return;
+      dragged = true;
+      if (group) {
+        const by = to - from;
+        if (moveKeyframes(store, figureId, group.map((x) => x + (from - t)), by, `keys:${figureId}`)) {
+          from = to;
+          store.setTime(to);
+          setPicked({ figure: figureId, times: group.map((x) => x + (to - t)) });
+        }
+        return;
+      }
       if (ripple) rippleKeys(store, figureId, from, to - from, `ripple:${figureId}`);
       else moveKeyframe(store, from, to, figureId);
       const now = moments(store.scene.animation!, figureId).find((k) => Math.abs(k - to) < 0.5 / a.fps);
@@ -297,9 +317,36 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         store.setTime(now);
       }
     };
-    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      // A Shift-click (no drag) adds the key to those picked, or takes it out.
+      if (shift && !dragged) {
+        const had = keyPick?.figure === figureId ? keyPick.times : [];
+        const on = had.some((x) => Math.abs(x - t) < 0.5 / a.fps);
+        const times = on ? had.filter((x) => Math.abs(x - t) >= 0.5 / a.fps) : [...had, t];
+        setPicked(times.length ? { figure: figureId, times } : null);
+      }
+    };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
+  };
+  /** Shift-drag along a row's empty stretch: a box picking the keys in it. */
+  const boxKeys = (figureId: string) => (e: ReactPointerEvent) => {
+    if (e.button !== 0 || !e.shiftKey) return;
+    e.stopPropagation();
+    const t0 = timeAt(e.clientX);
+    const move = (ev: PointerEvent) => setBox({ figure: figureId, t0, t1: timeAt(ev.clientX) });
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setBox(null);
+      const [lo, hi] = [Math.min(t0, timeAt(ev.clientX)), Math.max(t0, timeAt(ev.clientX))];
+      const times = keyTimesOf(store.scene.animation!, figureId).filter((x) => x >= lo - 1e-6 && x <= hi + 1e-6);
+      setPicked(times.length ? { figure: figureId, times } : null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   };
 
   /**
@@ -661,12 +708,14 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
             </div>
             {figures.map((f) => {
               const times = keyTimesOf(a, f.id);
+              const eases = keyEasesOf(a, f.id);
               const tight = dense(times);
               return (
                 <div
                   key={f.id}
                   className={`tl-row${multi && f.id === active?.id ? ' active' : ''}${keying === f.id && !f.proxy ? ' autokey' : ''}`}
                   aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}
+                  onPointerDown={boxKeys(f.id)}
                   // A pose or a motion from the Library: onto this figure, at the time it is dropped at.
                   onDragOver={(e) => {
                     const d = dragged();
@@ -783,11 +832,24 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       <Plus size={12} aria-hidden /> Add an action
                     </button>
                   )}
+                  {box?.figure === f.id && <span className="tl-box" style={{ left: pct(Math.min(box.t0, box.t1)), width: `${(Math.abs(box.t1 - box.t0) / span) * 100}%` }} aria-hidden />}
                   {dropAt?.figure === f.id && (
                     <span className="tl-drop" style={{ left: pct(dropAt.t), width: dropAt.length ? `${(dropAt.length / span) * 100}%` : undefined }} aria-hidden />
                   )}
                   {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
                     <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} title={ev.title} aria-hidden />
+                  ))}
+                  {actionsOf(a, f.id, 'correction').filter((x) => x.duration > 1e-6).map((x) => (
+                    // A correction: its own thin band over what it corrects; its right edge retimes it.
+                    <span
+                      key={x.id}
+                      className={`tl-fixband${selected === x.id ? ' sel' : ''}`}
+                      style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
+                      data-tip="A correction over a motion or a walk: click to edit it, drag its right edge to retime it"
+                      onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}
+                    >
+                      <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
+                    </span>
                   ))}
                   {correctionTimesOf(a, f.id).map((t) => (
                     <button
@@ -807,15 +869,15 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   ))}
                   {times.map((t, n) => {
                     // How it goes on to the next: a hollow diamond at an even speed, a square held.
-                    const ease = keyEaseAt(a, f.id, t);
+                    const ease = eases.get(t);
                     return (
                     <button
                       key={t}
                       type="button"
-                      className={`tl-key${near(t) ? ' on' : ''}${tight[n] ? ' dense' : ''}${ease && ease !== 'smooth' ? ` ${ease}` : ''}`}
+                      className={`tl-key${near(t) ? ' on' : ''}${tight[n] ? ' dense' : ''}${ease && ease !== 'smooth' ? ` ${ease}` : ''}${keyPick?.figure === f.id && keyPick.times.some((x) => Math.abs(x - t) < 0.5 / a.fps) ? ' picked' : ''}`}
                       style={{ left: pct(t) }}
                       aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
-                      data-tip={`${ease === 'step' ? 'Held until the next key. ' : ease === 'linear' ? 'Goes on at an even speed. ' : ''}Drag to retime; Shift-drag to move the keys after it too\nRight-click for more`}
+                      data-tip={`${ease === 'step' ? 'Held until the next key. ' : ease === 'linear' ? 'Goes on at an even speed. ' : ''}Drag to retime; Shift-drag to move the keys after it too; Shift-click to pick several (then drag them together)\nRight-click for more`}
                       onPointerDown={dragKey(t, f.id)}
                       onContextMenu={(e) => {
                         e.stopPropagation();

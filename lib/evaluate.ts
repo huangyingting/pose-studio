@@ -219,10 +219,12 @@ class Evaluator {
         const weight = u < c.start ? smooth(1 - (c.start - u) / ease) : u <= c.end ? 1 : 1 - smooth((u - c.end) / ease);
         if (!c.on) {
           const side = bone === 'leftFoot' ? 'L' : 'R';
-          const key = `${act.id}:${f.id}:${n}`;
+          // (Each time round a clip played again, where the foot lands then.)
+          const lap = (clip.loop || (act.source as { repeat?: number }).repeat) && clip.duration > EPS ? Math.max(0, Math.floor(((t - act.start) * speed) / clip.duration + EPS)) : 0;
+          const key = `${act.id}:${f.id}:${n}:${lap}`;
           let at = this.anchors.get(key);
           if (!at) {
-            const landed = this.placed(f, act, act.start + c.start / speed).pose;
+            const landed = this.placed(f, act, act.start + (lap * clip.duration + c.start) / speed).pose;
             at = feetOf(this.rig, { ...f, ...landed }, [side]);
             this.anchors.set(key, at);
           }

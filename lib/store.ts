@@ -344,7 +344,11 @@ export class Store {
 
   updateScene(fn: (s: Scene) => Scene, key = '') {
     const i = this.state.sceneIndex;
-    this.commit((lib) => ({ ...lib, scenes: lib.scenes.map((s, j) => (j === i ? fn(s) : s)) }), key);
+    // (Nothing changed: no undo step.)
+    this.commit((lib) => {
+      const next = fn(lib.scenes[i]);
+      return next === lib.scenes[i] ? lib : { ...lib, scenes: lib.scenes.map((s, j) => (j === i ? next : s)) };
+    }, key);
   }
 
   updateFigure(id: string, fn: (f: Figure) => Figure, key = '') {
