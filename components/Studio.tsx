@@ -166,7 +166,7 @@ function App() {
   const frameCurrent = useCallback(() => {
     const cur = apiRef.current?.getView();
     const sel = store.getState().selection;
-    const only = sel?.kind === 'figure' || sel?.kind === 'joint' ? sel.figure : sel?.kind === 'prop' ? sel.prop : undefined;
+    const only = sel?.kind === 'figure' || sel?.kind === 'joint' ? sel.figure : sel?.kind === 'prop' ? sel.prop : sel?.kind === 'light' ? 'light' : undefined;
     frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time), only);
   }, [frame, store]);
   /** Frame the selection only if it is out of view (something added from the keyboard, beyond the edge). */

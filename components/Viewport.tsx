@@ -8,7 +8,7 @@ import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint, setSce
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
-import { DEFAULT_LIGHT, LightRig, lightFrom } from '@/lib/lighting';
+import { DEFAULT_LIGHT, LightRig, lampAt, lightDome, lightFrom } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
@@ -16,7 +16,7 @@ import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, cameraTrail, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
-import type { Figure, JointName, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { Figure, JointName, Light, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, IKHandles, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, sliderAxis, valuesOf } from './Manipulators';
 import type { Contact } from '@/lib/relations';
@@ -370,6 +370,7 @@ export default function Viewport({
           capture={() => captureRef.current?.() ?? null}
           rigRef={rigRef}
           figures={scene.figures}
+          light={scene.light ?? DEFAULT_LIGHT}
         />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
       </Canvas>
@@ -618,7 +619,7 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
   return null;
 }
 
-function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef, figures: docs }: {
+function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef, figures: docs, light }: {
   sv: SceneView;
   apiRef: Props['apiRef'];
   frameRequest: FrameRequest;
@@ -630,7 +631,11 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   rigRef: RefObject<THREE.Group | null>;
   /** The figures as drawn (for the points of their bodies to hold on to). */
   figures: Figure[];
+  /** The scene's light (its lamp, to label and frame). */
+  light: Light;
 }) {
+  const lightRef = useRef(light);
+  useEffect(() => { lightRef.current = light; }, [light]);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const figures = useRef(docs);
   useEffect(() => { figures.current = docs; }, [docs]);
@@ -690,6 +695,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       },
       captureShot: () => captureRef.current(),
       labelPoint: (sel) => {
+        if (sel.kind === 'light') return toScreen(lampAt(lightDome(sv.bounds()), lightRef.current));
         if (sel.kind === 'joint') {
           // Beside the joint, on the side away from its arcs.
           const j = apiRef.current?.jointOnScreen(sel.figure, sel.joint);
@@ -752,7 +758,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     // Wait a frame so the scene has been synced.
     return requestAnimationFrame(() => {
       const one = only ? (sv.figures.get(only) ?? sv.props.get(only)) : undefined;
-      const source = one ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => one.forEachPoint(cb) } : sv;
+      // (The light: the scene and its lamp.)
+      const lamp = only === 'light' ? lampAt(lightDome(sv.bounds()), lightRef.current) : null;
+      const source = one ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => one.forEachPoint(cb) } : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
       controls.target.copy(fitCamera(camera, source, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2));
       camera.near = 0.01; // fitCamera tightens these for export; keep room for zooming
       camera.far = 200;

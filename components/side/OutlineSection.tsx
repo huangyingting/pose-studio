@@ -12,7 +12,7 @@ import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
-import { command, menu, placeOrAdd, shortcutOf, type Ctx } from '../commands';
+import { App, command, menu, placeOrAdd, shortcutOf, type Ctx } from '../commands';
 import { placingFigure, placingProp } from '../placing';
 import { startRename, useRenaming } from '../rename';
 import { useFilm, useScene, useStore, useStudio } from '../store-context';
@@ -204,7 +204,8 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
                 className="layer-main"
                 data-tip={`The scene's key light: ${lightText(scene.light ?? DEFAULT_LIGHT)}\nRight-click for more`}
                 data-tip-side="right"
-                onClick={() => store.select({ kind: 'light' })}
+                // (Its lamp brought into view if it is out of it.)
+                onClick={() => { store.select({ kind: 'light' }); App().frameSelection?.(); }}
                 onContextMenu={(e) => { store.select({ kind: 'light' }); openContextMenu(e, menu('light', { store, light: true }), 'Light'); }}
               >
                 <SunMedium size={15} strokeWidth={1.75} aria-hidden />

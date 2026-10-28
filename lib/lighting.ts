@@ -34,6 +34,19 @@ export function lightFrom(light: Light, dir: { x: number; y: number; z: number }
   return clampLight({ ...light, azimuth: r(Math.atan2(dir.x, dir.z)), elevation: r(Math.asin(dir.y / len)) });
 }
 
+/** The dome the editor draws the light's lamp on: on the floor under the middle of the scene, a little wider than it. */
+export function lightDome(focus: THREE.Box3) {
+  const c = focus.isEmpty() ? new THREE.Vector3() : focus.getCenter(new THREE.Vector3());
+  const size = focus.isEmpty() ? 2 : focus.getSize(new THREE.Vector3()).length();
+  return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(2.6, size * 0.8) };
+}
+
+/** Where the light's lamp is on its dome (azimuth 0: the front, +Z; up to the zenith). */
+export function lampAt(dome: { base: THREE.Vector3; radius: number }, light: Pick<Light, 'azimuth' | 'elevation'>) {
+  const [az, el] = [(light.azimuth * Math.PI) / 180, (light.elevation * Math.PI) / 180];
+  return dome.base.clone().add(new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).multiplyScalar(dome.radius));
+}
+
 /** Where a light comes from, as said: "40° from the front-left, 45° high" (left and right are the figures'). */
 export function lightText(light: Light) {
   const a = Math.round(Math.abs(light.azimuth));
