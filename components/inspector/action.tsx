@@ -2,6 +2,7 @@
 
 import { Diamond, Ellipsis, Film, Footprints, Layers, TriangleAlert, Users } from 'lucide-react';
 import { fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel } from '@/lib/actions';
+import { MAX_DURATION } from '@/lib/animation';
 import { clipById } from '@/lib/assets';
 import { overWarp } from '@/lib/evaluate';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
@@ -49,11 +50,11 @@ export function TimingPanel({ t }: { t: Target }) {
       </PropertyRow>
       <label className="field">
         <span>Starts</span>
-        <NumberField prefix="s" label="Start" value={act.start} step={1 / a.fps} min={0} max={60} onChange={(v) => moveAction(t.store, id, v, `act:${id}:start`)} />
+        <NumberField prefix="s" label="Start" value={act.start} step={1 / a.fps} min={0} max={MAX_DURATION} onChange={(v) => moveAction(t.store, id, v, `act:${id}:start`)} />
       </label>
       <label className="field">
         <span>Takes</span>
-        <NumberField prefix="s" label="Length" value={act.duration} step={1 / a.fps} min={1 / a.fps} max={60} onChange={(v) => retime(t.store, id, v, `act:${id}:length`)} />
+        <NumberField prefix="s" label="Length" value={act.duration} step={1 / a.fps} min={1 / a.fps} max={MAX_DURATION} onChange={(v) => retime(t.store, id, v, `act:${id}:length`)} />
       </label>
       {!act.layer && act.source.kind !== 'keys' && (
         <label className="field">

@@ -1,4 +1,4 @@
-import { placeAnimation, normalize } from './animation';
+import { MAX_DURATION, placeAnimation, normalize } from './animation';
 import { duplicateScene, ensureCamera } from './doc';
 import { MOTIONS, highJump } from './motions';
 import { facing, withFacing } from './relations';
@@ -135,7 +135,7 @@ export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: n
     const end = t0 + placed.animation.duration;
     // What the figures cast did from t0 on gives way to the template's.
     let base: Animation = scene.animation ?? { duration: end, fps: placed.animation.fps, loop: placed.animation.loop, actions: [], shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] };
-    for (const id of taken) if (scene.animation && scene.figures.some((f) => f.id === id)) base = clear({ ...scene, animation: base }, id, t0, 60);
+    for (const id of taken) if (scene.animation && scene.figures.some((f) => f.id === id)) base = clear({ ...scene, animation: base }, id, t0, MAX_DURATION);
     animation = {
       ...base,
       duration: Math.max(base.duration, end),

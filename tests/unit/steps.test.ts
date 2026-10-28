@@ -130,6 +130,16 @@ describe('steps from the keyboard (#13)', () => {
     expect(store.getState().canUndo).toBe(undos);
   });
 
+  it('moves a figure added since the scene was animated (it has no track yet)', () => {
+    const store = new Store(new MemoryStorage());
+    startAnimation(store);
+    addFigure(store, [1, 0, 0]);
+    const id = store.scene.figures[1].id;
+    const x = store.scene.figures[1].position[0];
+    offsetPerformance(store, [id], { dx: 0.5 });
+    expect(store.scene.figures[1].position[0]).toBeCloseTo(x + 0.5, 3);
+  });
+
   it('brings along those who share an action', () => {
     const act = (id: string, figures: string[]) => ({ id, start: 0, duration: 1, roles: figures.map((figure) => ({ figure })), source: { kind: 'clip', clip: 'x' } });
     const a = { duration: 4, fps: 24, loop: false, actions: [act('1', ['a', 'b']), act('2', ['b', 'c']), act('3', ['d'])] } as unknown as Animation;

@@ -1,4 +1,4 @@
-import { normalize, propKeyOf } from './animation';
+import { grown, lastTime, normalize, propKeyOf } from './animation';
 import { clipIdsOf } from './assets';
 import { loadClips } from './assetstore';
 import { setFilm } from './film';
@@ -273,7 +273,7 @@ export class Store {
     const prevIndex = this.state.sceneIndex;
     let next = update(prev);
     if (next === prev) return;
-    next = this.autoKey(prev, next);
+    next = this.grown(this.autoKey(prev, next));
     const now = Date.now();
     const merge = (this.grouped === true && this.past.length > 0) || (key && key === this.lastKey && now - this.lastTime < MERGE_MS && this.past.length > 0);
     if (this.grouped === false) this.grouped = true;
@@ -313,6 +313,14 @@ export class Store {
     animation = keepProps(animation, new Set(after.props.map((p) => p.id)));
     if (animation === after.animation) return next;
     return { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
+  }
+
+  /** The open scene's animation lengthened to what was put past its end. */
+  private grown(lib: Library): Library {
+    const i = this.state.sceneIndex;
+    const s = lib.scenes[i];
+    const g = s && grown(s);
+    return g === s ? lib : { ...lib, scenes: lib.scenes.map((x, j) => (j === i ? g : x)) };
   }
 
   /** The library with an animated scene's figures posed for `time`. */
@@ -416,7 +424,7 @@ export class Store {
   /** Move the animation playhead; the figures take the pose for that time (not an undo step). */
   setTime(time: number) {
     const a = this.scene.animation;
-    const t = a ? Math.min(a.duration, Math.max(0, time)) : 0;
+    const t = a ? Math.min(lastTime(a), Math.max(0, time)) : 0;
     this.set({ time: t, library: this.withFrame(this.state.library, this.state.sceneIndex, t) });
   }
 

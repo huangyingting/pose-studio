@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, editShot, moveShotCut, setBlend,
+  deleteCorrection, moveAction, moveKeyframe, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
-import { snapTime } from '@/lib/animation';
+import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyTimesOf, moments, travelInto } from '@/lib/track';
@@ -142,21 +142,31 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     return () => ro.disconnect();
   }, [folded]);
 
-  // The stretch of time on show: all of it, or a zoomed-in window (which follows the playhead while playing).
+  // The stretch of time on show: all of it and a little past its end (where what is added lengthens it), or
+  // a zoomed-in window (which follows the playhead while playing).
+  const total = Math.min(MAX_DURATION, a.duration + PAST_END);
   const [zoom, setZoom] = useState<{ start: number; span: number } | null>(null);
-  const span = zoom ? Math.min(zoom.span, a.duration) : a.duration;
-  let v0 = zoom ? Math.min(Math.max(0, zoom.start), a.duration - span) : 0;
-  if (zoom && clock.playing && (time < v0 || time > v0 + span)) v0 = Math.min(a.duration - span, Math.max(0, v0 + Math.floor((time - v0) / span) * span));
+  const span = zoom ? Math.min(zoom.span, total) : total;
+  let v0 = zoom ? Math.min(Math.max(0, zoom.start), total - span) : 0;
+  if (zoom && clock.playing && (time < v0 || time > v0 + span)) v0 = Math.min(total - span, Math.max(0, v0 + Math.floor((time - v0) / span) * span));
   const v1 = v0 + span;
   const setWindow = (start: number, s: number) => {
-    const sp = Math.min(a.duration, Math.max(Math.min(0.5, a.duration), s));
-    setZoom(sp >= a.duration - 1e-6 ? null : { start: Math.min(Math.max(0, start), a.duration - sp), span: sp });
+    const sp = Math.min(total, Math.max(Math.min(0.5, total), s));
+    setZoom(sp >= total - 1e-6 ? null : { start: Math.min(Math.max(0, start), total - sp), span: sp });
   };
   /** Zoom about the playhead: it keeps its place on screen, or the view centres on it. */
   const zoomBy = (factor: number) => {
     const sp = span * factor;
     const t = clock.playing ? clock.time : store.getState().time;
     setWindow(t >= v0 && t <= v1 ? t - ((t - v0) / span) * sp : t - sp / 2, sp);
+  };
+
+  // A shorter length asks first whether to scale what is there into it or cut it.
+  const [shorten, setShorten] = useState<number | null>(null);
+  const length = (d: number) => {
+    const busy = a.actions.some((x) => x.duration > 1e-6) || Object.values(a.props ?? {}).some((k) => k.length) || a.shots.length > 1;
+    if (d < a.duration - 1e-6 && busy) setShorten(d);
+    else setAnimationOptions(store, { duration: d });
   };
 
   const frame = Math.round(time * a.fps);
@@ -218,18 +228,18 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         e.preventDefault();
         const r = el.getBoundingClientRect();
         const at = v0 + ((e.clientX - r.left) / r.width) * span;
-        const sp = Math.min(a.duration, Math.max(Math.min(0.5, a.duration), span * Math.exp(e.deltaY * 0.004)));
-        setZoom(sp >= a.duration - 1e-6 ? null : { start: Math.min(Math.max(0, at - ((at - v0) / span) * sp), a.duration - sp), span: sp });
+        const sp = Math.min(total, Math.max(Math.min(0.5, total), span * Math.exp(e.deltaY * 0.004)));
+        setZoom(sp >= total - 1e-6 ? null : { start: Math.min(Math.max(0, at - ((at - v0) / span) * sp), total - sp), span: sp });
         return;
       }
       const dx = e.shiftKey ? e.deltaY : e.deltaX;
       if (!zoom || Math.abs(dx) < Math.abs(e.shiftKey ? 0 : e.deltaY)) return;
       e.preventDefault();
-      setZoom({ start: Math.min(Math.max(0, v0 + (dx / el.getBoundingClientRect().width) * span), a.duration - span), span });
+      setZoom({ start: Math.min(Math.max(0, v0 + (dx / el.getBoundingClientRect().width) * span), total - span), span });
     };
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
-  }, [v0, span, zoom, a.duration, folded]);
+  }, [v0, span, zoom, total, folded]);
 
   const scrub = (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
@@ -491,7 +501,16 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         <CommandButton id="timeline.cameraPoint" ctx={c} tipSide="top" />
         <span className="tl-sep" />
         <div className="tl-duration" data-tip="Length (seconds)" data-tip-side="top">
-          <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={60} digits={1} onChange={(duration) => setAnimationOptions(store, { duration })} />
+          <NumberField prefix="⏱" label="Duration" value={a.duration} step={0.1} min={0.2} max={MAX_DURATION} digits={1} onChange={length} />
+          {shorten !== null && (
+            // Shorter: everything is scaled to fit, or (Cut instead) what is past the new end goes.
+            <div className="tl-ask" role="alertdialog" aria-label="Shorten the animation" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShorten(null); } }}>
+              <span>Scale everything into {shorten.toFixed(1)} s?</span>
+              <button type="button" className="btn primary" onClick={() => { setAnimationOptions(store, { duration: shorten }); setShorten(null); }}>Scale</button>
+              <button type="button" className="btn" onClick={() => { cutAnimation(store, shorten); setShorten(null); }}>Cut instead</button>
+              <button type="button" className="btn subtle" onClick={() => setShorten(null)}>Cancel</button>
+            </div>
+          )}
         </div>
         {!compact && (
           <>
@@ -683,6 +702,25 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       <Plus size={11} aria-hidden />
                     </button>
                   )}
+                  {/* What it does next after all it does: the playhead goes there first. */}
+                  {!f.proxy && (() => {
+                    const last = Math.max(0, ...[...actionsOf(a, f.id), ...actionsOf(a, f.id, 'upper')].map((x) => x.start + x.duration));
+                    if (last < v0 - 1e-6 || last > v1 + 1e-6 || Math.abs(last - time) < 0.5 / a.fps) return null;
+                    return (
+                      <button
+                        type="button"
+                        className="tl-add"
+                        style={{ left: pct(last) }}
+                        aria-label={`What ${f.name} does after all it does, from ${last.toFixed(2)} s`}
+                        data-tip={`What ${f.name} does after all it does`}
+                        data-tip-side="top"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { pause(); store.setTime(last); openPicker(f.id, e.currentTarget); }}
+                      >
+                        <Plus size={11} aria-hidden />
+                      </button>
+                    );
+                  })()}
                   {[...actionsOf(a, f.id), ...actionsOf(a, f.id, 'upper')].filter((x) => x.duration > 1e-6).map((x) => {
                     const label = actionLabel(x);
                     const kind = x.layer === 'upper' ? 'upper' : x.source.kind === 'travel' ? x.source.mode : x.source.kind;
@@ -840,6 +878,10 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 ))}
               </svg>
             )}
+            {a.duration < v1 - 1e-6 && (
+              // Past the end: the playhead goes there, and a key or an action put there lengthens the animation.
+              <div className="tl-past" style={{ left: pct(Math.max(v0, a.duration)), right: 0 }} aria-hidden />
+            )}
             {time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
               <div
                 className={`tl-playhead${keying ? ' autokey' : ''}`}
@@ -851,9 +893,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           </div>
           {zoom && (
             <ScrollBar
-              start={v0 / a.duration}
-              size={span / a.duration}
-              onScroll={(f) => setZoom({ start: f * a.duration, span })}
+              start={v0 / total}
+              size={span / total}
+              onScroll={(f) => setZoom({ start: f * total, span })}
             />
           )}
         </div>

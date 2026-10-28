@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { builtInPoses, poseScene } from '../../lib/poses';
+import { MAX_DURATION, PAST_END } from '../../lib/animation';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
 import { correctionTimesOf, keyTimesOf, moments } from '../../lib/track';
@@ -122,6 +123,9 @@ async function openSection(page: Page, name: 'Scene' | 'Library') {
  * with the keyboard: put where it goes (with a click it would be placed with the pointer).
  */
 /** A still scene animated: its first key, from the timeline. */
+/** The seconds the timeline shows (unzoomed): the animation and the stretch past its end. */
+const shownTime = (duration: number) => Math.min(MAX_DURATION, duration + PAST_END);
+
 async function animate(page: Page) {
   await page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Key the pose: animate the scene' }).click();
   await expect(page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Play', exact: true })).toBeVisible();
@@ -996,6 +1000,42 @@ test('a still scene can be animated with auto-keys', async ({ page }) => {
   await expect(page.locator('.tl-row.autokey')).toHaveCount(1);
 });
 
+test('the timeline grows: the playhead goes past the end and a key there lengthens it; a row\'s + at its end; shortening asks to scale or cut', async ({ page }) => {
+  await animate(page);
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  let s = await live(page);
+  const d = s.scene.animation!.duration;
+  // A click in the faint stretch past the end puts the playhead there; a key there lengthens the animation.
+  await expect(page.locator('.tl-past')).toBeVisible();
+  const ruler = (await page.locator('.tl-ruler').boundingBox())!;
+  await page.mouse.click(ruler.x + ruler.width - 2, ruler.y + ruler.height / 2);
+  s = await live(page);
+  expect(s.time).toBeGreaterThan(d + 1.5);
+  await page.keyboard.press('k');
+  s = await live(page);
+  const longer = s.scene.animation!.duration;
+  expect(longer).toBeCloseTo(s.time, 2);
+  expect(keyTimesOf(s.scene.animation!, s.active).at(-1)).toBeCloseTo(longer, 2);
+
+  // The + at the end of the row: what the figure does after all it does (the playhead goes there).
+  await page.mouse.click(ruler.x + 4, ruler.y + ruler.height / 2);
+  await page.getByRole('button', { name: /^What Figure does after all it does/ }).click();
+  await expect(page.getByRole('dialog', { name: 'What Figure does next' })).toBeVisible();
+  expect((await live(page)).time).toBeCloseTo(longer, 2);
+  await page.keyboard.press('Escape');
+
+  // Shorter: it asks first; Cut instead keeps the timing and drops what is past the new end.
+  const field = page.getByRole('textbox', { name: 'Duration' });
+  await field.fill('1');
+  await field.press('Enter');
+  // (Nothing changes until it is answered.)
+  expect((await live(page)).scene.animation!.duration).toBeCloseTo(longer, 2);
+  await page.getByRole('alertdialog', { name: 'Shorten the animation' }).getByRole('button', { name: 'Cut instead' }).click();
+  s = await live(page);
+  expect(s.scene.animation!.duration).toBe(1);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1]);
+});
+
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
   // Software rendering and encoding on CI machines without a GPU is slow.
   test.setTimeout(300_000);
@@ -1108,7 +1148,7 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const row = (await page.locator('[aria-label="Pose keyframes"]').boundingBox())!;
   const duration = (await anim(page)).animation!.duration;
-  await page.mouse.click(lanes.x + (lanes.width * (keys[0] + keys[1])) / 2 / duration, row.y + row.height / 2, { button: 'right' });
+  await page.mouse.click(lanes.x + (lanes.width * (keys[0] + keys[1])) / 2 / shownTime(duration), row.y + row.height / 2, { button: 'right' });
   await page.getByRole('menuitemradio', { name: 'Glide (as keyed)' }).click();
   await page.locator('.tl-qa').click();
   const card = page.getByRole('dialog', { name: 'Motion check' });
@@ -1439,7 +1479,7 @@ test('the timeline is always there: what a figure does next from its + at the pl
   const box = (await row.boundingBox())!;
   await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: 'Cobra', exact: true }).dragTo(row, { targetPosition: { x: box.width / 4, y: box.height / 2 } });
   s = await live(page);
-  const at = s.scene.animation!.duration / 4;
+  const at = shownTime(s.scene.animation!.duration) / 4;
   expect([...keyTimesOf(s.scene.animation!, s.active), ...correctionTimesOf(s.scene.animation!, s.active)].some((t) => Math.abs(t - at) < 0.15)).toBe(true);
 });
 
@@ -1599,7 +1639,7 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   // Right-click the walk on the timeline: jump there instead, with a full turn.
   const box = (await page.locator('[aria-label="Pose keyframes"]').boundingBox())!;
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
-  const x = lanes.x + (lanes.width * (track[1].start + track[1].duration / 2)) / s.scene.animation!.duration;
+  const x = lanes.x + (lanes.width * (track[1].start + track[1].duration / 2)) / shownTime(s.scene.animation!.duration);
   await page.mouse.click(x, box.y + box.height / 2, { button: 'right' });
   await page.getByRole('menuitemradio', { name: 'Jump', exact: true }).click();
   await page.mouse.click(x, box.y + box.height / 2, { button: 'right' });
@@ -1621,7 +1661,7 @@ test('actions are blocks on the timeline: picked for the inspector, retimed by t
   // Its right edge drags half a second longer.
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const box = (await page.locator('.tl-travel.walk').boundingBox())!;
-  const perSecond = lanes.width / s.scene.animation!.duration;
+  const perSecond = lanes.width / shownTime(s.scene.animation!.duration);
   await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
   await page.mouse.down();
   for (let i = 1; i <= 5; i++) await page.mouse.move(box.x + box.width - 2 + (perSecond * 0.5 * i) / 5, box.y + box.height / 2);
@@ -1631,7 +1671,7 @@ test('actions are blocks on the timeline: picked for the inspector, retimed by t
   await floorMenu(page, [-0.8, 0, -2.4], 'Run here');
   s = await live(page);
   const ramp = (await page.locator('.tl-ramp.walk').boundingBox())!;
-  const perSecond2 = lanes.width / s.scene.animation!.duration;
+  const perSecond2 = lanes.width / shownTime(s.scene.animation!.duration);
   await page.mouse.move(ramp.x + ramp.width / 2, ramp.y + ramp.height / 2);
   await page.mouse.down();
   for (let i = 1; i <= 5; i++) await page.mouse.move(ramp.x + ramp.width / 2 - (perSecond2 * 0.3 * i) / 5, ramp.y + ramp.height / 2);
@@ -1888,7 +1928,7 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
   const box = (await key.boundingBox())!;
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const duration = (await anim(page)).animation!.duration;
-  const dx = (0.25 / duration) * lanes.width;
+  const dx = (0.25 / shownTime(duration)) * lanes.width;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.keyboard.down('Shift');
   await page.mouse.down();

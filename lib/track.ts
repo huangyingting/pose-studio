@@ -1,6 +1,6 @@
 import { keyPose, keysClip, partKeys, setPartKey } from './clip';
 import { clipById } from './assets';
-import { newAnimation, snapTime } from './animation';
+import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
 import { JUMP_PREP, jumpHeight, legsOf, travelTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
@@ -35,7 +35,7 @@ export function keysAction(figure: string, keys: { t: number; pose: Pose }[], la
 
 const replace = (a: Animation, old: Action, next: Action[]): Animation => ({ ...a, actions: [...a.actions.filter((x) => x !== old), ...next] });
 const sorted = (a: Animation): Animation => ({ ...a, actions: [...a.actions].sort((p, q) => p.start - q.start || p.duration - q.duration) });
-const longer = (a: Animation, t: number): Animation => (t > a.duration ? { ...a, duration: Math.min(60, t) } : a);
+const longer = (a: Animation, t: number): Animation => (t > a.duration ? { ...a, duration: Math.min(MAX_DURATION, t) } : a);
 
 /** Times of a figure's keys (in its keys actions). */
 export function keyTimesOf(a: Animation, figure: string): number[] {
@@ -158,7 +158,7 @@ export function ripple(a: Animation, figure: string | string[], from: number, by
     return x.start >= from - EPS ? { ...x, start: shift(x.start) } : x;
   });
   const last = Math.max(a.duration, ...actions.map(end));
-  return sorted({ ...a, actions, duration: Math.min(60, last) });
+  return sorted({ ...a, actions, duration: Math.min(MAX_DURATION, last) });
 }
 
 /**
@@ -195,7 +195,7 @@ export function rippleInStep(a: Animation, figures: string[], from: number, by: 
     }
     return moves(x) ? { ...x, start: shift(x.start) } : x;
   });
-  let out = sorted({ ...a, actions, duration: Math.min(60, Math.max(a.duration, ...actions.map(end))) });
+  let out = sorted({ ...a, actions, duration: Math.min(MAX_DURATION, Math.max(a.duration, ...actions.map(end))) });
   for (const [id, t] of props) out = shiftPropTrack(out, id, t - half, by);
   return out;
 }
@@ -225,7 +225,7 @@ export function addUpper(scene: Scene, figure: string, clipId: string, start: nu
   // A motion that loops goes on as long as what the figure does under it (a lap at least).
   const under = clip.loop ? actionsOf(a, figure).filter((x) => x.start <= t0 + 1e-6 && end(x) > t0).at(-1) : undefined;
   const length = Math.max(clip.duration, under ? end(under) - t0 : 0);
-  const act: Action = { id: uid('act'), start: t0, duration: Math.min(60 - t0, length), layer: 'upper', roles: [{ figure }], source: { kind: 'clip', clip: clipId } };
+  const act: Action = { id: uid('act'), start: t0, duration: Math.min(MAX_DURATION - t0, length), layer: 'upper', roles: [{ figure }], source: { kind: 'clip', clip: clipId } };
   return longer(sorted({ ...a, actions: [...a.actions, act] }), t0 + act.duration);
 }
 
@@ -374,7 +374,7 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
     if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round((clip.duration / d) * 1000) / 1000 } };
   } else if (src.kind === 'keys') {
     const k = d / Math.max(EPS, act.duration);
-    const keys = keysOf(act).map((x) => ({ t: snapTime({ ...a, duration: 60 }, act.start + (x.t - act.start) * k), pose: x.pose }));
+    const keys = keysOf(act).map((x) => ({ t: snapTime({ ...a, duration: MAX_DURATION }, act.start + (x.t - act.start) * k), pose: x.pose }));
     next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
   }
   const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
@@ -431,7 +431,7 @@ export function insertClip(scene: Scene, cast: string[], clipId: string, start: 
   const clip = clipById(clipId);
   if (!clip || cast.length > clip.parts.length || new Set(cast).size < cast.length || cast.some((id) => !scene.figures.some((f) => f.id === id))) return scene;
   let a: Animation = scene.animation ?? { ...newAnimation(scene, Math.max(0.2, start + clip.duration)), loop: clip.loop && start === 0 };
-  const t0 = snapTime({ ...a, duration: 60 }, start);
+  const t0 = snapTime({ ...a, duration: MAX_DURATION }, start);
   const t1 = Math.min(60, Math.round((t0 + clip.duration) * a.fps) / a.fps);
   a = longer(a, t1);
   for (const id of cast) a = clear({ ...scene, animation: a }, id, t0, t1);
@@ -471,6 +471,22 @@ export function clear(scene: Scene, figure: string, t0: number, t1: number): Ani
   }
   for (const x of actionsOf(a, figure, 'correction')) if (x.start < t1 && end(x) > t0) a = replace(a, x, []);
   return sorted(a);
+}
+
+/**
+ * The animation cut to `d` seconds, keeping its timing (where the length field scales it): what is
+ * past the cut goes (a key kept there), what runs into it ends there.
+ */
+export function cutTo(scene: Scene, d: number): Scene {
+  if (!scene.animation) return scene;
+  let a = scene.animation;
+  for (const f of scene.figures) a = clear({ ...scene, animation: a }, f.id, d, Infinity);
+  const actions = a.actions.flatMap((x) => (x.start >= d - EPS && x.start > 0 ? [] : end(x) > d + EPS ? [{ ...x, duration: d - x.start }] : [x]));
+  const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.filter((k) => k.t <= d + EPS)]));
+  const shots = a.shots.filter((x, i) => i === 0 || x.start < d - EPS);
+  const constraints = a.constraints?.filter((c) => c.start < d - EPS).map((c) => ({ ...c, end: Math.min(c.end, d) }));
+  const cameras = scene.cameras.map((c) => (c.kind === 'path' ? { ...c, points: c.points.filter((p, i) => i === 0 || p.t <= d + EPS) } : c));
+  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots, ...(constraints ? { constraints } : {}) } };
 }
 
 /**

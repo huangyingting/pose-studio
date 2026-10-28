@@ -43,17 +43,40 @@ export function newAnimation(scene: Scene, duration = 2): Animation {
   return { duration, fps: DEFAULT_FPS, loop: true, actions: scene.figures.map((f) => holdAction(f, 0)), shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] };
 }
 
-/** Snap a time to the frame grid and the animation's range. */
+/** The longest a scene's animation can be (s): five minutes. */
+export const MAX_DURATION = 300;
+/** How far past its end the playhead goes (s): a key or an action added there lengthens the animation. */
+export const PAST_END = 2;
+
+/** The latest time the playhead goes to: a little past the end. */
+export const lastTime = (a: Pick<Animation, 'duration'>) => Math.min(MAX_DURATION, a.duration + PAST_END);
+
+/** Snap a time to the frame grid and the animation's range (with the stretch past its end). */
 export function snapTime(a: Pick<Animation, 'fps' | 'duration'>, t: number) {
   const frame = Math.round(t * a.fps);
-  return Math.min(a.duration, Math.max(0, frame / a.fps));
+  return Math.min(lastTime(a), Math.max(0, frame / a.fps));
+}
+
+/**
+ * The animation as long as what is in it: actions, props' keys and camera points put past its end
+ * lengthen it (up to MAX_DURATION).
+ */
+export function grown(scene: Scene): Scene {
+  const a = scene.animation;
+  if (!a) return scene;
+  let last = a.duration;
+  for (const x of a.actions) last = Math.max(last, x.start + x.duration);
+  for (const keys of Object.values(a.props ?? {})) for (const k of keys) last = Math.max(last, k.t);
+  for (const c of scene.cameras) if (c.kind === 'path') for (const p of c.points) last = Math.max(last, p.t);
+  last = Math.min(MAX_DURATION, Math.round(last * a.fps) / a.fps);
+  return last > a.duration + 1e-6 ? { ...scene, animation: { ...a, duration: last } } : scene;
 }
 
 /** Change a scene's animation's length, scaling the actions', props' keys', shots' and camera paths' times to fit. */
 export function setDuration(scene: Scene, duration: number): Scene {
   const a = scene.animation;
   if (!a) return scene;
-  const d = Math.min(60, Math.max(0.2, duration));
+  const d = Math.min(MAX_DURATION, Math.max(0.2, duration));
   const s = d / a.duration;
   const snap = (t: number) => snapTime({ fps: a.fps, duration: d }, t * s);
   const actions = a.actions.map((x): Action => {
@@ -190,7 +213,7 @@ export function parseCameras(raw: unknown): Camera[] {
     if (x.kind === 'rig' && typeof x.rig === 'object' && x.rig !== null) return [{ ...base, kind: 'rig', rig: rigOf(x.rig as Record<string, unknown>) }];
     const points = objects(x.points, 500)
       .map((p) => ({
-        t: Math.round(num(p.t, 0, 0, 60) * 1000) / 1000, position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
+        t: Math.round(num(p.t, 0, 0, MAX_DURATION) * 1000) / 1000, position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
         ...(typeof p.roll === 'number' && Number.isFinite(p.roll) && p.roll ? { roll: num(p.roll, 0, -180, 180) } : {}),
       }))
       .sort((p, q) => p.t - q.t);

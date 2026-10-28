@@ -1,6 +1,6 @@
 import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
-import { DEFAULT_FPS, normalize, parseCameras, parseShots, remapAnimation, remapCameras } from './animation';
+import { DEFAULT_FPS, MAX_DURATION, normalize, parseCameras, parseShots, remapAnimation, remapCameras } from './animation';
 import { clipInfo } from './clip';
 import { parseBoard } from './board';
 import { parseFilm } from './film';
@@ -404,7 +404,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   return {
     id: str(v.id, uid('act')).slice(0, 40),
     start,
-    duration: Math.min(60 - start, Math.max(0, num(v.duration, 0))),
+    duration: Math.min(MAX_DURATION - start, Math.max(0, num(v.duration, 0))),
     ...(blendIn > 0 ? { blendIn: Math.min(10, blendIn) } : {}),
     ...(v.layer === 'correction' || v.layer === 'upper' ? { layer: v.layer } : {}),
     roles,
@@ -422,12 +422,12 @@ function parseConstraint(v: unknown, figures: Set<string>, props: Set<string>, d
     : Array.isArray(o.point) ? { point: vec3(o.point, [0, 0, 0]) } : null;
   if (!target) return null;
   const start = Math.min(duration, Math.max(0, num(v.start, 0)));
-  return { id: str(v.id, uid('hold')).slice(0, 40), figure: v.figure as string, bone: v.bone as Holder, target, start, end: Math.min(60, Math.max(start, num(v.end, start))) };
+  return { id: str(v.id, uid('hold')).slice(0, 40), figure: v.figure as string, bone: v.bone as Holder, target, start, end: Math.min(MAX_DURATION, Math.max(start, num(v.end, start))) };
 }
 
 export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>, cameras: string[]): Animation | undefined {
   if (!isObj(v)) return undefined;
-  const duration = Math.min(60, Math.max(0.2, num(v.duration, 2)));
+  const duration = Math.min(MAX_DURATION, Math.max(0.2, num(v.duration, 2)));
   const fps = Math.round(Math.min(60, Math.max(4, num(v.fps, DEFAULT_FPS))));
   const loop = v.loop !== false;
   const actions = (Array.isArray(v.actions) ? v.actions.slice(0, 2000) : []).map((x) => parseAction(x, figures, duration, propIds)).filter((x): x is Action => x !== null);

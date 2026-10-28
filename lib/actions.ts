@@ -5,7 +5,7 @@ import {
   NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
 import { boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
-import { newAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
+import { MAX_DURATION, newAnimation, normalize, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
@@ -16,7 +16,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretch
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, insertClip, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, cutTo, insertClip, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
 import { fitBody, modelInfo } from './model';
@@ -347,9 +347,9 @@ function handle(store: Store, id: string, motion: string, target: PropTarget, t:
   // After it is caught or picked up (a shot right after a catch): the arms ease into the motion
   // once the hand is back with it, not while it reaches for it.
   const got = propStretchesOf(store.scene, id).filter((x) => x.kind === 'held' && x.t0 <= t + 1e-6).at(-1);
-  const start = Math.max(0, got && got.t0 > 0 ? got.t0 + CATCH_LEAD + UPPER_EASE : 0, snapTime({ ...a, duration: 60 }, t - release));
+  const start = Math.max(0, got && got.t0 > 0 ? got.t0 + CATCH_LEAD + UPPER_EASE : 0, snapTime({ ...a, duration: MAX_DURATION }, t - release));
   const act: Action = {
-    id: uid('act'), start, duration: Math.min(60 - start, clip.duration * laps), layer: 'upper', roles: [{ figure: hold.figure }],
+    id: uid('act'), start, duration: Math.min(MAX_DURATION - start, clip.duration * laps), layer: 'upper', roles: [{ figure: hold.figure }],
     source: { kind: 'clip', clip: clip.id, ...(hold.hand === 'L' ? { mirror: true } : {}) }, prop: id, target,
   };
   const first = propNow(store, id, 0)!;
@@ -357,7 +357,7 @@ function handle(store: Store, id: string, motion: string, target: PropTarget, t:
     if (!s.animation) return s;
     // Where it starts, so what happens to it later does not change that.
     const keyed = s.animation.props?.[id]?.length ? s.animation : putPropKey(s.animation, 0, id, propKeyOf(first, 0));
-    return { ...s, animation: { ...keyed, actions: [...keyed.actions, act], duration: Math.min(60, Math.max(keyed.duration, act.start + act.duration)) } };
+    return { ...s, animation: { ...keyed, actions: [...keyed.actions, act], duration: Math.min(MAX_DURATION, Math.max(keyed.duration, act.start + act.duration)) } };
   });
   return { act, release: start + release };
 }
@@ -379,7 +379,7 @@ export function throwProp(store: Store, id: string, target: { at: [number, numbe
   const to = arrivalAt(store.scene, id, done.release) ?? done.release;
   // Not caught: the animation runs on until it is down and still (a few seconds at most).
   const still = 'figure' in target ? null : settledAt(store.scene, id, done.release);
-  if (still) store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, duration: Math.min(60, Math.max(s.animation.duration, Math.min(done.release + 6, still + 0.2))) } } : s));
+  if (still) store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, duration: Math.min(MAX_DURATION, Math.max(s.animation.duration, Math.min(done.release + 6, still + 0.2))) } } : s));
   store.setTime(to);
   store.select({ kind: 'prop', prop: id });
   return { from: done.release, to };
@@ -736,7 +736,7 @@ export function moveAction(store: Store, id: string, start: number, key = '') {
     const layer = (x: Action) => x.layer ?? 'base';
     const before = a.actions.filter((x) => x !== act && layer(x) === layer(act) && x.roles.some((r) => who.includes(r.figure)) && x.start < act.start - 1e-6);
     const floor = Math.max(0, ...before.map((x) => (x.source.kind === 'keys' ? x.start + (partKeys(x.source.clip.parts[0]).at(-1)?.t ?? 0) : x.start + x.duration)));
-    const to = Math.max(floor, snapTime({ ...a, duration: 60 }, start));
+    const to = Math.max(floor, snapTime({ ...a, duration: MAX_DURATION }, start));
     return Math.abs(to - act.start) < 1e-6 ? s : { ...s, animation: rippleInStep(a, who, act.start, to - act.start) };
   }, key);
 }
@@ -863,6 +863,12 @@ export function setAnimationOptions(store: Store, patch: { duration?: number; lo
     if (patch.fps !== undefined) a = { ...a, fps: Math.round(Math.min(60, Math.max(4, patch.fps))) };
     return { ...next, animation: a };
   }, 'anim-options');
+  store.setTime(store.getState().time);
+}
+
+/** Shorten the animation to `duration` keeping its timing: what is past the new end goes (the length field scales instead). */
+export function cutAnimation(store: Store, duration: number) {
+  store.updateScene((s) => cutTo(s, Math.max(0.2, duration)), 'anim-options');
   store.setTime(store.getState().time);
 }
 
@@ -1648,8 +1654,9 @@ export function offsetPerformance(store: Store, figures: string[], move: { dx?: 
     return ids;
   }
   const about = move.about ?? [spots.reduce((t, p) => t + p[0], 0) / spots.length, spots.reduce((t, p) => t + p[2], 0) / spots.length];
-  // The track only: the figures are posed from it again (an edit to them would key them here).
-  store.updateScene((x) => (x.animation ? { ...x, animation: restage(x.animation, ids, { dx, dz, turn, about }) } : x), key);
+  // The track only: the figures are posed from it again (an edit to them would key them here). (One
+  // added since it was animated holds its pose on a track of its own first.)
+  store.updateScene((x) => (x.animation ? { ...x, animation: restage(normalize(x.animation, x.figures), ids, { dx, dz, turn, about }) } : x), key);
   store.setTime(store.getState().time);
   return ids;
 }

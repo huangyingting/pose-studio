@@ -780,7 +780,12 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-time span { color: var(--text-3); font-weight: 500; font-size: 11px; }
 .tl-time em { font-style: normal; color: var(--text-2); font-weight: 500; font-size: 11px; margin-left: 4px; }
 .tl-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; flex: none; }
-.tl-duration { width: 74px; margin-left: 4px; flex: none; }
+.tl-duration { position: relative; width: 74px; margin-left: 4px; flex: none; }
+/* Asked before shortening: scale into the new length, or cut. */
+.tl-ask {
+  position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 30; display: flex; align-items: center; gap: 6px; padding: 8px 10px; white-space: nowrap;
+  background: var(--panel); border-radius: 8px; box-shadow: var(--shadow-pop); font-size: 12px;
+}
 /* The toolbar fits the room it has: labels, then the zoom buttons, then the time's details give way
    (nothing is squeezed). */
 .tl-bar > :not(.spacer) { flex: none; }
@@ -1039,6 +1044,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   color: var(--text);
 }
 .shot-editor textarea:focus { outline: none; background: var(--raised); box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-ring); }
+.tl-past { position: absolute; top: 0; bottom: 0; pointer-events: none; border-left: 1px dashed var(--border-strong); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--text-3) 9%, transparent) 6px 7px); }
 .tl-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--danger); pointer-events: none; }
 .tl-playhead::before { content: ''; position: absolute; top: -2px; left: -4px; width: 10px; height: 10px; border-radius: 2px 2px 50% 50%; background: var(--danger); }
 

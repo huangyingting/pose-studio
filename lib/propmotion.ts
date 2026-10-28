@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { propKeyOf } from './animation';
+import { MAX_DURATION, propKeyOf } from './animation';
 import { clipById } from './assets';
 import { grip } from './hold';
 import { Ink } from './ink';
@@ -88,8 +88,8 @@ export function removePropKey(a: Animation, t: number, id: string): Animation {
 
 /** Move one prop's keys after `after` later by `by` seconds. */
 export function shiftPropTrack(a: Animation, id: string, after: number, by: number): Animation {
-  const keys = propTrack(a, id).map((k) => (k.t <= after + 1e-6 ? k : { ...k, t: Math.min(60, onFrame(a, k.t + by)) }));
-  return { ...withTrack(a, id, keys), duration: Math.min(60, Math.max(a.duration, ...keys.map((k) => k.t))) };
+  const keys = propTrack(a, id).map((k) => (k.t <= after + 1e-6 ? k : { ...k, t: Math.min(MAX_DURATION, onFrame(a, k.t + by)) }));
+  return { ...withTrack(a, id, keys), duration: Math.min(MAX_DURATION, Math.max(a.duration, ...keys.map((k) => k.t))) };
 }
 
 /** Only the keys of these props, and only these handled by actions (after props are deleted). */
