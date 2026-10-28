@@ -132,7 +132,8 @@ function besideFigures(store: Store, gap: number): Vec3 {
   return [xs.length ? Math.max(...xs) + gap : 0, 0, 0];
 }
 
-export function addFigure(store: Store, at = besideFigures(store, 0.8)) {
+/** A new figure where asked (`at`, facing `yaw`), or beside the others. */
+export function addFigure(store: Store, at = besideFigures(store, 0.8), yaw = 0) {
   const scene = store.scene;
   const base = store.figure;
   // Same proportions as the active figure.
@@ -141,12 +142,13 @@ export function addFigure(store: Store, at = besideFigures(store, 0.8)) {
     position: at,
     ...(base ? { body: { ...base.body } } : {}),
   });
-  addFigures(store, [fig]);
+  addFigures(store, [yaw ? withFacing(fig, yaw) : fig]);
 }
 
 /** A capsule stand-in for blocking: placed like a figure, in a posture, not posed joint by joint. */
-export function addStandIn(store: Store, at = besideFigures(store, 0.8)) {
-  addFigures(store, [withPosture(newFigure({ name: nextName('Stand-in', store.scene.figures.map((f) => f.name)), position: at }), 'stand')]);
+export function addStandIn(store: Store, at = besideFigures(store, 0.8), yaw = 0) {
+  const f = withPosture(newFigure({ name: nextName('Stand-in', store.scene.figures.map((x) => x.name)), position: at }), 'stand');
+  addFigures(store, [yaw ? withFacing(f, yaw) : f]);
 }
 
 /** Change a stand-in's posture, or (null) turn it into a posable figure. */
@@ -305,14 +307,15 @@ const AHEAD: Partial<Record<PropKind, number>> = { hoop: 5, bar: 3, mat: 4.3 };
  * Add a prop. Handheld kinds go into the active figure's free hand (the right one first). Sports
  * gear goes ahead of it (or at `at`), turned to it: a hoop's board facing it, a bar and a mat across its way.
  */
-export function addProp(store: Store, kind: PropKind, at?: Vec3) {
+/** A new prop where asked (`at`, turned `yaw`), or ahead of the active figure; a hand prop into its hand. */
+export function addProp(store: Store, kind: PropKind, at?: Vec3, turn?: number) {
   const f = store.figure;
   const [fx, fz] = f ? forward(f) : [0, 1];
   const d = AHEAD[kind];
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   const place: Vec3 = at ?? (d && f ? [r3(f.position[0] + fx * d), 0, r3(f.position[2] + fz * d)] : besideFigures(store, 0.9));
   const toward = f ? Math.atan2(f.position[0] - place[0], f.position[2] - place[2]) * (180 / Math.PI) : 180;
-  const yaw = kind === 'hoop' ? toward : kind === 'bar' || kind === 'mat' ? toward + 180 : 0;
+  const yaw = turn ?? (kind === 'hoop' ? toward : kind === 'bar' || kind === 'mat' ? toward + 180 : 0);
   const prop = { ...newProp(kind, place, nextName(PROP_LABELS[kind], store.scene.props.map((p) => p.name))), rotation: [0, Math.round(wrapDeg(yaw) * 10) / 10 || 0, 0] as Vec3 };
   const figure = HANDHELD.includes(kind) ? store.figure : null;
   const busy = (hand: Side) => store.scene.props.some((p) => p.hold?.figure === figure?.id && p.hold?.hand === hand);
@@ -1325,14 +1328,14 @@ function shoot(store: Store, id: string) {
  * (where it stands, facing its way), the next by the figures nearest it, new figures for the rest.
  * The figures it brings in or casts, by role.
  */
-export function placeTemplate(store: Store, id: string, lead: string | null | undefined = store.getState().activeFigure, at?: Vec3): string[] | null {
+export function placeTemplate(store: Store, id: string, lead: string | null | undefined = store.getState().activeFigure, at?: Vec3, yaw = 0): string[] | null {
   const t = templatesOf(store.getState().library).find((x) => x.id === id);
   if (!t) return null;
   const built = t.build();
   const cast = lead && store.scene.figures.some((f) => f.id === lead) ? [lead, ...nearestPartners(store, lead, built.figures.length - 1)] : [];
   const before = new Set(store.scene.figures.map((f) => f.id));
   const t0 = store.scene.animation ? snapTime(store.scene.animation, store.getState().time) : 0;
-  store.updateScene((s) => putTemplate(s, built, cast, t0, at));
+  store.updateScene((s) => putTemplate(s, built, cast, t0, at, yaw));
   return [...cast, ...store.scene.figures.filter((f) => !before.has(f.id)).map((f) => f.id)];
 }
 

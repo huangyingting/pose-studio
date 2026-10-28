@@ -21,6 +21,8 @@ import type { LibraryTab, Store } from '@/lib/store';
 import { SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf, templatesOf } from '@/lib/templates';
 import { CameraBar, CharactersBar, MotionsBar, PosesBar, TemplatesBar, type BarProps } from './LibraryBars';
 import type { DropTarget } from '../dragdrop';
+import { placeOrAdd } from '../commands';
+import { placingTemplate } from '../placing';
 
 /*
  * The library's items, category by category, as data: what each is called, where it is listed,
@@ -257,7 +259,8 @@ function templates(store: Store, ui: LibraryUi): LibraryItem[] {
       {
         icon: Layers,
         label: figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`,
-        run: () => { if (placeTemplate(store, t.id)) { ui.notifyUndo(`${t.name} put into ${store.scene.name}`); ui.onPick?.(); } },
+        // Placed with the pointer: onto a figure (its first role) or the floor.
+        run: () => placeOrAdd(placingTemplate(store, t.id), () => { if (placeTemplate(store, t.id)) ui.notifyUndo(`${t.name} put into ${store.scene.name}`); }),
       },
       ...(t.group === 'Mine' ? [{
         icon: Trash2,

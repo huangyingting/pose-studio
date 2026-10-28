@@ -33,6 +33,8 @@ import { VIEW_PRESETS } from '@/lib/views';
 import { PROP_ICONS, STYLE_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
+import { placingFigure, placingProp, type Placing } from './placing';
+import { viaPointer } from './hints';
 
 /*
  * Every operation, written once: its title, icon, keys, when it applies and what it does. Key
@@ -71,6 +73,10 @@ export interface App {
   pickFloor?(hint: string, done: (at: Vec3) => void): void;
   /** Open the selection's radial menu (at a point of the page: the pointer's by default). */
   openPie?(at?: { x: number; y: number }): void;
+  /** Place something new: its ghost follows the pointer until a click drops it. */
+  place?(p: Placing): void;
+  /** Frame the selection (if it is out of view, say). */
+  frameSelection?(): void;
 }
 
 // Until the studio has set it (menus are built while it first renders): nothing playing, nothing to open.
@@ -84,6 +90,15 @@ export function setApp(patch: Partial<App>) {
   app = { ...app, ...patch };
 }
 const App = () => app;
+
+/** Add something: placed with the pointer when asked for with a click; else put where it goes, and framed if out of view. */
+export function placeOrAdd(p: Placing, now: () => void) {
+  if (viaPointer() && app.place) app.place(p);
+  else {
+    now();
+    app.frameSelection?.();
+  }
+}
 /** Open the selection's radial menu at a point of the page (a long press on touch). */
 export const openPie = (at: { x: number; y: number }) => app.openPie?.(at);
 
@@ -661,11 +676,11 @@ export const COMMANDS: Command[] = [
   },
 
   // Empty floor: add things there.
-  { id: 'floor.figure', title: 'Add figure', icon: PersonStanding, when: onScene, run: (c) => addFigure(c.store, c.floor) },
-  { id: 'floor.standIn', title: 'Add stand-in', icon: UserRound, when: onScene, run: (c) => addStandIn(c.store, c.floor) },
+  { id: 'floor.figure', title: 'Add figure', icon: PersonStanding, when: onScene, run: (c) => (c.floor ? addFigure(c.store, c.floor) : placeOrAdd(placingFigure(c.store), () => addFigure(c.store))) },
+  { id: 'floor.standIn', title: 'Add stand-in', icon: UserRound, when: onScene, run: (c) => (c.floor ? addStandIn(c.store, c.floor) : placeOrAdd(placingFigure(c.store, true), () => addStandIn(c.store))) },
   {
     id: 'floor.prop', title: 'Add a prop', when: onScene,
-    items: (c) => PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ title: PROP_LABELS[k], icon: PROP_ICONS[k], run: () => addProp(c.store, k, c.floor) })),
+    items: (c) => PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ title: PROP_LABELS[k], icon: PROP_ICONS[k], run: () => (c.floor ? addProp(c.store, k, c.floor) : placeOrAdd(placingProp(c.store, k), () => addProp(c.store, k))) })),
   },
 
   // The animation and the timeline.

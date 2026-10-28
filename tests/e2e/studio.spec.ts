@@ -85,6 +85,21 @@ async function projectSettings(page: Page) {
   return page.getByRole('dialog', { name: 'Project settings' });
 }
 
+/**
+ * Record every toast's text as it shows (a toast is on screen for a few seconds, and a slow machine
+ * can take longer than that to get to looking).
+ */
+async function watchToasts(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __toasts: string[] };
+    w.__toasts = [];
+    new MutationObserver(() => {
+      document.querySelectorAll('.toast > span').forEach((el) => { if (!w.__toasts.includes(el.textContent ?? '')) w.__toasts.push(el.textContent ?? ''); });
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+}
+const toastsShown = (page: Page) => page.evaluate(() => (window as unknown as { __toasts: string[] }).__toasts);
+
 /** Pick an item of the top bar's View menu. */
 async function viewMenu(page: Page, item: string | RegExp) {
   await page.getByRole('button', { name: 'View', exact: true }).click();
@@ -102,12 +117,16 @@ async function openSection(page: Page, name: 'Scene' | 'Library') {
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
-/** Add to the open scene's cast (Figure, Stand-in…) or set (props), from the Scene outline. */
+/**
+ * Add to the open scene's cast (Figure, Stand-in…) or set (props), from the Scene outline. Chosen
+ * with the keyboard: put where it goes (with a click it would be placed with the pointer).
+ */
 async function addLayer(page: Page, what: string) {
   await openSection(page, 'Scene');
   const cast = what === 'Figure' || what.startsWith('Stand-in');
   await page.getByRole('button', { name: cast ? 'Add to cast' : 'Add to set' }).click();
-  await page.getByRole('menuitem', { name: what, exact: !what.startsWith('Stand-in') }).click();
+  await page.getByRole('menuitem', { name: what, exact: !what.startsWith('Stand-in') }).focus();
+  await page.keyboard.press('Enter');
 }
 
 /** The scene picker in the top bar (opened if needed). */
@@ -208,14 +227,15 @@ test('things have names and right-click menus; Del, Ctrl+D and F2 act on the sel
   await openSection(page, 'Scene');
   const set = page.getByRole('list', { name: 'Set' });
 
-  // Double-click renames in place; the inspector's title shows the name.
-  await set.getByRole('button', { name: 'Chair', exact: true }).dblclick();
+  // F2 renames in place; the inspector's title shows the name.
+  await set.getByRole('button', { name: 'Chair', exact: true }).click();
+  await page.keyboard.press('F2');
   await page.getByRole('textbox', { name: 'Rename Chair' }).fill('Bar stool');
   await page.keyboard.press('Enter');
   await expect(set.getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Chair name' })).toHaveValue('Bar stool');
   // Escape cancels a rename.
-  await set.getByRole('button', { name: 'Bar stool', exact: true }).dblclick();
+  await page.keyboard.press('F2');
   await page.getByRole('textbox', { name: 'Rename Bar stool' }).fill('Oops');
   await page.keyboard.press('Escape');
   await expect(set.getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
@@ -329,6 +349,8 @@ test('figures and props move by dragging them and turn by their floor ring', asy
 
   // A prop moves the same way; one undo step per drag.
   await addLayer(page, 'Box');
+  // (Nothing selected: F frames everything.)
+  await page.keyboard.press('Escape');
   await page.keyboard.press('f');
   await page.waitForTimeout(400);
   const prop = async () => (await state(page)).scene.props[0] as unknown as Placed;
@@ -1229,6 +1251,39 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('adding is placing: a ghost follows the pointer, snaps beside a figure and turns; F frames the selection', async ({ page }) => {
+  await openSection(page, 'Scene');
+  await page.getByRole('button', { name: 'Add to cast' }).click();
+  await page.getByRole('menuitem', { name: 'Figure', exact: true }).click();
+  // Beside the figure there: the hint says so.
+  const spot = await projectPoint(page, [0.6, 0, 0.05]);
+  await page.mouse.move(spot.x - 30, spot.y);
+  await page.mouse.move(spot.x, spot.y);
+  await expect(page.locator('.canvas-hint')).toHaveText(/^Beside Figure/);
+  await page.mouse.click(spot.x, spot.y);
+  let s = await live(page);
+  expect(s.scene.figures).toHaveLength(2);
+  expect(s.scene.figures[1].position).toEqual([0.6, 0, 0]);
+  // A box: on the 25 cm grid, turned 15° by R.
+  await page.getByRole('button', { name: 'Add to set' }).click();
+  await page.getByRole('menuitem', { name: 'Box', exact: true }).click();
+  const floor = await projectPoint(page, [-0.62, 0, -0.9]);
+  await page.mouse.move(floor.x - 20, floor.y);
+  await page.mouse.move(floor.x, floor.y);
+  await page.keyboard.press('r');
+  await page.mouse.click(floor.x, floor.y);
+  s = await live(page);
+  expect(s.scene.props[0].position).toEqual([-0.5, 0, -1]);
+  expect(s.scene.props[0].rotation[1]).toBe(15);
+  // F frames what is selected (the box), not everything.
+  await page.keyboard.press('f');
+  await expect.poll(async () => {
+    const box = await projectPoint(page, [-0.5, 0.25, -1]);
+    const c = (await page.locator('.stage canvas').boundingBox())!;
+    return Math.abs(box.x - (c.x + c.width / 2)) < c.width * 0.15;
+  }).toBe(true);
+});
+
 test('the selection is named on the canvas; its radial menu opens from the hub or with Q and runs commands', async ({ page }) => {
   await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
   const pie = page.getByRole('menu', { name: 'Actions for Figure' });
@@ -1331,15 +1386,17 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
 });
 
 test('a two-person motion goes on the selected figure and the one next to it', async ({ page }) => {
+  // Two figures in a two-person motion, drawn in software (no GPU here): every step is slow.
+  test.setTimeout(240_000);
   await addLayer(page, 'Figure');
   let s = await live(page);
   const [first, second] = s.scene.figures;
   const scenes = (await state(page)).library.scenes.length;
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  await watchToasts(page);
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Boxing exchange/ }).click();
-  // (Looked for at once: the toast is on screen for a few seconds.)
-  await expect(page.getByText(`${second.name} and ${first.name}: Boxing exchange`)).toBeVisible();
+  await expect.poll(() => toastsShown(page)).toContain(`${second.name} and ${first.name}: Boxing exchange`);
   s = await live(page);
   // In this scene (no new one), both figures keyed: the selected one leads.
   expect((await state(page)).library.scenes).toHaveLength(scenes);
@@ -1399,6 +1456,8 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ri
 });
 
 test('eyes on another figure, figure colours, a shot subject and the scene light', async ({ page }) => {
+  // Two figures in a two-person motion, drawn in software (no GPU here): every step is slow.
+  test.setTimeout(240_000);
   await addLayer(page, 'Figure');
   let s = await live(page);
   const [first, second] = s.scene.figures;

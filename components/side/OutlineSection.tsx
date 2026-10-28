@@ -11,7 +11,8 @@ import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
-import { command, menu, shortcutOf, type Ctx } from '../commands';
+import { command, menu, placeOrAdd, shortcutOf, type Ctx } from '../commands';
+import { placingFigure, placingProp } from '../placing';
 import { startRename, useRenaming } from '../rename';
 import { useFilm, useScene, useStore, useStudio } from '../store-context';
 import { Hint, IconButton, Menu } from '../ui';
@@ -57,8 +58,9 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
               align="end"
               tip="Add a figure, a stand-in, or figures from a photo"
               items={[
-                { label: 'Figure', icon: PersonStanding, onSelect: () => addFigure(store) },
-                { label: 'Stand-in (for blocking)', icon: UserRound, onSelect: () => addStandIn(store) },
+                // Placed with the pointer (from the keyboard: beside the others, framed).
+                { label: 'Figure', icon: PersonStanding, onSelect: () => placeOrAdd(placingFigure(store), () => addFigure(store)) },
+                { label: 'Stand-in (for blocking)', icon: UserRound, onSelect: () => placeOrAdd(placingFigure(store, true), () => addStandIn(store)) },
                 '-',
                 { label: 'From a photo…', icon: ScanFace, onSelect: onPhoto },
               ]}
@@ -110,10 +112,10 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
               tip="Add a prop: on the floor, or in the selected figure's hand"
               items={[
                 // (Or dragged: onto the floor, at the drop point; a handheld one onto a figure, into its hand.)
-                ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k), drag: { floor: (at: Vec3) => addProp(store, k, at) } })),
+                ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => placeOrAdd(placingProp(store, k), () => addProp(store, k)), drag: { floor: (at: Vec3) => addProp(store, k, at) } })),
                 { group: 'In the hand' },
                 ...HANDHELD.map((k) => ({
-                  label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => addProp(store, k),
+                  label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => placeOrAdd(placingProp(store, k), () => addProp(store, k)),
                   drag: { figure: (id: string) => { store.select({ kind: 'figure', figure: id }); addProp(store, k); } },
                 })),
               ]}
@@ -239,7 +241,7 @@ function More({ name, kind, c }: { name: string; kind: 'figure' | 'prop' | 'came
 }
 
 /** An outline row: click selects, double-click renames in place, right-click opens its menu. */
-function Row({ id, icon: Icon, lead, name, title, renaming, onRename, onClick, onMenu, children }: {
+function Row({ icon: Icon, lead, name, title, renaming, onRename, onClick, onMenu, children }: {
   id: string;
   icon?: LucideIcon;
   lead?: React.ReactNode;
@@ -251,6 +253,7 @@ function Row({ id, icon: Icon, lead, name, title, renaming, onRename, onClick, o
   onMenu(e: React.MouseEvent): void;
   children?: React.ReactNode;
 }) {
+  const store = useStore();
   const head = Icon ? <Icon size={15} strokeWidth={1.75} aria-hidden /> : lead;
   if (renaming) {
     return (
@@ -267,7 +270,8 @@ function Row({ id, icon: Icon, lead, name, title, renaming, onRename, onClick, o
       data-tip={`${title ? `${name} — ${title}` : name}\nRight-click for more`}
       data-tip-side="right"
       onClick={onClick}
-      onDoubleClick={() => startRename(id)}
+      // Double-click: frame it on the canvas (F2 or its menu renames it).
+      onDoubleClick={() => { onClick(); command('view.frameAll').run!({ store }); }}
       onContextMenu={onMenu}
     >
       {head}

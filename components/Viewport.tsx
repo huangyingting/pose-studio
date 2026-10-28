@@ -22,6 +22,7 @@ import { useFilm, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
 import { cameraHint, setCanvasPointer, setPointerHint } from './hints';
 import { openPie } from './commands';
+import type { Placing } from './placing';
 
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
@@ -48,6 +49,8 @@ export type CanvasHit = { figure?: string; prop?: string; camera?: string; point
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
   n: number;
+  /** Only this figure or prop (the selection), not everything. */
+  only?: string;
 }
 
 interface Props {
@@ -69,6 +72,8 @@ interface Props {
   onMenu(e: { clientX: number; clientY: number }, hit: CanvasHit): void;
   /** A pick mode: the next click (not a drag) on the canvas goes here, whatever is under it. */
   onPick?: ((hit: CanvasHit) => void) | null;
+  /** Placing something new: its ghost follows the pointer. */
+  placing?: Placing | null;
 }
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
@@ -80,7 +85,7 @@ function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
 }
 
 export default function Viewport({
-  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu, onPick,
+  store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu, onPick, placing,
 }: Props) {
   const captureRef = useRef<(() => CameraView | null) | null>(null);
   const film = useFilm();
@@ -300,6 +305,7 @@ export default function Viewport({
         <OrbitControls makeDefault onChange={keepCameraAboveFloor} />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
+        {placing && <PlaceGhost key={placing.hint} placing={placing} apiRef={apiRef} />}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
           <CameraRig store={store} scene={scene} clock={clock} time={time} selection={selection} groupRef={rigRef} />
@@ -344,6 +350,64 @@ function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Cl
 }
 
 /** Translucent ghosts of the previous (blue) and next (orange) keyframes. */
+/**
+ * Placing something new: a ghost of it where it would go under the pointer (the hint says how it
+ * relates to the figure nearest), turned by the wheel or R.
+ */
+function PlaceGhost({ placing, apiRef }: { placing: Placing; apiRef: Props['apiRef'] }) {
+  const ghost = useMemo(() => new Ghost(), []);
+  const size = useThree((s) => s.size);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => () => ghost.dispose(), [ghost]);
+  useEffect(() => ghost.resize(size.width, size.height), [ghost, size]);
+  useEffect(() => ghost.follow(placing, apiRef, gl.domElement.parentElement!), [ghost, placing, apiRef, gl]);
+  return <primitive object={ghost.root} />;
+}
+
+/** The ghost itself: a see-through view of what would be added, kept up with the pointer. */
+class Ghost {
+  private view = new SceneView({ color: '#3b6cff', opacity: 0.35 });
+  readonly root = this.view.root;
+
+  resize(w: number, h: number) {
+    this.view.ink.setResolution(w, h);
+    this.view.ink.setThickness(1.3);
+  }
+
+  dispose() {
+    this.view.dispose();
+  }
+
+  /** Follow the pointer over `el` for `placing`; the wheel and R turn it. Returns the stop. */
+  follow(placing: Placing, apiRef: Props['apiRef'], el: HTMLElement) {
+    let last: { x: number; y: number; alt: boolean } | null = null;
+    const show = () => {
+      if (!last) return;
+      const hit = apiRef.current?.pick(last.x, last.y) ?? {};
+      const scene = placing.ghost(hit.floor, last.alt, hit);
+      this.root.visible = !!scene;
+      if (scene) this.view.sync(scene);
+      setPointerHint(placing.at || placing.text
+        ? `${placing.text ? `${placing.text[0].toUpperCase()}${placing.text.slice(1)} · ` : ''}Click: put it there · Wheel or R: turn · Esc: cancel`
+        : placing.hint);
+    };
+    const move = (e: PointerEvent) => { last = { x: e.clientX, y: e.clientY, alt: e.altKey }; show(); };
+    const turn = (by: number) => { placing.turn(by); show(); };
+    const wheel = (e: WheelEvent) => { e.preventDefault(); e.stopPropagation(); turn(e.deltaY > 0 ? 15 : -15); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); turn(15); } };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('wheel', wheel, { capture: true, passive: false });
+    window.addEventListener('keydown', key, true);
+    this.root.visible = false;
+    return () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('wheel', wheel, { capture: true });
+      window.removeEventListener('keydown', key, true);
+      setPointerHint(null);
+    };
+  }
+}
+
 function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: Clock }) {
   const views = useMemo(() => [
     new SceneView({ color: '#3b6cff', opacity: 0.1 }),
@@ -502,9 +566,15 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           const m = sv.figures.get(sel.figure);
           return m ? toScreen(m.joints[sel.joint].getWorldPosition(new THREE.Vector3())) : null;
         }
+        if (sel.kind === 'figure') {
+          // Above the head (cheap enough to follow every frame).
+          const m = sv.figures.get(sel.figure);
+          if (!m || !m.object.visible && !sv.models.get(sel.figure)) return null;
+          const head = m.joints.head.getWorldPosition(new THREE.Vector3());
+          return toScreen(head.setY(head.y + 0.22 * m.object.scale.y));
+        }
         let o: THREE.Object3D | undefined;
-        if (sel.kind === 'figure') o = sv.models.get(sel.figure)?.object ?? sv.figures.get(sel.figure)?.object;
-        else if (sel.kind === 'prop') o = sv.props.get(sel.prop)?.object;
+        if (sel.kind === 'prop') o = sv.props.get(sel.prop)?.object;
         else if (sel.kind === 'camera') rigRef.current?.traverse((x) => { if (!o && x.visible && x.userData.camera === sel.camera && x.userData.point === undefined) o = x; });
         if (!o) return null;
         let shown = true;
@@ -543,11 +613,13 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     };
   }, [apiRef, camera, controls, sv, gl, rigRef]);
 
-  const frame = (view: FrameRequest['view']) => {
+  const frame = (view: FrameRequest['view'], only?: string) => {
     if (!controls) return 0;
     // Wait a frame so the scene has been synced.
     return requestAnimationFrame(() => {
-      controls.target.copy(fitCamera(camera, sv, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, 0.2));
+      const one = only ? (sv.figures.get(only) ?? sv.props.get(only)) : undefined;
+      const source = one ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => one.forEachPoint(cb) } : sv;
+      controls.target.copy(fitCamera(camera, source, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2));
       camera.near = 0.01; // fitCamera tightens these for export; keep room for zooming
       camera.far = 200;
       camera.updateProjectionMatrix();
@@ -576,7 +648,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
 
   useEffect(() => {
     if (frameRequest.n === 0) return;
-    const id = frame(frameRequest.view);
+    const id = frame(frameRequest.view, frameRequest.only);
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameRequest]);

@@ -60,3 +60,11 @@ export function dotHint(id: string) {
 export const ringHint = (name: string) => `Drag the ring: turn ${name} · Shift: 15° steps`;
 export const cameraHint = (name: string) => `Drag: move ${name} across the floor · Shift-drag: up and down · Double-click its path: add a point`;
 export const FLOOR_HINT = 'Drag: orbit · Right-click: walk here, add something here';
+
+/** Whether the last input was the pointer's (a click), not the keyboard's: what was asked for with a click is placed with the pointer. */
+let pointerLast = true;
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointerdown', () => { pointerLast = true; }, true);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') pointerLast = false; }, true);
+}
+export const viaPointer = () => pointerLast;

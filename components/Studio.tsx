@@ -39,6 +39,7 @@ import { COMMANDS, choices, command, commandForKey, matchesKey, menu, menuItems,
 import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewCube from './ViewCube';
+import type { Placing } from './placing';
 import SelectionPie from './SelectionPie';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
 import { nextStep, stepDone } from './nextStep';
@@ -145,10 +146,6 @@ function App() {
     setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
   }, []);
 
-  // The canvas hint's parts: what is under the pointer, whether it is over the canvas, and the next steps dismissed.
-  const pointerHint = usePointerHint();
-  const overCanvas = useCanvasPointer();
-  const [, setSteps] = useState(0);
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
   const labelPoint = useCallback((sel: NonNullable<typeof selection>) => apiRef.current?.labelPoint(sel) ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
@@ -158,14 +155,26 @@ function App() {
     notify(text, 'info', { label: 'Undo', run: () => store.undo() });
   }, [notify, store]);
 
-  const frame = useCallback((view: Partial<View> & Pick<View, 'yaw' | 'pitch'>) => {
-    setFrameRequest((r) => ({ view, n: r.n + 1 }));
+  const frame = useCallback((view: Partial<View> & Pick<View, 'yaw' | 'pitch'>, only?: string) => {
+    setFrameRequest((r) => ({ view, n: r.n + 1, ...(only ? { only } : {}) }));
   }, []);
 
+  /** Frame the selected figure or prop from where the view looks now (F), or everything if nothing is. */
   const frameCurrent = useCallback(() => {
     const cur = apiRef.current?.getView();
-    frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time));
+    const sel = store.getState().selection;
+    const only = sel?.kind === 'figure' || sel?.kind === 'joint' ? sel.figure : sel?.kind === 'prop' ? sel.prop : undefined;
+    frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time), only);
   }, [frame, store]);
+  /** Frame the selection only if it is out of view (something added from the keyboard, beyond the edge). */
+  const frameSelection = useCallback(() => {
+    requestAnimationFrame(() => {
+      const sel = store.getState().selection;
+      const at = sel && apiRef.current?.labelPoint(sel);
+      const box = document.querySelector('.stage canvas')?.getBoundingClientRect();
+      if (!at || !box || at.x < box.left || at.x > box.right || at.y < box.top || at.y > box.bottom) frameCurrent();
+    });
+  }, [frameCurrent, store]);
 
   // Open a shared pose from the URL fragment.
   useEffect(() => {
@@ -246,7 +255,7 @@ function App() {
 
   // A pick mode (Walk to…, Throw to…): the next click on the floor; Esc or picking anything else
   // (another selection, another scene) cancels.
-  const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; selection: typeof selection; scene: string } | null>(null);
+  const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; ghost?: Placing; selection: typeof selection; scene: string } | null>(null);
   const pick = picked && picked.selection === selection && picked.scene === scene.id ? picked : null;
 
   const openFilePicker = useCallback((mode: 'append' | 'replace') => {
@@ -262,8 +271,10 @@ function App() {
       isolated: () => isolate, setIsolated,
       captureShot: () => apiRef.current?.captureShot() ?? null,
       pickFloor: (hint, done) => setPick({ hint, done, selection: store.getState().selection, scene: store.scene.id }),
+      place: (ghost) => setPick({ hint: ghost.hint, done: () => {}, ghost, selection: store.getState().selection, scene: store.scene.id }),
+      frameSelection: () => frameSelection(),
     });
-  }, [notify, notifyUndo, frameCurrent, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store]);
+  }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store]);
 
   // Keyboard shortcuts: the command a key is bound to, on the selection.
   useEffect(() => {
@@ -474,7 +485,12 @@ function App() {
           through={through}
           onion={onion}
           onMenu={openCanvasMenu}
-          onPick={pick && ((hit) => { if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.floor); setPick(null); })}
+          onPick={pick && ((hit) => {
+            if (pick.ghost) pick.ghost.drop(hit);
+            else if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.floor);
+            setPick(null);
+          })}
+          placing={pick?.ghost ?? null}
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} name={scene.cameras.find((c) => c.id === through.camera)?.name} />}
         {!through && <ViewCube ctx={cx} view={viewNow} />}
@@ -486,28 +502,14 @@ function App() {
         {scene.animation && (
           <Timeline clock={clock} notify={notify} />
         )}
-        {(() => {
-          // The canvas's one hint: a pick in progress; what the gestures on what is under the
-          // pointer do; the tool's, a correction's or Isolate's note; else a next step for the scene.
-          const hint = pick ? pick.hint : pointerHint ?? (settings.gizmo !== 'rotate' && !gizmoForSelection
+        <CanvasHint
+          pick={pick}
+          note={settings.gizmo !== 'rotate' && !gizmoForSelection
             ? `Select a prop to ${settings.gizmo === 'translate' ? 'move' : 'scale'} it`
             : (scene.animation && !through ? correction(scene, activeFigure, time) : null)
-              ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null));
-          if (hint) return <div className="canvas-hint" role="status">{hint}</div>;
-          const step = !through && !clock.playing ? nextStep(store) : null;
-          if (!step) return overCanvas && !through ? <div className="canvas-hint" role="status">{FLOOR_HINT}</div> : null;
-          return (
-            <div className="canvas-hint step" role="status" aria-label="Next step">
-              <span>{step.text}</span>
-              {step.actions.map((a) => (
-                <button key={a.label} type="button" className="hint-action" onClick={() => { a.run(); setSteps((n) => n + 1); }}>{a.label}</button>
-              ))}
-              <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => { stepDone(scene.id, step.id); setSteps((n) => n + 1); }}>
-                <X size={13} aria-hidden />
-              </button>
-            </div>
-          );
-        })()}
+              ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
+          quiet={!!through || clock.playing}
+        />
       </main>
 
       <Inspector ctx={ctx} onHide={toggleInspector} />
@@ -585,6 +587,34 @@ function Letterbox({ aspect, guides, name }: { aspect: number; guides: boolean; 
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The canvas's one hint (its own component: it changes as the pointer moves): a pick in progress;
+ * what the gestures on what is under the pointer do; the tool's, a correction's or Isolate's note;
+ * else a next step for the scene, with its command as a button.
+ */
+function CanvasHint({ pick, note, quiet }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean }) {
+  const store = useStore();
+  useScene();
+  const pointerHint = usePointerHint();
+  const overCanvas = useCanvasPointer();
+  const [, setSteps] = useState(0);
+  const hint = pick ? (pick.ghost ? pointerHint ?? pick.hint : pick.hint) : pointerHint ?? note;
+  if (hint) return <div className="canvas-hint" role="status">{hint}</div>;
+  const step = !quiet ? nextStep(store) : null;
+  if (!step) return overCanvas && !quiet ? <div className="canvas-hint" role="status">{FLOOR_HINT}</div> : null;
+  return (
+    <div className="canvas-hint step" role="status" aria-label="Next step">
+      <span>{step.text}</span>
+      {step.actions.map((a) => (
+        <button key={a.label} type="button" className="hint-action" onClick={() => { a.run(); setSteps((n) => n + 1); }}>{a.label}</button>
+      ))}
+      <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => { stepDone(store.scene.id, step.id); setSteps((n) => n + 1); }}>
+        <X size={13} aria-hidden />
+      </button>
     </div>
   );
 }
