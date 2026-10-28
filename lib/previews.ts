@@ -78,7 +78,7 @@ function filmed(key: string, make: () => Scene, style: Style): PreviewJob {
       scene ??= make();
       const a = scene.animation!;
       const t = (a.duration * i) / (a.loop ? FRAMES : FRAMES - 1);
-      return sharedRenderer().renderShot(sceneAt(scene, t), W, H, LINE, { style, faces: true, camera: cameraAt(scene, t, W / H) }).toDataURL('image/png');
+      return sharedRenderer().renderShot(sceneAt(scene, t, true), W, H, LINE, { style, faces: true, camera: cameraAt(scene, t, W / H) }).toDataURL('image/png');
     },
   };
 }

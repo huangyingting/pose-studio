@@ -65,7 +65,7 @@ export interface VideoOptions {
 
 /** Draw one frame of a scene through its shot camera at time t. */
 export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>) {
-  const src = sharedRenderer().renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
+  const src = sharedRenderer().renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
     style: o.style, faces: o.faces, pass: o.pass, camera: cameraAt(scene, t, o.width / o.height),
   });
   ctx.fillStyle = styleDef(o.style).background;

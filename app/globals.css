@@ -851,6 +851,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.sel { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--accent-ring); }
 .tl-block { display: contents; }
 /* Its right edge retimes it; the ramp before it is how long it blends in (drag it out). */
+/* Where a figure has idle life as the film plays: faint, under what it does. */
+.tl-idle { position: absolute; top: 4px; bottom: 4px; display: flex; align-items: center; border-radius: 4px; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text-3) 10%, transparent) 0 2px, transparent 2px 6px); color: var(--text-3); font-size: 10px; pointer-events: none; overflow: hidden; }
+.tl-idle span { padding-left: 4px; }
 /* A correction's band, low on its row over what it corrects. */
 .tl-fixband { position: absolute; bottom: 1px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fix) 45%, transparent); cursor: pointer; }
 .tl-fixband.sel { background: var(--fix); }

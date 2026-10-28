@@ -218,6 +218,15 @@ export function deleteFigure(store: Store, id: string) {
   return true;
 }
 
+/** Whether a figure has idle life in the gaps of a film (breathing, shifting, glances), or holds still. */
+export function setIdleLife(store: Store, id: string, on: boolean) {
+  store.updateFigure(id, (f) => {
+    const next = { ...f, still: true };
+    if (on) delete (next as Partial<Figure>).still;
+    return next;
+  });
+}
+
 export function setFigureHidden(store: Store, id: string, hidden: boolean) {
   store.updateFigure(id, (f) => {
     const next = { ...f, hidden: true };

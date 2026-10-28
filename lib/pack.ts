@@ -57,7 +57,7 @@ export async function keyframePack(shots: StoryShot[], name: string, o: PackOpti
   let done = 0;
   const tick = () => onProgress?.(++done / steps);
   const png = async (scene: Scene, t: number, pass: Pass) => {
-    const c = renderer.renderShot(sceneAt(scene, t), o.width, o.height, o.lineWidth, {
+    const c = renderer.renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
       style: o.style, faces: o.faces, pass, camera: cameraAt(scene, t, o.width / o.height),
     });
     const blob = await canvasToBlob(c, 'png');

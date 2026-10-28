@@ -179,7 +179,7 @@ export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptio
   const front = look(frameAspect());
   const base: View = { ...angleOf(front), fov: front.fov };
   if ((o.scope === 'frames' || o.scope === 'video') && current.animation) {
-    return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t), caption: `${t.toFixed(2)} s`, angle: base }));
+    return frameTimes(current.animation, o.frames).map((t) => ({ scene: sceneAt(current, t, true), caption: `${t.toFixed(2)} s`, angle: base }));
   }
   if (o.scope !== 'turnaround') {
     const now = current.animation ? sceneAt(current, time) : current;

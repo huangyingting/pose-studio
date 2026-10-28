@@ -4,7 +4,8 @@ import { clipById, clipsVersion } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
-import { angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones } from './pose';
+import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
+import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
 import { PropTimeline, animated, inHand, placeInWorld, propOn, ribbonTrail } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
@@ -25,6 +26,8 @@ import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type
  */
 
 const EPS = 1e-6;
+/** Idle life eases in and out over this long at the edges of what a figure does (s). */
+const IDLE_EASE = 0.6;
 /** How long a planted foot takes to be let go when it lifts in a clip (s). */
 const RELEASE = 0.12;
 /** How long a hand takes to take hold of a partner and let go (clip time, s): on other bodies it may have further to go. */
@@ -287,6 +290,46 @@ class Evaluator {
     const p = f && this.pose(id, t);
     return f && p ? { ...f, ...p } : null;
   };
+
+  /**
+   * A figure with its idle life at t (#14): in the gaps between what it does (eased in and out at
+   * their edges), it breathes, sways, and now and then looks at the nearest figure.
+   */
+  lived(f: Figure, t: number): Figure {
+    const w = this.gap(f.id, t);
+    if (w <= 0) return f;
+    const turns = idleTurns(f.id, t);
+    // A look at the nearest figure now and then (the head and neck turn to it, as far as they go).
+    const g = glanceAt(f.id, t);
+    if (g > 0) {
+      const others = [...this.figures.values()].filter((o) => o.id !== f.id && !o.hidden);
+      const near = others.map((o) => this.pose(o.id, t)).filter((p): p is Pose => !!p)
+        .map((p) => ({ p, d: Math.hypot(p.position[0] - f.position[0], p.position[2] - f.position[2]) })).sort((a, b) => a.d - b.d)[0];
+      if (near && near.d < 8) {
+        const to = Math.atan2(near.p.position[0] - f.position[0], near.p.position[2] - f.position[2]) * (180 / Math.PI);
+        const turn = Math.max(-GLANCE_TURN, Math.min(GLANCE_TURN, wrapDeg(to - facingOf(f.bones)))) * g;
+        turns.head = [turns.head![0], turns.head![1] + turn * 0.6, turns.head![2]];
+        turns.neck = [turns.neck![0], turns.neck![1] + turn * 0.4, turns.neck![2]];
+      }
+    }
+    const angles: Partial<Record<JointName, Vec3>> = {};
+    for (const [j, d] of Object.entries(turns) as [JointName, Vec3][]) {
+      const a = angleOf(f.bones, j);
+      angles[j] = [a[0] + d[0] * w, a[1] + d[1] * w, a[2] + d[2] * w];
+    }
+    return { ...f, bones: withAngles(f.bones, angles) };
+  }
+
+  /** How much idle life a figure has at t: none during what it does, full in a gap, eased between (over half a second). */
+  private gap(id: string, t: number): number {
+    const spans = busySpans(this.a, id);
+    let d = Infinity;
+    for (const [a, b] of spans) {
+      if (t >= a - EPS && t <= b + EPS) return 0;
+      d = Math.min(d, t < a ? a - t : t - b);
+    }
+    return smooth(Math.min(1, d / IDLE_EASE));
+  }
 
   /** A figure's pose before holds, as figures go (for props: aiming and catching). */
   private readonly freeAt = (id: string, t: number): Figure | null => {
@@ -575,6 +618,11 @@ export function actionPoseAt(scene: Scene, act: Action, id: string, t: number): 
   return f && scene.animation ? evaluator(scene).at(f, act, t) : null;
 }
 
+/** When a figure is doing something (an action, a keyed block, from its blend-in on): idle life fills the rest. */
+export function busySpans(a: Animation, id: string): [number, number][] {
+  return [...actionsOf(a, id), ...actionsOf(a, id, 'upper')].filter((x) => x.duration > EPS).map((x): [number, number] => [x.start - (x.blendIn ?? 0), end(x)]).sort((p, q) => p[0] - q[0]);
+}
+
 /** Where an action starts and ends for one of its figures. */
 export function marksOf(scene: Scene, act: Action, id: string): { start: Mark; end: Mark } | null {
   const f = scene.figures.find((x) => x.id === id);
@@ -624,11 +672,22 @@ export function overWarp(scene: Scene, act: Action, id: string): boolean {
   return !!limit && !!end && Math.hypot(limit.at[0] - end.at[0], limit.at[1] - end.at[1]) > 0.005;
 }
 
-/** The scene as it looks at time t: every figure posed by its actions, the props where they are then. */
-export function sceneAt(scene: Scene, t: number): Scene {
+/**
+ * The scene as it looks at time t: every figure posed by its actions, the props where they are
+ * then. `live`: as a film plays (idle life in the gaps); not while posing, where the pose shown is
+ * the one keyed.
+ */
+export function sceneAt(scene: Scene, t: number, live = false): Scene {
   if (!scene.animation) return scene;
   const ev = evaluator(scene);
-  const figures = scene.figures.map((f) => ev.figureAt(f.id, t)!);
+  // The pose from the animation, all else from the figure as it is now (its name, colour, whether it
+  // has idle life: none of it changes how it is posed, so the evaluator kept for the animation may
+  // have them as they were).
+  const figures = scene.figures.map((f) => {
+    const p = ev.figureAt(f.id, t)!;
+    const posed = { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded };
+    return live && !f.proxy && !f.hidden && !f.still ? ev.lived(posed, t) : posed;
+  });
   // A ribbon trails where its stick's tip has just been.
   const props = scene.props.map((p) => {
     const now = ev.propAt(p.id, t)!;

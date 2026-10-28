@@ -69,6 +69,8 @@ export interface Figure {
   hidden?: boolean;
   /** A capsule stand-in for blocking (no joints to pose), in the given posture. */
   proxy?: Posture;
+  /** Holds still in the gaps of a film (no idle life: breathing, shifting, glances). */
+  still?: boolean;
   /** Keeps its eyes on another figure or a prop: the head and neck turn to it, all the time. */
   gaze?: { figure: string } | { prop: string };
   /** A tint to tell figures apart (teams, sides), as a CSS colour. */

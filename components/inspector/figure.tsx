@@ -5,7 +5,7 @@ import {
   ArrowLeftRight, ChevronDown, Copy, Eye, Footprints, Hand, Mars, Navigation, PanelLeft, PanelRight, PersonStanding, Pin, Repeat, RotateCcw, Unlink, UserRound, Venus, X,
 } from 'lucide-react';
 import {
-  arrange, offsetPerformance, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
+  arrange, offsetPerformance, setIdleLife, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
 } from '@/lib/actions';
 import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
@@ -159,6 +159,10 @@ export function PlacementPanel({ t }: { t: Target }) {
         <Menu label="Move to…" className="btn subtle move-to" items={() => menuItems(['figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo'], { store, figure: figure.id })}>
           <Footprints size={14} aria-hidden /> Move to… <ChevronDown size={13} aria-hidden />
         </Menu>
+      )}
+      {animation && !figure.proxy && (
+        // In the gaps of the film: breathing, small shifts, a look at someone now and then.
+        <Toggle label="Idle life" checked={!figure.still} hint="Between what it does, it breathes and looks around (as the film plays)" onChange={(on) => setIdleLife(store, figure.id, on)} />
       )}
       {!moving && (
         <Toggle

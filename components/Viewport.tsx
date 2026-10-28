@@ -122,6 +122,8 @@ export default function Viewport({
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
   const lastTap = useRef<{ figure?: string; t: number }>({ t: 0 });
+  // (The pointer the last press was made with: a click event does not say in every browser.)
+  const downType = useRef('mouse');
   const longPress = useRef(0);
 
   // Characters' files are read after the first frame: drawn as them once they are.
@@ -175,7 +177,7 @@ export default function Viewport({
     e.stopPropagation();
     // A second tap on the same figure soon after (touch has no double-click on the canvas): all of it.
     const now = performance.now();
-    const touch = (e.nativeEvent as PointerEvent).pointerType === 'touch';
+    const touch = downType.current === 'touch';
     const twice = touch && o.userData.figure && lastTap.current.figure === o.userData.figure && now - lastTap.current.t < 350;
     lastTap.current = { figure: o.userData.figure as string | undefined, t: twice ? 0 : now };
     if (twice && !e.nativeEvent.shiftKey) {
@@ -266,6 +268,7 @@ export default function Viewport({
       onPointerLeave={() => { setCanvasPointer(false); setPointerHint(null); }}
       onPointerDown={(e) => {
         downAt.current = [e.clientX, e.clientY];
+        downType.current = e.pointerType;
         // A long press on touch: what is under the finger, selected, and its menu (touch has no right-click).
         window.clearTimeout(longPress.current);
         if (e.pointerType !== 'touch') return;
@@ -614,7 +617,8 @@ function Lights({ sv, style, scene }: { sv: SceneView; style: Style; scene: Scen
 /** While playing, pose the figures for the clock's time on every frame (without touching the document). */
 function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Clock }) {
   useFrame(() => {
-    if (clock.playing) sv.sync(sceneAt(scene, clock.time));
+    // (Playing: as the film plays, idle life in the gaps.)
+    if (clock.playing) sv.sync(sceneAt(scene, clock.time, true));
   }, -2);
   return null;
 }

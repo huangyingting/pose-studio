@@ -6,7 +6,7 @@ import {
   deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
-import { actionsOf, propStretchesOf } from '@/lib/evaluate';
+import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
@@ -28,6 +28,18 @@ export function usePlayhead(clock: Clock) {
   useSyncExternalStore(clock.subscribe, clock.getVersion, clock.getVersion);
   const time = useStudio((s) => s.time);
   return clock.playing ? clock.time : time;
+}
+
+/** The stretches a figure does nothing (idle life fills them as the film plays), of a third of a second or more. */
+function idleGaps(a: Animation, id: string): [number, number][] {
+  const out: [number, number][] = [];
+  let at = 0;
+  for (const [s, e] of busySpans(a, id)) {
+    if (s - at >= 0.3) out.push([at, s]);
+    at = Math.max(at, e);
+  }
+  if (a.duration - at >= 0.3) out.push([at, a.duration]);
+  return out;
 }
 
 /** Ruler spacings (seconds), finest first: the finest that keeps ticks (and labels) apart is used. */
@@ -838,6 +850,12 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   )}
                   {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
                     <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} title={ev.title} aria-hidden />
+                  ))}
+                  {/* The gaps where it has idle life as the film plays (breathing, a look round). */}
+                  {!f.proxy && !f.still && idleGaps(a, f.id).map(([t0, t1]) => (
+                    <span key={`idle${t0}`} className="tl-idle" style={{ left: pct(t0), width: `${((t1 - t0) / span) * 100}%` }} aria-hidden>
+                      <span style={inSight(t0, t1)}>idle</span>
+                    </span>
                   ))}
                   {actionsOf(a, f.id, 'correction').filter((x) => x.duration > 1e-6).map((x) => (
                     // A correction: its own thin band over what it corrects; its right edge retimes it.

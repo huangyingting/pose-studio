@@ -215,6 +215,7 @@ function parseFigure(v: unknown, i: number): Figure {
     position: vec3(o.position, [0, 0, 0]),
     grounded: o.grounded !== false,
     ...(o.hidden === true ? { hidden: true } : {}),
+    ...(o.still === true ? { still: true } : {}),
     ...(POSTURES.includes(o.proxy as Posture) ? { proxy: o.proxy as Posture } : {}),
     ...(isObj(o.gaze) && typeof o.gaze.figure === 'string' ? { gaze: { figure: o.gaze.figure } }
       : isObj(o.gaze) && typeof o.gaze.prop === 'string' ? { gaze: { prop: o.gaze.prop } } : {}),

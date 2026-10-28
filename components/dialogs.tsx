@@ -109,7 +109,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       if (filmed) {
         const first = shots[0];
         const at = first?.span?.start ?? 0;
-        const r = sharedRenderer().renderShot(sceneAt(first.scene, at), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
+        const r = sharedRenderer().renderShot(sceneAt(first.scene, at, true), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
           style, faces, pass, camera: cameraAt(first.scene, at, width / height),
         });
         small = document.createElement('canvas');
