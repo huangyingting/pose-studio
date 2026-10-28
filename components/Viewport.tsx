@@ -960,12 +960,13 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
             onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
             onWheel={c.kind === 'rig' ? (e) => {
               e.stopPropagation();
-              // (Shift turns the wheel sideways in most browsers; a trackpad sends many small events: one step a notch, not one an event.)
+              // (Shift turns the wheel sideways in most browsers, so either way counts; a step comes at the
+              // first event after a pause, so a trackpad's swipe and its momentum are one step.)
               const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
               const now = performance.now();
-              if (!d || now - wheelAt.current < 180) return;
+              const quiet = now - wheelAt.current > 180;
               wheelAt.current = now;
-              stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey);
+              if (d && quiet) stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey);
             } : undefined}
             {...link(c.id)}
           >

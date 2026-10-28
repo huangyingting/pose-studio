@@ -1546,26 +1546,28 @@ export function deleteMany(store: Store, figures: string[], props: string[]) {
 /** Copies of several figures and props, beside them (one undo step), selected together. */
 export function duplicateMany(store: Store, figures: string[], props: string[]) {
   const before = { figures: new Set(store.scene.figures.map((f) => f.id)), props: new Set(store.scene.props.map((p) => p.id)) };
-  const newest = <T extends { id: string }>(list: T[]) => list[list.length - 1].id;
+  /** The id a duplicate added to a list (none if nothing was added). */
+  const added = <T extends { id: string }>(list: () => T[], copy: () => void) => {
+    const n = list().length;
+    copy();
+    return list().length > n ? list()[list().length - 1].id : null;
+  };
   store.group(() => {
     // Copies beside the originals, all moved alike (as a figure's copy is), so the group keeps its layout.
     const copyOf = new Map<string, string>();
     for (const id of figures) {
-      duplicateFigure(store, id);
-      copyOf.set(id, newest(store.scene.figures));
+      const copy = added(() => store.scene.figures, () => duplicateFigure(store, id));
+      if (copy) copyOf.set(id, copy);
     }
     for (const id of props) {
       const src = store.scene.props.find((p) => p.id === id);
-      if (!src) continue;
-      duplicateProp(store, id);
-      const copy = newest(store.scene.props);
+      const copy = src && added(() => store.scene.props, () => duplicateProp(store, id));
+      if (!src || !copy) continue;
       const holder = src.hold && copyOf.get(src.hold.figure);
       store.updateScene((s) => {
-        const p = s.props.find((x) => x.id === copy)!;
-        // In the copy of the hand that held it (not a second one in the original's hand).
+        // In the copy of the hand that held it, held as the original is (not a second one in the original's hand).
         if (holder && src.hold) {
-          const h = held({ ...p, hold: undefined }, s.figures.find((f) => f.id === holder)!, src.hold.hand);
-          return { ...s, props: s.props.map((x) => (x.id === copy ? h.prop : x)), figures: s.figures.map((f) => (f.id === holder ? h.figure : f)) };
+          return { ...s, props: s.props.map((x) => (x.id === copy ? { ...x, position: src.position, rotation: src.rotation, scale: src.scale, hold: { ...src.hold!, figure: holder } } : x)) };
         }
         // (Held by someone not copied: as a single copy of it is.)
         if (src.hold) return s;
