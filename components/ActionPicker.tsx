@@ -44,10 +44,10 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
   const ui = { notify: (t: string) => App().notify(t), notifyUndo: (t: string) => App().notifyUndo(t) };
   const items = (id: 'poses' | 'motions') => LIBRARY_CATEGORIES.find((x) => x.id === id)!.items(store, ui).filter((it) => it.drop?.figure);
   const row = (it: ReturnType<typeof items>[number]): Row => ({ label: it.name, icon: it.icon, thumb: it.thumb, meta: it.meta, run: () => it.drop!.figure!(at.figure) });
-  const library = (id: 'poses' | 'motions') => items(id).map(row);
-  // The everyday beats first: what people do in a scene between the big actions (#14).
+  // The everyday beats first: what people do in a scene between the big actions (#14); the other motions after.
   const motions = items('motions');
   const common = COMMON_BEATS.map((id) => motions.find((it) => it.key === `motion:${id}`)).filter((it) => !!it).map(row);
+  const others = motions.filter((it) => !COMMON_BEATS.some((id) => it.key === `motion:${id}`)).map(row);
   // What it holds at the playhead.
   const held = store.scene.props.filter((p) => propNow(store, p.id)?.hold?.figure === at.figure);
   const parts: Part[] = [
@@ -58,8 +58,8 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
       rows: commandRows(['prop.throwTo', 'prop.toss', 'prop.dribble', 'prop.shoot', 'prop.give', 'prop.letGo', 'prop.drop'], { store, prop: p.id }),
     })),
     { title: 'With others', rows: commandRows(['figure.eyes', 'figure.holdOn'], c) },
-    { title: 'Poses', grid: true, rows: library('poses') },
-    { title: 'Motions', rows: library('motions') },
+    { title: 'Poses', grid: true, rows: items('poses').map(row) },
+    { title: 'Motions', rows: others },
   ];
   const q = query.trim().toLowerCase();
   const shown = parts

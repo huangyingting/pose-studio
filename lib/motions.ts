@@ -841,8 +841,8 @@ export const MOTIONS: Motion[] = [
     build: () => withRig((rig) => {
       const f = { ...person('Fay', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Grip') } };
       const stand = posed(f, STAND);
-      const bent = adjusted(sink(rock(stand, 55), 50), { spine: [20, 0, 0], neck: [-10, 0, 0], rightUpperArm: [-25, 0, -6], rightLowerArm: [-5, 0, 0], leftUpperArm: [-25, 0, 10], leftLowerArm: [-30, 0, 0] });
-      const down = plantFeet(rig, bent, stand);
+      const bent = adjusted(sink(rock(stand, 55), 115), { spine: [25, 0, 0], chest: [10, 0, 0], neck: [-15, 0, 0], head: [-10, 0, 0], rightUpperArm: [-85, 0, -6], rightLowerArm: [-10, 0, 0], leftUpperArm: [-40, 0, 10], leftLowerArm: [-40, 0, 0] });
+      const down = plantFeet(rig, { ...bent, position: [0, stand.position[1], -0.2] }, stand);
       return animated('Pick up / put down', [
         { t: 0, figures: [stand] }, ...inBetween(rig, stand, down, 3, stand).map((p, i) => ({ t: 0.2 * (i + 1), figures: [p] })),
         { t: 0.8, figures: [down] }, { t: 1.1, figures: [down] },

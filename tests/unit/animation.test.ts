@@ -8,7 +8,8 @@ import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
 import { describeShot } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
-import { withFacing } from '@/lib/relations';
+import { Rig, withFacing } from '@/lib/relations';
+import * as THREE from 'three';
 import { Store } from '@/lib/store';
 import { keyAtTime, keyTimesOf, keysAction, moveKeyTo, removeKeyAt, setPoseAt } from '@/lib/track';
 import type { Figure, JointName, Scene } from '@/lib/types';
@@ -135,6 +136,14 @@ describe('animation templates', () => {
     for (const m of MOTIONS) expect(checkMotion(m.build()).map((i) => i.message), m.id).toEqual([]);
   }, 60_000);
 
+  it('bends to the floor to pick up, in front of the feet', () => {
+    const s = MOTIONS.find((m) => m.id === 'pick-up')!.build();
+    const rig = new Rig();
+    const hand = rig.model(sceneAt(s, 0.9).figures[0]).joints.rightHand.getWorldPosition(new THREE.Vector3());
+    rig.dispose();
+    expect(hand.y).toBeLessThan(0.2);
+    expect(hand.z).toBeGreaterThan(0.1);
+  });
 
   it('builds every motion with valid keys within joint limits', () => {
     for (const m of MOTIONS) {

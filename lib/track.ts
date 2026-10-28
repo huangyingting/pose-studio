@@ -587,10 +587,26 @@ export function fitted(scene: Scene, length: number): Scene {
   // (A looping motion: a Library clip, or keys made to go round, as the built-in templates' are.)
   const loops = (x: Action) => (x.source.kind === 'clip' ? !!clipById(x.source.clip)?.loop : x.source.kind === 'keys' && x.source.clip.loop);
   const actions = a.actions.map((x) => {
-    if (x.layer || !loops(x) || end(x) < a.duration - 0.05) return x;
-    return x.roles.every((r) => actionsOf(a, r.figure).at(-1) === x) ? { ...x, duration: length - x.start } : x;
+    if (x.layer || !loops(x) || end(x) < a.duration - 0.05 || !x.roles.every((r) => actionsOf(a, r.figure).at(-1) === x)) return x;
+    return x.source.kind === 'clip' ? { ...x, duration: length - x.start } : unrolled(x, length - x.start, a.fps);
   });
   return { ...scene, animation: { ...a, actions, duration: length } };
+}
+
+/**
+ * A looping keys action as its keys gone round as many whole times as fit in `span`: keys like
+ * any others, to pose and edit anywhere along it (idle life after, to the end).
+ */
+function unrolled(x: Action, span: number, fps: number): Action {
+  const clip = clipOfKeys(x);
+  const laps = Math.floor(span / clip.duration + EPS);
+  if (laps * clip.duration <= x.duration + EPS) return x;
+  const keys = partKeys(clip.parts[0]);
+  // (A key at the lap's end is the next lap's first.)
+  const lap = keys.filter((k) => k.t < clip.duration - 0.5 / fps);
+  const at = (t: number) => Math.round((x.start + t) * fps) / fps;
+  const all = Array.from({ length: laps }, (_, r) => lap.map((k) => ({ ...k, t: at(k.t + r * clip.duration) }))).flat();
+  return { ...keysAction(x.roles[0].figure, [...all, { t: at(laps * clip.duration), pose: keys[0].pose }]), id: x.id };
 }
 
 /**
