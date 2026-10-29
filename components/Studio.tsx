@@ -423,7 +423,7 @@ function App() {
           </Menu>
           <span className="tb-sep hide-mobile" />
           <div className="toolbar" role="toolbar" aria-label="Canvas tools">
-            {/* Joints bend only as far as a body's do (dragging, the card, the keys). */}
+            {/* Joints bend only as far as a body's do (dragging, the gizmo, the keys). */}
             <IconButton
               icon={settings.limits ? Lock : LockOpen}
               label={titleOf(command('tool.limits'), cx)}
@@ -460,9 +460,9 @@ function App() {
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}
-            // (A part selected with the handles hidden: its card is hidden too.)
+            // (A part selected with the handles hidden: its gizmo is hidden too.)
             alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
-              ? `The handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Handles) for the joint's card`
+              ? `The handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Handles) for the joint's rotate gizmo`
               : null}
           />
         </div>

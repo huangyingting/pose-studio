@@ -396,26 +396,27 @@ test('the axes show on the view widget and in the fields; drags read out how far
   await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
 });
 
-test('a selected joint has a card beside it: − and + step a slider 5° (Shift 15°), its value is typed', async ({ page }) => {
+test('a selected joint: its rows in the inspector, − and + either side stepping 5° (Shift 15°), its value typed; no card or label on the canvas', async ({ page }) => {
   await page.keyboard.press('1');
   await unfold(page, 'Joints');
   await page.getByRole('button', { name: 'Left forearm', exact: true }).click();
-  const card = page.getByRole('group', { name: 'Left forearm sliders' });
-  await expect(card).toBeVisible();
+  await expect(page.locator('.joint-card')).toHaveCount(0);
+  await expect(page.locator('.sel-label')).toHaveCount(0);
   const bend = () => state(page).then((s) => angle(s.scene.figures[0].bones, 'leftLowerArm')[0]);
   const before = await bend();
-  const row = card.locator('.joint-card-row').first();
   // (The elbow bends one way: − bends it more.)
-  await row.getByRole('button', { name: /−5°$/ }).click();
+  await page.getByRole('button', { name: 'Bend −5°' }).click();
   expect(await bend()).toBeCloseTo(before - 5, 0);
-  await row.getByRole('button', { name: /−5°$/ }).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Bend −5°' }).click({ modifiers: ['Shift'] });
   expect(await bend()).toBeCloseTo(before - 20, 0);
-  await row.getByRole('button', { name: /\+5°$/ }).click();
+  await page.getByRole('button', { name: 'Bend +5°' }).click();
   expect(await bend()).toBeCloseTo(before - 15, 0);
+  // What − and + do, under the slider.
+  await expect(page.locator('.joint-ends').first()).toContainText('− bend');
   // Its value, typed.
-  await row.getByRole('button', { name: /click to type$/ }).click();
-  await row.getByRole('spinbutton').fill('-40');
-  await row.getByRole('spinbutton').press('Enter');
+  await page.getByRole('button', { name: /^Bend: .*Click to type a value$/ }).click();
+  await page.getByRole('spinbutton', { name: 'Bend value' }).fill('-40');
+  await page.getByRole('spinbutton', { name: 'Bend value' }).press('Enter');
   await expect.poll(bend).toBeCloseTo(-40, 0);
 });
 
@@ -631,13 +632,13 @@ test('deleting a pose can be undone from the toast, which shows the pose again',
 test('typing an exact joint angle', async ({ page }) => {
   await unfold(page, 'Joints');
   await page.getByRole('button', { name: 'Left thigh', exact: true }).click();
-  await page.getByRole('button', { name: /^Swing \(− forward\): .*Click to type a value$/ }).click();
+  await page.getByRole('button', { name: /^Swing: .*Click to type a value$/ }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type('-42.5');
   await page.keyboard.press('Enter');
   expect(angle((await state(page)).scene.figures[0].bones, 'leftUpperLeg')[0]).toBe(-42.5);
   // Out-of-range values are clamped to the joint limits.
-  await page.getByRole('button', { name: /^Swing \(− forward\): .*Click to type a value$/ }).click();
+  await page.getByRole('button', { name: /^Swing: .*Click to type a value$/ }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type('400');
   await page.keyboard.press('Enter');
@@ -1470,19 +1471,19 @@ test('adding is placing: a ghost follows the pointer, snaps beside a figure and 
   }).toBe(true);
 });
 
-test('the selection is named on the canvas; a selected joint\'s menu has the joint\'s commands', async ({ page }) => {
+test('a joint clicked is selected (named in the inspector, not on the canvas); its menu has the joint\'s commands', async ({ page }) => {
   await page.keyboard.press('1');
   const elbow = await project(page, 'leftLowerArm');
   const hand = await project(page, 'leftHand');
   const at = { x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 };
   await page.mouse.click(at.x, at.y);
-  await expect(page.locator('.sel-label')).toHaveText('Figure · Left forearm');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: unknown } } } }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftLowerArm' });
+  await expect(page.locator('.sel-label')).toHaveCount(0);
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).not.toEqual([0, 0, 0]);
   // Right-click it: the joint stays selected, and its menu resets it.
   await page.mouse.click(at.x, at.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Reset the joint' }).click();
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).toEqual([0, 0, 0]);
-  await expect(page.locator('.sel-label')).toHaveText('Figure · Left forearm');
 });
 
 test('the timeline is always there: what a figure does next from its + at the playhead; a Library pose dropped on its row at a time', async ({ page }) => {

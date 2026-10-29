@@ -2,20 +2,22 @@
 
 import { useState } from 'react';
 import {
-  ArrowLeftRight, ChevronDown, Copy, Eye, Footprints, Hand, Mars, Navigation, PanelLeft, PanelRight, PersonStanding, Pin, Repeat, RotateCcw, Unlink, UserRound, Venus, X,
+  ArrowLeftRight, ChevronDown, Copy, Eye, Footprints, Hand, Mars, Minus, Navigation, PanelLeft, PanelRight, PersonStanding, Pin, Plus, Repeat, RotateCcw, Unlink, UserRound, Venus, X,
 } from 'lucide-react';
 import {
-  arrange, offsetPerformance, setIdleLife, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
+  arrange, offsetPerformance, setIdleLife, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture, stepJoint,
 } from '@/lib/actions';
 import { BUILD, HEIGHT, buildOf } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
-import { JOINT_LABELS, axisLabels, jointLimits, wrapDeg } from '@/lib/joints';
+import { JOINT_LABELS, axisEnds, axisLabels, jointLimits, wrapDeg } from '@/lib/joints';
 import { angle } from '@/lib/pose';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Hand as HandPose, type Posture, type Scene, type Side, type Vec3 } from '@/lib/types';
 import BodyMap from '../BodyMap';
+import { sliderName } from '../hints';
+import { STEPS } from '../modifiers';
 import { CommandButton } from '../CommandButton';
 import { command, figureMenu, menuItems, selectionCtx, shortcutOf } from '../commands';
 import { useScene, useStore, useStudio } from '../store-context';
@@ -60,33 +62,77 @@ export function StandInPanel({ t }: { t: Target }) {
 }
 
 /** The selected part: its sliders, next to a small map to pick another. */
+/** A − or + that steps a joint's slider 5° (Shift 15°), again and again while it is held. */
+function StepButton({ label, by, onStep }: { label: string; by: 1 | -1; onStep(deg: number): void }) {
+  const press = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const deg = by * STEPS.joint * (e.shiftKey ? 3 : 1);
+    onStep(deg);
+    let timer = window.setTimeout(function again() { onStep(deg); timer = window.setTimeout(again, 90); }, 400);
+    const stop = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+  };
+  return (
+    <button
+      type="button"
+      className="joint-step"
+      aria-label={label}
+      data-tip={`${by < 0 ? '−' : '+'}5° (Shift: 15°; hold for more)`}
+      onPointerDown={press}
+      // (From the keyboard: Enter or Space.)
+      onClick={(e) => { if (e.detail === 0) onStep(by * STEPS.joint * (e.shiftKey ? 3 : 1)); }}
+    >
+      {by < 0 ? <Minus size={14} aria-hidden /> : <Plus size={14} aria-hidden />}
+    </button>
+  );
+}
+
+/**
+ * The selected part: the body map (big, its sides marked L and R: the figure's own, seen from
+ * the front), and a row per slider with − and + either side, under it what − and + do.
+ */
 export function JointPanel({ t }: { t: Target }) {
   const limits = useStudio((s) => s.settings.limits);
   const figure = t.figure!;
   const joint = t.joint!;
   const rot = angle(figure.bones, joint);
+  const ends = axisEnds(joint);
   return (
     <div className="joint-edit">
       <BodyMap selected={joint} onSelect={(j) => t.store.select({ kind: 'joint', figure: figure.id, joint: j })} />
       <div className="stack">
-        {axisLabels(joint).map((label, axis) => {
+        {axisLabels(joint).map((_, axis) => {
           const [min, max] = limits ? jointLimits(joint)[axis] : [-180, 180];
+          // (A slider the joint does not have, with the limits on.)
+          if (limits && min === max) return null;
+          const name = sliderName(joint, axis);
+          const [minus, plus] = ends[axis];
           return (
-            <Slider
-              key={axis}
-              label={label}
-              axis={axis}
-              min={min}
-              max={max}
-              value={Math.min(max, Math.max(min, rot[axis]))}
-              display={`${Math.round(rot[axis])}°`}
-              typeable
-              onChange={(v) => {
-                const next: Vec3 = [...rot];
-                next[axis] = v;
-                setJoint(t.store, figure.id, joint, next, `slider:${figure.id}:${joint}:${axis}`);
-              }}
-            />
+            <div key={axis} className={`joint-row axis-${'xyz'[axis]}`}>
+              <StepButton label={`${name} −5°`} by={-1} onStep={(d) => stepJoint(t.store, figure.id, joint, axis, d)} />
+              <Slider
+                label={name}
+                axis={axis}
+                min={min}
+                max={max}
+                value={Math.min(max, Math.max(min, rot[axis]))}
+                display={`${Math.round(rot[axis])}°`}
+                typeable
+                onChange={(v) => {
+                  const next: Vec3 = [...rot];
+                  next[axis] = v;
+                  setJoint(t.store, figure.id, joint, next, `slider:${figure.id}:${joint}:${axis}`);
+                }}
+              />
+              <StepButton label={`${name} +5°`} by={1} onStep={(d) => stepJoint(t.store, figure.id, joint, axis, d)} />
+              <span className="joint-ends" aria-hidden><span>− {minus}</span><span>{plus} +</span></span>
+            </div>
           );
         })}
       </div>

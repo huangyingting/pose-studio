@@ -43,6 +43,19 @@ export function axisLabels(j: JointName): [string, string, string] {
   }
 }
 
+/** What turning each slider of a joint down (−) and up (+) does, in a word ('' where no word says it). */
+export function axisEnds(j: JointName): [[string, string], [string, string], [string, string]] {
+  if (j === 'hips' || j === 'spine' || j === 'chest' || j === 'neck' || j === 'head') return [['back', 'forward'], ['right', 'left'], ['left', 'right']];
+  const out: [string, string] = sideOf(j) === 'L' ? ['in', 'out'] : ['out', 'in'];
+  switch (partOf(j)) {
+    case 'UpperArm': case 'UpperLeg': return [['forward', 'back'], ['', ''], out];
+    case 'LowerArm': return [['bend', 'straight'], ['', ''], ['', '']];
+    case 'LowerLeg': return [['straight', 'bend'], ['', ''], ['', '']];
+    case 'Foot': return [['flex', 'point'], ['', ''], ['', '']];
+    default: return [['', ''], ['', ''], ['', '']];
+  }
+}
+
 type Range = [number, number];
 type Limits = [Range, Range, Range];
 

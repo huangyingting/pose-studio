@@ -260,7 +260,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   store: Store;
   scene: Scene;
   limits: boolean;
-  /** Whether the handles (a joint's card, the floor rings) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
+  /** Whether the handles (a joint's rotate gizmo, the floor rings) are on: the hint says how to show them if not (not through the shot camera, which never shows them). */
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
@@ -611,7 +611,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     if (t.kind === 'prop' || t.kind === 'held') setPointerHint(propHint(name(t.prop), t.kind === 'held'));
     else {
       const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint);
-      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the card`);
+      setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the gizmo`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
   };

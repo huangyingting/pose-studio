@@ -546,7 +546,7 @@ export const COMMANDS: Command[] = [
       ];
     },
   },
-  { id: 'view.handles', title: 'Handles', icon: Move3d, help: 'Show the handles: a joint’s card, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
+  { id: 'view.handles', title: 'Handles', icon: Move3d, help: 'Show the handles: a joint’s rotate gizmo, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
   { id: 'view.grid', title: 'Grid', help: 'The floor grid', icon: Grid3x3, checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
   { id: 'view.onion', title: 'Onion skin', help: 'Onion skin: the keys before and after, faint', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
   { id: 'view.guides', title: 'Guides', help: 'Framing guides: thirds and safe areas', icon: Frame, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
@@ -1386,7 +1386,7 @@ export const GESTURES: [string, string][] = [
   ['Move a figure or prop on the floor', 'Drag its torso / it'],
   ['Turn a figure or prop', 'Drag its floor ring (Ctrl: 15° steps)'],
   ['Snap a drag to steps (5°, 15°, the 25 cm grid)', 'Ctrl drag (Cmd on macOS)'],
-  ['Turn a joint 5° · type its value', 'Its card’s − + (Shift: 15°) · click the value'],
+  ['Turn a joint · 5° steps · type its value', 'Its gizmo’s rings or ball · the inspector’s − + (Shift: 15°) · click the value'],
   ['Drag finely', 'Shift drag (one slider)'],
   ['Walk · run · jump the selected figure there', 'Right click the floor'],
   ['How a figure gets to its next key (walk, run, jump…)', 'Right click between its keys'],

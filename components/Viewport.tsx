@@ -27,13 +27,12 @@ import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
 import type { Contact } from '@/lib/relations';
 import TurnButtons from './TurnButtons';
-import JointCard from './JointCard';
 import CameraHandles, { stepRig } from './CameraHandles';
 import LightHandles from './LightHandles';
 import { STEPS, snapping } from './modifiers';
 import { useProjectSettings, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
-import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
+import { cameraHint, jointText, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
 import type { Placing } from './placing';
 
 export interface ViewportApi {
@@ -112,6 +111,8 @@ export default function Viewport({
   const gizmoBusy = useRef(0);
   const gizmo = useRef<TransformControlsImpl>(null);
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
+  // A joint's slider values as a rotate-gizmo drag began (for its readout).
+  const jointFrom = useRef<Vec3 | null>(null);
   // Ctrl (Cmd) held: the gizmo snaps.
   const [snapKey, setSnapKey] = useState(false);
   useEffect(() => {
@@ -149,15 +150,6 @@ export default function Viewport({
     || (selection.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold)
     || (selection.kind === 'camera' && scene.cameras.find((c) => c.id === selection.camera)?.kind === 'rig'));
   const ringOnScreen = useCallback(() => (selection ? apiRef.current?.ringOnScreen(selection) ?? null : null), [selection, apiRef]);
-  // The joint on screen, and the side away from the body's middle (where its card goes, clear of the body).
-  const jointOnScreen = useCallback(() => {
-    if (selection?.kind !== 'joint') return null;
-    const at = apiRef.current?.project(selection.figure, selection.joint);
-    const middle = apiRef.current?.project(selection.figure, 'chest');
-    // (A joint on the body's middle: the card goes clear of the arms too.)
-    const gap = at && middle && Math.abs(at.x - middle.x) < 30 ? 110 : 28;
-    return at ? { ...at, side: middle && at.x < middle.x - 1 ? -1 : 1, gap } : null;
-  }, [selection, apiRef]);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // that was an orbit drag, not a click
@@ -210,9 +202,11 @@ export default function Viewport({
     store.select({ kind: 'figure', figure: o.userData.figure as string, whole: true });
   };
 
-  // The gizmo: a selected prop's, or a figure's picked as a whole (a double-click), moves it (also up
-  // and down; R scales a prop). Joints are posed by dragging the body (Ctrl: 5° steps; Shift-drag
-  // twists), by the selected joint's card and the inspector's sliders; figures and props turn by
+  // The gizmo: a selected joint's rotate gizmo (with the drag handles shown: its rings about its own
+  // axes, the ring facing the view and the ball between them to turn it freely, as Blender, Maya
+  // and posing apps have it); a selected prop's, or a figure's picked as a whole (a double-click),
+  // moves it (also up and down; R scales a prop). Joints are also posed by dragging the body (Ctrl:
+  // 5° steps; Shift-drag twists) and by the inspector's sliders and − +; figures and props turn by
   // their floor ring.
   const handles = settings.showHandles && !shotMode;
   // (A finger needs a bigger gizmo.)
@@ -221,8 +215,8 @@ export default function Viewport({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const openAngle = useMemo(() => angleAt(scene, 0), [scene.id]);
   let target: THREE.Object3D | null = null;
-  let mode: 'translate' | 'scale' = 'translate';
-  // The gizmo's size in the world (metres: a move arrow's length).
+  let mode: 'translate' | 'rotate' | 'scale' = 'translate';
+  // The gizmo's size in the world (metres: a move arrow's length, a rotate ring's radius).
   let gizmoWorld = 0.45;
   let showY = true;
   let onGizmoChange = () => {};
@@ -242,6 +236,20 @@ export default function Viewport({
         const r = m.joints.hips.position;
         setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
       };
+    }
+  } else if (selection?.kind === 'joint' && handles) {
+    const m = sv.figures.get(selection.figure);
+    const doc = figureDoc(selection.figure);
+    const joint = selection.joint;
+    if (m && doc && !doc.proxy) {
+      target = m.joints[joint];
+      mode = 'rotate';
+      gizmoWorld = 0.16 * (doc.body.height / 1.8);
+      onGizmoChange = () => {
+        if (settings.limits) m.constrain([joint]);
+        store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}:${joint}`);
+      };
+      readout = () => setReadout(jointText(joint, jointFrom.current ?? angle(doc.bones, joint), angle(m.read().bones, joint)));
     }
   } else if (selection?.kind === 'prop') {
     const p = sv.props.get(selection.prop);
@@ -367,14 +375,16 @@ export default function Viewport({
             // (Sized in the world by GizmoScale, as the floor rings are: it shrinks as the view draws back.)
             size={1}
             showY={showY}
-            // (Ctrl: the 25 cm grid, 10 % of the size.)
+            // (Ctrl: the 25 cm grid, 5° on a joint, 10 % of the size.)
             translationSnap={snapKey ? STEPS.move : null}
+            rotationSnap={snapKey ? STEPS.joint * (Math.PI / 180) : null}
             scaleSnap={snapKey ? STEPS.scale : null}
             onMouseDown={() => {
               gizmoBusy.current = Infinity;
               gizmoFrom.current = target!.position.clone();
+              jointFrom.current = selection?.kind === 'joint' ? angle(figureDoc(selection.figure)!.bones, selection.joint) : null;
             }}
-            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; setReadout(null); }}
+            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; setReadout(null); }}
             onObjectChange={() => {
               onGizmoChange();
               if (gizmoFrom.current) readout(gizmoFrom.current);
@@ -435,17 +445,6 @@ export default function Viewport({
       </Canvas>
       <DragReadout />
       {handles && turnable && !through && <TurnButtons key={JSON.stringify(selection)} onScreen={ringOnScreen} />}
-      {handles && !through && selection?.kind === 'joint' && figureDoc(selection.figure) && !figureDoc(selection.figure)!.proxy && (
-        <JointCard
-          key={`${selection.figure}:${selection.joint}`}
-          store={store}
-          figure={selection.figure}
-          joint={selection.joint}
-          value={angle(figureDoc(selection.figure)!.bones, selection.joint)}
-          limits={settings.limits}
-          onScreen={jointOnScreen}
-        />
-      )}
     </div>
   );
 }
@@ -519,7 +518,7 @@ class Warmup {
     if (this.done) return;
     if (!this.scene) {
       this.scene = scene;
-      for (const mode of ['translate', 'scale'] as const) {
+      for (const mode of ['translate', 'rotate', 'scale'] as const) {
         // (On an element of its own: it never takes the pointer.)
         const g = new TransformControlsImpl(camera, document.createElement('div'));
         g.setMode(mode);

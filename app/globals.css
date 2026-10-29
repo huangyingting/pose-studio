@@ -1209,8 +1209,12 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .crumb:hover { background: var(--hover); color: var(--text); }
 .panel-hide { flex: none; width: 28px; height: 28px; color: var(--text-3); }
 /* A picked part: a small map to pick another, beside its sliders. */
-.joint-edit { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: start; }
-.joint-edit .bodymap { max-width: 56px; }
+.joint-edit { display: grid; gap: 12px; }
+.joint-edit .bodymap { max-width: 136px; }
+.joint-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; column-gap: 6px; row-gap: 0; align-items: end; }
+.joint-step { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; touch-action: none; }
+.joint-step:hover { background: var(--accent-soft); color: var(--accent); }
+.joint-ends { grid-column: 2; display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-3); }
 .panel-title > svg { color: var(--text-2); }
 .panel-title .title-input { flex: 1; min-width: 0; margin-left: -8px; font-weight: 600; text-overflow: ellipsis; }
 .panel-title .title-input:not(:focus) { background: transparent; }
@@ -1248,7 +1252,7 @@ button.psec-title svg { color: var(--text-3); }
 .bodymap .part:hover circle, .bodymap .part:focus-visible circle { fill: var(--bodymap-hover); }
 .bodymap .part.on line { stroke: var(--accent); }
 .bodymap .part.on circle { fill: var(--accent); }
-.bodymap-side { font-size: 8px; font-weight: 600; fill: var(--text-3); }
+.bodymap-side { font-size: 12px; font-weight: 700; fill: var(--text-2); }
 
 .swatches { display: flex; gap: 6px; }
 .swatch { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shade) 12%, transparent); }
@@ -1914,19 +1918,6 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 }
 /* The selected joint's arcs, one per slider: thin to look at, wide to grab. */
 /* The selected joint's card: − value + for each slider. */
-.joint-card-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
-.joint-card { position: absolute; display: grid; gap: 2px; padding: 6px; border-radius: 10px; background: color-mix(in srgb, var(--panel) 94%, transparent); box-shadow: var(--shadow-pop); pointer-events: auto; user-select: none; }
-.joint-card-row { display: grid; grid-template-columns: 44px 24px 48px 24px; align-items: center; gap: 2px; font-size: 12px; }
-.joint-card-row.axis-x { --c: var(--axis-x); }
-.joint-card-row.axis-y { --c: var(--axis-y); }
-.joint-card-row.axis-z { --c: var(--axis-z); }
-.joint-card-name { padding-left: 6px; border-left: 3px solid var(--c); color: var(--text-2); }
-.joint-card-step { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; touch-action: none; }
-.joint-card-step:hover { background: var(--c); color: var(--panel); }
-.joint-card-value, .joint-card-input { height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; font: 500 12px var(--mono); font-variant-numeric: tabular-nums; text-align: center; color: var(--text); cursor: text; }
-.joint-card-value:hover { background: var(--panel-2); }
-.joint-card-input { width: 48px; background: var(--panel-2); }
-@media (pointer: coarse) { .joint-card-row { grid-template-columns: 48px 32px 52px 32px; } .joint-card-step, .joint-card-value, .joint-card-input { height: 32px; } .joint-card-step { width: 32px; } }
 /* What are you filming? (a new film): how long, then a tile per thing to film. */
 .start-length { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; color: var(--text-2); }
 .start-groups { max-height: 64vh; overflow: auto; display: grid; gap: 14px; }
