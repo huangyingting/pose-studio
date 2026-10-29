@@ -240,6 +240,8 @@ function torsoMidline(at: (y: number) => Section, y0: number, y1: number, backFr
 
 /** How far the torso reaches to either side at a height from the hips joint (contacts on its surface). */
 export const torsoHalfWidth = (body: BodyParams, y: number) => proportions(body).section(y).w;
+/** How big a body's torso is across and through (its scale, widened by its build). */
+export const torsoScale = (body: BodyParams) => proportions(body).torso;
 
 type Egg = { rx: number; ry: number; rz: number; taper: number };
 

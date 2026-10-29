@@ -207,14 +207,16 @@ function legAngles(legs: Legs, t: [number, number, number], pitch: number) {
   return { hip: [hip, 0, spread * R2D] as Vec3, knee: knee * R2D, ankle: [-(pitch + hip + knee * R2D), 0, -spread * R2D] as Vec3 };
 }
 
-/** A world offset seen from the pelvis (yaw, then pitch): [left, up, forward]. */
-function toPelvis(d: [number, number, number], yaw: number, pitch: number): [number, number, number] {
+/** A world offset seen from the pelvis (yaw, then pitch, then roll): [left, up, forward]. */
+function toPelvis(d: [number, number, number], yaw: number, pitch: number, roll = 0): [number, number, number] {
   const c = Math.cos(yaw * D2R);
   const s = Math.sin(yaw * D2R);
   const x = d[0] * c - d[2] * s;
   const z = d[0] * s + d[2] * c;
   const p = pitch * D2R;
-  return [x, d[1] * Math.cos(p) + z * Math.sin(p), -d[1] * Math.sin(p) + z * Math.cos(p)];
+  const y = d[1] * Math.cos(p) + z * Math.sin(p);
+  const r = roll * D2R;
+  return [x * Math.cos(r) + y * Math.sin(r), -x * Math.sin(r) + y * Math.cos(r), -d[1] * Math.sin(p) + z * Math.cos(p)];
 }
 
 /* ---------- the generated pose ---------- */
@@ -256,7 +258,7 @@ function compose(pose: AnglePose, legs: Legs, g: Generated): AnglePose {
     if (foot) {
       let target: [number, number, number];
       if ('world' in foot) {
-        const off = toPelvis([foot.world[0] - g.position[0], foot.world[1] - g.position[1], foot.world[2] - g.position[2]], g.yaw, g.pitch);
+        const off = toPelvis([foot.world[0] - g.position[0], foot.world[1] - g.position[1], foot.world[2] - g.position[2]], g.yaw, g.pitch, joints.hips[2]);
         target = [off[0] - s * legs.hipX, off[1] + legs.hipDrop, off[2]];
       } else target = foot.body;
       // A planted foot behind the hip and out of reach rolls onto its toes: the heel lifts.
@@ -357,11 +359,27 @@ function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const len = D / n;
   const half = (1 - stance) * len;
   type Step = { side: 'L' | 'R'; from: number; to: number; s0: number; s1: number };
+  const place = (arc: number, side: 'L' | 'R') => {
+    const [px, pz] = line.point(arc);
+    const l = leftOf(yawAt(arc));
+    const sgn = side === 'L' ? 1 : -1;
+    return [px + l[0] * sgn * width, pz + l[1] * sgn * width] as const;
+  };
+  // A foot does not come down just short of a step up (its shin would go into the edge as the
+  // body goes over it): it comes down far enough back, its toes and shin clear.
+  const clear = legs.foot + 0.1 * leg;
+  const shortOf = (arc: number, side: 'L' | 'R', after: number) => {
+    const here = ground(...place(arc, side));
+    for (let d = 0.02; d < clear; d += 0.02) {
+      if (ground(...place(arc + d, side)) > here + 0.02) return Math.max(after + 0.05 * leg, arc + d - clear);
+    }
+    return arc;
+  };
   const steps: Step[] = [];
   const last: Record<'L' | 'R', number> = { L: 0, R: 0 };
   for (let k = 1; k <= n + 1; k++) {
     const side = k % 2 === 1 ? 'R' : 'L';
-    const to = Math.min(D, k * len);
+    const to = k * len < D - 1e-6 ? Math.min(k * len, shortOf(k * len, side, Math.max(last.L, last.R))) : D;
     const centre = (k - 1) * len;
     const s0 = k === 1 ? 0 : Math.max(steps[steps.length - 1].s0 + 1e-3, centre - half);
     // The first step lands with the body `half` along, as every later one does past its centre.
@@ -374,12 +392,6 @@ function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const onGround = (key: AnglePose, side: 'L' | 'R'): [number, number, number] => {
     const k = keyedFeet(body, key)[side];
     return key.grounded ? [k[0], k[1] + ground(key.position[0], key.position[2]), k[2]] : k;
-  };
-  const place = (arc: number, side: 'L' | 'R') => {
-    const [px, pz] = line.point(arc);
-    const l = leftOf(yawAt(arc));
-    const sgn = side === 'L' ? 1 : -1;
-    return [px + l[0] * sgn * width, pz + l[1] * sgn * width] as const;
   };
   // What each step stands on: a top under it, unless that is higher than a step up from the foot
   // before (then it stays on its level, and the motion check says it walks through the prop).
@@ -492,7 +504,10 @@ function gait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     // Heels land when the body is `half` past each footfall.
     y = floor + base - dip * (1 + Math.cos((2 * Math.PI * (s - half)) / len)) / 2;
   }
-  // Safety: never higher than a planted foot ahead can reach (steps onto props).
+  const keyedY = pose.grounded ? floor + legs.rootY : pose.position[1];
+  y = lerp(keyedY, y, w);
+  // Safety: never higher than a planted foot ahead can reach (steps onto props; slowing to a stop,
+  // the body rising to stand before it is over the last step).
   for (const side of ['L', 'R'] as const) {
     const { world: f, swing } = feet[side];
     const off = toPelvis([f[0] - x, 0, f[2] - z], yaw, 0);
@@ -502,8 +517,6 @@ function gait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     const limit = f[1] + Math.sqrt(reach * reach - horizontal * horizontal) + hipUp;
     y = lerp(y, softMin(y, limit + 0.01, 0.03), (1 - swing) * smooth(fwd / (0.15 * len)));
   }
-  const keyedY = pose.grounded ? floor + legs.rootY : pose.position[1];
-  y = lerp(keyedY, y, w);
 
   return compose(pose, legs, {
     position: [x, y, z], yaw, pitch, roll, feet,

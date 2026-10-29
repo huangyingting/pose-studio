@@ -4,14 +4,14 @@ import { clipById, clipsVersion } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
-import { scaleOf } from './mannequin';
+import { scaleOf, torsoScale } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
 import { PropTimeline, animated, inHand, placeInWorld, propOn, ribbonTrail } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
-import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
+import { TRUNK, detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
 import { HZ, physicsReady } from './physics';
 import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
 
@@ -244,9 +244,10 @@ class Evaluator {
         const body = this.figures.get(partner ?? '')?.body;
         if (!partner || !body) return;
         // Where on the partner's body the clip has the hand now, on the partner as it is (however big).
-        // (A leg's bones are as long as its leg length makes them; the rest, as the body's scale.)
+        // (A leg's bones are as long as its leg length makes them; the torso as wide and deep as its
+        // build makes it; the rest, as the body's scale.)
         const was = clip.parts[c.on.part].body ?? body;
-        const size = (scaleOf(body) / scaleOf(was)) * (/Leg|Foot/.test(c.on.bone) ? body.legs / was.legs : 1);
+        const size = TRUNK.includes(c.on.bone) ? torsoScale(body) / torsoScale(was) : (scaleOf(body) / scaleOf(was)) * (/Leg|Foot/.test(c.on.bone) ? body.legs / was.legs : 1);
         const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, size);
         if (spot) out.push({ bone, at: spot, weight, relative: true });
       });
@@ -386,10 +387,14 @@ class Evaluator {
     return this.easeInto(f, acts, t, this.at(f, active[active.length - 1], t));
   }
 
-  /** Before an action with a blend-in, the figure eases into its first pose over that time (the action then plays as made). */
+  /**
+   * Before an action with a blend-in, the figure eases into its first pose over that time (the
+   * action then plays as made); but not from a walk or run that arrives in it (its steps planted).
+   */
   private easeInto(f: Figure, acts: Action[], t: number, pose: Pose): Pose {
     const next = acts.find((x) => x.start > t + EPS);
     if (!next?.blendIn || next.start - t >= next.blendIn) return pose;
+    if (acts.some((x) => x.source.kind === 'travel' && x.start - EPS <= t && Math.abs(end(x) - next.start) < EPS)) return pose;
     return blend(pose, this.at(f, next, next.start), smooth(1 - (next.start - t) / next.blendIn));
   }
 

@@ -156,7 +156,8 @@ for (const file of files) {
   const { out, lacks, body } = await made(id, Buffer.from(data, 'base64'), fbx);
   writeFileSync(`public/characters/${id}.glb`, out);
   writeFileSync(`public/characters/${id}.png`, Buffer.from(info.thumb!.split(',')[1], 'base64'));
-  const bones = lacks.length ? `, oursWithout(${lacks.map((b) => `'${b}'`).join(', ')})` : '';
-  console.log(`  ${fbx ? 'mixamo' : 'sketchfab'}('${id}', '${name}', ${JSON.stringify(body).replace(/"(\w+)":/g, '$1: ').replace(/,/g, ', ').replace(/^\{/, '{ ').replace(/\}$/, ' }')}${bones}), // ${(out.length / 1e6).toFixed(1)} MB`);
+  // (A rigged figure's bones are always the same, without fingers or toes: its author goes in their place.)
+  const rest = !fbx ? ", '<author>'" : lacks.length ? `, oursWithout(${lacks.map((b) => `'${b}'`).join(', ')})` : '';
+  console.log(`  ${fbx ? 'mixamo' : 'sketchfab'}('${id}', '${name}', ${JSON.stringify(body).replace(/"(\w+)":/g, '$1: ').replace(/,/g, ', ').replace(/^\{/, '{ ').replace(/\}$/, ' }')}${rest}), // ${(out.length / 1e6).toFixed(1)} MB`);
 }
 await browser.close();

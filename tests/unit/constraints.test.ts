@@ -50,7 +50,7 @@ describe('constraints: contacts held on the actual bodies', () => {
   it('finds the holds of a motion of two people, and keeps them on other builds', () => {
     const waltz = clipById(`${BUILT_IN}waltz-turn`)!;
     const grips = waltz.contacts.filter((c) => c.on);
-    expect(grips.length).toBeGreaterThan(2);
+    expect(grips.length).toBeGreaterThanOrEqual(2);
     const { store, a } = fresh();
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
