@@ -1,6 +1,6 @@
 import { sceneAt } from './evaluate';
 import { newScene } from './doc';
-import type { ProjectSettings, Library, Panel, Scene } from './types';
+import type { ProjectSettings, Library, Scene } from './types';
 
 /*
  * Library sync (server edition): a three-way merge of the server's library, this device's and the
@@ -11,7 +11,8 @@ import type { ProjectSettings, Library, Panel, Scene } from './types';
 
 export interface SyncBase {
   scenes: Record<string, string>;
-  board: string;
+  /** The scenes' order (the story's) both sides had. */
+  order?: string;
   /** The project settings both sides had. */
   settings?: string;
   /** Saved poses both sides had. */
@@ -48,12 +49,12 @@ function stable(v: unknown): string {
 }
 
 export const sceneHash = (s: Scene) => hash(stable(s));
-const boardHash = (b: Panel[] | undefined) => hash(stable(b ?? []));
+const orderOf = (lib: Library) => lib.scenes.map((s) => s.id).join();
 const settingsHash = (f: ProjectSettings | undefined) => hash(stable(f ?? null));
 
 /** A project nobody has touched yet: the one blank scene a new device starts with. */
 function untouched(lib: Library) {
-  if (lib.scenes.length !== 1 || lib.board?.length || lib.settings || lib.poses?.length || lib.clips?.length || lib.models?.length || lib.templates?.length || lib.shoots?.length) return false;
+  if (lib.scenes.length !== 1 || lib.settings || lib.poses?.length || lib.clips?.length || lib.models?.length || lib.templates?.length || lib.shoots?.length) return false;
   const strip = (sc: Scene) => stable({ ...sc, id: 0, figures: sc.figures.map((f) => ({ ...f, id: 0 })), cameras: sc.cameras.map((c) => ({ ...c, id: 0 })) });
   return strip(lib.scenes[0]) === strip(newScene('Scene 1'));
 }
@@ -65,7 +66,7 @@ export function canonical(lib: Library): Library {
 
 export function syncBase(lib: Library): SyncBase {
   return {
-    scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), board: boardHash(lib.board), settings: settingsHash(lib.settings),
+    scenes: Object.fromEntries(lib.scenes.map((s) => [s.id, sceneHash(s)])), order: orderOf(lib), settings: settingsHash(lib.settings),
     poses: (lib.poses ?? []).map((p) => p.id), clips: (lib.clips ?? []).map((m) => m.id), models: (lib.models ?? []).map((m) => m.id), templates: (lib.templates ?? []).map((t) => t.id),
     shoots: (lib.shoots ?? []).map((p) => p.id),
   };
@@ -76,7 +77,7 @@ export function matchesBase(lib: Library, base: SyncBase | null) {
   if (!base) return false;
   return lib.scenes.length === Object.keys(base.scenes).length
     && lib.scenes.every((s) => base.scenes[s.id] === sceneHash(s))
-    && boardHash(lib.board) === base.board
+    && orderOf(lib) === base.order
     && settingsHash(lib.settings) === base.settings
     && (lib.poses ?? []).map((p) => p.id).join() === (base.poses ?? []).join()
     && (lib.clips ?? []).map((m) => m.id).join() === (base.clips ?? []).join()
@@ -118,14 +119,11 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
     out.push(s);
   }
 
-  const ids = new Set(out.map((s) => s.id));
-  let board = server.board;
-  if (base && boardHash(local.board) !== base.board && boardHash(server.board) === base.board) board = local.board;
-  else if (!base || boardHash(local.board) !== base.board) {
-    const known = new Set((server.board ?? []).map((p) => p.id));
-    board = [...(server.board ?? []), ...(local.board ?? []).filter((p) => !known.has(p.id))];
+  // The scenes' order (the story's): this device's if only it reordered them, else the account's.
+  if (base && orderOf(local) !== base.order && orderOf(server) === base.order) {
+    const at = new Map(local.scenes.map((s, i) => [s.id, i]));
+    out.sort((p, q) => (at.get(p.id) ?? Infinity) - (at.get(q.id) ?? Infinity));
   }
-  board = board?.filter((p) => ids.has(p.sceneId));
   // The project settings: this device's if only it changed them, else the account's.
   const settings = base && settingsHash(local.settings) !== base.settings && settingsHash(server.settings) === base.settings ? local.settings : server.settings ?? local.settings;
   // Saved poses and imported motions: everything from both sides, except those one side deleted
@@ -138,7 +136,6 @@ export function mergeLibraries(server: Library, local: Library, base: SyncBase |
   return {
     ...server,
     scenes: out.length ? out : server.scenes,
-    ...(board?.length ? { board } : { board: undefined }),
     ...(settings ? { settings } : { settings: undefined }),
     ...(poses.length ? { poses } : { poses: undefined }),
     ...(clips.length ? { clips } : { clips: undefined }),

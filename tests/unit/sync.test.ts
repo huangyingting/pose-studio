@@ -10,7 +10,7 @@ import type { Library, Scene } from '@/lib/types';
 import { withAngles } from '../../lib/pose';
 import { setPoseAt } from '@/lib/track';
 
-const lib = (scenes: Scene[], board?: Library['board']): Library => ({ version: 3, scenes, ...(board ? { board } : {}) });
+const lib = (scenes: Scene[]): Library => ({ version: 3, scenes });
 const named = (l: Library) => l.scenes.map((s) => s.name);
 const renamed = (s: Scene, name: string): Scene => ({ ...s, name });
 
@@ -65,14 +65,10 @@ describe('library sync merge', () => {
     expect(sceneHash(canonical(lib([anim])).scenes[0])).toBe(sceneHash(canonical(lib([atHalf])).scenes[0]));
   });
 
-  it('merges storyboards and drops panels of poses that are gone', () => {
-    const p1 = { id: 'p1', sceneId: a.id, hold: 2 };
-    const p2 = { id: 'p2', sceneId: b.id, hold: 2 };
-    const p3 = { id: 'p3', sceneId: c.id, hold: 2 };
-    const start = lib([a, b, c], [p1]);
-    const merged = mergeLibraries(lib([a, b], [p1, p2]), lib([a, b, c], [p1, p3]), syncBase(start));
-    expect(merged.board?.map((p) => p.id)).toEqual(['p1', 'p2']);
-    // Only this device changed the board: its board wins.
-    expect(mergeLibraries(lib([a, b, c], [p1]), lib([a, b, c], [p3, p1]), syncBase(start)).board?.map((p) => p.id)).toEqual(['p3', 'p1']);
+  it('keeps the scenes\' order (the story\'s): this device\'s if only it reordered them', () => {
+    const start = lib([a, b, c]);
+    expect(named(mergeLibraries(lib([a, b, c]), lib([c, a, b]), syncBase(start)))).toEqual(named(lib([c, a, b])));
+    // Both reordered: the account's.
+    expect(named(mergeLibraries(lib([b, a, c]), lib([c, a, b]), syncBase(start)))).toEqual(named(lib([b, a, c])));
   });
 });

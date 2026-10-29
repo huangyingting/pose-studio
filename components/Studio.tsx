@@ -249,7 +249,7 @@ function App() {
       const what = `${lib.scenes.length} scene${lib.scenes.length === 1 ? '' : 's'}`;
       addMotions(store, clipsIn(data));
       if (mode === 'replace') {
-        replaceLibrary(store, lib.scenes, lib.board);
+        replaceLibrary(store, lib.scenes);
         notifyUndo(`Opened ${what}`);
       } else {
         appendScenes(store, lib.scenes.map((s) => ({ ...s, id: uid('s') })));

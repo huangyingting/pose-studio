@@ -5,7 +5,7 @@ import {
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
@@ -970,8 +970,10 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'scene.board', title: 'Add to storyboard', icon: LayoutPanelTop, when: (c) => c.scene !== undefined,
-    run: (c) => { const s = c.store.getState().library.scenes[c.scene!]; addToBoard(c.store, s.id); App().notifyUndo(`Added “${s.name}” to the storyboard (B)`); },
+    // (The story is the scene list in its order; a scene can be left out of it.)
+    id: 'scene.board', title: 'In the storyboard', icon: LayoutPanelTop, when: (c) => c.scene !== undefined,
+    checked: (c) => !c.store.getState().library.scenes[c.scene!]?.offStory,
+    run: (c) => { const s = c.store.getState().library.scenes[c.scene!]; setInStory(c.store, s.id, !!s.offStory); },
   },
   { id: 'scene.template', title: 'Save as template…', icon: BookmarkPlus, when: (c) => c.scene !== undefined, run: (c) => { c.store.setSceneIndex(c.scene!); saveAsTemplate(c.store, App()); } },
   {

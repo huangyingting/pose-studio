@@ -1362,12 +1362,13 @@ button.psec-title svg { color: var(--text-3); }
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   animation: fade 0.12s ease-out;
 }
 .board-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1379,12 +1380,14 @@ button.psec-title svg { color: var(--text-3); }
 .board-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }
 .board-head h2 svg { color: var(--text-2); }
 .board-head .switch { color: var(--text-2); }
-.board-add-list { display: flex; gap: 10px; margin: 0; padding: 10px 16px; overflow-x: auto; list-style: none; border-bottom: 1px solid var(--border); background: var(--panel); }
+.board-add-list { flex: none; display: flex; gap: 10px; margin: 0; padding: 10px 16px; overflow-x: auto; list-style: none; border-bottom: 1px solid var(--border); background: var(--panel); }
 .board-add-list button { display: grid; gap: 4px; width: 132px; padding: 4px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
 .board-add-list button:hover { background: var(--panel-2); color: var(--text); }
 .board-add-list img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-s); box-shadow: inset 0 0 0 1px var(--border); }
 .board-add-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-grid {
+  flex: 1;
+  min-height: 0;
   list-style: none;
   margin: 0;
   padding: 24px;

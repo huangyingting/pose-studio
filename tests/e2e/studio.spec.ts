@@ -1099,41 +1099,43 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   expect(text).toContain('she waves back');
 });
 
-test('storyboard: the story shot by shot, captions, reordering, exported from the Export dialog, kept', async ({ page }) => {
+test('storyboard: the scene list in its order, shot by shot, captions, reordering, exported from the Export dialog, kept', async ({ page }) => {
   test.setTimeout(150_000);
   const first = (await state(page)).scene.name;
   await page.keyboard.press('b');
   const board = page.getByRole('dialog', { name: 'Storyboard' });
-  await expect(board.getByText('Tell a story, one scene at a time')).toBeVisible();
-  // Any scene of the project, from the board's list.
+  // Every scene, in the scene list's order: the 20 reference poses, still.
+  await expect(board.locator('.panel-card')).toHaveCount(20);
+  // One left out of the story, then put back from the board's list.
+  await board.getByRole('button', { name: `Leave ${first} out of the story` }).click();
+  await expect(board.locator('.panel-card')).toHaveCount(19);
   await board.getByRole('button', { name: 'Add a scene' }).first().click();
   await board.getByRole('list', { name: 'Scenes to add' }).getByRole('button', { name: first, exact: true }).click();
+  await expect(board.locator('.panel-card')).toHaveCount(20);
   await board.getByRole('button', { name: 'Close storyboard' }).click();
 
-  // A second scene, animated and cut into two shots, added from the scene picker's actions.
+  // The fourth scene, animated and cut into two shots.
   await (await openScenes(page)).locator('.thumbs li').nth(3).click();
   const second = (await state(page)).scene.name;
-  await openScenes(page);
-  await page.getByRole('button', { name: 'Scene actions' }).click();
-  await page.getByRole('menuitem', { name: 'Add to storyboard' }).click();
   await closeScenes(page);
   await openSection(page, 'Scene');
   await animate(page);
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
   await page.keyboard.press('c');
   await page.keyboard.press('b');
-  // A panel per shot: the still scene, then the animated one's two shots.
-  await expect(board.locator('.panel-card')).toHaveCount(3);
-  await expect(board.getByText('2 scenes · 3 shots · 4.0 s')).toBeVisible();
-  await expect(board.locator('.panel-name').nth(2)).toHaveText(`${second} · Shot 2`);
+  // A panel per shot: the still scenes, and the animated one's two shots in its place.
+  await expect(board.locator('.panel-card')).toHaveCount(21);
+  await expect(board.getByText('20 scenes · 21 shots · 40.0 s')).toBeVisible();
+  await expect(board.locator('.panel-name').nth(4)).toHaveText(`${second} · Shot 2`);
   // A shot's caption is the shot's own.
-  await board.getByRole('textbox', { name: 'Panel 3 caption' }).fill('A sudden turn');
+  await board.getByRole('textbox', { name: 'Panel 5 caption' }).fill('A sudden turn');
   expect((await state(page) as unknown as { scene: { animation: { shots: { caption?: string }[] } } }).scene.animation.shots[1].caption).toBe('A sudden turn');
 
-  // Moving a scene moves all of its shots.
-  await board.locator('.panel-card').nth(1).dragTo(board.locator('.panel-card').nth(0));
+  // Moving a scene moves all of its shots, and the scene in the list.
+  await board.locator('.panel-card').nth(3).dragTo(board.locator('.panel-card').nth(0));
   await expect(board.locator('.panel-name').first()).toHaveText(`${second} · Shot 1`);
   await expect(board.getByRole('textbox', { name: 'Panel 2 caption' })).toHaveValue('A sudden turn');
+  expect((await state(page)).library.scenes[0].name).toBe(second);
 
   // Exported from the Export dialog, the story chosen.
   await board.getByRole('button', { name: 'Export', exact: true }).click();

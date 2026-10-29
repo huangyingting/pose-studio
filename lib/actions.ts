@@ -4,7 +4,6 @@ import { jointLimits, sided, wrapDeg } from './joints';
 import {
   NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
 } from './doc';
-import { boardPanels, insertPanel, movePanel, newPanel, withBoard } from './board';
 import { MAX_DURATION, newAnimation, normalize, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById, hasClip } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
@@ -33,7 +32,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, ProjectSettings, Panel, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -89,8 +88,8 @@ export function moveScene(store: Store, from: number, to: number) {
 }
 
 
-export function replaceLibrary(store: Store, scenes: Scene[], board?: Panel[]) {
-  store.commit((lib) => ({ ...lib, scenes, board }), '', { sceneIndex: 0, selection: openingSelection(scenes[0]), activeFigure: null });
+export function replaceLibrary(store: Store, scenes: Scene[]) {
+  store.commit((lib) => ({ ...lib, scenes }), '', { sceneIndex: 0, selection: openingSelection(scenes[0]), activeFigure: null });
 }
 
 export function renameScene(store: Store, name: string) {
@@ -1338,30 +1337,14 @@ export function editProjectSettings(store: Store, patch: Partial<ProjectSettings
 
 /* Storyboard */
 
-function updateBoard(store: Store, fn: (board: Panel[]) => Panel[], key = '') {
-  store.commit((lib) => {
-    const board = boardPanels(lib);
-    const next = fn(board);
-    return next === board ? lib : withBoard(lib, next);
-  }, key);
-}
-
-/** Add a scene (the open one by default) to the end of the story. */
-export function addToBoard(store: Store, sceneId = store.scene.id) {
-  updateBoard(store, (b) => insertPanel(b, newPanel(sceneId)));
-}
-
-export function removeFromBoard(store: Store, id: string) {
-  updateBoard(store, (b) => b.filter((p) => p.id !== id));
-}
-
-export function moveOnBoard(store: Store, from: number, to: number) {
-  updateBoard(store, (b) => movePanel(b, from, to));
+/** Put a scene in the story or leave it out of it (the storyboard and its exports). */
+export function setInStory(store: Store, sceneId: string, inStory: boolean) {
+  store.commit((lib) => ({ ...lib, scenes: lib.scenes.map((s) => (s.id !== sceneId ? s : inStory ? (({ offStory: _, ...rest }) => rest)(s) : { ...s, offStory: true })) }));
 }
 
 /** How long a still scene stays on screen in the story. */
-export function setHold(store: Store, id: string, hold: number) {
-  updateBoard(store, (b) => b.map((p) => (p.id === id ? { ...p, hold: Math.min(60, Math.max(0.2, hold)) } : p)), `panel:${id}:hold`);
+export function setHold(store: Store, sceneId: string, hold: number) {
+  store.commit((lib) => ({ ...lib, scenes: lib.scenes.map((s) => (s.id === sceneId ? { ...s, hold: Math.min(60, Math.max(0.2, hold)) } : s)) }), `hold:${sceneId}`);
 }
 
 /** What happens in a shot (`shot`) of any scene of the project, or in a still scene. */

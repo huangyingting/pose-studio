@@ -129,6 +129,10 @@ export interface Scene {
   light?: Light;
   /** What happens in it (a still scene's caption in the story; an animated one's are its shots'). */
   caption?: string;
+  /** Left out of the story (the storyboard and its exports); the scene list's order is the story's. */
+  offStory?: boolean;
+  /** How long a still scene is on screen in the story (s; DEFAULT_HOLD if not set). */
+  hold?: number;
   /** A photo or drawing over the canvas to pose against (not filmed). */
   reference?: Reference;
   /** Optional keyframe animation (see lib/animation.ts). */
@@ -428,8 +432,6 @@ export interface Library {
   version: 3;
   /** The project's scenes: each a set, a cast and their animation and shots. */
   scenes: Scene[];
-  /** The story: its scenes in order (see lib/board.ts); a scene shows as a panel per shot. */
-  board?: Panel[];
   /** The project's settings: its frame and its render style (lib/project.ts). */
   settings?: ProjectSettings;
   /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
@@ -505,12 +507,6 @@ export interface PoseAsset {
 }
 
 /** A scene in the story: an animated one shows its shots; a still one is on screen for `hold` seconds. */
-export interface Panel {
-  id: string;
-  sceneId: string;
-  hold: number;
-}
-
 /** The project's settings: one frame shape, one render style. */
 export interface ProjectSettings {
   frame: FrameShape;

@@ -2,7 +2,6 @@ import { DEFAULT_BODY, clampBody } from './body';
 import { RELAXED_HAND, cloneHand } from './hands';
 import { DEFAULT_FPS, MAX_DURATION, normalize, parseCameras, parseShots, remapAnimation, remapCameras } from './animation';
 import { clipInfo } from './clip';
-import { parseBoard } from './board';
 import { parseProjectSettings } from './project';
 import { uid } from './uid';
 import * as THREE from 'three';
@@ -260,6 +259,8 @@ export function parseScene(v: unknown, i = 0): Scene {
     cameras: parseCameras(v.cameras),
     ...(isObj(v.light) ? { light: clampLight(v.light as Partial<Light>) } : {}),
     ...(typeof v.caption === 'string' && v.caption ? { caption: v.caption.slice(0, 500) } : {}),
+    ...(v.offStory === true ? { offStory: true } : {}),
+    ...(typeof v.hold === 'number' && Number.isFinite(v.hold) ? { hold: Math.min(60, Math.max(0.2, v.hold)) } : {}),
     ...(isObj(v.reference) && typeof v.reference.image === 'string' && /^[\w-]{1,80}$/.test(v.reference.image)
       ? { reference: { image: v.reference.image, opacity: Math.min(1, Math.max(0.05, num(v.reference.opacity, 0.45))), visible: v.reference.visible !== false } }
       : {}),
@@ -471,7 +472,6 @@ export function parseLibrary(data: unknown): Library {
     if (ids.has(s.id)) s.id = uid('s');
     ids.add(s.id);
   }
-  const board = parseBoard(data.board, ids);
   const settings = parseProjectSettings(data.settings);
   const poses = parsePoses(data.poses);
   // What the imported clips are (a file has their frames too: clipsIn).
@@ -493,7 +493,7 @@ export function parseLibrary(data: unknown): Library {
       ...(typeof p.duration === 'number' && Number.isFinite(p.duration) ? { duration: Math.min(60, Math.max(1, p.duration)) } : {}),
     }));
   return {
-    version: 3, scenes, ...(board ? { board } : {}), ...(settings ? { settings } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
+    version: 3, scenes, ...(settings ? { settings } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
     ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}),
   };
 }
