@@ -65,7 +65,7 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.39, build: 0, head: 1.28, legs: 1.15, bust: 0.3 },
     credit: 'by Ueda · personal use · credit required',
   },
-  // (Aoi made over: silver hair, grey-green eyes, a white bikini: scripts/characters/mio.py.)
+  // (Aoi made over: long silver hair, grey-green eyes, her clothes repainted: scripts/characters/mio.py.)
   {
     id: `${PREFIX}mio`, name: 'Mio', format: 'glb', bones: OURS, body: { sex: 1, height: 1.39, build: 0, head: 1.28, legs: 1.15, bust: 0.3 },
     credit: 'after Aoi by Ueda · personal use · credit required',

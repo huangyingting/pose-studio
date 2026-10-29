@@ -43,11 +43,12 @@ aoi.glb
 
 mio.glb
 
-  "Mio": aoi.glb (Aoi by Ueda, above) made over by scripts/characters/mio.py: silver-white hair
-  and brows, grey-green eyes; a white bandeau (her T-shirt cut to a band) and white bikini bottom
-  (her body's painted underwear recoloured); the holes VRoid left in her body under her clothes
-  closed in her skin's colour; her cardigan and shorts taken off. Her body's shape, her face and
-  her shoes are Aoi's; the same licence and credit apply ("Mio, after Aoi by Ueda").
+  "Mio": aoi.glb (Aoi by Ueda, above) made over by scripts/characters/mio.py after a design sheet
+  drawn for her: silver-white hair and brows, grey-green eyes; long hair to her waist (sheets of
+  strands added under her hair, down her back and either side of her face, their texture drawn
+  by the script); her cardigan lavender grey, her T-shirt white with its print teal, her shorts
+  navy denim, her sneakers trimmed in teal. Her body, face and clothes' shapes are Aoi's; the
+  same licence and credit apply ("Mio, after Aoi by Ueda").
 
 adam.glb, aj.glb, brute.glb, dummy.glb, elizabeth.glb, erika-archer.glb, joe.glb, michelle.glb,
 ninja.glb, ortiz.glb, paladin-j-nordstrom.glb, peasant-man.glb, pete.glb, remy.glb,
