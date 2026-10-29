@@ -50,7 +50,7 @@ function headMesh(female: number, h: number) {
     const p = headPoint(v, female).multiplyScalar(h);
     pos.setXYZ(i, p.x, p.y, p.z);
   }
-  // (The sphere's seam, where its poles are, at the back of the head.)
+  // (Its seam, at one side, and its poles, the crown and under the chin: one normal at each.)
   return smoothNormals(geo);
 }
 
@@ -182,8 +182,8 @@ function hairGeometry(female: number, h: number) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex(index);
-  geo.computeVertexNormals();
-  return geo;
+  // (Its top row all one point, the crown: one normal there.)
+  return smoothNormals(geo);
 }
 
 export interface HeadForms {

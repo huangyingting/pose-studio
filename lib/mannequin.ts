@@ -213,12 +213,12 @@ function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [n
   return geo;
 }
 
-/** Its centre line, down the front and up the back (where it faces, in line drawings). */
-function torsoMidline(at: (y: number) => Section, y0: number, y1: number) {
-  const ys = Array.from({ length: 25 }, (_, i) => y0 + ((y1 - y0) * i) / 24);
+/** Its centre line, down the front and up the back (where it faces, in line drawings; at the back, from `backFrom`). */
+function torsoMidline(at: (y: number) => Section, y0: number, y1: number, backFrom = y0) {
+  const along = (from: number) => Array.from({ length: 25 }, (_, i) => from + ((y1 - from) * i) / 24);
   return [
-    contour(ys.map((y) => new THREE.Vector3(0, y, at(y).front + 0.001))),
-    contour(ys.map((y) => new THREE.Vector3(0, y, -at(y).back - 0.001))),
+    contour(along(y0).map((y) => new THREE.Vector3(0, y, at(y).front + 0.001))),
+    contour(along(backFrom).map((y) => new THREE.Vector3(0, y, -at(y).back - 0.001))),
   ];
 }
 
@@ -226,6 +226,24 @@ function torsoMidline(at: (y: number) => Section, y0: number, y1: number) {
 export const torsoHalfWidth = (body: BodyParams, y: number) => proportions(body).section(y).w;
 
 type Egg = { rx: number; ry: number; rz: number; taper: number };
+
+/** Raise a surface along a line (a muscle's ridge): by `amount` on it, falling off to nothing `radius` from it. */
+function ridge(geo: THREE.BufferGeometry, line: THREE.Vector3[], radius: number, amount: number) {
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const v = new THREE.Vector3();
+  const seg = new THREE.Line3();
+  const near = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    let d = Infinity;
+    for (let j = 1; j < line.length; j++) d = Math.min(d, seg.set(line[j - 1], line[j]).closestPointToPoint(v, true, near).distanceTo(v));
+    if (d >= radius) continue;
+    const w = (1 - (d / radius) ** 2) ** 2;
+    pos.setXYZ(i, v.x + nrm.getX(i) * amount * w, v.y + nrm.getY(i) * amount * w, v.z + nrm.getZ(i) * amount * w);
+  }
+  pos.needsUpdate = true;
+}
 
 /** A part's mirror image across the body's middle (its triangles turned to face out again). */
 function mirrored(geo: THREE.BufferGeometry) {
@@ -344,7 +362,8 @@ export class Mannequin {
       const low = THREE.MathUtils.smoothstep(-y, 0.07 * k, 0.14 * k);
       pp.setY(i, y + 0.035 * k * low * Math.exp(-((x / (0.032 * P.torso)) ** 2)) * Math.min(1, -z / (0.05 * P.torso)));
     }
-    part('hips', smoothNormals(pelvis), undefined, torsoMidline(at, bottom, waistY));
+    // (Its back line stops above the cleft between the glutes.)
+    part('hips', smoothNormals(pelvis), undefined, torsoMidline(at, bottom, waistY, 0));
 
     const spine = joint('spine', root, 0, waistY);
     part('spine', torsoPiece(at, waistY, chestY, [cap, cap], step), [0, -waistY, 0], torsoMidline(at, waistY, chestY));
@@ -381,18 +400,22 @@ export class Mannequin {
     const neckGeo = torsoPiece(neckSection, -0.03 * k, 0.13 * k, [0.01 * k, 0.01 * k], 0.006 * k, 48, 2.2);
     const np = neckGeo.attributes.position;
     for (let i = 0; i < np.count; i++) np.setZ(i, np.getZ(i) + lean(np.getY(i)));
+    neckGeo.computeVertexNormals();
     const muscles = [1, -1].map((s) => {
+      // (On the neck's section, round from its side at the top to its front at its foot; raised.)
       const pts = Array.from({ length: 13 }, (_, i) => {
         const t = i / 12;
         const y = 0.11 * k - 0.13 * k * t;
         const sec = neckSection(y);
-        // (Round the side of the neck at its top, to the front at its foot.)
         const a = (0.15 + 0.3 * t) * Math.PI;
-        const r = Math.sin(a);
-        return new THREE.Vector3(s * sec.w * Math.abs(Math.cos(a)) * 0.98, y, (sec.front * r + 0.0015) * (1 - 0.08 * (1 - t)) + lean(y) - (1 - t) * 0.01 * k);
+        return new THREE.Vector3(s * sec.w * Math.abs(Math.cos(a)) ** (2 / 2.2), y, sec.front * Math.sin(a) ** (2 / 2.2) + lean(y));
       });
-      for (const p of pts.slice(2, -2)) bulge(neckGeo, [p.x, p.y, p.z], [0.012 * k, 0.03 * k, 0.012 * k], 0.0025 * nk * k);
-      return contour(pts);
+      const lift = 0.0025 * nk * k;
+      ridge(neckGeo, pts, 0.012 * k, lift);
+      return contour(pts.map((p, i) => {
+        const n = new THREE.Vector3(p.x / neckSection(p.y).w ** 2, 0, (p.z - lean(p.y)) / neckSection(p.y).front ** 2).normalize();
+        return p.clone().addScaledVector(n, (i > 0 && i < 12 ? lift : 0) + 0.0015);
+      }));
     });
     neckGeo.computeVertexNormals();
     part('neck', neckGeo, undefined, muscles);
