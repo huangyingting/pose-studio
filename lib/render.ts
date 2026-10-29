@@ -5,6 +5,7 @@ import { wrapDeg } from './joints';
 import { LightRig, lightingOf } from './lighting';
 import { LINES_LAYER } from './ink';
 import { LineArtPass } from './lineart';
+import { paperTexture } from './shaders';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
 import { angleAt, angleOf, cameraAt, cameraById, frameAspect, placeCamera, viewOf, type CameraView } from './cameras';
@@ -254,7 +255,7 @@ export class SceneRenderer {
     const size = this.renderer.getSize(new THREE.Vector2());
     if (size.x !== w || size.y !== h) this.renderer.setSize(w, h, false);
     this.background.set(styleDef(style).background);
-    this.scene.background = opts.transparent ? null : this.background;
+    this.scene.background = opts.transparent ? null : (styleDef(style).paper && paperTexture()) || this.background;
     this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
     this.view.sync(doc);
     this.view.setStyle(style);

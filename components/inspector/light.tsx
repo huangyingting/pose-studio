@@ -32,7 +32,7 @@ export function LightHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) 
   return <NameHeader chrome={chrome} lead={<SunMedium size={16} strokeWidth={1.75} aria-hidden />} name={name} label={name} menu={() => menu('light', { store: t.store, light: t.light!.id })} />;
 }
 
-/** Line art, Minimal and Silhouette are not lit: said so, with the style that shows it best. */
+/** Line art and Minimal are not lit: said so, with the style that shows it best. */
 function Unlit({ t }: { t: Target }) {
   if (lit(t)) return null;
   return (

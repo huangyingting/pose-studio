@@ -31,6 +31,7 @@ export class LineArtPass {
         radius: { value: 1 },
         color: { value: new THREE.Color('#0b0b0b') },
         opacity: { value: 1 },
+        dry: { value: 0 },
       },
       transparent: true,
       depthTest: false,
@@ -44,7 +45,14 @@ export class LineArtPass {
         uniform float radius;
         uniform vec3 color;
         uniform float opacity;
+        uniform float dry;
         varying vec2 vUv;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+        }
         float differs(vec3 c, vec2 offset) {
           vec3 s = texture2D(tId, vUv + offset * texel * radius).rgb;
           // Background (black) is handled by the silhouette hulls.
@@ -59,6 +67,8 @@ export class LineArtPass {
                   + 0.5 * (differs(c, vec2(0.7, 0.7)) + differs(c, vec2(-0.7, 0.7))
                          + differs(c, vec2(0.7, -0.7)) + differs(c, vec2(-0.7, -0.7)));
           float a = clamp(d / 2.0, 0.0, 1.0);
+          // (A dry brush: broken and uneven, as the outline is.)
+          if (dry > 0.0) a *= mix(1.0, smoothstep(0.3, 0.6, noise(gl_FragCoord.xy / (6.0 * radius))), dry);
           if (a <= 0.0) discard;
           gl_FragColor = vec4(color, a * opacity);
           #include <colorspace_fragment>
@@ -74,6 +84,7 @@ export class LineArtPass {
     if (lines) {
       this.material.uniforms.color.value.set(lines.color);
       this.material.uniforms.opacity.value = lines.alpha;
+      this.material.uniforms.dry.value = lines.dry ?? 0;
     }
   }
 

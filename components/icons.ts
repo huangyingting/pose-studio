@@ -1,5 +1,5 @@
 import {
-  Armchair, BookOpen, Box, BrickWall, Brush, Circle, CircleDashed, Coffee, Contrast, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
+  Armchair, BookOpen, Box, BrickWall, Brush, Circle, CircleDashed, Coffee, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
   Ribbon, Smartphone, Smile, Sparkles, SeparatorHorizontal, Sun, Wand,
   type LucideIcon,
 } from 'lucide-react';
@@ -34,5 +34,4 @@ export const STYLE_ICONS: Record<Style, LucideIcon> = {
   toon: Smile,
   shaded: Sun,
   minimal: Minus,
-  silhouette: Contrast,
 };

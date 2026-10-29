@@ -57,23 +57,40 @@ const COMMON = /* glsl */ `
   ${NOISE_GLSL}
 `;
 
-/** Sumi-e: paper-coloured surface with soft, bleeding ink washes on the shadow side. */
+/**
+ * Chinese ink painting (shui-mo): bare paper where the light falls (liu bai, the white left
+ * empty), and on the shadow side washes in the five tones of ink, pale to dark, laid wet: their
+ * edges bleed into the paper and dry darker where the ink pools, the darkest only in the deepest
+ * shade; the paper's fibres show through as granulation, and ink gathers along turning edges.
+ */
 const INK_FRAG = /* glsl */ `
   ${COMMON}
   void main() {
     vec3 n = normalize(vNormal);
     vec3 v = normalize(cameraPosition - vWorld);
     float lambert = dot(n, lightDir) * 0.5 + 0.5;
-    float grain = fbm3(vWorld * 14.0);
-    float bleed = fbm3(vWorld * 3.5 + 7.0);
-    // Two washes: a pale one over most of the shadow side, a darker one in the core shadow.
-    float wash1 = smoothstep(0.82, 0.5, lambert + (bleed - 0.5) * 0.4);
-    float wash2 = smoothstep(0.45, 0.2, lambert + (bleed - 0.5) * 0.3);
-    // Ink pools along the turning edges.
-    float rim = pow(1.0 - abs(dot(n, v)), 2.5);
-    float ink = 0.26 * wash1 + 0.3 * wash2 + 0.3 * rim;
-    ink *= 0.7 + 0.6 * grain;
-    gl_FragColor = vec4(mix(base, shade, clamp(ink, 0.0, 0.9)) * lightColor, 1.0);
+    // Screen-space, so the paper's grain keeps its size whatever the distance.
+    vec3 px = vec3(gl_FragCoord.xy / max(1.0, resolution.y) * 700.0, 0.0);
+    float bleed = fbm3(vWorld * 2.2 + 7.0);
+    float bloom = fbm3(vWorld * 5.5 + 1.7);
+    float fibre = fbm3(px * vec3(0.35, 1.4, 1.0)) * 0.5 + fbm3(px * vec3(1.4, 0.35, 1.0) + 3.0) * 0.5;
+    // A broad stroke of the brush across the form, not only its shading.
+    float sweep = fbm3(vWorld * vec3(1.2, 3.5, 1.2) + 11.0);
+    float t = lambert + (bleed - 0.5) * 0.6 + (sweep - 0.5) * 0.35;
+    // Pale (dan), middle (zhong) and dark (nong) washes; the burnt black (jiao) in the core.
+    float pale = smoothstep(0.92, 0.62, t);
+    float mid = smoothstep(0.68, 0.46, t + (bloom - 0.5) * 0.3);
+    float dark = smoothstep(0.46, 0.26, t + (bloom - 0.5) * 0.2);
+    float core = smoothstep(0.26, 0.1, t);
+    // Wet edges: where a wash dried, its rim darker.
+    float edge = pale * (1.0 - pale) * 4.0;
+    float edge2 = mid * (1.0 - mid) * 4.0;
+    float rim = pow(1.0 - abs(dot(n, v)), 3.0) * smoothstep(0.9, 0.45, lambert);
+    float ink = 0.2 * pale + 0.24 * mid + 0.32 * dark + 0.22 * core + 0.16 * edge + 0.12 * edge2 + 0.5 * rim;
+    // Granulation: the ink settles into the paper's fibres.
+    ink *= 0.7 + 0.6 * fibre;
+    vec3 paper = base * (0.965 + 0.05 * fibre);
+    gl_FragColor = vec4(mix(paper, shade, clamp(ink, 0.0, 0.9)) * lightColor, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -142,4 +159,45 @@ export function styleMaterial(style: ShaderStyle, shared: SharedUniforms, base: 
     vertexShader: VERT,
     fragmentShader: FRAGMENTS[style],
   });
+}
+
+let paper: THREE.Texture | null | undefined;
+/**
+ * Rice paper (xuan): warm, a little mottled, with its fibres, drawn once (null where there is
+ * no canvas to draw it on, as in tests): the ink style's background.
+ */
+export function paperTexture(): THREE.Texture | null {
+  if (paper !== undefined) return paper;
+  if (typeof document === 'undefined') return (paper = null);
+  const size = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  if (!g) return (paper = null);
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  g.fillStyle = '#efe8d8';
+  g.fillRect(0, 0, size, size);
+  // Mottling: soft clouds a shade lighter or darker.
+  for (let i = 0; i < 60; i++) {
+    const [x, y, r] = [rand() * size, rand() * size, 60 + rand() * 220];
+    const c = g.createRadialGradient(x, y, 0, x, y, r);
+    c.addColorStop(0, rand() < 0.5 ? 'rgba(255,252,244,0.16)' : 'rgba(205,192,168,0.05)');
+    c.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = c;
+    g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  // Fibres: short fine strands every way, some darker, some lighter.
+  for (let i = 0; i < 1800; i++) {
+    const [x, y, a, l] = [rand() * size, rand() * size, rand() * Math.PI, 4 + rand() * 22];
+    g.strokeStyle = rand() < 0.6 ? `rgba(150,135,110,${0.04 + rand() * 0.06})` : `rgba(255,255,250,${0.2 + rand() * 0.25})`;
+    g.lineWidth = 0.4 + rand() * 0.8;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (rand() - 0.5) * 4, y + Math.sin(a) * l * 0.5 + (rand() - 0.5) * 4, x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(canvas);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return (paper = t);
 }

@@ -11,10 +11,15 @@ export interface StyleDef {
   description: string;
   /** Canvas / export background. */
   background: string;
-  /** Silhouette outline (inverted hull). `jitter` varies the width like a brush (0–1). */
-  outline: { color: string; scale: number; jitter: number } | null;
-  /** Lines where parts meet (line-art ID pass). */
-  interior: { color: string; alpha: number } | null;
+  /**
+   * Silhouette outline (inverted hull). `jitter` varies the width like a brush (0–1); `dry`
+   * breaks it and pales it in places, as a dry brush does (0–1).
+   */
+  outline: { color: string; scale: number; jitter: number; dry?: number } | null;
+  /** Lines where parts meet (line-art ID pass), broken as a dry brush leaves them (`dry`, 0–1). */
+  interior: { color: string; alpha: number; dry?: number } | null;
+  /** Drawn on rice paper: a paper texture behind (and on) everything. */
+  paper?: true;
   /** The key light casts shadows onto the floor. */
   shadows: boolean;
   /** The light direction controls affect this style. */
@@ -45,10 +50,11 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
   ink: {
     id: 'ink',
     label: 'Ink wash',
-    description: 'Sumi-e brush lines and soft ink washes on rice paper',
-    background: '#f1ebdd',
-    outline: { color: '#141210', scale: 1.35, jitter: 0.75 },
-    interior: { color: '#141210', alpha: 0.55 },
+    description: 'Chinese ink painting: dry-brush outlines, washes in five tones of ink that bleed and pool, and bare rice paper',
+    background: '#efe8d8',
+    outline: { color: '#16130f', scale: 1.6, jitter: 0.9, dry: 0.7 },
+    interior: { color: '#2a2520', alpha: 0.4, dry: 0.6 },
+    paper: true,
     shadows: false,
     lit: true,
   },
@@ -89,16 +95,6 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     description: 'Flat shapes and a hairline outline',
     background: '#eeece7',
     outline: { color: '#a29d93', scale: 0.7, jitter: 0 },
-    interior: null,
-    shadows: false,
-    lit: false,
-  },
-  silhouette: {
-    id: 'silhouette',
-    label: 'Silhouette',
-    description: 'Solid shapes, to check gesture and readability',
-    background: '#ffffff',
-    outline: { color: '#111111', scale: 1, jitter: 0 },
     interior: null,
     shadows: false,
     lit: false,

@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { builtInPoses, poseScene, referencePoses } from '../../lib/poses';
+import { STAGINGS } from '../../lib/stagings';
+
 import { MAX_DURATION, PAST_END } from '../../lib/animation';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
@@ -8,6 +10,8 @@ import { correctionTimesOf, keyTimesOf, moments } from '../../lib/track';
 import type { Animation, Camera, PathCamera, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
+/** The two people's poses in the Library's Poses. */
+const PAIRS = STAGINGS.filter((t) => t.people === 2).length;
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => referencePoses().map((p) => poseScene(p));
@@ -206,8 +210,8 @@ test('a new project is one blank scene; the built-in poses are in the library', 
   await expect(page.locator('.bar-hint')).toContainText('left hand');
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
-  // In groups (standing, sitting, kneeling, lying); resting on one shows it.
-  await expect(poses.locator('li')).toHaveCount(builtInPoses().length);
+  // In groups (standing, sitting, kneeling, lying, two people); resting on one shows it.
+  await expect(poses.locator('li')).toHaveCount(builtInPoses().length + PAIRS);
   await poses.getByRole('button', { name: 'Cobra', exact: true }).hover();
   await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
@@ -586,7 +590,7 @@ test('exports a turnaround of the current pose', async ({ page }) => {
   expect((await state(page)).scene.cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2']);
   await expect(page.getByRole('combobox', { name: 'Camera', exact: true })).toHaveText('Camera 2');
   await page.getByRole('radio', { name: 'Turnaround', exact: true }).click();
-  await choose(page, 'Style', 'Silhouette');
+  await choose(page, 'Style', 'Minimal');
   await expect(page.getByText('2400 × 640 px')).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toBe('Hand_on_head_turnaround.jpg');
@@ -1296,7 +1300,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   expect(a.bones).toEqual(refScenes()[0].figures[0].bones);
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
-  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + 1);
+  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + PAIRS + 1);
   await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump ahead/ }).click();
   const sc = (await live(page)).scene;

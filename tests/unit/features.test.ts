@@ -27,7 +27,7 @@ describe('export options', () => {
   });
 
   it('sanitises stored options', () => {
-    const o = parseExportOptions({ scope: 'bogus', columns: 99, cellWidth: -5, lineWidth: 'x', style: 'silhouette', angles: 8, labels: true });
+    const o = parseExportOptions({ scope: 'bogus', columns: 99, cellWidth: -5, lineWidth: 'x', style: 'minimal', angles: 8, labels: true });
     expect(o.scope).toBe('current');
     expect(o.columns).toBe(12);
     expect(o.cellWidth).toBe(100);

@@ -81,7 +81,7 @@ export const LIGHTING_PRESETS: { id: string; name: string; lighting: Lighting }[
     },
   },
   {
-    id: 'back', name: 'Silhouette', lighting: {
+    id: 'back', name: 'Backlit', lighting: {
       lights: [newLight('key', { azimuth: 180, elevation: 25, intensity: 1.6 }, 'key')],
       ambient: ambient(0.3, '#6b7a99', '#1c2030'),
     },
@@ -198,7 +198,7 @@ export const fromPreset = (l: Lighting): Lighting => ({ lights: l.lights.map((x)
 /**
  * The ambient light (from the sky and the ground), the lights and a shadow-catching floor under
  * the key light's shadows. Shared by the editor and the exporter; only the lit styles are lit by
- * it, the line-art and silhouette materials ignore it.
+ * it, the line-art and minimal materials ignore it.
  */
 export class LightRig {
   readonly object = new THREE.Group();

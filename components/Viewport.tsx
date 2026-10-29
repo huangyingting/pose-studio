@@ -11,6 +11,7 @@ import { addCameraPoint, editLight, moveCameraLook, moveCameraPoint, setCameraPo
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
+import { paperTexture } from '@/lib/shaders';
 import { LightRig, keyLight, lampAt, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
@@ -335,7 +336,7 @@ export default function Viewport({
           if (!moved && !onPick && performance.now() - pickedAt.current > 300 && performance.now() - gizmoBusy.current > 250) store.select(null);
         }}
       >
-        <color attach="background" args={[styleDef(look.style).background]} />
+        <Backdrop style={look.style} />
         <Waker store={store} clock={clock} sv={sv} />
         <Lights sv={sv} style={look.style} scene={scene} />
         <DropLine />
@@ -603,6 +604,17 @@ function DragReadout() {
   const r = useReadout();
   if (!r) return null;
   return <div className={`drag-readout${r.axis === undefined ? '' : ` axis-${'xyz'[r.axis]}`}`} role="status" style={{ transform: `translate(${r.x + 16}px, ${r.y + 20}px)` }}>{r.text}</div>;
+}
+
+/** Behind everything: the style's background colour, or its paper. */
+function Backdrop({ style }: { style: Style }) {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    const def = styleDef(style);
+    get().scene.background = (def.paper && paperTexture()) || new THREE.Color(def.background);
+    wake();
+  }, [get, style]);
+  return null;
 }
 
 /** The scene's lights + shadow floor, re-aimed when the scene or its lighting changes. */

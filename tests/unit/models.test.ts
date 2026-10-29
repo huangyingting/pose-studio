@@ -126,7 +126,7 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material === sv.ink.outline) hulls.push(o as THREE.Mesh); });
     expect(meshes.length).toBeGreaterThan(0);
     expect(hulls).toHaveLength(meshes.length);
-    for (const style of ['sketch', 'ink', 'silhouette'] as const) {
+    for (const style of ['sketch', 'ink', 'minimal'] as const) {
       sv.setStyle(style);
       expect(meshes.every((m) => m.material === sv.ink.materialsFor(style).body), style).toBe(true);
     }

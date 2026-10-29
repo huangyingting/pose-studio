@@ -25,6 +25,7 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
         uniform mat3 mapTransform;
         varying vec2 vUv;
       #endif
+      varying vec3 vPos;
       ${NOISE_GLSL}
       void main() {
         #ifdef CUTOUT
@@ -36,6 +37,7 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
         #include <skinnormal_vertex>
         #include <begin_vertex>
         #include <skinning_vertex>
+        vPos = position;
         vec4 clip = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
         vec3 n = normalize(normalMatrix * objectNormal);
         vec2 dir = (projectionMatrix * vec4(n, 0.0)).xy * resolution;
@@ -49,16 +51,27 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
     fragmentShader: /* glsl */ `
       uniform vec3 color;
       uniform float opacity;
+      uniform float dry;
       #ifdef CUTOUT
         uniform sampler2D map;
         uniform float cutoff;
         varying vec2 vUv;
       #endif
+      varying vec3 vPos;
+      ${NOISE_GLSL}
       void main() {
         #ifdef CUTOUT
           if (texture2D(map, vUv).a < cutoff) discard;
         #endif
-        gl_FragColor = vec4(color, opacity);
+        float a = opacity;
+        if (dry > 0.0) {
+          // A dry brush: the stroke breaks where the bristles run out of ink (fei bai), in
+          // streaks, and its ink thins and thickens along the way.
+          float streak = noise3(vPos * vec3(90.0, 14.0, 90.0)) * 0.6 + noise3(vPos * 40.0 + 5.0) * 0.4;
+          if (streak > 1.0 - 0.45 * dry) discard;
+          a *= mix(1.0, 0.45 + 0.55 * noise3(vPos * 9.0 + 2.0), dry);
+        }
+        gl_FragColor = vec4(color, a);
         #include <colorspace_fragment>
       }`,
   });
@@ -136,6 +149,8 @@ export class Ink {
   readonly uniforms = {
     thickness: { value: 1.6 },
     jitter: { value: 0 },
+    /** Dry-brush breaks in the outline (0–1). */
+    dry: { value: 0 },
     resolution: { value: new THREE.Vector2(1, 1) },
     color: { value: new THREE.Color('#0b0b0b') },
     opacity: { value: 1 },
@@ -146,7 +161,7 @@ export class Ink {
   };
   readonly outline = createOutlineMaterial(this.uniforms);
   /** The outline of a whole object linked to the pointer elsewhere (its row in the outline): the accent, thicker. */
-  private readonly linkedUniforms = { ...this.uniforms, color: { value: new THREE.Color('#3d63ff') }, thickness: { value: 3 }, opacity: { value: 1 } };
+  private readonly linkedUniforms = { ...this.uniforms, color: { value: new THREE.Color('#3d63ff') }, thickness: { value: 3 }, opacity: { value: 1 }, dry: { value: 0 } };
   readonly linked = createOutlineMaterial(this.linkedUniforms);
   /** See-through, for props that block the view of the figure being edited. */
   readonly faded = new THREE.MeshBasicMaterial({ color: '#c9ccd6', transparent: true, opacity: 0.2, depthWrite: false });
@@ -201,12 +216,14 @@ export class Ink {
     if (this.ghost) {
       this.uniforms.color.value.set(this.ghost.color);
       this.uniforms.jitter.value = 0;
+      this.uniforms.dry.value = 0;
       this.applyThickness();
       return;
     }
     if (def.outline) {
       this.uniforms.color.value.set(def.outline.color);
       this.uniforms.jitter.value = def.outline.jitter;
+      this.uniforms.dry.value = def.outline.dry ?? 0;
     }
     this.applyThickness();
   }
@@ -247,7 +264,7 @@ export class Ink {
 
   /** Materials for a style; `tint` mixes a figure's colour into its body (selection looks the same). */
   private createMaterials(style: Style, tint?: string): StyleMaterials {
-    const body = (c: string) => (tint ? `#${new THREE.Color(c).lerp(new THREE.Color(tint), style === 'silhouette' ? 0.6 : 0.42).getHexString()}` : c);
+    const body = (c: string) => (tint ? `#${new THREE.Color(c).lerp(new THREE.Color(tint), 0.42).getHexString()}` : c);
     if (this.ghost) {
       const m = new THREE.MeshBasicMaterial({ color: this.ghost.color, transparent: true, opacity: this.ghost.opacity, depthWrite: false });
       return { body: m, bodySel: m, hover: m, prop: m, propSel: m };
@@ -294,9 +311,6 @@ export class Ink {
       }
       case 'minimal':
         return { body: basic(body('#ffffff')), bodySel: basic('#e2e9ff'), hover: basic('#f0f4ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
-      case 'silhouette':
-        // Same colour as the outline, so part boundaries disappear.
-        return { body: basic(body('#111111')), bodySel: basic('#3366ff'), hover: basic('#2b3550'), prop: basic('#b4b4bb'), propSel: basic('#3366ff') };
       default:
         return { body: basic(body('#ffffff')), bodySel: basic('#d5e5ff'), hover: basic('#ebf2ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
     }
