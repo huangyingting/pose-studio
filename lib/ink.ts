@@ -484,20 +484,28 @@ export function smoothNormals(geo: THREE.BufferGeometry) {
   geo.computeVertexNormals();
   const pos = geo.attributes.position;
   const nrm = geo.attributes.normal;
-  const groups = new Map<string, number[]>();
+  // (Vertices that share a position, to 0.01 mm: by a number made of their coordinates, within ±1 m.)
+  const key = (i: number) => {
+    const [x, y, z] = [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => Math.round(v * 1e5) + 100000);
+    return x >= 0 && x < 200000 && y >= 0 && y < 200000 && z >= 0 && z < 200000 ? (x * 200000 + y) * 200000 + z : `${x},${y},${z}`;
+  };
+  const groups = new Map<number | string, number[]>();
   for (let i = 0; i < pos.count; i++) {
-    const key = `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
-    const g = groups.get(key);
+    const k = key(i);
+    const g = groups.get(k);
     if (g) g.push(i);
-    else groups.set(key, [i]);
+    else groups.set(k, [i]);
   }
-  const sum = new THREE.Vector3();
   for (const g of groups.values()) {
     if (g.length < 2) continue;
-    sum.set(0, 0, 0);
-    for (const i of g) sum.add(new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i)));
-    sum.normalize();
-    for (const i of g) nrm.setXYZ(i, sum.x, sum.y, sum.z);
+    let x = 0, y = 0, z = 0;
+    for (const i of g) {
+      x += nrm.getX(i);
+      y += nrm.getY(i);
+      z += nrm.getZ(i);
+    }
+    const l = Math.hypot(x, y, z) || 1;
+    for (const i of g) nrm.setXYZ(i, x / l, y / l, z / l);
   }
   nrm.needsUpdate = true;
   return geo;

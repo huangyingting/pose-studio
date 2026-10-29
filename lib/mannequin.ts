@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { bulge, contour, egg, ellipsoid, Ink, InkedParts, latitude, limb, meridian, smoothNormals, type Highlight } from './ink';
+import { bulge, contour, egg, ellipsoid, Ink, InkedParts, limb, meridian, smoothNormals, type Highlight } from './ink';
+import { headForms } from './head';
 import { clampRotation, jointLimits, sided, wrapDeg, type LimbPart } from './joints';
 import { boneToRig, fromQuat, rigToBone, toQuat } from './pose';
 import {
@@ -120,7 +121,7 @@ const TORSO = {
   male: {
     w: [0.055, 0.125, 0.156, 0.155, 0.146, 0.134, 0.128, 0.145, 0.168, 0.184, 0.186, 0.16, 0.072],
     front: [0.04, 0.074, 0.084, 0.088, 0.092, 0.092, 0.088, 0.098, 0.114, 0.122, 0.11, 0.082, 0.045],
-    back: [0.05, 0.094, 0.106, 0.098, 0.082, 0.072, 0.068, 0.078, 0.094, 0.104, 0.106, 0.09, 0.05],
+    back: [0.055, 0.104, 0.116, 0.1, 0.082, 0.072, 0.068, 0.078, 0.094, 0.104, 0.106, 0.09, 0.05],
   },
   female: {
     w: [0.06, 0.14, 0.178, 0.178, 0.155, 0.128, 0.114, 0.124, 0.138, 0.145, 0.145, 0.128, 0.06],
@@ -161,7 +162,7 @@ function torsoFront(at: (y: number) => Section, x: number, y: number) {
  * A piece of the torso, from y0 to y1, its ends rounded inwards (`caps`: how far), so a bent joint
  * shows a rounded end, not a hole. Made in the hips' frame.
  */
-function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 64) {
+function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 64, square = SQUARE) {
   const rings: { y: number; scale: number; s: Section }[] = [];
   const capRings = 6;
   for (let i = capRings; i > 0; i--) {
@@ -179,7 +180,7 @@ function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [n
   }
   const pos: number[] = [];
   const index: number[] = [];
-  const e = 2 / SQUARE;
+  const e = 2 / square;
   for (const r of rings) {
     for (let j = 0; j < n; j++) {
       const t = (j / n) * Math.PI * 2;
@@ -226,58 +227,13 @@ export const torsoHalfWidth = (body: BodyParams, y: number) => proportions(body)
 
 type Egg = { rx: number; ry: number; rz: number; taper: number };
 
-/** Point on the front of an egg() surface at (x, y), in the egg's local coordinates. */
-function eggFront(e: Egg, x: number, y: number) {
-  const cy = THREE.MathUtils.clamp(y / e.ry, -1, 1);
-  const r = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy);
-  return (e.rz / e.rx) * Math.sqrt(Math.max(0, r * r - x * x));
-}
-
-interface Sculpt {
-  c: Vec3;
-  r: Vec3;
-  a: number;
-}
-
-/** Facial forms in head-egg coordinates (front is +Z, y = 0 is the egg's middle, units of head size). */
-function faceSculpts(e: Egg, h: number, female: number): Sculpt[] {
-  const male = 1 - female;
-  const front = (x: number, y: number): Vec3 => [x * h, y * h, eggFront(e, x * h, y * h)];
-  const cy = -0.022 * h / e.ry;
-  const side = e.rx * Math.sqrt(1 - cy * cy) * (1 + e.taper * cy);
-  const s = (c: Vec3, r: Vec3, a: number): Sculpt => ({ c, r: r.map((v) => v * h) as Vec3, a: a * h });
-  const out: Sculpt[] = [
-    s(front(0, 0.007), [0.056, 0.014, 0.03], 0.0032 + 0.003 * male), // brow ridge
-    s(front(0, -0.032), [0.0085, 0.03, 0.03], 0.0065 + 0.002 * male), // nose bridge
-    s(front(0, -0.052), [0.012, 0.011, 0.03], 0.0105 + 0.003 * male), // nose tip
-    s(front(0, -0.0712), [0.02, 0.0068, 0.025], 0.0032 + 0.0015 * female), // upper lip
-    s(front(0, -0.082), [0.017, 0.0072, 0.025], 0.0038 + 0.0022 * female), // lower lip
-    s(front(0, -0.103), [0.02 + 0.009 * male, 0.016, 0.035], 0.0045 + 0.004 * male), // chin
-  ];
-  for (const k of [1, -1]) {
-    out.push(
-      s(front(k * 0.031, -0.0145), [0.019, 0.012, 0.03], -0.0042), // eye socket
-      s(front(k * 0.011, -0.055), [0.0075, 0.0068, 0.02], 0.0038), // nostril wing
-      s(front(k * 0.046, -0.033), [0.026, 0.02, 0.04], 0.0032 + 0.001 * female), // cheekbone
-      { c: [k * side, -0.022 * h, -0.008 * h], r: [0.02 * h, 0.031 * h, 0.022 * h], a: 0.0075 * h }, // ear
-    );
-  }
-  return out;
-}
-
-/** Point on the sculpted face surface at (x, y), lifted slightly so lines sit on top. */
-function onFace(e: Egg, sculpts: Sculpt[], x: number, y: number, lift: number) {
-  const p = new THREE.Vector3(x, y, eggFront(e, x, y));
-  const n = new THREE.Vector3(p.x / (e.rx * e.rx), p.y / (e.ry * e.ry), p.z / (e.rz * e.rz)).normalize();
-  let d = lift;
-  for (const c of sculpts) {
-    const dx = (p.x - c.c[0]) / c.r[0];
-    const dy = (p.y - c.c[1]) / c.r[1];
-    const dz = (p.z - c.c[2]) / c.r[2];
-    const d2 = dx * dx + dy * dy + dz * dz;
-    if (d2 < 1) d += c.a * (1 - d2) * (1 - d2);
-  }
-  return p.addScaledVector(n, d);
+/** A part's mirror image across the body's middle (its triangles turned to face out again). */
+function mirrored(geo: THREE.BufferGeometry) {
+  const out = geo.clone().scale(-1, 1, 1);
+  const index = out.index!.array;
+  for (let i = 0; i < index.length; i += 3) [index[i + 1], index[i + 2]] = [index[i + 2], index[i + 1]];
+  out.index!.needsUpdate = true;
+  return smoothNormals(out);
 }
 
 /** The curved lower edge of one pectoral, from the sternum out towards the armpit. */
@@ -374,9 +330,19 @@ export class Mannequin {
     // (Each piece's ends rounded into the next, hidden until the joint between them bends.)
     const cap = 0.035 * k;
     const pelvis = torsoPiece(at, bottom, waistY, [0.02 * k, cap], step);
-    // Glutes: rounder and fuller on female figures.
+    // Glutes: two round masses, fullest low (rounder and fuller on female figures), the cleft
+    // between them, and the fold under them.
     for (const s of [1, -1]) {
-      bulge(pelvis, [s * 0.062 * P.torso, -0.065 * k, -at(-0.065 * k).back], [0.075 * P.torso, 0.075 * k, 0.08 * P.torso], 0.01 * P.hips * P.torso);
+      bulge(pelvis, [s * 0.066 * P.torso, -0.07 * k, -at(-0.07 * k).back], [0.072 * P.torso, 0.07 * k, 0.07 * P.torso], 0.016 * P.hips * P.torso);
+    }
+    bulge(pelvis, [0, -0.06 * k, -at(-0.06 * k).back], [0.012 * P.torso, 0.07 * k, 0.04 * P.torso], -0.006 * P.torso);
+    // Under them, each rounds off on its own: the lower edge rises where they meet.
+    const pp = pelvis.attributes.position;
+    for (let i = 0; i < pp.count; i++) {
+      const [x, y, z] = [pp.getX(i), pp.getY(i), pp.getZ(i)];
+      if (z >= 0 || y > -0.07 * k) continue;
+      const low = THREE.MathUtils.smoothstep(-y, 0.07 * k, 0.14 * k);
+      pp.setY(i, y + 0.035 * k * low * Math.exp(-((x / (0.032 * P.torso)) ** 2)) * Math.min(1, -z / (0.05 * P.torso)));
     }
     part('hips', smoothNormals(pelvis), undefined, torsoMidline(at, bottom, waistY));
 
@@ -406,13 +372,36 @@ export class Mannequin {
     part('chest', smoothNormals(ribs), [0, -chestY, 0], chestLines);
 
     const neck = joint('neck', chest, 0, top - chestY);
-    part('neck', limb(0.1 * k, P.neckR * 0.92, P.neckR).geometry.rotateZ(Math.PI), [0, -0.02 * k, 0]);
+    // The neck: from the trapezius' slope at its base up under the skull, leaning forward a little;
+    // the sternocleidomastoids from behind the ears down to the top of the breastbone.
+    const nk = P.neckR / 0.05;
+    const neckAt = smoothThrough([-0.03 * k, 0.02 * k, 0.07 * k, 0.13 * k], [1.5, 1.08, 0.98, 0.96]);
+    const neckSection = (y: number): Section => ({ w: 0.05 * nk * neckAt(y), front: 0.046 * nk * Math.min(1.2, neckAt(y)), back: 0.044 * nk * Math.min(1.25, neckAt(y)) });
+    const lean = (y: number) => -0.012 * k + 0.016 * k * THREE.MathUtils.clamp((y + 0.03 * k) / (0.16 * k), 0, 1);
+    const neckGeo = torsoPiece(neckSection, -0.03 * k, 0.13 * k, [0.01 * k, 0.01 * k], 0.006 * k, 48, 2.2);
+    const np = neckGeo.attributes.position;
+    for (let i = 0; i < np.count; i++) np.setZ(i, np.getZ(i) + lean(np.getY(i)));
+    const muscles = [1, -1].map((s) => {
+      const pts = Array.from({ length: 13 }, (_, i) => {
+        const t = i / 12;
+        const y = 0.11 * k - 0.13 * k * t;
+        const sec = neckSection(y);
+        // (Round the side of the neck at its top, to the front at its foot.)
+        const a = (0.15 + 0.3 * t) * Math.PI;
+        const r = Math.sin(a);
+        return new THREE.Vector3(s * sec.w * Math.abs(Math.cos(a)) * 0.98, y, (sec.front * r + 0.0015) * (1 - 0.08 * (1 - t)) + lean(y) - (1 - t) * 0.01 * k);
+      });
+      for (const p of pts.slice(2, -2)) bulge(neckGeo, [p.x, p.y, p.z], [0.012 * k, 0.03 * k, 0.012 * k], 0.0025 * nk * k);
+      return contour(pts);
+    });
+    neckGeo.computeVertexNormals();
+    part('neck', neckGeo, undefined, muscles);
 
     joint('head', neck, 0, 0.08 * k);
     const h = P.head;
     // A smaller taper gives a squarer jaw (male); a larger one a rounder skull and narrower chin.
     const [hx, hy, hz, ht] = [0.085 * h, 0.115 * h, 0.1 * h, P.headTaper];
-    if (!this.standIn) this.buildHead({ rx: hx, ry: hy, rz: hz, taper: ht }, h, P.female);
+    if (!this.standIn) this.buildHead(h, P.female);
 
     const R = P.limbR;
     const mus = P.muscle;
@@ -483,43 +472,21 @@ export class Mannequin {
    * surface, finished with a few quiet lines (upper eyelids, the line between the lips and
    * under the nose). A plain construction head stands in when face features are off.
    */
-  private buildHead(e: Egg, h: number, female: number) {
+  /** The head (lib/head.ts): its form, its face (shown with face features) or a plain one, ears, hair. */
+  private buildHead(h: number, female: number) {
     const pos: Vec3 = [0, 0.1 * h, 0.01 * h];
+    const at = (p: Vec3): Vec3 => [pos[0] + p[0], pos[1] + p[1], pos[2] + p[2]];
     const tag = { joint: 'head' as JointName, figure: this.id };
-    const plain = this.parts.add(this.joints.head, egg(e.rx, e.ry, e.rz, e.taper), tag, pos, [
-      meridian(e.ry, e.rz, e.taper), latitude(e.rx, e.ry, e.rz, -0.012 * h, e.taper),
-    ]);
-    this.parts.markPlain(plain);
-
-    const sculpts = faceSculpts(e, h, female);
-    // Fine mesh for the small forms; the lathe seam is turned to the back of the head.
-    const geo = egg(e.rx, e.ry, e.rz, e.taper, 112, 120).rotateY(Math.PI);
-    for (const c of sculpts) bulge(geo, c.c, c.r, c.a);
-    const face = this.parts.add(this.joints.head, smoothNormals(geo), tag, pos);
+    const forms = headForms(h, female);
+    this.parts.markPlain(this.parts.add(this.joints.head, forms.plain, tag, pos));
+    const face = this.parts.add(this.joints.head, forms.face, tag, pos);
     this.parts.markFeature(face);
-
-    const at = (x: number, y: number) => onFace(e, sculpts, x * h, y * h, 0.0009 * h);
-    const curve = (n: number, f: (u: number) => [number, number]) => Array.from({ length: n + 1 }, (_, i) => at(...f(i / n)));
-    const r = 0.0013 * h;
-    const lines: THREE.BufferGeometry[] = [];
-    for (const s of [1, -1]) {
-      // Open almond eyes: a firmer upper lid arching up, a finer lower lid; they meet at the
-      // corners, the outer corner a touch higher than the inner one.
-      const eyeX = (u: number) => s * (0.017 + 0.029 * u);
-      const corner = (u: number) => -0.0152 + 0.0014 * u;
-      lines.push(contour(curve(16, (u) => [eyeX(u), corner(u) + 0.0058 * Math.sin(Math.PI * u) ** 0.75]), r * 1.15));
-      lines.push(contour(curve(12, (u) => [eyeX(0.08 + 0.84 * u), corner(0.08 + 0.84 * u) - 0.0028 * Math.sin(Math.PI * u)]), r * 0.6));
-      // A slender brow following the brow ridge.
-      lines.push(contour(curve(12, (u) => [s * (0.013 + 0.038 * u), 0.0035 + 0.0055 * Math.sin(Math.PI * (0.2 + 0.8 * u)) - 0.002 * u]), r * 0.75));
-    }
-    // Between the lips, with a gentle dip in the middle.
-    lines.push(contour(curve(16, (u) => {
-      const x = (u * 2 - 1) * (0.019 - 0.002 * female);
-      return [x, -0.0765 + 0.0016 * (x / 0.019) ** 2 - 0.0009 * Math.cos(Math.PI * u * 2) * (1 - Math.abs(u * 2 - 1))];
-    }), r * 0.9));
-    // Under the nose.
-    lines.push(contour(curve(10, (u) => [(u * 2 - 1) * 0.0085, -0.0605 - 0.0018 * Math.sin(Math.PI * u)]), r * 0.8));
-    this.parts.addFaceLines(face, lines);
+    this.parts.addFaceLines(face, forms.lines);
+    this.parts.add(this.joints.head, forms.ear, tag, at(forms.earAt));
+    const [x, y, z] = forms.earAt;
+    this.parts.add(this.joints.head, mirrored(forms.ear), tag, at([-x, y, z]));
+    this.parts.add(this.joints.head, forms.hair, tag, pos);
+    if (forms.bun) this.parts.add(this.joints.head, forms.bun, tag, at(forms.bunAt));
   }
 
   /** Show or hide the face details. */
