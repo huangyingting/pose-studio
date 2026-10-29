@@ -9,9 +9,9 @@ import {
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
-  setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
+  addLight, applyLightingPreset, deleteLight, editLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
-import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight, lightFrom, lightText } from '@/lib/lighting';
+import { LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightName, lightText, lightingOf, sameLighting } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
@@ -26,7 +26,7 @@ import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById } from '@/lib/assets';
-import { FRAME_SHAPES, HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
+import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_ROLES, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
@@ -126,8 +126,8 @@ export interface Ctx {
   floor?: Vec3;
   /** A time on a track (a key, a camera's point). */
   at?: number;
-  /** The scene's key light. */
-  light?: boolean;
+  /** One of the scene's lights. */
+  light?: string;
   /** Several figures and props at once. */
   many?: { figures: string[]; props: string[] };
 }
@@ -162,8 +162,8 @@ const figureOf = (c: Ctx) => c.store.scene.figures.find((f) => f.id === c.figure
 const activeFigure = (c: Ctx) => c.store.figure;
 /** "3 things" (several selected). */
 const count = (c: Ctx) => { const n = (c.many?.figures.length ?? 0) + (c.many?.props.length ?? 0); return `${n} things`; };
-const lightOf = (c: Ctx) => c.store.scene.light ?? DEFAULT_LIGHT;
-const sameLight = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
+/** The light of the context (the key light, the scene's). */
+const lightOf = (c: Ctx) => { const l = lightingOf(c.store.scene); return l.lights.find((x) => x.id === c.light) ?? keyLight(l)!; };
 const animated = (c: Ctx) => !!c.store.scene.animation;
 /** About the scene, not one thing in it: the empty floor (a spot on it, or none: off the floor), or nothing selected. */
 const onScene = (c: Ctx) => !c.figure && !c.prop && !c.camera && !c.shot && !c.action && !c.light && !c.many && c.scene === undefined;
@@ -179,7 +179,7 @@ export function selectionCtx(store: Store): Ctx {
     case 'camera': return { store, camera: sel.camera };
     case 'shot': return { store, shot: sel.shot };
     case 'action': return { store, action: sel.action, figure: sel.figure };
-    case 'light': return { store, light: true };
+    case 'light': return { store, light: sel.light };
     case 'many': return { store, many: { figures: sel.figures, props: sel.props } };
   }
 }
@@ -304,7 +304,7 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
     if (cam.kind === 'rig') return k === 'turnLeft' || k === 'turnRight' ? null : { kind: 'rig', id: cam.id };
     return { kind: 'camera', id: cam.id };
   }
-  if (c.light) return k === 'turnUp' || k === 'turnDown' ? null : { kind: 'light' };
+  if (c.light) return k === 'turnUp' || k === 'turnDown' ? null : { kind: 'light', id: c.light };
   return null;
 }
 
@@ -377,9 +377,10 @@ function step(c: Ctx, k: StepKey) {
       break;
     }
     case 'light': {
-      const l = sceneOf(c).light ?? DEFAULT_LIGHT;
+      const l = lightingOf(sceneOf(c)).lights.find((x) => x.id === at.id);
+      if (!l) break;
       const next = clampLight(lift || sy ? { ...l, elevation: l.elevation + sy * STEP.height * n } : { ...l, azimuth: wrapDeg(l.azimuth - sx * STEP.turn * n) });
-      setSceneLight(s, next, 'step:light');
+      editLight(s, l.id, next, `step:${l.id}`);
       flashReadout(lightText(next));
       break;
     }
@@ -443,9 +444,9 @@ function cycleSelection(c: Ctx, dir: 1 | -1) {
     ...s.figures.filter((f) => !f.hidden).map((f) => ({ kind: 'figure' as const, figure: f.id })),
     ...s.props.map((p) => ({ kind: 'prop' as const, prop: p.id })),
     ...s.cameras.map((x) => ({ kind: 'camera' as const, camera: x.id })),
-    { kind: 'light' as const },
+    ...lightingOf(s).lights.map((l) => ({ kind: 'light' as const, light: l.id })),
   ];
-  const id = (x: Selection) => (!x ? '' : x.kind === 'figure' || x.kind === 'joint' ? x.figure : x.kind === 'prop' ? x.prop : x.kind === 'camera' ? x.camera : x.kind);
+  const id = (x: Selection) => (!x ? '' : x.kind === 'figure' || x.kind === 'joint' ? x.figure : x.kind === 'prop' ? x.prop : x.kind === 'camera' ? x.camera : x.kind === 'light' ? x.light : x.kind);
   const now = things.findIndex((x) => id(x) === id(c.store.getState().selection));
   const next = things[now < 0 ? (dir > 0 ? 0 : things.length - 1) : (now + dir + things.length) % things.length];
   c.store.select(next);
@@ -620,25 +621,40 @@ export const COMMANDS: Command[] = [
     run: (c) => c.store.group(() => c.many!.figures.forEach((id) => setFigureHidden(c.store, id, true))),
   },
 
-  // The scene's key light.
+  // The scene's lights.
   {
-    id: 'light.preset', title: 'Lighting preset', icon: SunMedium, when: (c) => !!c.light,
-    items: (c) => LIGHT_PRESETS.map((p) => ({ title: p.name, checked: sameLight(lightOf(c), p.light), run: () => setSceneLight(c.store, p.light, '') })),
+    id: 'light.preset', title: 'Lighting scheme', icon: SunMedium, when: (c) => !!c.light || onScene(c),
+    items: (c) => LIGHTING_PRESETS.map((p) => ({ title: p.name, checked: sameLighting(lightingOf(sceneOf(c)), p.lighting), run: () => applyLightingPreset(c.store, p.id) })),
+  },
+  {
+    id: 'light.add', title: 'Add a light', help: `Add a fill, rim or other light (up to ${MAX_LIGHTS})`, icon: Plus, when: (c) => !!c.light || onScene(c),
+    enabled: (c) => lightingOf(sceneOf(c)).lights.length < MAX_LIGHTS,
+    run: (c) => { addLight(c.store); },
   },
   {
     id: 'light.fromView', title: 'Light from this view', icon: Lightbulb, when: (c) => !!c.light || onScene(c),
     run: (c) => {
       const v = App().captureShot();
-      if (v) setSceneLight(c.store, lightFrom(lightOf(c), v.position.clone().sub(v.target)), '');
+      const l = lightOf(c);
+      if (v) editLight(c.store, l.id, lightFrom(l, v.position.clone().sub(v.target)));
     },
   },
   {
-    id: 'light.shadows', title: 'Shadows', icon: SunMedium, when: (c) => !!c.light, checked: (c) => lightOf(c).shadows,
-    run: (c) => setSceneLight(c.store, { ...lightOf(c), shadows: !lightOf(c).shadows }, ''),
+    id: 'light.role', title: 'Role', icon: SunMedium, when: (c) => !!c.light,
+    items: (c) => LIGHT_ROLES.map((r) => ({ title: ROLE_NAMES[r].replace(/^Light$/, 'Other'), checked: lightOf(c).role === r, run: () => editLight(c.store, lightOf(c).id, { role: r }) })),
+  },
+  {
+    id: 'light.shadows', title: 'Shadows', help: 'Only the key light casts shadows', icon: SunMedium, when: (c) => !!c.light && lightOf(c).role === 'key', checked: (c) => lightOf(c).shadows,
+    run: (c) => editLight(c.store, lightOf(c).id, { shadows: !lightOf(c).shadows }),
   },
   {
     id: 'light.clay', title: 'Show the light: switch to Clay', icon: SunMedium, when: (c) => !!c.light && !styleDef(projectSettingsOf(c.store.getState().library).style).lit,
     run: (c) => editProjectSettings(c.store, { style: 'shaded' }),
+  },
+  {
+    id: 'light.delete', title: 'Delete', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.light,
+    enabled: (c) => lightingOf(sceneOf(c)).lights.length > 1,
+    run: (c) => { const name = lightName(lightingOf(sceneOf(c)), lightOf(c)); if (deleteLight(c.store, lightOf(c).id)) App().notifyUndo(`Deleted ${name}`); },
   },
 
   // The selection.
@@ -1339,7 +1355,7 @@ export const MENUS = {
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
   action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
-  light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.shadows'],
+  light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.role', 'light.shadows', 'light.add', '-', 'light.delete'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
     { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', '-',

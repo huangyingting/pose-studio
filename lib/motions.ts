@@ -20,8 +20,10 @@ import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName,
  * do: where it is filmed from, and what set it plays in, are up to the scene.
  */
 
-/** Groups of the motion library (several-people motions are listed on their own). */
-export const MOTION_GROUPS = ['Getting around', 'Fighting', 'Sport & gymnastics', 'Dance', 'Everyday'] as const;
+/** Groups of the motion library, by what the person does (several-people motions are listed on their own). */
+export const MOTION_GROUPS = [
+  'Moving', 'Standing & waiting', 'Sitting & lying', 'Talking & gestures', 'Feelings', 'Using things', 'Weapons', 'Fighting', 'Sport & acrobatics', 'Dance',
+] as const;
 
 export interface Motion {
   id: string;
@@ -275,21 +277,21 @@ export const MOTIONS: Motion[] = [
   {
     id: 'walk',
     name: 'Walk ahead',
-    group: 'Getting around',
+    group: 'Moving',
     travel: { kind: 'walk', distance: 3 },
     build: () => travelled(person('Walker', { ...DEFAULT_BODY }, STAND), 'walk', 3, { view: { yaw: 70, pitch: 6, fov: 30 } }),
   },
   {
     id: 'run',
     name: 'Run ahead',
-    group: 'Getting around',
+    group: 'Moving',
     travel: { kind: 'run', distance: 6 },
     build: () => travelled({ ...person('Runner', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } }, 'run', 6, { view: { yaw: 90, pitch: 4, fov: 34 } }),
   },
   {
     id: 'jump',
     name: 'Jump ahead',
-    group: 'Getting around',
+    group: 'Moving',
     travel: { kind: 'jump', distance: 1 },
     build: () => travelled(person('Jumper', { ...DEFAULT_BODY }, STAND), 'jump', 1, { view: { yaw: 70, pitch: 4, fov: 30 } }),
   },
@@ -384,7 +386,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'throw',
     name: 'Throw overhand',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     build: () => withRig((rig) => {
       // Left foot forward. The shoulders wind up side-on (the left one to the target) with the arm
       // back behind the head, then unwind as the arm whips over and follows through across the body.
@@ -429,7 +431,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'cartwheel',
     name: 'Cartwheel',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     build: () => withRig((rig) => {
       const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
       const stand = posed(f, STAND);
@@ -465,7 +467,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'leap',
     name: 'Split leap',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     build: () => withRig((rig) => {
       const f = { ...person('Gymnast', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
       const stand = posed(f, STAND);
@@ -522,7 +524,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'fall',
     name: 'Fall & get up',
-    group: 'Everyday',
+    group: 'Sitting & lying',
     build: () => withRig((rig) => {
       const f = person('Faller', { ...DEFAULT_BODY }, STAND);
       const { stand, lying, falling } = fallBack(rig, f);
@@ -546,7 +548,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'wave',
     name: 'Wave hello',
-    group: 'Everyday',
+    group: 'Talking & gestures',
     build: () => {
       const f = { ...person('Mia', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Open') } };
       const wave = (twist: number, tilt: number) => posed(f, {
@@ -561,7 +563,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'bow',
     name: 'Bow',
-    group: 'Everyday',
+    group: 'Talking & gestures',
     build: () => {
       const f = person('Ken', { ...DEFAULT_BODY }, STAND);
       const stand = posed(f, STAND);
@@ -579,7 +581,7 @@ export const MOTIONS: Motion[] = [
     // Talking: the hands open and come up as the words do, one then the other, the head with them.
     id: 'talk',
     name: 'Talk',
-    group: 'Everyday',
+    group: 'Talking & gestures',
     build: () => {
       const f = { ...person('Ana', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Open') } };
       const at = (r: number, l: number, head: number, tilt: number) => posed(f, {
@@ -596,7 +598,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'nod',
     name: 'Nod',
-    group: 'Everyday',
+    group: 'Talking & gestures',
     build: () => {
       const f = person('Ben', { ...DEFAULT_BODY }, STAND);
       const head = (x: number) => posed(f, { ...STAND, neck: [x * 0.4, 0, 0], head: [x, 0, 0] });
@@ -608,7 +610,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'shake-head',
     name: 'Shake head',
-    group: 'Everyday',
+    group: 'Talking & gestures',
     build: () => {
       const f = person('Cleo', { ...DEFAULT_BODY }, STAND);
       const head = (y: number) => posed(f, { ...STAND, neck: [2, y * 0.35, 0], head: [2, y, 0] });
@@ -621,7 +623,7 @@ export const MOTIONS: Motion[] = [
     // Pointing at something ahead: the arm comes up straight, holds, goes down.
     id: 'point',
     name: 'Point',
-    group: 'Everyday',
+    group: 'Talking & gestures',
     build: () => {
       const f = { ...person('Dev', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Point') } };
       const rest = posed(f, STAND);
@@ -636,7 +638,7 @@ export const MOTIONS: Motion[] = [
     // down over planted feet, the arms come to the thighs.
     id: 'sit-down',
     name: 'Sit down',
-    group: 'Everyday',
+    group: 'Sitting & lying',
     build: () => withRig((rig) => {
       const { stand, sit } = sitting(rig);
       const lower = plantFeet(rig, { ...sink(rock(stand, 30), 40), position: [0, stand.position[1], -0.15] }, stand);
@@ -650,7 +652,7 @@ export const MOTIONS: Motion[] = [
   {
     id: 'stand-up',
     name: 'Stand up',
-    group: 'Everyday',
+    group: 'Sitting & lying',
     build: () => withRig((rig) => {
       const { stand, sit } = sitting(rig);
       // Leaning forward over the feet first, then up.
@@ -667,7 +669,7 @@ export const MOTIONS: Motion[] = [
     // down), the feet planted.
     id: 'pick-up',
     name: 'Pick up / put down',
-    group: 'Everyday',
+    group: 'Using things',
     build: () => withRig((rig) => {
       const f = { ...person('Fay', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Relaxed'), R: hand('Grip') } };
       const stand = posed(f, STAND);
@@ -705,14 +707,14 @@ export const HANDLING: Motion[] = [
     // Arms steady at the sides, hands closed on what they carry (a bag, a stretcher's handles): over a walk, they do not swing.
     id: 'carry',
     name: 'Carry',
-    group: 'Everyday',
+    group: 'Using things',
     build: () => handling('Carry', [[0, carrying], [24, carrying]], { loop: true }),
   },
   {
     // A jump shot's arms: the ball up in front of the face, the arm up and out to the hoop, a follow-through; the other hand at the ball's side until it goes.
     id: 'shoot',
     name: 'Shot',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     events: [{ t: 16 / 24, part: 0, kind: 'release', hand: 'R' }],
     build: () => handling('Shot', [
       [0, { rightUpperArm: [-60, 0, -20], rightLowerArm: [-100, 0, 0], leftUpperArm: [-55, 0, 20], leftLowerArm: [-95, 0, 0] }],
@@ -726,7 +728,7 @@ export const HANDLING: Motion[] = [
     // A pass from the chest: both hands at the ball, the arms push out and the right hand lets it go.
     id: 'pass',
     name: 'Pass',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
     build: () => handling('Pass', [
       [0, { rightUpperArm: [-50, 0, -15], rightLowerArm: [-100, 0, 0], leftUpperArm: [-50, 0, 15], leftLowerArm: [-100, 0, 0] }],
@@ -740,7 +742,7 @@ export const HANDLING: Motion[] = [
     // Tossed up from the right hand (a gymnast's hoop, say): down, up and let go; the arm waits up to catch it.
     id: 'toss',
     name: 'Toss',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     events: [{ t: 12 / 24, part: 0, kind: 'release', hand: 'R' }],
     build: () => handling('Toss', [
       [0, { rightUpperArm: [-20, 0, -15], rightLowerArm: [-20, 0, 0] }],
@@ -754,7 +756,7 @@ export const HANDLING: Motion[] = [
     // hand meets it on its way back up and rides it to the top before pushing again.
     id: 'dribble',
     name: 'Dribble',
-    group: 'Sport & gymnastics',
+    group: 'Sport & acrobatics',
     events: [{ t: 0, part: 0, kind: 'release', hand: 'R' }, { t: 7 / 24, part: 0, kind: 'grab', hand: 'R' }],
     build: () => handling('Dribble', [
       [0, { rightUpperArm: [-30, 0, -45], rightLowerArm: [-10, 0, 0] }],

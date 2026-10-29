@@ -2,32 +2,43 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
-import { setSceneLight } from '@/lib/actions';
-import { DEFAULT_LIGHT, clampLight, lampAt, lightDome, lightFrom, lightText } from '@/lib/lighting';
+import { editLight } from '@/lib/actions';
+import { clampLight, lampAt, lightDome, lightFrom, lightName, lightText, lightingOf } from '@/lib/lighting';
 import type { SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
-import type { Scene, Vec3 } from '@/lib/types';
+import type { Light, Scene, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
 import { STEPS, snap, snapping } from './modifiers';
 
 /*
- * The scene's key light on the canvas, in the lit styles: a lamp (drawn as simply as a camera)
- * where the light comes from, aimed at the scene. A click selects the light; selected, it rides a
- * dome over the scene with rays towards its middle, and a drag moves it over the dome (the
- * shadows follow).
+ * The scene's lights on the canvas, in the lit styles: a lamp each (drawn as simply as a camera,
+ * in its colour) where the light comes from, aimed at the scene. A click selects the light;
+ * selected, it rides a dome over the scene with rays towards its middle, and a drag moves it over
+ * the dome (the shadows follow).
  */
 
 const LAMP = '#f5a524';
 const ACCENT = '#3b6cff';
 let drags = 0;
 
-export default function LightHandles({ store, scene, sv, selected, lit }: { store: Store; scene: Scene; sv: SceneView; selected: boolean; lit: boolean }) {
-  const get = useThree((s) => s.get);
-  const glyph = useRef<THREE.Group>(null);
-  const light = scene.light ?? DEFAULT_LIGHT;
+export default function LightHandles({ store, scene, sv, selected, lit }: { store: Store; scene: Scene; sv: SceneView; selected: string | null; lit: boolean }) {
   // (Worked out again as the scene changes.)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const { base, radius } = useMemo(() => lightDome(sv.bounds()), [sv, scene]);
+  const dome = useMemo(() => lightDome(sv.bounds()), [sv, scene]);
+  const lighting = lightingOf(scene);
+  return lighting.lights.map((l) => <Lamp key={l.id} store={store} light={l} name={lightName(lighting, l)} dome={dome} selected={selected === l.id} lit={lit} />);
+}
+
+function Lamp({ store, light, name, dome: { base, radius }, selected, lit }: {
+  store: Store;
+  light: Light;
+  name: string;
+  dome: { base: THREE.Vector3; radius: number };
+  selected: boolean;
+  lit: boolean;
+}) {
+  const get = useThree((s) => s.get);
+  const glyph = useRef<THREE.Group>(null);
   const lamp = lampAt({ base, radius }, light);
 
   // A constant size on screen, however far, the lamp aimed at the middle of the scene.
@@ -41,7 +52,7 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
   const down = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    store.select({ kind: 'light' });
+    store.select({ kind: 'light', light: light.id });
     const { gl, camera, controls } = get() as unknown as { gl: THREE.WebGLRenderer; camera: THREE.Camera; controls: { enabled: boolean } | null };
     if (controls) controls.enabled = false;
     const sphere = new THREE.Sphere(base, radius);
@@ -52,10 +63,10 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
       ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
       // On the dome, or (past its edge) the nearest point of it.
       const hit = ray.ray.intersectSphere(sphere, new THREE.Vector3()) ?? ray.ray.closestPointToPoint(base, new THREE.Vector3());
-      let next = lightFrom(store.scene.light ?? DEFAULT_LIGHT, hit.sub(base));
+      let next = lightFrom(light, hit.sub(base));
       // (Ctrl: 15° steps round, 5° up.)
       if (snapping(ev)) next = clampLight({ ...next, azimuth: snap(next.azimuth, STEPS.turn), elevation: snap(next.elevation, STEPS.height) });
-      setSceneLight(store, next, key);
+      editLight(store, light.id, next, key);
       setReadout(lightText(next));
     };
     // (Let go, or cancelled: a touch taken over by the system.)
@@ -89,14 +100,14 @@ export default function LightHandles({ store, scene, sv, selected, lit }: { stor
       <group
         ref={glyph}
         // (Found by the canvas's pick: a right-click on it opens the light's menu there.)
-        name="light-lamp"
+        name={`light-lamp:${light.id}`}
         position={lamp}
         onPointerDown={down}
         // (The click that follows the press is the lamp's: not a figure's behind it.)
         onClick={(e) => e.stopPropagation()}
-        onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `The light, ${lightText(light).toLowerCase()} · Drag: move it over the dome · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime and Clay: switch to one in the top bar, or from the light\'s menu'); }}
+        onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `${name}, ${lightText(light).toLowerCase()} · Drag: move it over the dome · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime and Clay: switch to one in the top bar, or from the light\'s menu'); }}
         onPointerOut={() => { document.body.style.cursor = ''; setPointerHint(null); }}
-        userData={{ light: true }}
+        userData={{ light: light.id }}
       >
         {/* A lamp, drawn as simply as a camera: a bulb, and its shade opening towards the scene (its +Z). */}
         {/* (Handles: a press on the lamp is not a drag of the body behind it.) */}

@@ -141,6 +141,8 @@ export class Ink {
     opacity: { value: 1 },
     /** World-space direction towards the key light (painterly shaders). */
     lightDir: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
+    /** The key light's colour and brightness (painterly shaders: white, as they are). */
+    lightColor: { value: new THREE.Color(1, 1, 1) },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
   /** The outline of a whole object linked to the pointer elsewhere (its row in the outline): the accent, thicker. */
@@ -186,8 +188,10 @@ export class Ink {
     this.applyThickness();
   }
 
-  setLightDirection(dir: THREE.Vector3) {
+  /** The key light for the painterly styles: the direction towards it, and its colour (LightRig's tint). */
+  setLight(dir: THREE.Vector3, color: THREE.Color) {
     this.uniforms.lightDir.value.copy(dir).normalize();
+    this.uniforms.lightColor.value.copy(color);
   }
 
   /** Outline colour and brush jitter for a style. */
@@ -279,7 +283,7 @@ export class Ink {
           propSel: shader('anime', '#dce7ff', '#a6b9e6'),
         };
       case 'toon': {
-        const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms.lightDir);
+        const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms);
         return {
           body: toon(body('#fdf4ef'), '#dcc0cc'),
           bodySel: toon('#dce7ff', '#a6b9e6'),

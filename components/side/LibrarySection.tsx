@@ -188,7 +188,7 @@ function List({ category, title, items, preview }: { category: LibraryCategory; 
             draggable={!!it.drop}
             onDragStart={it.drop && ((e) => { startDrag(e, it.drop!); })}
             onDragEnd={it.drop && endDrag}
-            {...(it.preview ? preview(it.name, it.note, it.preview, it.ghost) : {})}
+            {...(it.preview ? preview(it.name, it.note, it.preview, it.ghost, it.about) : {})}
           >
             {category.grid ? (
               <>
@@ -237,8 +237,8 @@ export function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: b
 
 /* ---------------- preview on hover ---------------- */
 
-interface Shown { title: string; note?: string; frames: string[]; top: number; left: number }
-type Bind = (title: string, note: string | undefined, job: () => PreviewJob, ghost?: () => Scene | null) => {
+interface Shown { title: string; note?: string; about?: string; frames: string[]; top: number; left: number }
+type Bind = (title: string, note: string | undefined, job: () => PreviewJob, ghost?: () => Scene | null, about?: string) => {
   onPointerEnter(e: PointerEvent<HTMLElement>): void;
   onPointerLeave(): void;
   onFocus(e: FocusEvent<HTMLElement>): void;
@@ -262,15 +262,15 @@ function usePreview() {
     setShown(null);
     setHoverGhost(null);
   };
-  const show = (el: HTMLElement, title: string, note: string | undefined, job: () => PreviewJob, ghost?: () => Scene | null) => {
+  const show = (el: HTMLElement, title: string, note: string | undefined, job: () => PreviewJob, ghost?: () => Scene | null, about?: string) => {
     window.clearTimeout(timer.current);
     stop.current();
     // A short wait, so passing over the list does not start every item on the way.
     timer.current = window.setTimeout(() => {
       const row = el.getBoundingClientRect();
       const panel = el.closest('.side-panel')?.getBoundingClientRect() ?? row;
-      const height = PREVIEW_SIZE.height + 64;
-      setShown({ title, note, frames: [], left: panel.right + 8, top: Math.max(56, Math.min(window.innerHeight - height - 8, row.top - 40)) });
+      const height = PREVIEW_SIZE.height + (about ? 130 : 64);
+      setShown({ title, note, about, frames: [], left: panel.right + 8, top: Math.max(56, Math.min(window.innerHeight - height - 8, row.top - 40)) });
       // Frames arrive one by one: the card shows the first at once and plays as more come.
       stop.current = runPreview(job(), (frames) => setShown((s) => (s && s.title === title ? { ...s, frames } : s)));
       // And on the canvas: the selected figure as it would be.
@@ -282,10 +282,10 @@ function usePreview() {
     stop.current();
     setHoverGhost(null);
   }, []);
-  const bind: Bind = (title, note, job, ghost) => ({
-    onPointerEnter: (e) => { if (e.pointerType === 'mouse') show(e.currentTarget, title, note, job, ghost); },
+  const bind: Bind = (title, note, job, ghost, about) => ({
+    onPointerEnter: (e) => { if (e.pointerType === 'mouse') show(e.currentTarget, title, note, job, ghost, about); },
     onPointerLeave: hide,
-    onFocus: (e) => { if (e.currentTarget.matches(':focus-visible')) show(e.currentTarget, title, note, job, ghost); },
+    onFocus: (e) => { if (e.currentTarget.matches(':focus-visible')) show(e.currentTarget, title, note, job, ghost, about); },
     onBlur: hide,
     // Used: the preview has done its job (and stops rendering).
     onPointerDown: hide,
@@ -314,6 +314,7 @@ function PreviewCard({ shown, background }: { shown: Shown; background: string }
         <div className="lib-preview-wait" style={{ width: PREVIEW_SIZE.width, height: PREVIEW_SIZE.height, background }} />
       )}
       <strong>{shown.title}</strong>
+      {shown.about && <p className="lib-preview-about">{shown.about}</p>}
       {shown.note && <span>{shown.note}</span>}
     </div>
   );

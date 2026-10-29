@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { frameTimes } from './animation';
 import { sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
-import { DEFAULT_LIGHT, LightRig } from './lighting';
+import { LightRig, lightingOf } from './lighting';
 import { LINES_LAYER } from './ink';
 import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
@@ -261,8 +261,8 @@ export class SceneRenderer {
     this.lines.setStyle(style);
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
-    // Each scene is lit by its own light.
-    this.view.ink.setLightDirection(this.lights.update(doc.light ?? DEFAULT_LIGHT, style, this.view.bounds()));
+    // Each scene is lit by its own lights.
+    this.view.ink.setLight(this.lights.update(lightingOf(doc), style, this.view.bounds()), this.lights.tint);
   }
 
   /** Draw the frame: the styled picture, or a depth / normal pass for AI image and video tools. */

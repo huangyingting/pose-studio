@@ -130,8 +130,8 @@ export interface Scene {
   cameras: Camera[];
   /** The coverage its cameras and cuts were made with, and the figures playing its roles (lib/coverage.ts). */
   coverage?: { id: string; roles: Record<string, string>; live?: boolean };
-  /** The scene's key light (lib/lighting.ts DEFAULT_LIGHT without one). */
-  light?: Light;
+  /** The scene's lights and ambient light (lib/lighting.ts DEFAULT_LIGHTING without them). */
+  lighting?: Lighting;
   /** What happens in it (a still scene's caption in the story; an animated one's are its shots'). */
   caption?: string;
   /** Left out of the story (the storyboard and its exports); the scene list's order is the story's. */
@@ -505,6 +505,8 @@ export interface ClipInfo {
 export interface PoseAsset {
   id: string;
   name: string;
+  /** The pose in words, detailed enough to make it again (the built-in ones). */
+  description?: string;
   bones: Bones;
   hands: Figure['hands'];
   /** Camera for its thumbnail. */
@@ -529,8 +531,8 @@ export type Selection =
   | { kind: 'shot'; shot: string }
   /** A camera of the animation (picked in the outline or on the canvas). */
   | { kind: 'camera'; camera: string }
-  /** The scene's key light (picked in the outline, or its lamp on the canvas). */
-  | { kind: 'light' }
+  /** One of the scene's lights (picked in the outline, or its lamp on the canvas). */
+  | { kind: 'light'; light: string }
   /** Several figures and props at once (Shift-click adds one or takes it away): moved, turned, duplicated and deleted together. */
   | { kind: 'many'; figures: string[]; props: string[] }
   /** The scene itself: its light, look and reference image. */
@@ -542,13 +544,34 @@ export type Style = (typeof STYLES)[number];
 /** What a selected prop's gizmo does: move it, or (R) scale it. */
 export type GizmoMode = 'translate' | 'scale';
 
-/** Key light for the shaded style. azimuth 0 = from the front, elevation 90 = from above. */
+/** What a light is for: the main one, softening its shadows, outlining from behind, or another. */
+export const LIGHT_ROLES = ['key', 'fill', 'rim', 'custom'] as const;
+export type LightRole = (typeof LIGHT_ROLES)[number];
+
+/** A light of the scene (the lit styles show it). azimuth 0 = from the front, elevation 90 = from above. */
 export interface Light {
+  id: string;
+  role: LightRole;
   azimuth: number;
   elevation: number;
-  shadows: boolean;
-  /** Brightness of the key light (1: normal). */
+  /** Brightness (1: normal). */
   intensity: number;
-  /** Colour of the light: −1 cool (moonlight) … 0 white … 1 warm (sunset). */
-  warmth: number;
+  /** Its colour (#rrggbb), and the colour temperature it was picked by (K), if it was. */
+  color: string;
+  kelvin?: number;
+  /** Casts shadows (only the key light can). */
+  shadows: boolean;
+}
+
+/** The light from all around: a brightness, the sky's colour above and the ground's below. */
+export interface Ambient {
+  intensity: number;
+  sky: string;
+  ground: string;
+}
+
+/** A scene's lights (one to MAX_LIGHTS) and its ambient light. */
+export interface Lighting {
+  lights: Light[];
+  ambient: Ambient;
 }

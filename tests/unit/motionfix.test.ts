@@ -64,8 +64,8 @@ describe("the Library's motion files", () => {
     const ids = index.map((m) => m.id);
     for (const gone of ['library:walk-right', 'library:strafe-right', 'library:turn-90-right', 'library:shaking-hands-1']) expect(ids).not.toContain(gone);
     const by = (name: string) => index.find((m) => m.name === name)!;
-    for (const name of ['Walk', 'Walk forward', 'Run forward', 'Idle', 'Salsa dancing']) expect(by(name).loop, name).toBe(true);
-    for (const name of ['Turn 90°', 'Walking turn 180', 'Standing dodge left']) expect(by(name).loop, name).toBeUndefined();
+    for (const name of ['Walk', 'Walk, brisk', 'Run', 'Stand, idle', 'Salsa']) expect(by(name).loop, name).toBe(true);
+    for (const name of ['Turn 90°', 'Turn around, walking', 'Dodge']) expect(by(name).loop, name).toBeUndefined();
   });
 
 });

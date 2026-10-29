@@ -7,11 +7,11 @@ import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
-import { addCameraPoint, moveCameraLook, moveCameraPoint, setCameraPoint, setSceneLight, toggleSelected } from '@/lib/actions';
+import { addCameraPoint, editLight, moveCameraLook, moveCameraPoint, setCameraPoint, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
-import { DEFAULT_LIGHT, LightRig, lampAt, lightDome, lightFrom } from '@/lib/lighting';
+import { LightRig, keyLight, lampAt, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
@@ -21,7 +21,7 @@ import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
-import type { Figure, JointName, Light, Scene, Selection, Style, Vec3, View } from '@/lib/types';
+import type { Figure, JointName, Lighting, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
 import type { Contact } from '@/lib/relations';
@@ -58,7 +58,7 @@ export interface ViewportApi {
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
 /** What is under a point of the canvas: a figure (and the point of its body a hand would hold), a prop, a camera (and its path's point), the floor there. */
-export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; light?: boolean };
+export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; light?: string };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -167,7 +167,10 @@ export default function Viewport({
     // Alt-click: light that point from where the view is.
     if (e.nativeEvent.altKey) {
       e.stopPropagation();
-      setSceneLight(store, lightFrom(scene.light ?? DEFAULT_LIGHT, e.camera.position.clone().sub(e.point)), '');
+      // (The light selected, or the key light.)
+      const lighting = lightingOf(scene);
+      const l = (selection?.kind === 'light' && lighting.lights.find((x) => x.id === selection.light)) || keyLight(lighting)!;
+      editLight(store, l.id, lightFrom(l, e.camera.position.clone().sub(e.point)));
       return;
     }
     // (A see-through prop, in front of the figure being edited, lets the click through.)
@@ -409,7 +412,7 @@ export default function Viewport({
         {placing && <PlaceGhost key={placing.hint} placing={placing} apiRef={apiRef} />}
         {!shotMode && <HoverGhost />}
         {handles && (styleDef(look.style).lit || selection?.kind === 'light') && (
-          <LightHandles store={store} scene={scene} sv={sv} selected={selection?.kind === 'light'} lit={styleDef(look.style).lit} />
+          <LightHandles store={store} scene={scene} sv={sv} selected={selection?.kind === 'light' ? selection.light : null} lit={styleDef(look.style).lit} />
         )}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
@@ -425,7 +428,7 @@ export default function Viewport({
           capture={() => captureRef.current?.() ?? null}
           rigRef={rigRef}
           figures={scene.figures}
-          light={scene.light ?? DEFAULT_LIGHT}
+          lighting={lightingOf(scene)}
         />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={look.style} />
       </Canvas>
@@ -602,17 +605,17 @@ function DragReadout() {
   return <div className={`drag-readout${r.axis === undefined ? '' : ` axis-${'xyz'[r.axis]}`}`} role="status" style={{ transform: `translate(${r.x + 16}px, ${r.y + 20}px)` }}>{r.text}</div>;
 }
 
-/** The shared key light + shadow floor, re-aimed when the scene or light changes. */
+/** The scene's lights + shadow floor, re-aimed when the scene or its lighting changes. */
 function Lights({ sv, style, scene }: { sv: SceneView; style: Style; scene: Scene }) {
   const rig = useMemo(() => new LightRig(), []);
   const stale = useRef(true);
   useEffect(() => () => rig.dispose(), [rig]);
-  useEffect(() => { stale.current = true; }, [scene, scene.light, style]);
+  useEffect(() => { stale.current = true; }, [scene, scene.lighting, style]);
   // Aim at render time, after the scene has been synced.
   useFrame(() => {
     if (!stale.current) return;
     stale.current = false;
-    sv.ink.setLightDirection(rig.update(scene.light ?? DEFAULT_LIGHT, style, sv.bounds()));
+    sv.ink.setLight(rig.update(lightingOf(scene), style, sv.bounds()), rig.tint);
   });
   return <primitive object={rig.object} />;
 }
@@ -861,7 +864,7 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
   return null;
 }
 
-function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef, figures: docs, light }: {
+function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, capture, rigRef, figures: docs, lighting }: {
   sv: SceneView;
   apiRef: Props['apiRef'];
   frameRequest: FrameRequest;
@@ -873,11 +876,13 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   rigRef: RefObject<THREE.Group | null>;
   /** The figures as drawn (for the points of their bodies to hold on to). */
   figures: Figure[];
-  /** The scene's light (its lamp, to label and frame). */
-  light: Light;
+  /** The scene's lights (their lamps, to label and frame). */
+  lighting: Lighting;
 }) {
-  const lightRef = useRef(light);
-  useEffect(() => { lightRef.current = light; }, [light]);
+  const lightingRef = useRef(lighting);
+  useEffect(() => { lightingRef.current = lighting; }, [lighting]);
+  /** Where a light's lamp is (null: no such light). */
+  const lampOf = useCallback((id: string) => { const l = lightingRef.current.lights.find((x) => x.id === id); return l ? lampAt(lightDome(sv.bounds()), l) : null; }, [sv]);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const figures = useRef(docs);
   useEffect(() => { figures.current = docs; }, [docs]);
@@ -911,8 +916,8 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       labelPoint: (sel) => {
         if (sel.kind === 'light') {
           // (Behind the view: not on screen.)
-          const lamp = lampAt(lightDome(sv.bounds()), lightRef.current);
-          return lamp.clone().project(camera).z > 1 ? null : toScreen(lamp);
+          const lamp = lampOf(sel.light);
+          return !lamp || lamp.clone().project(camera).z > 1 ? null : toScreen(lamp);
         }
         if (sel.kind === 'figure' || sel.kind === 'joint') {
           // (A joint's too: clear of its gizmo.)
@@ -952,7 +957,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           const size = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
           return across(o.position.clone().setY(0), Math.max(size.x, size.z) / 2 + 0.08);
         }
-        if (sel.kind === 'light') return across(lampAt(lightDome(sv.bounds()), lightRef.current), 0);
+        if (sel.kind === 'light') { const lamp = lampOf(sel.light); return lamp && across(lamp, 0); }
         const point = apiRef.current?.labelPoint(sel);
         return point ? { ...point, r: 0 } : null;
       },
@@ -960,9 +965,11 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const r = gl.domElement.getBoundingClientRect();
         const ray = new THREE.Raycaster();
         ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), camera);
-        // (The light's lamp under it too: said as well, not instead, for the right-click menu.)
-        const lamp = r3fScene.getObjectByName('light-lamp');
-        const hit: CanvasHit = lamp?.visible && ray.intersectObject(lamp, true).length ? { light: true } : {};
+        // (A light's lamp under it too: said as well, not instead, for the right-click menu.)
+        const lamps: THREE.Object3D[] = [];
+        r3fScene.traverse((o) => { if (o.visible && o.name.startsWith('light-lamp:')) lamps.push(o); });
+        const lamp = lamps.find((o) => ray.intersectObject(o, true).length);
+        const hit: CanvasHit = lamp ? { light: lamp.name.slice('light-lamp:'.length) } : {};
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (floor) hit.floor = [floor.x, 0, floor.z];
         // A camera (or one of its points) in front of everything: it is drawn over the scene.
@@ -989,17 +996,18 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         return hit;
       },
     };
-  }, [apiRef, camera, controls, sv, gl, rigRef, r3fScene]);
+  }, [apiRef, camera, controls, sv, gl, rigRef, r3fScene, lampOf]);
 
   const frame = (view: FrameRequest['view'], only?: string | string[]) => {
     if (!controls) return 0;
     // Wait a frame so the scene has been synced.
     return requestAnimationFrame(() => {
-      const ids = typeof only === 'string' ? (only === 'light' ? [] : [only]) : only ?? [];
+      const light = typeof only === 'string' && only.startsWith('light:') ? only.slice('light:'.length) : null;
+      const ids = typeof only === 'string' ? (light ? [] : [only]) : only ?? [];
       const things = ids.flatMap((id) => { const t = sv.figures.get(id) ?? sv.props.get(id); return t ? [t] : []; });
       const one = things.length ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => things.forEach((t) => t.forEachPoint(cb)) } : undefined;
-      // (The light: the scene and its lamp.)
-      const lamp = only === 'light' ? lampAt(lightDome(sv.bounds()), lightRef.current) : null;
+      // (A light: the scene and its lamp.)
+      const lamp = light ? lampOf(light) : null;
       const source = one ? one : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
       controls.target.copy(fitCamera(camera, source, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2));
       camera.near = 0.01; // fitCamera tightens these for export; keep room for zooming

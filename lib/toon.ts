@@ -88,6 +88,7 @@ const VERT = /* glsl */ `
 
 const FRAG = /* glsl */ `
   uniform vec3 lightDir;
+  uniform vec3 lightColor;
   uniform vec3 color;
   uniform float opacity;
   uniform sampler2D map;
@@ -129,13 +130,13 @@ const FRAG = /* glsl */ `
     col += rim * pow(clamp(1.0 - max(dot(n, v), 0.0) + rimLift, 0.0, 1.0), max(rimPower, 1e-3));
     vec3 glow = emissive;
     if (useEmissiveMap) glow *= texture2D(emissiveMap, placed(emissiveMapTransform)).rgb;
-    gl_FragColor = vec4(col + glow, alphaMode == 2 ? base.a : 1.0);
+    gl_FragColor = vec4(col * lightColor + glow, alphaMode == 2 ? base.a : 1.0);
     #include <colorspace_fragment>
   }
 `;
 
-/** The material for a look, lit by the key light (`lightDir`: towards it, shared). */
-export function toonMaterial(look: ToonLook, lightDir: { value: THREE.Vector3 }): THREE.ShaderMaterial {
+/** The material for a look, lit by the key light (`lightDir`: towards it, and `lightColor`; shared). */
+export function toonMaterial(look: ToonLook, { lightDir, lightColor }: { lightDir: { value: THREE.Vector3 }; lightColor: { value: THREE.Color } }): THREE.ShaderMaterial {
   const placing = (t: THREE.Texture | null) => {
     t?.updateMatrix();
     return { value: t ? t.matrix : new THREE.Matrix3() };
@@ -143,6 +144,7 @@ export function toonMaterial(look: ToonLook, lightDir: { value: THREE.Vector3 })
   return new THREE.ShaderMaterial({
     uniforms: {
       lightDir,
+      lightColor,
       color: { value: look.color },
       opacity: { value: look.opacity },
       map: { value: look.map },

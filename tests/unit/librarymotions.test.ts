@@ -46,7 +46,7 @@ describe("the Library's motion files (public/motions)", () => {
     });
     const { fetchLibraryClip, libraryMotions, onLibraryMotions } = await import('@/lib/librarymotions');
     await new Promise<void>((done) => { const off = onLibraryMotions(() => { off(); done(); }); libraryMotions(); });
-    expect(libraryMotions().map((m) => m.name)).toContain('Waving');
+    expect(libraryMotions().map((m) => m.name)).toContain('Wave, both arms');
 
     const store = new Store(new MemoryStorage());
     const id = store.figure!.id;

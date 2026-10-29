@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound } from 'lucide-react';
 import {
-  addCamera, addFigure, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
+  addCamera, addFigure, addLight, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
-import { DEFAULT_LIGHT, lightName, lightText } from '@/lib/lighting';
+import { MAX_LIGHTS, lightName, lightText, lightingOf } from '@/lib/lighting';
 import { shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
@@ -34,6 +34,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
   const time = useStudio((s) => s.time);
   const a = scene.animation;
   const spans = a ? shotSpans(a) : [];
+  const lighting = lightingOf(scene);
   const renaming = useRenaming();
   // Resting on a row outlines its figure, prop or camera on the canvas (and the canvas marks the row).
   const linked = useStudio((s) => s.linked);
@@ -195,24 +196,40 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
 
         <div className="outline-group">
           <div className="outline-head">
-            <h3>Light</h3>
+            <h3>Lights <span className="count">{lighting.lights.length}</span></h3>
+            <IconButton
+              icon={Plus}
+              label={lighting.lights.length < MAX_LIGHTS ? 'Add a light' : `Add a light (${MAX_LIGHTS} at most)`}
+              disabled={lighting.lights.length >= MAX_LIGHTS}
+              onClick={() => { addLight(store); }}
+              size={15}
+            />
           </div>
-          <ul className="layers" aria-label="Light">
-            <li className={selection?.kind === 'light' ? 'on' : undefined}>
-              <button
-                type="button"
-                className="layer-main"
-                data-tip={`The scene's key light: ${lightText(scene.light ?? DEFAULT_LIGHT)}\nRight-click for more`}
-                data-tip-side="right"
-                // (Its lamp brought into view if it is out of it.)
-                onClick={() => { store.select({ kind: 'light' }); App().frameSelection?.(); }}
-                onContextMenu={(e) => { store.select({ kind: 'light' }); openContextMenu(e, menu('light', { store, light: true }), 'Light'); }}
-              >
-                <SunMedium size={15} strokeWidth={1.75} aria-hidden />
-                <span className="layer-name">Light</span>
-                <em>{lightName(scene.light ?? DEFAULT_LIGHT)}</em>
-              </button>
-            </li>
+          <ul className="layers" aria-label="Lights">
+            {lighting.lights.map((l) => {
+              const name = lightName(lighting, l);
+              const c = { store, light: l.id };
+              return (
+                <li key={l.id} className={selection?.kind === 'light' && selection.light === l.id ? 'on' : undefined}>
+                  <button
+                    type="button"
+                    className="layer-main"
+                    data-tip={`${lightText(l)}, ${Math.round(l.intensity * 100)}%\nRight-click for more`}
+                    data-tip-side="right"
+                    // (Its lamp brought into view if it is out of it.)
+                    onClick={() => { store.select({ kind: 'light', light: l.id }); App().frameSelection?.(); }}
+                    onContextMenu={(e) => { store.select({ kind: 'light', light: l.id }); openContextMenu(e, menu('light', c), name); }}
+                  >
+                    <SunMedium size={15} strokeWidth={1.75} aria-hidden />
+                    <span className="layer-name">{name}</span>
+                    <i className="light-dot" style={{ background: l.color }} aria-hidden />
+                  </button>
+                  <span className="layer-actions">
+                    <More name={name} kind="light" c={c} />
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -259,7 +276,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
 }
 
 /** A row's menu (the same as right-clicking it), on a ⋯ shown while the pointer is over the row. */
-function More({ name, kind, c }: { name: string; kind: 'figure' | 'prop' | 'camera' | 'shot'; c: Ctx }) {
+function More({ name, kind, c }: { name: string; kind: 'figure' | 'prop' | 'camera' | 'shot' | 'light'; c: Ctx }) {
   return (
     <Menu label={`More for ${name}`} className="ibtn" align="end" tip="More (or right-click the row)" items={() => menu(kind, c)}>
       <Ellipsis size={14} aria-hidden />

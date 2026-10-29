@@ -11,6 +11,7 @@ import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
 import { saveClips, saveImage } from './assetstore';
 import { projectSettingsOf } from './project';
+import { LIGHTING_PRESETS, MAX_LIGHTS, clampLight, fromPreset, keyLight, lightingOf, newLight } from './lighting';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -32,7 +33,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -96,9 +97,54 @@ export function renameScene(store: Store, name: string) {
   store.updateScene((s) => ({ ...s, name }), 'rename');
 }
 
-/** Light the open scene. */
-export function setSceneLight(store: Store, light: Light, key = '') {
-  store.updateScene((s) => ({ ...s, light }), key);
+/** Light the open scene: all its lights at once (a scheme). The light selected, gone, gives way to the key light. */
+export function setLighting(store: Store, lighting: Lighting, key = '') {
+  store.updateScene((s) => ({ ...s, lighting }), key);
+  const sel = store.getState().selection;
+  if (sel?.kind === 'light' && !lighting.lights.some((l) => l.id === sel.light)) store.select({ kind: 'light', light: keyLight(lighting)!.id });
+}
+
+/** Light the open scene with a lighting scheme (lib/lighting.ts LIGHTING_PRESETS). */
+export function applyLightingPreset(store: Store, id: string) {
+  const p = LIGHTING_PRESETS.find((x) => x.id === id);
+  if (p) setLighting(store, fromPreset(p.lighting));
+}
+
+/** Change one of the scene's lights. */
+export function editLight(store: Store, id: string, patch: Partial<Omit<Light, 'id'>>, key = '') {
+  const l = lightingOf(store.scene);
+  setLighting(store, { ...l, lights: l.lights.map((x) => (x.id === id ? clampLight({ ...x, ...patch }) : x)) }, key);
+}
+
+/** Change the scene's ambient light. */
+export function editAmbient(store: Store, patch: Partial<Ambient>, key = '') {
+  const l = lightingOf(store.scene);
+  setLighting(store, { ...l, ambient: { ...l.ambient, ...patch } }, key);
+}
+
+/**
+ * Add a light to the scene (up to MAX_LIGHTS), selected: the role not taken yet (a fill, then a
+ * rim), from the side it lights from. Its id, or null (as many as there can be).
+ */
+export function addLight(store: Store): string | null {
+  const l = lightingOf(store.scene);
+  if (l.lights.length >= MAX_LIGHTS) return null;
+  const taken = new Set(l.lights.map((x) => x.role));
+  const role = (['key', 'fill', 'rim'] as const).find((r) => !taken.has(r)) ?? 'custom';
+  const key = keyLight(l);
+  const from = { key: { azimuth: 40, elevation: 45 }, fill: { azimuth: -(key?.azimuth ?? 40) * 1.3, elevation: 20, intensity: 0.4 }, rim: { azimuth: 160, elevation: 40, intensity: 0.9 }, custom: { azimuth: -120, elevation: 35, intensity: 0.6 } }[role];
+  const light = clampLight(newLight(role, from));
+  setLighting(store, { ...l, lights: [...l.lights, light] });
+  store.select({ kind: 'light', light: light.id });
+  return light.id;
+}
+
+/** Take a light out of the scene (not its last one). Whether it was. */
+export function deleteLight(store: Store, id: string) {
+  const l = lightingOf(store.scene);
+  if (l.lights.length < 2 || !l.lights.some((x) => x.id === id)) return false;
+  setLighting(store, { ...l, lights: l.lights.filter((x) => x.id !== id) });
+  return true;
 }
 
 /** An image as PNG, JPEG or WebP (what is kept and synced): others (GIF, BMP…) are drawn into a PNG. */

@@ -376,7 +376,7 @@ export class ModelRig {
   private own(i: number): THREE.ShaderMaterial | undefined {
     const look = this.looks[i];
     if (this.style !== 'toon' || !look || this.ink.ghost) return undefined;
-    return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms.lightDir));
+    return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms));
   }
 
   /** Outline it in the accent (linked to the pointer elsewhere), whatever the style. */

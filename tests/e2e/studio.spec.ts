@@ -1604,8 +1604,8 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   await expect(page.locator('.drag-readout')).toHaveText(/^Left forearm · Bend −?\d+°$/);
   // The light: ← moves it round 15°.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Light' }).getByRole('button').click();
-  const az = async () => (await live(page)).scene.light?.azimuth ?? 40;
+  await page.getByRole('list', { name: 'Lights' }).getByRole('button', { name: 'Key light', exact: true }).click();
+  const az = async () => (await live(page)).scene.lighting?.lights[0].azimuth ?? 40;
   const a0 = await az();
   await page.keyboard.press('ArrowLeft');
   expect(await az()).toBeCloseTo(a0 + 15, 0);
@@ -1873,24 +1873,32 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   expect(s.scene.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.name).toBe('Master');
 
-  // The light, selected in the outline: in Line art it says where it shows, and switches to Clay.
+  // The key light, selected in the outline: in Line art it says where it shows, and switches to Clay.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Light' }).getByRole('button').click();
+  const lights = page.getByRole('list', { name: 'Lights' });
+  await lights.getByRole('button', { name: 'Key light', exact: true }).click();
   await page.getByRole('button', { name: 'Switch to Clay' }).click();
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Clay');
-  // Dusk light, kept with the scene; then lit from the left, from the view (its menu).
-  await page.getByRole('group', { name: 'Lighting presets' }).getByRole('button', { name: 'Dusk' }).click();
+  // The Dusk scheme, kept with the scene: a low warm key light and a cool fill.
+  await page.getByRole('group', { name: 'Lighting schemes' }).getByRole('button', { name: 'Dusk' }).click();
   s = await live(page);
-  expect(s.scene.light?.warmth).toBeGreaterThan(0.5);
+  expect(s.scene.lighting!.lights.map((l) => l.role)).toEqual(['key', 'fill']);
+  expect(s.scene.lighting!.lights[0].kelvin).toBeLessThan(3000);
+  await expect(lights.getByRole('button', { name: 'Fill light', exact: true })).toBeVisible();
+  // The key light lit from the left, from the view (its menu).
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('3');
   await page.waitForTimeout(400);
-  await page.getByRole('list', { name: 'Light' }).getByRole('button').click({ button: 'right' });
+  await lights.getByRole('button', { name: 'Key light', exact: true }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Light from this view' }).click();
   s = await live(page);
-  expect(Math.abs(s.scene.light!.azimuth - 90)).toBeLessThan(5);
-  await expect(page.getByRole('list', { name: 'Light' })).toContainText('From the left');
-  // Alt-click a figure from the front: lit from the front.
+  expect(Math.abs(s.scene.lighting!.lights[0].azimuth - 90)).toBeLessThan(5);
+  await expect(page.getByText(/^From the left, /)).toBeVisible();
+  // A rim light added (selected), a neon colour: Alt-click a figure from the front lights it from the front.
+  await page.getByRole('button', { name: 'Add a light' }).click();
+  await page.getByRole('radiogroup', { name: 'Light colour' }).getByRole('radio', { name: 'Neon blue' }).click();
+  s = await live(page);
+  expect(s.scene.lighting!.lights[2]).toMatchObject({ role: 'rim', color: '#3d7bff', shadows: false });
   await page.keyboard.press('1');
   await page.waitForTimeout(400);
   const chest = await project(page, 'chest');
@@ -1898,7 +1906,8 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.mouse.click(chest.x, chest.y);
   await page.keyboard.up('Alt');
   s = await live(page);
-  expect(Math.abs(s.scene.light!.azimuth)).toBeLessThan(15);
+  expect(Math.abs(s.scene.lighting!.lights[2].azimuth)).toBeLessThan(15);
+  expect(Math.abs(s.scene.lighting!.lights[0].azimuth - 90)).toBeLessThan(5);
 });
 
 test('a motion file is imported into My motions and given to the figure', async ({ page }) => {

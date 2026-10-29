@@ -1,77 +1,61 @@
 [
  {
   "id": "library:aim-pistol",
-  "name": "Aim pistol",
+  "name": "Aim a pistol",
   "duration": 5.433,
   "people": 1,
-  "group": "Fighting"
+  "group": "Weapons"
  },
  {
   "id": "library:angry",
   "name": "Angry",
   "duration": 19.167,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
-  "id": "library:ascending-stairs",
-  "name": "Ascending stairs",
-  "duration": 1.367,
+  "id": "library:standing-arguing",
+  "name": "Argue",
+  "duration": 20.8,
   "people": 1,
-  "group": "Getting around"
+  "group": "Talking & gestures",
+  "loop": true
  },
  {
   "id": "library:backflip",
   "name": "Backflip",
   "duration": 4.1,
   "people": 1,
-  "group": "Sport & gymnastics"
- },
- {
-  "id": "library:baseball-hit",
-  "name": "Baseball hit",
-  "duration": 2.9,
-  "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Sport & acrobatics"
  },
  {
   "id": "library:baseball-pitching",
-  "name": "Baseball pitching",
+  "name": "Baseball pitch",
   "duration": 3.933,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Sport & acrobatics"
  },
  {
-  "id": "library:blocking",
-  "name": "Blocking",
-  "duration": 1.333,
+  "id": "library:baseball-hit",
+  "name": "Baseball swing",
+  "duration": 2.9,
   "people": 1,
-  "group": "Fighting",
-  "loop": true
+  "group": "Sport & acrobatics"
+ },
+ {
+  "id": "library:standing-block",
+  "name": "Block",
+  "duration": 2,
+  "people": 1,
+  "group": "Fighting"
  },
  {
   "id": "library:bored",
   "name": "Bored",
   "duration": 10.667,
   "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:breathing-idle",
-  "name": "Breathing idle",
-  "duration": 9.933,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:button-pushing",
-  "name": "Button pushing",
-  "duration": 3.233,
-  "people": 1,
-  "group": "Everyday",
+  "group": "Standing & waiting",
   "loop": true
  },
  {
@@ -79,181 +63,204 @@
   "name": "Capoeira",
   "duration": 4.8,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Fighting"
  },
  {
-  "id": "library:carrying",
-  "name": "Carrying",
-  "duration": 10,
+  "id": "library:football-catch",
+  "name": "Catch a football",
+  "duration": 4.167,
   "people": 1,
-  "group": "Everyday",
+  "group": "Sport & acrobatics"
+ },
+ {
+  "id": "library:victory",
+  "name": "Cheer, victory",
+  "duration": 6.1,
+  "people": 1,
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:clapping",
-  "name": "Clapping",
+  "name": "Clap",
   "duration": 1.167,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
   "id": "library:climbing-ladder",
-  "name": "Climbing ladder",
+  "name": "Climb a ladder",
   "duration": 0.767,
   "people": 1,
-  "group": "Getting around"
+  "group": "Moving"
  },
  {
   "id": "library:crouch-idle",
-  "name": "Crouch idle",
+  "name": "Crouch",
   "duration": 1.667,
   "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:crouch-walk-forward",
-  "name": "Crouch walk forward",
-  "duration": 1.133,
-  "people": 1,
-  "group": "Getting around",
+  "group": "Sitting & lying",
   "loop": true
  },
  {
   "id": "library:crying",
-  "name": "Crying",
+  "name": "Cry",
   "duration": 6.267,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:dancing",
-  "name": "Dancing",
+  "name": "Dance",
   "duration": 12.367,
   "people": 1,
   "group": "Dance"
  },
  {
-  "id": "library:death-from-the-front",
-  "name": "Death from the front",
-  "duration": 3.433,
-  "people": 1,
-  "group": "Fighting"
- },
- {
   "id": "library:defeat-idle",
-  "name": "Defeat idle",
+  "name": "Defeated",
   "duration": 1.633,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
- },
- {
-  "id": "library:descending-stairs",
-  "name": "Descending stairs",
-  "duration": 0.4,
-  "people": 1,
-  "group": "Getting around"
  },
  {
   "id": "library:disappointed",
   "name": "Disappointed",
   "duration": 4.2,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
-  "id": "library:dismissing-gesture",
-  "name": "Dismissing gesture",
-  "duration": 3.267,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:drinking",
-  "name": "Drinking",
-  "duration": 8.867,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:falling-back-death",
-  "name": "Falling back death",
-  "duration": 2.6,
+  "id": "library:standing-dodge-left",
+  "name": "Dodge",
+  "duration": 0.967,
   "people": 1,
   "group": "Fighting"
  },
  {
+  "id": "library:drinking",
+  "name": "Drink",
+  "duration": 8.867,
+  "people": 1,
+  "group": "Using things",
+  "loop": true
+ },
+ {
+  "id": "library:sitting-drinking",
+  "name": "Drink, sitting",
+  "duration": 15.2,
+  "people": 1,
+  "group": "Using things"
+ },
+ {
   "id": "library:fight-idle",
-  "name": "Fight idle",
+  "name": "Fighting stance",
   "duration": 7.467,
   "people": 1,
   "group": "Fighting",
   "loop": true
  },
  {
-  "id": "library:football-catch",
-  "name": "Football catch",
-  "duration": 4.167,
+  "id": "library:shooting",
+  "name": "Fire a pistol",
+  "duration": 1.167,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Weapons",
+  "loop": true
  },
  {
   "id": "library:front-flip",
   "name": "Front flip",
   "duration": 1.667,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Sport & acrobatics"
  },
  {
-  "id": "library:get-up-from-one-knee",
+  "id": "library:sit-to-stand",
+  "name": "Get up from a chair",
+  "duration": 2.267,
+  "people": 1,
+  "group": "Sitting & lying"
+ },
+ {
+  "id": "library:crouch-to-stand",
   "name": "Get up from one knee",
   "duration": 2.933,
   "people": 1,
-  "group": "Everyday"
+  "group": "Sitting & lying"
  },
  {
   "id": "library:golf-drive",
   "name": "Golf drive",
   "duration": 5.3,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Sport & acrobatics"
  },
  {
-  "id": "library:happy-idle",
-  "name": "Happy idle",
-  "duration": 2.933,
+  "id": "library:blocking",
+  "name": "Guard up",
+  "duration": 1.333,
   "people": 1,
-  "group": "Everyday",
+  "group": "Fighting",
   "loop": true
  },
  {
-  "id": "library:happy-walk",
-  "name": "Happy walk",
-  "duration": 1.1,
+  "id": "library:happy-idle",
+  "name": "Happy",
+  "duration": 2.933,
   "people": 1,
-  "group": "Getting around",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:hip-hop-dancing",
-  "name": "Hip hop dancing",
+  "name": "Hip hop",
   "duration": 11.967,
   "people": 1,
   "group": "Dance",
   "loop": true
  },
  {
+  "id": "library:punching-bag",
+  "name": "Hit a punching bag",
+  "duration": 3.233,
+  "people": 1,
+  "group": "Fighting",
+  "loop": true,
+  "impact": 1.83
+ },
+ {
+  "id": "library:falling-back-death",
+  "name": "Hit, fall back",
+  "duration": 2.6,
+  "people": 1,
+  "group": "Fighting"
+ },
+ {
+  "id": "library:death-from-the-front",
+  "name": "Hit, fall forward",
+  "duration": 3.433,
+  "people": 1,
+  "group": "Fighting"
+ },
+ {
   "id": "library:hit-reaction",
-  "name": "Hit reaction",
+  "name": "Hit, recoil",
   "duration": 2.3,
   "people": 1,
   "group": "Fighting",
+  "loop": true
+ },
+ {
+  "id": "library:carrying",
+  "name": "Hold a box",
+  "duration": 10,
+  "people": 1,
+  "group": "Using things",
   "loop": true
  },
  {
@@ -266,14 +273,6 @@
   "impact": 1.01
  },
  {
-  "id": "library:idle",
-  "name": "Idle",
-  "duration": 3.267,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
   "id": "library:jab-cross",
   "name": "Jab, cross",
   "duration": 2.133,
@@ -284,17 +283,17 @@
  },
  {
   "id": "library:jazz-dancing",
-  "name": "Jazz dancing",
+  "name": "Jazz",
   "duration": 2.267,
   "people": 1,
   "group": "Dance"
  },
  {
   "id": "library:jog-forward",
-  "name": "Jog forward",
+  "name": "Jog",
   "duration": 0.833,
   "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
@@ -302,7 +301,15 @@
   "name": "Jump",
   "duration": 1.667,
   "people": 1,
-  "group": "Sport & gymnastics",
+  "group": "Sport & acrobatics",
+  "loop": true
+ },
+ {
+  "id": "library:standing-jump",
+  "name": "Jump on the spot",
+  "duration": 2.367,
+  "people": 1,
+  "group": "Sport & acrobatics",
   "loop": true
  },
  {
@@ -310,61 +317,68 @@
   "name": "Jump over",
   "duration": 2.267,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Sport & acrobatics"
  },
  {
   "id": "library:jumping-jacks",
   "name": "Jumping jacks",
   "duration": 1.067,
   "people": 1,
-  "group": "Sport & gymnastics",
-  "loop": true
- },
- {
-  "id": "library:jumping-rope",
-  "name": "Jumping rope",
-  "duration": 2.567,
-  "people": 1,
-  "group": "Sport & gymnastics",
+  "group": "Sport & acrobatics",
   "loop": true
  },
  {
   "id": "library:kneeling-idle",
-  "name": "Kneeling idle",
+  "name": "Kneel",
   "duration": 4.267,
   "people": 1,
-  "group": "Everyday",
+  "group": "Sitting & lying",
   "loop": true
  },
  {
   "id": "library:landing",
-  "name": "Landing",
+  "name": "Land from a jump",
   "duration": 2.1,
   "people": 1,
-  "group": "Sport & gymnastics"
+  "group": "Sport & acrobatics"
  },
  {
   "id": "library:laughing",
-  "name": "Laughing",
+  "name": "Laugh",
   "duration": 9.767,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:leaning-on-a-wall",
-  "name": "Leaning on a wall",
+  "name": "Lean on a wall",
   "duration": 1.933,
   "people": 1,
-  "group": "Everyday",
+  "group": "Standing & waiting",
+  "loop": true
+ },
+ {
+  "id": "library:lying-down",
+  "name": "Lie down",
+  "duration": 5.733,
+  "people": 1,
+  "group": "Sitting & lying"
+ },
+ {
+  "id": "library:laying-idle",
+  "name": "Lie, idle",
+  "duration": 12.5,
+  "people": 1,
+  "group": "Sitting & lying",
   "loop": true
  },
  {
   "id": "library:lifting-object",
-  "name": "Lifting object",
+  "name": "Lift a heavy box",
   "duration": 11.5,
   "people": 1,
-  "group": "Everyday",
+  "group": "Using things",
   "loop": true
  },
  {
@@ -372,79 +386,80 @@
   "name": "Look around",
   "duration": 6.333,
   "people": 1,
-  "group": "Everyday",
+  "group": "Standing & waiting",
   "loop": true
  },
  {
-  "id": "library:lying-down",
-  "name": "Lying down",
-  "duration": 5.733,
-  "people": 1,
-  "group": "Everyday"
- },
- {
-  "id": "library:lying-idle",
-  "name": "Lying idle",
-  "duration": 12.5,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:nod-yes",
+  "id": "library:head-nod-yes",
   "name": "Nod yes",
   "duration": 2.6,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
   "id": "library:opening-door-inwards",
-  "name": "Opening door inwards",
+  "name": "Open a door",
   "duration": 6.367,
   "people": 1,
-  "group": "Everyday"
+  "group": "Using things"
+ },
+ {
+  "id": "library:soccer-penalty-kick",
+  "name": "Penalty kick",
+  "duration": 1.5,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "impact": 0.85
  },
  {
   "id": "library:pick-up-item",
-  "name": "Pick up item",
+  "name": "Pick something up",
   "duration": 1.2,
   "people": 1,
-  "group": "Everyday"
+  "group": "Using things"
  },
  {
   "id": "library:pointing",
-  "name": "Pointing",
+  "name": "Point at someone",
   "duration": 3.433,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
   "id": "library:praying",
-  "name": "Praying",
+  "name": "Pray",
   "duration": 3.233,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
+  "loop": true
+ },
+ {
+  "id": "library:button-pushing",
+  "name": "Press a button",
+  "duration": 3.233,
+  "people": 1,
+  "group": "Using things",
+  "loop": true
+ },
+ {
+  "id": "library:pulling-lever",
+  "name": "Pull a lever",
+  "duration": 6.267,
+  "people": 1,
+  "group": "Using things",
   "loop": true
  },
  {
   "id": "library:pull-heavy-object",
-  "name": "Pull heavy object",
+  "name": "Pull something heavy",
   "duration": 1.1,
   "people": 1,
-  "group": "Everyday"
+  "group": "Using things"
  },
  {
-  "id": "library:pulling-lever",
-  "name": "Pulling lever",
-  "duration": 6.267,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:punched-in-the-face",
+  "id": "library:receive-punch-to-the-face",
   "name": "Punched in the face",
   "duration": 1.3,
   "people": 1,
@@ -453,20 +468,11 @@
   "impact": 0.67
  },
  {
-  "id": "library:punching-bag",
-  "name": "Punching bag",
-  "duration": 3.233,
-  "people": 1,
-  "group": "Fighting",
-  "loop": true,
-  "impact": 1.83
- },
- {
   "id": "library:push",
-  "name": "Push",
+  "name": "Push something heavy",
   "duration": 8,
   "people": 1,
-  "group": "Everyday"
+  "group": "Using things"
  },
  {
   "id": "library:roundhouse-kick",
@@ -479,10 +485,18 @@
  },
  {
   "id": "library:rumba-dancing",
-  "name": "Rumba dancing",
+  "name": "Rumba",
   "duration": 2.367,
   "people": 1,
   "group": "Dance",
+  "loop": true
+ },
+ {
+  "id": "library:run-forward",
+  "name": "Run",
+  "duration": 0.9,
+  "people": 1,
+  "group": "Moving",
   "loop": true
  },
  {
@@ -490,28 +504,20 @@
   "name": "Run backward",
   "duration": 0.633,
   "people": 1,
-  "group": "Getting around",
-  "loop": true
- },
- {
-  "id": "library:run-forward",
-  "name": "Run forward",
-  "duration": 0.9,
-  "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
   "id": "library:sad-idle",
-  "name": "Sad idle",
+  "name": "Sad",
   "duration": 2.8,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:salsa-dancing",
-  "name": "Salsa dancing",
+  "name": "Salsa",
   "duration": 11.967,
   "people": 1,
   "group": "Dance",
@@ -522,7 +528,7 @@
   "name": "Salute",
   "duration": 2.833,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
@@ -530,159 +536,116 @@
   "name": "Scared",
   "duration": 10.067,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:shake-fist",
-  "name": "Shake fist",
+  "name": "Shake a fist",
   "duration": 2.433,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
-  "id": "library:shake-head-no",
+  "id": "library:shaking-head-no",
   "name": "Shake head no",
   "duration": 1.8,
   "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:shooting",
-  "name": "Shooting",
-  "duration": 1.167,
-  "people": 1,
-  "group": "Fighting",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
   "id": "library:shrugging",
-  "name": "Shrugging",
+  "name": "Shrug",
   "duration": 2,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
-  "id": "library:sit-to-stand",
-  "name": "Sit to stand",
-  "duration": 2.267,
+  "id": "library:stand-to-sit",
+  "name": "Sit down on a chair",
+  "duration": 2.233,
   "people": 1,
-  "group": "Everyday"
+  "group": "Sitting & lying"
  },
  {
   "id": "library:sit-to-type",
-  "name": "Sit to type",
+  "name": "Sit down to type",
   "duration": 1.2,
   "people": 1,
-  "group": "Everyday"
- },
- {
-  "id": "library:sitting-drinking",
-  "name": "Sitting drinking",
-  "duration": 15.2,
-  "people": 1,
-  "group": "Everyday"
+  "group": "Sitting & lying"
  },
  {
   "id": "library:sitting-idle",
-  "name": "Sitting idle",
+  "name": "Sit, idle",
   "duration": 6.4,
   "people": 1,
-  "group": "Everyday",
+  "group": "Sitting & lying",
   "loop": true
  },
  {
-  "id": "library:sitting-talking",
-  "name": "Sitting talking",
-  "duration": 30,
+  "id": "library:jumping-rope",
+  "name": "Skip rope",
+  "duration": 2.567,
   "people": 1,
-  "group": "Everyday"
+  "group": "Sport & acrobatics",
+  "loop": true
  },
  {
-  "id": "library:soccer-penalty-kick",
-  "name": "Soccer penalty kick",
-  "duration": 1.5,
+  "id": "library:crouch-walk-forward",
+  "name": "Sneak, crouched",
+  "duration": 1.133,
   "people": 1,
-  "group": "Sport & gymnastics",
-  "impact": 0.85
+  "group": "Moving",
+  "loop": true
  },
  {
   "id": "library:sprint",
   "name": "Sprint",
   "duration": 0.533,
   "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
-  "id": "library:stand-to-sit",
-  "name": "Stand to sit",
-  "duration": 2.233,
-  "people": 1,
-  "group": "Everyday"
- },
- {
-  "id": "library:stand-up-slow",
+  "id": "library:stand-up",
   "name": "Stand up, slow",
   "duration": 4.833,
   "people": 1,
-  "group": "Everyday"
+  "group": "Sitting & lying"
  },
  {
-  "id": "library:standing-arguing",
-  "name": "Standing arguing",
-  "duration": 20.8,
+  "id": "library:breathing-idle",
+  "name": "Stand, breathing",
+  "duration": 9.933,
   "people": 1,
-  "group": "Everyday",
+  "group": "Standing & waiting",
   "loop": true
  },
  {
-  "id": "library:standing-block",
-  "name": "Standing block",
-  "duration": 2,
+  "id": "library:idle",
+  "name": "Stand, idle",
+  "duration": 3.267,
   "people": 1,
-  "group": "Fighting"
- },
- {
-  "id": "library:standing-dodge-left",
-  "name": "Standing dodge left",
-  "duration": 0.967,
-  "people": 1,
-  "group": "Fighting"
+  "group": "Standing & waiting",
+  "loop": true
  },
  {
   "id": "library:standing-idle",
-  "name": "Standing idle",
+  "name": "Stand, shifting weight",
   "duration": 1.867,
   "people": 1,
-  "group": "Everyday",
+  "group": "Standing & waiting",
   "loop": true
  },
  {
-  "id": "library:standing-jump",
-  "name": "Standing jump",
-  "duration": 2.367,
-  "people": 1,
-  "group": "Sport & gymnastics",
-  "loop": true
- },
- {
-  "id": "library:standing-thumbs-up",
-  "name": "Standing thumbs up",
-  "duration": 4.167,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
-  "id": "library:strafe",
+  "id": "library:strafe-left",
   "name": "Strafe",
   "duration": 1.033,
   "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
@@ -690,69 +653,91 @@
   "name": "Surprised",
   "duration": 4,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:swing-dancing",
-  "name": "Swing dancing",
+  "name": "Swing",
   "duration": 20.9,
   "people": 1,
   "group": "Dance",
   "loop": true
  },
  {
-  "id": "library:sword-and-shield-attack",
-  "name": "Sword and shield attack",
-  "duration": 1.733,
-  "people": 1,
-  "group": "Fighting"
- },
- {
   "id": "library:sword-and-shield-idle",
-  "name": "Sword and shield idle",
+  "name": "Sword and shield, ready",
   "duration": 7.533,
   "people": 1,
-  "group": "Fighting",
+  "group": "Weapons",
   "loop": true
  },
  {
-  "id": "library:talking",
-  "name": "Talking",
-  "duration": 3.933,
+  "id": "library:sword-and-shield-attack",
+  "name": "Sword and shield, strike",
+  "duration": 1.733,
   "people": 1,
-  "group": "Everyday",
-  "loop": true
+  "group": "Weapons"
  },
  {
   "id": "library:talking-on-phone",
-  "name": "Talking on phone",
+  "name": "Talk on the phone",
   "duration": 30,
   "people": 1,
-  "group": "Everyday"
+  "group": "Using things"
+ },
+ {
+  "id": "library:talking",
+  "name": "Talk, explaining",
+  "duration": 3.933,
+  "people": 1,
+  "group": "Talking & gestures",
+  "loop": true
+ },
+ {
+  "id": "library:sitting-talking",
+  "name": "Talk, sitting",
+  "duration": 30,
+  "people": 1,
+  "group": "Talking & gestures"
  },
  {
   "id": "library:thinking",
-  "name": "Thinking",
+  "name": "Think",
   "duration": 4.233,
   "people": 1,
-  "group": "Everyday",
+  "group": "Feelings",
   "loop": true
  },
  {
   "id": "library:throw-object",
-  "name": "Throw object",
+  "name": "Throw",
   "duration": 4.867,
   "people": 1,
-  "group": "Everyday",
+  "group": "Using things",
   "loop": true
  },
  {
-  "id": "library:turn-90",
+  "id": "library:standing-thumbs-up",
+  "name": "Thumbs up",
+  "duration": 4.167,
+  "people": 1,
+  "group": "Talking & gestures",
+  "loop": true
+ },
+ {
+  "id": "library:turn-90-left",
   "name": "Turn 90°",
   "duration": 1,
   "people": 1,
-  "group": "Getting around"
+  "group": "Moving"
+ },
+ {
+  "id": "library:walking-turn-180",
+  "name": "Turn around, walking",
+  "duration": 1,
+  "people": 1,
+  "group": "Moving"
  },
  {
   "id": "library:uppercut",
@@ -764,19 +749,11 @@
   "impact": 0.47
  },
  {
-  "id": "library:victory",
-  "name": "Victory",
-  "duration": 6.1,
-  "people": 1,
-  "group": "Everyday",
-  "loop": true
- },
- {
   "id": "library:walk",
   "name": "Walk",
   "duration": 1,
   "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
@@ -784,38 +761,61 @@
   "name": "Walk backward",
   "duration": 1.1,
   "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
-  "id": "library:walk-forward",
-  "name": "Walk forward",
-  "duration": 1,
+  "id": "library:descending-stairs",
+  "name": "Walk down stairs",
+  "duration": 0.4,
   "people": 1,
-  "group": "Getting around",
-  "loop": true
+  "group": "Moving"
  },
  {
-  "id": "library:walk-sideways",
+  "id": "library:walk-left",
   "name": "Walk sideways",
   "duration": 1,
   "people": 1,
-  "group": "Getting around",
+  "group": "Moving",
   "loop": true
  },
  {
-  "id": "library:walking-turn-180",
-  "name": "Walking turn 180",
+  "id": "library:ascending-stairs",
+  "name": "Walk up stairs",
+  "duration": 1.367,
+  "people": 1,
+  "group": "Moving"
+ },
+ {
+  "id": "library:walk-forward",
+  "name": "Walk, brisk",
   "duration": 1,
   "people": 1,
-  "group": "Getting around"
+  "group": "Moving",
+  "loop": true
+ },
+ {
+  "id": "library:happy-walk",
+  "name": "Walk, happy",
+  "duration": 1.1,
+  "people": 1,
+  "group": "Moving",
+  "loop": true
+ },
+ {
+  "id": "library:dismissing-gesture",
+  "name": "Wave it away",
+  "duration": 3.267,
+  "people": 1,
+  "group": "Talking & gestures",
+  "loop": true
  },
  {
   "id": "library:waving",
-  "name": "Waving",
+  "name": "Wave, both arms",
   "duration": 3.167,
   "people": 1,
-  "group": "Everyday",
+  "group": "Talking & gestures",
   "loop": true
  },
  {
@@ -823,7 +823,7 @@
   "name": "Yawn",
   "duration": 8.333,
   "people": 1,
-  "group": "Everyday",
+  "group": "Standing & waiting",
   "loop": true
  }
 ]

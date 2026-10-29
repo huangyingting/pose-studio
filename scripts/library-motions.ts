@@ -1,7 +1,7 @@
 // The Library's motions from motion-capture clips (Pose Studio's own format, as "Import motion…"
 // makes them): each *.clip.json in data/library/motions (or the folder given) is made ready to play
 // and copied to public/motions as <slug>.json with the id library:<slug>; public/motions/index.json
-// lists them, each in a group of the Library's Motions. Run with `npm run motions`.
+// lists them, each with its name and group in the Library's Motions (LIST). Run with `npm run motions`.
 //
 // Made ready: each person facing where they look and the wrists' roll the forearms' (lib/motionfix.ts,
 // as any import); a motion that ends as it starts loops; one that is another mirrored is left out
@@ -17,7 +17,10 @@ import { refineClip } from '../lib/motionfix';
 import { strikeTime } from '../lib/strike';
 import { facingOf } from '../lib/pose';
 import { Rig } from '../lib/relations';
+import type { MOTION_GROUPS } from '../lib/motions';
 import type { Clip, JointName } from '../lib/types';
+
+type MotionGroup = (typeof MOTION_GROUPS)[number];
 
 const from = process.argv[2] ?? 'data/library/motions';
 const to = 'public/motions';
@@ -25,33 +28,124 @@ const to = 'public/motions';
 /** Left out: the same as another mirrored (that one, mirrored, does it the other way). */
 const MIRRORED = ['Walk Right', 'Strafe Right', 'Turn 90 Right'];
 
-/** Names clearer than the files' (the rest only in sentence case). */
-const NAMES: Record<string, string> = {
-  'Walk Left': 'Walk sideways',
-  'Strafe Left': 'Strafe',
-  'Turn 90 Left': 'Turn 90°',
-  'Laying Idle': 'Lying idle',
-  'Head Nod Yes': 'Nod yes',
-  'Shaking Head No': 'Shake head no',
-  'Receive Punch To The Face': 'Punched in the face',
-  'Stand Up': 'Stand up, slow',
-  'Crouch To Stand': 'Get up from one knee',
-  'Jab Cross': 'Jab, cross',
-};
-
 /** Left out: one person's half of a motion of two (alone, it is not the motion). */
 const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim'];
 
-// The group a motion goes in, by its name (the first that matches; Everyday otherwise).
-const GROUPS: [RegExp, string][] = [
-  [/danc|salsa|rumba/i, 'Dance'],
-  [/flip|baseball|golf|football|soccer|capoeira|jump|landing/i, 'Sport & gymnastics'],
-  [/punch|kick|jab|uppercut|hook|block|dodge|sword|death|hit reaction|aim|shoot|fight/i, 'Fighting'],
-  [/walk|run|jog|sprint|strafe|stairs|ladder|turn/i, 'Getting around'],
-];
-const groupOf = (name: string) => GROUPS.find(([re]) => re.test(name))?.[1] ?? 'Everyday';
+/**
+ * Each motion's name in the Library and its group, by what the person does (one holding a gun is
+ * with the weapons, one handling a thing with the things), by its file's name. Its id is the file's
+ * name (library:<the file's name>), whatever it is called.
+ */
+const LIST: Record<string, [string, MotionGroup]> = {
+  'Walk': ['Walk', 'Moving'],
+  'Walk Forward': ['Walk, brisk', 'Moving'],
+  'Walk Backward': ['Walk backward', 'Moving'],
+  'Walk Left': ['Walk sideways', 'Moving'],
+  'Happy Walk': ['Walk, happy', 'Moving'],
+  'Crouch Walk Forward': ['Sneak, crouched', 'Moving'],
+  'Jog Forward': ['Jog', 'Moving'],
+  'Run Forward': ['Run', 'Moving'],
+  'Run Backward': ['Run backward', 'Moving'],
+  'Sprint': ['Sprint', 'Moving'],
+  'Strafe Left': ['Strafe', 'Moving'],
+  'Turn 90 Left': ['Turn 90°', 'Moving'],
+  'Walking Turn 180': ['Turn around, walking', 'Moving'],
+  'Ascending Stairs': ['Walk up stairs', 'Moving'],
+  'Descending Stairs': ['Walk down stairs', 'Moving'],
+  'Climbing Ladder': ['Climb a ladder', 'Moving'],
+  'Idle': ['Stand, idle', 'Standing & waiting'],
+  'Standing Idle': ['Stand, shifting weight', 'Standing & waiting'],
+  'Breathing Idle': ['Stand, breathing', 'Standing & waiting'],
+  'Bored': ['Bored', 'Standing & waiting'],
+  'Look Around': ['Look around', 'Standing & waiting'],
+  'Leaning On A Wall': ['Lean on a wall', 'Standing & waiting'],
+  'Yawn': ['Yawn', 'Standing & waiting'],
+  'Sitting Idle': ['Sit, idle', 'Sitting & lying'],
+  'Stand To Sit': ['Sit down on a chair', 'Sitting & lying'],
+  'Sit To Stand': ['Get up from a chair', 'Sitting & lying'],
+  'Sit To Type': ['Sit down to type', 'Sitting & lying'],
+  'Crouch Idle': ['Crouch', 'Sitting & lying'],
+  'Kneeling Idle': ['Kneel', 'Sitting & lying'],
+  'Crouch To Stand': ['Get up from one knee', 'Sitting & lying'],
+  'Stand Up': ['Stand up, slow', 'Sitting & lying'],
+  'Lying Down': ['Lie down', 'Sitting & lying'],
+  'Laying Idle': ['Lie, idle', 'Sitting & lying'],
+  'Talking': ['Talk, explaining', 'Talking & gestures'],
+  'Sitting Talking': ['Talk, sitting', 'Talking & gestures'],
+  'Standing Arguing': ['Argue', 'Talking & gestures'],
+  'Head Nod Yes': ['Nod yes', 'Talking & gestures'],
+  'Shaking Head No': ['Shake head no', 'Talking & gestures'],
+  'Pointing': ['Point at someone', 'Talking & gestures'],
+  'Waving': ['Wave, both arms', 'Talking & gestures'],
+  'Salute': ['Salute', 'Talking & gestures'],
+  'Clapping': ['Clap', 'Talking & gestures'],
+  'Shrugging': ['Shrug', 'Talking & gestures'],
+  'Dismissing Gesture': ['Wave it away', 'Talking & gestures'],
+  'Standing Thumbs Up': ['Thumbs up', 'Talking & gestures'],
+  'Shake Fist': ['Shake a fist', 'Talking & gestures'],
+  'Praying': ['Pray', 'Talking & gestures'],
+  'Angry': ['Angry', 'Feelings'],
+  'Crying': ['Cry', 'Feelings'],
+  'Sad Idle': ['Sad', 'Feelings'],
+  'Happy Idle': ['Happy', 'Feelings'],
+  'Laughing': ['Laugh', 'Feelings'],
+  'Scared': ['Scared', 'Feelings'],
+  'Surprised': ['Surprised', 'Feelings'],
+  'Disappointed': ['Disappointed', 'Feelings'],
+  'Defeat Idle': ['Defeated', 'Feelings'],
+  'Victory': ['Cheer, victory', 'Feelings'],
+  'Thinking': ['Think', 'Feelings'],
+  'Carrying': ['Hold a box', 'Using things'],
+  'Lifting Object': ['Lift a heavy box', 'Using things'],
+  'Pick Up Item': ['Pick something up', 'Using things'],
+  'Throw Object': ['Throw', 'Using things'],
+  'Push': ['Push something heavy', 'Using things'],
+  'Pull Heavy Object': ['Pull something heavy', 'Using things'],
+  'Pulling Lever': ['Pull a lever', 'Using things'],
+  'Opening Door Inwards': ['Open a door', 'Using things'],
+  'Button Pushing': ['Press a button', 'Using things'],
+  'Drinking': ['Drink', 'Using things'],
+  'Sitting Drinking': ['Drink, sitting', 'Using things'],
+  'Talking On Phone': ['Talk on the phone', 'Using things'],
+  'Aim Pistol': ['Aim a pistol', 'Weapons'],
+  'Shooting': ['Fire a pistol', 'Weapons'],
+  'Sword And Shield Idle': ['Sword and shield, ready', 'Weapons'],
+  'Sword And Shield Attack': ['Sword and shield, strike', 'Weapons'],
+  'Fight Idle': ['Fighting stance', 'Fighting'],
+  'Jab Cross': ['Jab, cross', 'Fighting'],
+  'Hook Punch': ['Hook punch', 'Fighting'],
+  'Uppercut': ['Uppercut', 'Fighting'],
+  'Roundhouse Kick': ['Roundhouse kick', 'Fighting'],
+  'Punching Bag': ['Hit a punching bag', 'Fighting'],
+  'Blocking': ['Guard up', 'Fighting'],
+  'Standing Block': ['Block', 'Fighting'],
+  'Standing Dodge Left': ['Dodge', 'Fighting'],
+  'Capoeira': ['Capoeira', 'Fighting'],
+  'Hit Reaction': ['Hit, recoil', 'Fighting'],
+  'Receive Punch To The Face': ['Punched in the face', 'Fighting'],
+  'Death From The Front': ['Hit, fall forward', 'Fighting'],
+  'Falling Back Death': ['Hit, fall back', 'Fighting'],
+  'Jump': ['Jump', 'Sport & acrobatics'],
+  'Standing Jump': ['Jump on the spot', 'Sport & acrobatics'],
+  'Jump Over': ['Jump over', 'Sport & acrobatics'],
+  'Landing': ['Land from a jump', 'Sport & acrobatics'],
+  'Jumping Jacks': ['Jumping jacks', 'Sport & acrobatics'],
+  'Jumping Rope': ['Skip rope', 'Sport & acrobatics'],
+  'Backflip': ['Backflip', 'Sport & acrobatics'],
+  'Front Flip': ['Front flip', 'Sport & acrobatics'],
+  'Baseball Hit': ['Baseball swing', 'Sport & acrobatics'],
+  'Baseball Pitching': ['Baseball pitch', 'Sport & acrobatics'],
+  'Golf Drive': ['Golf drive', 'Sport & acrobatics'],
+  'Football Catch': ['Catch a football', 'Sport & acrobatics'],
+  'Soccer Penalty Kick': ['Penalty kick', 'Sport & acrobatics'],
+  'Dancing': ['Dance', 'Dance'],
+  'Hip Hop Dancing': ['Hip hop', 'Dance'],
+  'Jazz Dancing': ['Jazz', 'Dance'],
+  'Rumba Dancing': ['Rumba', 'Dance'],
+  'Salsa Dancing': ['Salsa', 'Dance'],
+  'Swing Dancing': ['Swing', 'Dance'],
+};
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const sentence = (name: string) => name.charAt(0) + name.slice(1).toLowerCase();
 
 const rig = new Rig();
 const round = (v: number) => Math.round(v * 1000) / 1000;
@@ -114,29 +208,32 @@ for (const f of files) {
   clips.set(clip.name, clip);
 }
 
-const out: Clip[] = [];
+/** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
+const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) ? strikeTime(clip) : undefined);
+
+// (Whether it loops and when it strikes by the file's name: what it is.)
+const out: { file: string; clip: Clip; group: MotionGroup; loop: boolean; impact?: number }[] = [];
 for (const clip of clips.values()) {
   if (MIRRORED.includes(clip.name) || HALVES.includes(clip.name)) continue;
-  out.push({ ...clip, name: NAMES[clip.name] ?? sentence(clip.name) });
+  if (!LIST[clip.name]) throw new Error(`${clip.name}: give it a name and a group in LIST`);
+  const [name, group] = LIST[clip.name];
+  out.push({ file: clip.name, clip: { ...clip, name }, group, loop: loops(clip), impact: impactOf(clip) });
 }
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: string; loop?: true; impact?: number }[] = [];
-/** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
-const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) ? strikeTime(clip) : undefined);
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number }[] = [];
 
-for (const clip of out.sort((a, b) => a.name.localeCompare(b.name))) {
-  const id = `library:${slug(clip.name)}`;
-  if (index.some((m) => m.id === id)) throw new Error(`Two motions are called ${clip.name}`);
-  const ready: Clip = { ...clip, id, loop: loops(clip) };
-  await writeFile(join(to, `${slug(clip.name)}.json`), JSON.stringify(ready));
+for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
+  const id = `library:${slug(file)}`;
+  if (index.some((m) => m.name === clip.name)) throw new Error(`Two motions are called ${clip.name}`);
+  const ready: Clip = { ...clip, id, loop };
+  await writeFile(join(to, `${slug(file)}.json`), JSON.stringify(ready));
   index.push({
-    id, name: ready.name, duration: ready.duration, people: ready.parts.length, group: groupOf(ready.name),
-    ...(ready.loop ? { loop: true as const } : {}),
+    id, name: ready.name, duration: ready.duration, people: ready.parts.length, group,
+    ...(loop ? { loop: true as const } : {}),
+    ...(impact !== undefined ? { impact } : {}),
   });
-  const impact = impactOf(ready);
-  if (impact !== undefined) index[index.length - 1].impact = impact;
 }
 await writeFile(join(to, 'index.json'), JSON.stringify(index, null, 1) + '\n');
 rig.dispose();

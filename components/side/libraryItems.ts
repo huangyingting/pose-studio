@@ -53,6 +53,8 @@ export interface LibraryItem {
   meta?: string;
   /** What using it does, under its hover preview (or as a tooltip, without one). */
   note?: string;
+  /** What it is, in words (a pose's description), in its hover preview. */
+  about?: string;
   /** Not usable now (nothing to use it on). */
   disabled?: boolean;
   /** In use (the character the figure is drawn as). */
@@ -118,6 +120,7 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
     part: 'Poses',
     group,
     name: p.name,
+    about: p.description,
     icon: PersonStanding,
     note: figure ? `Click to put it on ${figure.name}` : undefined,
     disabled: !figure,

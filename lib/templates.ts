@@ -146,6 +146,6 @@ export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: n
       ...(holds?.length || base.constraints?.length ? { constraints: [...(base.constraints ?? []), ...(holds ?? [])] } : {}),
     };
   }
-  const next: Scene = { ...scene, figures, props, ...(placed.light && !scene.figures.length ? { light: placed.light } : {}) };
+  const next: Scene = { ...scene, figures, props, ...(placed.lighting && !scene.figures.length ? { lighting: placed.lighting } : {}) };
   return animation ? { ...next, animation: normalize(animation, figures) } : next;
 }

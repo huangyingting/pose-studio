@@ -4,7 +4,7 @@ import { BODY_PRESETS, DEFAULT_BODY } from './body';
 import { newAnimation, propKeyOf } from './animation';
 import { newFigure, newProp, newScene } from './doc';
 import { held } from './hold';
-import { LIGHT_PRESETS } from './lighting';
+import { LIGHTING_PRESETS, fromPreset } from './lighting';
 import { putPropKey } from './propmotion';
 import { REACT_LEAD } from './strike';
 import { withFacing } from './relations';
@@ -44,7 +44,7 @@ class Stage {
     const figures = cast.map((c) => withFacing(newFigure({ name: c.name, body: body(c.body), position: [c.at[0], 0, c.at[1]] }), c.facing));
     cast.forEach((c, i) => this.ids.set(c.name, figures[i].id));
     const scene = newScene(name, figures);
-    this.scene = { ...scene, light: { ...LIGHT_PRESETS.find((l) => l.id === light)!.light }, animation: { ...newAnimation(scene, 1), loop: false } };
+    this.scene = { ...scene, lighting: fromPreset(LIGHTING_PRESETS.find((l) => l.id === light)!.lighting), animation: { ...newAnimation(scene, 1), loop: false } };
   }
 
   id(name: string) {
@@ -135,7 +135,7 @@ export function wuxiaDuel(): Scene {
   // Lin's uppercut lands.
   t = hook;
   const upper = s.play('Lin', 'uppercut', t);
-  s.react('Mei', 'punched-in-the-face', 'uppercut', t);
+  s.react('Mei', 'receive-punch-to-the-face', 'uppercut', t);
   // Lin's jab and cross: Mei goes down.
   t = upper + 0.4;
   s.play('Lin', 'fight-idle', upper, { seconds: 0.4 });
@@ -179,7 +179,7 @@ export function streetBasketball(): Scene {
   // Up the court dribbling; the defender shuffles to meet him.
   const up = s.go('Jay', [0, 3.6], 0, 'walk');
   s.handle('Jay', ball, 'dribble', 0, { bounce: true }, Math.max(1, Math.floor(up / 0.5)));
-  s.play('Rico', 'strafe', 0.4, { seconds: up - 0.4, mirror: true });
+  s.play('Rico', 'strafe-left', 0.4, { seconds: up - 0.4, mirror: true });
   // The shot, over his jump.
   const shot = s.handle('Jay', ball, 'shoot', up, { hoop });
   s.play('Rico', 'jump', up);

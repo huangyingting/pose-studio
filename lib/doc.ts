@@ -7,10 +7,10 @@ import { uid } from './uid';
 import * as THREE from 'three';
 import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bones, type Quat } from './pose';
-import { clampLight } from './lighting';
+import { parseLighting } from './lighting';
 import {
   BONES, FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Light, type Mark, type ModelInfo, type PoseAsset,
+  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type ModelInfo, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -257,7 +257,7 @@ export function parseScene(v: unknown, i = 0): Scene {
     props: (Array.isArray(v.props) ? v.props.slice(0, 100) : []).map(parseProp).filter((p): p is Prop => p !== null)
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     cameras: parseCameras(v.cameras),
-    ...(isObj(v.light) ? { light: clampLight(v.light as Partial<Light>) } : {}),
+    ...(parseLighting(v.lighting) ? { lighting: parseLighting(v.lighting)! } : {}),
     ...(typeof v.caption === 'string' && v.caption ? { caption: v.caption.slice(0, 500) } : {}),
     ...(v.offStory === true ? { offStory: true } : {}),
     ...(typeof v.hold === 'number' && Number.isFinite(v.hold) ? { hold: Math.min(60, Math.max(0.2, v.hold)) } : {}),

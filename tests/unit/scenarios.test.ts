@@ -1,13 +1,12 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, addScene, applyMotion, arrange, cutShot, dribbleProp, holdProp, moveProp, saveMotion, setGaze, setSceneLight, setShotSubject, throwProp,
+  addFigure, addProp, addScene, applyMotion, arrange, cutShot, dribbleProp, holdProp, moveProp, saveMotion, setGaze, applyLightingPreset, setShotSubject, throwProp,
   travelTo,
 } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
-import { LIGHT_PRESETS } from '@/lib/lighting';
 import { handPosition, rimOf } from '@/lib/propmotion';
 import { highJump } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
@@ -41,7 +40,7 @@ describe('scenes from the use case', () => {
     store.setTime(pass.to + 0.2);
     travelTo(store, b, [2, 6.5], 'jump', { height: 0.6 });
     setGaze(store, a, { figure: b });
-    setSceneLight(store, LIGHT_PRESETS.find((p) => p.id === 'noon')!.light);
+    applyLightingPreset(store, 'noon');
     store.setTime(runA.to);
     cutShot(store);
     setShotSubject(store, store.scene.animation!.shots![1].id, b);

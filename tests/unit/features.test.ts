@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLight, DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
+import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, kelvinColor, lightingOf, sameLighting } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
 import { newAnimation } from '@/lib/animation';
 import { parseProjectSettings } from '@/lib/project';
@@ -11,6 +11,7 @@ import { poseScene, referencePoses } from '@/lib/poses';
 const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { DEFAULT_EXPORT, exportCells, parseExportOptions, sheetSize } from '@/lib/render';
 import { Store } from '@/lib/store';
+import { addLight, applyLightingPreset, deleteLight, editLight } from '@/lib/actions';
 
 /** Deterministic PRNG for shuffles. */
 function seeded(seed: number) {
@@ -119,9 +120,19 @@ describe('gesture practice', () => {
 });
 
 describe('lighting settings', () => {
-  it('clamps stored light values', () => {
-    expect(clampLight(undefined)).toEqual(DEFAULT_LIGHT);
-    expect(clampLight({ azimuth: 500, elevation: -20, shadows: false, intensity: 0, warmth: -3 })).toEqual({ azimuth: 180, elevation: 5, shadows: false, intensity: 0.2, warmth: -1 });
+  it('clamps stored light values: only a key light casts shadows', () => {
+    expect(clampLight({ id: 'a', role: 'key', azimuth: 500, elevation: -20, intensity: 9, color: 'red', kelvin: 99999 }))
+      .toEqual({ id: 'a', role: 'key', azimuth: 180, elevation: 5, intensity: 2, color: kelvinColor(10000), kelvin: 10000, shadows: true });
+    expect(clampLight({ id: 'b', role: 'fill', color: '#3D7BFF', shadows: true })).toMatchObject({ role: 'fill', color: '#3d7bff', shadows: false });
+    expect(clampLight({ id: 'c', role: 'spot' as never }).role).toBe('custom');
+  });
+
+  it('colour temperatures: daylight white, candle warm, sky blue', () => {
+    expect(kelvinColor(6500)).toBe('#ffffff');
+    const [r, , b] = [1, 3, 5].map((i) => parseInt(kelvinColor(1900).slice(i, i + 2), 16));
+    expect(r).toBeGreaterThan(b + 100);
+    const [r2, , b2] = [1, 3, 5].map((i) => parseInt(kelvinColor(10000).slice(i, i + 2), 16));
+    expect(b2).toBeGreaterThan(r2);
   });
 
   it('loads settings, ignoring what is not a setting of the device', () => {
@@ -143,11 +154,40 @@ describe('lighting settings', () => {
 });
 
 describe('scene lighting', () => {
-  it('belongs to the scene: saved with it, clamped when loaded, studio light by default', () => {
-    const scene = parseScene({ ...newScene('Dusk'), light: { azimuth: 999, elevation: 1, shadows: false, intensity: 9, warmth: 0.8 } });
-    expect(scene.light).toEqual({ azimuth: 180, elevation: 5, shadows: false, intensity: 2, warmth: 0.8 });
-    expect(parseScene(newScene('Plain')).light).toBeUndefined();
-    expect(LIGHT_PRESETS[0].light).toEqual(DEFAULT_LIGHT);
+  it('belongs to the scene: saved with it, made sound when loaded (lights with ids, up to four), studio light by default', () => {
+    const lights = [
+      { id: 'k', role: 'key', azimuth: 999, elevation: 1, intensity: 9, color: '#ffaa00' },
+      { id: 'k', role: 'fill' },
+      'not a light',
+      ...['a', 'b', 'c', 'd'].map((id) => ({ id, role: 'custom' })),
+    ];
+    const scene = parseScene({ ...newScene('Dusk'), lighting: { lights, ambient: { intensity: -1, sky: '#102030', ground: 'mud' } } });
+    expect(scene.lighting!.lights.map((l) => l.id)).toEqual(['k', 'a', 'b', 'c']);
+    expect(scene.lighting!.lights[0]).toMatchObject({ azimuth: 180, elevation: 5, intensity: 2, color: '#ffaa00', shadows: true });
+    expect(scene.lighting!.ambient).toEqual({ intensity: 0, sky: '#102030', ground: '#ffffff' });
+    expect(parseScene({ ...newScene('None'), lighting: { lights: [] } }).lighting).toBeUndefined();
+    expect(parseScene(newScene('Plain')).lighting).toBeUndefined();
+    expect(LIGHTING_PRESETS[0].lighting).toEqual(DEFAULT_LIGHTING);
+  });
+
+  it('lights are added (fill, then rim: up to four), changed and deleted (not the last), a scheme sets them all', () => {
+    const storage = new Map<string, string>();
+    const store = new Store({ getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k), clear: () => storage.clear(), key: () => null, length: 0 } as Storage);
+    const fill = addLight(store)!;
+    expect(lightingOf(store.scene).lights.map((l) => l.role)).toEqual(['key', 'fill']);
+    expect(store.getState().selection).toEqual({ kind: 'light', light: fill });
+    addLight(store);
+    addLight(store);
+    expect(lightingOf(store.scene).lights.map((l) => l.role)).toEqual(['key', 'fill', 'rim', 'custom']);
+    expect(addLight(store)).toBeNull();
+    editLight(store, fill, { intensity: 0.3, shadows: true });
+    expect(lightingOf(store.scene).lights[1]).toMatchObject({ intensity: 0.3, shadows: false });
+    expect(deleteLight(store, fill)).toBe(true);
+    applyLightingPreset(store, 'three-point');
+    expect(sameLighting(lightingOf(store.scene), LIGHTING_PRESETS.find((p) => p.id === 'three-point')!.lighting)).toBe(true);
+    const only = lightingOf(store.scene).lights;
+    for (const l of only.slice(1)) deleteLight(store, l.id);
+    expect(deleteLight(store, only[0].id)).toBe(false);
   });
 });
 

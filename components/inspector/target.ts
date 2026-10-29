@@ -1,7 +1,8 @@
 import type { CameraView } from '@/lib/cameras';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import type { Action, Camera, Figure, JointName, Prop, Scene, Vec3 } from '@/lib/types';
+import { lightingOf } from '@/lib/lighting';
+import type { Action, Camera, Figure, JointName, Light, Prop, Scene, Vec3 } from '@/lib/types';
 import type { Notify } from '../ui';
 
 /** What the inspector reaches outside the store. */
@@ -30,8 +31,8 @@ export interface Target {
   action?: Action;
   /** Whose track the action is on. */
   actionFigure?: string;
-  /** The scene's key light. */
-  light?: boolean;
+  /** One of the scene's lights. */
+  light?: Light;
   /** Several figures and props at once. */
   many?: { figures: Figure[]; props: Prop[] };
 }
@@ -45,7 +46,7 @@ export function targetOf(store: Store, ctx: InspectorContext): Target {
   switch (selection?.kind) {
     case 'prop': { const prop = scene.props.find((p) => p.id === selection.prop); return prop ? { ...t, prop } : t; }
     case 'shot': { const span = a && shotSpans(a).find((sp) => sp.shot.id === selection.shot); return span ? { ...t, span } : t; }
-    case 'light': return { ...t, light: true };
+    case 'light': { const light = lightingOf(scene).lights.find((l) => l.id === selection.light); return light ? { ...t, light } : t; }
     case 'many': return { ...t, many: { figures: scene.figures.filter((f) => selection.figures.includes(f.id)), props: scene.props.filter((p) => selection.props.includes(p.id)) } };
     case 'camera': { const camera = scene.cameras.find((c) => c.id === selection.camera); return camera ? { ...t, camera } : t; }
     case 'action': { const action = a?.actions.find((x) => x.id === selection.action); return action ? { ...t, action, actionFigure: selection.figure } : t; }

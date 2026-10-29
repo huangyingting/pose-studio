@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { liveCamera } from '@/lib/cameras';
 import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, holdHandle, holdProp, lieOn, moveProp,
-  addModel, retime, setShotSubject, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, setSceneLight, throwProp, travelTo,
+  addModel, retime, setShotSubject, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, applyLightingPreset, throwProp, travelTo,
 } from '@/lib/actions';
 import { actionsOf, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { importMotion } from '@/lib/importmotion';
 import { importModel } from '@/lib/model';
-import { LIGHT_PRESETS } from '@/lib/lighting';
+import { LIGHTING_PRESETS, lightingOf, sameLighting } from '@/lib/lighting';
 import { highJump } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
@@ -33,7 +33,7 @@ import { body, expectClean, fresh, motionScene, seenFrom } from '../fixtures/sce
  * held props stay in the hand and nothing jumps between frames.
  */
 
-const light = (store: Store, id: string) => setSceneLight(store, LIGHT_PRESETS.find((p) => p.id === id)!.light);
+const light = (store: Store, id: string) => applyLightingPreset(store, id);
 
 /** Cut at each time and give every shot a camera move (and a subject to follow, if given). */
 function shoot(store: Store, cuts: number[], moves: string[], subjects: (string | undefined)[] = []) {
@@ -54,7 +54,7 @@ function shoot(store: Store, cuts: number[], moves: string[], subjects: (string 
 function expectFilm(store: Store, lightId: string, people: number) {
   const scene = store.scene;
   expectClean(scene);
-  expect(scene.light).toEqual(LIGHT_PRESETS.find((p) => p.id === lightId)!.light);
+  expect(sameLighting(lightingOf(scene), LIGHTING_PRESETS.find((p) => p.id === lightId)!.lighting)).toBe(true);
   const a = scene.animation!;
   const spans = shotSpans(a);
   expect(spans.length).toBeGreaterThan(1);
@@ -385,7 +385,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
 
   it('boxing: two fighters face off, an exchange, then a combination and a hit', () => {
     const { store, later } = boxing('Woman', 'Big man');
-    light(store, 'side');
+    light(store, 'rembrandt');
     shoot(store, [later], ['handheld', 'hero']);
     expectFilm(store, 'side', 2);
   }, 300_000);

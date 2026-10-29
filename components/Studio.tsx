@@ -15,6 +15,7 @@ import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
 import { styleDef } from '@/lib/styles';
+import { lightName, lightingOf } from '@/lib/lighting';
 import type { Scene, Vec3, View } from '@/lib/types';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
@@ -171,7 +172,7 @@ function App() {
   const frameCurrent = useCallback(() => {
     const cur = apiRef.current?.getView();
     const sel = store.getState().selection;
-    const only = sel?.kind === 'figure' || sel?.kind === 'joint' ? sel.figure : sel?.kind === 'prop' ? sel.prop : sel?.kind === 'light' ? 'light' : sel?.kind === 'many' ? [...sel.figures, ...sel.props] : undefined;
+    const only = sel?.kind === 'figure' || sel?.kind === 'joint' ? sel.figure : sel?.kind === 'prop' ? sel.prop : sel?.kind === 'light' ? `light:${sel.light}` : sel?.kind === 'many' ? [...sel.figures, ...sel.props] : undefined;
     frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time), only);
   }, [frame, store]);
   /** Frame the selection only if it is out of view (something added from the keyboard, beyond the edge). */
@@ -366,8 +367,10 @@ function App() {
   const openCanvasMenu = (e: { clientX: number; clientY: number }, hit: CanvasHit) => {
     const sel = store.getState().selection;
     if (hit.light) {
-      store.select({ kind: 'light' });
-      openContextMenu(e, menu('light', { store, light: true }), 'Light');
+      store.select({ kind: 'light', light: hit.light });
+      const lighting = lightingOf(store.scene);
+      const l = lighting.lights.find((x) => x.id === hit.light);
+      openContextMenu(e, menu('light', { store, light: hit.light }), l ? lightName(lighting, l) : 'Light');
       return;
     }
     // Several selected: a right-click on one of them is the menu of them all.
