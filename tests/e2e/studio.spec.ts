@@ -449,7 +449,7 @@ test('Shift-drag twists a part; handheld props go in the hand; the scene exports
   expect(readFileSync((await download.path())!).subarray(0, 4).toString()).toBe('glTF');
 });
 
-test('figures, props, body and hand presets', async ({ page }) => {
+test('figures, props, body and hands', async ({ page }) => {
   await addLayer(page, 'Figure');
   await addLayer(page, 'Chair');
   let s = (await state(page)).scene;
@@ -459,7 +459,7 @@ test('figures, props, body and hand presets', async ({ page }) => {
   // The chair is selected: pick the new figure again, then its body.
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
   await page.getByRole('button', { name: 'Body & colour' }).click();
-  await page.getByRole('button', { name: 'Man', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Man or woman' }).getByRole('radio', { name: 'Man', exact: true }).click();
   s = (await state(page)).scene;
   expect(s.figures[1].body.sex).toBe(0);
   expect(s.figures[0].body.sex).toBe(1);
