@@ -445,6 +445,9 @@ export function bodyFor(f: Figure, id: string): BodyParams {
 const infos = new Map<string, ModelInfo>();
 const templates = new Map<string, THREE.Object3D>();
 const loading = new Set<string>();
+/** When a model's file last could not be read: asked for again after RETRY_MS. */
+const failedAt = new Map<string, number>();
+const RETRY_MS = 30_000;
 const unreachable = new Set<string>();
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((f) => f());
@@ -468,7 +471,7 @@ export function onModels(f: () => void) {
 export function modelTemplate(id: string): THREE.Object3D | null {
   const hit = templates.get(id);
   const info = infos.get(id);
-  if (hit || !info || loading.has(id) || unreachable.has(id)) return hit ?? null;
+  if (hit || !info || loading.has(id) || unreachable.has(id) || Date.now() - (failedAt.get(id) ?? -Infinity) < RETRY_MS) return hit ?? null;
   loading.add(id);
   // A built-in character's file comes with the app (not asked for again this visit if it does
   // not come: offline); an imported one's is kept as an asset (it may come later, synced).
@@ -483,9 +486,9 @@ export function modelTemplate(id: string): THREE.Object3D | null {
       templates.set(id, await parseModel(info.format, data));
       changed();
     })
-    // (Not read: not asked for again this visit, rather than on every sync.)
+    // (Not read: not asked for again for a while, rather than on every sync.)
     .catch((err) => {
-      unreachable.add(id);
+      failedAt.set(id, Date.now());
       console.warn(`Could not read the model ${info.name}:`, err);
     })
     .finally(() => loading.delete(id));

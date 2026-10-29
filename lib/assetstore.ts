@@ -24,6 +24,8 @@ const outdatedListeners = new Set<() => void>();
 
 /** Be told (once) when a newer build has the database: this tab should be reloaded. Returns the way to stop. */
 export function onOutdated(f: () => void) {
+  // (Already: told now.)
+  if (outdated) f();
   outdatedListeners.add(f);
   return () => { outdatedListeners.delete(f); };
 }
