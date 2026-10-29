@@ -1061,14 +1061,14 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   expect(jpegSize(readFileSync((await download.path())!))).toEqual({ width: 2400, height: 1280 });
 
   await page.keyboard.press('Control+e');
-  await page.getByRole('radio', { name: 'Video' }).click();
+  await page.getByRole('radio', { name: 'Video', exact: true }).click();
   await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
   await page.keyboard.press('Escape');
   // Filmed square (the frame, in the top bar): the video follows.
   await page.getByRole('button', { name: 'Frame', exact: true }).click();
   await page.getByRole('menuitemradio', { name: '1:1 square' }).click();
   await page.keyboard.press('Control+e');
-  await page.getByRole('radio', { name: 'Video' }).click();
+  await page.getByRole('radio', { name: 'Video', exact: true }).click();
   await expect(page.getByText(/720 × 720 px/)).toBeVisible();
   [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Record video' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
@@ -1089,7 +1089,7 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   await page.getByRole('textbox', { name: 'Shot caption' }).blur();
 
   await page.keyboard.press('Control+e');
-  await page.getByRole('radio', { name: 'Keyframe pack' }).click();
+  await page.getByRole('radio', { name: 'Keyframe pack', exact: true }).click();
   await page.getByRole('switch', { name: 'Greybox clips' }).uncheck();
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download pack' }).click()]);
   expect(download.suggestedFilename()).toBe('Wave_hello_keyframes.zip');
