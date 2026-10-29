@@ -88,7 +88,7 @@ describe('VRM avatars made our own (#15)', () => {
     expect(hull.material).not.toBe(ink.outline);
     expect(hull.visible).toBe(true);
     model.setLook('line', null);
-    expect(body.material).toBe(ink.materialsFor('line').body);
+    expect(body.material).toBe(ink.materialsFor('line').skin);
     expect(hull.material).toBe(ink.outline);
   });
 });

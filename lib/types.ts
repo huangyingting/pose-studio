@@ -140,17 +140,8 @@ export interface Scene {
   offStory?: boolean;
   /** How long a still scene is on screen in the story (s; DEFAULT_HOLD if not set). */
   hold?: number;
-  /** A photo or drawing over the canvas to pose against (not filmed). */
-  reference?: Reference;
   /** Optional keyframe animation (see lib/animation.ts). */
   animation?: Animation;
-}
-
-/** A reference image: its file (kept as an asset, lib/assetstore.ts), how strongly it shows, whether it does. */
-export interface Reference {
-  image: string;
-  opacity: number;
-  visible: boolean;
 }
 
 /* ---------- animation (see lib/evaluate.ts) ---------- */
@@ -539,7 +530,7 @@ export type Selection =
   | { kind: 'ambient' }
   /** Several figures and props at once (Shift-click adds one or takes it away): moved, turned, duplicated and deleted together. */
   | { kind: 'many'; figures: string[]; props: string[] }
-  /** The scene itself: its light, look and reference image. */
+  /** Nothing: the scene itself.  */
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */

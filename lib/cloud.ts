@@ -1,5 +1,5 @@
 import { clipById, clipIdsOf } from './assets';
-import { loadImage, loadModelFile, saveClips, saveImage, saveModelFile } from './assetstore';
+import { loadModelFile, saveClips, saveModelFile } from './assetstore';
 import { modelArrived } from './model';
 import { parseClip, parseLibrary } from './doc';
 import { withBase } from './paths';
@@ -127,13 +127,12 @@ export class CloudSync {
     await this.syncClips(true);
   }
 
-  /** Clips, models and reference images the library uses that only one side has: fetched, or sent up. */
+  /** Clips and models the library uses that only one side has: fetched, or sent up. */
   private async syncClips(force = false) {
     const lib = this.store.getState().library;
     const ids = clipIdsOf(lib);
     const models = (lib.models ?? []).map((m) => m.id);
-    const images = [...new Set(lib.scenes.flatMap((s) => (s.reference ? [s.reference.image] : [])))];
-    const print = [...ids, ...models, ...images].sort().join();
+    const print = [...ids, ...models].sort().join();
     if (!force && print === this.clips) return;
     const res = await fetch(withBase('/api/assets'), { cache: 'no-store' });
     if (!res.ok) throw new Error(String(res.status));
@@ -162,14 +161,6 @@ export class CloudSync {
           await saveModelFile(id, await got.arrayBuffer());
           modelArrived(id);
         }
-      }
-    }
-    for (const id of images) {
-      const image = await loadImage(id);
-      if (image && !there.has(id)) await send(id, image, image.type || 'image/png');
-      if (!image && there.has(id)) {
-        const got = await fetch(url(id));
-        if (got.ok) await saveImage(id, await got.blob());
       }
     }
     this.clips = print;

@@ -20,12 +20,12 @@ export interface Settings {
   gizmo: GizmoMode;
   /** Outline width in the editor (CSS px). */
   editorLine: number;
-  /** The left side panel's open section, or 'none' when it is collapsed to the rail. */
+  /** The left side panel's open section (a library category, the assistant), or 'none' when it is collapsed to the rail. */
   side: SideSection;
-  /** The library's open tab. */
-  libraryTab: LibraryTab;
-  /** The right-hand inspector is open (it folds away for more canvas). */
+  /** The right-hand panel (the scene's outline over the inspector) is open (it folds away for more canvas). */
   inspector: boolean;
+  /** Height of the outline over the inspector (px), or 0 for its default. */
+  outlineHeight: number;
   /** The timeline shows only its toolbar (more canvas). */
   timelineFolded: boolean;
   /** Height of the timeline's tracks (px), or 0 to fit them (up to a limit). */
@@ -47,7 +47,7 @@ export const PANEL_WIDTH = { min: 200, max: 520 };
 export const LIBRARY_TABS = ['characters', 'poses', 'motions', 'sets', 'lighting', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
-export const SIDE_SECTIONS = ['scene', 'library', 'ai'] as const;
+export const SIDE_SECTIONS = [...LIBRARY_TABS, 'ai'] as const;
 export type SideSection = (typeof SIDE_SECTIONS)[number] | 'none';
 
 export type SaveStatus = 'saved' | 'pending' | 'error';
@@ -79,7 +79,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', libraryTab: 'poses', inspector: true, timelineFolded: false, timelineHeight: 0, guides: false, widths: {}, theme: 'system',
+  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'poses', inspector: true, outlineHeight: 0, timelineFolded: false, timelineHeight: 0, guides: false, widths: {}, theme: 'system',
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -123,9 +123,9 @@ function loadSettings(storage: Storage | null): Settings {
         // (A prop's gizmo starts each visit moving it.)
         gizmo: 'translate',
         editorLine: typeof s.editorLine === 'number' ? Math.min(4, Math.max(0.5, s.editorLine)) : DEFAULT_SETTINGS.editorLine,
-        side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'scene',
-        libraryTab: LIBRARY_TABS.includes(s.libraryTab as LibraryTab) ? (s.libraryTab as LibraryTab) : 'poses',
+        side: s.side === 'none' || SIDE_SECTIONS.includes(s.side as (typeof SIDE_SECTIONS)[number]) ? (s.side as SideSection) : 'poses',
         inspector: s.inspector !== false,
+        outlineHeight: typeof s.outlineHeight === 'number' ? Math.min(2000, Math.max(0, s.outlineHeight)) : 0,
         timelineFolded: s.timelineFolded === true,
         timelineHeight: typeof s.timelineHeight === 'number' ? Math.min(2000, Math.max(0, s.timelineHeight)) : 0,
         guides: s.guides === true,

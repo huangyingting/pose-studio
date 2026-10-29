@@ -13,7 +13,7 @@ import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName,
 import { uid } from './uid';
 import { readVrm, type VrmInfo } from './vrm';
 import { ownLooks, paintedLook, toonMaterial, type ToonLook } from './toon';
-import { featureMaterial, weighHead } from './features';
+import { HAIR_CUTOFF, featureMaterial, hairMaterial, weighHead } from './features';
 
 /*
  * Rigs from other tools (a Mixamo character, a VRM avatar, a BVH capture's skeleton) fitted to the
@@ -330,6 +330,11 @@ export class ModelRig {
   private hulls: THREE.Mesh[] = [];
   /** The face's features inked from its textures, by mesh (lib/features.ts): for the styles that draw it in one colour. */
   private features: (THREE.Mesh | undefined)[] = [];
+  /** Its hair's textures, by mesh (drawn in one colour where the face is inked), and the material made of each. */
+  private hair: (THREE.Texture | undefined)[] = [];
+  private hairs: (THREE.ShaderMaterial | undefined)[] = [];
+  /** Its scalp (the skin under the hair, coloured as it): lined as the skin it is part of. */
+  private scalp: boolean[] = [];
 
   constructor(template: THREE.Object3D, readonly info: ModelInfo, private ink: Ink) {
     const copy = cloneSkinned(template);
@@ -365,14 +370,19 @@ export class ModelRig {
       mesh.add(hull);
       this.hulls.push(hull);
     }
-    this.features = this.meshes.map((mesh, i) => this.featuresOf(mesh, i));
+    const nameOf = (mesh: THREE.Mesh) => `${mesh.name} ${(mesh.material as THREE.Material).name ?? ''}`;
+    this.hair = this.meshes.map((mesh, i) => (/hair/i.test(nameOf(mesh)) ? this.looks[i]?.map ?? undefined : undefined));
+    this.scalp = this.meshes.map((mesh) => /scalp/i.test((mesh.material as THREE.Material).name ?? ''));
+    // (Where its eyes and brows are meshes of their own, only they are inked: the skin's texture,
+    // shaded round the eyes, the nose and the mouth, would blot.)
+    const own = this.meshes.some((mesh) => /brow/i.test(nameOf(mesh)));
+    this.features = this.meshes.map((mesh, i) => (own && !/eye|brow|lash/i.test(nameOf(mesh)) ? undefined : this.featuresOf(mesh, i, nameOf(mesh))));
   }
 
   /** A mesh's face features, if it has a texture and is of the head (not its hair). */
-  private featuresOf(mesh: THREE.Mesh, i: number): THREE.Mesh | undefined {
+  private featuresOf(mesh: THREE.Mesh, i: number, named: string): THREE.Mesh | undefined {
     const map = this.looks[i]?.map;
     const head = this.fitted.bones.get('head');
-    const named = `${mesh.name} ${(mesh.material as THREE.Material).name ?? ''}`;
     if (!map || !head || /hair|hat|helmet|cap\b/i.test(named)) return undefined;
     const ofHead = new Set<THREE.Object3D>();
     head.traverse((o) => { ofHead.add(o); });
@@ -406,10 +416,17 @@ export class ModelRig {
   setLook(style: Style, tint: string | null) {
     this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
-    this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? m.body; });
+    this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? this.hairOf(i) ?? m.skin ?? m.body; });
     // (Its face from its textures where it is drawn in one colour; in its own look, the look has it.)
     this.features.forEach((f, i) => { if (f) f.visible = !this.own(i) && !this.ink.ghost && style !== 'toon'; });
     this.setLinked(this.linked);
+  }
+
+  /** A mesh's hair material, where it is hair drawn in one colour (made once). */
+  private hairOf(i: number): THREE.ShaderMaterial | undefined {
+    const map = this.hair[i];
+    if (!map || this.ink.ghost || this.style === 'toon') return undefined;
+    return (this.hairs[i] ??= hairMaterial(map, this.ink.uniforms.color));
   }
 
   /** A mesh's own look's material, in the Toon style (made once). */
@@ -427,15 +444,21 @@ export class ModelRig {
       // (In its own look: its own outline, or none; none where it is cut out or see-through.)
       const own = this.own(i) ? this.looks[i]! : null;
       const look = own?.outline;
-      const cutout = own && own.alpha !== 'opaque' && own.map ? { map: own.map, cutoff: own.alpha === 'mask' ? own.cutoff : 0.5 } : undefined;
-      h.material = on ? this.ink.linked : look ? this.ink.outlineAs(look.width, look.color, cutout) : this.ink.outline;
+      const cutout = own && own.alpha !== 'opaque' && own.map ? { map: own.map, cutoff: own.alpha === 'mask' ? own.cutoff : 0.5 }
+        : this.hairOf(i) ? { map: this.hair[i]!, cutoff: HAIR_CUTOFF } : undefined;
+      h.material = on ? this.ink.linked : look || cutout ? this.ink.outlineAs(look?.width ?? 1, look?.color ?? null, cutout) : this.ink.outline;
       h.visible = on || (outlined && (!look || look.width > 0));
     });
   }
 
   /** Flat per-part colours for the line pass (as the mannequin's parts), or back as they were; returns the next free id. */
   setIdMode(on: boolean, firstId: number) {
-    this.meshes.forEach((mesh, i) => idMaterialOf(mesh, on ? this.ink.idMaterial(firstId + i) : null));
+    this.meshes.forEach((mesh, i) => {
+      // (The scalp as the skin it is part of: no line round it. Hair only where it is drawn.)
+      const as = this.scalp[i] ? this.meshes.findIndex((m, k) => !this.scalp[k] && m.parent === mesh.parent) : -1;
+      const hair = this.hairOf(i);
+      idMaterialOf(mesh, on ? this.ink.idMaterial(firstId + (as >= 0 ? as : i), false, hair && { map: this.hair[i]!, cutoff: HAIR_CUTOFF }) : null);
+    });
     return firstId + this.meshes.length;
   }
 
@@ -478,6 +501,7 @@ export class ModelRig {
   dispose() {
     for (const m of this.toons) m?.dispose();
     for (const f of this.features) (f?.material as THREE.Material | undefined)?.dispose();
+    for (const m of this.hairs) m?.dispose();
     this.object.clear();
   }
 }

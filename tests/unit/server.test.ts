@@ -75,17 +75,15 @@ describe('assets API', () => {
   const at = (id: string) => ({ params: Promise.resolve({ id }) });
   const putAsset = (id: string, body: Uint8Array, type: string) => routes.asset.PUT(new Request(`http://x/api/assets/${id}`, { method: 'PUT', headers: { 'Content-Type': type }, body: new Blob([body as BlobPart]) }), at(id));
 
-  it('keeps a reference image (PNG, JPEG or WebP, known by its bytes) and gives it back as one', async () => {
+  it('keeps a character\'s file (known by its bytes) and gives it back; not an image, and not to someone else', async () => {
     user = 'u1';
-    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-    expect((await putAsset('ref-1', png, 'image/png')).status).toBe(200);
-    const got = await routes.asset.GET(new Request('http://x/api/assets/ref-1'), at('ref-1'));
-    expect(got.headers.get('Content-Type')).toBe('image/png');
-    expect(new Uint8Array(await got.arrayBuffer())).toEqual(png);
-    // Not an image, whatever it says; and not someone else's.
-    expect((await putAsset('ref-2', new TextEncoder().encode('<svg onload=alert(1)>'), 'image/svg+xml')).status).toBe(400);
+    const glb = new Uint8Array([...new TextEncoder().encode('glTF'), 2, 0, 0, 0]);
+    expect((await putAsset('model-1', glb, 'application/octet-stream')).status).toBe(200);
+    const got = await routes.asset.GET(new Request('http://x/api/assets/model-1'), at('model-1'));
+    expect(new Uint8Array(await got.arrayBuffer())).toEqual(glb);
+    expect((await putAsset('img-1', new Uint8Array([0x89, 0x50, 0x4e, 0x47]), 'image/png')).status).toBe(400);
     user = 'u2';
-    expect((await routes.asset.GET(new Request('http://x/api/assets/ref-1'), at('ref-1'))).status).toBe(404);
+    expect((await routes.asset.GET(new Request('http://x/api/assets/model-1'), at('model-1'))).status).toBe(404);
   });
 });
 

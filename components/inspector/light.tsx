@@ -116,6 +116,7 @@ export function PlacePanel({ t }: { t: Target }) {
           ))}
         </div>
       </PropertyRow>
+      <p className="hint">{lightText(light)}</p>
       <div className="stack">
         {light.kind === 'sun' ? (
           <>

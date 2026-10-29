@@ -1,14 +1,15 @@
 import type { ComponentType } from 'react';
-import { Library, ListTree, Sparkles, type LucideIcon } from 'lucide-react';
+import { Sparkles, type LucideIcon } from 'lucide-react';
 import { Assistant } from '@edition/server';
 import type { SIDE_SECTIONS } from '@/lib/store';
 import AssistantSection from './AssistantSection';
 import LibrarySection from './LibrarySection';
-import OutlineSection from './OutlineSection';
+import { LIBRARY_CATEGORIES } from './libraryItems';
 
 /*
- * The left side panel's sections. A new concept is one entry here: its rail icon and label, and
- * the component that fills the panel. The open section is saved with the settings.
+ * The left side panel's sections: the library's categories, each its own, and the assistant. A new
+ * one is an entry here: its rail icon and label, and the component that fills the panel. The open
+ * section is saved with the settings.
  */
 
 export interface SectionProps {
@@ -18,6 +19,8 @@ export interface SectionProps {
   onPick?(): void;
   /** Open "figures from a photo". */
   onPhoto(): void;
+  /** The section shown (a library category's). */
+  section?: SideSectionDef['id'];
 }
 
 export interface SideSectionDef {
@@ -30,10 +33,8 @@ export interface SideSectionDef {
 }
 
 export const SECTIONS: SideSectionDef[] = [
-  // The open scene in workflow order: cast, set, cameras, shots.
-  { id: 'scene', label: 'Scene', icon: ListTree, Panel: OutlineSection },
-  // Ready-made poses, motions, models, scene templates, coverage and camera moves, applied to the selection.
-  { id: 'library', label: 'Library', icon: Library, Panel: LibrarySection },
+  // The library, a category each: characters, poses, motions, sets, lighting and camera moves, applied to the selection.
+  ...LIBRARY_CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon, Panel: LibrarySection })),
   // Describe what you want (server edition only).
   ...(Assistant ? [{ id: 'ai' as const, label: 'AI assistant', icon: Sparkles, Panel: AssistantSection, wide: true }] : []),
 ];

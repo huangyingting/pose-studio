@@ -174,9 +174,11 @@ const CONTOUR_FRAG = /* glsl */ `
     float line = smoothstep(0.2, 0.08, abs(dot(n, v)));
     // And in the creases, where the surface folds inwards (its normals turning towards each other
     // across a pixel more than a limb's roundness turns them): under a breast, at the armpit.
-    vec3 px = dFdx(vWorld), py = dFdy(vWorld);
-    float concave = -(dot(dFdx(n), px) / max(dot(px, px), 1e-10) + dot(dFdy(n), py) / max(dot(py, py), 1e-10));
-    line = max(line, smoothstep(16.0, 40.0, concave) * 0.8);
+    #ifdef CREASES
+      vec3 px = dFdx(vWorld), py = dFdy(vWorld);
+      float concave = -(dot(dFdx(n), px) / max(dot(px, px), 1e-10) + dot(dFdy(n), py) / max(dot(py, py), 1e-10));
+      line = max(line, smoothstep(16.0, 40.0, concave) * 0.8);
+    #endif
     gl_FragColor = vec4(mix(base, shade, line * 0.9), 1.0);
     #include <colorspace_fragment>
   }
@@ -195,8 +197,10 @@ export interface SharedUniforms {
   resolution: { value: THREE.Vector2 };
 }
 
-export function styleMaterial(style: ShaderStyle, shared: SharedUniforms, base: string, shade: string) {
+/** `creases`: the contour's lines in the creases too (the mannequin's; not a character's, whose face folds finely). */
+export function styleMaterial(style: ShaderStyle, shared: SharedUniforms, base: string, shade: string, creases = true) {
   return new THREE.ShaderMaterial({
+    ...(creases ? { defines: { CREASES: '' } } : {}),
     uniforms: {
       lightDir: shared.lightDir,
       lightColor: shared.lightColor,

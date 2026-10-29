@@ -12,7 +12,6 @@ import {
   bodySummary, handsSummary, hasOthers, jointSummary, jointTitle, othersSummary, placementSummary,
 } from './figure';
 import { HeldByPanel, PhysicsActions, PhysicsPanel, PropHeader, TransformPanel, transformInfo } from './prop';
-import { CaptionPanel, ReferenceActions, ReferencePanel, SceneHeader, referenceSummary } from './scene';
 import {
   AmbientHeader, AmbientPanel, ColourPanel, KindPanel, LightHeader, PlacePanel, ambientInfo, ambientSummary, colourSummary, kindSummary, placeInfo, placeSummary,
 } from './light';
@@ -41,7 +40,6 @@ export interface InspectorSection {
 }
 
 const posable = (t: Target) => !!t.figure && !t.figure.proxy;
-const isScene = (t: Target) => !t.figure && !t.prop && !t.span && !t.camera && !t.action && !t.light && !t.ambient && !t.many;
 
 export const INSPECTOR_SECTIONS: InspectorSection[] = [
   // A figure (a stand-in has a posture instead of a pose).
@@ -113,13 +111,6 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   { id: 'lightPlace', title: 'Position', when: (t) => !!t.light, Panel: PlacePanel, summary: placeSummary, info: placeInfo },
   { id: 'lightColour', title: 'Brightness & colour', when: (t) => !!t.light, Panel: ColourPanel, summary: colourSummary },
   { id: 'ambient', title: 'Sky and ground', when: (t) => !!t.ambient, Panel: AmbientPanel, summary: ambientSummary, info: ambientInfo },
-
-  // The scene itself (nothing selected).
-  { id: 'caption', title: 'Scene', when: (t) => isScene(t) && !t.scene.animation, Panel: CaptionPanel, defaultOpen: false, summary: (t) => t.scene.caption || 'No caption' },
-  {
-    id: 'reference', title: 'Reference image', when: isScene, Panel: ReferencePanel, Actions: ReferenceActions, defaultOpen: false,
-    summary: referenceSummary, info: () => 'Saved with the scene; it is not filmed or exported.',
-  },
 ];
 
 /** The header for what is selected: its name, its menu. */
@@ -132,5 +123,5 @@ export function Header({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   if (t.light) return <LightHeader t={t} chrome={chrome} />;
   if (t.ambient) return <AmbientHeader chrome={chrome} />;
   if (t.many) return <ManyHeader t={t} chrome={chrome} />;
-  return <SceneHeader t={t} chrome={chrome} />;
+  return null;
 }

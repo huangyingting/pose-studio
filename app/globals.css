@@ -695,15 +695,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .stage { grid-area: stage; position: relative; min-width: 0; min-height: 0; background: var(--stage); overflow: hidden; }
 .canvas-wrap { position: absolute; inset: 0; }
 .canvas-wrap canvas { touch-action: none; display: block; }
-.reference {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-}
 .toolbar { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .toolbar .segmented { background: transparent; padding: 0; }
 .toolbar .segmented button { width: 32px; height: 32px; padding: 0; border-radius: var(--radius); }
@@ -730,7 +721,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 
 /* The canvas sits above the timeline, so the shot letterbox matches what is visible. */
 .stage .canvas-wrap, .stage .letterbox { bottom: var(--tl-h, 44px); }
-.stage .reference { height: calc(100% - var(--tl-h, 44px)); }
 .timeline {
   position: absolute;
   left: 0;
@@ -1955,3 +1945,9 @@ body.resizing { cursor: col-resize; user-select: none; }
   position: absolute; left: 0; top: 0; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 92%, transparent);
   box-shadow: var(--shadow-float); color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
 }
+
+/* The right-hand panel: the scene's outline over the inspector, the line between them dragged. */
+.panel-outline { display: flex; flex-direction: column; flex: 0 0 var(--outline-h, 42%); min-height: 120px; overflow: hidden; }
+.panel-split { flex: none; height: 5px; margin: -2px 0; border-top: 1px solid var(--border); cursor: row-resize; position: relative; z-index: 1; }
+.panel-split:hover { border-top: 2px solid var(--accent); }
+.panel-empty { margin: 16px 14px; color: var(--text-3); font-size: 12px; line-height: 1.5; }

@@ -79,3 +79,37 @@ export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color 
       }`,
   });
 }
+
+/**
+ * Hair in one colour (`color`: the style's line colour), where its texture is (its cards' clear
+ * parts cut away): solid, as hair is drawn in ink, with no pale gaps at the hairline.
+ */
+export function hairMaterial(map: THREE.Texture, color: { value: THREE.Color }): THREE.ShaderMaterial {
+  map.updateMatrix();
+  return new THREE.ShaderMaterial({
+    uniforms: { map: { value: map }, mapTransform: { value: map.matrix }, color },
+    vertexShader: /* glsl */ `
+      #include <skinning_pars_vertex>
+      uniform mat3 mapTransform;
+      varying vec2 vUv;
+      void main() {
+        vUv = (mapTransform * vec3(uv, 1.0)).xy;
+        #include <begin_vertex>
+        #include <skinbase_vertex>
+        #include <skinning_vertex>
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D map;
+      uniform vec3 color;
+      varying vec2 vUv;
+      void main() {
+        if (texture2D(map, vUv).a < ${HAIR_CUTOFF.toFixed(2)}) discard;
+        gl_FragColor = vec4(color, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
+/** Where hair's texture is clear enough to be cut away (as drawn, outlined and lined). */
+export const HAIR_CUTOFF = 0.5;

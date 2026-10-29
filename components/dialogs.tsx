@@ -6,7 +6,7 @@ import { keyframePack } from '@/lib/pack';
 import { sceneShots, storyLength, storyShots } from '@/lib/board';
 import { boardSheet, boardSize, recordStory } from '@/lib/boardExport';
 import { sceneAt } from '@/lib/evaluate';
-import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
+import { addCamera, applyPhotoPose } from '@/lib/actions';
 import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
@@ -449,20 +449,17 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
   // The pose can go on the selected figure only if one that can be posed is selected.
   const posable = (selection?.kind === 'figure' || selection?.kind === 'joint') && !scene.figures.find((f) => f.id === selection.figure)?.proxy ? selection.figure : null;
   const [url, setUrl] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [people, setPeople] = useState<DetectedPerson[]>([]);
   const [chosen, setTarget] = useState<'new' | 'current'>('new');
   const target = posable ? chosen : 'new';
-  const [asReference, setAsReference] = useState(true);
   const canvas = useRef<HTMLCanvasElement>(null);
   const body = useMemo(() => scene.figures.find((f) => f.id === activeFigure)?.body ?? newFigure().body, [scene, activeFigure]);
 
   const pick = async (file: File) => {
     const src = URL.createObjectURL(file);
     setUrl(src);
-    setPhotoFile(file);
     setPeople([]);
     setStatus('loading');
     setMessage('Loading the pose model (first time only)…');
@@ -507,8 +504,6 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
   const apply = () => {
     const { figures, skipped } = poseFigures(people, body);
     applyPhotoPose(store, figures, target === 'current' ? posable! : undefined);
-    // Over the scene posed (the new one, or this one), saved with it.
-    if (asReference && photoFile) void setReferenceImage(store, photoFile);
     notify(skipped.length ? `Posed. Not visible in the photo: ${skipped.join(', ')}` : 'Pose applied from photo');
     onClose();
   };
@@ -551,7 +546,6 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
               options={[{ value: 'new', label: 'A new scene' }, ...(posable ? [{ value: 'current' as const, label: 'The selected figure' }] : [])]}
             />
           </Field>
-          <Toggle label="Keep as reference" hint="The photo over the scene, as its reference image" checked={asReference} onChange={setAsReference} />
         </div>
         <div className="preview">
           {status === 'loading' && <div className="spinner" aria-label="Working" />}

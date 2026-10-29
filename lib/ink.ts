@@ -38,7 +38,11 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
         #include <begin_vertex>
         #include <skinning_vertex>
         vPos = position;
-        vec4 clip = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+        // (A little behind the surface, away from the eye: where it folds inwards (a nostril, the
+        // corner of a mouth or an eye) the outline does not show through in front of it.)
+        vec4 view = modelViewMatrix * vec4(transformed, 1.0);
+        view.xyz += normalize(view.xyz) * 0.012;
+        vec4 clip = projectionMatrix * view;
         vec3 n = normalize(normalMatrix * objectNormal);
         vec2 dir = (projectionMatrix * vec4(n, 0.0)).xy * resolution;
         float len = length(dir);
@@ -104,6 +108,27 @@ const ID_VERT = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
 const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }';
+/** For a part cut out where its texture is clear (hair): no ID there, so no line round what is not drawn. */
+const CUT_VERT = /* glsl */ `
+  uniform mat3 mapTransform;
+  varying vec2 vUv;
+  #include <skinning_pars_vertex>
+  void main() {
+    vUv = (mapTransform * vec3(uv, 1.0)).xy;
+    #include <skinbase_vertex>
+    #include <begin_vertex>
+    #include <skinning_vertex>
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+  }`;
+const CUT_FRAG = /* glsl */ `
+  uniform vec3 id;
+  uniform sampler2D map;
+  uniform float cutoff;
+  varying vec2 vUv;
+  void main() {
+    if (texture2D(map, vUv).a < cutoff) discard;
+    gl_FragColor = vec4(id, 1.0);
+  }`;
 /** For a part made of pieces (a hand): each piece its own ID, the part's first one plus the piece's number. */
 const PIECES_VERT = /* glsl */ `
   attribute float piece;
@@ -126,6 +151,8 @@ const PIECES_FRAG = /* glsl */ `
 
 interface StyleMaterials {
   body: THREE.Material;
+  /** A character's body: as the mannequin's, without the creases (its face's own folds would blot). */
+  skin?: THREE.Material;
   bodySel: THREE.Material;
   /** Under the pointer: what a drag would move (lighter than the selection). */
   hover: THREE.Material;
@@ -174,7 +201,7 @@ export class Ink {
   private materials = new Map<string, StyleMaterials>();
   /** Outlines of their own width and colour (a VRM character's materials': outlineAs). */
   private ownOutlines = new Map<string, { material: THREE.ShaderMaterial; width: number; thickness: { value: number } }>();
-  private idMats = new Map<number, THREE.ShaderMaterial>();
+  private idMats = new Map<string, THREE.ShaderMaterial>();
 
   constructor(readonly ghost: Ghost | null = null) {
     if (ghost) {
@@ -184,14 +211,24 @@ export class Ink {
     }
   }
 
-  /** A part's ID material (`pieces`: one whose geometry numbers its pieces, each drawn as its own ID from `id` on). */
-  idMaterial(id: number, pieces = false) {
-    const key = pieces ? -1 - id : id;
+  /**
+   * A part's ID material (`pieces`: one whose geometry numbers its pieces, each drawn as its own ID
+   * from `id` on; `cutout`: none where its texture is clearer than the cut-off).
+   */
+  idMaterial(id: number, pieces = false, cutout?: { map: THREE.Texture; cutoff: number }) {
+    const key = pieces ? `-${id}` : cutout ? `${id}|${cutout.map.uuid}@${cutout.cutoff}` : `${id}`;
     let m = this.idMats.get(key);
     if (!m) {
+      cutout?.map.updateMatrix();
       m = pieces
         ? new THREE.ShaderMaterial({ uniforms: { first: { value: id } }, vertexShader: PIECES_VERT, fragmentShader: PIECES_FRAG })
-        : new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
+        : cutout
+          ? new THREE.ShaderMaterial({
+            uniforms: { id: { value: encodeId(id) }, map: { value: cutout.map }, mapTransform: { value: cutout.map.matrix }, cutoff: { value: cutout.cutoff } },
+            vertexShader: CUT_VERT,
+            fragmentShader: CUT_FRAG,
+          })
+          : new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
       this.idMats.set(key, m);
     }
     return m;
@@ -281,7 +318,7 @@ export class Ink {
     }
     const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
     const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
-    const shader = (s: 'ink' | 'sketch' | 'anime' | 'contour', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
+    const shader = (s: 'ink' | 'sketch' | 'anime' | 'contour', base: string, shade: string, creases = true) => styleMaterial(s, this.uniforms, base, shade, creases);
     const contour = (base: string, line: string) => shader('contour', base, line);
     switch (style) {
       case 'shaded':
@@ -321,9 +358,9 @@ export class Ink {
         };
       }
       case 'minimal':
-        return { body: contour(body('#ffffff'), '#a29d93'), bodySel: contour('#e2e9ff', '#a29d93'), hover: contour('#f0f4ff', '#a29d93'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
+        return { body: contour(body('#ffffff'), '#a29d93'), skin: shader('contour', body('#ffffff'), '#a29d93', false), bodySel: contour('#e2e9ff', '#a29d93'), hover: contour('#f0f4ff', '#a29d93'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
       default:
-        return { body: contour(body('#ffffff'), '#0b0b0b'), bodySel: contour('#d5e5ff', '#0b0b0b'), hover: contour('#ebf2ff', '#0b0b0b'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
+        return { body: contour(body('#ffffff'), '#0b0b0b'), skin: shader('contour', body('#ffffff'), '#0b0b0b', false), bodySel: contour('#d5e5ff', '#0b0b0b'), hover: contour('#ebf2ff', '#0b0b0b'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
     }
   }
 

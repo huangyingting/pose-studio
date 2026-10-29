@@ -500,6 +500,8 @@ def build(who, out):
     parts = []
     eyes = HumanService.add_mhclo_asset(asset('eyes', 'high-poly'), body, asset_type='Eyes', subdiv_levels=0, material_type='MAKESKIN')
     plain(eyes, (1, 1, 1), os.path.join(DATA, 'eyes', 'materials', 'brown_eye.png'), alpha=True, clear=(0.72, 0.75, 1.0))
+    # (Named for what they are: the app inks the eyes, brows and lashes, and draws the hair in one colour.)
+    eyes.name = 'Human.eyes'
     parts.append(eyes)
     for kind, name in (('eyebrows', spec['eyebrows']), ('eyelashes', spec['eyelashes'])):
         o = HumanService.add_mhclo_asset(asset(kind, name), body, asset_type=kind.capitalize(), subdiv_levels=0, material_type='MAKESKIN')
@@ -508,6 +510,7 @@ def build(who, out):
     hair, tint = spec['hair']
     o = HumanService.add_mhclo_asset(asset('hair', hair), body, asset_type='Hair', subdiv_levels=0, material_type='MAKESKIN')
     plain(o, (1, 1, 1), first_png(os.path.join(DATA, 'hair', hair)), alpha=True, tint=tint)
+    o.name = 'Human.hair'
     parts.append(o)
     hair_mesh = o
     for name in spec['clothes']:

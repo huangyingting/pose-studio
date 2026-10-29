@@ -27,7 +27,6 @@ import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext } from './Inspector';
 import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
-import { useReferenceUrl } from './reference';
 import { StoreContext, useProjectSettings, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
 import { Clock, startPlayback } from './clock';
@@ -86,7 +85,6 @@ type Dialog = null | 'export' | 'export-story' | 'export-video' | 'photo' | 'hel
 function App() {
   const store = useStore();
   const scene = useScene();
-  const referenceUrl = useReferenceUrl(scene.reference?.image);
   const selection = useStudio((s) => s.selection);
   const activeFigure = useStudio((s) => s.activeFigure);
   const settings = useStudio((s) => s.settings);
@@ -560,14 +558,10 @@ function App() {
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} />}
         <SelectionLabel labelPoint={labelPoint} hidden={!!through || !!pick} />
-        {referenceUrl && scene.reference?.visible && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="reference" src={referenceUrl} alt="" style={{ opacity: scene.reference.opacity }} />
-        )}
         <Timeline clock={clock} notify={notify} />
       </main>
 
-      <Inspector ctx={ctx} onHide={toggleInspector} />
+      <Inspector ctx={ctx} onPhoto={() => setDialog('photo')} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
       {(dialog === 'export' || dialog === 'export-story' || dialog === 'export-video') && (

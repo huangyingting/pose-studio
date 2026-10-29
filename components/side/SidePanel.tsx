@@ -15,7 +15,7 @@ export interface RailAction {
 }
 
 /**
- * The left side: a rail of sections (Scene, Library, AI assistant) with the open one's panel next
+ * The left side: a rail of sections (the library's categories, the AI assistant) with the open one's panel next
  * to it, and below a divider, workspaces that open on their own (Storyboard). Clicking the open
  * section's icon folds the panel away for more canvas.
  */
@@ -24,7 +24,7 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
   const saved = useStudio((s) => s.settings.side);
   const widths = useStudio((s) => s.settings.widths);
   // As a drawer (small screens) a section is always shown.
-  const side: SideSection = saved === 'none' && drawer ? 'scene' : saved;
+  const side: SideSection = saved === 'none' && drawer ? 'poses' : saved;
   const open = SECTIONS.find((s) => s.id === side);
   const pick = (id: SideSection) => store.setSettings({ side: id === side ? 'none' : id });
 
@@ -62,7 +62,7 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
           // Each section keeps the width it was dragged to.
           style={widths[open.id] ? ({ '--side-w': `${widths[open.id]}px` } as CSSProperties) : undefined}
         >
-          <open.Panel {...props} />
+          <open.Panel {...props} section={open.id} />
           <PanelEdge
             label="Resize the side panel"
             side="right"

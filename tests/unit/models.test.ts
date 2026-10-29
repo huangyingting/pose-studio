@@ -128,7 +128,9 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(hulls).toHaveLength(meshes.length);
     for (const style of ['sketch', 'ink', 'minimal'] as const) {
       sv.setStyle(style);
-      expect(meshes.every((m) => m.material === sv.ink.materialsFor(style).body), style).toBe(true);
+      // (In one colour: the mannequin's material, without its creases in line art and minimal.)
+      const m = sv.ink.materialsFor(style);
+      expect(meshes.every((x) => x.material === (m.skin ?? m.body)), style).toBe(true);
     }
     expect(hulls.every((h) => h.visible)).toBe(true);
     sv.setStyle('shaded');

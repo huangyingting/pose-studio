@@ -9,7 +9,7 @@ import { BUILT_IN, clipById, hasClip } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
-import { saveClips, saveImage } from './assetstore';
+import { saveClips } from './assetstore';
 import { projectSettingsOf } from './project';
 import { MAX_LIGHTS, clampLight, fromPreset, keyLight, lightingOf, newLight, placeLight, type Place } from './lighting';
 import { setLights } from './sets';
@@ -34,7 +34,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -195,31 +195,6 @@ export function deleteLight(store: Store, id: string) {
   if (l.lights.length < 2 || !l.lights.some((x) => x.id === id)) return false;
   setLighting(store, { ...l, lights: l.lights.filter((x) => x.id !== id) });
   return true;
-}
-
-/** An image as PNG, JPEG or WebP (what is kept and synced): others (GIF, BMP…) are drawn into a PNG. */
-async function webImage(image: Blob): Promise<Blob> {
-  if (/^image\/(png|jpeg|webp)$/.test(image.type)) return image;
-  const bitmap = await createImageBitmap(image);
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
-  return canvas.convertToBlob({ type: 'image/png' });
-}
-
-/** A photo or drawing over the open scene (kept as an asset, saved with the scene), shown. */
-export async function setReferenceImage(store: Store, image: Blob) {
-  const id = uid('ref');
-  await saveImage(id, await webImage(image));
-  store.updateScene((s) => ({ ...s, reference: { image: id, opacity: s.reference?.opacity ?? 0.45, visible: true } }));
-}
-
-/** How the scene's reference image shows (null: none). */
-export function editReference(store: Store, patch: Partial<Omit<Reference, 'image'>> | null, key = '') {
-  store.updateScene((s) => {
-    if (!s.reference) return s;
-    const { reference, ...rest } = s;
-    return patch ? { ...s, reference: { ...reference, ...patch } } : rest;
-  }, key);
 }
 
 /* Figures */

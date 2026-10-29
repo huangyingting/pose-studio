@@ -185,9 +185,9 @@ export function selectionCtx(store: Store): Ctx {
   }
 }
 
-/** Rename in the scene outline (opening it if another section is showing). */
+/** Rename in the scene outline (showing it if the right panel is folded away). */
 export function renameInOutline(store: Store, id: string) {
-  if (store.getState().settings.side !== 'scene') store.setSettings({ side: 'scene' });
+  if (!store.getState().settings.inspector) store.setSettings({ inspector: true });
   startRename(id);
 }
 
@@ -720,11 +720,11 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'figure.pose', title: 'Choose a pose…', icon: PersonStanding, when: (c) => !!figureOf(c) && !figureOf(c)!.proxy && !c.action,
-    run: (c) => { c.store.select({ kind: 'figure', figure: c.figure! }); c.store.setSettings({ side: 'library', libraryTab: 'poses' }); },
+    run: (c) => { c.store.select({ kind: 'figure', figure: c.figure! }); c.store.setSettings({ side: 'poses' }); },
   },
   {
     id: 'figure.motion', title: 'Choose a motion…', icon: Film, when: (c) => !!figureOf(c) && !figureOf(c)!.proxy && !c.action,
-    run: (c) => { c.store.select({ kind: 'figure', figure: c.figure! }); c.store.setSettings({ side: 'library', libraryTab: 'motions' }); },
+    run: (c) => { c.store.select({ kind: 'figure', figure: c.figure! }); c.store.setSettings({ side: 'motions' }); },
   },
   {
     id: 'figure.savePose', title: 'Save pose to library', icon: BookmarkPlus, when: (c) => !!figureOf(c) && !figureOf(c)!.proxy && !c.action,
@@ -896,7 +896,7 @@ export const COMMANDS: Command[] = [
   // A shot.
   {
     id: 'shot.move', title: 'Choose a camera move…', icon: Video, when: (c) => !!spanOf(c),
-    run: (c) => { c.store.setTime(spanOf(c)!.start); c.store.select({ kind: 'shot', shot: c.shot! }); c.store.setSettings({ side: 'library', libraryTab: 'camera' }); },
+    run: (c) => { c.store.setTime(spanOf(c)!.start); c.store.select({ kind: 'shot', shot: c.shot! }); c.store.setSettings({ side: 'camera' }); },
   },
   {
     id: 'shot.camera', title: 'Film with', icon: Camera, when: (c) => !!spanOf(c),

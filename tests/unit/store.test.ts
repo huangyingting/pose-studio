@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, deleteFigure, deleteScene, duplicateCurrentScene, editReference, moveScene, setReferenceImage } from '@/lib/actions';
-import { loadImage } from '@/lib/assetstore';
-import { parseScene } from '@/lib/doc';
+import { addFigure, addProp, deleteFigure, deleteScene, duplicateCurrentScene, moveScene } from '@/lib/actions';
 import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
@@ -183,20 +181,5 @@ describe('share link limits', () => {
     const encoded = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     expect(encoded.length).toBeLessThan(200_000);
     await expect(decodeScene(encoded)).rejects.toThrow(/too large/);
-  });
-});
-
-describe('reference image', () => {
-  it('is saved with its scene (the file kept as an asset), shown, faded or taken away', async () => {
-    const store = new Store(seeded());
-    const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' });
-    await setReferenceImage(store, png);
-    const ref = store.scene.reference!;
-    expect(ref).toMatchObject({ opacity: 0.45, visible: true });
-    expect(await loadImage(ref.image)).toBe(png);
-    editReference(store, { opacity: 0.8, visible: false });
-    expect(parseScene(JSON.parse(JSON.stringify(store.scene))).reference).toEqual({ image: ref.image, opacity: 0.8, visible: false });
-    editReference(store, null);
-    expect(store.scene.reference).toBeUndefined();
   });
 });

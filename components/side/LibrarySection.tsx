@@ -1,34 +1,32 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronRight, Ellipsis, Search } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { libraryMotions, onLibraryMotions } from '@/lib/librarymotions';
 import { PREVIEW_SIZE, requestThumb, runPreview, type PreviewJob } from '@/lib/previews';
 import { spanAt } from '@/lib/shots';
-import type { LibraryTab } from '@/lib/store';
 import type { Scene } from '@/lib/types';
 import { styleDef } from '@/lib/styles';
 import { useProjectSettings, useStore, useStudio } from '../store-context';
-import { IconButton, Menu } from '../ui';
+import { IconButton } from '../ui';
 import { endDrag, startDrag } from '../dragdrop';
 import { setHoverGhost } from '../hints';
 import { LIBRARY_CATEGORIES, type LibraryCategory, type LibraryItem, type LibraryUi, type Thumb } from './libraryItems';
 import type { SectionProps } from './sections';
 
 /**
- * Ready-made things to build a scene with, by category (icon tabs) and in groups. They apply to
- * what is selected: a pose or a motion to the selected figure, a template as a new scene (or into
- * this one), a camera move to the selected (or current) shot. One search box finds items in every
- * category. Resting the pointer on one shows what it does: the pose, the motion playing, the move
- * filming this scene.
+ * Ready-made things to build a scene with, one category at a time (each its own section on the
+ * rail), in groups. They apply to what is selected: a pose or a motion to the selected figure, a
+ * set or a lighting scheme to the scene, a camera move to the selected (or current) shot. Its
+ * search finds the category's items. Resting the pointer on one shows what it does: the pose, the
+ * motion playing, the move filming this scene.
  */
 const NO_MOTIONS: never[] = [];
 const noMotions = () => NO_MOTIONS;
 
-export default function LibrarySection({ notify, notifyUndo, onPick }: SectionProps) {
+export default function LibrarySection({ notify, notifyUndo, onPick, section }: SectionProps) {
   const store = useStore();
-  const tab = useStudio((s) => s.settings.libraryTab);
   // What the items depend on: the library (its scenes too), the selection, the shot at the playhead.
   useStudio((s) => s.library);
   useStudio((s) => s.sceneIndex);
@@ -38,94 +36,33 @@ export default function LibrarySection({ notify, notifyUndo, onPick }: SectionPr
   // (The Library's motion files, once their list has come.)
   useSyncExternalStore(onLibraryMotions, libraryMotions, noMotions);
   const [query, setQuery] = useState('');
-  // A category's header was clicked in the results: only its matches.
-  const [scoped, setScoped] = useState(false);
   const preview = usePreview();
   const ui: LibraryUi = { notify, notifyUndo, onPick };
-  const open = LIBRARY_CATEGORIES.find((c) => c.id === tab) ?? LIBRARY_CATEGORIES[0];
-  const setTab = (libraryTab: LibraryTab) => { preview.hide(); store.setSettings({ libraryTab }); };
-
-  // Each tab (and the results) keeps its scroll position.
-  const scroller = useRef<HTMLDivElement>(null);
-  const positions = useRef(new Map<string, number>());
-  const view = query.trim() ? `search:${scoped ? tab : ''}` : tab;
-  useLayoutEffect(() => {
-    if (scroller.current) scroller.current.scrollTop = positions.current.get(view) ?? 0;
-  }, [view]);
+  const open = LIBRARY_CATEGORIES.find((c) => c.id === section) ?? LIBRARY_CATEGORIES[0];
 
   const q = query.trim().toLowerCase();
-  let body: ReactNode;
-  if (!q) {
-    body = (
-      <>
-        {open.Bar && <open.Bar {...ui} />}
-        <Items category={open} items={open.items(store, ui)} preview={preview.bind} />
-      </>
-    );
-  } else {
-    // Matches from every category, the open one's first, under one header each.
-    const cats = scoped ? [open] : [open, ...LIBRARY_CATEGORIES.filter((c) => c !== open)];
-    const found = cats.map((c) => ({ c, items: c.items(store, ui).filter((it) => it.name.toLowerCase().includes(q)) })).filter((x) => x.items.length);
-    body = found.length ? found.map(({ c, items }) => (
-      <section key={c.id} className="lib-results" aria-label={`${c.label} found`}>
-        <button type="button" className="lib-result-head" onClick={() => { setTab(c.id); setScoped(true); }} data-tip={scoped ? undefined : `Only ${c.label.toLowerCase()}`}>
-          <c.icon size={13} aria-hidden /> {c.label} <span className="count">{items.length}</span>
-        </button>
-        <List category={c} title={c.label} items={items} preview={preview.bind} />
-      </section>
-    )) : <p className="empty-note">Nothing matches “{query.trim()}”</p>;
-  }
-
+  const items = open.items(store, ui);
+  const found = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
   return (
-    <div className="side-section library">
-      <Tabs tab={open.id} onPick={(id) => { setTab(id); setScoped(!!q); }} />
+    <div className="side-section library" aria-label={open.label}>
+      <div className="side-head"><h2>{open.label}</h2></div>
       <div className="library-row">
         <label className="search">
           <Search size={14} aria-hidden />
           <input
             type="search"
-            placeholder="Search the library"
+            placeholder={`Search ${open.label.toLowerCase()}`}
             value={query}
-            aria-label="Search the library"
-            onChange={(e) => { setQuery(e.target.value); if (!e.target.value.trim()) setScoped(false); }}
+            aria-label={`Search ${open.label.toLowerCase()}`}
+            onChange={(e) => setQuery(e.target.value)}
           />
         </label>
       </div>
-      <div className="side-scroll" ref={scroller} onScroll={(e) => positions.current.set(view, e.currentTarget.scrollTop)}>
-        {body}
+      <div className="side-scroll">
+        {!q && open.Bar && <open.Bar {...ui} />}
+        {found.length || !q ? <Items category={open} items={found} preview={preview.bind} /> : <p className="empty-note">Nothing matches “{query.trim()}”</p>}
       </div>
       {preview.card}
-    </div>
-  );
-}
-
-/** The categories as icon tabs: the open one with its name, the others with it in a tooltip; past five, the last place is a ⋯. */
-function Tabs({ tab, onPick }: { tab: LibraryTab; onPick(id: LibraryTab): void }) {
-  const MAX = 6;
-  const shown = LIBRARY_CATEGORIES.length > MAX ? LIBRARY_CATEGORIES.slice(0, MAX - 1) : LIBRARY_CATEGORIES;
-  const more = LIBRARY_CATEGORIES.slice(shown.length);
-  return (
-    <div className="lib-tabs" role="tablist" aria-label="Library">
-      {shown.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          role="tab"
-          aria-selected={c.id === tab}
-          aria-label={c.label}
-          className={`lib-tab${c.id === tab ? ' on' : ''}`}
-          data-tip={c.id === tab ? undefined : c.label}
-          onClick={() => onPick(c.id)}
-        >
-          <c.icon size={15} strokeWidth={1.75} aria-hidden />
-          {c.id === tab && <span className="lib-tab-label">{c.label}</span>}
-        </button>
-      ))}
-      {more.length > 0 && (
-        <Menu label="More categories" className={`lib-tab${more.some((c) => c.id === tab) ? ' on' : ''}`} items={more.map((c) => ({ label: c.label, icon: c.icon, checked: c.id === tab, onSelect: () => onPick(c.id) }))}>
-          <Ellipsis size={15} aria-hidden />
-        </Menu>
-      )}
     </div>
   );
 }

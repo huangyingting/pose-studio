@@ -91,14 +91,15 @@ async function viewMenu(page: Page, item: string | RegExp) {
 }
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
-/** Pick what the Library lists (the drop-down beside its title). */
-async function libraryShows(page: Page, what: 'Templates' | 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting' | 'Camera') {
-  await page.getByRole('tablist', { name: 'Library' }).getByRole('tab', { name: what, exact: true }).click();
+/** Open one of the library's categories: a section of the left side panel each (clicking the open one would fold it away). */
+async function libraryShows(page: Page, what: 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting' | 'Camera') {
+  const tab = page.getByRole('tablist', { name: 'Sections' }).getByRole('tab', { name: what, exact: true });
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
+/** The scene's outline (always there, on the right) or the library (a category open on the left: Poses if none is). */
 async function openSection(page: Page, name: 'Scene' | 'Library') {
-  const tab = page.getByRole('tab', { name, exact: true });
-  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  if (name === 'Library' && !(await page.getByRole('tabpanel').count())) await libraryShows(page, 'Poses');
 }
 
 /**
@@ -552,14 +553,9 @@ test('poses a figure from a photo', async ({ page }) => {
   expect(s.scene.cameras.map((c) => c.name)).toEqual(['Photo camera']);
   // The fixture is a lunge with arms pushing forward.
   expect(angle(s.scene.figures[0].bones, 'leftLowerLeg')[0]).toBeGreaterThan(20);
-  await expect(page.locator('img.reference')).toBeVisible();
   // MediaPipe's usage logging is answered locally instead of reaching Google (or the CSP).
   const status = await page.evaluate(() => fetch('https://odml.pa.googleapis.com/v1/log', { method: 'POST' }).then((r) => r.status));
   expect(status).toBe(204);
-  // The photo is the scene's reference image, kept with it: there again after a reload.
-  await page.waitForFunction(() => (window as unknown as { __poseStudio: { store: { getState(): { saveStatus: string } } } }).__poseStudio.store.getState().saveStatus === 'saved');
-  await page.reload();
-  await expect(page.locator('img.reference')).toBeVisible();
 });
 
 test('mobile layout uses drawers', async ({ page }) => {
@@ -567,9 +563,13 @@ test('mobile layout uses drawers', async ({ page }) => {
   await expect(page.locator('.side')).not.toBeInViewport();
   await page.getByRole('button', { name: 'Side panel', exact: true }).click();
   await expect(page.locator('.side')).toBeInViewport();
-  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Poses' }).first()).toBeVisible();
   await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
   await expect(page.locator('.side')).not.toBeInViewport();
+  // The scene's outline is in the inspector's drawer.
+  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+  await page.locator('.scrim').click({ position: { x: 20, y: 400 } });
   // Scenes switch from the top bar.
   await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
   expect((await state(page)).sceneIndex).toBe(2);
@@ -1270,22 +1270,25 @@ test('the inspector folds away for more canvas and remembers it', async ({ page 
   await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible();
 });
 
-test('the side panel switches sections, folds away and remembers it', async ({ page }) => {
-  await openSection(page, 'Library');
-  await expect(page.getByRole('tabpanel').getByRole('tablist', { name: 'Library' })).toBeVisible();
-  await openSection(page, 'Scene');
+test('the side panel shows a library category at a time, folds away and remembers it', async ({ page }) => {
+  await libraryShows(page, 'Sets');
+  await expect(page.getByRole('tabpanel').getByRole('searchbox', { name: 'Search sets' })).toBeVisible();
+  await libraryShows(page, 'Motions');
+  await expect(page.getByRole('tabpanel').getByRole('searchbox', { name: 'Search motions' })).toBeVisible();
+  // The scene's outline is on the right, over the inspector, whichever is open.
   await animate(page);
   await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
   // Clicking the open section folds the panel; the canvas gets the room.
   const before = (await page.locator('.stage').boundingBox())!.width;
-  await page.getByRole('tab', { name: 'Scene', exact: true }).click();
+  await page.getByRole('tab', { name: 'Motions', exact: true }).click();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
   expect((await page.locator('.stage').boundingBox())!.width).toBeGreaterThan(before + 200);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
-  await openSection(page, 'Scene');
   await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+  await libraryShows(page, 'Poses');
+  await expect(page.getByRole('region', { name: 'Poses' }).first()).toBeVisible();
 });
 
 test('library assets apply to the selection: poses to a figure, motions to its track, saved poses', async ({ page }) => {

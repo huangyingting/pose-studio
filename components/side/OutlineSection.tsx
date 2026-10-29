@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Castle, Clapperboard, Cloudy, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, UserRound, X } from 'lucide-react';
+import { Camera, Castle, Cloudy, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, UserRound, X } from 'lucide-react';
 import {
   addCamera, addFigure, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
@@ -26,7 +26,7 @@ import type { SectionProps } from './sections';
  * cameras and its shots. Selecting an item shows it in the inspector; the library applies to what is selected.
  * Double-click (or F2) renames; right-click opens the item's menu.
  */
-export default function OutlineSection({ onPhoto }: SectionProps) {
+export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto' | 'notify' | 'notifyUndo'>) {
   const store = useStore();
   const scene = useScene();
   // Shots are flagged as longer than the film's video model allows: follow it.
@@ -57,7 +57,6 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
     <div className="side-section outline">
       <div className="side-head">
         <h2>Scene</h2>
-        <IconButton icon={Clapperboard} label="The scene: its caption and reference image" size={15} active={!selection} onClick={() => store.select(null)} />
       </div>
       <div className="side-scroll">
         <div className="outline-group">
@@ -122,7 +121,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
               align="end"
               tip="Add a prop, or pick a set to play the scene in"
               items={[
-                { label: scene.set ? 'Change the set…' : 'Pick a set…', icon: Castle, onSelect: () => store.setSettings({ side: 'library', libraryTab: 'sets' }) },
+                { label: scene.set ? 'Change the set…' : 'Pick a set…', icon: Castle, onSelect: () => store.setSettings({ side: 'sets' }) },
                 { group: 'On the floor' },
                 // (Or dragged: onto the floor, at the drop point; a handheld one onto a figure, into its hand.)
                 ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => placeOrAdd(placingProp(store, k), () => addProp(store, k)), drag: { floor: (at: Vec3) => addProp(store, k, at) } })),
@@ -139,7 +138,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
           <ul className="layers" aria-label="Set">
             {setById(scene.set) && (
               <li>
-                <button type="button" className="layer-main" data-tip="The set the scene is played in: change it in the Library's Sets" data-tip-side="right" onClick={() => store.setSettings({ side: 'library', libraryTab: 'sets' })}>
+                <button type="button" className="layer-main" data-tip="The set the scene is played in: change it in the Library's Sets" data-tip-side="right" onClick={() => store.setSettings({ side: 'sets' })}>
                   <Castle size={15} strokeWidth={1.75} aria-hidden />
                   <span className="layer-name">{setById(scene.set)!.name}</span>
                 </button>

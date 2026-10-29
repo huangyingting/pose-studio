@@ -263,9 +263,6 @@ export function parseScene(v: unknown, i = 0): Scene {
     ...(typeof v.caption === 'string' && v.caption ? { caption: v.caption.slice(0, 500) } : {}),
     ...(v.offStory === true ? { offStory: true } : {}),
     ...(typeof v.hold === 'number' && Number.isFinite(v.hold) ? { hold: Math.min(60, Math.max(0.2, v.hold)) } : {}),
-    ...(isObj(v.reference) && typeof v.reference.image === 'string' && /^[\w-]{1,80}$/.test(v.reference.image)
-      ? { reference: { image: v.reference.image, opacity: Math.min(1, Math.max(0.05, num(v.reference.opacity, 0.45))), visible: v.reference.visible !== false } }
-      : {}),
   };
   if (!scene.cameras.length) scene.cameras = [defaultCamera()];
   if (isObj(v.coverage) && typeof v.coverage.id === 'string' && isObj(v.coverage.roles)) {
