@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Clapperboard, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
+import { Box, Clapperboard, Download, Film, ImagePlus, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Square, type LucideIcon } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneShots, storyLength, storyShots } from '@/lib/board';
 import { boardSheet, boardSize, recordStory } from '@/lib/boardExport';
 import { sceneAt } from '@/lib/evaluate';
 import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
 import { newFigure } from '@/lib/doc';
-import { poseScene, referencePoses } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
@@ -23,9 +22,12 @@ import { sharedRenderer } from '@/lib/thumbnails';
 import { type BodyParams, type Figure, type Style } from '@/lib/types';
 import { useProjectSettings, useScene, useStore, useStudio } from './store-context';
 import { COMMANDS, GESTURES, SELECTION_KEYS, keyLabel, titleOf } from './commands';
-import { Field, Hint, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
+import { Field, Hint, Modal, Segmented, Select, Slider, Toggle, type Notify } from './ui';
 
 /* ---------------- Export ---------------- */
+
+/** One thing the dialog exports: its label in its group, its name alone (if longer), and why it cannot be now. */
+interface Output { value: ExportOptions['scope']; label: string; name?: string; icon: LucideIcon; title?: string; off?: string }
 
 const EXPORT_KEY = 'pose-studio-export-v1';
 
@@ -79,14 +81,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const shots = whole ? story : sceneStory;
   const canRecord = videoSupported();
 
-  // The pose sheet shows each pose on its own figure (the reference sheet's layout): the reference
-  // poses and my own (the gallery's would make it too big to draw).
-  const sheetPoses = useMemo(() => [...referencePoses(), ...(library.poses ?? [])], [library]);
-  const poseCount = sheetPoses.length;
-  const cells = useMemo(
-    () => exportCells(scope === 'poses' ? sheetPoses.map((p) => poseScene(p)) : scenes, scene, { ...o, scope }, time, camera || undefined),
-    [o, scope, scenes, scene, sheetPoses, time, camera],
-  );
+  const cells = useMemo(() => exportCells(scenes, scene, { ...o, scope }, time, camera || undefined), [o, scope, scenes, scene, time, camera]);
   const size = filmed ? videoSize(o.videoSize, frameAspect()) : scope === 'board' ? boardSize(story.length, o.columns, o.labels) : sheetSize(cells.length, o);
   const { width, height } = size;
   const tooBig = !filmed && !model && (width * height > 120_000_000 || width > 16384 || height > 16384);
@@ -181,7 +176,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         : sharedRenderer().sheet(cells, { ...o, style, scope });
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
-      const base = scope === 'poses' ? 'Pose' : scope === 'all' ? 'Scenes' : scope === 'board' ? 'Storyboard' : safeFilename(scene.name);
+      const base = scope === 'all' ? 'Scenes' : scope === 'board' ? 'Storyboard' : safeFilename(scene.name);
       const name = `${base}${scope === 'turnaround' ? '_turnaround' : scope === 'frames' ? '_frames' : ''}.${ext}`;
       downloadBlob(blob, name);
       notify(`Saved ${name} (${canvas.width} × ${canvas.height})`);
@@ -206,75 +201,86 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
     />
   );
 
-  // What to export: one choice, grouped.
-  const outputs: { group: string; options: SegmentOption<ExportOptions['scope']>[] }[] = [
+  // What to export: one choice, in groups; one not possible now says why.
+  const story0 = !story.length ? 'Nothing in the storyboard' : undefined;
+  const still = !animated ? 'Animate the scene first' : undefined;
+  const outputs: { group: string; options: Output[] }[] = [
     {
-      group: 'Stills',
+      group: 'Image',
       options: [
-        { value: 'current', label: 'This scene', icon: Square },
+        { value: 'current', label: 'This scene', name: 'Image', icon: Square },
         { value: 'turnaround', label: 'Turnaround', icon: RefreshCw, title: 'This scene from evenly spaced angles' },
-        ...(scenes.length > 1 ? [{ value: 'all' as const, label: `${scenes.length} scenes`, icon: LayoutGrid, title: 'Every scene of the project' }] : []),
-        { value: 'poses', label: `Poses ${poseCount}`, icon: Images, title: 'The pose library as a reference sheet' },
-        ...(animated ? [{ value: 'frames' as const, label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' }] : []),
-        ...(story.length ? [{ value: 'board' as const, label: 'Storyboard image', icon: LayoutPanelTop, title: 'The storyboard: a panel per shot, in story order' }] : []),
+        { value: 'all', label: 'All scenes', icon: LayoutGrid, title: 'Every scene on one sheet', off: scenes.length < 2 ? 'Only one scene' : undefined },
+        { value: 'frames', label: 'Frames', name: 'Frame sheet', icon: Rows3, title: 'Moments of the animation, as a motion study', off: still },
+        { value: 'board', label: 'Storyboard', name: 'Storyboard image', icon: LayoutPanelTop, title: 'A panel per shot, in story order', off: story0 },
       ],
     },
     {
       group: 'Video',
       options: [
-        ...(animated ? [{ value: 'video' as const, label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' }] : []),
-        { value: 'pack', label: 'Keyframe pack', icon: Package, title: 'First/last frames, depth, normals, camera, prompt (and greybox clips) per shot, for AI video models' },
-        ...(story.length ? [
-          { value: 'story-video' as const, label: 'Storyboard video', icon: Clapperboard, title: 'The storyboard as a video: every scene\'s shots in story order' },
-          { value: 'story-pack' as const, label: 'Storyboard keyframe pack', icon: Package, title: 'The storyboard\'s shots, as a keyframe pack with one cut list' },
-        ] : []),
+        { value: 'video', label: 'This scene', name: 'Video', icon: Film, title: 'Filmed by its shot camera', off: still },
+        { value: 'story-video', label: 'Storyboard', name: 'Storyboard video', icon: Clapperboard, title: 'Every scene\'s shots in story order', off: story0 },
+      ],
+    },
+    {
+      group: 'AI keyframes',
+      options: [
+        { value: 'pack', label: 'This scene', name: 'Keyframe pack', icon: Package, title: 'Per shot: first and last frames, depth, normals, camera and prompt, for AI video tools' },
+        { value: 'story-pack', label: 'Storyboard', name: 'Storyboard keyframes', icon: Package, title: 'The storyboard\'s shots, with one cut list', off: story0 },
       ],
     },
     {
       group: '3D',
-      options: [{ value: 'model', label: '3D model (.glb)', icon: Box, title: scene.animation ? 'The open scene for Blender and other 3D tools: its figures, props and shot camera, animated' : 'The open scene, posed as shown, for Blender and other 3D tools' }],
+      options: [{ value: 'model', label: 'This scene (.glb)', name: '3D model', icon: Box, title: scene.animation ? 'For Blender and other 3D tools: figures, props and shot camera, animated' : 'For Blender and other 3D tools, posed as shown' }],
     },
   ];
 
   return (
     <Modal
-      title={model ? 'Export 3D model' : pack ? 'Export keyframe pack' : video ? 'Export video' : 'Export image'}
-      icon={model ? Box : pack ? Package : video ? Film : Download}
+      title="Export"
+      icon={Download}
       onClose={onClose}
       wide
       footer={
         <>
           <span className={tooBig ? 'error-text' : 'muted'}>
-            {model ? (scene.animation ? 'Animated: figures, props and the shot camera' : 'Posed as shown') : `${width} × ${height} px`}{tooBig ? ' — too large for most browsers' : ''}
+            {model ? '.glb' : `${width} × ${height} px`}{tooBig ? ' — too large for most browsers' : ''}
             {video && (whole ? ` · ${storyLength(story).toFixed(1)} s at 24 fps` : scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`)}
           </span>
-          {!filmed && !model && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT })} data-tip="4 columns of 600 × 640 cells, as the original Pose.jpg sheet">Default layout</button>}
+          {!filmed && !model && scope !== 'current' && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT, scope })} data-tip="4 columns of 600 × 640 cells">Reset layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
-            {video ? <Film size={15} aria-hidden /> : pack ? <Package size={15} aria-hidden /> : model ? <Box size={15} aria-hidden /> : <Download size={15} aria-hidden />}
-            {busy
-              ? (filmed ? `${video ? 'Recording' : 'Packing'}… ${Math.round(progress * 100)}%` : 'Rendering…')
-              : video ? 'Record video' : pack ? 'Download pack' : 'Download'}
+            <Download size={15} aria-hidden />
+            {busy ? (filmed ? `${video ? 'Recording' : 'Packing'}… ${Math.round(progress * 100)}%` : 'Rendering…') : 'Download'}
           </button>
         </>
       }
     >
       <div className="export-grid">
+        <div className="export-outputs" role="radiogroup" aria-label="Export">
+          {outputs.map((g) => (
+            <div key={g.group} className="export-group">
+              <h3>{g.group}</h3>
+              {g.options.map((op) => (
+                <button
+                  key={op.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={op.value === scope}
+                  aria-label={op.name ?? op.label}
+                  className={op.value === scope ? 'on' : ''}
+                  disabled={!!op.off}
+                  data-tip={op.off ?? op.title}
+                  data-tip-side="right"
+                  onClick={() => set({ scope: op.value })}
+                >
+                  <op.icon size={15} strokeWidth={1.75} aria-hidden /><span>{op.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
         <div className="form">
-          <div className="export-outputs" role="radiogroup" aria-label="Export">
-            {outputs.map((g) => (
-              <div key={g.group} className="field">
-                <span>{g.group}</span>
-                <div className="segmented full">
-                  {g.options.map((op) => (
-                    <button key={op.value} type="button" role="radio" aria-checked={op.value === scope} className={op.value === scope ? 'on' : ''} title={op.title} onClick={() => set({ scope: op.value })}>
-                      {op.icon && <op.icon size={15} strokeWidth={1.75} aria-hidden />}<span>{op.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
           {scope === 'turnaround' && (
             <Field label="Angles">
               <Segmented<'4' | '8'>
@@ -309,7 +315,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
                 ]}
               />
               <button type="button" className="btn subtle" onClick={() => { const v = editorCamera(); if (v) setPicked(addCamera(store, v, false)); }}>
-                New camera from the editor view
+                New camera from the view
               </button>
             </Field>
           )}
@@ -346,7 +352,13 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
               <Select<ExportOptions['format']> label="Format" value={o.format} onChange={(format) => set({ format })} options={[{ value: 'jpeg', label: 'JPG' }, { value: 'png', label: 'PNG' }]} />
             </Field>
           ))}
-          {model ? null : pack ? (
+          {model ? (
+            <div className="export-note">
+              <Box size={32} strokeWidth={1.25} aria-hidden />
+              <span>{scene.animation ? 'Figures, props and the shot camera, animated' : 'Figures and props, posed as shown'}</span>
+              <span className="muted small">A .glb file for Blender and other 3D tools</span>
+            </div>
+          ) : pack ? (
             animated && <Toggle label="Greybox clips" hint="A clay-shaded video of each shot's motion and camera, as a reference for the model" checked={o.greybox} onChange={(greybox) => set({ greybox })} />
           ) : scope === 'board' ? (
             <>
@@ -383,7 +395,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
               <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
               <div className="stack">
                 <Toggle label="Captions" checked={o.labels} onChange={(labels) => set({ labels })} />
-                {(scope === 'all' || scope === 'poses') && (
+                {scope === 'all' && (
                   <Toggle
                     label="Same scale"
                     hint="Keep figures comparable in size instead of filling each cell"

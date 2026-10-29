@@ -444,7 +444,7 @@ test('Shift-drag twists a part; handheld props go in the hand; the scene exports
 
   // The posed scene as a binary glTF file.
   await page.keyboard.press('Control+e');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('radio', { name: '3D model (.glb)' }).click().then(() => page.getByRole('button', { name: 'Download', exact: true }).click())]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('radio', { name: '3D model' }).click().then(() => page.getByRole('button', { name: 'Download', exact: true }).click())]);
   expect(download.suggestedFilename()).toMatch(/\.glb$/);
   expect(readFileSync((await download.path())!).subarray(0, 4).toString()).toBe('glTF');
 });
@@ -479,12 +479,12 @@ test('figures, props, body and hands', async ({ page }) => {
   expect(s.props).toHaveLength(0);
 });
 
-test('exports the pose library as a 2400×3200 Pose.jpg sheet', async ({ page }) => {
+test('exports all scenes as a 2400×3200 sheet', async ({ page }) => {
   await page.keyboard.press('Control+e');
-  await page.getByRole('radio', { name: 'Poses 20' }).click();
+  await page.getByRole('radio', { name: 'All scenes' }).click();
   await expect(page.getByText('2400 × 3200 px')).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
-  expect(download.suggestedFilename()).toBe('Pose.jpg');
+  expect(download.suggestedFilename()).toBe('Scenes.jpg');
   const size = jpegSize(readFileSync((await download.path())!));
   expect(size).toEqual({ width: 2400, height: 3200 });
 });
@@ -582,7 +582,7 @@ test('mobile layout uses drawers', async ({ page }) => {
 test('exports a turnaround of the current pose', async ({ page }) => {
   await page.keyboard.press('Control+e');
   // Stills film through the scene's cameras: the editor's view made into one, and picked.
-  await page.getByRole('button', { name: 'New camera from the editor view' }).click();
+  await page.getByRole('dialog', { name: 'Export' }).getByRole('button', { name: 'New camera from the view' }).click();
   expect((await state(page)).scene.cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2']);
   await expect(page.getByRole('combobox', { name: 'Camera', exact: true })).toHaveText('Camera 2');
   await page.getByRole('radio', { name: 'Turnaround', exact: true }).click();
@@ -826,7 +826,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
 
   // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
   await page.keyboard.press('Control+e');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('radio', { name: '3D model (.glb)' }).click().then(() => page.getByRole('button', { name: 'Download', exact: true }).click())]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('radio', { name: '3D model' }).click().then(() => page.getByRole('button', { name: 'Download', exact: true }).click())]);
   const glb = readFileSync((await download.path())!);
   const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString()) as { animations: { name: string; channels: unknown[] }[]; cameras?: unknown[] };
   expect(json.animations.map((x) => x.name)).toEqual([s.scene.figures[0].name, 'Camera']);
@@ -1070,7 +1070,7 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video', exact: true }).click();
   await expect(page.getByText(/720 × 720 px/)).toBeVisible();
-  [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Record video' }).click()]);
+  [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);
 });
@@ -1091,7 +1091,7 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Keyframe pack', exact: true }).click();
   await page.getByRole('switch', { name: 'Greybox clips' }).uncheck();
-  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download pack' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toBe('Wave_hello_keyframes.zip');
   const zip = readFileSync((await download.path())!);
   const text = zip.toString('latin1');

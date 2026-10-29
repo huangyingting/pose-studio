@@ -75,11 +75,11 @@ export function fitCamera(camera: THREE.PerspectiveCamera, source: PointSource, 
 
 export interface ExportOptions {
   /**
-   * What is exported. Stills: this scene, a turnaround of it, every scene (all), the pose
-   * library (poses), a sheet of an animation's frames, the story's board sheet. ProjectSettings: a video, a
-   * keyframe pack, of this scene or of the whole story. 3D: the scene as a model (.glb).
+   * What is exported. Images: this scene, a turnaround of it, every scene (all), a sheet of an
+   * animation's frames, the storyboard. Videos and keyframe packs: of this scene or of the
+   * storyboard. 3D: the scene as a model (.glb).
    */
-  scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'board' | 'video' | 'pack' | 'story-video' | 'story-pack' | 'model';
+  scope: 'all' | 'current' | 'turnaround' | 'frames' | 'board' | 'video' | 'pack' | 'story-video' | 'story-pack' | 'model';
   /** The styled picture, or a depth / normal pass (for AI image and video tools). */
   pass: Pass;
   /** Keyframe packs: add a clay-shaded clip of each shot. */
@@ -135,7 +135,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
   const num = (v: unknown, fallback: number, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   return {
-    scope: ['all', 'poses', 'turnaround', 'frames', 'board', 'video', 'pack', 'story-video', 'story-pack', 'model'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
+    scope: ['all', 'turnaround', 'frames', 'board', 'video', 'pack', 'story-video', 'story-pack', 'model'].includes(o.scope as string) ? (o.scope as ExportOptions['scope']) : 'current',
     pass: o.pass === 'depth' || o.pass === 'normal' ? o.pass : 'beauty',
     greybox: o.greybox !== false,
     angles: o.angles === 8 ? 8 : 4,
@@ -169,12 +169,12 @@ export interface Cell {
 
 /**
  * The cells of an export sheet: the open scene as its camera films it at `time` (or as one of its
- * cameras, `camera`, sees it then); every scene (or pose) from the angle its first camera sees it
+ * cameras, `camera`, sees it then); every scene from the angle its first camera sees it
  * from; a turnaround of the open scene from evenly spaced angles around it; a frame sheet of evenly
  * spaced moments of its animation, from the angle it is filmed from at `time`.
  */
 export function exportCells(scenes: Scene[], current: Scene, o: Pick<ExportOptions, 'scope' | 'angles' | 'frames' | 'cellWidth' | 'cellHeight'>, time = 0, camera?: string): Cell[] {
-  if (o.scope === 'all' || o.scope === 'poses') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}`, angle: angleAt(scene) }));
+  if (o.scope === 'all') return scenes.map((scene, i) => ({ scene, caption: `${i + 1}. ${scene.name}`, angle: angleAt(scene) }));
   const cam = camera ? cameraById(current, camera) : undefined;
   const look = (aspect: number) => (cam ? viewOf(current, cam, time, aspect) : cameraAt(current, time, aspect));
   const front = look(frameAspect());
