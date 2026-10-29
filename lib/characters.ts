@@ -51,8 +51,8 @@ const WHOLE_HANDS = oursWithout(...SKELETON.filter((b) => /Thumb|Index|Middle|Ri
 const sketchfab = (id: string, name: string, body: BodyParams, author: string): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones: WHOLE_HANDS, body, credit: `by ${author} · CC BY 4.0` });
 
 /**
- * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
- * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
+ * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child
+ * (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
  * one of Sketchfab's (CC BY), rigged here. Each with the body the mannequin under it takes (its
@@ -63,21 +63,19 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, body: { sex: 1, height: 1.63 } },
   { id: `${PREFIX}man`, name: 'Man', format: 'glb', bones: BONES, body: { sex: 0, height: 1.74 } },
   { id: `${PREFIX}child`, name: 'Child', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.32 } },
-  { id: `${PREFIX}heavy-man`, name: 'Heavier man', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.8 } },
-  { id: `${PREFIX}older-woman`, name: 'Older woman', format: 'glb', bones: MIXAMO, body: { sex: 1, height: 1.42 } },
   {
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.49 },
     credit: 'by Ueda · personal use · credit required',
   },
   // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/import.ts).
-  mixamo('adam', 'Jogger', { sex: 0, height: 1.72 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
+  mixamo('adam', 'Jogger', { sex: 0, height: 1.72 }),
   mixamo('brute', 'Barbarian', { sex: 0, height: 2.14 }),
-  mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.58 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.58 }),
   mixamo('erika-archer', 'Archer', { sex: 1, height: 1.79 }),
-  mixamo('joe', 'Businessman', { sex: 0, height: 1.75 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('joe', 'Businessman', { sex: 0, height: 1.75 }),
   mixamo('ninja', 'Ninja', { sex: 0, height: 1.64 }),
-  mixamo('paladin-j-nordstrom', 'Knight', { sex: 0, height: 1.69 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightRingDistal', 'rightLittleDistal')),
-  mixamo('pete', 'Construction worker', { sex: 0, height: 1.69 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
+  mixamo('paladin-j-nordstrom', 'Knight', { sex: 0, height: 1.69 }),
+  mixamo('pete', 'Construction worker', { sex: 0, height: 1.69 }),
   mixamo('remy', 'Student', { sex: 0, height: 1.86 }),
   mixamo('swat', 'SWAT officer', { sex: 0, height: 1.7 }),
   // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a life model.

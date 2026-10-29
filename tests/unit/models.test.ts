@@ -30,6 +30,20 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     });
   });
 
+  it('follows a finger to its next joint past an empty bone of the same name where it is (as some of Mixamo\'s FBX have)', () => {
+    const rig = mixamoRig();
+    for (const name of ['mixamorig:LeftHandIndex1', 'mixamorig:LeftHandThumb2']) {
+      const bone = rig.getObjectByName(name)!;
+      const empty = new THREE.Bone();
+      empty.name = `${name}_1`;
+      bone.children.unshift(empty);
+      empty.parent = bone;
+    }
+    expect(mapBones(rig)).toMatchObject({
+      leftIndexIntermediate: 'mixamorig:LeftHandIndex2', leftIndexDistal: 'mixamorig:LeftHandIndex3', leftThumbDistal: 'mixamorig:LeftHandThumb3',
+    });
+  });
+
   it('reads an A-pose as arms 45° down, and stands any rig up facing +Z', () => {
     const rig = mixamoRig(true);
     // Lying on its back in the file, its head to −Z: stood up all the same.

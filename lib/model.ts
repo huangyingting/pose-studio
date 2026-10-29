@@ -4,7 +4,6 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { loadModelFile, saveModelFile } from './assetstore';
 import { BUILT_IN_CHARACTERS, characterFile, isBuiltInCharacter } from './characters';
 import { legsOf } from './locomotion';
-import { Rig } from './relations';
 import { setWorldQuaternion } from './mannequin';
 import { FINGER_CURL, FINGER_NAMES as FINGERS4, FINGER_SPREAD, SEGMENTS, fingerBones, PARENT, worldTurns } from './skeleton';
 import { toQuat, type Bones } from './pose';
@@ -97,7 +96,7 @@ export function mapBones(root: THREE.Object3D): BoneMap {
     put(`${side}LowerLeg`, foot?.parent);
     put(`${side}UpperLeg`, foot?.parent?.parent);
     legs[s] = foot?.parent?.parent ?? undefined;
-    const toes = foot?.children.find(isBone);
+    const toes = foot && onward(foot);
     put(`${side}Toes`, toes);
     if (hand) fingersOf(hand, side, put);
   }
@@ -125,10 +124,20 @@ function fingersOf(hand: THREE.Object3D, side: 'left' | 'right', put: (b: Bone, 
     const finger = FINGER_NAMES.find(([, re]) => re.test(start.name.toLowerCase()));
     if (!finger) continue;
     const chain: THREE.Object3D[] = [];
-    for (let o: THREE.Object3D | undefined = start; o && chain.length < 3; o = o.children.find(isBone)) chain.push(o);
+    for (let o: THREE.Object3D | undefined = start; o && chain.length < 3; o = onward(o)) chain.push(o);
     const segs = finger[0] === 'Thumb' ? ['Metacarpal', 'Proximal', 'Distal'] : ['Proximal', 'Intermediate', 'Distal'];
     chain.forEach((o, i) => put(`${side}${finger[0]}${segs[i]}` as Bone, o));
   }
+}
+
+/**
+ * The bone a chain goes on to from one: its child bone furthest from it (some rigs give a bone a
+ * child of the same name where it is, holding nothing, beside the next joint).
+ */
+function onward(o: THREE.Object3D): THREE.Object3D | undefined {
+  let best: THREE.Object3D | undefined;
+  for (const c of o.children) if (isBone(c) && (!best || c.position.lengthSq() > best.position.lengthSq())) best = c;
+  return best;
 }
 
 /** The skeleton's needed bones a map lacks. */
