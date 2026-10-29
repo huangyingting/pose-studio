@@ -671,18 +671,17 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   // Its bones named as our skeleton's, in the file kept and as read (a character of ours).
   const names = new Map<number, string>();
   const ours: BoneMap = {};
-  // (A bone two parts were mapped to, by hand, keeps its own name: it cannot take both.)
-  const twice = new Set(Object.values(bones).filter((name, i, all) => all.indexOf(name) !== i));
   for (const [bone, was] of Object.entries(bones) as [Bone, string][]) {
     const o = root.getObjectByName(was);
     const node = o && nodeOf.get(o);
     // (Not one of its file's nodes: as it is.)
-    if (node === undefined || twice.has(was)) {
+    if (node === undefined) {
       ours[bone] = was;
       continue;
     }
-    names.set(node, bone);
-    ours[bone] = bone;
+    // (A bone two parts were mapped to, by hand, takes the first one's name; both are on it.)
+    if (!names.has(node)) names.set(node, bone);
+    ours[bone] = names.get(node)!;
   }
   data = renamed(data, names);
   const given = new Set(names.values());

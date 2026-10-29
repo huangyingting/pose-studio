@@ -185,9 +185,10 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     // (The bone mapped by hand named as ours too.)
     expect(info.bones.leftHand).toBe('leftHand');
     expect((await parseModel('glb', (await loadModelFile(info.id))!)).getObjectByName('mixamorigThing')).toBeUndefined();
-    // Two parts mapped to one bone: it keeps its own name, both parts on it.
+    // Two parts mapped to one bone: it takes one of their names, both parts on it.
     const twice = await importModel('x.gltf', new TextEncoder().encode(text).buffer as ArrayBuffer, { ...err.found, leftHand: 'mixamorigThing', leftLowerArm: 'mixamorigThing', leftUpperArm: 'mixamorigLeftArm' });
-    expect([twice.bones.leftHand, twice.bones.leftLowerArm]).toEqual(['mixamorigThing', 'mixamorigThing']);
+    expect(twice.bones.leftHand).toBe(twice.bones.leftLowerArm);
+    expect(['leftHand', 'leftLowerArm']).toContain(twice.bones.leftHand);
     const kept = await parseModel('glb', (await loadModelFile(twice.id))!);
     expect(Object.values(twice.bones).every((name) => kept.getObjectByName(name!))).toBe(true);
   });
