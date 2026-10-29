@@ -13,7 +13,7 @@ import {
 } from './figure';
 import { HeldByPanel, PhysicsActions, PhysicsPanel, PropHeader, TransformPanel, transformInfo } from './prop';
 import { CaptionPanel, ReferenceActions, ReferencePanel, SceneHeader, referenceSummary } from './scene';
-import { LightHeader, LightPanel, LightingPanel, lightInfo, lightSummary, lightingInfo, lightingSummary } from './light';
+import { LightHeader, LightPanel, LightingPanel, lightInfo, lightSummary, lightTitle, lightingInfo, lightingSummary } from './light';
 import { ManyHeader, ManyPanel, manySummary } from './many';
 import { FilmedByPanel, ShotHeader, ShotPanel, filmedBySummary, shotSummary } from './shot';
 import type { Target } from './target';
@@ -107,7 +107,7 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   { id: 'many', title: 'Selected', when: (t) => !!t.many, Panel: ManyPanel, summary: manySummary },
 
   // A light, and the scene's lighting (its scheme and ambient light: with a light, or the scene).
-  { id: 'light', title: 'Light', when: (t) => !!t.light, Panel: LightPanel, summary: lightSummary, info: lightInfo },
+  { id: 'light', title: lightTitle, when: (t) => !!t.light, Panel: LightPanel, summary: lightSummary, info: lightInfo },
   { id: 'lighting', title: 'Lighting', when: (t) => !!t.light || isScene(t), Panel: LightingPanel, summary: lightingSummary, info: lightingInfo },
 
   // The scene itself (nothing selected).

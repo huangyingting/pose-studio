@@ -1895,7 +1895,9 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   expect(Math.abs(s.scene.lighting!.lights[0].azimuth - 90)).toBeLessThan(5);
   await expect(page.getByText(/^From the left, /)).toBeVisible();
   // A rim light added (selected), a neon colour: Alt-click a figure from the front lights it from the front.
-  await page.getByRole('button', { name: 'Add a light' }).click();
+  // (Added from the inspector's list of the scene's lights: the new one selected there.)
+  await page.locator('.light-list').getByRole('button', { name: 'Add a light' }).click();
+  await expect(page.getByRole('list', { name: 'Scene lights' }).getByRole('button', { name: /^Rim light/, pressed: true })).toBeVisible();
   await page.getByRole('radiogroup', { name: 'Light colour' }).getByRole('radio', { name: 'Neon blue' }).click();
   s = await live(page);
   expect(s.scene.lighting!.lights[2]).toMatchObject({ role: 'rim', color: '#3d7bff', shadows: false });

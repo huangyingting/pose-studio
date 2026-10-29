@@ -1,16 +1,16 @@
 'use client';
 
-import { SunMedium } from 'lucide-react';
-import { applyLightingPreset, editAmbient, editLight } from '@/lib/actions';
+import { Plus, SunMedium } from 'lucide-react';
+import { addLight, applyLightingPreset, editAmbient, editLight } from '@/lib/actions';
 import { projectSettingsOf } from '@/lib/project';
-import { KELVIN, LIGHTING_PRESETS, LIGHT_SWATCHES, ROLE_NAMES, kelvinColor, lightName, lightText, lightingName, lightingOf, sameLighting } from '@/lib/lighting';
+import { KELVIN, LIGHTING_PRESETS, LIGHT_SWATCHES, MAX_LIGHTS, ROLE_NAMES, kelvinColor, lightName, lightText, lightingName, lightingOf, sameLighting } from '@/lib/lighting';
 import { poseScene, builtInPoses } from '@/lib/poses';
 import { sharedRenderer } from '@/lib/thumbnails';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { LIGHT_ROLES, type Lighting } from '@/lib/types';
 import { command, menu } from '../commands';
 import { Thumbnail } from '../side/LibrarySection';
-import { Field, NameHeader, Segmented, Slider, Toggle, type HeaderChrome } from '../ui';
+import { Field, NameHeader, PropertyRow, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /*
@@ -21,6 +21,7 @@ import type { Target } from './target';
 const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label);
 const lit = (t: Target) => styleDef(projectSettingsOf(t.store.getState().library).style).lit;
 
+export const lightTitle = (t: Target) => lightName(lightingOf(t.scene), t.light!);
 export const lightSummary = (t: Target) => `${lightText(t.light!)} · ${Math.round(t.light!.intensity * 100)}%`;
 export const lightInfo = () => 'Saved with the scene and used by its exports. Drag its lamp on the canvas, or Alt-click a figure to light it from where you look.';
 export const lightingSummary = (t: Target) => lightingName(lightingOf(t.scene));
@@ -42,6 +43,33 @@ function Unlit({ t }: { t: Target }) {
   );
 }
 
+/**
+ * The scene's lights, one row each (the one selected marked; a click selects another), and the
+ * way to add one: each light is its own, with its own settings.
+ */
+function LightList({ t }: { t: Target }) {
+  const lighting = lightingOf(t.scene);
+  const full = lighting.lights.length >= MAX_LIGHTS;
+  return (
+    <div className="light-list">
+      <ul aria-label="Scene lights">
+        {lighting.lights.map((l) => (
+          <li key={l.id}>
+            <button type="button" className={t.light?.id === l.id ? 'on' : undefined} aria-pressed={t.light?.id === l.id} onClick={() => t.store.select({ kind: 'light', light: l.id })}>
+              <i className="light-dot" style={{ background: l.color }} aria-hidden />
+              <span>{lightName(lighting, l)}</span>
+              <em>{Math.round(l.intensity * 100)}%</em>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="btn subtle" disabled={full} data-tip={full ? `${MAX_LIGHTS} lights at most` : undefined} onClick={() => addLight(t.store)}>
+        <Plus size={14} aria-hidden /> Add a light
+      </button>
+    </div>
+  );
+}
+
 /** One light: what it is for, where it comes from, how bright, its colour, its shadows (the key light's). */
 export function LightPanel({ t }: { t: Target }) {
   const light = t.light!;
@@ -49,13 +77,15 @@ export function LightPanel({ t }: { t: Target }) {
   return (
     <>
       <Unlit t={t} />
-      <Segmented
-        label="Role"
-        full
-        value={light.role}
-        options={LIGHT_ROLES.map((r) => ({ value: r, label: r === 'custom' ? 'Other' : ROLE_NAMES[r].replace(' light', '') }))}
-        onChange={(role) => set({ role })}
-      />
+      <LightList t={t} />
+      <PropertyRow label="Role">
+        <Select
+          label="Role"
+          value={light.role}
+          options={LIGHT_ROLES.map((r) => ({ value: r, label: r === 'custom' ? 'Other' : ROLE_NAMES[r].replace(' light', '') }))}
+          onChange={(role) => set({ role })}
+        />
+      </PropertyRow>
       <p className="hint">{lightText(light)}</p>
       <div className="stack">
         <Slider label="Direction" min={-180} max={180} value={light.azimuth} display={`${Math.round(light.azimuth)}°`} typeable onChange={(azimuth) => set({ azimuth }, 'light')} />
@@ -109,6 +139,7 @@ export function LightingPanel({ t }: { t: Target }) {
   return (
     <>
       {!t.light && <Unlit t={t} />}
+      {!t.light && <LightList t={t} />}
       <div className="light-presets" role="group" aria-label="Lighting schemes">
         {LIGHTING_PRESETS.map((p) => {
           const on = sameLighting(p.lighting, lighting);

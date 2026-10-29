@@ -1117,11 +1117,20 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .many-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 /* The light's inspector: a header without a name to change, presets with a thumbnail each, a note in unlit styles. */
 .panel-name { flex: 1; min-width: 0; margin: 0; font-size: 13px; font-weight: 600; }
-.light-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.light-presets button { display: grid; justify-items: center; gap: 2px; padding: 3px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); color: var(--text-2); font-size: 10.5px; cursor: pointer; }
+.light-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.light-presets button { display: grid; grid-template-rows: auto auto; justify-items: stretch; gap: 3px; padding: 4px 4px 3px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); color: var(--text-2); font-size: 11px; cursor: pointer; }
+.light-presets button span { overflow: hidden; line-height: 1.3; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .light-presets button:hover { box-shadow: inset 0 0 0 1px var(--border-strong); }
 .light-presets button.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
-.light-presets .lib-thumb { width: 100%; aspect-ratio: 1; }
+.light-presets .lib-thumb { width: 100%; height: auto; aspect-ratio: 1; border-radius: var(--radius-s); background: var(--panel); overflow: hidden; }
+.light-list { display: grid; gap: 6px; }
+.light-list ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.light-list li button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text); font-size: 12px; text-align: left; cursor: pointer; }
+.light-list li button:hover { background: var(--hover); }
+.light-list li button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.light-list li button .light-dot { margin-left: 0; }
+.light-list li button em { margin-left: auto; font-size: 11px; font-style: normal; color: var(--text-3); }
+.light-list > .btn { justify-self: start; display: inline-flex; align-items: center; gap: 4px; }
 .light-dot { width: 9px; height: 9px; margin-left: auto; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shade) 25%, transparent); flex: none; }
 .ambient-colours { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ambient-colours input[type='color'] { width: 100%; height: 26px; padding: 0 2px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--panel); cursor: pointer; }

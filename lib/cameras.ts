@@ -654,7 +654,7 @@ export function angleOf(view: CameraView): { yaw: number; pitch: number } {
 /* ---------- camera moves ---------- */
 
 /** Groups of the camera moves: where the camera goes. */
-export const CAMERA_GROUPS = ['Fixed', 'Towards & away', 'Around & up', 'Following'] as const;
+export const CAMERA_GROUPS = ['Fixed', 'Pan & tilt', 'Towards & away', 'Around & up', 'Following'] as const;
 
 /** What a move works from: the camera, the time it films over, and the angle and lens to start from. */
 export interface MoveContext {
@@ -704,6 +704,22 @@ function fitPoint(c: MoveContext, cam: PathCamera, t: number, yaw: number, pitch
 const path = (c: MoveContext, aim: PathCamera['aim'] = 'point'): PathCamera => ({ ...who(c.camera), kind: 'path', anchor: 'world', aim, points: [] });
 const fixed = (points: CameraPoint[], aim: PathCamera['aim'] = 'point'): CameraForm => ({ kind: 'path', anchor: 'world', aim, points });
 
+/** A point of a fixed camera (in the world) at another time: moved by `move` and its look by `look` (across, up, along the view, in metres), its lens times `zoom`. */
+function shifted(p: CameraPoint, t: number, o: { move?: Vec3; look?: Vec3; zoom?: number } = {}): CameraPoint {
+  const pos = new THREE.Vector3(...p.position), at = new THREE.Vector3(...p.look);
+  const along = at.clone().sub(pos).setY(0).normalize();
+  const across = new THREE.Vector3(-along.z, 0, along.x);
+  const by = ([x, y, z]: Vec3) => across.clone().multiplyScalar(x).add(new THREE.Vector3(0, y, 0)).addScaledVector(along, z);
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  const move = by(o.move ?? [0, 0, 0]);
+  return {
+    ...p, t: Math.round(t * 1000) / 1000,
+    position: pos.add(move).toArray().map(r3) as Vec3,
+    look: at.add(move).add(by(o.look ?? [0, 0, 0])).toArray().map(r3) as Vec3,
+    lens: Math.round(p.lens * (o.zoom ?? 1) * 10) / 10,
+  };
+}
+
 /** Ready-made camera moves, each over a shot's time. */
 export const CAMERA_MOVES: CameraMove[] = [
   {
@@ -735,7 +751,7 @@ export const CAMERA_MOVES: CameraMove[] = [
     apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw - 15, -14, 38, 1.25, 0.15), fitPoint(c, path(c), c.end, c.base.yaw + 10, -8, 34, 1.4, 0.2)]),
   },
   {
-    id: 'tracking', group: 'Following', name: 'Tracking shot', description: 'Move alongside, from the left, keeping a medium wide shot',
+    id: 'tracking', group: 'Following', name: 'Tracking from the left', description: 'Move alongside from the left, keeping a medium wide shot',
     apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 } }),
   },
   {
@@ -756,6 +772,91 @@ export const CAMERA_MOVES: CameraMove[] = [
       const at = (t: number, lens: number) => framePoint(c.scene, path(c, 'subject'), t, 'fs', { yaw: c.base.yaw, pitch: c.base.pitch, lens });
       return fixed([at(c.start, 85), at(c.end, 20)], 'subject');
     },
+  },
+  {
+    id: 'high', group: 'Fixed', name: 'High angle', description: 'Look down on the figures from above: they seem smaller, weaker',
+    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, 38, c.base.fov, 1.1)]),
+  },
+  {
+    id: 'overhead', group: 'Fixed', name: "Bird's-eye", description: 'Straight down from overhead, like a map',
+    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, 86, c.base.fov)]),
+  },
+  {
+    id: 'worm', group: 'Fixed', name: "Worm's-eye", description: 'From the floor looking up, with a wide lens',
+    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, -30, 62, 1.2, 0.1)]),
+  },
+  {
+    id: 'dutch', group: 'Fixed', name: 'Dutch angle', description: 'The camera tilted sideways: unease, tension',
+    apply: (c) => fixed([{ ...fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.2, 0.1), roll: 18 }]),
+  },
+  {
+    id: 'closeup', group: 'Fixed', name: 'Close-up', description: 'A fixed close-up of the subject on a long lens',
+    apply: (c) => fixed([framePoint(c.scene, path(c, 'subject'), c.start, 'cu', { yaw: c.base.yaw, pitch: 2, lens: 85 })], 'subject'),
+  },
+  {
+    id: 'profile', group: 'Fixed', name: 'Profile', description: 'Side-on to the subject, a medium shot',
+    apply: (c) => fixed([framePoint(c.scene, path(c, 'subject'), c.start, 'ms', { yaw: c.base.yaw + 90, pitch: 0, lens: 50 })], 'subject'),
+  },
+  {
+    id: 'pan', group: 'Pan & tilt', name: 'Pan', description: 'The camera stays and turns from left to right across the scene',
+    apply: (c) => {
+      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.7, 0.2);
+      return fixed([shifted(p, c.start, { look: [-0.9, 0, 0] }), shifted(p, c.end, { look: [0.9, 0, 0] })]);
+    },
+  },
+  {
+    id: 'tilt', group: 'Pan & tilt', name: 'Tilt up', description: 'The camera stays and tilts from the feet up to the faces',
+    apply: (c) => {
+      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 2.2, 0.35);
+      return fixed([shifted(p, c.start, { look: [0, -1.1, 0] }), shifted(p, c.end, { look: [0, 0.15, 0] })]);
+    },
+  },
+  {
+    id: 'whip', group: 'Pan & tilt', name: 'Whip pan', description: 'Holds, then swings round fast to the other side',
+    apply: (c) => {
+      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.7, 0.2);
+      const d = c.end - c.start;
+      return fixed([shifted(p, c.start, { look: [-1, 0, 0] }), shifted(p, c.start + d * 0.6, { look: [-1, 0, 0] }), shifted(p, c.start + d * 0.7, { look: [1, 0, 0] }), shifted(p, c.end, { look: [1, 0, 0] })]);
+    },
+  },
+  {
+    id: 'truck', group: 'Towards & away', name: 'Truck', description: 'The camera slides sideways past the figures, looking straight on',
+    apply: (c) => {
+      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.4, 0.2);
+      return fixed([shifted(p, c.start, { move: [-1, 0, 0] }), shifted(p, c.end, { move: [1, 0, 0] })]);
+    },
+  },
+  {
+    id: 'zoom', group: 'Towards & away', name: 'Slow zoom', description: 'The camera stays; the lens slowly zooms in',
+    apply: (c) => {
+      const p = framePoint(c.scene, path(c, 'subject'), c.start, 'ws', { yaw: c.base.yaw, pitch: c.base.pitch, lens: 35 });
+      return fixed([p, { ...p, t: c.end, lens: 70 }], 'subject');
+    },
+  },
+  {
+    id: 'crashzoom', group: 'Towards & away', name: 'Crash zoom', description: 'Holds wide, then zooms in fast on the subject',
+    apply: (c) => {
+      const p = framePoint(c.scene, path(c, 'subject'), c.start, 'ws', { yaw: c.base.yaw, pitch: c.base.pitch, lens: 28 });
+      const d = c.end - c.start;
+      const at = (f: number, lens: number) => ({ ...p, t: Math.round((c.start + d * f) * 1000) / 1000, lens });
+      return fixed([p, at(0.55, 28), at(0.7, 110), at(1, 110)], 'subject');
+    },
+  },
+  {
+    id: 'cranedown', group: 'Around & up', name: 'Crane down', description: 'Come down from high above to eye level',
+    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw - 15, 55, c.base.fov, 0.85), fitPoint(c, path(c), c.end, c.base.yaw, 2, c.base.fov, 1.2, 0.2)]),
+  },
+  {
+    id: 'aerial', group: 'Around & up', name: 'Aerial reveal', description: 'A drone shot: from close and low, up and away to see the whole place',
+    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, 8, c.base.fov, 1.6, 0.2), fitPoint(c, path(c), c.end, c.base.yaw + 35, 50, c.base.fov, 0.45)]),
+  },
+  {
+    id: 'steadicam', group: 'Following', name: 'Steadicam', description: 'Close behind the subject\'s shoulder, gliding smoothly as it goes',
+    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 155, pitch: 6, turn: true, size: 'ms', lens: 28, smooth: 0.9 } }),
+  },
+  {
+    id: 'sidetrack', group: 'Following', name: 'Tracking from the right', description: 'Move alongside from the right, keeping a medium wide shot',
+    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: -90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 } }),
   },
   {
     id: 'handheld', group: 'Following', name: 'Hand-held', description: 'A close, slightly shaky documentary feel',

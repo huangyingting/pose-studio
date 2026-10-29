@@ -1359,7 +1359,7 @@ export const MENUS = {
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
     { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', '-',
-    'floor.figure', 'floor.standIn', 'floor.prop', '-', 'view.frameAll',
+    'floor.figure', 'floor.standIn', 'floor.prop', 'light.add', '-', 'view.frameAll',
   ],
   timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],
 } satisfies Record<string, MenuEntry[]>;
