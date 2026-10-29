@@ -457,7 +457,8 @@ function gait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     const q = (s - now.s0) / (now.s1 - now.s0);
     const a = spot(now.from, side);
     const b = spot(now.to, side);
-    const k = run ? smoother(q) : smooth(q);
+    // (Easing in and out fully, so it is over its footfall before it is down: it does not slide in.)
+    const k = smoother(q);
     // Up over the swing (and over a step up).
     const up = (lift * Math.min(1, (now.to - now.from) / (2 * len) + 0.35) + Math.max(0, b[1] - a[1])) * bump(q);
     feet[side] = { world: [lerp(a[0], b[0], k), lerp(a[1], b[1], k) + up, lerp(a[2], b[2], k)], swing: bump(q) };

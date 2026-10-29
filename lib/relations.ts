@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { sided } from './joints';
-import { IK_CHAINS, Mannequin, setWorldQuaternion, torsoHalfWidth, worldPos } from './mannequin';
+import { IK_CHAINS, Mannequin, scaleOf, setWorldQuaternion, torsoHalfWidth, worldPos } from './mannequin';
 import { angle, facingOf, turnBones } from './pose';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
@@ -181,7 +181,7 @@ export const CONTACT_LABELS: Record<Contact, string> = {
 
 /** World position of a contact point on a posed figure (on the surface, not inside). */
 export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
-  const k = f.body.height / 1.8;
+  const k = scaleOf(f.body);
   const at = (j: JointName, local: Vec3) => m.joints[j].localToWorld(new THREE.Vector3(...local));
   switch (c) {
     case 'head': return at('head', [0, 0.17 * k, 0]);
@@ -232,7 +232,7 @@ export function contactSpot(m: Mannequin, f: Figure, c: Contact): { bone: JointN
  */
 export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, limits = true) {
   const m = rig.model(f);
-  const k = f.body.height / 1.8;
+  const k = scaleOf(f.body);
   const shoulder = worldPos(m.joints[sided('UpperArm', side)]);
   const wristTarget = target.clone().add(shoulder.clone().sub(target).normalize().multiplyScalar(0.07 * k));
   const wrist = m.joints[sided('Hand', side)];
@@ -273,7 +273,7 @@ export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, li
  */
 export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true): Figure['bones'] {
   const m = rig.model(f);
-  const k = f.body.height / 1.8;
+  const k = scaleOf(f.body);
   /** Direction to the target as yaw / pitch-down (degrees) in the chest's frame. */
   const aim = () => {
     const eye = m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * k, 0.05 * k));
@@ -307,7 +307,7 @@ export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true
 
 /** Head centre of a posed figure, for looking at someone. */
 export function headPoint(m: Mannequin, f: Figure) {
-  return m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * (f.body.height / 1.8), 0.02));
+  return m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * scaleOf(f.body), 0.02));
 }
 
 /* ---------- the body as capsules (bodies through each other, a ball through someone) ---------- */

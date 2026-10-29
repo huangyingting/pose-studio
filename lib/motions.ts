@@ -7,7 +7,7 @@ import { sided, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { buildStaging, waltzHold } from './stagings';
-import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
+import { GRAVITY, feetOf, legsOf, plantFeet, travelTime } from './locomotion';
 import { keysAction } from './track';
 import { uid } from './uid';
 import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName, Pose, Scene, Side, Travel, Vec3, View } from './types';
@@ -108,7 +108,8 @@ function travelling(scene: Scene, figure: string, t0: number, t1: number, mode: 
 
 /** A figure walking, running or jumping `distance` metres ahead, its steps generated. */
 function travelled(f: Figure, kind: Travel, distance: number, o: { view: View }): Scene {
-  const t = Math.round(travelTime(kind, distance, f.body) * 24) / 24;
+  // (Whole frames, kept to the millionths a saved scene keeps.)
+  const t = Math.round((Math.round(travelTime(kind, distance, f.body) * 24) / 24) * 1e6) / 1e6;
   const there = { ...f, position: [f.position[0], f.position[1], f.position[2] + distance] as Vec3 };
   return travelling(animated(f.name, [{ t: 0, figures: [f] }, { t, figures: [there] }], { duration: t, loop: false, ...o }), f.id, 0, t, kind);
 }
@@ -248,18 +249,22 @@ function atHeights(rig: Rig, keys: Key[]): Key[] {
  */
 function fallBack(rig: Rig, f: Figure) {
   const stand = posed(f, STAND);
+  // (How far back the hips go, crouching and then lying: shares of the leg's length.)
+  const legs = legsOf(f.body);
+  const leg = legs.thigh + legs.shin;
   const totter = posed(f, { hips: [-14, 0, 0], leftUpperLeg: [-10, 0, 6], rightUpperLeg: [5, 0, -6], leftLowerLeg: [20, 0, 0], rightLowerLeg: [70, 0, 0], leftUpperArm: [-90, 0, 30], rightUpperArm: [-100, 0, -30], leftLowerArm: [-20, 0, 0], rightLowerArm: [-20, 0, 0], neck: [20, 0, 0] });
   const crouch = posed(f, { hips: [-10, 0, 0], leftUpperLeg: [-115, 0, 12], rightUpperLeg: [-115, 0, -12], leftLowerLeg: [140, 0, 0], rightLowerLeg: [140, 0, 0], leftFoot: [-25, 0, 0], rightFoot: [-25, 0, 0], leftUpperArm: [-70, 0, 25], rightUpperArm: [-70, 0, -25], spine: [20, 0, 0], neck: [25, 0, 0] });
-  const down = { ...posed(f, { hips: [-88, 0, 0], leftUpperLeg: [-70, 0, 10], rightUpperLeg: [-55, 0, -10], leftLowerLeg: [100, 0, 0], rightLowerLeg: [80, 0, 0], leftUpperArm: [0, 0, 50], rightUpperArm: [0, 0, -50], neck: [8, 0, 0] }), position: [f.position[0], 0, f.position[2] - 0.55] as Vec3 };
+  const down = { ...posed(f, { hips: [-88, 0, 0], leftUpperLeg: [-70, 0, 10], rightUpperLeg: [-55, 0, -10], leftLowerLeg: [100, 0, 0], rightLowerLeg: [80, 0, 0], leftUpperArm: [0, 0, 50], rightUpperArm: [0, 0, -50], neck: [8, 0, 0] }), position: [f.position[0], 0, f.position[2] - 0.7 * leg] as Vec3 };
   const tottering = plantFeet(rig, totter, stand, ['L']);
-  const crouched = plantFeet(rig, { ...crouch, position: [f.position[0], 0, f.position[2] - 0.15] }, stand);
+  const crouched = plantFeet(rig, { ...crouch, position: [f.position[0], 0, f.position[2] - 0.19 * leg] }, stand);
   const lying = plantFeet(rig, down, crouched);
+  // (Into the crouch over ten frames: a long leg folds far, its knee splaying as the foot stays.)
   const falling = [
     { frame: 7, pose: tottering },
-    ...inBetween(rig, tottering, crouched, 3, stand, ['L']).map((pose, i) => ({ frame: 9 + 2 * i, pose })),
-    { frame: 15, pose: crouched },
-    ...inBetween(rig, crouched, lying, 4, crouched).map((pose, i) => ({ frame: 17 + 2 * i, pose })),
-    { frame: 25, pose: lying },
+    ...inBetween(rig, tottering, crouched, 4, stand, ['L']).map((pose, i) => ({ frame: 9 + 2 * i, pose })),
+    { frame: 17, pose: crouched },
+    ...inBetween(rig, crouched, lying, 4, crouched).map((pose, i) => ({ frame: 19 + 2 * i, pose })),
+    { frame: 27, pose: lying },
   ];
   return { stand, lying, falling };
 }

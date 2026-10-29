@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { HAND_PRESETS } from './hands';
+import { scaleOf } from './mannequin';
 import { Rig } from './relations';
 import { handlesOf } from './props';
-import type { Figure, Prop, PropKind, Scene, Side, Vec3 } from './types';
+import type { BodyParams, Figure, Prop, PropKind, Scene, Side, Vec3 } from './types';
 
 /*
  * Props in a hand. A held prop's position and rotation are relative to the wrist (the hand hangs
@@ -16,12 +17,12 @@ const D2R = Math.PI / 180;
 export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'sphere', 'box'];
 
 /**
- * Where a prop sits in the hand of a figure `height` tall: by its first handle (in the fist, its
+ * Where a prop sits in the hand of a figure with `body`: by its first handle (in the fist, its
  * length along the way the figure faces, behind the hand), or as its kind is held.
  */
-export function grip(prop: Pick<Prop, 'kind' | 'scale' | 'handles'>, hand: Side, height: number): Pick<Prop, 'position' | 'rotation'> & { scale?: Vec3 } {
+export function grip(prop: Pick<Prop, 'kind' | 'scale' | 'handles'>, hand: Side, body: BodyParams): Pick<Prop, 'position' | 'rotation'> & { scale?: Vec3 } {
   const s = hand === 'L' ? 1 : -1;
-  const k = height / 1.8;
+  const k = scaleOf(body);
   const at = (x: number, y: number, z: number): Vec3 => [round(-s * x * k), round(y * k), round(z * k)];
   const handle = handlesOf(prop)[0];
   if (handle) {
@@ -55,7 +56,7 @@ const round = (v: number) => Math.round(v * 1000) / 1000;
 
 /** The prop put in `figure`'s hand, which closes into a grip. */
 export function held(prop: Prop, figure: Figure, hand: Side): { prop: Prop; figure: Figure } {
-  const g = grip(prop, hand, figure.body.height);
+  const g = grip(prop, hand, figure.body);
   const grab = HAND_PRESETS.find((p) => p.name === 'Grip')!.hand;
   return {
     prop: { ...prop, position: g.position, rotation: g.rotation, scale: g.scale ?? prop.scale, hold: { figure: figure.id, hand } },
