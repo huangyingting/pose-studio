@@ -2,14 +2,14 @@
 
     blender -b --python scripts/characters/rig.py -- <id> <model.glb> <out.glb>
 
-For figures that come as a mesh only (Sketchfab's, CC BY; ones made with Meshy): what is not the person goes (a rifle
-held); the pieces are joined and their seams welded; a skeleton with our bones' names is put where
-the figure's joints are (found by eye from views of it, below, in Blender's axes: z up, the figure
-facing -y); the mesh is weighted to it (Blender's automatic weights); arms held bent are
-straightened at the elbow and raised level (a T-pose: a held pose's arms would turn the wrong way
-round the bone as the app swings them); the mesh is reduced, its textures fitted within 1024 px
-and only their colours kept (the app draws nothing else). The result is imported in the app as a
-user would (scripts/characters/import.ts), which makes it a built-in.
+For figures that come as a mesh only (Sketchfab's, CC BY; ones made with Meshy): what is not the
+person goes (a rifle held); the pieces are joined and their seams welded; a skeleton with our
+bones' names is put where the figure's joints are (found by eye from views of it, below, in
+Blender's axes: z up, the figure facing -y); the mesh is weighted to it (Blender's automatic
+weights); arms held bent are straightened at the elbow and raised level (a T-pose: a held pose's
+arms would turn the wrong way round the bone as the app swings them); the mesh is reduced, its
+textures fitted within 1024 px and only their colours kept (the app draws nothing else). The result
+is imported in the app as a user would (scripts/characters/import.ts), which makes it a built-in.
 """
 import math
 import sys
