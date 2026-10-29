@@ -7,14 +7,14 @@ import {
 import {
   arrange, offsetPerformance, setIdleLife, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
 } from '@/lib/actions';
-import { BODY_PRESETS, HEIGHT } from '@/lib/body';
+import { HEIGHT } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
 import { JOINT_LABELS, axisLabels, jointLimits, wrapDeg } from '@/lib/joints';
 import { angle } from '@/lib/pose';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
-import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Figure, type Hand as HandPose, type Posture, type Scene, type Side, type Vec3 } from '@/lib/types';
+import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Hand as HandPose, type Posture, type Scene, type Side, type Vec3 } from '@/lib/types';
 import BodyMap from '../BodyMap';
 import { CommandButton } from '../CommandButton';
 import { command, figureMenu, menuItems, selectionCtx, shortcutOf } from '../commands';
@@ -356,8 +356,8 @@ export function HandsPanel({ t }: { t: Target }) {
 }
 
 const modelsOf = (t: Target) => [...BUILT_IN_CHARACTERS, ...(t.store.getState().library.models ?? [])];
-const bodyPreset = (f: Figure) => BODY_PRESETS.find((p) => (Object.keys(p.body) as (keyof Figure['body'])[]).every((k) => p.body[k] === f.body[k]));
-export const bodySummary = (t: Target) => modelsOf(t).find((m) => m.id === t.figure!.model)?.name ?? bodyPreset(t.figure!)?.name ?? 'Mannequin';
+export const bodySummary = (t: Target) => modelsOf(t).find((m) => m.id === t.figure!.model)?.name
+  ?? `${t.figure!.body.sex >= 0.5 ? 'Woman' : 'Man'} · ${HEIGHT.format(t.figure!.body.height)}`;
 
 /** Who the figure is: drawn as the mannequin or a character, its colour in the scene, its body. */
 export function BodyPanel({ t }: { t: Target }) {
@@ -394,39 +394,17 @@ export function BodyPanel({ t }: { t: Target }) {
           />
         ))}
       </div>
-      {drawnAs ? (
-        <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
-      ) : (
-        <>
-          <div className="preset-grid" role="group" aria-label="Body type">
-            {BODY_PRESETS.map((p) => {
-              const on = (Object.keys(p.body) as (keyof typeof body)[]).every((k) => p.body[k] === body[k]);
-              return (
-                <button
-                  key={p.name}
-                  type="button"
-                  className={on ? 'preset on' : 'preset'}
-                  aria-label={p.name}
-                  onClick={() => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...p.body } }))}
-                >
-                  {p.body.sex < 0.5 ? <Mars size={14} aria-hidden /> : <Venus size={14} aria-hidden />}
-                  {p.name}
-                </button>
-              );
-            })}
-          </div>
-          <div className="stack">
-            <Segmented<'man' | 'woman'>
-              label="Man or woman"
-              value={body.sex >= 0.5 ? 'woman' : 'man'}
-              onChange={(v) => setBody({ sex: v === 'woman' ? 1 : 0 })}
-              options={[{ value: 'man', label: 'Man', icon: Mars }, { value: 'woman', label: 'Woman', icon: Venus }]}
-              full
-            />
-            <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
-          </div>
-        </>
+      {/* A body is a man or a woman (Y Bot or X Bot) and a height; a character is drawn at its height. */}
+      {!drawnAs && (
+        <Segmented<'man' | 'woman'>
+          label="Man or woman"
+          value={body.sex >= 0.5 ? 'woman' : 'man'}
+          onChange={(v) => setBody({ sex: v === 'woman' ? 1 : 0 })}
+          options={[{ value: 'man', label: 'Man', icon: Mars }, { value: 'woman', label: 'Woman', icon: Venus }]}
+          full
+        />
       )}
+      <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
     </>
   );
 }

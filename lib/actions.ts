@@ -1298,7 +1298,7 @@ export function editShot(store: Store, id: string, patch: { name?: string; capti
 
 /**
  * The project's film settings: its frame shape (16:9, 9:16, 1:1, 2.39:1), the video model its
- * shots are cut for (null: none; its clip length becomes each shot's limit), its style and faces.
+ * shots are cut for (null: none; its clip length becomes each shot's limit) and its style.
  */
 export function editFilm(store: Store, patch: Partial<Omit<Film, 'target'>> & { target?: string | null }) {
   store.commit((lib) => {

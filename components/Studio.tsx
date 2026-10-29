@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, Film, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
+  ChevronDown, Download, Ellipsis, Eye, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -218,7 +218,7 @@ function App() {
   useEffect(() => {
     if (saveStatus === 'error' && !warnedRef.current) {
       warnedRef.current = true;
-      notify('Could not save to browser storage. Use Save project in the main menu to keep a copy.', 'error');
+      notify('Could not save to browser storage. Use Save in the main menu to keep a copy.', 'error');
     }
     if (saveStatus === 'saved') warnedRef.current = false;
   }, [saveStatus, notify]);
@@ -479,12 +479,6 @@ function App() {
           <span className="tb-sep hide-mobile" />
           <CommandButton id="app.palette" ctx={cx} className="hide-mobile" />
           {Account && <Account />}
-          {scene.animation && (
-            // The film as a video (the Export dialog, on video).
-            <button type="button" className="btn subtle hide-mobile" onClick={() => command('app.exportVideo').run!(cx)} data-tip={tipOf('app.exportVideo')}>
-              <Film size={14} aria-hidden /> <span className="hide-sm">Video</span>
-            </button>
-          )}
           <button type="button" className="btn primary" onClick={() => command('app.export').run!(cx)} data-tip={tipOf('app.export')}>
             <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>

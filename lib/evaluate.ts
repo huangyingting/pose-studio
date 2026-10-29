@@ -29,6 +29,12 @@ import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type
 const EPS = 1e-6;
 /** The most times a looping clip goes round (a short loop over a five-minute film). */
 const MAX_LAPS = 1000;
+/**
+ * How far each clip's floor-touch correction moves a figure (by its mirroring, the clip's time and
+ * the figure's body): the same wherever the figure is and whichever way it faces, so worked out
+ * once, not again for each edit's new evaluator.
+ */
+const touchFixes = new WeakMap<ClipPart, Map<string, number>>();
 /** Idle life eases in and out over this long at the edges of what a figure does (s). */
 const IDLE_EASE = 0.6;
 /** How long a planted foot takes to be let go when it lifts in a clip (s). */
@@ -499,14 +505,23 @@ class Evaluator {
     let y = raw.grounded ? raw.position[1] : legsOf(f.body).rootY + (raw.position[1] - legsOf(part.body ?? f.body).rootY) * size;
     // Off the ground, what touches the floor in the clip (a hand in a cartwheel) touches it on any body.
     if (!raw.grounded && part.body && JSON.stringify(part.body) !== JSON.stringify(f.body)) {
-      const touch = this.rig.model({ ...f, id: `clip:${part.name}`, body: part.body, ...raw }).lowest();
-      // (Fully while it touches, less as it rises off the floor: no step as it leaves it.)
-      const w = 1 - smooth((touch - 0.03) / 0.12);
-      if (w > 0) {
-        // (The model is lifted out of the floor, if it went in: measured from where it was put.)
-        const m = this.rig.model({ ...f, ...raw, position: [0, y, 0] });
-        y -= w * (m.lowest() - (m.joints.hips.position.y - y) - touch);
+      let fixes = touchFixes.get(part);
+      if (!fixes || fixes.size > 20000) touchFixes.set(part, (fixes = new Map()));
+      const key = `${mirror}:${u}:${f.body.sex}:${f.body.height}`;
+      let fix = fixes.get(key);
+      if (fix === undefined) {
+        fix = 0;
+        const touch = this.rig.model({ ...f, id: `clip:${part.name}`, body: part.body, ...raw }).lowest();
+        // (Fully while it touches, less as it rises off the floor: no step as it leaves it.)
+        const w = 1 - smooth((touch - 0.03) / 0.12);
+        if (w > 0) {
+          // (The model is lifted out of the floor, if it went in: measured from where it was put.)
+          const m = this.rig.model({ ...f, ...raw, position: [0, y, 0] });
+          fix = w * (m.lowest() - (m.joints.hips.position.y - y) - touch);
+        }
+        fixes.set(key, fix);
       }
+      y -= fix;
     }
     let pose = turned({ ...raw, position: [start.at[0] + dx, y, start.at[1] + dz] }, by);
     const role = act.roles[index];

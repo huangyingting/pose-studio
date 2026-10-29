@@ -142,7 +142,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
 /* ---------- buttons ---------- */
 
 button { font: inherit; color: inherit; }
-.btn, .ibtn, .chip, .preset {
+.btn, .ibtn, .chip {
   font: inherit;
   display: inline-flex;
   align-items: center;
@@ -1232,12 +1232,6 @@ button.psec-title svg { color: var(--text-3); }
 .swatch.none { background: linear-gradient(135deg, var(--panel) 45%, var(--border-strong) 45% 55%, var(--panel) 55%); }
 .swatch.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 
-.preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.preset { height: 30px; padding: 0 6px; border-radius: var(--radius-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); color: var(--text-2); font-weight: 500; }
-.preset svg { color: var(--text-3); }
-.preset:hover { color: var(--text); }
-.preset.on { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-.preset.on svg { color: var(--accent); }
 
 
 .relation-target { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 4px; color: var(--text-2); }

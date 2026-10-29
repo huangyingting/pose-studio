@@ -52,7 +52,6 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
   const film = useFilm();
-  const faces = film.faces;
   const scene = useScene();
   const time = useStudio((s) => s.time);
   const animated = !!scene.animation;
@@ -110,14 +109,14 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         const first = shots[0];
         const at = first?.span?.start ?? 0;
         const r = sharedRenderer().renderShot(sceneAt(first.scene, at, true), Math.round(width * scale), Math.round(height * scale), Math.max(0.8, o.lineWidth * scale * 1.5), {
-          style, faces, pass, camera: cameraAt(first.scene, at, width / height),
+          style, pass, camera: cameraAt(first.scene, at, width / height),
         });
         small = document.createElement('canvas');
         small.width = r.width;
         small.height = r.height;
         small.getContext('2d')!.drawImage(r, 0, 0);
       } else if (scope === 'board') {
-        const sheet = boardSheet(story, { style, faces, captions: o.labels, columns: o.columns, pass });
+        const sheet = boardSheet(story, { style, captions: o.labels, columns: o.columns, pass });
         small = document.createElement('canvas');
         small.width = Math.round(sheet.width * scale);
         small.height = Math.round(sheet.height * scale);
@@ -131,13 +130,13 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
           cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
           lineWidth: Math.max(0.8, o.lineWidth * scale * 1.5),
           labels: false,
-        }, faces);
+        });
       }
       small.className = 'preview-canvas';
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, style, scope, filmed, pass, cells, width, height, faces, shots, story]);
+  }, [o, style, scope, filmed, pass, cells, width, height, shots, story]);
 
   const run = async () => {
     setBusy(true);
@@ -155,7 +154,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       if (pack) {
         abort.current = new AbortController();
         const blob = await keyframePack(shots, whole ? 'Story' : scene.name, {
-          width, height, style, lineWidth: o.lineWidth * (height / 640), faces, greybox: o.greybox,
+          width, height, style, lineWidth: o.lineWidth * (height / 640), greybox: o.greybox,
         }, setProgress, abort.current.signal);
         const name = `${title}_keyframes.zip`;
         downloadBlob(blob, name);
@@ -165,7 +164,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       }
       if (video) {
         abort.current = new AbortController();
-        const look = { width, height, style, lineWidth: o.lineWidth * (height / 640), faces, pass };
+        const look = { width, height, style, lineWidth: o.lineWidth * (height / 640), pass };
         const { blob, ext } = whole
           ? await recordStory(story, { ...look, captions: o.labels }, setProgress, abort.current.signal)
           : await recordVideo(scene, { ...look, loops: o.videoLoops }, setProgress, abort.current.signal);
@@ -176,8 +175,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         return;
       }
       const canvas = scope === 'board'
-        ? boardSheet(story, { style, faces, captions: o.labels, columns: o.columns, pass })
-        : sharedRenderer().sheet(cells, { ...o, style, scope }, faces);
+        ? boardSheet(story, { style, captions: o.labels, columns: o.columns, pass })
+        : sharedRenderer().sheet(cells, { ...o, style, scope });
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
       const base = scope === 'poses' ? 'Pose' : scope === 'all' ? 'Scenes' : scope === 'board' ? 'Storyboard' : safeFilename(scene.name);
@@ -554,7 +553,7 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
 
 const FRAME_LABELS: Record<FrameShape, string> = { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' };
 
-/** The project's settings, for every scene: its frame, the video model it is cut for, face features. (Its render style is the top bar's.) */
+/** The project's settings, for every scene: its frame and the video model it is cut for. (Its render style is the top bar's.) */
 export function ProjectSettingsDialog({ onClose }: { onClose(): void }) {
   const store = useStore();
   const film = useFilm();
@@ -572,7 +571,6 @@ export function ProjectSettingsDialog({ onClose }: { onClose(): void }) {
             options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
           />
         </Field>
-        <Toggle label="Face features" hint="Nose, ears, eyes, brows and mouth, so you can tell where each figure looks" checked={film.faces} onChange={(faces) => editFilm(store, { faces })} />
       </div>
     </Modal>
   );

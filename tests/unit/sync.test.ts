@@ -25,8 +25,8 @@ describe('library sync merge', () => {
   });
 
   it('merges the film settings: this device\'s if only it changed them, else the account\'s', () => {
-    const tall = { frame: '9:16' as const, style: 'ink' as const, faces: true };
-    const wide = { frame: '2.39:1' as const, style: 'line' as const, faces: false };
+    const tall = { frame: '9:16' as const, style: 'ink' as const };
+    const wide = { frame: '2.39:1' as const, style: 'line' as const };
     expect(mergeLibraries(lib([a, b, c]), { ...lib([a, b, c]), film: tall }, base).film).toEqual(tall);
     expect(mergeLibraries({ ...lib([a, b, c]), film: wide }, { ...lib([a, b, c]), film: tall }, base).film).toEqual(wide);
     const agreed = syncBase({ ...lib([a, b, c]), film: tall });

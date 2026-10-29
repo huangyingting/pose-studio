@@ -479,17 +479,17 @@ export const COMMANDS: Command[] = [
   // The app.
   { id: 'app.undo', title: 'Undo', icon: Undo2, keys: ['mod+z'], enabled: (c) => c.store.getState().canUndo, run: (c) => c.store.undo() },
   { id: 'app.redo', title: 'Redo', icon: Redo2, keys: ['mod+shift+z', 'mod+y'], enabled: (c) => c.store.getState().canRedo, run: (c) => c.store.redo() },
-  { id: 'app.save', title: 'Save project', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
+  { id: 'app.save', title: 'Save', help: 'Save the project to a file', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
   { id: 'app.newFilm', title: 'New film…', help: 'Start a film: what to film and how long', icon: Clapperboard, run: () => App().dialog('start') },
-  { id: 'app.exportVideo', title: 'Export the film as a video', icon: Film, when: animated, run: () => App().dialog('export-video') },
-  { id: 'app.import', title: 'Add scenes from a project…', icon: FileUp, run: () => App().openFile('append') },
-  { id: 'app.open', title: 'Open project…', help: 'Open a project in place of this one', icon: FolderOpen, run: () => App().openFile('replace') },
+  { id: 'app.exportVideo', title: 'Export video', icon: Film, when: animated, run: () => App().dialog('export-video') },
+  { id: 'app.import', title: 'Add scenes…', help: 'Add the scenes of a project file to this one', icon: FileUp, run: () => App().openFile('append') },
+  { id: 'app.open', title: 'Open…', help: 'Open a project in place of this one', icon: FolderOpen, run: () => App().openFile('replace') },
   { id: 'app.export', title: 'Export', icon: Download, keys: ['mod+e'], run: () => App().dialog('export') },
   { id: 'app.project', title: 'Project settings…', icon: Settings2, run: () => App().dialog('project') },
   { id: 'app.photo', title: 'Figures from a photo…', icon: ScanFace, run: () => App().dialog('photo') },
-  { id: 'app.practice', title: 'Gesture practice', icon: Timer, keys: ['p'], run: () => App().dialog('practice') },
+  { id: 'app.practice', title: 'Practice', help: 'Gesture practice: timed poses to draw', icon: Timer, keys: ['p'], run: () => App().dialog('practice') },
   { id: 'app.board', title: 'Storyboard', icon: LayoutPanelTop, keys: ['b'], run: () => { App().stopPlayback(); App().dialog('board'); } },
-  { id: 'app.help', title: 'Keyboard shortcuts', icon: Keyboard, keys: ['?'], run: () => App().dialog('help') },
+  { id: 'app.help', title: 'Shortcuts', help: 'Keyboard shortcuts', icon: Keyboard, keys: ['?'], run: () => App().dialog('help') },
   { id: 'app.palette', title: 'Find a command…', icon: Search, keys: ['mod+k'], run: () => App().dialog('palette') },
   {
     id: 'app.inspector', title: 'Show the inspector', help: 'Show / hide the inspector', icon: PanelRightClose, keys: ['i'],
@@ -526,7 +526,7 @@ export const COMMANDS: Command[] = [
   },
   {
     // Only the selection on the canvas (the scene, the shot camera and exports are not affected).
-    id: 'view.isolate', title: 'Show only the selection', icon: Focus, keys: ['/'],
+    id: 'view.isolate', title: 'Only the selection', icon: Focus, keys: ['/'],
     when: (c) => !!App().isolated() || !!(c.prop || (c.figure && !c.action)), checked: () => !!App().isolated(),
     run: (c) => App().setIsolated(App().isolated() ? null : c.prop ?? c.figure ?? null),
   },
@@ -542,9 +542,9 @@ export const COMMANDS: Command[] = [
     },
   },
   { id: 'view.handles', title: 'Handles', help: 'Show the handles: a joint’s card, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
-  { id: 'view.grid', title: 'Floor grid', checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
+  { id: 'view.grid', title: 'Grid', help: 'The floor grid', checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
   { id: 'view.onion', title: 'Onion skin', help: 'Onion skin: the keys before and after, faint', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
-  { id: 'view.guides', title: 'Framing guides', help: 'Framing guides: thirds and safe areas', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
+  { id: 'view.guides', title: 'Guides', help: 'Framing guides: thirds and safe areas', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
   {
     id: 'view.line', title: 'Line weight', when: (c) => !!styleDef(filmOf(c.store.getState().library).style).outline,
     items: (c) => [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }].map((w) => ({

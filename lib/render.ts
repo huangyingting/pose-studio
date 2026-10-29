@@ -203,8 +203,6 @@ export interface RenderOptions {
   style?: Style;
   /** Minimum camera distance from the subject's centre (see fitCamera). */
   minDistance?: number;
-  /** Simple face details (default on). */
-  faces?: boolean;
   /** The styled picture, or a depth / normal pass. */
   pass?: Pass;
 }
@@ -256,7 +254,6 @@ export class SceneRenderer {
     this.background.set(styleDef(style).background);
     this.scene.background = opts.transparent ? null : this.background;
     this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
-    this.view.setFaces(opts.faces ?? true);
     this.view.sync(doc);
     this.view.setStyle(style);
     this.lines.setStyle(style);
@@ -337,7 +334,7 @@ export class SceneRenderer {
   }
 
   /** Lay cells out in a grid, optionally captioned. */
-  sheet(cells: Cell[], o: ExportOptions & { style: Style }, faces = true): HTMLCanvasElement {
+  sheet(cells: Cell[], o: ExportOptions & { style: Style }): HTMLCanvasElement {
     const { cols, width, height } = sheetSize(cells.length, o);
     const labelH = o.labels ? LABEL_HEIGHT : 0;
     const transparent = o.transparent && o.format === 'png';
@@ -357,7 +354,7 @@ export class SceneRenderer {
       const { scene, caption } = cell;
       const x = (i % cols) * o.cellWidth;
       const y = Math.floor(i / cols) * (o.cellHeight + labelH);
-      const look = { transparent, style: o.style, faces, pass: o.pass };
+      const look = { transparent, style: o.style, pass: o.pass };
       const canvas = cell.camera
         ? this.renderShot(scene, o.cellWidth, o.cellHeight, o.lineWidth, { ...look, camera: cell.camera })
         : this.render(scene, o.cellWidth, o.cellHeight, o.lineWidth, { ...look, margin: o.margin, minDistance: size / tan(cell), angle: cell.angle });

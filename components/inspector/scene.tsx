@@ -18,7 +18,7 @@ export function SceneHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) 
       <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={t.scene.name} label="Scene name" onRename={(name) => renameScene(t.store, name)} menu={() => menu('scene', { store: t.store, scene: index })} />
       <div className="psec">
         {/* The film's settings are the project's: a link to their one home, not a copy of them. */}
-        <button type="button" className="summary-row" onClick={t.ctx.projectSettings} data-tip="The frame, what it is cut for and face features, for every scene">
+        <button type="button" className="summary-row" onClick={t.ctx.projectSettings} data-tip="The frame and what it is cut for, for every scene">
           <span>Project settings…</span>
           <em>{film.frame}{film.target ? ` · ${videoModel(film.target)?.name}` : ''}</em>
           <ChevronRight size={14} aria-hidden />

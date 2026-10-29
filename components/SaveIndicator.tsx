@@ -7,7 +7,7 @@ import type { SaveStatus } from '@/lib/store';
  * edition) synced to the account.
  */
 export default function SaveIndicator({ status, cloud }: { status: SaveStatus; cloud?: { status: CloudStatus; when: string } }) {
-  const [text, tip, Icon] = status === 'error' ? ['Not saved', 'Browser storage is full or blocked. Use Save project in the main menu.', CloudOff]
+  const [text, tip, Icon] = status === 'error' ? ['Not saved', 'Browser storage is full or blocked. Use Save in the main menu.', CloudOff]
     : status === 'pending' ? ['Saving…', 'Saving in this browser', Cloud]
     : !cloud ? ['Saved', 'Saved in this browser automatically', CloudCheck]
     : cloud.status === 'synced' ? ['Synced', `Saved in this browser and synced to your account${cloud.when ? ` ${cloud.when}` : ''}`, CloudCheck]

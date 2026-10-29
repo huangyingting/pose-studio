@@ -81,11 +81,11 @@ describe('storyboard', () => {
     const store = new Store(new MemoryStorage());
     addToBoard(store);
     setHold(store, panels(store)[0].id, 3.5);
-    editFilm(store, { frame: '9:16', target: 'veo', style: 'sketch', faces: false });
+    editFilm(store, { frame: '9:16', target: 'veo', style: 'sketch' });
     const lib = parseLibrary(JSON.parse(JSON.stringify(store.getState().library)));
     expect(boardPanels(lib)).toEqual(panels(store));
     // The film settings travel with the project.
-    expect(lib.film).toEqual({ frame: '9:16', target: 'veo', style: 'sketch', faces: false });
+    expect(lib.film).toEqual({ frame: '9:16', target: 'veo', style: 'sketch' });
 
     const ids = new Set(['a']);
     expect(parseBoard('nope', ids)).toBeUndefined();

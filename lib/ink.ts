@@ -71,7 +71,7 @@ export interface Ghost {
 }
 
 /**
- * The layer outlines, rings and face lines are drawn on (the parts on the default one): passes
+ * The layer outlines are drawn on (the parts on the default one): passes
  * that draw the parts alone (their IDs for the inner lines, depth, normals) leave it out.
  */
 export const LINES_LAYER = 1;
@@ -148,8 +148,6 @@ export class Ink {
   readonly linked = createOutlineMaterial(this.linkedUniforms);
   /** See-through, for props that block the view of the figure being edited. */
   readonly faded = new THREE.MeshBasicMaterial({ color: '#c9ccd6', transparent: true, opacity: 0.2, depthWrite: false });
-  readonly ring = new THREE.MeshBasicMaterial({ color: '#8f8f8f' });
-  readonly face = new THREE.MeshBasicMaterial({ color: '#4a4a4a' });
   private baseThickness = 1.6;
   private style: Style = 'line';
   private materials = new Map<string, StyleMaterials>();
@@ -192,7 +190,7 @@ export class Ink {
     this.uniforms.lightDir.value.copy(dir).normalize();
   }
 
-  /** Outline colour, brush jitter and ring colour for a style. */
+  /** Outline colour and brush jitter for a style. */
   setStyle(style: Style) {
     this.style = style;
     const def = styleDef(style);
@@ -206,8 +204,6 @@ export class Ink {
       this.uniforms.color.value.set(def.outline.color);
       this.uniforms.jitter.value = def.outline.jitter;
     }
-    if (def.rings) this.ring.color.set(def.rings);
-    if (def.face) this.face.color.set(def.face);
     this.applyThickness();
   }
 
@@ -311,28 +307,18 @@ export class Ink {
     this.outline.dispose();
     for (const own of this.ownOutlines.values()) own.material.dispose();
     this.ownOutlines.clear();
-    this.ring.dispose();
-    this.face.dispose();
   }
 }
 
 /** How a part is drawn: selected, under the pointer, or plain. */
 export type Highlight = boolean | 'hover';
 
-/** Something drawn in the ink styles: solid parts with outline hulls and contour rings. */
+/** Something drawn in the ink styles: solid parts with outline hulls. */
 export class InkedParts {
   readonly bodies: THREE.Mesh[] = [];
-  private decorations: THREE.Mesh[] = [];
-  /** Contour rings (a subset of decorations); hidden in styles without rings. */
-  private rings: THREE.Mesh[] = [];
-  /** Optional face details: nose and ear parts, and eye / brow / mouth lines. */
-  private features = new Set<THREE.Mesh>();
-  private faceLines: THREE.Mesh[] = [];
-  /** Shown instead of the features when they are off (e.g. the plain construction head). */
-  private plain = new Set<THREE.Mesh>();
+  /** The parts' outline hulls. */
   private hulls: THREE.Mesh[] = [];
   private linked = false;
-  private featuresOn = true;
   private style: Style = 'line';
   private geometries = new Set<THREE.BufferGeometry>();
   private skeletons: THREE.Skeleton[] = [];
@@ -346,10 +332,10 @@ export class InkedParts {
   constructor(private ink: Ink, private kind: 'figure' | 'prop', private bare = false) {}
 
   /**
-   * A part, its outline and lines: skinned (moving with several joints, bound by bindSkins) when its
+   * A part and its outline: skinned (moving with several joints, bound by bindSkins) when its
    * geometry has skin weights.
    */
-  add(parent: THREE.Object3D, geo: THREE.BufferGeometry, tag: Record<string, unknown>, pos?: Vec3, rings: THREE.BufferGeometry[] = []) {
+  add(parent: THREE.Object3D, geo: THREE.BufferGeometry, tag: Record<string, unknown>, pos?: Vec3) {
     const made = (g: THREE.BufferGeometry, m: THREE.Material) => (g.attributes.skinIndex ? new THREE.SkinnedMesh(g, m) : new THREE.Mesh(g, m));
     const mesh = made(geo, this.ink.materialsFor('line').body);
     Object.assign(mesh.userData, tag);
@@ -358,7 +344,6 @@ export class InkedParts {
     mesh.receiveShadow = true;
     this.geometries.add(geo);
     if (this.bare) {
-      for (const r of rings) r.dispose();
       parent.add(mesh);
       this.bodies.push(mesh);
       return mesh;
@@ -367,57 +352,10 @@ export class InkedParts {
     hull.raycast = () => {};
     hull.layers.set(LINES_LAYER);
     mesh.add(hull);
-    this.decorations.push(hull);
     this.hulls.push(hull);
-    for (const r of rings) {
-      const m = made(r, this.ink.ring);
-      m.raycast = () => {};
-      m.layers.set(LINES_LAYER);
-      mesh.add(m);
-      this.decorations.push(m);
-      this.rings.push(m);
-      this.geometries.add(r);
-    }
     parent.add(mesh);
     this.bodies.push(mesh);
     return mesh;
-  }
-
-  /** Mark a part as an optional face detail (see setFeatures). */
-  markFeature(mesh: THREE.Mesh) {
-    this.features.add(mesh);
-    mesh.visible = this.featuresOn;
-  }
-
-  /** Mark a part as the plain stand-in shown while face features are off. */
-  markPlain(mesh: THREE.Mesh) {
-    this.plain.add(mesh);
-    mesh.visible = !this.featuresOn;
-  }
-
-  /** Thin lines drawn on a part's surface (eyes, brows, mouth), in the style's face colour. */
-  addFaceLines(mesh: THREE.Mesh, geos: THREE.BufferGeometry[]) {
-    if (this.bare) {
-      for (const g of geos) g.dispose();
-      return;
-    }
-    for (const g of geos) {
-      const line = new THREE.Mesh(g, this.ink.face);
-      line.raycast = () => {};
-      line.layers.set(LINES_LAYER);
-      mesh.add(line);
-      this.decorations.push(line);
-      this.faceLines.push(line);
-      this.geometries.add(g);
-    }
-  }
-
-  setFeatures(on: boolean) {
-    this.featuresOn = on;
-    for (const m of this.features) m.visible = on;
-    for (const m of this.plain) m.visible = !on;
-    const face = styleDef(this.style).face !== null;
-    for (const l of this.faceLines) l.visible = on && face;
   }
 
   /** Swap to flat per-part colours for the ID pass; returns the next free id. */
@@ -450,14 +388,9 @@ export class InkedParts {
       const state = isSelected(mesh);
       mesh.material = this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body;
     }
-    const def = styleDef(style);
     this.style = style;
-    for (const d of this.decorations) d.visible = !this.faded;
-    if (this.faded) return;
-    for (const r of this.rings) r.visible = def.rings !== null;
-    if (!def.outline) for (const d of this.decorations) if (!this.rings.includes(d)) d.visible = false;
-    this.setFeatures(this.featuresOn);
-    this.applyLinked();
+    if (this.faded) for (const h of this.hulls) h.visible = false;
+    else this.applyLinked();
   }
 
   /** Outline the whole object in the accent (it is linked to the pointer elsewhere), whatever the style. */
@@ -524,11 +457,11 @@ export class InkedParts {
 
   /**
    * Bind skinned parts (their joints at rest now, their world matrices up to date) to a skeleton:
-   * `parts` and their outlines and lines (or all of them not bound yet).
+   * `parts` and their outlines (or all of them not bound yet).
    */
   bindSkins(skeleton: THREE.Skeleton, parts?: THREE.Mesh[]) {
     this.skeletons.push(skeleton);
-    const meshes = parts ? parts.flatMap((p) => [p, ...p.children]) : [...this.bodies, ...this.decorations];
+    const meshes = parts ? parts.flatMap((p) => [p, ...p.children]) : [...this.bodies, ...this.hulls];
     for (const m of meshes) {
       const s = m as THREE.SkinnedMesh;
       if (s.isSkinnedMesh && (parts || !s.skeleton)) s.bind(skeleton, s.matrixWorld);
@@ -552,6 +485,6 @@ export class InkedParts {
     for (const g of this.geometries) g.dispose();
     this.geometries.clear();
     this.bodies.length = 0;
-    this.decorations.length = 0;
+    this.hulls.length = 0;
   }
 }

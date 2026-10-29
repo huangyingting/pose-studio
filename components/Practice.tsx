@@ -27,15 +27,14 @@ export function PracticeMode({ onClose }: { onClose(): void }) {
   const [slides, setSlides] = useState<Slide[] | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [style, setStyle] = useState<Style>('line');
-  const [faces, setFaces] = useState(true);
   return (
     <div className="practice" role="dialog" aria-modal="true" aria-label="Gesture practice">
       {slides ? (
-        <Session slides={slides} seconds={seconds} style={style} faces={faces} onExit={onClose} onRestart={() => setSlides(null)} />
+        <Session slides={slides} seconds={seconds} style={style} onExit={onClose} onRestart={() => setSlides(null)} />
       ) : (
         <Setup
           onCancel={onClose}
-          onStart={(s, o) => { setSeconds(o.seconds); setStyle(o.style); setFaces(o.faces); setSlides(s); }}
+          onStart={(s, o) => { setSeconds(o.seconds); setStyle(o.style); setSlides(s); }}
         />
       )}
     </div>
@@ -99,7 +98,6 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
         {o.source === 'all' && <Toggle label="Shuffle" checked={o.shuffle} onChange={(shuffle) => set({ shuffle })} />}
         {o.source === 'all' && <Toggle label="Random angles" checked={o.randomAngle} onChange={(randomAngle) => set({ randomAngle })} />}
         <Toggle label="Random mirroring" checked={o.mirror} onChange={(mirror) => set({ mirror })} />
-        <Toggle label="Face features" hint="Nose, eyes, brows and mouth, so you can tell where a figure looks" checked={o.faces} onChange={(faces) => set({ faces })} />
       </div>
       <div className="row practice-actions">
         <span className="muted">{total ? `About ${formatTime(total)} in total` : 'Advance with → or the Next button'}</span>
@@ -110,11 +108,10 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
   );
 }
 
-function Session({ slides, seconds, style, faces, onExit, onRestart }: {
+function Session({ slides, seconds, style, onExit, onRestart }: {
   slides: Slide[];
   seconds: number;
   style: Style;
-  faces: boolean;
   onExit(): void;
   onRestart(): void;
 }) {
@@ -146,7 +143,7 @@ function Session({ slides, seconds, style, faces, onExit, onRestart }: {
       const scale = Math.min(1, 2048 / Math.max(el.clientWidth * dpr, el.clientHeight * dpr));
       const w = Math.max(64, Math.round(el.clientWidth * dpr * scale));
       const h = Math.max(64, Math.round(el.clientHeight * dpr * scale));
-      const src = sharedRenderer().render(slide.scene, w, h, 2 * dpr * scale, { style, faces, margin: 0.08, angle: slide.angle });
+      const src = sharedRenderer().render(slide.scene, w, h, 2 * dpr * scale, { style, margin: 0.08, angle: slide.angle });
       c.width = w;
       c.height = h;
       c.getContext('2d')!.drawImage(src, 0, 0);
@@ -155,7 +152,7 @@ function Session({ slides, seconds, style, faces, onExit, onRestart }: {
     const ro = new ResizeObserver(draw);
     ro.observe(stage.current!);
     return () => ro.disconnect();
-  }, [slide, style, faces, done]);
+  }, [slide, style, done]);
 
   // Countdown. Time only runs while the page is visible and not paused.
   useEffect(() => {

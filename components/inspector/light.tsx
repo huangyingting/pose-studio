@@ -32,7 +32,7 @@ const presetThumb = (light: Light) => ({
   key: `light:${JSON.stringify(light)}`,
   make: () => {
     const p = builtInPoses()[0];
-    return sharedRenderer().render({ ...poseScene(p), light }, 144, 144, 1.2, { style: 'shaded', faces: false, margin: 0.08, angle: { yaw: 20, pitch: 10, fov: 30 } }).toDataURL('image/png');
+    return sharedRenderer().render({ ...poseScene(p), light }, 144, 144, 1.2, { style: 'shaded', margin: 0.08, angle: { yaw: 20, pitch: 10, fov: 30 } }).toDataURL('image/png');
   },
 });
 

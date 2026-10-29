@@ -28,7 +28,7 @@ export function useActiveFigure() {
   return scene.figures.find((f) => f.id === id) ?? null;
 }
 
-/** The project's film settings: its frame, the model it is cut for, its style and faces. */
+/** The project's film settings: its frame, the model it is cut for, and its style. */
 export function useFilm() {
   return useStudio((s) => s.library.film) ?? DEFAULT_FILM;
 }

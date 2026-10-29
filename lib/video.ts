@@ -57,7 +57,6 @@ export interface VideoOptions {
   style: Style;
   lineWidth: number;
   loops: number;
-  faces: boolean;
   pass?: Pass;
   /** Only this part of the animation (seconds), played once: e.g. one shot. */
   range?: [number, number];
@@ -66,7 +65,7 @@ export interface VideoOptions {
 /** Draw one frame of a scene through its shot camera at time t. */
 export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>) {
   const src = sharedRenderer().renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
-    style: o.style, faces: o.faces, pass: o.pass, camera: cameraAt(scene, t, o.width / o.height),
+    style: o.style, pass: o.pass, camera: cameraAt(scene, t, o.width / o.height),
   });
   ctx.fillStyle = styleDef(o.style).background;
   ctx.fillRect(0, 0, o.width, o.height);

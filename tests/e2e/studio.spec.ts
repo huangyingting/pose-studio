@@ -86,21 +86,6 @@ async function projectSettings(page: Page) {
   return page.getByRole('dialog', { name: 'Project settings' });
 }
 
-/**
- * Record every toast's text as it shows (a toast is on screen for a few seconds, and a slow machine
- * can take longer than that to get to looking).
- */
-async function watchToasts(page: Page) {
-  await page.evaluate(() => {
-    const w = window as unknown as { __toasts: string[] };
-    w.__toasts = [];
-    new MutationObserver(() => {
-      document.querySelectorAll('.toast > span').forEach((el) => { if (!w.__toasts.includes(el.textContent ?? '')) w.__toasts.push(el.textContent ?? ''); });
-    }).observe(document.body, { childList: true, subtree: true });
-  });
-}
-const toastsShown = (page: Page) => page.evaluate(() => (window as unknown as { __toasts: string[] }).__toasts);
-
 /** Pick an item of the top bar's View menu. */
 async function viewMenu(page: Page, item: string | RegExp) {
   await page.getByRole('button', { name: 'View', exact: true }).click();
@@ -525,11 +510,11 @@ test('share links open as a new scene', async ({ page, context }) => {
 
 test('saves and re-imports the library as JSON', async ({ page }) => {
   await page.getByRole('button', { name: 'Main menu' }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save project' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Save' }).click()]);
   const path = (await download.path())!;
   await page.getByRole('button', { name: 'Main menu' }).click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: 'Add scenes from a project…' }).click();
+  await page.getByRole('menuitem', { name: 'Add scenes…' }).click();
   await (await chooser).setFiles(path);
   await expect(page.getByText('Loaded 20 scenes')).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(40);
@@ -719,14 +704,12 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   expect(await style()).toBe('shaded');
 });
 
-test('body presets change the body', async ({ page }) => {
+test('a body is a man or a woman and a height', async ({ page }) => {
   await page.getByRole('button', { name: 'Body & colour' }).click();
-  const types = page.getByRole('group', { name: 'Body type' });
-  await types.getByRole('button', { name: 'Man', exact: true }).click();
-  expect((await state(page)).scene.figures[0].body).toEqual({ sex: 0, height: 1.8 });
-  await types.getByRole('button', { name: 'Child', exact: true }).click();
-  expect((await state(page)).scene.figures[0].body.height).toBe(1.25);
-  // A man or a woman (Y Bot or X Bot), and a height: nothing else to set.
+  await page.getByRole('radiogroup', { name: 'Man or woman' }).getByRole('radio', { name: 'Man', exact: true }).click();
+  expect((await state(page)).scene.figures[0].body.sex).toBe(0);
+  await page.getByRole('slider', { name: 'Height' }).fill('1.25');
+  expect((await state(page)).scene.figures[0].body).toEqual({ sex: 0, height: 1.25 });
   await page.getByRole('radiogroup', { name: 'Man or woman' }).getByRole('radio', { name: 'Woman' }).click();
   expect((await state(page)).scene.figures[0].body).toEqual({ sex: 1, height: 1.25 });
 });
@@ -803,7 +786,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   expect(small.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
 });
 
-test('placement fields move and turn the figure, and faces can be hidden', async ({ page }) => {
+test('placement fields move and turn the figure', async ({ page }) => {
   const x = page.getByRole('textbox', { name: 'Position X' });
   await x.fill('0.5');
   await x.press('Enter');
@@ -813,9 +796,6 @@ test('placement fields move and turn the figure, and faces can be hidden', async
   const [f] = await figs(page);
   expect(f.position[0]).toBe(0.5);
   expect(facingOf(f.bones)).toBe(90);
-
-  await (await projectSettings(page)).getByRole('switch', { name: 'Face features' }).uncheck();
-  expect(((await state(page)) as unknown as { library: { film: { faces: boolean } } }).library.film.faces).toBe(false);
 });
 
 type Anim = Animation;
@@ -898,7 +878,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await expect(inspector.getByRole('combobox', { name: 'Shot size' })).toHaveText(/^MS ·/);
   // Looking through it with framing guides: the frame's thirds and safe areas.
   await viewMenu(page, 'Shot camera');
-  await viewMenu(page, /Framing guides/);
+  await viewMenu(page, /Guides/);
   await expect(page.locator('.letterbox .third')).toHaveCount(4);
   await viewMenu(page, 'Free view');
   // A close-up through a wide lens (the camera near the figure); seen from above and aside, the
@@ -1270,15 +1250,24 @@ test('the AI assistant runs on the server and its tools on the open pose', async
 });
 
 test('each figure has its own key track', async ({ page }) => {
-  await templateScene(page, 'Boxing exchange');
-  await expect(page.getByRole('button', { name: /^Kai key at 0.83 s/ })).toBeVisible();
-  await page.locator('.tl-figure', { hasText: 'Kai' }).click();
-  await expect(page.locator('.tl-figure.on')).toHaveText('Kai');
-  // Delete Kai's key at 0.83 s: Ben's stays.
-  await page.getByRole('button', { name: /^Kai key at 0.83 s/ }).click();
-  await page.getByRole('button', { name: 'Delete keyframe (Kai)' }).click();
-  await expect(page.getByRole('button', { name: /^Kai key at 0.83 s/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Ben key at 0.83 s/ })).toBeVisible();
+  await addLayer(page, 'Figure');
+  const [first, second] = (await live(page)).scene.figures;
+  await animate(page);
+  // Each keyed at 1 s: the second, then the first.
+  const cast = page.getByRole('list', { name: 'Cast' });
+  await cast.getByRole('button', { name: new RegExp(`^${second.name}\\b`) }).first().click();
+  for (let i = 0; i < 24; i++) await page.keyboard.press('.');
+  await page.keyboard.press('k');
+  await cast.getByRole('button', { name: new RegExp(`^${first.name}\\b`) }).first().click();
+  await page.keyboard.press('k');
+  const key = (f: { name: string }) => page.getByRole('button', { name: new RegExp(`^${f.name} key at 1.00 s`) });
+  await expect(key(first)).toBeVisible();
+  await expect(key(second)).toBeVisible();
+  // Delete the first's key at 1 s: the second's stays.
+  await key(first).click();
+  await page.getByRole('button', { name: `Delete keyframe (${first.name})` }).click();
+  await expect(key(first)).toHaveCount(0);
+  await expect(key(second)).toBeVisible();
 });
 
 test('the inspector folds away for more canvas and remembers it', async ({ page }) => {
@@ -1796,32 +1785,18 @@ test('a held prop is thrown to a spot on the floor, keyed over time', async ({ p
   await expect(page.locator('.tl-travel.throw').first()).toBeVisible();
 });
 
-test('a two-person motion goes on the selected figure and the one next to it', async ({ page }) => {
-  // Two figures in a two-person motion, drawn in software (no GPU here): every step is slow.
-  test.setTimeout(240_000);
+test('a motion goes on the selected figure only', async ({ page }) => {
   await addLayer(page, 'Figure');
-  let s = await live(page);
-  const [first, second] = s.scene.figures;
+  const [, second] = (await live(page)).scene.figures;
   const scenes = (await state(page)).library.scenes.length;
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await watchToasts(page);
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Boxing exchange/ }).click();
-  await expect.poll(() => toastsShown(page)).toContain(`${second.name} and ${first.name}: Boxing exchange`);
-  s = await live(page);
-  // In this scene (no new one), both figures keyed: the selected one leads.
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jab & cross [\d.]+ s$/ }).click();
+  // In this scene (no new one), on the selected figure alone: people together each get their own motion.
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(scenes);
-  const together = s.scene.animation!.actions.find((x) => x.source.kind === 'clip');
-  expect(together?.roles.map((r) => r.figure)).toEqual([second.id, first.id]);
-  // A child cannot lead an adult in a waltz hold: declined, with the reason.
-  await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: new RegExp(`^${second.name}`) }).first().click();
-  await page.getByRole('button', { name: 'Body & colour' }).click();
-  await page.getByRole('group', { name: 'Body type' }).getByRole('button', { name: 'Child', exact: true }).click();
-  await openSection(page, 'Library');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Waltz turn/ }).click();
-  await expect(page.getByText(`${second.name} is too short to lead ${first.name} in a waltz hold`)).toBeVisible();
-  expect((await live(page)).scene.animation!.actions.filter((x) => x.source.kind === 'clip')).toHaveLength(1);
+  const s = await live(page);
+  expect(s.scene.animation!.actions.filter((x) => x.source.kind === 'clip').map((x) => x.roles.map((r) => r.figure))).toEqual([[second.id]]);
 });
 
 test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ribbon; the high jump set-up', async ({ page }) => {
@@ -1867,7 +1842,7 @@ test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ri
 });
 
 test('eyes on another figure, figure colours, a shot subject and the scene light', async ({ page }) => {
-  // Two figures in a two-person motion, drawn in software (no GPU here): every step is slow.
+  // Two figures drawn in software (no GPU here): every step is slow.
   test.setTimeout(240_000);
   await addLayer(page, 'Figure');
   let s = await live(page);
@@ -2011,9 +1986,13 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
 });
 
 test('the timeline zooms, retimes a stretch, plays slower and folds away', async ({ page }) => {
-  // Two boxers drawn in software (no GPU here) make every step slow.
-  test.setTimeout(240_000);
-  await templateScene(page, 'Boxing exchange');
+  // Keys every half second.
+  await animate(page);
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  for (let k = 0; k < 3; k++) {
+    for (let i = 0; i < 12; i++) await page.keyboard.press('.');
+    await page.keyboard.press('k');
+  }
   const keys = () => live(page).then(({ scene }) => keyTimesOf(scene.animation!, scene.figures[0].id).map((t) => Math.round(t * 1000) / 1000));
   // Zoom in about the playhead, then back to the whole animation.
   await page.getByRole('button', { name: /^Zoom in/ }).click();
@@ -2023,7 +2002,7 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
 
   // Shift-drag a key: it and the keys after it move together; the earlier ones stay.
   const before = await keys();
-  const key = page.getByRole('button', { name: new RegExp(`^Ben key at ${before[2].toFixed(2)} s`) });
+  const key = page.getByRole('button', { name: new RegExp(`^Keyframe at ${before[2].toFixed(2)} s`) });
   const box = (await key.boundingBox())!;
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const duration = (await anim(page)).animation!.duration;

@@ -12,7 +12,7 @@ export interface InspectorContext {
   notify: Notify;
   /** Toast with an Undo button. */
   notifyUndo(text: string): void;
-  /** Open the project's settings (the film's frame, what it is cut for, face features). */
+  /** Open the project's settings (the film's frame and what it is cut for). */
   projectSettings(): void;
 }
 

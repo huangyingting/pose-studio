@@ -2,12 +2,12 @@ import { FRAME_SHAPES, STYLES, type Film, type FrameShape, type Library, type St
 
 /*
  * The film the project is (Library.film): its frame shape, the video model it is cut for and its
- * look (render style, face features). Set once for the project; the canvas, exports, the
+ * look (its render style). Set once for the project; the canvas, exports, the
  * storyboard and the shot length checks all follow it. The open project's film is kept at hand
  * here (the store sets it), as the imported characters are (lib/model.ts).
  */
 
-export const DEFAULT_FILM: Film = { frame: '16:9', style: 'line', faces: true };
+export const DEFAULT_FILM: Film = { frame: '16:9', style: 'line' };
 
 let current: Film = DEFAULT_FILM;
 
@@ -28,6 +28,5 @@ export function parseFilm(v: unknown): Film | undefined {
     frame: FRAME_SHAPES.includes(o.frame as FrameShape) ? (o.frame as FrameShape) : '16:9',
     ...(typeof o.target === 'string' && o.target ? { target: o.target.slice(0, 40) } : {}),
     style: STYLES.includes(o.style as Style) ? (o.style as Style) : 'line',
-    faces: o.faces !== false,
   };
 }

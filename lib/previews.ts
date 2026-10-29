@@ -81,7 +81,7 @@ function filmed(key: string, make: () => Scene, style: Style): PreviewJob {
       scene ??= make();
       const a = scene.animation!;
       const t = (a.duration * i) / (a.loop ? FRAMES : FRAMES - 1);
-      return sharedRenderer().renderShot(sceneAt(scene, t, true), W, H, LINE, { style, faces: true, camera: cameraAt(scene, t, W / H) }).toDataURL('image/png');
+      return sharedRenderer().renderShot(sceneAt(scene, t, true), W, H, LINE, { style, camera: cameraAt(scene, t, W / H) }).toDataURL('image/png');
     },
   };
 }
@@ -91,7 +91,7 @@ export function posePreview(p: PoseAsset, style: Style): PreviewJob {
   return {
     key: `pose:${style}:${p.id}:${JSON.stringify(p.bones)}`,
     count: 1,
-    frame: () => sharedRenderer().render(poseScene(p), W, H, LINE, { style, faces: true, margin: 0.1, angle: p.view }).toDataURL('image/png'),
+    frame: () => sharedRenderer().render(poseScene(p), W, H, LINE, { style, margin: 0.1, angle: p.view }).toDataURL('image/png'),
   };
 }
 
@@ -102,7 +102,7 @@ export function characterPreview(id: string, style: Style): PreviewJob {
     key: `character:${style}:${id}`,
     count: 1,
     ready: () => !!modelTemplate(id),
-    frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1, angle: { yaw: 20, pitch: 4, fov: 30 } }).toDataURL('image/png'),
+    frame: () => sharedRenderer().render(scene, W, H, LINE, { style, margin: 0.1, angle: { yaw: 20, pitch: 4, fov: 30 } }).toDataURL('image/png'),
   };
 }
 
@@ -116,7 +116,7 @@ export function templatePreview(id: string, build: () => Scene, style: Style): P
     void fetchLibraryClips(clips);
     return { ...filmed(key, () => filmWith(scene, 'static', { follow: true }), style), ready: () => clips.every(hasClip) };
   }
-  return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, faces: true, margin: 0.1, angle: angleAt(scene) }).toDataURL('image/png') };
+  return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, margin: 0.1, angle: angleAt(scene) }).toDataURL('image/png') };
 }
 
 /** A motion playing, followed by a camera from its scene's angle. */
@@ -195,7 +195,7 @@ export function requestThumb(key: string, make: () => string, onUrl: (url: strin
 
 /** A scene as a thumbnail, from an angle. */
 export function drawThumb(scene: Scene, angle: View) {
-  return sharedRenderer().render(scene, THUMB, THUMB, 1.2, { style: 'line', transparent: true, faces: false, margin: 0.08, angle }).toDataURL('image/png');
+  return sharedRenderer().render(scene, THUMB, THUMB, 1.2, { style: 'line', transparent: true, margin: 0.08, angle }).toDataURL('image/png');
 }
 
 /** A pose's thumbnail: its key and how to draw it. */

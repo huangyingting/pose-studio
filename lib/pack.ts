@@ -20,7 +20,6 @@ export interface PackOptions {
   height: number;
   style: Style;
   lineWidth: number;
-  faces: boolean;
   /** Add a clay-shaded clip of each shot (animations only; takes longest). */
   greybox: boolean;
 }
@@ -58,7 +57,7 @@ export async function keyframePack(shots: StoryShot[], name: string, o: PackOpti
   const tick = () => onProgress?.(++done / steps);
   const png = async (scene: Scene, t: number, pass: Pass) => {
     const c = renderer.renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
-      style: o.style, faces: o.faces, pass, camera: cameraAt(scene, t, o.width / o.height),
+      style: o.style, pass, camera: cameraAt(scene, t, o.width / o.height),
     });
     const blob = await canvasToBlob(c, 'png');
     return new Uint8Array(await blob.arrayBuffer());

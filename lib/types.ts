@@ -517,8 +517,6 @@ export interface Film {
   /** Video model the shots are cut for (lib/shots.ts VIDEO_MODELS), which limits a shot's length. */
   target?: string;
   style: Style;
-  /** Simple face features. */
-  faces: boolean;
 }
 
 export type Selection =

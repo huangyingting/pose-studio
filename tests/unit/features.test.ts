@@ -98,7 +98,6 @@ describe('gesture practice', () => {
     expect(slides).toHaveLength(5);
     expect(slides.every((x) => !x.scene.animation || x.scene !== animated)).toBe(true);
     expect(new Set(slides.map((x) => x.angle.yaw)).size).toBeGreaterThan(1);
-    expect(parsePracticeOptions({ faces: false }).faces).toBe(false);
   });
 
   it('mirrors some poses when enabled', () => {
@@ -163,7 +162,7 @@ describe('render styles', () => {
 
   it('accepts the new styles in stored practice options and film settings', () => {
     expect(parseFilm({ style: 'ink' })!.style).toBe('ink');
-    expect(parseFilm({ style: 'watercolour', frame: '4:3' })).toEqual({ frame: '16:9', style: 'line', faces: true });
+    expect(parseFilm({ style: 'watercolour', frame: '4:3' })).toEqual({ frame: '16:9', style: 'line' });
     expect(parsePracticeOptions({ style: 'anime' }).style).toBe('anime');
   });
 

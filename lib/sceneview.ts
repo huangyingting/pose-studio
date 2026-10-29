@@ -25,7 +25,6 @@ export class SceneView {
   /** Bumped whenever objects are created/destroyed/rebuilt (joint references change). */
   version = 0;
   private style: Style = 'line';
-  private faces = true;
   private selection: Selection = null;
   private hover: Hover = null;
   private listeners = new Set<() => void>();
@@ -42,7 +41,6 @@ export class SceneView {
   constructor(ghost: Ghost | null = null) {
     this.ink = new Ink(ghost);
     if (ghost) {
-      this.faces = false;
       this.style = 'minimal';
       this.ink.setStyle('minimal');
     }
@@ -67,7 +65,6 @@ export class SceneView {
       if (!m) {
         m = new Mannequin(this.ink, f.body, f.id);
         m.setStyle(this.style);
-        m.setFaceFeatures(this.faces);
         this.figures.set(f.id, m);
         this.root.add(m.object);
         changed = true;
@@ -171,12 +168,6 @@ export class SceneView {
     for (const m of this.figures.values()) m.setStyle(style);
     for (const p of this.props.values()) p.setStyle(style);
     for (const [id, r] of this.models) r.setLook(style, this.tints.get(id) ?? null);
-  }
-
-  /** Show or hide the simple face details on every figure. */
-  setFaces(on: boolean) {
-    this.faces = on;
-    for (const m of this.figures.values()) m.setFaceFeatures(on);
   }
 
   setSelection(sel: Selection) {

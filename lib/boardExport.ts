@@ -11,7 +11,6 @@ import { createEncoder, drawShot } from './video';
 
 export interface StoryOptions {
   style: Style;
-  faces: boolean;
   /** Captions under the panels, or as subtitles. */
   captions: boolean;
   pass?: Pass;
@@ -73,7 +72,7 @@ export function boardSheet(shots: StoryShot[], o: StoryOptions & { columns: numb
   shots.forEach((x, i) => {
     const left = pad + (i % columns) * (cellW + gap);
     const top = pad + Math.floor(i / columns) * (cellH + textH + gap);
-    drawShot(fctx, x.scene, panelTime(x), { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, faces: o.faces, pass: o.pass });
+    drawShot(fctx, x.scene, panelTime(x), { width: cellW, height: cellH, style: o.style, lineWidth: 1.8, pass: o.pass });
     ctx.drawImage(frame, left, top);
     ctx.strokeStyle = '#1d1d1f';
     ctx.lineWidth = 2;
@@ -115,7 +114,7 @@ export async function recordStory(shots: StoryShot[], o: StoryOptions & { width:
     lines.forEach((l, j) => ctx.fillText(l, o.width / 2, o.height - h - size * 0.2 + j * size * 1.35));
     ctx.textAlign = 'start';
   };
-  const draw = { width: o.width, height: o.height, style: o.style, lineWidth: o.lineWidth, faces: o.faces, pass: o.pass };
+  const draw = { width: o.width, height: o.height, style: o.style, lineWidth: o.lineWidth, pass: o.pass };
   for (const x of shots) {
     if (signal?.aborted) break;
     if (!x.span) {

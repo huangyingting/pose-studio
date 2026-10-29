@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BOTS, BOT_TARGETS } from './bots';
 import { Ink, InkedParts, type Highlight } from './ink';
-import { clampRotation, jointLimits, sided, wrapDeg, type LimbPart } from './joints';
+import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
 import { boneToRig, fromQuat, rigToBone, toQuat } from './pose';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
@@ -80,6 +80,8 @@ interface Bot {
   ring: Uint8Array;
   joints: Record<string, Vec3>;
   hipHalfWidth: number;
+  /** Each target's outermost vertices (see outline), found once. */
+  outermost?: number[][];
 }
 
 const decoded = new Map<string, Bot>();
@@ -165,8 +167,20 @@ const DIRECTIONS = STEPS.flatMap((x) => STEPS.flatMap((y) => STEPS.map((z) => ne
  * working out every vertex.
  */
 function outline(bot: Bot, k: number, bones: THREE.Bone[], inverses: THREE.Matrix4[]): Sample[] {
+  bot.outermost ??= outermost(bot, bones.length);
+  return bones.flatMap((bone, b) => {
+    const ids = bot.outermost![b];
+    if (!ids.length) return [];
+    const points = new Float32Array(ids.length * 3);
+    ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = bot.positions[v * 3 + c] * k; });
+    return [{ bone, inverse: inverses[b], points, part: partOf(BOT_TARGETS[b]) }];
+  });
+}
+
+/** Each target's outermost vertices in DIRECTIONS (of those it moves most): the same at any scale. */
+function outermost(bot: Bot, targets: number): number[][] {
   const n = bot.positions.length / 3;
-  const best = bones.map(() => DIRECTIONS.map(() => ({ v: -1, d: -Infinity })));
+  const best = Array.from({ length: targets }, () => DIRECTIONS.map(() => ({ v: -1, d: -Infinity })));
   const p = new THREE.Vector3();
   for (let v = 0; v < n; v++) {
     const b = bot.skinIndex[v * 4];
@@ -176,13 +190,7 @@ function outline(bot: Bot, k: number, bones: THREE.Bone[], inverses: THREE.Matri
       if (d > best[b][i].d) best[b][i] = { v, d };
     });
   }
-  return bones.flatMap((bone, b) => {
-    const ids = [...new Set(best[b].map((x) => x.v).filter((v) => v >= 0))];
-    if (!ids.length) return [];
-    const points = new Float32Array(ids.length * 3);
-    ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = bot.positions[v * 3 + c] * k; });
-    return [{ bone, inverse: inverses[b], points, part: partOf(BOT_TARGETS[b]) }];
-  });
+  return best.map((dirs) => [...new Set(dirs.map((x) => x.v).filter((v) => v >= 0))]);
 }
 
 /** A skinned part's bounds (in its own frame) as its bones have it now: around its bones' outermost points, with room for its blending. */
@@ -211,7 +219,6 @@ export class Mannequin {
   private hands = {} as Record<Side, FingerRig>;
   /** What bounds it, cheaply: a few of each bone's points (outline). */
   private samples: Sample[] = [];
-  private faces = true;
   private bodyKey = '';
   private style: Style = 'line';
   private selected: JointName | null = null;
@@ -233,7 +240,6 @@ export class Mannequin {
     this.parts = new InkedParts(this.ink, 'figure', this.bare);
     this.build(body);
     this.refresh();
-    this.parts.setFeatures(this.faces);
     return true;
   }
 
@@ -364,12 +370,6 @@ export class Mannequin {
     }
     this.object.updateMatrixWorld(true);
     this.parts.bindSkins(skeleton, parts);
-  }
-
-  /** Show or hide the face details (the bots have none: nothing to show). */
-  setFaceFeatures(on: boolean) {
-    this.faces = on;
-    this.parts.setFeatures(on);
   }
 
   setHand(side: Side, hand: Hand) {

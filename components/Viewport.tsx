@@ -140,7 +140,6 @@ export default function Viewport({
   const linked = useStudio((st) => st.linked);
   useLayoutEffect(() => sv.setLinked(shotMode ? null : linked), [sv, linked, scene, shotMode]);
   useLayoutEffect(() => sv.setStyle(film.style), [sv, film.style]);
-  useLayoutEffect(() => sv.setFaces(film.faces), [sv, film.faces]);
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);

@@ -16,15 +16,15 @@ import { shortcutOf } from './commands';
 const previewCache = new Map<string, string>();
 
 /** A small frame of a shot of a scene at t, in the project's frame (cached by everything it shows). */
-function preview(scene: Scene, t: number, style: Style, faces: boolean, aspect: number) {
+function preview(scene: Scene, t: number, style: Style, aspect: number) {
   const a = scene.animation;
-  const key = JSON.stringify([t, style, faces, aspect, scene.figures, scene.props, scene.cameras, scene.light, a?.actions, a?.props, a?.constraints, a?.shots]);
+  const key = JSON.stringify([t, style, aspect, scene.figures, scene.props, scene.cameras, scene.light, a?.actions, a?.props, a?.constraints, a?.shots]);
   let url = previewCache.get(key);
   if (!url) {
     const c = document.createElement('canvas');
     c.width = aspect >= 1 ? 320 : 180;
     c.height = Math.round(c.width / aspect);
-    drawShot(c.getContext('2d')!, scene, t, { width: c.width, height: c.height, style, lineWidth: 1.2, faces });
+    drawShot(c.getContext('2d')!, scene, t, { width: c.width, height: c.height, style, lineWidth: 1.2 });
     url = c.toDataURL('image/png');
     if (previewCache.size > 300) previewCache.delete(previewCache.keys().next().value!);
     previewCache.set(key, url);
@@ -49,9 +49,9 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setThumbs(shots.map((x) => preview(x.scene, panelTime(x), film.style, film.faces, aspect))), 60);
+    const t = setTimeout(() => setThumbs(shots.map((x) => preview(x.scene, panelTime(x), film.style, aspect))), 60);
     return () => clearTimeout(t);
-  }, [shots, film.style, film.faces, aspect]);
+  }, [shots, film.style, aspect]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

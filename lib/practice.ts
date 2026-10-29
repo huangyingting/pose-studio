@@ -18,12 +18,10 @@ export interface PracticeOptions {
   randomAngle: boolean;
   mirror: boolean;
   style: Style;
-  /** Simple face features (the practice's own, not the film's). */
-  faces: boolean;
 }
 
 export const DEFAULT_PRACTICE: PracticeOptions = {
-  source: 'all', seconds: 60, count: 10, shuffle: true, randomAngle: false, mirror: false, style: 'line', faces: true,
+  source: 'all', seconds: 60, count: 10, shuffle: true, randomAngle: false, mirror: false, style: 'line',
 };
 
 export const DURATIONS = [15, 30, 60, 120, 300, 600, 0];
@@ -46,7 +44,6 @@ export function parsePracticeOptions(raw: unknown): PracticeOptions {
     randomAngle: o.randomAngle === true,
     mirror: o.mirror === true,
     style: STYLES.includes(o.style as Style) ? (o.style as Style) : 'line',
-    faces: o.faces !== false,
   };
 }
 
