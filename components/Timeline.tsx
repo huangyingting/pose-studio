@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Pencil, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
+  deleteAction, deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -11,7 +11,7 @@ import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
-import { cameraById, liveCamera, rigRule } from '@/lib/cameras';
+import { cameraById, liveCamera } from '@/lib/cameras';
 import { DIRECTOR_STYLES } from '@/lib/coverage';
 import type { Action, Animation, Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
@@ -23,6 +23,9 @@ import { dragged, endDrag } from './dragdrop';
 import { stepDone } from './nextStep';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
+
+/** Row heights (px): the time ruler, the shots, each figure, each prop moving, the path camera. */
+const ROW = { ruler: 20, shots: 30, figure: 36, prop: 28, camera: 30 };
 
 /** Current playhead: the clock while playing, the document time otherwise. */
 export function usePlayhead(clock: Clock) {
@@ -503,10 +506,14 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       }
     });
   });
-  const rowH = multi ? 24 : 26;
-  const figureY = (id: string) => 42 + figures.findIndex((f) => f.id === id) * rowH + rowH / 2;
-  const propY = (j: number) => 42 + figures.length * rowH + j * 22 + 11;
-  const rows = `18px 24px ${multi ? figures.map(() => '24px').join(' ') : '26px'} ${moving.map(() => '22px').join(' ')} 26px`;
+  // (Rows tall enough to take hold of: a block, its edges and its buttons, a key.)
+  const top = ROW.ruler + ROW.shots;
+  const figureY = (id: string) => top + figures.findIndex((f) => f.id === id) * ROW.figure + ROW.figure / 2;
+  const propY = (j: number) => top + figures.length * ROW.figure + j * ROW.prop + ROW.prop / 2;
+  // The camera row only for a camera on a path (selected, or filming at the playhead): its points to
+  // retime; a camera on a rule places itself, with nothing to edit here.
+  const cameraRow = rowCam.kind === 'path';
+  const rows = [ROW.ruler, ROW.shots, ...figures.map(() => ROW.figure), ...moving.map(() => ROW.prop), ...(cameraRow ? [ROW.camera] : [])].map((h) => `${h}px`).join(' ');
   const step = TICKS.find((x) => x * pxPerSecond >= 10) ?? 60;
   const labelStep = LABELS.find((x) => x * pxPerSecond >= 56) ?? 120;
   const ticks: number[] = [];
@@ -651,7 +658,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 {p.name}
               </button>
             ))}
-            <button
+            {cameraRow && <button
               type="button"
               className={`tl-figure tl-camera${picked ? ' on' : ''}`}
               onClick={() => store.select({ kind: 'camera', camera: rowCam.id })}
@@ -659,7 +666,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               title={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
             >
               <Camera size={11} aria-hidden /> {rowCam.name}
-            </button>
+            </button>}
           </div>
           <div className="tl-lanes" ref={track} onPointerDown={scrub} style={{ gridTemplateRows: rows }}>
             <div className="tl-ruler">
@@ -822,20 +829,29 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         >
                           {group && <Users size={10} aria-hidden />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
-                          {/* Its menu, on a ⋯ shown while the pointer is over it (always on touch). */}
-                          <button
-                            type="button"
-                            className="tl-more"
-                            aria-label={`More for ${label}`}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              const r = e.currentTarget.getBoundingClientRect();
-                              store.setActiveFigure(f.id);
-                              openContextMenu({ clientX: r.left, clientY: r.bottom }, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
-                            }}
-                          >
-                            <Ellipsis size={12} aria-hidden />
-                          </button>
+                          {/* What it most often wants, shown while the pointer is over it (always on touch): edit, remove, more. */}
+                          <span className="tl-acts" onPointerDown={(e) => e.stopPropagation()}>
+                            <button type="button" aria-label={`Edit ${label}`} data-tip="Edit" data-tip-side="top" onClick={() => { pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}>
+                              <Pencil size={12} aria-hidden />
+                            </button>
+                            <button type="button" aria-label={`Remove ${label}`} data-tip="Remove" data-tip-side="top" onClick={() => deleteAction(store, x.id)}>
+                              <Trash2 size={12} aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              className="tl-more"
+                              aria-label={`More for ${label}`}
+                              data-tip="More"
+                              data-tip-side="top"
+                              onClick={(e) => {
+                                const r = e.currentTarget.getBoundingClientRect();
+                                store.setActiveFigure(f.id);
+                                openContextMenu({ clientX: r.left, clientY: r.bottom }, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
+                              }}
+                            >
+                              <Ellipsis size={12} aria-hidden />
+                            </button>
+                          </span>
                           <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                         </span>
                       </span>
@@ -943,12 +959,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 </div>
               );
             })}
-            <div className="tl-row camera" aria-label={`${rowCam.name} track`}>
-              {rowCam.kind === 'rig' && (
-                <span className="tl-travel rig" style={{ left: pct(0), width: `${(a.duration / span) * 100}%` }} title={`${rowCam.name} places itself every frame: it ${rigRule(scene, rowCam)}`}>
-                  <span style={inSight(0, a.duration)}>{rowCam.name} · {rigRule(scene, rowCam)}</span>
-                </span>
-              )}
+            {cameraRow && <div className="tl-row camera" aria-label={`${rowCam.name} track`}>
               {spans.filter((sp) => sp.shot.camera !== rowCam.id).map((sp) => (
                 <span key={sp.shot.id} className="tl-dim" style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }} title={`${sp.shot.name} is filmed by another camera`} aria-hidden />
               ))}
@@ -967,7 +978,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   }}
                 />
               ))}
-            </div>
+            </div>}
             {flights.length > 0 && (
               <svg className="tl-flights" aria-hidden>
                 {flights.map((fl, n) => (

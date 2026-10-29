@@ -794,10 +794,10 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 @container (max-width: 680px) { .tl-zoom { display: none; } }
 @container (max-width: 720px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
 @container (max-width: 460px) { .tl-step, .tl-speed { display: none; } .tl-time { margin-left: 4px; } }
-.tl-tracks { display: grid; grid-template-columns: 76px minmax(0, 1fr); padding: 0 12px 10px 0; max-height: min(40vh, 300px); overflow-y: auto; }
-.tl-labels { display: grid; grid-template-rows: 18px 24px 26px 26px; color: var(--text-2); font-size: 11px; font-weight: 500; padding-left: 12px; }
+.tl-tracks { display: grid; grid-template-columns: 96px minmax(0, 1fr); padding: 0 12px 10px 0; max-height: min(45vh, 360px); overflow-y: auto; }
+.tl-labels { display: grid; color: var(--text-2); font-size: 12px; font-weight: 500; padding-left: 12px; }
 .tl-labels span { display: flex; align-items: center; }
-.tl-lanes { position: relative; display: grid; grid-template-rows: 18px 24px 26px 26px; cursor: ew-resize; touch-action: none; overflow-x: clip; }
+.tl-lanes { position: relative; display: grid; cursor: ew-resize; touch-action: none; overflow-x: clip; }
 .tl-ruler { position: relative; border-bottom: 1px solid var(--border); }
 .tl-ruler .tick { position: absolute; bottom: 0; width: 1px; height: 4px; background: var(--border-strong); }
 .tl-ruler .tick.major { height: 8px; background: var(--text-3); }
@@ -829,8 +829,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   align-items: center;
   min-width: 0;
   padding: 0 8px;
-  border-radius: 5px;
-  font-size: 10px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -844,7 +844,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.run { background: color-mix(in srgb, var(--run) 16%, transparent); color: var(--run-text); }
 .tl-travel.jump { background: color-mix(in srgb, var(--jump) 15%, transparent); color: var(--jump-text); }
 .tl-travel.clip { background: color-mix(in srgb, var(--clip) 13%, transparent); color: var(--clip-text); }
-.tl-travel.upper { top: auto; bottom: 1px; height: 9px; font-size: 8px; line-height: 9px; background: color-mix(in srgb, var(--fix) 20%, transparent); color: var(--fix-text); }
+.tl-travel.upper { top: auto; bottom: 2px; height: 11px; font-size: 9px; line-height: 11px; background: color-mix(in srgb, var(--fix) 20%, transparent); color: var(--fix-text); }
 .tl-travel.keys { background: color-mix(in srgb, var(--text-2) 8%, transparent); color: var(--text-3); }
 /* An action done together (on each of its people's rows), and the one picked for the inspector. */
 .tl-travel.group { gap: 4px; box-shadow: inset 0 0 0 1px currentColor; }
@@ -860,10 +860,12 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-fixband .tl-edge { width: 5px; }
 .tl-edge { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
 .tl-edge:hover { background: color-mix(in srgb, var(--shade) 12%, transparent); }
-/* An action's menu: a ⋯ while the pointer is over it (always on touch). */
-.tl-more { position: absolute; top: 50%; right: 8px; display: none; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--text-2); transform: translateY(-50%); cursor: pointer; }
-.tl-travel.grab:hover .tl-more, .tl-more:focus-visible { display: grid; }
-@media (hover: none) { .tl-travel.grab .tl-more { display: grid; } }
+/* An action's buttons (edit, remove, more): while the pointer is over it (always on touch). */
+.tl-acts { position: absolute; top: 50%; right: 8px; display: none; gap: 2px; padding: 2px; border-radius: 6px; background: var(--panel); box-shadow: 0 1px 4px color-mix(in srgb, var(--shade) 18%, transparent); transform: translateY(-50%); }
+.tl-acts button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text-2); cursor: pointer; }
+.tl-acts button:hover { background: var(--panel-2); color: var(--text); }
+.tl-travel.grab:hover .tl-acts, .tl-acts:focus-within { display: flex; }
+@media (hover: none) { .tl-travel.grab .tl-acts { display: flex; } }
 .tl-ramp { position: absolute; top: 5px; bottom: 5px; z-index: 1; clip-path: polygon(0 100%, 100% 0, 100% 100%); background: currentColor; opacity: 0.35; cursor: w-resize; }
 .tl-ramp.none { width: 6px !important; margin-left: -6px; opacity: 0.12; }
 .tl-ramp:hover { opacity: 0.6; }
@@ -885,10 +887,10 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-key {
   position: absolute;
   top: 50%;
-  width: 11px;
-  height: 11px;
+  width: 13px;
+  height: 13px;
   padding: 0;
-  margin: -6px 0 0 -6px;
+  margin: -7px 0 0 -7px;
   border: 0;
   border-radius: 2px;
   transform: rotate(45deg);

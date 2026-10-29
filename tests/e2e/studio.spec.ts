@@ -890,7 +890,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   expect(await shot()).toMatchObject({ kind: 'rig', rig: { body: 'follow', size: 'mcu' } });
 });
 
-test('cuts move on the timeline; the camera row shows one camera, which can be looked through', async ({ page }) => {
+test('cuts move on the timeline; a camera on a path has a row, one on a rule none; looked through', async ({ page }) => {
   await openSection(page, 'Scene');
   await animate(page);
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
@@ -913,11 +913,10 @@ test('cuts move on the timeline; the camera row shows one camera, which can be l
   await page.locator('.tl-shot').nth(1).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'New camera from the view' }).click();
   await expect(timeline.getByRole('button', { name: 'Camera 2', exact: true })).toBeVisible();
-  // Selected in the outline, the first camera has the row (its rule, as it places itself).
+  // Selected in the outline, the first camera: it places itself by its rule, nothing to edit on the timeline (no row).
   const cameras = page.getByRole('list', { name: 'Cameras' });
   await cameras.getByRole('button', { name: /^Camera 1/ }).click();
-  await expect(timeline.getByRole('button', { name: 'Camera 1', exact: true })).toBeVisible();
-  await expect(page.locator('.tl-row.camera')).toContainText('Camera 1 · follows everyone');
+  await expect(page.locator('.tl-row.camera')).toHaveCount(0);
   // Selected, it shows its picture in the canvas's corner.
   await expect(page.getByRole('button', { name: 'Look through Camera 1' })).toBeVisible();
   // Looked through from its menu: a banner says the view moves it; Ctrl+D copies it.
@@ -1002,7 +1001,7 @@ test('keyframes pose to pose: a key held until the next, a pose held for a time,
 
   // The first key held until the next: a square on the timeline.
   // (Its right half: the key at 0 sits half outside the lanes.)
-  await page.getByRole('button', { name: 'Key at 0.00 s' }).click({ button: 'right', position: { x: 9, y: 5 } });
+  await page.getByRole('button', { name: 'Key at 0.00 s' }).click({ button: 'right', position: { x: 11, y: 7 } });
   await page.getByRole('menuitemradio', { name: /held until the next/ }).click();
   s = await live(page);
   expect((keysClip(s).source as { clip: { parts: { eases?: string[] }[] } }).clip.parts[0].eases?.[0]).toBe('step');
