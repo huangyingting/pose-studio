@@ -11,8 +11,9 @@ import type { Style, Vec3 } from './types';
  * outline).
  */
 function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.Texture; cutoff: number }) {
+  cutout?.map.updateMatrix();
   return new THREE.ShaderMaterial({
-    uniforms: cutout ? { ...uniforms, map: { value: cutout.map }, cutoff: { value: cutout.cutoff } } : uniforms,
+    uniforms: cutout ? { ...uniforms, map: { value: cutout.map }, mapTransform: { value: cutout.map.matrix }, cutoff: { value: cutout.cutoff } } : uniforms,
     ...(cutout ? { defines: { CUTOUT: '' } } : {}),
     side: THREE.BackSide,
     vertexShader: /* glsl */ `
@@ -21,12 +22,14 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
       uniform vec2 resolution;
       #include <skinning_pars_vertex>
       #ifdef CUTOUT
+        uniform mat3 mapTransform;
         varying vec2 vUv;
       #endif
       ${NOISE_GLSL}
       void main() {
         #ifdef CUTOUT
-          vUv = uv;
+          // (Where the texture is placed on the model: glTF's texture transform.)
+          vUv = (mapTransform * vec3(uv, 1.0)).xy;
         #endif
         #include <beginnormal_vertex>
         #include <skinbase_vertex>
