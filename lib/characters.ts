@@ -9,6 +9,8 @@ import { BONES as SKELETON, type BodyParams, type ModelInfo } from './types';
  */
 
 const PREFIX = 'character:';
+/** The files' version: raised when one is remade, so that a browser does not keep the old one. */
+const FILES = 2;
 
 // A VRM avatar, a MakeHuman, Mixamo or Sketchfab character made one of ours (scripts/vrm-character.py,
 // scripts/characters/import.ts): its bones named as our skeleton's (some without a finger's end).
@@ -57,7 +59,7 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);
 
 /** Where a built-in character's file is. */
-export const characterFile = (id: string) => withBase(`/characters/${id.slice(PREFIX.length)}.glb`);
+export const characterFile = (id: string) => withBase(`/characters/${id.slice(PREFIX.length)}.glb?v=${FILES}`);
 
 /** Its thumbnail, which comes with the app (drawing it would mean fetching its file). */
-export const characterImage = (id: string) => withBase(`/characters/${id.slice(PREFIX.length)}.png`);
+export const characterImage = (id: string) => withBase(`/characters/${id.slice(PREFIX.length)}.png?v=${FILES}`);

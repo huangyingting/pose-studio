@@ -335,7 +335,10 @@ export class ModelRig {
     const copy = cloneSkinned(template);
     // (The copy's meshes in the same order as the model's, whose looks they take.)
     template.traverse((o) => { if ((o as THREE.Mesh).isMesh) this.looks.push(ownLooks.get(o)); });
-    this.fitted = new Fitted(copy, info.bones);
+    // (Its bones as its entry names them, or, where the file has other names (one cached from
+    // before it was remade), as they are found in it: never a figure without its hips.)
+    const named = (['hips', 'head', 'leftUpperLeg', 'rightUpperLeg'] as const).every((b) => info.bones[b] && copy.getObjectByName(info.bones[b]!));
+    this.fitted = new Fitted(copy, named ? info.bones : mapBones(copy));
     this.object.add(this.fitted.frame);
     copy.traverse((o) => {
       const mesh = o as THREE.Mesh;
