@@ -32,6 +32,7 @@ import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePoi
 import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
+import { REACT_LEAD, strikeTime } from './strike';
 import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
@@ -748,6 +749,38 @@ export function moveAction(store: Store, id: string, start: number, key = '') {
     const to = Math.max(floor, snapTime({ ...a, duration: MAX_DURATION }, start));
     return Math.abs(to - act.start) < 1e-6 ? s : { ...s, animation: rippleInStep(a, who, act.start, to - act.start) };
   }, key);
+}
+
+/**
+ * Time an action as a reaction to another figure's strike (a clip): moved to start just before the
+ * strike lands (strike.ts), as the films time theirs. How far the blow then falls short of the one
+ * reacting (its hand or foot from their head, chest or hips, m), or null if the strike's motion is
+ * not at hand.
+ */
+export function reactTo(store: Store, id: string, strikeId: string): number | null {
+  const a = store.scene.animation;
+  const act = a?.actions.find((x) => x.id === id);
+  const strike = a?.actions.find((x) => x.id === strikeId);
+  const src = strike?.source;
+  const clip = src?.kind === 'clip' ? clipById(src.clip) : undefined;
+  if (!act || !strike || !src || src.kind !== 'clip' || !clip) return null;
+  const lands = strike.start + strikeTime(clip) / (src.speed ?? 1);
+  moveAction(store, id, Math.max(0, lands - REACT_LEAD));
+  const scene = store.scene;
+  const striker = figurePoseAt(scene, strike.roles[0].figure, lands);
+  const struck = figurePoseAt(scene, act.roles[0].figure, lands);
+  if (!striker || !struck) return null;
+  const rig = new Rig();
+  try {
+    const m = rig.model(striker);
+    const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
+    const ends = (['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const).map((j) => m.joints[j].getWorldPosition(new THREE.Vector3()));
+    const blow = ends.reduce((p, q) => (Math.hypot(q.x - hips.x, q.z - hips.z) > Math.hypot(p.x - hips.x, p.z - hips.z) ? q : p));
+    const them = rig.model(struck);
+    return Math.min(...(['head', 'chest', 'hips'] as const).map((j) => them.joints[j].getWorldPosition(new THREE.Vector3()).distanceTo(blow)));
+  } finally {
+    rig.dispose();
+  }
 }
 
 /** Retime an action to last `duration` (see track.retimeAction). */

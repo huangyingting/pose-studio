@@ -2,10 +2,10 @@ import {
   Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
-  Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, ZoomIn, ZoomOut, type LucideIcon,
+  Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, applyUpperBody, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
@@ -201,6 +201,11 @@ export function saveAsTemplate(store: Store, { notifyUndo }: { notifyUndo(text: 
 const hand = (h: 'L' | 'R') => (h === 'L' ? 'left' : 'right');
 const spanOf = (c: Ctx) => { const a = c.store.scene.animation; return a && c.shot ? shotSpans(a).find((sp) => sp.shot.id === c.shot) : undefined; };
 const actionOf = (c: Ctx) => c.store.scene.animation?.actions.find((x) => x.id === c.action);
+/** The other figures' motions (clips at hand) an action can be timed to. */
+const othersMotions = (c: Ctx) => {
+  const act = actionOf(c);
+  return (c.store.scene.animation?.actions ?? []).filter((x) => act && x.source.kind === 'clip' && !!clipById(x.source.clip) && !x.roles.some((r) => act.roles.some((q) => q.figure === r.figure)));
+};
 /** The prop the selected hand holds at the playhead. */
 const heldIn = (c: Ctx) => {
   const side = c.joint === 'leftHand' ? 'L' : c.joint === 'rightHand' ? 'R' : null;
@@ -1034,6 +1039,25 @@ export const COMMANDS: Command[] = [
     when: (c) => { const act = actionOf(c); return !!act && act.source.kind === 'keys' && !act.layer && act.duration > 1e-6; },
     run: (c) => { const name = saveKeysAsMotion(c.store, c.action!); if (name) App().notify(`Saved as “${name}” in My motions`); },
   },
+  {
+    // Timed to someone else's motion: it starts just before their blow lands (their hand or foot furthest out).
+    id: 'action.reactTo', title: 'React to', help: 'Start as someone else’s blow lands', icon: Zap, when: (c) => !!actionOf(c) && othersMotions(c).length > 0,
+    items: (c) => othersMotions(c).map((x) => {
+      const who = sceneOf(c).figures.find((f) => f.id === x.roles[0].figure)?.name ?? '';
+      return {
+        title: `${who}: ${actionLabel(x)} · ${x.start.toFixed(1)} s`, icon: Zap,
+        run: () => {
+          const own = actionLabel(actionOf(c)!);
+          const gap = reactTo(c.store, c.action!, x.id);
+          if (gap === null) return;
+          // (Out of reach: a blow at a head is within a hand of it.)
+          const me = figureOf(c)?.name ?? '';
+          if (gap > 0.3) App().notifyUndo(`${own} is timed to ${who}'s ${actionLabel(x)}, but the blow misses ${me} by ${gap.toFixed(1)} m: bring them closer`);
+          else App().notifyUndo(`${own} now comes as ${who}'s ${actionLabel(x)} lands`);
+        },
+      };
+    }),
+  },
   { id: 'action.edit', title: 'Edit in the inspector', icon: Pencil, when: (c) => !!actionOf(c), run: (c) => c.store.select({ kind: 'action', action: c.action!, figure: c.figure! }) },
   {
     id: 'action.remove', title: (c) => `Remove ${actionOf(c) ? actionLabel(actionOf(c)!) : ''}`, icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!actionOf(c),
@@ -1307,7 +1331,7 @@ export const MENUS = {
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
-  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', 'action.repeat', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
+  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.shadows'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],

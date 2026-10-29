@@ -6,7 +6,8 @@ import { newFigure, newProp, newScene } from './doc';
 import { held } from './hold';
 import { LIGHT_PRESETS } from './lighting';
 import { putPropKey } from './propmotion';
-import { facing, withFacing } from './relations';
+import { REACT_LEAD } from './strike';
+import { withFacing } from './relations';
 import { addTravel } from './track';
 import { uid } from './uid';
 import type { Action, BodyParams, Prop, PropKind, Scene, Travel, Vec3 } from './types';
@@ -85,7 +86,7 @@ class Stage {
   }
 
   /** A reaction to a strike: `who` plays `slug` so that it starts `lead` seconds before the strike played from `at` lands. */
-  react(who: string, slug: string, strike: string, at: number, lead = 0.25) {
+  react(who: string, slug: string, strike: string, at: number, lead = REACT_LEAD) {
     return this.play(who, slug, Math.max(0, at + (motion(strike).impact ?? 0.5) - lead));
   }
 

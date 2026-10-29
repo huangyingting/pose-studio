@@ -14,6 +14,7 @@ import { newFigure, parseClip } from '../lib/doc';
 import { DEFAULT_BODY } from '../lib/body';
 import { legsOf } from '../lib/locomotion';
 import { refineClip } from '../lib/motionfix';
+import { strikeTime } from '../lib/strike';
 import { facingOf } from '../lib/pose';
 import { Rig } from '../lib/relations';
 import type { Clip, JointName } from '../lib/types';
@@ -120,26 +121,8 @@ for (const clip of clips.values()) {
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
 const index: { id: string; name: string; duration: number; people: number; group: string; loop?: true; impact?: number }[] = [];
-/**
- * When a strike lands (s): its hand or foot as far out from the hips as it goes (for scenes made
- * with it, the one struck reacting then: lib/films.ts).
- */
-function impactOf(clip: Clip): number | undefined {
-  if (!/kick|punch|jab|uppercut|cross|hook/i.test(clip.name)) return undefined;
-  const part = clip.parts[0];
-  let best = { t: 0, reach: 0 };
-  for (let k = 0; k <= 60; k++) {
-    const t = (clip.duration * k) / 60;
-    const m = rig.model({ ...newFigure({ body: part.body }), ...samplePart(part, t, clip.duration, false) });
-    const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
-    for (const j of ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const) {
-      const p = m.joints[j].getWorldPosition(new THREE.Vector3());
-      const reach = Math.hypot(p.x - hips.x, p.z - hips.z);
-      if (reach > best.reach) best = { t, reach };
-    }
-  }
-  return Math.round(best.t * 100) / 100;
-}
+/** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
+const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) ? strikeTime(clip) : undefined);
 
 for (const clip of out.sort((a, b) => a.name.localeCompare(b.name))) {
   const id = `library:${slug(clip.name)}`;

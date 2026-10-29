@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   addFigure, applyMotion, fitWarp, moveAction, moveMark, recastRole, retime, setBlend, setClipOptions, travelTo,
+  offsetPerformance, reactTo,
 } from '@/lib/actions';
 import { actionsOf, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
 import { newAnimation } from '@/lib/animation';
+import { clipById } from '@/lib/assets';
+import { REACT_LEAD, strikeTime } from '@/lib/strike';
 import { newScene } from '@/lib/doc';
 import { actionLabel, retimeAction, rippleInStep } from '@/lib/track';
 import type { Action, Animation } from '@/lib/types';
@@ -70,6 +73,25 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     recastRole(store, box.id, 0, b);
     expect(store.scene.animation!.actions.find((x) => x.id === box.id)!.roles.map((r) => r.figure)).toEqual([b]);
     expect(actionsOf(store.scene.animation!, a).some((x) => x.id === box.id)).toBe(false);
+  }, 60_000);
+
+  it('a reaction is timed to another figure\'s blow, and says how far the blow misses', () => {
+    const { store, a } = fresh();
+    addFigure(store, [0, 0, 0.75]);
+    const b = store.getState().activeFigure!;
+    store.setTime(0);
+    expect(applyMotion(store, a, 'jab-cross')).toBe(true);
+    store.setTime(0);
+    expect(applyMotion(store, b, 'hit')).toBe(true);
+    const clip = (who: string) => actionsOf(store.scene.animation!, who).find((x) => x.source.kind === 'clip')!;
+    const strike = clip(a);
+    const lands = strike.start + strikeTime(clipById((strike.source as { clip: string }).clip)!);
+    const gap = reactTo(store, clip(b).id, strike.id)!;
+    expect(clip(b).start).toBeCloseTo(Math.max(0, lands - REACT_LEAD), 1);
+    expect(gap).toBeLessThan(0.3);
+    // Too far apart: timed all the same, the blow short of them.
+    offsetPerformance(store, [b], { dx: 0, dz: 1.75 });
+    expect(reactTo(store, clip(b).id, strike.id)!).toBeGreaterThan(1);
   }, 60_000);
 
   it('a mark further than a motion can stretch shows, and is moved back or walked to', () => {
