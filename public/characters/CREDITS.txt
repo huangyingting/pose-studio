@@ -50,7 +50,7 @@ mio.glb
   navy denim, her sneakers trimmed in teal. Her body, face and clothes' shapes are Aoi's; the
   same licence and credit apply ("Mio, after Aoi by Ueda").
 
-adam.glb, elizabeth.glb, erika-archer.glb, joe.glb, ninja.glb, paladin-j-nordstrom.glb, pete.glb,
+adam.glb, brute.glb, elizabeth.glb, erika-archer.glb, joe.glb, ninja.glb, paladin-j-nordstrom.glb, pete.glb,
 remy.glb, swat.glb
 
   Characters from Adobe Mixamo (https://www.mixamo.com), included at the repository owner's

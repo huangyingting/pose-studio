@@ -2,9 +2,9 @@
  * Mixamo characters made built-in ones (public/characters/<id>.glb and .png).
  *
  *     npm run dev -- -p 3399    (then, in another terminal)
- *     npx jiti scripts/characters/mixamo.ts data/library/characters/{Adam,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
+ *     npx jiti scripts/characters/mixamo.ts data/library/characters/{Adam,Brute,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
  *
- * (Those with natural proportions; not the cartoon ones, nor Mixamo's own mannequin.)
+ * (Those with natural proportions, and Brute; not the cartoon ones, nor Mixamo's own mannequin.)
  *
  * Each FBX is imported in the running app as a user would (Import character…), which keeps it as a
  * GLB with its colour textures (lib/model.ts: fitted within 1024 px, JPEG where nothing shows
