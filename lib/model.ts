@@ -12,7 +12,7 @@ import { styleDef } from './styles';
 import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Proportions, type Style } from './types';
 import { uid } from './uid';
 import { readVrm, type VrmInfo } from './vrm';
-import { ownLooks, toonMaterial, type ToonLook } from './toon';
+import { ownLooks, paintedLook, toonMaterial, type ToonLook } from './toon';
 
 /*
  * Rigs from other tools (a Mixamo character, a VRM avatar, a BVH capture's skeleton) fitted to the
@@ -483,17 +483,67 @@ export async function parseModel(format: ModelInfo['format'], data: ArrayBuffer)
   const gltf = await new GLTFLoader().parseAsync(data, '');
   const vrm = await readVrm(gltf);
   if (vrm) gltf.scene.userData.vrm = vrm;
+  else ownTextures(gltf.scene);
   return gltf.scene;
 }
 
+/** A character painted with textures (not a VRM avatar) drawn in its own colours in the Toon style: every mesh, textured or not. */
+function ownTextures(root: THREE.Object3D) {
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+  const materialOf = (mesh: THREE.Mesh) => (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial | undefined;
+  if (!meshes.some((mesh) => materialOf(mesh)?.map)) return;
+  for (const mesh of meshes) {
+    const m = materialOf(mesh);
+    if (m?.color) ownLooks.set(mesh, paintedLook(m));
+  }
+}
+
 /**
- * Import a character: read its file, find its bones (`map`: mapped by hand), keep the file. Throws
- * MissingBones when not all are found (to map them by hand).
+ * A character's file with what comes with it (`others`: its textures, a .gltf's buffers), as one
+ * GLB (its textures in it, fitted within 1024 px): an FBX or a .gltf is kept as that.
  */
-export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap): Promise<ModelInfo> {
+async function asGlb(format: ModelInfo['format'], data: ArrayBuffer, others: File[]): Promise<ArrayBuffer> {
+  const urls = new Map(others.map((f) => [f.name.toLowerCase(), URL.createObjectURL(f)]));
+  // (Asked for by name, wherever the file says it was: "Textures\Body.png", "C:/…/body.png".)
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier((url) => urls.get(decodeURIComponent(url).split(/[\\/]/).pop()!.toLowerCase()) ?? url);
+  let busy = false;
+  const loaded = new Promise<void>((done) => { manager.onLoad = () => done(); });
+  manager.onStart = () => { busy = true; };
+  try {
+    let root: THREE.Object3D;
+    if (format === 'fbx') {
+      const [{ FBXLoader }, { TGALoader }] = await Promise.all([
+        import('three/examples/jsm/loaders/FBXLoader.js'), import('three/examples/jsm/loaders/TGALoader.js'),
+      ]);
+      manager.addHandler(/\.tga$/i, new TGALoader(manager));
+      root = new FBXLoader(manager).parse(data, '');
+      // (Its textures load after it is read.)
+      if (busy) await loaded;
+    } else {
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      root = (await new GLTFLoader(manager).parseAsync(data, '')).scene;
+    }
+    const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
+    return (await new GLTFExporter().parseAsync(root, { binary: true, maxTextureSize: 1024 })) as ArrayBuffer;
+  } finally {
+    for (const url of urls.values()) URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Import a character: read its file (an FBX or a .gltf with `others`, its textures, kept as one
+ * GLB), find its bones (`map`: mapped by hand), keep the file. Throws MissingBones when not all are
+ * found (to map them by hand).
+ */
+export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap, others: File[] = []): Promise<ModelInfo> {
   const ext = name.toLowerCase().split('.').pop();
-  const format = ext === 'fbx' ? 'fbx' : ext === 'glb' || ext === 'gltf' || ext === 'vrm' ? 'glb' : null;
-  if (!format) throw new Error('Use a VRM, glTF/GLB or FBX character');
+  if (ext !== 'fbx' && ext !== 'glb' && ext !== 'gltf' && ext !== 'vrm') throw new Error('Use a VRM, glTF/GLB or FBX character');
+  // (A GLB or VRM as it is: a VRM's own extensions, which the GLB made of it would not keep. A
+  // .gltf too, unless files come with it.)
+  if (ext === 'fbx' || (ext === 'gltf' && others.length)) data = await asGlb(ext === 'fbx' ? 'fbx' : 'glb', data, others);
+  const format = 'glb';
   const root = await parseModel(format, data);
   if (!rigBones(root).some((o) => (o as THREE.Bone).isBone)) throw new Error('The file has no skeleton');
   // (A VRM says which bone is which; the rest, and others' bones, are found by their names: only

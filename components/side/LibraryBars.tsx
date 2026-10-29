@@ -36,28 +36,28 @@ function usePosable() {
   return { figure: f && !f.proxy ? f : null, proxy: !!f?.proxy };
 }
 
-/** Read a file (a motion, a character), mapping its bones by hand when they cannot all be named. */
-function useImport(read: (file: File, map?: BoneMap) => Promise<void>, notify: (text: string) => void) {
+/** Read a file (a motion, a character; first in `files`, what comes with it after), mapping its bones by hand when they cannot all be named. */
+function useImport(read: (files: File[], map?: BoneMap) => Promise<void>, notify: (text: string) => void) {
   const [reading, setReading] = useState(false);
-  const [mapping, setMapping] = useState<{ file: File; err: MissingBones } | null>(null);
-  const run = async (file: File, map?: BoneMap) => {
+  const [mapping, setMapping] = useState<{ files: File[]; err: MissingBones } | null>(null);
+  const run = async (files: File[], map?: BoneMap) => {
     setReading(true);
     try {
-      await read(file, map);
+      await read(files, map);
     } catch (e) {
-      if (e instanceof MissingBones && !map) setMapping({ file, err: e });
-      else notify(`Could not import ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+      if (e instanceof MissingBones && !map) setMapping({ files, err: e });
+      else notify(`Could not import ${files[0].name}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setReading(false);
     }
   };
   const dialog = mapping && (
-    <BoneMapDialog file={mapping.file.name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void run(mapping.file, map); }} />
+    <BoneMapDialog file={mapping.files[0].name} names={mapping.err.names} found={mapping.err.found} onClose={() => setMapping(null)} onDone={(map) => { setMapping(null); void run(mapping.files, map); }} />
   );
   return { reading, run, dialog };
 }
 
-function ImportButton({ label, accept, tip, fileLabel, reading, onFile }: { label: string; accept: string; tip: string; fileLabel: string; reading: boolean; onFile(f: File): void }) {
+function ImportButton({ label, accept, tip, fileLabel, reading, multiple, onFiles }: { label: string; accept: string; tip: string; fileLabel: string; reading: boolean; multiple?: boolean; onFiles(f: File[]): void }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -68,11 +68,12 @@ function ImportButton({ label, accept, tip, fileLabel, reading, onFile }: { labe
         ref={ref}
         type="file"
         accept={accept}
+        multiple={multiple}
         hidden
         aria-label={fileLabel}
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
+          const files = [...(e.target.files ?? [])];
+          if (files.length) onFiles(files);
           e.target.value = '';
         }}
       />
@@ -107,7 +108,7 @@ export function PosesBar({ notifyUndo }: BarProps) {
 export function MotionsBar({ notify, notifyUndo }: BarProps) {
   const store = useStore();
   const { figure } = usePosable();
-  const imp = useImport(async (file, map) => {
+  const imp = useImport(async ([file], map) => {
     // The loaders are only fetched when a motion is imported.
     const { importMotion } = await import('@/lib/importmotion');
     const motion = await importMotion(file.name, await file.arrayBuffer(), map);
@@ -124,7 +125,7 @@ export function MotionsBar({ notify, notifyUndo }: BarProps) {
           tip="A BVH, FBX or glTF/GLB animation (motion capture, Mixamo…), fitted to the mannequin, or a Pose Studio motion (.json)"
           fileLabel="Motion file"
           reading={imp.reading}
-          onFile={(f) => void imp.run(f)}
+          onFiles={(files) => void imp.run(files)}
         />
       </div>
       {imp.dialog}
@@ -135,8 +136,8 @@ export function MotionsBar({ notify, notifyUndo }: BarProps) {
 export function CharactersBar({ notify, notifyUndo }: BarProps) {
   const store = useStore();
   const { figure } = usePosable();
-  const imp = useImport(async (file, map) => {
-    const info = await importModel(file.name, await file.arrayBuffer(), map);
+  const imp = useImport(async ([file, ...others], map) => {
+    const info = await importModel(file.name, await file.arrayBuffer(), map, others);
     // Its file is here now: its thumbnail is drawn once, and kept with it.
     addModel(store, { ...info, thumb: characterThumb(info.id).make() });
     if (figure) setFigureModel(store, figure.id, info.id);
@@ -148,11 +149,16 @@ export function CharactersBar({ notify, notifyUndo }: BarProps) {
       <div className="library-row">
         <ImportButton
           label="Import character…"
-          accept=".vrm,.glb,.gltf,.fbx"
-          tip="A character with a skeleton (VRM, glTF/GLB or FBX: VRoid, Mixamo…), posed and animated like the mannequin; a VRM in its own toon look in the Toon style"
+          accept=".vrm,.glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.tga,.webp"
+          tip="A character with a skeleton (VRM, glTF/GLB or FBX: VRoid, Mixamo…), with its textures if they are separate files; in the Toon style, drawn in its own colours"
           fileLabel="Character file"
           reading={imp.reading}
-          onFile={(f) => void imp.run(f)}
+          multiple
+          onFiles={(files) => {
+            const main = files.find((f) => /\.(vrm|glb|gltf|fbx)$/i.test(f.name));
+            if (main) void imp.run([main, ...files.filter((f) => f !== main)]);
+            else notify('Choose the character’s file too (VRM, glTF/GLB or FBX)');
+          }}
         />
       </div>
       {imp.dialog}

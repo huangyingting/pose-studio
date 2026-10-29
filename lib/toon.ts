@@ -5,7 +5,8 @@ import * as THREE from 'three';
  * open specification), in our own code. A lit colour and a shade colour, each with its texture,
  * split at a crisp edge whose place (`shift`) and softness (`toony`) are the material's; a rim
  * light; a glow; cut-out or blended edges; in the scene's key light. VRM characters bring theirs
- * (lib/vrm.ts); the mannequin and props are given one from their colours (flatLook).
+ * (lib/vrm.ts); other imported characters painted with textures one from their materials
+ * (paintedLook); the mannequin and props one from their colours (flatLook).
  */
 
 /** How a surface looks in the Toon style. */
@@ -36,7 +37,7 @@ export interface ToonLook {
 }
 
 /**
- * The looks a model's meshes bring of their own (a VRM avatar's: lib/vrm.ts), by its meshes as read
+ * The looks a model's meshes bring of their own (a VRM avatar's: lib/vrm.ts; a painted one's), by its meshes as read
  * from its file. (Not in their userData: a copy of a model copies that as JSON, textures and all.)
  */
 export const ownLooks = new WeakMap<THREE.Object3D, ToonLook>();
@@ -48,6 +49,19 @@ export function flatLook(base: string, shade: string): ToonLook {
     shift: -0.05, toony: 0.9, rim: new THREE.Color('#ffffff').multiplyScalar(0.18), rimPower: 4, rimLift: 0,
     emissive: new THREE.Color(0, 0, 0), emissiveMap: null, alpha: 'opaque', cutoff: 0.5, doubleSided: false,
     outline: { width: 1, color: null },
+  };
+}
+
+/** A look from a painted material (an imported character's, not a VRM): its colour and texture, shaded a cool darker of them. */
+export function paintedLook(m: THREE.MeshStandardMaterial): ToonLook {
+  return {
+    ...flatLook('#ffffff', '#ffffff'),
+    color: m.color.clone(), opacity: m.opacity, map: m.map ?? null,
+    shade: m.color.clone().multiply(new THREE.Color(0.55, 0.52, 0.62)), shadeMap: m.map ?? null,
+    rim: new THREE.Color(0.08, 0.08, 0.08),
+    emissive: m.emissive?.clone() ?? new THREE.Color(0, 0, 0), emissiveMap: m.emissiveMap ?? null,
+    alpha: m.alphaTest > 0 ? 'mask' : m.transparent ? 'blend' : 'opaque', cutoff: m.alphaTest > 0 ? m.alphaTest : 0.5,
+    doubleSided: m.side === THREE.DoubleSide,
   };
 }
 

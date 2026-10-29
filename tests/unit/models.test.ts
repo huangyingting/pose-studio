@@ -121,6 +121,24 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     sv.dispose();
   });
 
+  it('imports a character whose files are apart (a .gltf, its buffer as a file of its own) as one GLB', async () => {
+    // (Node has no FileReader, which three's exporter reads its output with.)
+    globalThis.FileReader ??= class {
+      result: ArrayBuffer | string | null = null;
+      onloadend: (() => void) | null = null;
+      readAsArrayBuffer(blob: Blob) { void blob.arrayBuffer().then((b) => { this.result = b; this.onloadend?.(); }); }
+      readAsDataURL(blob: Blob) { void blob.arrayBuffer().then((b) => { this.result = `data:${blob.type};base64,${Buffer.from(b).toString('base64')}`; this.onloadend?.(); }); }
+    } as unknown as typeof FileReader;
+    const gltf = JSON.parse(characterGltf(true));
+    const bin = Buffer.from(gltf.buffers[0].uri.split(',')[1], 'base64');
+    gltf.buffers[0].uri = 'Meshes/Hero.bin';
+    const info = await importModel('Hero.gltf', new TextEncoder().encode(JSON.stringify(gltf)).buffer as ArrayBuffer, undefined, [new File([bin], 'hero.BIN')]);
+    expect(info).toMatchObject({ name: 'Hero', format: 'glb' });
+    expect(missingBones(info.bones)).toEqual([]);
+    const kept = new Uint8Array((await loadModelFile(info.id))!);
+    expect(new TextDecoder().decode(kept.slice(0, 4))).toBe('glTF');
+  });
+
   it('fits the mannequin under a character to its build, so contacts and checks are on the body that shows', async () => {
     const data = new TextEncoder().encode(characterGltf(true, true)).buffer as ArrayBuffer;
     const info = await importModel('Hero.gltf', data);

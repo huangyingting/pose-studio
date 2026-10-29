@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Ink } from '@/lib/ink';
 import { MissingBones, ModelRig, importModel, mapBones, missingBones, parseModel } from '@/lib/model';
-import { ownLooks, type ToonLook } from '@/lib/toon';
+import { ownLooks, paintedLook, type ToonLook } from '@/lib/toon';
 import { vrmGltf } from '../fixtures/gltf';
 
 const bytes = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -104,6 +104,18 @@ describe('outlines of a look of its own', () => {
     expect(ink.outlineAs(1.5, null, { map, cutoff: 0.4 })).toBe(cut);
     ink.setThickness(2);
     expect(cut.uniforms.thickness.value).toBeCloseTo(ink.uniforms.thickness.value * 1.5, 6);
+  });
+});
+
+describe('characters painted with textures (not VRM avatars)', () => {
+  it('are drawn in their own texture, shaded a darker of it, cut out and two-sided as their material is', () => {
+    const map = new THREE.Texture();
+    const look = paintedLook(new THREE.MeshStandardMaterial({ color: '#ffcc99', map, alphaTest: 0.4, side: THREE.DoubleSide }));
+    expect(look.map).toBe(map);
+    expect(look.shadeMap).toBe(map);
+    expect(look.shade.r).toBeLessThan(look.color.r * 0.7);
+    expect(look).toMatchObject({ alpha: 'mask', cutoff: 0.4, doubleSided: true, outline: { width: 1, color: null } });
+    expect(paintedLook(new THREE.MeshStandardMaterial({ transparent: true })).alpha).toBe('blend');
   });
 });
 
