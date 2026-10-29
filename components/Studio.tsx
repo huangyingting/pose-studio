@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
+  ChevronDown, Download, Ellipsis, Eye, RectangleHorizontal, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -17,7 +17,7 @@ import { actionsOf } from '@/lib/evaluate';
 import { styleDef } from '@/lib/styles';
 import type { Scene, Vec3, View } from '@/lib/types';
 import Board from './Board';
-import { ExportDialog, HelpDialog, PhotoDialog, ProjectSettingsDialog } from './dialogs';
+import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 import { StartDialog } from './StartDialog';
 // Accounts, library sync and AI: the server edition only (null in the static build).
 import { Account, SaveState, ServerRoot } from '@edition/server';
@@ -27,7 +27,7 @@ import Inspector, { type InspectorContext } from './Inspector';
 import ScenePicker from './ScenePicker';
 import SidePanel from './side/SidePanel';
 import { useReferenceUrl } from './reference';
-import { StoreContext, useFilm, useScene, useStore, useStudio } from './store-context';
+import { StoreContext, useProjectSettings, useScene, useStore, useStudio } from './store-context';
 import { PracticeMode } from './Practice';
 import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
@@ -80,7 +80,7 @@ export default function Studio() {
   );
 }
 
-type Dialog = null | 'export' | 'export-story' | 'export-video' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start';
+type Dialog = null | 'export' | 'export-story' | 'export-video' | 'photo' | 'help' | 'practice' | 'board' | 'palette' | 'start';
 
 function App() {
   const store = useStore();
@@ -89,7 +89,7 @@ function App() {
   const selection = useStudio((s) => s.selection);
   const activeFigure = useStudio((s) => s.activeFigure);
   const settings = useStudio((s) => s.settings);
-  const film = useFilm();
+  const look = useProjectSettings();
   const canUndo = useStudio((s) => s.canUndo);
   const canRedo = useStudio((s) => s.canRedo);
 
@@ -399,11 +399,10 @@ function App() {
     rootPosition: (id) => apiRef.current?.rootPosition(id) ?? null,
     notify,
     notifyUndo,
-    projectSettings: () => setDialog('project'),
   };
 
-  const style = styleDef(film.style);
-  const StyleIcon = STYLE_ICONS[film.style];
+  const style = styleDef(look.style);
+  const StyleIcon = STYLE_ICONS[look.style];
 
   return (
     <div
@@ -438,6 +437,9 @@ function App() {
               <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
             </Menu>
             <span className="tb-sep" />
+            <Menu label="Frame" className="btn ghost" tip="The frame every scene is filmed in" items={() => choices('view.aspect', cx)}>
+              <RectangleHorizontal size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{look.frame}</span> <ChevronDown size={13} aria-hidden />
+            </Menu>
             <Menu
               label="Render style"
               className="btn ghost"
@@ -577,7 +579,6 @@ function App() {
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
       {dialog === 'start' && <StartDialog onClose={() => setDialog(null)} notify={notify} />}
       {dialog === 'palette' && <CommandPalette onClose={() => setDialog(null)} ui={{ notify, notifyUndo }} />}
-      {dialog === 'project' && <ProjectSettingsDialog onClose={() => setDialog(null)} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
       {dialog === 'board' && <Board onClose={() => setDialog(null)} onExport={() => setDialog('export-story')} />}
       <ContextMenuHost />

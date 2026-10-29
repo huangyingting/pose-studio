@@ -9,7 +9,7 @@ import { frameAspect } from '@/lib/cameras';
 import { thumbnail } from '@/lib/thumbnails';
 import type { Scene, Style } from '@/lib/types';
 import { drawShot } from '@/lib/video';
-import { useFilm, useStore, useStudio } from './store-context';
+import { useProjectSettings, useStore, useStudio } from './store-context';
 import { IconButton, NumberField } from './ui';
 import { shortcutOf } from './commands';
 
@@ -40,7 +40,7 @@ function preview(scene: Scene, t: number, style: Style, aspect: number) {
 export default function Board({ onClose, onExport }: { onClose(): void; onExport(): void }) {
   const store = useStore();
   const library = useStudio((s) => s.library);
-  const film = useFilm();
+  const look = useProjectSettings();
   const aspect = frameAspect();
   const shots = useMemo(() => storyShots(library), [library]);
   const entries = useMemo(() => boardPanels(library).map((p) => p.id), [library]);
@@ -49,9 +49,9 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setThumbs(shots.map((x) => preview(x.scene, panelTime(x), film.style, aspect))), 60);
+    const t = setTimeout(() => setThumbs(shots.map((x) => preview(x.scene, panelTime(x), look.style, aspect))), 60);
     return () => clearTimeout(t);
-  }, [shots, film.style, aspect]);
+  }, [shots, look.style, aspect]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

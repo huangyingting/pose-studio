@@ -1,21 +1,21 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, TriangleAlert, UserRound } from 'lucide-react';
+import { Camera, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound } from 'lucide-react';
 import {
   addCamera, addFigure, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
 import { DEFAULT_LIGHT, lightName, lightText } from '@/lib/lighting';
-import { overLimit, shotSpans } from '@/lib/shots';
+import { shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
 import { App, command, menu, placeOrAdd, shortcutOf, type Ctx } from '../commands';
 import { placingFigure, placingProp } from '../placing';
 import { startRename, useRenaming } from '../rename';
-import { useFilm, useScene, useStore, useStudio } from '../store-context';
+import { useProjectSettings, useScene, useStore, useStudio } from '../store-context';
 import { Hint, IconButton, Menu } from '../ui';
 import type { SectionProps } from './sections';
 
@@ -28,7 +28,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
   const store = useStore();
   const scene = useScene();
   // Shots are flagged as longer than the film's video model allows: follow it.
-  useFilm();
+  useProjectSettings();
   const active = useStudio((s) => s.activeFigure);
   const selection = useStudio((s) => s.selection);
   const time = useStudio((s) => s.time);
@@ -238,7 +238,6 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
                       onClick={() => { store.setTime(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
                       onMenu={(e) => { store.select({ kind: 'shot', shot: sp.shot.id }); openContextMenu(e, menu('shot', { store, shot: sp.shot.id }), sp.shot.name); }}
                     >
-                      {overLimit(sp) && <TriangleAlert size={12} className="layer-tag warn" aria-label="Longer than the model allows" />}
                       <em>{(sp.end - sp.start).toFixed(1)} s</em>
                     </Row>
                     <span className="layer-actions">

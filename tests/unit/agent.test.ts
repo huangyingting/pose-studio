@@ -186,7 +186,7 @@ describe('assistant tools', () => {
       onTool: (n, _i, r) => tools.push(`${n}: ${r}`),
     }, new AbortController().signal);
     expect(last).toBe('r2');
-    expect(store.getState().library.film?.style).toBe('ink');
+    expect(store.getState().library.settings?.style).toBe('ink');
     expect(tools).toEqual(['set_style: Style: ink.']);
     expect(texts).toEqual(['Switched to ink.']);
     expect(calls.map((c) => c.url)).toEqual(['/api/ai', '/api/ai']);

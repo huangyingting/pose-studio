@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clampLight, DEFAULT_LIGHT, LIGHT_PRESETS } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
 import { newAnimation } from '@/lib/animation';
-import { parseFilm } from '@/lib/film';
+import { parseProjectSettings } from '@/lib/project';
 import { angleAt } from '@/lib/cameras';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
 import { builtInPoses, poseScene } from '@/lib/poses';
@@ -161,8 +161,8 @@ describe('render styles', () => {
   });
 
   it('accepts the new styles in stored practice options and film settings', () => {
-    expect(parseFilm({ style: 'ink' })!.style).toBe('ink');
-    expect(parseFilm({ style: 'watercolour', frame: '4:3' })).toEqual({ frame: '16:9', style: 'line' });
+    expect(parseProjectSettings({ style: 'ink' })!.style).toBe('ink');
+    expect(parseProjectSettings({ style: 'watercolour', frame: '4:3' })).toEqual({ frame: '16:9', style: 'line' });
     expect(parsePracticeOptions({ style: 'anime' }).style).toBe('anime');
   });
 

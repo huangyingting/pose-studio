@@ -44,7 +44,7 @@ export function StartDialog({ onClose, notify }: { onClose(): void; notify: Noti
 
   const start = (tile: Tile) => {
     if (!tile.open()) return;
-    notify(seconds ? `${tile.name}: a ${LENGTHS.find((l) => l.value === length)!.label} film` : `${tile.name}: a new scene`);
+    notify(seconds ? `${tile.name}: ${LENGTHS.find((l) => l.value === length)!.label}` : tile.name);
     onClose();
   };
   const empty: Tile = {

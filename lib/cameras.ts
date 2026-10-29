@@ -10,7 +10,7 @@ import { fitCamera, viewDirection } from './render';
 import { SceneView } from './sceneview';
 import { defaultCamera } from './doc';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
-import { film } from './film';
+import { projectSettings } from './project';
 import type { Camera, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, RigCamera, Scene, ShotSize, Vec3, View } from './types';
 
 /*
@@ -30,7 +30,7 @@ export const SHOT_ASPECT = 16 / 9;
 export const ASPECTS: Record<FrameShape, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '2.39:1': 2.39 };
 
 /** The width over the height of the project's frame (lib/film.ts). */
-export const frameAspect = () => ASPECTS[film().frame];
+export const frameAspect = () => ASPECTS[projectSettings().frame];
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
@@ -801,7 +801,7 @@ export function angleAt(scene: Scene, t = 0, aspect = frameAspect()): View {
 }
 
 /**
- * Film a shot of a scene (by its index; the first by default) with a camera move, from the angle
+ * ProjectSettings a shot of a scene (by its index; the first by default) with a camera move, from the angle
  * it is filmed from now (or `base`): on the shot's camera if no other shot uses it, or else on a
  * new camera for it; `follow`: a path then rides along with the camera's subject (or everyone).
  */

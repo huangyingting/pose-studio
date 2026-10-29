@@ -12,8 +12,6 @@ export interface InspectorContext {
   notify: Notify;
   /** Toast with an Undo button. */
   notifyUndo(text: string): void;
-  /** Open the project's settings (the film's frame and what it is cut for). */
-  projectSettings(): void;
 }
 
 /** What the inspector shows: one thing (as it is now), or the scene itself (nothing selected). */

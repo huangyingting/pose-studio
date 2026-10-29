@@ -79,12 +79,6 @@ async function openShotCamera(page: Page) {
   await page.getByRole('complementary', { name: 'Inspector' }).locator('.summary-row').click();
 }
 
-/** Open the project's settings (from the main menu). */
-async function projectSettings(page: Page) {
-  await page.getByRole('button', { name: 'Main menu' }).click();
-  await page.getByRole('menuitem', { name: 'Project settings…' }).click();
-  return page.getByRole('dialog', { name: 'Project settings' });
-}
 
 /** Pick an item of the top bar's View menu. */
 async function viewMenu(page: Page, item: string | RegExp) {
@@ -689,7 +683,7 @@ test('changes made in another tab are picked up', async ({ page, context }) => {
 });
 
 test('render styles switch from the toolbar: the project\'s look', async ({ page }) => {
-  const style = async () => (await state(page) as unknown as { library: { film?: { style: string } } }).library.film?.style;
+  const style = async () => (await state(page) as unknown as { library: { settings?: { style: string } } }).library.settings?.style;
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Ink wash' }).click();
   expect(await style()).toBe('ink');
@@ -697,11 +691,6 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   await page.getByRole('menuitemradio', { name: 'Anime' }).click();
   expect(await style()).toBe('anime');
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
-  // The scene (the crumb in the inspector's header): a link to the project's settings.
-  await page.locator('.crumb').click();
-  await page.getByRole('button', { name: /^Project settings…/ }).click();
-  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
-  await page.keyboard.press('Escape');
   // L cycles through every style.
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('l');
@@ -892,7 +881,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   // The camera is an object of the scene: listed in the outline, with an inspector of its own.
   await page.getByRole('list', { name: 'Cameras' }).getByRole('button', { name: /^Camera 1/ }).click();
   await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
-  await unfold(page, 'Films');
+  await unfold(page, 'Shots');
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
   // Following its subject instead: the shot size is a rule, kept every frame.
   await unfold(page, 'Moves');
@@ -1075,10 +1064,9 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
   await page.keyboard.press('Escape');
-  // Filmed square (the film's frame, in the project's settings): the video follows.
-  await projectSettings(page);
-  await choose(page, 'Frame', '1:1 square');
-  await page.keyboard.press('Escape');
+  // Filmed square (the frame, in the top bar): the video follows.
+  await page.getByRole('button', { name: 'Frame', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '1:1 square' }).click();
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video' }).click();
   await expect(page.getByText(/720 × 720 px/)).toBeVisible();
@@ -1149,7 +1137,7 @@ test('storyboard: the story shot by shot, captions, reordering, exported from th
 
   // Exported from the Export dialog, the story chosen.
   await board.getByRole('button', { name: 'Export', exact: true }).click();
-  await expect(page.getByRole('radio', { name: 'Storyboard' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('radio', { name: 'Storyboard image' })).toHaveAttribute('aria-checked', 'true');
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download', exact: true }).click()]);
   expect(download.suggestedFilename()).toMatch(/^Storyboard\.(jpg|png)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(5000);
@@ -1238,7 +1226,7 @@ test('the AI assistant runs on the server and its tools on the open pose', async
   await page.keyboard.press('Enter');
   await expect(page.getByText(/Switched to anime/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.assistant-tool code')).toHaveText('set_style');
-  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { library: { film?: { style: string } } } } } }).__poseStudio.store.getState().library.film?.style)).toBe('anime');
+  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { library: { settings?: { style: string } } } } } }).__poseStudio.store.getState().library.settings?.style)).toBe('anime');
   await expect(page.locator('.assistant-usage')).toContainText('/ 1000');
 });
 

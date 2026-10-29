@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { applyCameraMove, cutShot, deleteCamera, duplicateSelection, editShot, moveCameraPoint, moveShotCut, removeShotCut, editFilm, startAnimation } from '@/lib/actions';
+import { applyCameraMove, cutShot, deleteCamera, duplicateSelection, editShot, moveCameraPoint, moveShotCut, removeShotCut, startAnimation } from '@/lib/actions';
 import { cameraAt, liveCamera } from '@/lib/cameras';
 import type { PathCamera, Scene } from '@/lib/types';
 import { parseScene } from '@/lib/doc';
 import { buildOtio } from '@/lib/otio';
 import { describeShot } from '@/lib/prompt';
-import { overLimit, shotSpans } from '@/lib/shots';
+import { shotSpans } from '@/lib/shots';
 import { sceneShots } from '@/lib/board';
 import { Store } from '@/lib/store';
 
@@ -58,21 +58,14 @@ describe('shots and cuts', () => {
     expect(shotSpans(store.scene.animation!)).toHaveLength(1);
   });
 
-  it('flags shots longer than the model the film is cut for and writes an OTIO cut list', () => {
+  it('writes an OTIO cut list', () => {
     const store = animatedStore();
     store.setTime(1);
     cutShot(store);
-    editFilm(store, { target: 'wan' });
-    const a = store.scene.animation!;
-    const spans = shotSpans(a);
-    expect(overLimit(spans[0])).toBe(false);
-    expect(overLimit(shotSpans({ ...a, duration: 7 })[1])).toBe(true);
     const otio = buildOtio(sceneShots(store.scene), store.scene.name, 'clip.mp4');
     const clips = otio.tracks.children[0].children;
     expect(clips.map((c) => [c.name, c.source_range.start_time.value, c.source_range.duration.value])).toEqual([['Shot 1', 0, 24], ['Shot 2', 24, 72]]);
     expect(clips[0].media_references.DEFAULT_MEDIA.target_url).toBe('clip.mp4');
-    expect(clips[1].metadata.pose_studio).toMatchObject({ cut_for: 'Wan', over_limit: false });
-    editFilm(store, { target: null });
   });
 });
 

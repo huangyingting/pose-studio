@@ -5,7 +5,7 @@ import { sharedRenderer } from '@/lib/thumbnails';
 import type { Clock } from './clock';
 import { command } from './commands';
 import { usePlayhead } from './Timeline';
-import { useFilm, useScene, useStore } from './store-context';
+import { useProjectSettings, useScene, useStore } from './store-context';
 
 const WIDTH = 240;
 
@@ -19,7 +19,7 @@ const playing = (clock: Clock) => clock.playing;
 export default function CameraPip({ camera, clock }: { camera: string; clock: Clock }) {
   const store = useStore();
   const scene = useScene();
-  const style = useFilm().style;
+  const style = useProjectSettings().style;
   const time = usePlayhead(clock);
   const canvas = useRef<HTMLCanvasElement>(null);
   const cam = cameraById(scene, camera);

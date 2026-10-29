@@ -10,7 +10,7 @@ import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
-import { overLimit, shotSpans, videoModel, type ShotSpan } from '@/lib/shots';
+import { shotSpans, type ShotSpan } from '@/lib/shots';
 import { cameraById, liveCamera, rigRule } from '@/lib/cameras';
 import { DIRECTOR_STYLES } from '@/lib/coverage';
 import type { Action, Animation, Scene } from '@/lib/types';
@@ -21,7 +21,7 @@ import ActionPicker, { type PickerAt } from './ActionPicker';
 import { CommandButton } from './CommandButton';
 import { dragged, endDrag } from './dragdrop';
 import { stepDone } from './nextStep';
-import { useFilm, useScene, useStore, useStudio } from './store-context';
+import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
 /** Current playhead: the clock while playing, the document time otherwise. */
@@ -213,8 +213,6 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
   const spans = shotSpans(a);
-  // Shots longer than the model the film is cut for are flagged.
-  const model = videoModel(useFilm().target);
   // The camera row: the selected camera, or the one filming at the playhead.
   const picked = useStudio((st) => (st.selection?.kind === 'camera' ? st.selection.camera : null));
   const rowCam = cameraById(scene, picked ?? undefined) ?? liveCamera(scene, time);
@@ -688,14 +686,13 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
             <div className="tl-row shots" aria-label="Shots">
               {spans.map((sp) => {
                 const on = time >= sp.start - 1e-6 && (time < sp.end - 1e-6 || sp.index === spans.length - 1);
-                const over = overLimit(sp);
                 return (
                   <button
                     key={sp.shot.id}
                     type="button"
-                    className={`tl-shot${on ? ' on' : ''}${over ? ' over' : ''}`}
+                    className={`tl-shot${on ? ' on' : ''}`}
                     style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }}
-                    data-tip={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)${over ? `\nLonger than ${model!.name} allows (${model!.max} s)` : ''}\nRight-click for more`}
+                    data-tip={`${sp.shot.name}${sp.shot.caption ? ` — ${sp.shot.caption}` : ''} (click to edit in the inspector)\nRight-click for more`}
                     onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(sp.start); store.select({ kind: 'shot', shot: sp.shot.id }); }}
                     onContextMenu={(e) => {
                       store.select({ kind: 'shot', shot: sp.shot.id });
@@ -716,7 +713,6 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         <i className="tl-cut" title="Drag to move the cut" onPointerDown={dragCut(sp, 'cut')} />
                       </>
                     )}
-                    {over && <TriangleAlert size={11} aria-hidden />}
                     {/* Taken over by hand: the director keeps it as it is. */}
                     {sp.shot.pinned && scene.coverage?.live && <Pin size={10} aria-label="Taken over by hand" />}
                     <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(scene, sp.shot.camera) ? ` · ${cameraById(scene, sp.shot.camera)!.name}` : ''}</span>

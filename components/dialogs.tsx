@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Clapperboard, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Settings2, Square } from 'lucide-react';
+import { Box, Clapperboard, Download, Film, ImagePlus, Images, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Square } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
 import { sceneShots, storyLength, storyShots } from '@/lib/board';
 import { boardSheet, boardSize, recordStory } from '@/lib/boardExport';
 import { sceneAt } from '@/lib/evaluate';
-import { addCamera, applyPhotoPose, editFilm, setReferenceImage } from '@/lib/actions';
-import { VIDEO_MODELS } from '@/lib/shots';
+import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
 import { newFigure } from '@/lib/doc';
 import { allPoses, poseScene } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
@@ -21,8 +20,8 @@ import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
-import { FRAME_SHAPES, type BodyParams, type Figure, type FrameShape, type Style } from '@/lib/types';
-import { useFilm, useScene, useStore, useStudio } from './store-context';
+import { type BodyParams, type Figure, type Style } from '@/lib/types';
+import { useProjectSettings, useScene, useStore, useStudio } from './store-context';
 import { COMMANDS, GESTURES, SELECTION_KEYS, keyLabel, titleOf } from './commands';
 import { Field, Hint, Modal, Segmented, Select, Slider, Toggle, type Notify, type SegmentOption } from './ui';
 
@@ -51,14 +50,14 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const store = useStore();
   const library = useStudio((s) => s.library);
   const scenes = library.scenes;
-  const film = useFilm();
+  const look = useProjectSettings();
   const scene = useScene();
   const time = useStudio((s) => s.time);
   const animated = !!scene.animation;
   const story = useMemo(() => storyShots(library), [library]);
   const [o, setO] = useState<ExportOptions>(() => ({ ...loadExportOptions(), ...(initial ? { scope: initial } : {}) }));
   // The film's style, unless another is picked for this export.
-  const style = o.style ?? film.style;
+  const style = o.style ?? look.style;
   // The camera stills are taken through: '' is the one filming at the playhead (a still scene: its first).
   const [picked, setPicked] = useState('');
   const camera = scene.cameras.some((c) => c.id === picked) ? picked : '';
@@ -214,17 +213,17 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         ...(scenes.length > 1 ? [{ value: 'all' as const, label: `${scenes.length} scenes`, icon: LayoutGrid, title: 'Every scene of the project' }] : []),
         { value: 'poses', label: `Poses ${poseCount}`, icon: Images, title: 'The pose library as a reference sheet' },
         ...(animated ? [{ value: 'frames' as const, label: 'Frame sheet', icon: Rows3, title: 'Evenly spaced moments of the animation, as a motion study' }] : []),
-        ...(story.length ? [{ value: 'board' as const, label: 'Storyboard', icon: LayoutPanelTop, title: 'The whole story: a panel per shot, in story order' }] : []),
+        ...(story.length ? [{ value: 'board' as const, label: 'Storyboard image', icon: LayoutPanelTop, title: 'The storyboard: a panel per shot, in story order' }] : []),
       ],
     },
     {
-      group: 'Film',
+      group: 'Video',
       options: [
         ...(animated ? [{ value: 'video' as const, label: 'Video', icon: Film, title: 'The animation filmed by its shot camera' }] : []),
         { value: 'pack', label: 'Keyframe pack', icon: Package, title: 'First/last frames, depth, normals, camera, prompt (and greybox clips) per shot, for AI video models' },
         ...(story.length ? [
-          { value: 'story-video' as const, label: 'Story video', icon: Clapperboard, title: 'The whole story: every scene\'s shots in story order' },
-          { value: 'story-pack' as const, label: 'Story keyframe pack', icon: Package, title: 'The whole story\'s shots, as a keyframe pack with one cut list' },
+          { value: 'story-video' as const, label: 'Storyboard video', icon: Clapperboard, title: 'The storyboard as a video: every scene\'s shots in story order' },
+          { value: 'story-pack' as const, label: 'Storyboard keyframe pack', icon: Package, title: 'The storyboard\'s shots, as a keyframe pack with one cut list' },
         ] : []),
       ],
     },
@@ -331,13 +330,13 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
                 label="Style"
                 value={o.style ?? ''}
                 onChange={(v) => set({ style: v || undefined })}
-                options={[{ value: '', label: `The film's (${styleDef(film.style).label})` }, ...STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))]}
+                options={[{ value: '', label: `The project's (${styleDef(look.style).label})` }, ...STYLE_LIST.map((st) => ({ value: st.id, label: st.label }))]}
               />
             </Field>
           )}
           {!model && (filmed ? (
             <Field label="Size">
-              <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${film.frame})` }))} />
+              <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${look.frame})` }))} />
             </Field>
           ) : (
             <Field label="Format">
@@ -544,33 +543,6 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
           <canvas ref={canvas} className={url ? '' : 'hidden'} />
           {!url && <Hint>The detected skeleton shows here</Hint>}
         </div>
-      </div>
-    </Modal>
-  );
-}
-
-/* ---------------- Project settings ---------------- */
-
-const FRAME_LABELS: Record<FrameShape, string> = { '16:9': '16:9 widescreen', '9:16': '9:16 vertical', '1:1': '1:1 square', '2.39:1': '2.39:1 cinemascope' };
-
-/** The project's settings, for every scene: its frame and the video model it is cut for. (Its render style is the top bar's.) */
-export function ProjectSettingsDialog({ onClose }: { onClose(): void }) {
-  const store = useStore();
-  const film = useFilm();
-  return (
-    <Modal title="Project settings" icon={Settings2} onClose={onClose}>
-      <div className="form">
-        <Field label="Frame" info="The letterbox, the storyboard, videos and keyframe packs take this frame.">
-          <Select<FrameShape> label="Frame" value={film.frame} onChange={(frame) => editFilm(store, { frame })} options={FRAME_SHAPES.map((f) => ({ value: f, label: FRAME_LABELS[f] }))} />
-        </Field>
-        <Field label="Cut for" info="Shots longer than the model allows are flagged.">
-          <Select
-            label="Cut for"
-            value={film.target ?? 'none'}
-            onChange={(v) => editFilm(store, { target: v === 'none' ? null : v })}
-            options={[{ value: 'none', label: 'No length limit' }, ...VIDEO_MODELS.map((m) => ({ value: m.id, label: `${m.name} · ${m.max} s` }))]}
-          />
-        </Field>
       </div>
     </Modal>
   );

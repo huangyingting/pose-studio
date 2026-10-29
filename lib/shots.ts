@@ -1,4 +1,3 @@
-import { film } from './film';
 import type { Animation, CameraPoint, PathCamera, Scene, Shot } from './types';
 
 /*
@@ -8,29 +7,6 @@ import type { Animation, CameraPoint, PathCamera, Scene, Shot } from './types';
  * model, whose clip length is the limit for each shot. Cameras' path points are in the
  * animation's time: cutting between cameras leaves their paths as they are.
  */
-
-export interface VideoModel {
-  id: string;
-  name: string;
-  /** Longest clip the model generates in one go (seconds), as typically offered. */
-  max: number;
-}
-
-/** Typical single-generation clip lengths; check your provider, these change often. */
-export const VIDEO_MODELS: VideoModel[] = [
-  { id: 'veo', name: 'Google Veo', max: 8 },
-  { id: 'sora', name: 'OpenAI Sora', max: 12 },
-  { id: 'kling', name: 'Kling', max: 10 },
-  { id: 'runway', name: 'Runway', max: 10 },
-  { id: 'seedance', name: 'Seedance', max: 10 },
-  { id: 'hailuo', name: 'Hailuo', max: 10 },
-  { id: 'luma', name: 'Luma Ray', max: 9 },
-  { id: 'wan', name: 'Wan', max: 5 },
-];
-
-export function videoModel(id: string | undefined) {
-  return VIDEO_MODELS.find((m) => m.id === id) ?? null;
-}
 
 export interface ShotSpan {
   shot: Shot;
@@ -53,12 +29,6 @@ export function shotSpans(a: Animation): ShotSpan[] {
 export function spanAt(a: Animation, t: number): ShotSpan {
   const spans = shotSpans(a);
   return spans.find((s) => t >= s.start - 1e-6 && t < s.end - 1e-6) ?? spans[spans.length - 1];
-}
-
-/** Shots longer than the video model the film is cut for allows (lib/film.ts). */
-export function overLimit(span: ShotSpan) {
-  const m = videoModel(film().target);
-  return !!m && span.end - span.start > m.max + 1e-6;
 }
 
 let counter = 0;

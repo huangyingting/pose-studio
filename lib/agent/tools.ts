@@ -3,12 +3,12 @@ import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
-  carryProblem, editFilm, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
-import { filmOf } from '../film';
+import { projectSettingsOf } from '../project';
 import { HAND_PRESETS, cloneHand } from '../hands';
 import { actionsOf, marksOf, missedCatchesOf, overWarp } from '../evaluate';
 import { actionLabel } from '../track';
@@ -125,7 +125,7 @@ function sceneSummary(store: Store) {
         ...(c.shake ? { shake: c.shake } : {}),
       };
     }),
-    film: filmOf(store.getState().library),
+    settings: projectSettingsOf(store.getState().library),
     joint_limits: store.getState().settings.limits,
   };
 }
@@ -360,7 +360,7 @@ export const TOOLS: AgentTool[] = [
       camera: opt(str('The camera\'s name (null: the one filming at time)')),
       time: num('A time (s): which camera, if none is named; and where a path camera is keyed (a still scene: 0)'),
       subject: opt(FIGURE),
-      everyone: opt(bool('Film everyone (no subject)')),
+      everyone: opt(bool('ProjectSettings everyone (no subject)')),
       size: opt(str('Shot size', SHOT_SIZES.map((x) => x.id))),
       place: opt(str('Where the subject sits in the frame', ['center', 'left', 'right'])),
       lens: opt(num('Focal length (mm)')),
@@ -685,10 +685,10 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'set_style',
-    description: 'Render style of the project (the film\'s look: the canvas, the storyboard and exports).',
+    description: 'Render style of the project (the canvas, the storyboard and exports).',
     schema: obj({ style: str('Style', STYLES) }),
     run: (store, i) => {
-      editFilm(store, { style: i.style as Style });
+      editProjectSettings(store, { style: i.style as Style });
       return `Style: ${i.style}.`;
     },
   },
@@ -725,7 +725,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'film_coverage',
-    description: `Film the whole animation with a coverage: cameras on the people in its roles (A, and B for two-person ones), all on one side of the line between them, cut on what they do (setting off, a motion, a prop let go) or on a beat: ${COVERAGES.map((c) => `${c.id} (${c.description.toLowerCase()}; roles ${c.roles.join(', ')})`).join('; ')}. Applied again it recuts, keeping cameras edited since. Do the blocking and acting first.`,
+    description: `ProjectSettings the whole animation with a coverage: cameras on the people in its roles (A, and B for two-person ones), all on one side of the line between them, cut on what they do (setting off, a motion, a prop let go) or on a beat: ${COVERAGES.map((c) => `${c.id} (${c.description.toLowerCase()}; roles ${c.roles.join(', ')})`).join('; ')}. Applied again it recuts, keeping cameras edited since. Do the blocking and acting first.`,
     schema: obj({ coverage: str('Coverage', COVERAGES.map((c) => c.id)), a: opt(FIGURE), b: opt(FIGURE) }),
     run: (store, i) => {
       const c = COVERAGES.find((x) => x.id === i.coverage)!;

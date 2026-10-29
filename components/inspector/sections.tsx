@@ -81,7 +81,7 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   { id: 'filmedby', title: 'Filmed by', when: (t) => !!t.span, Panel: FilmedByPanel, summary: filmedBySummary },
 
   // A camera.
-  { id: 'films', title: 'Films', when: (t) => !!t.camera, Panel: FilmsPanel, defaultOpen: false, summary: filmsSummary, info: filmsInfo },
+  { id: 'films', title: 'Shots', when: (t) => !!t.camera, Panel: FilmsPanel, defaultOpen: false, summary: filmsSummary, info: filmsInfo },
   { id: 'framing', title: 'Framing', when: (t) => !!t.camera, Panel: FramingPanel, summary: framingSummary },
   { id: 'lens', title: 'Lens', when: (t) => !!t.camera, Panel: LensPanel, summary: lensSummary },
   { id: 'moves', title: 'Moves', when: (t) => !!t.camera, Panel: MovesPanel, defaultOpen: false, summary: movesSummary, info: movesInfo },

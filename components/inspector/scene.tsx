@@ -1,31 +1,16 @@
 'use client';
 
-import { ChevronRight, Clapperboard, Eye, EyeOff, ImagePlus, Trash2 } from 'lucide-react';
+import { Clapperboard, Eye, EyeOff, ImagePlus, Trash2 } from 'lucide-react';
 import { editReference, renameScene, setCaption, setReferenceImage } from '@/lib/actions';
-import { videoModel } from '@/lib/shots';
 import { menu } from '../commands';
-import { useFilm } from '../store-context';
 import { IconButton, NameHeader, Slider, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /* The scene's header and sections (nothing selected): see sections.ts for which show when. */
 
 export function SceneHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
-  const film = useFilm();
   const index = t.store.getState().sceneIndex;
-  return (
-    <>
-      <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={t.scene.name} label="Scene name" onRename={(name) => renameScene(t.store, name)} menu={() => menu('scene', { store: t.store, scene: index })} />
-      <div className="psec">
-        {/* The film's settings are the project's: a link to their one home, not a copy of them. */}
-        <button type="button" className="summary-row" onClick={t.ctx.projectSettings} data-tip="The frame and what it is cut for, for every scene">
-          <span>Project settings…</span>
-          <em>{film.frame}{film.target ? ` · ${videoModel(film.target)?.name}` : ''}</em>
-          <ChevronRight size={14} aria-hidden />
-        </button>
-      </div>
-    </>
-  );
+  return <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={t.scene.name} label="Scene name" onRename={(name) => renameScene(t.store, name)} menu={() => menu('scene', { store: t.store, scene: index })} />;
 }
 
 export function CaptionPanel({ t }: { t: Target }) {

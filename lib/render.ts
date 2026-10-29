@@ -76,7 +76,7 @@ export function fitCamera(camera: THREE.PerspectiveCamera, source: PointSource, 
 export interface ExportOptions {
   /**
    * What is exported. Stills: this scene, a turnaround of it, every scene (all), the pose
-   * library (poses), a sheet of an animation's frames, the story's board sheet. Film: a video, a
+   * library (poses), a sheet of an animation's frames, the story's board sheet. ProjectSettings: a video, a
    * keyframe pack, of this scene or of the whole story. 3D: the scene as a model (.glb).
    */
   scope: 'all' | 'poses' | 'current' | 'turnaround' | 'frames' | 'board' | 'video' | 'pack' | 'story-video' | 'story-pack' | 'model';

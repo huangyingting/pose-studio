@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addScene, addToBoard, cutShot, deleteScene, editFilm, moveOnBoard, removeFromBoard, setCaption, setHold, startAnimation } from '@/lib/actions';
+import { addScene, addToBoard, cutShot, deleteScene, editProjectSettings, moveOnBoard, removeFromBoard, setCaption, setHold, startAnimation } from '@/lib/actions';
 import { DEFAULT_HOLD, boardPanels, movePanel, newPanel, parseBoard, storyLength, storyShots } from '@/lib/board';
 import { parseLibrary } from '@/lib/doc';
 import { buildOtio } from '@/lib/otio';
@@ -81,11 +81,11 @@ describe('storyboard', () => {
     const store = new Store(new MemoryStorage());
     addToBoard(store);
     setHold(store, panels(store)[0].id, 3.5);
-    editFilm(store, { frame: '9:16', target: 'veo', style: 'sketch' });
+    editProjectSettings(store, { frame: '9:16', style: 'sketch' });
     const lib = parseLibrary(JSON.parse(JSON.stringify(store.getState().library)));
     expect(boardPanels(lib)).toEqual(panels(store));
     // The film settings travel with the project.
-    expect(lib.film).toEqual({ frame: '9:16', target: 'veo', style: 'sketch' });
+    expect(lib.settings).toEqual({ frame: '9:16', style: 'sketch' });
 
     const ids = new Set(['a']);
     expect(parseBoard('nope', ids)).toBeUndefined();

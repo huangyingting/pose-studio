@@ -11,7 +11,7 @@ import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
 import { saveClips, saveImage } from './assetstore';
-import { filmOf } from './film';
+import { projectSettingsOf } from './project';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -33,7 +33,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, Film, Panel, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, ModelInfo, ProjectSettings, Panel, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1223,7 +1223,7 @@ export function deleteCamera(store: Store, id: string): boolean {
 }
 
 /**
- * Film the animation with a coverage (lib/coverage.ts): its cameras on the figures in its roles
+ * ProjectSettings the animation with a coverage (lib/coverage.ts): its cameras on the figures in its roles
  * (given, or as cast before, or A the active figure and B the one nearest it), cut on what they
  * do. The figures cast, or null if there are too few people for it.
  */
@@ -1331,15 +1331,9 @@ export function editShot(store: Store, id: string, patch: { name?: string; capti
   }, `shot:${id}`);
 }
 
-/**
- * The project's film settings: its frame shape (16:9, 9:16, 1:1, 2.39:1), the video model its
- * shots are cut for (null: none; its clip length becomes each shot's limit) and its style.
- */
-export function editFilm(store: Store, patch: Partial<Omit<Film, 'target'>> & { target?: string | null }) {
-  store.commit((lib) => {
-    const { target, ...rest } = { ...filmOf(lib), ...patch };
-    return { ...lib, film: { ...rest, ...(target ? { target } : {}) } };
-  });
+/** The project's settings: its frame shape (16:9, 9:16, 1:1, 2.39:1) and its render style. */
+export function editProjectSettings(store: Store, patch: Partial<ProjectSettings>) {
+  store.commit((lib) => ({ ...lib, settings: { ...projectSettingsOf(lib), ...patch } }));
 }
 
 /* Storyboard */

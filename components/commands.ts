@@ -1,12 +1,12 @@
 import {
   Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Move3d, MoveHorizontal, MoveUpRight,
-  PanelRightClose, Pause, Pencil, PenLine, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
+  PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, addToBoard, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
-  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editFilm, editShot, holdHandle, holdProp, lieOn,
+  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
   setSceneLight, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
@@ -15,7 +15,7 @@ import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight, lightFrom, lightText } from '
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
-import { filmOf } from '@/lib/film';
+import { FRAME_LABELS, projectSettingsOf } from '@/lib/project';
 import { HOLDABLE } from '@/lib/hold';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { handlesOf } from '@/lib/props';
@@ -26,7 +26,7 @@ import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById } from '@/lib/assets';
-import { HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
+import { FRAME_SHAPES, HANDHELD, JOINTS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type Light, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
@@ -54,7 +54,7 @@ import { DIRECTOR_STYLES, coverageById } from '@/lib/coverage';
 export interface App {
   notify: Notify;
   notifyUndo(text: string): void;
-  dialog(d: 'export' | 'export-story' | 'export-video' | 'photo' | 'help' | 'practice' | 'board' | 'project' | 'palette' | 'start'): void;
+  dialog(d: 'export' | 'export-story' | 'export-video' | 'photo' | 'help' | 'practice' | 'board' | 'palette' | 'start'): void;
   frameAll(): void;
   /** Frame what is selected (everything when nothing is). */
   frameSelected(): void;
@@ -490,7 +490,6 @@ export const COMMANDS: Command[] = [
   { id: 'app.import', title: 'Add scenes…', help: 'Add the scenes of a project file to this one', icon: FileUp, run: () => App().openFile('append') },
   { id: 'app.open', title: 'Open…', help: 'Open a project in place of this one', icon: FolderOpen, run: () => App().openFile('replace') },
   { id: 'app.export', title: 'Export', icon: Download, keys: ['mod+e'], run: () => App().dialog('export') },
-  { id: 'app.project', title: 'Project settings…', icon: Settings2, run: () => App().dialog('project') },
   { id: 'app.photo', title: 'Figures from a photo…', icon: ScanFace, run: () => App().dialog('photo') },
   { id: 'app.practice', title: 'Practice', help: 'Gesture practice: timed poses to draw', icon: Timer, keys: ['p'], run: () => App().dialog('practice') },
   { id: 'app.board', title: 'Storyboard', icon: LayoutPanelTop, keys: ['b'], run: () => { App().stopPlayback(); App().dialog('board'); } },
@@ -551,18 +550,23 @@ export const COMMANDS: Command[] = [
   { id: 'view.onion', title: 'Onion skin', help: 'Onion skin: the keys before and after, faint', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
   { id: 'view.guides', title: 'Guides', help: 'Framing guides: thirds and safe areas', icon: Frame, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
   {
-    id: 'view.line', title: 'Line weight', icon: PenLine, when: (c) => !!styleDef(filmOf(c.store.getState().library).style).outline,
+    id: 'view.line', title: 'Line weight', icon: PenLine, when: (c) => !!styleDef(projectSettingsOf(c.store.getState().library).style).outline,
     items: (c) => [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }].map((w) => ({
       title: w.label, checked: Math.abs(c.store.getState().settings.editorLine - w.px) < 0.05, run: () => c.store.setSettings({ editorLine: w.px }),
     })),
   },
   {
-    id: 'view.style', title: 'Render style', iconFor: (c) => STYLE_ICONS[filmOf(c.store.getState().library).style],
-    items: (c) => STYLE_LIST.map((s) => ({ title: s.label, icon: STYLE_ICONS[s.id], checked: s.id === filmOf(c.store.getState().library).style, run: () => editFilm(c.store, { style: s.id }) })),
+    // The frame every scene is filmed in: the letterbox, the storyboard, videos and keyframe packs.
+    id: 'view.aspect', title: 'Frame', icon: RectangleHorizontal,
+    items: (c) => FRAME_SHAPES.map((f) => ({ title: FRAME_LABELS[f], checked: f === projectSettingsOf(c.store.getState().library).frame, run: () => editProjectSettings(c.store, { frame: f }) })),
+  },
+  {
+    id: 'view.style', title: 'Render style', iconFor: (c) => STYLE_ICONS[projectSettingsOf(c.store.getState().library).style],
+    items: (c) => STYLE_LIST.map((s) => ({ title: s.label, icon: STYLE_ICONS[s.id], checked: s.id === projectSettingsOf(c.store.getState().library).style, run: () => editProjectSettings(c.store, { style: s.id }) })),
   },
   {
     id: 'view.nextStyle', title: 'Next render style', keys: ['l'],
-    run: (c) => { const style = filmOf(c.store.getState().library).style; editFilm(c.store, { style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] }); },
+    run: (c) => { const style = projectSettingsOf(c.store.getState().library).style; editProjectSettings(c.store, { style: STYLES[(STYLES.indexOf(style) + 1) % STYLES.length] }); },
   },
 
   // Steps from the keyboard (#13): the arrows move what is selected the way the screen shows,
@@ -633,8 +637,8 @@ export const COMMANDS: Command[] = [
     run: (c) => setSceneLight(c.store, { ...lightOf(c), shadows: !lightOf(c).shadows }, ''),
   },
   {
-    id: 'light.clay', title: 'Show the light: switch to Clay', icon: SunMedium, when: (c) => !!c.light && !styleDef(filmOf(c.store.getState().library).style).lit,
-    run: (c) => editFilm(c.store, { style: 'shaded' }),
+    id: 'light.clay', title: 'Show the light: switch to Clay', icon: SunMedium, when: (c) => !!c.light && !styleDef(projectSettingsOf(c.store.getState().library).style).lit,
+    run: (c) => editProjectSettings(c.store, { style: 'shaded' }),
   },
 
   // The selection.
@@ -1309,7 +1313,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
 }
 
 export const MENUS = {
-  main: ['app.newFilm', '-', 'app.save', 'app.import', 'app.open', '-', 'app.project', 'app.practice', 'app.help', 'app.theme'],
+  main: ['app.newFilm', '-', 'app.save', 'app.import', 'app.open', '-', 'app.practice', 'app.help', 'app.theme'],
   view: [
     'view.frameAll', 'view.isolate', 'view.through',
     { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',

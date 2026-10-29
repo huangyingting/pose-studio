@@ -3,7 +3,7 @@ import { RELAXED_HAND, cloneHand } from './hands';
 import { DEFAULT_FPS, MAX_DURATION, normalize, parseCameras, parseShots, remapAnimation, remapCameras } from './animation';
 import { clipInfo } from './clip';
 import { parseBoard } from './board';
-import { parseFilm } from './film';
+import { parseProjectSettings } from './project';
 import { uid } from './uid';
 import * as THREE from 'three';
 import { mirrorJointName, sideOf, wrapDeg } from './joints';
@@ -472,7 +472,7 @@ export function parseLibrary(data: unknown): Library {
     ids.add(s.id);
   }
   const board = parseBoard(data.board, ids);
-  const film = parseFilm(data.film);
+  const settings = parseProjectSettings(data.settings);
   const poses = parsePoses(data.poses);
   // What the imported clips are (a file has their frames too: clipsIn).
   const clips = (Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []);
@@ -493,7 +493,7 @@ export function parseLibrary(data: unknown): Library {
       ...(typeof p.duration === 'number' && Number.isFinite(p.duration) ? { duration: Math.min(60, Math.max(1, p.duration)) } : {}),
     }));
   return {
-    version: 3, scenes, ...(board ? { board } : {}), ...(film ? { film } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
+    version: 3, scenes, ...(board ? { board } : {}), ...(settings ? { settings } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
     ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}),
   };
 }

@@ -13,7 +13,7 @@ import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
 import { BUILT_IN_CHARACTERS, characterImage } from '@/lib/characters';
 import { COVERAGES, castCoverage } from '@/lib/coverage';
 import { newScene } from '@/lib/doc';
-import { filmOf } from '@/lib/film';
+import { projectSettingsOf } from '@/lib/project';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
@@ -91,7 +91,7 @@ function posable(store: Store) {
   return f && !f.proxy ? f : null;
 }
 
-const style = (store: Store) => filmOf(store.getState().library).style;
+const style = (store: Store) => projectSettingsOf(store.getState().library).style;
 
 /** A figure alone in a scene, for a ghost on the canvas. */
 const ghostOf = (f: Figure) => newScene('Ghost', [{ ...f, id: 'ghost' }]);

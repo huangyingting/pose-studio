@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { addFigure, applyMotion, startAnimation } from '@/lib/actions';
+import { applyMotion, startAnimation } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { keyPose, partFromPoses } from '@/lib/clip';
 import { newFigure, parseClip } from '@/lib/doc';

@@ -20,7 +20,7 @@ import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset, Vec
  * its way), the others by the figures nearest it, new figures for the rest.
  */
 
-export const TEMPLATE_GROUPS = ['Films', 'Standing together', 'Set-ups'] as const;
+export const TEMPLATE_GROUPS = ['Staged', 'Standing together', 'Set-ups'] as const;
 
 export interface SceneTemplate {
   id: string;
@@ -33,7 +33,7 @@ export interface SceneTemplate {
 
 export const SCENE_TEMPLATES: SceneTemplate[] = [
   // Staged as a director would, beat by beat (lib/films.ts).
-  ...FILMS.map((f) => ({ id: f.id, name: f.name, group: 'Films' as const, people: f.people, build: f.build })),
+  ...FILMS.map((f) => ({ id: f.id, name: f.name, group: 'Staged' as const, people: f.people, build: f.build })),
   ...STAGINGS.map((s) => ({ id: s.id, name: s.name, group: 'Standing together' as const, people: s.people, build: s.build })),
   { id: 'high-jump', name: 'High jump', group: 'Set-ups', people: 1, build: highJump },
 ];

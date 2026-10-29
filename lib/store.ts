@@ -3,7 +3,7 @@ import { directed } from './coverage';
 import { clipIdsOf, playedClips } from './assets';
 import { loadClips } from './assetstore';
 import { fetchLibraryClips } from './librarymotions';
-import { setFilm } from './film';
+import { setProjectSettings } from './project';
 import { setModels } from './model';
 import { newScene, parseLibrary } from './doc';
 import { sceneAt } from './evaluate';
@@ -160,7 +160,7 @@ export class Store {
   constructor(private storage: Storage | null = typeof localStorage === 'undefined' ? null : localStorage) {
     const library = loadLibrary(storage);
     setModels(library.models);
-    setFilm(library.film);
+    setProjectSettings(library.settings);
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
@@ -234,7 +234,7 @@ export class Store {
 
   private set(patch: Partial<State>, persist = true) {
     if (patch.library && patch.library.models !== this.state.library.models) setModels(patch.library.models);
-    if (patch.library && patch.library.film !== this.state.library.film) setFilm(patch.library.film);
+    if (patch.library && patch.library.settings !== this.state.library.settings) setProjectSettings(patch.library.settings);
     // (Scenes come in or what they do changes, opened, shared or placed from a template: the Library's
     // motion files they play. Not on each frame: the playhead moving leaves what they do as it is.)
     if (patch.library && patch.library.scenes !== this.state.library.scenes) {

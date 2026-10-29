@@ -430,8 +430,8 @@ export interface Library {
   scenes: Scene[];
   /** The story: its scenes in order (see lib/board.ts); a scene shows as a panel per shot. */
   board?: Panel[];
-  /** The film the project is: its frame, the video model it is cut for, its look (lib/film.ts). */
-  film?: Film;
+  /** The project's settings: its frame and its render style (lib/project.ts). */
+  settings?: ProjectSettings;
   /** Poses saved by the user, to apply to any figure (the built-in ones are not stored). */
   poses?: PoseAsset[];
   /**
@@ -511,11 +511,9 @@ export interface Panel {
   hold: number;
 }
 
-/** The project as a film: one frame shape, one video model, one look. */
-export interface Film {
+/** The project's settings: one frame shape, one render style. */
+export interface ProjectSettings {
   frame: FrameShape;
-  /** Video model the shots are cut for (lib/shots.ts VIDEO_MODELS), which limits a shot's length. */
-  target?: string;
   style: Style;
 }
 

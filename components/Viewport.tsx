@@ -30,7 +30,7 @@ import JointCard from './JointCard';
 import CameraHandles, { stepRig } from './CameraHandles';
 import LightHandles from './LightHandles';
 import { STEPS, snapping } from './modifiers';
-import { useFilm, useStudio } from './store-context';
+import { useProjectSettings, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
 import { cameraHint, metres, movedText, setCanvasPointer, setPointerHint, setReadout, useHoverGhost, useReadout } from './hints';
 import type { Placing } from './placing';
@@ -102,7 +102,7 @@ export default function Viewport({
   store, scene, selection, activeFigure, settings, frameRequest, apiRef, clock, time, through, onion, onMenu, onPick, placing,
 }: Props) {
   const captureRef = useRef<(() => CameraView | null) | null>(null);
-  const film = useFilm();
+  const look = useProjectSettings();
   const shotMode = !!through;
   const rigRef = useRef<THREE.Group>(null);
   const sv = useMemo(() => new SceneView(), []);
@@ -139,7 +139,7 @@ export default function Viewport({
   // The figure or prop whose outline row the pointer rests on: outlined as a whole.
   const linked = useStudio((st) => st.linked);
   useLayoutEffect(() => sv.setLinked(shotMode ? null : linked), [sv, linked, scene, shotMode]);
-  useLayoutEffect(() => sv.setStyle(film.style), [sv, film.style]);
+  useLayoutEffect(() => sv.setStyle(look.style), [sv, look.style]);
   useEffect(() => () => sv.dispose(), [sv]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
@@ -332,9 +332,9 @@ export default function Viewport({
           if (!moved && !onPick && performance.now() - pickedAt.current > 300 && performance.now() - gizmoBusy.current > 250) store.select(null);
         }}
       >
-        <color attach="background" args={[styleDef(film.style).background]} />
+        <color attach="background" args={[styleDef(look.style).background]} />
         <Waker store={store} clock={clock} sv={sv} />
-        <Lights sv={sv} style={film.style} scene={scene} />
+        <Lights sv={sv} style={look.style} scene={scene} />
         <DropLine />
         {settings.showGrid && (
           // The floor goes on forever; the grid covers all of it, fading toward the horizon.
@@ -408,8 +408,8 @@ export default function Viewport({
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         {placing && <PlaceGhost key={placing.hint} placing={placing} apiRef={apiRef} />}
         {!shotMode && <HoverGhost />}
-        {handles && (styleDef(film.style).lit || selection?.kind === 'light') && (
-          <LightHandles store={store} scene={scene} sv={sv} selected={selection?.kind === 'light'} lit={styleDef(film.style).lit} />
+        {handles && (styleDef(look.style).lit || selection?.kind === 'light') && (
+          <LightHandles store={store} scene={scene} sv={sv} selected={selection?.kind === 'light'} lit={styleDef(look.style).lit} />
         )}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
@@ -427,7 +427,7 @@ export default function Viewport({
           figures={scene.figures}
           light={scene.light ?? DEFAULT_LIGHT}
         />
-        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={film.style} />
+        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={look.style} />
       </Canvas>
       <DragReadout />
       {handles && turnable && !through && <TurnButtons key={JSON.stringify(selection)} onScreen={ringOnScreen} />}

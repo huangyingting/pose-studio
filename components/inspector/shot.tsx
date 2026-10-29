@@ -1,12 +1,11 @@
 'use client';
 
-import { ChevronRight, Copy, TriangleAlert, Video } from 'lucide-react';
+import { ChevronRight, Copy, Video } from 'lucide-react';
 import { addCamera, editShot, ownCamera } from '@/lib/actions';
 import { SHOT_SIZES, cameraById, sizeOf, viewOf } from '@/lib/cameras';
-import { overLimit, shotSpans, videoModel } from '@/lib/shots';
+import { shotSpans } from '@/lib/shots';
 import type { Camera, Scene } from '@/lib/types';
 import { menu } from '../commands';
-import { useFilm } from '../store-context';
 import { NameHeader, NumberField, PropertyRow, Segmented, Select, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
@@ -28,11 +27,9 @@ export function ShotHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
 
 export const shotSummary = (t: Target) => { const span = t.span!; return `${(span.end - span.start).toFixed(1)} s${span.shot.caption ? ` · ${span.shot.caption}` : ''}`; };
 
-/** What happens in it, and how long it is (flagged when longer than the film's video model allows). */
+/** What happens in it, and how long it is. */
 export function ShotPanel({ t }: { t: Target }) {
   const span = t.span!;
-  const model = videoModel(useFilm().target);
-  const over = overLimit(span);
   return (
     <>
       <label className="field">
@@ -48,7 +45,6 @@ export function ShotPanel({ t }: { t: Target }) {
       <PropertyRow label="Length">
         <span className="shot-time">
           <strong>{(span.end - span.start).toFixed(1)} s</strong> · {span.start.toFixed(2)}–{span.end.toFixed(2)} s
-          {over && model && <span className="warn"><TriangleAlert size={12} aria-hidden /> Longer than {model.name} allows ({model.max} s)</span>}
         </span>
       </PropertyRow>
     </>

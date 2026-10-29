@@ -26,7 +26,7 @@ interface Saved {
 const KEY = 'pose-studio:sync';
 const PUSH_DELAY = 1500;
 
-const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}`).join() + JSON.stringify(lib.film ?? null)
+const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + (lib.board ?? []).map((p) => `${p.id}:${p.sceneId}:${p.hold}`).join() + JSON.stringify(lib.settings ?? null)
   + [lib.poses, lib.clips, lib.models, lib.templates, lib.shoots].map((list) => (list ?? []).map((x) => x.id).join()).join('|');
 
 export class CloudSync {

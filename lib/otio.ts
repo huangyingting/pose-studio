@@ -1,7 +1,5 @@
 import { describeShot, describeSpan } from './prompt';
 import { cameraById } from './cameras';
-import { film } from './film';
-import { videoModel } from './shots';
 import { storyLength, type StoryShot } from './board';
 
 /*
@@ -15,7 +13,6 @@ const time = (value: number, rate: number) => ({ OTIO_SCHEMA: 'RationalTime.1', 
 
 export function buildOtio(shots: StoryShot[], name: string, mediaUrl: string, rate = 24) {
   const frames = (s: number) => Math.round(s * rate);
-  const target = videoModel(film().target);
   const total = storyLength(shots);
   let at = 0;
   const clips = shots.map((x) => {
@@ -43,7 +40,6 @@ export function buildOtio(shots: StoryShot[], name: string, mediaUrl: string, ra
           caption: x.caption,
           prompt: x.span ? describeSpan(x.scene, x.span) : describeShot(x.scene),
           ...(camera ? { camera } : {}),
-          ...(target ? { cut_for: target.name, over_limit: x.length > target.max } : {}),
         },
       },
     };

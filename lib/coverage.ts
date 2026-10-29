@@ -227,7 +227,7 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
 }
 
 /**
- * Film a scene with a coverage, with these figures in its roles: its cameras and its cuts over
+ * ProjectSettings a scene with a coverage, with these figures in its roles: its cameras and its cuts over
  * the whole animation. Applied again, it cuts anew and puts back the cameras it made, except
  * those edited by hand since (they are left as they are, and still cut to). Applied over another
  * coverage, that one's cameras go, except those edited by hand; cameras made otherwise are left

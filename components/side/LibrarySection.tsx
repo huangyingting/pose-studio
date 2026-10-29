@@ -9,7 +9,7 @@ import { spanAt } from '@/lib/shots';
 import type { LibraryTab } from '@/lib/store';
 import type { Scene } from '@/lib/types';
 import { styleDef } from '@/lib/styles';
-import { useFilm, useStore, useStudio } from '../store-context';
+import { useProjectSettings, useStore, useStudio } from '../store-context';
 import { IconButton, Menu } from '../ui';
 import { endDrag, startDrag } from '../dragdrop';
 import { setHoverGhost } from '../hints';
@@ -252,7 +252,7 @@ type Bind = (title: string, note: string | undefined, job: () => PreviewJob, gho
  * touch: a tap uses the item.
  */
 function usePreview() {
-  const style = useFilm().style;
+  const style = useProjectSettings().style;
   const [shown, setShown] = useState<Shown | null>(null);
   const timer = useRef(0);
   const stop = useRef<() => void>(() => {});
