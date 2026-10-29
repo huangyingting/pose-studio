@@ -12,16 +12,17 @@ const DB = 'pose-studio-assets';
 const CLIPS = 'clips';
 const MODELS = 'models';
 const IMAGES = 'images';
+const THUMBS = 'thumbs';
 
 let db: Promise<IDBDatabase> | null = null;
-const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>() };
+const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>(), thumbs: new Map<string, string>() };
 
 function open(): Promise<IDBDatabase> | null {
   if (typeof indexedDB === 'undefined') return null;
   db ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 3);
+    const req = indexedDB.open(DB, 4);
     req.onupgradeneeded = () => {
-      for (const name of [CLIPS, MODELS, IMAGES]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
+      for (const name of [CLIPS, MODELS, IMAGES, THUMBS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -94,4 +95,34 @@ export async function saveImage(id: string, image: Blob) {
 export async function loadImage(id: string): Promise<Blob | null> {
   const got = run<{ id: string; image: Blob } | undefined>(IMAGES, 'readonly', (s) => s.get(id));
   return got ? (await got)?.image ?? null : memory.images.get(id) ?? null;
+}
+
+/*
+ * The library's thumbnails, kept between visits for this build of the app (a build's templates
+ * and poses can look different from the last one's: drawn again then, once).
+ */
+const BUILD = process.env.NEXT_PUBLIC_BUILD ?? 'dev';
+let pruned = false;
+
+/** A kept thumbnail (an image URL), or null. */
+export async function loadThumb(key: string): Promise<string | null> {
+  const got = run<{ id: string; url: string } | undefined>(THUMBS, 'readonly', (s) => s.get(`${BUILD}|${key}`));
+  return got ? (await got)?.url ?? null : memory.thumbs.get(key) ?? null;
+}
+
+/** Keep a thumbnail (the first time in a visit, those of other builds let go). */
+export async function saveThumb(key: string, url: string) {
+  const d = open();
+  if (!d) {
+    memory.thumbs.set(key, url);
+    return;
+  }
+  const db = await d;
+  const store = db.transaction(THUMBS, 'readwrite').objectStore(THUMBS);
+  if (!pruned) {
+    pruned = true;
+    const all = store.getAllKeys();
+    all.onsuccess = () => { for (const k of all.result) if (!String(k).startsWith(`${BUILD}|`)) store.delete(k); };
+  }
+  store.put({ id: `${BUILD}|${key}`, url });
 }
