@@ -67,6 +67,12 @@ export interface Ghost {
   opacity: number;
 }
 
+/**
+ * The layer outlines, rings and face lines are drawn on (the parts on the default one): passes
+ * that draw the parts alone (their IDs for the inner lines, depth, normals) leave it out.
+ */
+export const LINES_LAYER = 1;
+
 /** Encode a part id as a colour with 16 levels per channel (robust to 8-bit precision). */
 export function encodeId(id: number) {
   const n = id + 1;
@@ -90,6 +96,17 @@ interface StyleMaterials {
   hover: THREE.Material;
   prop: THREE.Material;
   propSel: THREE.Material;
+}
+
+/** A part drawn in an ID material (the one it had kept, to have back: null). */
+export function idMaterialOf(mesh: THREE.Mesh, id: THREE.Material | null) {
+  if (id) {
+    mesh.userData.drawnAs ??= mesh.material;
+    mesh.material = id;
+  } else if (mesh.userData.drawnAs) {
+    mesh.material = mesh.userData.drawnAs as THREE.Material;
+    delete mesh.userData.drawnAs;
+  }
 }
 
 /** Shared materials and uniforms for one rendering context (the editor or the exporter). */
@@ -322,12 +339,14 @@ export class InkedParts {
     }
     const hull = made(geo, this.ink.outline);
     hull.raycast = () => {};
+    hull.layers.set(LINES_LAYER);
     mesh.add(hull);
     this.decorations.push(hull);
     this.hulls.push(hull);
     for (const r of rings) {
       const m = made(r, this.ink.ring);
       m.raycast = () => {};
+      m.layers.set(LINES_LAYER);
       mesh.add(m);
       this.decorations.push(m);
       this.rings.push(m);
@@ -359,6 +378,7 @@ export class InkedParts {
     for (const g of geos) {
       const line = new THREE.Mesh(g, this.ink.face);
       line.raycast = () => {};
+      line.layers.set(LINES_LAYER);
       mesh.add(line);
       this.decorations.push(line);
       this.faceLines.push(line);
@@ -375,13 +395,13 @@ export class InkedParts {
   }
 
   /** Swap to flat per-part colours for the ID pass; returns the next free id. */
-  setIdMode(on: boolean, firstId: number, style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
-    if (on) {
-      for (const d of this.decorations) d.visible = false;
-      this.bodies.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
-    } else {
-      this.refresh(style, isSelected);
-    }
+  /**
+   * Its parts in flat ID colours for the inner-line pass (on), or back as they were (off): only
+   * their materials swapped (its lines, on their own layer, are left out by the pass). Returns the
+   * next free id.
+   */
+  setIdMode(on: boolean, firstId: number) {
+    this.bodies.forEach((mesh, i) => idMaterialOf(mesh, on ? this.ink.idMaterial(firstId + i) : null));
     return firstId + this.bodies.length;
   }
 

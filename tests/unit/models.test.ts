@@ -118,7 +118,9 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     sv.setStyle('shaded');
     sv.setIdMode(true);
     expect(new Set(meshes.map((m) => m.material)).size).toBe(meshes.length);
-    expect(hulls.some((h) => h.visible)).toBe(false);
+    // (Its outlines left out of the pass: on a layer of their own, which it does not draw.)
+    const pass = new THREE.Layers();
+    expect(hulls.some((h) => h.layers.test(pass))).toBe(false);
     sv.setIdMode(false);
     expect(meshes.every((m) => m.material === sv.ink.materialsFor('shaded').body)).toBe(true);
     sv.dispose();

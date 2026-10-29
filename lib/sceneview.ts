@@ -220,7 +220,7 @@ export class SceneView {
     let id = 0;
     for (const m of this.figures.values()) id = m.setIdMode(on, id);
     for (const p of this.props.values()) id = p.setIdMode(on, id);
-    for (const [fid, r] of this.models) id = r.setIdMode(on, id, this.style, this.tints.get(fid) ?? null);
+    for (const r of this.models.values()) id = r.setIdMode(on, id);
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void, figuresOnly = false) {

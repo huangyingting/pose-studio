@@ -8,7 +8,7 @@ import { legsOf } from './locomotion';
 import { Rig } from './relations';
 import { setWorldQuaternion } from './mannequin';
 import { fingerBones, PARENT, worldTurns } from './skeleton';
-import type { Ink } from './ink';
+import { LINES_LAYER, idMaterialOf, type Ink } from './ink';
 import { styleDef } from './styles';
 import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Proportions, type Style } from './types';
 import { uid } from './uid';
@@ -278,6 +278,7 @@ export class ModelRig {
         hull = new THREE.Mesh(mesh.geometry, ink.outline);
       }
       hull.frustumCulled = false;
+      hull.layers.set(LINES_LAYER);
       hull.raycast = () => {};
       mesh.add(hull);
       this.hulls.push(hull);
@@ -316,14 +317,9 @@ export class ModelRig {
     });
   }
 
-  /** Flat per-part colours for the line pass (as the mannequin's parts); returns the next free id. */
-  setIdMode(on: boolean, firstId: number, style: Style, tint: string | null) {
-    if (!on) {
-      this.setLook(style, tint);
-      return firstId;
-    }
-    this.meshes.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
-    for (const h of this.hulls) h.visible = false;
+  /** Flat per-part colours for the line pass (as the mannequin's parts), or back as they were; returns the next free id. */
+  setIdMode(on: boolean, firstId: number) {
+    this.meshes.forEach((mesh, i) => idMaterialOf(mesh, on ? this.ink.idMaterial(firstId + i) : null));
     return firstId + this.meshes.length;
   }
 

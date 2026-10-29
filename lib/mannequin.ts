@@ -785,7 +785,7 @@ export class Mannequin {
   }
 
   setIdMode(on: boolean, firstId: number) {
-    return this.parts.setIdMode(on, firstId, this.style, this.isSelected);
+    return this.parts.setIdMode(on, firstId);
   }
 
   /** A colour mixed into the body, to tell figures apart (null: none). */
