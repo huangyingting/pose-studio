@@ -37,6 +37,16 @@ const MAX_LAPS = 1000;
 const touchFixes = new WeakMap<ClipPart, Map<string, number>>();
 /** Idle life eases in and out over this long at the edges of what a figure does (s). */
 const IDLE_EASE = 0.6;
+/** Easing into another stance, a foot that goes further than this (m) steps there; one that goes less stays. */
+const STEP_MIN = 0.06;
+/** Easing with steps takes at least this long, longer the further the feet go (s, s per m), and at most this. */
+const STEP_BLEND = 0.3;
+const STEP_PER_M = 1;
+const STEP_BLEND_MAX = 0.8;
+/** A foot whose ankle is no higher than this above standing's is on the ground (m). */
+const GROUNDED = 0.05;
+/** How high a stepping foot lifts on its way (m). */
+const STEP_LIFT = 0.06;
 /** How long a planted foot takes to be let go when it lifts in a clip (s). */
 const RELEASE = 0.12;
 /** How long a hand takes to take hold of a partner and let go (clip time, s): on other bodies it may have further to go. */
@@ -98,6 +108,8 @@ class Evaluator {
   /** Each walk's upper body on the way (from the pose it leaves in to the one it arrives in). */
   private readonly uppers = new WeakMap<Chain, ClipPart>();
   private readonly anchors = new Map<string, ReturnType<typeof feetOf>>();
+  /** How long each figure takes to ease into each action (blendOf). */
+  private readonly blends = new Map<string, number>();
   private readonly timelines = new Map<string, PropTimeline | null>();
 
   constructor(private readonly scene: Scene) {
@@ -194,7 +206,10 @@ class Evaluator {
    */
   private holds(f: Figure, t: number, free: Pose): Hold[] {
     const act = actionsOf(this.a, f.id).filter((x) => x.source.kind === 'clip' && x.start - EPS <= t && t <= end(x) + EPS).at(-1);
-    const out = act ? this.clipHolds(f, act, t, free) : [];
+    let out = act ? this.clipHolds(f, act, t, free) : [];
+    // Easing into what comes next: the feet step there (the clip's planted feet let go).
+    const steps = this.steps(f, t, free);
+    if (steps) out = [...out.filter((h) => h.bone !== 'leftFoot' && h.bone !== 'rightFoot'), ...steps];
     // Reaching for a pass as it comes: the hand goes out to meet it, and back with it.
     for (const c of this.scene.props.flatMap((p) => this.timeline(p.id)?.catches ?? [])) {
       if (c.figure !== f.id || t < c.t - CATCH_LEAD || t > c.t + CATCH_LEAD) continue;
@@ -408,10 +423,82 @@ class Evaluator {
    * action then plays as made); but not from a walk or run that arrives in it (its steps planted).
    */
   private easeInto(f: Figure, acts: Action[], t: number, pose: Pose): Pose {
+    const next = this.easing(f, acts, t);
+    return next ? blend(pose, this.at(f, next.act, next.act.start), next.w) : pose;
+  }
+
+  /** The action a figure eases into at t, how far (0–1) and from when; null when it is not easing into one. */
+  private easing(f: Figure, acts: Action[], t: number): { act: Action; w: number; from: number } | null {
     const next = acts.find((x) => x.start > t + EPS);
-    if (!next?.blendIn || next.start - t >= next.blendIn) return pose;
-    if (acts.some((x) => x.source.kind === 'travel' && x.start - EPS <= t && Math.abs(end(x) - next.start) < EPS)) return pose;
-    return blend(pose, this.at(f, next, next.start), smooth(1 - (next.start - t) / next.blendIn));
+    if (!next?.blendIn || next.start - t >= Math.max(next.blendIn, STEP_BLEND_MAX)) return null;
+    if (acts.some((x) => x.source.kind === 'travel' && x.start - EPS <= t && Math.abs(end(x) - next.start) < EPS)) return null;
+    const time = this.blendOf(f, next);
+    if (next.start - t >= time) return null;
+    return { act: next, w: smooth(1 - (next.start - t) / time), from: next.start - time };
+  }
+
+  /** Whether both feet are on the ground (their ankles no higher above it than standing has them). */
+  private grounded(f: Figure, feet: ReturnType<typeof feetOf>) {
+    const ankle = legsOf(f.body).ankleY;
+    return feet.every((x) => x.p.y - this.ground(x.p.x, x.p.z) < ankle + GROUNDED);
+  }
+
+  /**
+   * How long a figure takes to ease into an action: its blend-in, or longer where its feet have
+   * further to go (time to step there).
+   */
+  private blendOf(f: Figure, act: Action): number {
+    const key = `${act.id}:${f.id}`;
+    let time = this.blends.get(key);
+    if (time === undefined) {
+      // (Where its feet are before any easing into it could begin.)
+      const a = feetOf(this.rig, { ...f, ...this.free(f, act.start - STEP_BLEND_MAX - EPS) });
+      const b = feetOf(this.rig, { ...f, ...this.at(f, act, act.start) });
+      const d = this.grounded(f, a) && this.grounded(f, b) ? Math.max(...a.map((x, i) => Math.hypot(b[i].p.x - x.p.x, b[i].p.z - x.p.z))) : 0;
+      // (Not back past where something else starts or ends: what it eases from would change on the way.)
+      const before = actionsOf(this.a, f.id).flatMap((x) => [x.start, end(x)]).filter((x) => x < act.start - EPS);
+      const room = act.start - Math.max(-Infinity, ...before);
+      time = d < STEP_MIN ? act.blendIn! : Math.max(act.blendIn!, Math.min(STEP_BLEND_MAX, room, STEP_BLEND + d * STEP_PER_M));
+      this.blends.set(key, time);
+    }
+    return time;
+  }
+
+  /**
+   * Easing from one stance into the next action's, the feet step there one at a time (the left,
+   * then the right), each lifted on its way, instead of sliding with the blend; where a foot
+   * barely moves, it stays planted. Null when not easing (or nothing to step).
+   */
+  private steps(f: Figure, t: number, free: Pose): Hold[] | null {
+    const acts = actionsOf(this.a, f.id);
+    const next = this.easing(f, acts, t);
+    if (!next) return null;
+    // (Where its feet were as it began. Before holds: what they hold may be worked out from this.)
+    const from = this.free(f, next.from - EPS);
+    const to = this.at(f, next.act, next.act.start);
+    const a = feetOf(this.rig, { ...f, ...from });
+    const b = feetOf(this.rig, { ...f, ...to });
+    // (Only from standing to standing: not out of a leap or a fall.)
+    if (!this.grounded(f, a) || !this.grounded(f, b)) return null;
+    const now = feetOf(this.rig, { ...f, ...free });
+    const m = this.rig.model({ ...f, ...free });
+    const legs = legsOf(f.body);
+    const reach = (legs.rootY - legs.ankleY) * 0.97;
+    const out: Hold[] = [];
+    (['L', 'R'] as const).forEach((side, i) => {
+      const p = a[i].p;
+      const q = b[i].p;
+      if (Math.hypot(q.x - p.x, q.z - p.z) < STEP_MIN) return;
+      // (The left foot steps first, the right as it lands: one after the other, overlapping a little.)
+      const s = Math.min(1, Math.max(0, (next.w - i * 0.35) / 0.65));
+      const k = smooth(s);
+      const at = new THREE.Vector3(p.x + (q.x - p.x) * k, now[i].p.y + STEP_LIFT * Math.sin(Math.PI * s), p.z + (q.z - p.z) * k);
+      // (Never further from the hip than the leg reaches: it would snap straight.)
+      const hip = m.joints[side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'].getWorldPosition(new THREE.Vector3());
+      if (at.distanceTo(hip) > reach) at.sub(hip).setLength(reach).add(hip);
+      out.push({ bone: side === 'L' ? 'leftFoot' : 'rightFoot', at, weight: 1, relative: true });
+    });
+    return out;
   }
 
   /** One action's pose for a figure at t (within the action). */
