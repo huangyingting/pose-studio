@@ -346,6 +346,72 @@ def swimsuit(p):
     return out
 
 
+# The axis her torso is round (m, standing), to unroll a hole that wraps round her side.
+AXIS_Z = 0.02
+
+
+def ear_clip(poly):
+    """A simple polygon (2D, in order) cut into triangles (indices into it)."""
+    idx = list(range(len(poly)))
+    sign = 1 if 0.5 * np.sum(poly[:, 0] * np.roll(poly[:, 1], -1) - np.roll(poly[:, 0], -1) * poly[:, 1]) > 0 else -1
+    cross = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    out = []
+    while len(idx) > 3:
+        for k in range(len(idx)):
+            i0, i1, i2 = idx[k - 1], idx[k], idx[(k + 1) % len(idx)]
+            a, b, c = poly[i0], poly[i1], poly[i2]
+            if sign * cross(a, b, c) <= 0:
+                continue
+            inside = any(sign * cross(a, b, poly[j]) > 0 and sign * cross(b, c, poly[j]) > 0 and sign * cross(c, a, poly[j]) > 0 for j in idx if j not in (i0, i1, i2))
+            if inside:
+                continue
+            out.append((i0, i1, i2))
+            idx.pop(k)
+            break
+        else:
+            break
+    if len(idx) == 3:
+        out.append(tuple(idx))
+    return out
+
+
+def hole_patch(edge, levels=3):
+    """A hole's patch: its points (its edge's first, as they are), which edge point each is nearest
+    (it moves as that does), and its triangles. A hole that wraps round her side is unrolled round
+    her torso's axis (angle, height), cut into triangles there, each split in four `levels` times,
+    and rolled back (its radius between its edge's); another, fanned from its middle in rings."""
+    n = len(edge)
+    if np.ptp(edge[:, 2]) <= 0.08:
+        centre = edge.mean(axis=0)
+        rings = 6
+        pts = [edge + (centre - edge) * (r / rings) for r in range(rings)] + [centre[None]]
+        tris = [t for r in range(rings - 1) for i in range(n)
+                for t in ((r * n + i, (r + 1) * n + i, r * n + (i + 1) % n), (r * n + (i + 1) % n, (r + 1) * n + i, (r + 1) * n + (i + 1) % n))]
+        tris += [(rings * n, (rings - 1) * n + (i + 1) % n, (rings - 1) * n + i) for i in range(n)]
+        pts = np.vstack(pts)
+        return pts, np.argmin(np.linalg.norm(pts[:, None] - edge[None], axis=2), axis=1), tris
+    angle = np.unwrap(np.arctan2(edge[:, 0], edge[:, 2] - AXIS_Z))
+    radius = np.hypot(edge[:, 0], edge[:, 2] - AXIS_Z)
+    flat = np.column_stack([angle * radius.mean(), edge[:, 1]])
+    param = [np.array([angle[i], edge[i, 1], radius[i]]) for i in range(n)]
+    tris = ear_clip(flat)
+    for _ in range(levels):
+        mids = {}
+
+        def mid(i, j):
+            key = (min(i, j), max(i, j))
+            if key not in mids:
+                mids[key] = len(param)
+                param.append((param[i] + param[j]) / 2)
+            return mids[key]
+        tris = [t for a, b, c in tris for ab, bc, ca in [(mid(a, b), mid(b, c), mid(c, a))] for t in ((a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca))]
+    q = np.array(param)
+    pts = np.column_stack([q[:, 2] * np.sin(q[:, 0]), q[:, 1], AXIS_Z + q[:, 2] * np.cos(q[:, 0])])
+    pts[:n] = edge
+    near = np.argmin(np.hypot((q[:, None, 0] - angle[None]) * radius.mean(), q[:, None, 1] - edge[None, :, 1]), axis=1)
+    return pts, near, tris
+
+
 def skin_whole(raw, tone):
     """Her body's texture, her skin whole: where VRoid left it unpainted, see-through, or painted
     with underwear or socks, in her skin's `tone`."""
@@ -470,10 +536,23 @@ def make(swimsuit, dest):
     todo = {}
     if swimsuit:
         named = lambda prim, *tokens: any(t in materials[prim['material']]['name'] for t in tokens)
-        # (Her T-shirt's front: the shape of her bust, which VRoid left out of her body under it.)
-        shirt_prim = next(p for m in gltf['meshes'] for p in m['primitives'] if named(p, 'Onepiece'))
-        bust = accessor(gltf, binary, shirt_prim['attributes']['POSITION']).astype(np.float64)[accessor(gltf, binary, shirt_prim['indices']).reshape(-1, 3)]
-        bust = bust[bust[:, :, 2].mean(axis=1) > 0]
+        # (Her T-shirt's front: the shape of her bust, which VRoid left out of her body under it;
+        # where it left the T-shirt out too, under her cardigan, the patch's own curve.)
+        def front_tris(token):
+            prim = next(p for m in gltf['meshes'] for p in m['primitives'] if named(p, token))
+            t = accessor(gltf, binary, prim['attributes']['POSITION']).astype(np.float64)[accessor(gltf, binary, prim['indices']).reshape(-1, 3)]
+            return t[t[:, :, 2].mean(axis=1) > 0]
+        shirt_front = front_tris('Onepiece')
+
+        def bust_at(pts):
+            return front_of(shirt_front, pts) - 0.003
+        # (Her clothes' images, which nothing shows now: a pixel each.)
+        unused = {gltf['textures'][ref['index']]['source'] for m in materials if any(t in m['name'] for t in ('Tops', 'Bottoms', 'Onepiece', 'Shoes'))
+                  for ref in [m.get('pbrMetallicRoughness', {}).get('baseColorTexture'), m.get('normalTexture'), m.get('emissiveTexture'),
+                              *(v for k, v in m.get('extensions', {}).get('VRMC_materials_mtoon', {}).items() if k.endswith('Texture'))] if ref}
+        unused -= {gltf['textures'][ref['index']]['source'] for m in materials if not any(t in m['name'] for t in ('Tops', 'Bottoms', 'Onepiece', 'Shoes'))
+                   for ref in [m.get('pbrMetallicRoughness', {}).get('baseColorTexture'), m.get('normalTexture'), m.get('emissiveTexture'),
+                               *(v for k, v in m.get('extensions', {}).get('VRMC_materials_mtoon', {}).items() if k.endswith('Texture'))] if ref}
         for mesh in gltf['meshes']:
             mesh['primitives'] = [p for p in mesh['primitives'] if not named(p, 'Tops', 'Bottoms', 'Onepiece', 'Shoes')]
         body_mesh = next(m for m in gltf['meshes'] if any(named(p, 'Body_00_SKIN') for p in m['primitives']))
@@ -484,9 +563,9 @@ def make(swimsuit, dest):
         attrs = body_prim['attributes']
         verts = {k: accessor(gltf, binary, i).copy() for k, i in attrs.items()}
         tris = accessor(gltf, binary, body_prim['indices']).reshape(-1, 3)
-        # Her body's holes under her clothes closed: each torso loop (not her neck's, where her
-        # head joins; not her wrists') fanned from a point in its middle, a mesh of its own (each
-        # point moving as a vertex of its loop does), its texture round her like a cylinder's.
+        # Her body's holes under her clothes closed (each torso loop: not her neck's, where her head
+        # joins; not her wrists'), a mesh of its own (each point moving as the nearest vertex of its
+        # loop does), its texture round her like a cylinder's.
         mtoon = body_material['extensions']['VRMC_materials_mtoon']
         shade = mtoon['shadeColorFactor'][:3]
         ref = body_material['pbrMetallicRoughness']['baseColorTexture']
@@ -502,42 +581,26 @@ def make(swimsuit, dest):
         body_px = skin_whole(raw, tone)
         fill = {k: [] for k in verts}
         fans = []
-        rings = 6
         for loop in holes(verts['POSITION'], tris):
             centre = verts['POSITION'][loop].mean(axis=0)
             if not (0.95 <= centre[1] <= 1.33 and abs(centre[0]) <= 0.3) or len(loop) > 120:
                 continue
-            n = len(loop)
+            pts, near, local = hole_patch(verts['POSITION'][loop].astype(np.float64))
+            # (On her front, as far forward as her clothes were there, a little inside them.)
+            front = (pts[:, 2] > 0.02) & (np.abs(pts[:, 0]) < 0.13)
+            front[:len(loop)] = False
+            pts[front, 2] = np.maximum(pts[front, 2], bust_at(pts[front]))
             start = len(fill['POSITION'])
-            edge = verts['POSITION'][loop].astype(np.float64)
-            # Rings in from its edge to its middle; each point on her front as far forward as her
-            # T-shirt was there (a little inside it), moving as the nearest vertex of its edge does.
-            for r in range(rings):
-                t = r / rings
-                pts = edge + (centre - edge) * t
-                if r:
-                    pts[:, 2] = np.maximum(pts[:, 2], front_of(bust, pts) - 0.003)
-                fill['POSITION'] += list(pts.astype(np.float32))
-                for k in verts:
-                    if k != 'POSITION':
-                        fill[k] += list(verts[k][loop])
-            mid = centre.astype(np.float64).copy()
-            mid[2] = max(mid[2], front_of(bust, mid[None])[0] - 0.003)
-            fill['POSITION'].append(mid.astype(np.float32))
+            fill['POSITION'] += list(pts.astype(np.float32))
             for k in verts:
                 if k != 'POSITION':
-                    fill[k].append(verts[k][loop[0]])
-            for r in range(rings - 1):
-                for i in range(n):
-                    a, b = start + r * n + i, start + r * n + (i + 1) % n
-                    fans += [(a, a + n, b), (b, a + n, b + n)]
-            last = start + (rings - 1) * n
-            fans += [(start + rings * n, last + (i + 1) % n, last + i) for i in range(n)]
+                    fill[k] += list(verts[k][np.asarray(loop)[near]])
+            fans += [tuple(start + i for i in t) for t in local]
 
-        def textured(name, base, dark):
-            """A texture and its shade texture added: their indices."""
+        def textured(name, *images):
+            """Textures added (a texture and its shade texture; or a shade texture): their indices."""
             out = []
-            for suffix, image in (('', base), ('Shade', dark)):
+            for suffix, image in zip(('', 'Shade') if len(images) == 2 else ('',), images):
                 gltf['images'].append({'bufferView': data(image), 'mimeType': 'image/png', 'name': name + suffix})
                 gltf['textures'].append({**gltf['textures'][body_material['pbrMetallicRoughness']['baseColorTexture']['index']], 'source': len(gltf['images']) - 1})
                 out.append(len(gltf['textures']) - 1)
@@ -571,7 +634,10 @@ def make(swimsuit, dest):
         # her skin's pink).
         base, dark = with_shade(body_px, paint(body_px, verts['POSITION'].astype(np.float64), verts['TEXCOORD_0'], tris), shade)
         todo[source] = lambda raw: base
-        dark_tex = textured('Mio_BodyShade', dark, dark)[1]
+        pixel = png(np.zeros((1, 1, 4), dtype=np.float32))
+        for i in unused - {source}:
+            todo[i] = lambda raw: pixel
+        dark_tex = textured('Mio_BodyShade', dark)[0]
         mtoon['shadeMultiplyTexture'] = {'index': dark_tex}
         mtoon['shadeColorFactor'] = [1, 1, 1]
 
