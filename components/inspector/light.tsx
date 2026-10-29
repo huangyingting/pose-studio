@@ -3,7 +3,7 @@
 import { SunMedium } from 'lucide-react';
 import { setSceneLight } from '@/lib/actions';
 import { filmOf } from '@/lib/film';
-import { DEFAULT_LIGHT, LIGHT_PRESETS, lightText } from '@/lib/lighting';
+import { DEFAULT_LIGHT, LIGHT_PRESETS, lightName, lightText } from '@/lib/lighting';
 import { poseScene, builtInPoses } from '@/lib/poses';
 import { sharedRenderer } from '@/lib/thumbnails';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
@@ -20,7 +20,7 @@ const lightOf = (t: Target) => t.scene.light ?? DEFAULT_LIGHT;
 const same = (a: Light, b: Light) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => a[k] === b[k]);
 const lit = (t: Target) => styleDef(filmOf(t.store.getState().library).style).lit;
 
-export const lightSummary = (t: Target) => LIGHT_PRESETS.find((p) => same(p.light, lightOf(t)))?.name ?? lightText(lightOf(t));
+export const lightSummary = (t: Target) => lightName(lightOf(t));
 export const lightInfo = () => 'Saved with the scene and used by its exports. Drag its lamp on the canvas, or Alt-click a figure to light it from where you look.';
 
 export function LightHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {

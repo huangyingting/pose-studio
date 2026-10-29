@@ -55,6 +55,10 @@ export function lightText(light: Light) {
   return `${from}, ${Math.round(light.elevation)}° high`;
 }
 
+/** A light in a word: its preset's name, or where it comes from. */
+export const lightName = (light: Light) =>
+  LIGHT_PRESETS.find((p) => (['azimuth', 'elevation', 'intensity', 'warmth', 'shadows'] as const).every((k) => p.light[k] === light[k]))?.name ?? lightText(light);
+
 /**
  * Ambient fill + one key light with an optional shadow-catching floor. Shared by the editor and
  * the exporter; only the shaded style is lit, the line-art and silhouette materials ignore it.

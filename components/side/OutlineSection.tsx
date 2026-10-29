@@ -7,7 +7,7 @@ import {
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
-import { DEFAULT_LIGHT, lightText } from '@/lib/lighting';
+import { DEFAULT_LIGHT, lightName, lightText } from '@/lib/lighting';
 import { overLimit, shotSpans } from '@/lib/shots';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
@@ -210,7 +210,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
               >
                 <SunMedium size={15} strokeWidth={1.75} aria-hidden />
                 <span className="layer-name">Light</span>
-                <em>{lightText(scene.light ?? DEFAULT_LIGHT)}</em>
+                <em>{lightName(scene.light ?? DEFAULT_LIGHT)}</em>
               </button>
             </li>
           </ul>
@@ -250,7 +250,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
             </ul>
           ) : (
             <div className="outline-still">
-              <Hint>A still image: add a key (K) or an action to animate it</Hint>
+              <Hint>None in a still image</Hint>
             </div>
           )}
         </div>

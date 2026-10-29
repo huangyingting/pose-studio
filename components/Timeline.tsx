@@ -121,7 +121,7 @@ function Still({ openPicker }: { openPicker(figure: string, el: Element): void }
           </button>
         )}
         <span className="tl-sep" />
-        <span className="tl-note">A key or an action animates the scene</span>
+        <span className="tl-note">Add a key (K) or an action to animate</span>
       </div>
     </div>
   );
