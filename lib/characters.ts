@@ -55,9 +55,9 @@ const sketchfab = (id: string, name: string, body: BodyParams, author: string): 
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
- * two of Sketchfab's (CC BY), rigged here. Each with the body the
- * mannequin under it takes (its height, build, head and legs, measured from the character), which
- * contacts and the motion check use.
+ * two of Sketchfab's (CC BY), rigged here. Each with the body the mannequin under it takes (its
+ * height, build, head and legs, measured from the character), which contacts and the motion check
+ * use.
  */
 export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, body: { sex: 1, height: 1.77, build: 0.26, head: 0.97, legs: 0.85, bust: 0.4 } },
