@@ -1,5 +1,5 @@
 import { withBase } from './paths';
-import { BONES as SKELETON, type ModelInfo } from './types';
+import { BONES as SKELETON, type BodyParams, type ModelInfo } from './types';
 
 /*
  * Characters that come with the app (public/characters: see CREDITS.txt there): listed
@@ -40,13 +40,18 @@ const BONES: ModelInfo['bones'] = {
   ...side('l', 'left'), ...side('r', 'right'),
 };
 
-// A VRM avatar made one of ours (scripts/vrm-character.py): its bones named as our skeleton's.
+// A VRM avatar or a Mixamo character made one of ours (scripts/vrm-character.py,
+// scripts/characters/mixamo.ts): its bones named as our skeleton's (some without a finger's end).
 const OURS: ModelInfo['bones'] = Object.fromEntries(SKELETON.map((b) => [b, b]));
+const oursWithout = (...lacks: string[]): ModelInfo['bones'] => Object.fromEntries(SKELETON.filter((b) => !lacks.includes(b)).map((b) => [b, b]));
+
+const mixamo = (id: string, name: string, body: BodyParams, bones = OURS): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones, body, credit: 'by Adobe Mixamo' });
 
 /**
  * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
- * her own toon look (Ueda's VRM, credited as her licence asks), and Mio, Aoi made over. Each with the body the mannequin
+ * her own toon look (Ueda's VRM, credited as her licence asks), and Mio, Aoi made over; seventeen of
+ * Mixamo's characters, in their own colours (Adobe's). Each with the body the mannequin
  * under it takes (its height, build, head and legs, measured from the character), which contacts
  * and the motion check use.
  */
@@ -57,14 +62,32 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   { id: `${PREFIX}heavy-man`, name: 'Heavier man', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.73, build: 0.8, head: 1.05, legs: 1.05, bust: 0 } },
   { id: `${PREFIX}older-woman`, name: 'Older woman', format: 'glb', bones: MIXAMO, body: { sex: 1, height: 1.52, build: 0.5, head: 1.05, legs: 1, bust: 0.5 } },
   {
-    id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.55, build: 0, head: 1.27, legs: 1.13, bust: 0.3 },
+    id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.39, build: 0, head: 1.28, legs: 1.15, bust: 0.3 },
     credit: 'by Ueda · personal use · credit required',
   },
   // (Aoi made over: silver hair, grey-green eyes, a white bikini: scripts/characters/mio.py.)
   {
-    id: `${PREFIX}mio`, name: 'Mio', format: 'glb', bones: OURS, body: { sex: 1, height: 1.55, build: 0, head: 1.27, legs: 1.13, bust: 0.3 },
+    id: `${PREFIX}mio`, name: 'Mio', format: 'glb', bones: OURS, body: { sex: 1, height: 1.39, build: 0, head: 1.28, legs: 1.15, bust: 0.3 },
     credit: 'after Aoi by Ueda · personal use · credit required',
   },
+  // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/mixamo.ts).
+  mixamo('adam', 'Adam', { sex: 0, height: 1.68, build: 1, head: 1.08, legs: 1.01, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
+  mixamo('aj', 'Aj', { sex: 0, height: 1.62, build: 0, head: 1.4, legs: 0.85, bust: 0 }),
+  mixamo('brute', 'Brute', { sex: 0, height: 2.03, build: 1, head: 0.99, legs: 1.05, bust: 0 }),
+  mixamo('elizabeth', 'Elizabeth', { sex: 1, height: 1.56, build: 1, head: 1.36, legs: 1.08, bust: 0.4 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('erika-archer', 'Erika Archer', { sex: 1, height: 1.66, build: 0.78, head: 1.05, legs: 1.15, bust: 0.4 }),
+  mixamo('joe', 'Joe', { sex: 0, height: 1.61, build: 1, head: 1.18, legs: 1.08, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('dummy', 'Dummy', { sex: 0.5, height: 1.62, build: 1, head: 1.13, legs: 1.1, bust: 0 }),
+  mixamo('michelle', 'Michelle', { sex: 1, height: 1.6, build: 0, head: 1.4, legs: 1.15, bust: 0.4 }),
+  mixamo('ninja', 'Ninja', { sex: 0, height: 1.81, build: 0.43, head: 0.89, legs: 0.89, bust: 0 }),
+  mixamo('ortiz', 'Ortiz', { sex: 0, height: 1.61, build: 1, head: 1.11, legs: 0.85, bust: 0 }),
+  mixamo('paladin-j-nordstrom', 'Paladin J Nordstrom', { sex: 0, height: 1.7, build: 0.13, head: 0.89, legs: 0.98, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightRingDistal', 'rightLittleDistal')),
+  mixamo('peasant-man', 'Peasant Man', { sex: 0, height: 1.66, build: 1, head: 0.92, legs: 0.85, bust: 0 }, oursWithout('leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal', 'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal', 'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal', 'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal', 'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal', 'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal')),
+  mixamo('pete', 'Pete', { sex: 0, height: 1.74, build: 0.91, head: 1.12, legs: 0.96, bust: 0 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
+  mixamo('remy', 'Remy', { sex: 0, height: 1.81, build: 0.13, head: 1.02, legs: 1.02, bust: 0 }),
+  mixamo('sporty-granny', 'Sporty Granny', { sex: 1, height: 1.71, build: 0, head: 1.4, legs: 0.85, bust: 0.5 }),
+  mixamo('swat', 'Swat', { sex: 0, height: 1.79, build: 0, head: 0.93, legs: 0.93, bust: 0 }),
+  mixamo('timmy', 'Timmy', { sex: 0, height: 1.18, build: 0, head: 1.4, legs: 0.85, bust: 0 }),
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);

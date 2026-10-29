@@ -48,3 +48,15 @@ mio.glb
   (her body's painted underwear recoloured); the holes VRoid left in her body under her clothes
   closed in her skin's colour; her cardigan and shorts taken off. Her body's shape, her face and
   her shoes are Aoi's; the same licence and credit apply ("Mio, after Aoi by Ueda").
+
+adam.glb, aj.glb, brute.glb, dummy.glb, elizabeth.glb, erika-archer.glb, joe.glb, michelle.glb,
+ninja.glb, ortiz.glb, paladin-j-nordstrom.glb, peasant-man.glb, pete.glb, remy.glb,
+sporty-granny.glb, swat.glb, timmy.glb
+
+  Characters from Adobe Mixamo (https://www.mixamo.com), used under Adobe's terms for Mixamo
+  (royalty-free use in personal, commercial and non-profit projects). "Dummy" is Mixamo's
+  "Mannequin" (renamed: the app's own figure is the Mannequin).
+
+  Changes (scripts/characters/mixamo.ts): converted from FBX to GLB by the app's own import, with
+  only their colour textures (fitted within 1024 px), each vertex once, in metres; their bones
+  renamed as the app's skeleton's. Their meshes, skeletons and painting are as they came.

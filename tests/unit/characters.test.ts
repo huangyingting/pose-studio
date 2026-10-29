@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { addFigure, applyMotion, setFigureModel } from '@/lib/actions';
 import { BUILT_IN_CHARACTERS, characterFile } from '@/lib/characters';
 import { parseScene } from '@/lib/doc';
-import * as THREE from 'three';
-import { mapBones, missingBones, modelInfo, parseModel } from '@/lib/model';
+import { Fitted, mapBones, missingBones, modelInfo, parseModel } from '@/lib/model';
+import { legsOf } from '@/lib/locomotion';
 import { checkMotion } from '@/lib/qa';
 import { fresh } from '../fixtures/scenes';
 
@@ -12,7 +12,10 @@ import { fresh } from '../fixtures/scenes';
 function withoutTextures(file: Buffer): ArrayBuffer {
   const length = file.readUInt32LE(12);
   const gltf = JSON.parse(file.subarray(20, 20 + length).toString());
-  for (const m of gltf.materials ?? []) delete m.pbrMetallicRoughness?.baseColorTexture;
+  for (const m of gltf.materials ?? []) {
+    delete m.pbrMetallicRoughness?.baseColorTexture;
+    delete m.emissiveTexture;
+  }
   delete gltf.images;
   delete gltf.textures;
   delete gltf.samplers;
@@ -41,9 +44,9 @@ describe('built-in characters', () => {
       const map = mapBones(root);
       expect(missingBones(map), c.name).toEqual([]);
       expect(map, c.name).toEqual(c.bones);
-      // Its height as listed (the figure drawn as it takes it).
-      const box = new THREE.Box3().setFromObject(root);
-      expect(box.max.y - box.min.y, c.name).toBeCloseTo(c.body!.height, 1);
+      // Drawn at its own size: the mannequin under it, at the body listed, has its hips where it has.
+      const legs = legsOf(c.body!);
+      expect((legs.rootY - legs.ankleY) / new Fitted(root, c.bones).hipHeight, c.name).toBeCloseTo(1, 1);
     }
   }, 60_000);
 

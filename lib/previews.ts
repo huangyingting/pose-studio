@@ -3,7 +3,7 @@ import { fetchLibraryClips } from './librarymotions';
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { newFigure, newScene } from './doc';
-import { modelTemplate } from './model';
+import { bodyFor, modelTemplate } from './model';
 import { poseScene } from './poses';
 import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type CameraMove } from './cameras';
 import { newShot } from './shots';
@@ -209,5 +209,8 @@ export const templateThumb = (id: string, build: () => Scene) => ({
 /** A character's (drawn when its file is here: the mannequin's always, an imported one's as it is imported). */
 export const characterThumb = (id: string | null) => ({
   key: `character:${id ?? 'mannequin'}`,
-  make: () => drawThumb(newScene('Character', [newFigure(id ? { model: id } : {})]), { yaw: 20, pitch: 4, fov: 30 }),
+  make: () => {
+    const f = newFigure();
+    return drawThumb(newScene('Character', [id ? { ...f, model: id, body: bodyFor(f, id) } : f]), { yaw: 20, pitch: 4, fov: 30 });
+  },
 });

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadModelFile, saveModelFile } from './assetstore';
 import { BODY_FIELDS } from './body';
@@ -346,6 +347,18 @@ export class ModelRig {
     this.object.scale.setScalar((legs.rootY - legs.ankleY) / this.fitted.hipHeight);
   }
 
+  /** The corners of what it draws, as posed (its hair, a hat, a weapon: beyond the mannequin under it). */
+  forEachPoint(cb: (p: THREE.Vector3) => void) {
+    const box = new THREE.Box3();
+    for (const mesh of this.meshes) {
+      // (A skinned mesh's box, as it is posed now: not kept from before.)
+      if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) (mesh as THREE.SkinnedMesh).computeBoundingBox();
+      box.expandByObject(mesh, false);
+    }
+    if (box.isEmpty()) return;
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) cb(new THREE.Vector3(x, y, z));
+  }
+
   /** (Its geometry and textures are the model's, shared by every figure drawn as it.) */
   dispose() {
     for (const m of this.toons) m?.dispose();
@@ -420,6 +433,12 @@ export function fitBody(f: Figure, target: Proportions): BodyParams {
   } finally {
     rig.dispose();
   }
+}
+
+/** The body of the mannequin under a figure drawn as a character: the character's own (listed, or fitted to its proportions). */
+export function bodyFor(f: Figure, id: string): BodyParams {
+  const info = infos.get(id);
+  return info?.body ? { ...info.body } : info?.proportions ? fitBody(f, info.proportions) : f.body;
 }
 
 /* ---------- the library's models: their files read when a figure is first drawn as one ---------- */
@@ -534,28 +553,49 @@ async function asGlb(format: ModelInfo['format'], data: ArrayBuffer, others: Fil
 }
 
 /**
- * Its textures made fit to be written: one that did not load (a file not chosen, a kind the
- * browser cannot read) left off (the character imported without it); one read as pixels (a TGA)
- * drawn on a canvas (the exporter fits a canvas within its size, but crops pixels).
+ * Its meshes and textures made fit to be written. Of its geometry, what we draw (position, normal,
+ * one set of texture coordinates, skin), each vertex once (an FBX's triangles each have their own).
+ * Of its textures, only those the Toon style draws (its colour and glow: not
+ * normal, roughness… maps); one that did not load (a file not chosen, a kind the browser cannot
+ * read) left off (the character imported without it); one read as pixels (a TGA) drawn on a canvas
+ * (the exporter fits a canvas within its size, but crops pixels); a JPEG where nothing shows through.
  */
+const DRAWN = new Set(['position', 'normal', 'uv', 'skinIndex', 'skinWeight']);
+
 function exportable(root: THREE.Object3D) {
+  const merged = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
-    for (const m of [mesh.material].flat() as unknown as Record<string, unknown>[]) {
-      for (const [key, value] of Object.entries(m)) {
+    let geometry = merged.get(mesh.geometry);
+    if (!geometry) {
+      for (const name of Object.keys(mesh.geometry.attributes)) if (!DRAWN.has(name)) mesh.geometry.deleteAttribute(name);
+      geometry = mergeVertices(mesh.geometry);
+      merged.set(mesh.geometry, geometry);
+    }
+    mesh.geometry = geometry;
+    for (const m of [mesh.material].flat()) {
+      const solid = !m.transparent && !m.alphaTest;
+      const fields = m as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(fields)) {
         const texture = value as THREE.Texture | null;
         if (!texture?.isTexture) continue;
-        const image = texture.image as { width?: number; height?: number; data?: ArrayLike<number> } | null;
-        if (!image?.width || !image.height) {
-          m[key] = null;
-        } else if (image.data) {
+        const image = texture.image as { width?: number; height?: number; data?: ArrayLike<number> | null } | null;
+        // (A TGA that did not load: its loader's 1 × 1 stand-in, without pixels.)
+        if ((key !== 'map' && key !== 'emissiveMap') || !image?.width || !image.height || image.data === null) {
+          fields[key] = null;
+          continue;
+        }
+        if (image.data) {
           const canvas = document.createElement('canvas');
           canvas.width = image.width;
           canvas.height = image.height;
           canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(image.data), image.width, image.height), 0, 0);
           texture.image = canvas;
         }
+        // (PNG if any material shows through it.)
+        if (!solid && key === 'map') texture.userData.mimeType = 'image/png';
+        else texture.userData.mimeType ??= 'image/jpeg';
       }
     }
   });

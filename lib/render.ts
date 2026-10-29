@@ -232,11 +232,19 @@ export class SceneRenderer {
     this.scene.add(this.view.root, this.lights.object);
   }
 
+  /** What a picture fits in: the scene, and characters as drawn (beyond the mannequins under them). */
+  private drawn = {
+    forEachPoint: (cb: (p: THREE.Vector3) => void) => {
+      this.view.forEachPoint(cb);
+      for (const rig of this.view.models.values()) rig.forEachPoint(cb);
+    },
+  };
+
   /** Camera distance that fits `doc` into a w × h cell from an angle (no rendering). */
   measure(doc: Scene, w: number, h: number, angle: View, margin = 0.07) {
     this.view.sync(doc);
     this.camera.aspect = w / h;
-    return fitCamera(this.camera, this.view, angle, margin).distance;
+    return fitCamera(this.camera, this.drawn, angle, margin).distance;
   }
 
   /** Size the output and pose the view for a frame (everything but the camera). */
@@ -298,7 +306,7 @@ export class SceneRenderer {
   render(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { angle: View }): HTMLCanvasElement {
     this.setup(doc, w, h, line, opts);
     this.camera.aspect = w / h;
-    fitCamera(this.camera, this.view, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
+    fitCamera(this.camera, this.drawn, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
     return this.draw(line, opts);
   }
 

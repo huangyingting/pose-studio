@@ -17,3 +17,4 @@ data/
 
 # Python caches (scripts/*.py)
 __pycache__/
+.image

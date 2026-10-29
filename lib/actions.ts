@@ -19,7 +19,7 @@ import {
   actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
 import { JUMP_PREP, flightTime } from './locomotion';
-import { fitBody, modelInfo } from './model';
+import { bodyFor } from './model';
 import { HANDLING, MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
 import {
@@ -1553,15 +1553,13 @@ export function deleteModel(store: Store, id: string) {
   });
 }
 
-/** Draw a figure as an imported character, or (null) as the mannequin. */
 /** Draw a figure as a character (null: the mannequin), the mannequin under it fitted to the character's build. */
 export function setFigureModel(store: Store, figureId: string, model: string | null) {
-  const info = model ? modelInfo(model) : null;
   store.updateFigure(figureId, (f) => {
     const { model: _old, ...rest } = f;
     void _old;
     if (!model) return rest;
-    return { ...rest, model, body: info?.body ? { ...info.body } : info?.proportions ? fitBody(f, info.proportions) : f.body };
+    return { ...rest, model, body: bodyFor(f, model) };
   });
 }
 
