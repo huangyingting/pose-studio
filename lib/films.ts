@@ -155,14 +155,14 @@ export function standOff(): Scene {
     { name: 'Passer-by', body: 'Woman', at: passer, facing: toward(passer, [0, 0]) },
   ], 'night');
   const end = 12;
-  // (Each their own: he takes aim, she cowers in front of him.)
+  // (Each their own: he takes aim, she cries in front of him.)
   s.play('Vince', 'aim-pistol', 0, { seconds: end });
-  s.play('Ana', 'scared', 0, { seconds: end });
+  s.play('Ana', 'crying', 0, { seconds: end });
   // The officer stops 3.6 m short of them, on the way straight at them: aiming at them.
   const d = Math.hypot(cop[0], cop[1]);
   const there = s.go('Officer Diaz', [(cop[0] / d) * 3.6, (cop[1] / d) * 3.6], 0.8, 'walk');
   s.play('Officer Diaz', 'aim-pistol', there, { seconds: end - there });
-  s.play('Passer-by', 'scared', 0, { seconds: end });
+  s.play('Passer-by', 'crouch-idle', 0, { seconds: end });
   return s.done(0.5);
 }
 
