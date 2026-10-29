@@ -50,6 +50,13 @@ mio.glb
   navy denim, her sneakers trimmed in teal. Her body, face and clothes' shapes are Aoi's; the
   same licence and credit apply ("Mio, after Aoi by Ueda").
 
+mio-swimsuit.glb
+
+  Mio (above) in a swimsuit, by the same script after a design sheet drawn for it: her clothes
+  and shoes taken off; the holes VRoid left in her body under them closed (shaped to her
+  T-shirt's front where her bust was); her skin painted whole; a white halter bikini with teal
+  trim and strings painted on her. The same licence and credit apply.
+
 adam.glb, brute.glb, elizabeth.glb, erika-archer.glb, joe.glb, ninja.glb, paladin-j-nordstrom.glb, pete.glb,
 remy.glb, swat.glb
 

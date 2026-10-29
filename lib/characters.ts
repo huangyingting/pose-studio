@@ -70,6 +70,11 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
     id: `${PREFIX}mio`, name: 'Mio', format: 'glb', bones: OURS, body: { sex: 1, height: 1.39, build: 0, head: 1.28, legs: 1.15, bust: 0.3 },
     credit: 'after Aoi by Ueda · personal use · credit required',
   },
+  // (Mio in a white halter bikini, painted on her: scripts/characters/mio.py.)
+  {
+    id: `${PREFIX}mio-swimsuit`, name: 'Mio (swimsuit)', format: 'glb', bones: OURS, body: { sex: 1, height: 1.39, build: 0, head: 1.28, legs: 1.15, bust: 0.3 },
+    credit: 'after Aoi by Ueda · personal use · credit required',
+  },
   // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/mixamo.ts).
   mixamo('adam', 'Jogger', { sex: 0, height: 1.68, build: 1, head: 1.08, legs: 1.01, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
   mixamo('brute', 'Barbarian', { sex: 0, height: 2.03, build: 1, head: 0.99, legs: 1.05, bust: 0 }),
