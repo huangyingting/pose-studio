@@ -350,10 +350,13 @@ export class ModelRig {
   /** The corners of what it draws, as posed (its hair, a hat, a weapon: beyond the mannequin under it). */
   forEachPoint(cb: (p: THREE.Vector3) => void) {
     const box = new THREE.Box3();
+    const one = new THREE.Box3();
     for (const mesh of this.meshes) {
-      // (A skinned mesh's box, as it is posed now: not kept from before.)
-      if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) (mesh as THREE.SkinnedMesh).computeBoundingBox();
-      box.expandByObject(mesh, false);
+      // (A skinned mesh's box as it is posed now, not kept from before; not its outline's.)
+      const skinned = mesh as THREE.SkinnedMesh;
+      if (skinned.isSkinnedMesh) skinned.computeBoundingBox();
+      else if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      box.union(one.copy(skinned.isSkinnedMesh ? skinned.boundingBox! : mesh.geometry.boundingBox!).applyMatrix4(mesh.matrixWorld));
     }
     if (box.isEmpty()) return;
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) cb(new THREE.Vector3(x, y, z));
@@ -569,7 +572,11 @@ function exportable(root: THREE.Object3D) {
     if (!mesh.isMesh) return;
     let geometry = merged.get(mesh.geometry);
     if (!geometry) {
-      for (const name of Object.keys(mesh.geometry.attributes)) if (!DRAWN.has(name)) mesh.geometry.deleteAttribute(name);
+      for (const [name, attr] of Object.entries(mesh.geometry.attributes)) {
+        if (!DRAWN.has(name)) mesh.geometry.deleteAttribute(name);
+        // (Merged as plain arrays: a glTF's interleaved ones copied out.)
+        else if ((attr as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute) mesh.geometry.setAttribute(name, attr.clone());
+      }
       geometry = mergeVertices(mesh.geometry);
       merged.set(mesh.geometry, geometry);
     }
