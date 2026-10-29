@@ -41,19 +41,23 @@ const BONES: ModelInfo['bones'] = {
 };
 
 // A VRM avatar or a Mixamo character made one of ours (scripts/vrm-character.py,
-// scripts/characters/mixamo.ts): its bones named as our skeleton's (some without a finger's end).
+// scripts/characters/import.ts): its bones named as our skeleton's (some without a finger's end).
 const OURS: ModelInfo['bones'] = Object.fromEntries(SKELETON.map((b) => [b, b]));
 const oursWithout = (...lacks: string[]): ModelInfo['bones'] => Object.fromEntries(SKELETON.filter((b) => !lacks.includes(b)).map((b) => [b, b]));
 
 const mixamo = (id: string, name: string, body: BodyParams, bones = OURS): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones, body, credit: 'by Adobe Mixamo' });
+// A figure that came as a mesh only, rigged as ours (scripts/characters/rig.py): its hands and feet whole.
+const WHOLE_HANDS = oursWithout(...SKELETON.filter((b) => /Thumb|Index|Middle|Ring|Little|Toes/.test(b)));
+const sketchfab = (id: string, name: string, body: BodyParams, author: string): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones: WHOLE_HANDS, body, credit: `by ${author} · CC BY 4.0` });
 
 /**
  * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
- * her own toon look (Ueda's VRM, credited as her licence asks); ten of
- * Mixamo's characters (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's). Each with the body the mannequin
- * under it takes (its height, build, head and legs, measured from the character), which contacts
- * and the motion check use.
+ * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
+ * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
+ * two of Sketchfab's (CC BY), rigged here. Each with the body the mannequin under it takes (its
+ * height, build, head and legs, measured from the character), which contacts and the motion check
+ * use.
  */
 export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, body: { sex: 1, height: 1.77, build: 0.26, head: 0.97, legs: 0.85, bust: 0.4 } },
@@ -65,7 +69,7 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.52, build: 0, head: 1.2, legs: 1.04, bust: 0.3 },
     credit: 'by Ueda · personal use · credit required',
   },
-  // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/mixamo.ts).
+  // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/import.ts).
   mixamo('adam', 'Jogger', { sex: 0, height: 1.7, build: 1, head: 1.05, legs: 0.91, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
   mixamo('brute', 'Barbarian', { sex: 0, height: 2.07, build: 1, head: 0.96, legs: 0.94, bust: 0 }),
   mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.68, build: 1, head: 1.27, legs: 0.97, bust: 0.4 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
@@ -76,6 +80,9 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   mixamo('pete', 'Construction worker', { sex: 0, height: 1.74, build: 1, head: 1.07, legs: 0.85, bust: 0 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
   mixamo('remy', 'Student', { sex: 0, height: 1.83, build: 0.5, head: 0.99, legs: 0.92, bust: 0 }),
   mixamo('swat', 'SWAT officer', { sex: 0, height: 1.72, build: 0.17, head: 0.89, legs: 0.83, bust: 0 }),
+  // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a tactical officer without his rifle, and a life model.
+  sketchfab('swat-operator', 'Tactical officer', { sex: 0, height: 1.83, build: 0.18, head: 0.88, legs: 0.79, bust: 0 }, 'SpatialNeglect'),
+  sketchfab('male-base', 'Life model', { sex: 0, height: 1.78, build: 0, head: 0.88, legs: 0.89, bust: 0 }, 'Mandrake'),
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);

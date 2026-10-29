@@ -1,22 +1,24 @@
 /*
- * Mixamo characters made built-in ones (public/characters/<id>.glb and .png).
+ * Characters made built-in ones (public/characters/<id>.glb and .png): Mixamo's, and figures
+ * rigged by scripts/characters/rig.py (Sketchfab's).
  *
  *     npm run dev -- -p 3399    (then, in another terminal)
- *     npx jiti scripts/characters/mixamo.ts data/library/characters/{Adam,Brute,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
+ *     npx jiti scripts/characters/import.ts data/library/characters/{Adam,Brute,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
+ *     npx jiti scripts/characters/import.ts /tmp/swat-operator.glb /tmp/male-base.glb
  *
- * (Those with natural proportions, and Brute; not the cartoon ones, nor Mixamo's own mannequin.)
+ * (Mixamo's with natural proportions, and Brute; not the cartoon ones, nor Mixamo's own mannequin.)
  *
- * Each FBX is imported in the running app as a user would (Import character…), which keeps it as a
+ * Each file is imported in the running app as a user would (Import character…), which keeps it as a
  * GLB with its colour textures (lib/model.ts: fitted within 1024 px, JPEG where nothing shows
  * through) and draws its thumbnail; both are taken out of the page. Then the GLB is made as the
- * other built-ins are: in metres (Mixamo's are in centimetres: a root scaled to a hundredth over
+ * other built-ins are: in metres (Mixamo's FBX are in centimetres: a root scaled to a hundredth over
  * its scene; Remy's twice as big), its bones named as our skeleton's (as the app found them). It
  * prints each one's entry for lib/characters.ts (`mixamo(…)`): the bones it lacks (fingers' ends, some fingers),
  * and the body the mannequin under it takes (its proportions; the height at which the mannequin's
  * hips are the character's: it is drawn at its own size).
  */
 import { writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, extname } from 'node:path';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { chromium } from 'playwright';
 import { newFigure } from '../../lib/doc';
@@ -33,6 +35,7 @@ const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-ar
 const ROLES: Record<string, string> = {
   adam: 'Jogger', brute: 'Barbarian', elizabeth: 'Casual woman', 'erika-archer': 'Archer', joe: 'Businessman',
   ninja: 'Ninja', 'paladin-j-nordstrom': 'Knight', pete: 'Construction worker', remy: 'Student', swat: 'SWAT officer',
+  'swat-operator': 'Tactical officer', 'male-base': 'Life model',
 };
 
 type Gltf = { scene?: number; scenes: { nodes: number[] }[]; nodes: { name?: string; scale?: number[]; children?: number[] }[]; materials?: Record<string, Record<string, unknown>>[]; images?: unknown; textures?: unknown; samplers?: unknown };
@@ -69,13 +72,15 @@ async function load(glb: Buffer) {
 }
 
 /** Its file, the bones it lacks and its body. */
-async function made(id: string, glb: Buffer) {
+async function made(id: string, glb: Buffer, fbx: boolean) {
   const { gltf, rest } = readGlb(glb);
   // In metres.
-  const s = UNITS[id] ?? 0.01;
+  const s = fbx ? UNITS[id] ?? 0.01 : 1;
   const scene = gltf.scenes[gltf.scene ?? 0];
-  gltf.nodes.push({ name: 'Metres', scale: [s, s, s], children: scene.nodes });
-  scene.nodes = [gltf.nodes.length - 1];
+  if (s !== 1) {
+    gltf.nodes.push({ name: 'Metres', scale: [s, s, s], children: scene.nodes });
+    scene.nodes = [gltf.nodes.length - 1];
+  }
   // Its bones named as ours (by the node each was read from).
   const read = await load(glb);
   const bones = mapBones(read.scene);
@@ -109,7 +114,7 @@ async function made(id: string, glb: Buffer) {
 
 const files = process.argv.slice(2);
 if (!files.length) {
-  console.error('usage: npx jiti scripts/characters/mixamo.ts <character.fbx>…');
+  console.error('usage: npx jiti scripts/characters/import.ts <character.fbx|.glb>…');
   process.exit(1);
 }
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader'] });
@@ -145,12 +150,13 @@ for (const file of files) {
       };
     };
   }), info.id);
-  const id = basename(file, '.fbx').toLowerCase().replace(/\s+/g, '-');
-  const name = ROLES[id] ?? basename(file, '.fbx');
-  const { out, lacks, body } = await made(id, Buffer.from(data, 'base64'));
+  const fbx = extname(file).toLowerCase() === '.fbx';
+  const id = basename(file, extname(file)).toLowerCase().replace(/\s+/g, '-');
+  const name = ROLES[id] ?? basename(file, extname(file));
+  const { out, lacks, body } = await made(id, Buffer.from(data, 'base64'), fbx);
   writeFileSync(`public/characters/${id}.glb`, out);
   writeFileSync(`public/characters/${id}.png`, Buffer.from(info.thumb!.split(',')[1], 'base64'));
   const bones = lacks.length ? `, oursWithout(${lacks.map((b) => `'${b}'`).join(', ')})` : '';
-  console.log(`  mixamo('${id}', '${name}', ${JSON.stringify(body).replace(/"(\w+)":/g, '$1: ').replace(/,/g, ', ').replace(/^\{/, '{ ').replace(/\}$/, ' }')}${bones}), // ${(out.length / 1e6).toFixed(1)} MB`);
+  console.log(`  ${fbx ? 'mixamo' : 'sketchfab'}('${id}', '${name}', ${JSON.stringify(body).replace(/"(\w+)":/g, '$1: ').replace(/,/g, ', ').replace(/^\{/, '{ ').replace(/\}$/, ' }')}${bones}), // ${(out.length / 1e6).toFixed(1)} MB`);
 }
 await browser.close();
