@@ -2,14 +2,14 @@
 
     blender -b --python scripts/characters/rig.py -- <id> <model.glb> <out.glb>
 
-For figures that come as a mesh only (Sketchfab's, CC BY; ones made with Meshy): what is not the
-person goes (a rifle held); the pieces are joined and their seams welded; a skeleton with our
-bones' names is put where the figure's joints are (found by eye from views of it, below, in
-Blender's axes: z up, the figure facing -y); the mesh is weighted to it (Blender's automatic
-weights); arms held bent are straightened at the elbow and raised level (a T-pose: a held pose's
-arms would turn the wrong way round the bone as the app swings them); the mesh is reduced, its
-textures fitted within 1024 px and only their colours kept (the app draws nothing else). The result
-is imported in the app as a user would (scripts/characters/import.ts), which makes it a built-in.
+For figures downloaded as a mesh only (Sketchfab's, CC BY): what is not the person goes (a rifle
+held); the pieces are joined and their seams welded; a skeleton with our bones' names is put where
+the figure's joints are (found by eye from views of it, below, in Blender's axes: z up, the figure
+facing -y); the mesh is weighted to it (Blender's automatic weights); arms held bent are
+straightened at the elbow and raised level (a T-pose: a held pose's arms would turn the wrong way
+round the bone as the app swings them); the mesh is reduced, its textures fitted within 1024 px
+and only their colours kept (the app draws nothing else). The result is imported in the app as a
+user would (scripts/characters/import.ts), which makes it a built-in.
 """
 import math
 import sys
@@ -58,34 +58,6 @@ FIGURES = {
             'rightHand': (-0.47, -0.17, 0.95), 'rightHandEnd': (-0.5, -0.2, 0.8),
             'leftUpperLeg': (0.09, -0.08, 0.92), 'leftLowerLeg': (0.13, -0.07, 0.5), 'leftFoot': (0.17, -0.03, 0.08), 'leftToes': (0.2, -0.2, 0.02),
             'rightUpperLeg': (-0.09, -0.08, 0.92), 'rightLowerLeg': (-0.13, -0.07, 0.5), 'rightFoot': (-0.17, -0.03, 0.08), 'rightToes': (-0.2, -0.2, 0.02),
-        },
-    },
-    # Made with Meshy (AI) by the repository's owner: one mesh each, standing; drawn in our styles
-    # (their textures did not look good), so without them, and lighter.
-    'fashion-model': {
-        'proxy': True, 'source': 'meshy-model-2026-10-29T06-48-26-810Z.glb', 'drop': [], 'size': (0.8828, 0.952), 'whole': True, 'faces': 40_000, 'textures': False,
-        'joints': {
-            'hips': (0.0, -0.01, 0.9), 'spine': (0.0, -0.01, 1.0), 'chest': (0.0, -0.01, 1.12), 'upperChest': (0.0, -0.01, 1.24),
-            'neck': (0.0, -0.02, 1.4), 'head': (0.0, -0.03, 1.48), 'headEnd': (0.0, -0.03, 1.68),
-            'leftShoulder': (0.04, -0.02, 1.37), 'leftUpperArm': (0.16, -0.02, 1.36), 'leftLowerArm': (0.41, -0.02, 1.355),
-            'leftHand': (0.64, -0.02, 1.34), 'leftHandEnd': (0.79, -0.02, 1.33),
-            'rightShoulder': (-0.04, -0.02, 1.37), 'rightUpperArm': (-0.16, -0.02, 1.36), 'rightLowerArm': (-0.41, -0.02, 1.355),
-            'rightHand': (-0.64, -0.02, 1.34), 'rightHandEnd': (-0.79, -0.02, 1.33),
-            'leftUpperLeg': (0.08, -0.01, 0.82), 'leftLowerLeg': (0.07, -0.03, 0.46), 'leftFoot': (0.06, 0.0, 0.1), 'leftToes': (0.06, -0.13, 0.02),
-            'rightUpperLeg': (-0.08, -0.01, 0.82), 'rightLowerLeg': (-0.07, -0.03, 0.46), 'rightFoot': (-0.06, 0.0, 0.1), 'rightToes': (-0.06, -0.13, 0.02),
-        },
-    },
-    'athlete': {
-        'proxy': True, 'source': 'meshy-model-2026-10-29T06-51-15-066Z.glb', 'drop': [], 'size': (0.85, 1.0), 'whole': True, 'faces': 40_000, 'textures': False,
-        'joints': {
-            'hips': (0.0, 0.02, 0.98), 'spine': (0.0, 0.02, 1.08), 'chest': (0.0, 0.02, 1.2), 'upperChest': (0.0, 0.02, 1.32),
-            'neck': (0.0, 0.02, 1.45), 'head': (0.0, 0.0, 1.53), 'headEnd': (0.0, 0.0, 1.7),
-            'leftShoulder': (0.04, 0.02, 1.42), 'leftUpperArm': (0.16, 0.03, 1.38), 'leftLowerArm': (0.21, 0.03, 1.1),
-            'leftHand': (0.24, 0.02, 0.87), 'leftHandEnd': (0.24, 0.0, 0.76),
-            'rightShoulder': (-0.04, 0.02, 1.42), 'rightUpperArm': (-0.16, 0.03, 1.38), 'rightLowerArm': (-0.21, 0.03, 1.1),
-            'rightHand': (-0.24, 0.02, 0.87), 'rightHandEnd': (-0.24, 0.0, 0.76),
-            'leftUpperLeg': (0.09, 0.02, 0.9), 'leftLowerLeg': (0.13, 0.02, 0.5), 'leftFoot': (0.17, 0.05, 0.09), 'leftToes': (0.18, -0.12, 0.03),
-            'rightUpperLeg': (-0.09, 0.02, 0.9), 'rightLowerLeg': (-0.13, 0.02, 0.5), 'rightFoot': (-0.17, 0.05, 0.09), 'rightToes': (-0.18, -0.12, 0.03),
         },
     },
 }
@@ -145,21 +117,18 @@ def skeleton(joints, scale):
 def allowed(o, arm, bones, joints, scale, arms_apart):
     """
     Keep a piece's weights on the bones it may follow (filled in from the nearest of them where it
-    has none). On the body's own piece (sleeves and all), with hands held against the torso or by
-    the thighs: the forearms and hands move only what is nearer an elbow than the chest or a knee
-    along the surface, the legs nothing that is, and the arms nothing nearer the head (its hair).
+    has none). On the body's own piece (sleeves and all), with hands held against the torso: the
+    forearms and hands move only what is nearer them than the chest along the surface.
     """
     keep = set(bones)
-    sides = sleeves(o, joints, scale) if arms_apart else None
+    arm_side = sleeves(o, joints, scale) if arms_apart else None
     segs = [(b.name, b.head_local, b.tail_local) for b in arm.data.bones if b.name in keep]
     names = {g.index: g.name for g in o.vertex_groups}
     for name in keep:
         if not o.vertex_groups.get(name):
             o.vertex_groups.new(name=name)
     for v in o.data.vertices:
-        side = sides[v.index] if sides else None
-        # (Hair hanging to the shoulders goes with the head, not the arms.)
-        ok = keep if side is None else keep - (LEGS if side == 'arm' else ARMS | LEGS if side == 'head' else FOREARMS)
+        ok = keep if arm_side is None or arm_side[v.index] else keep - {'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'}
         total = 0.0
         for g in v.groups:
             if names[g.group] not in ok:
@@ -178,55 +147,14 @@ def allowed(o, arm, bones, joints, scale, arms_apart):
         o.vertex_groups[n1].add([v.index], 1 - w0, 'REPLACE')
 
 
-def by_proxy(o, arm):
-    """
-    Weighted through a watertight copy (a generated figure's one surface is rarely closed, and the
-    automatic weights fail on it): the copy weighted, its weights handed to the nearest of the figure's.
-    """
-    bpy.ops.object.select_all(action='DESELECT')
-    o.select_set(True)
-    bpy.context.view_layer.objects.active = o
-    bpy.ops.object.duplicate()
-    proxy = bpy.context.view_layer.objects.active
-    proxy.data.remesh_voxel_size = 0.008 * ZOOM
-    bpy.ops.object.voxel_remesh()
-    bpy.ops.object.select_all(action='DESELECT')
-    proxy.select_set(True)
-    arm.select_set(True)
-    bpy.context.view_layer.objects.active = arm
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-    for g in proxy.vertex_groups:
-        if not o.vertex_groups.get(g.name):
-            o.vertex_groups.new(name=g.name)
-    move = o.modifiers.new('Weights', 'DATA_TRANSFER')
-    move.object = proxy
-    move.use_vert_data = True
-    move.data_types_verts = {'VGROUP_WEIGHTS'}
-    move.vert_mapping = 'POLYINTERP_NEAREST'
-    move.layers_vgroup_select_src = 'ALL'
-    move.layers_vgroup_select_dst = 'NAME'
-    bpy.context.view_layer.objects.active = o
-    bpy.ops.object.modifier_apply(modifier=move.name)
-    bpy.data.objects.remove(proxy)
-
-
 def gap(p, a, b):
     ab = b - a
     t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
     return (a + ab * t - p).length
 
 
-FOREARMS = {'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'}
-ARMS = FOREARMS | {'leftUpperArm', 'rightUpperArm'}
-LEGS = {'leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot'}
-
-
 def sleeves(o, joints, scale):
-    """
-    Where each vertex is along the surface: nearer an elbow than the chest, a knee or the head (a
-    sleeve's, not the torso's or thigh's it rests on: 'arm'), nearer the head ('head': hair to the
-    shoulders), or the rest ('body').
-    """
+    """Which vertices are nearer an elbow than the chest, along the surface (a sleeve's, not the torso's they rest on)."""
     import heapq
     co = [v.co for v in o.data.vertices]
     nbr = [[] for _ in co]
@@ -255,9 +183,7 @@ def sleeves(o, joints, scale):
         return sorted(range(len(co)), key=lambda i: (co[i] - p).length)[:n]
     elbows = spread(nearest(joints['leftLowerArm'] * scale) + nearest(joints['rightLowerArm'] * scale))
     chest = spread(nearest(joints['chest'] * scale) + nearest(joints['upperChest'] * scale))
-    knees = spread(nearest(joints['leftLowerLeg'] * scale) + nearest(joints['rightLowerLeg'] * scale))
-    head = spread(nearest(joints['head'] * scale))
-    return ['arm' if e < min(c, k, h) else 'head' if h < min(c, k) else 'body' for e, c, k, h in zip(elbows, chest, knees, head)]
+    return [e < c for e, c in zip(elbows, chest)]
 
 
 def main():
@@ -290,14 +216,6 @@ def main():
         bpy.ops.object.join()
         meshes = [bpy.context.view_layer.objects.active]
         weld(meshes[0])
-        # (Its faces all turned outwards: a generated one's are not, and show dark from inside.)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.normals_make_consistent(inside=False)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        # (Its own normals let go, worked out again from its surface: they do not survive being made lighter.)
-        bpy.ops.mesh.customdata_custom_splitnormals_clear()
-        bpy.ops.object.shade_smooth()
         lighter(meshes[0], spec['faces'])
     for o in meshes:
         weld(o)
@@ -310,15 +228,12 @@ def main():
     kinds = {name: kind for kind, names in spec.get('pieces', {}).items() for name in names}
     for o in meshes:
         kind = kinds.get(o.name, 'torso' if spec.get('pieces') else 'body')
-        if spec.get('proxy'):
-            by_proxy(o, arm)
-        else:
-            bpy.ops.object.select_all(action='DESELECT')
-            o.select_set(True)
-            arm.select_set(True)
-            bpy.context.view_layer.objects.active = arm
-            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-        allowed(o, arm, FOLLOWS[kind], joints, ZOOM, kind == 'body')
+        bpy.ops.object.select_all(action='DESELECT')
+        o.select_set(True)
+        arm.select_set(True)
+        bpy.context.view_layer.objects.active = arm
+        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        allowed(o, arm, FOLLOWS[kind], joints, ZOOM, kind == 'body' and bool(spec.get('pieces')))
 
     # One mesh, at its size again.
     bpy.ops.object.select_all(action='DESELECT')
@@ -343,10 +258,7 @@ def main():
     if spec.get('tpose'):
         tpose(arm, body)
 
-    if spec.get('textures', True):
-        colours_only()
-    else:
-        plain(body)
+    colours_only()
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.export_scene.gltf(filepath=out, export_format='GLB', use_selection=True, export_yup=True, export_skins=True,
                               export_animations=False, export_morph=False, export_image_format='JPEG')
@@ -396,21 +308,6 @@ def rotate(arm, pose_bone, q):
     new = rot @ world
     new.translation = head
     pose_bone.matrix = new
-
-
-def plain(body):
-    """No textures (drawn in the app's own styles): its materials plain, its texture coordinates gone."""
-    for m in bpy.data.materials:
-        if m.use_nodes:
-            for link in list(m.node_tree.links):
-                if link.from_node.type in ('TEX_IMAGE', 'MAPPING', 'UVMAP', 'SEPARATE_COLOR', 'NORMAL_MAP'):
-                    m.node_tree.links.remove(link)
-    for img in list(bpy.data.images):
-        bpy.data.images.remove(img)
-    while body.data.uv_layers:
-        body.data.uv_layers.remove(body.data.uv_layers[0])
-    while body.data.color_attributes:
-        body.data.color_attributes.remove(body.data.color_attributes[0])
 
 
 def colours_only():

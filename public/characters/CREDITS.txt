@@ -71,13 +71,3 @@ male-base.glb ("Life model")
   Changes (scripts/characters/rig.py, then scripts/characters/import.ts): its five parts joined
   and welded, reduced from 476k to 40k faces, scaled to 1.8 m, rigged with the app's skeleton (no
   fingers) and weighted to it.
-
-fashion-model.glb ("Fashion model"), athlete.glb ("Athlete")
-
-  Generated with Meshy (https://www.meshy.ai) by the repository's owner, who holds the rights to
-  them; included at their request.
-
-  Changes (scripts/characters/rig.py, then scripts/characters/import.ts): scaled to a person's
-  height, their faces turned outwards and their normals worked out again, reduced to 40k faces,
-  rigged with the app's skeleton (no fingers) and weighted to it through a watertight copy; without
-  their textures (drawn in the app's own styles).

@@ -49,15 +49,13 @@ const mixamo = (id: string, name: string, body: BodyParams, bones = OURS): Model
 // A figure that came as a mesh only, rigged as ours (scripts/characters/rig.py): its hands and feet whole.
 const WHOLE_HANDS = oursWithout(...SKELETON.filter((b) => /Thumb|Index|Middle|Ring|Little|Toes/.test(b)));
 const sketchfab = (id: string, name: string, body: BodyParams, author: string): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones: WHOLE_HANDS, body, credit: `by ${author} · CC BY 4.0` });
-/** One generated with Meshy (an AI) by the repository's owner, rigged the same way. */
-const meshy = (id: string, name: string, body: BodyParams): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones: WHOLE_HANDS, body, credit: 'made with Meshy' });
 
 /**
  * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
- * two of Sketchfab's (CC BY) and two made with Meshy, rigged here. Each with the body the
+ * two of Sketchfab's (CC BY), rigged here. Each with the body the
  * mannequin under it takes (its height, build, head and legs, measured from the character), which
  * contacts and the motion check use.
  */
@@ -85,9 +83,6 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a tactical officer without his rifle, and a life model.
   sketchfab('swat-operator', 'Tactical officer', { sex: 0, height: 1.83, build: 0.18, head: 0.88, legs: 0.79, bust: 0 }, 'SpatialNeglect'),
   sketchfab('male-base', 'Life model', { sex: 0, height: 1.78, build: 0, head: 0.88, legs: 0.89, bust: 0 }, 'Mandrake'),
-  // Generated with Meshy (AI) by the repository's owner, drawn in our styles (scripts/characters/rig.py, then import.ts).
-  meshy('fashion-model', 'Fashion model', { sex: 1, height: 1.65, build: 1, head: 0.95, legs: 0.84, bust: 0.5 }),
-  meshy('athlete', 'Athlete', { sex: 1, height: 1.67, build: 1, head: 0.85, legs: 1, bust: 0.4 }),
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);
