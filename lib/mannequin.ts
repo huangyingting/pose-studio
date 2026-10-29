@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildOf, widthOf } from './body';
 import { BOTS, BOT_TARGETS } from './bots';
 import { Ink, InkedParts, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
@@ -124,7 +125,7 @@ function botOf(body: BodyParams): Bot {
 export const scaleOf = (b: BodyParams) => b.height / botOf(b).height;
 
 /** How far the hips reach to either side (where a hand rests on a hip). */
-export const hipHalfWidth = (b: BodyParams) => botOf(b).hipHalfWidth * scaleOf(b);
+export const hipHalfWidth = (b: BodyParams) => botOf(b).hipHalfWidth * scaleOf(b) * widthOf(b);
 
 /* ---------- fingers ---------- */
 
@@ -170,15 +171,52 @@ const DIRECTIONS = STEPS.flatMap((x) => STEPS.flatMap((y) => STEPS.map((z) => ne
  * figure is bound by them (its lowest point, how far it reaches) to a few millimetres, without
  * working out every vertex.
  */
-function outline(bot: Bot, k: number, bones: THREE.Bone[], inverses: THREE.Matrix4[]): Sample[] {
+function outline(bot: Bot, P: Float32Array, bones: THREE.Bone[], inverses: THREE.Matrix4[]): Sample[] {
   bot.outermost ??= outermost(bot, bones.length);
   return bones.flatMap((bone, b) => {
     const ids = bot.outermost![b];
     if (!ids.length) return [];
     const points = new Float32Array(ids.length * 3);
-    ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = bot.positions[v * 3 + c] * k; });
+    ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = P[v * 3 + c]; });
     return [{ bone, inverse: inverses[b], points, part: partOf(BOT_TARGETS[b]) }];
   });
+}
+
+/**
+ * The bot's vertices at a body's size and build: each widened about the bone it follows (limbs
+ * rounder, the trunk broader and deeper; head, hands and feet as made, moved out with their
+ * joints), blended as its skin weights blend those bones. `J0`/`J`: a joint where it is at the
+ * bot's width, and at this body's.
+ */
+function shaped(bot: Bot, k: number, build: number, fx: number, J0: (name: string) => THREE.Vector3, J: (name: string) => THREE.Vector3): Float32Array {
+  const n = bot.positions.length / 3;
+  const P = new Float32Array(n * 3);
+  if (build === 1) {
+    for (let i = 0; i < P.length; i++) P[i] = bot.positions[i] * k;
+    return P;
+  }
+  const kind = (t: string) => (/^(hips|spine|chest|neck)$/.test(t) ? 'trunk' : /(UpperArm|LowerArm|UpperLeg|LowerLeg)$/.test(t) ? 'limb' : 'end');
+  const axes = BOT_TARGETS.map((t) => {
+    const name = t in bot.joints ? t : 'hips';
+    const [a, b] = [J0(name), J(name)];
+    const how = kind(t);
+    return { a, b, sx: how === 'trunk' ? fx : how === 'limb' ? build : 1, sz: how === 'end' ? 1 : build };
+  });
+  for (let v = 0; v < n; v++) {
+    const [x, y, z] = [bot.positions[v * 3] * k, bot.positions[v * 3 + 1] * k, bot.positions[v * 3 + 2] * k];
+    let [ox, oz] = [0, 0];
+    for (let c = 0; c < 4; c++) {
+      const w = bot.skinWeight[v * 4 + c] / 255;
+      if (!w) continue;
+      const { a, b, sx, sz } = axes[bot.skinIndex[v * 4 + c]];
+      ox += w * (b.x + (x - a.x) * sx);
+      oz += w * (b.z + (z - a.z) * sz);
+    }
+    P[v * 3] = ox;
+    P[v * 3 + 1] = y;
+    P[v * 3 + 2] = oz;
+  }
+  return P;
 }
 
 /** Each target's outermost vertices in DIRECTIONS (of those it moves most): the same at any scale. */
@@ -235,7 +273,7 @@ export class Mannequin {
 
   /** Rebuild the geometry if the body (its bot or its height) changed. Returns true if rebuilt. */
   setBody(body: BodyParams) {
-    const key = `${body.sex >= 0.5 ? 'female' : 'male'}:${body.height}`;
+    const key = `${body.sex >= 0.5 ? 'female' : 'male'}:${body.height}:${buildOf(body)}`;
     if (key === this.bodyKey) return false;
     this.bodyKey = key;
     this.parts.dispose();
@@ -252,7 +290,7 @@ export class Mannequin {
     const k = scaleOf(body);
     // (A leg's joints straight under its hip, the hips beside the pelvis's: a leg bends in one
     // plane, as walking works it out.)
-    const J = (name: string) => {
+    const J0 = (name: string) => {
       const p = new THREE.Vector3(...bot.joints[name]).multiplyScalar(k);
       const leg = /^(left|right)(UpperLeg|LowerLeg|Foot)$/.exec(name);
       if (leg) {
@@ -261,6 +299,10 @@ export class Mannequin {
       }
       return p;
     };
+    // (A broader body's shoulders and hips further apart: its joints out from the middle.)
+    const fx = widthOf(body);
+    const J = (name: string) => { const p = J0(name); p.x *= fx; return p; };
+    const P = shaped(bot, k, buildOf(body), fx, J0, J);
     // The skeleton where the bot has its joints (each joint's frame as the world's at rest: limbs
     // along their −y).
     const joint = (name: JointName) => {
@@ -308,7 +350,7 @@ export class Mannequin {
     });
     const skeleton = new THREE.Skeleton(bones);
 
-    this.samples = outline(bot, k, bones, skeleton.boneInverses);
+    this.samples = outline(bot, P, bones, skeleton.boneInverses);
     // (One only worked out with is never drawn: its bones and the points that bound it are enough.)
     if (this.bare) return;
     // Its body cut by the joint each triangle mostly follows (each part picked and lit on its own),
@@ -340,7 +382,7 @@ export class Mannequin {
       const hand = part.endsWith('Hand');
       for (const [v, i] of remap) {
         for (let c = 0; c < 3; c++) {
-          pos[i * 3 + c] = bot.positions[v * 3 + c] * k;
+          pos[i * 3 + c] = P[v * 3 + c];
           nrm[i * 3 + c] = bot.normals[v * 3 + c];
         }
         for (let c = 0; c < 4; c++) {

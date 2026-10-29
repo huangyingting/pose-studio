@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildOf } from './body';
 import { Ink } from './ink';
 import { sided } from './joints';
 import { IK_CHAINS, Mannequin, hipHalfWidth, scaleOf, setWorldQuaternion, worldPos } from './mannequin';
@@ -111,7 +112,7 @@ const SPARE_PER_BODY = 4;
 const SPARE = 16;
 let spares = 0;
 const calculating = new Ink();
-const bodyKey = (f: Figure) => `${f.body.sex >= 0.5 ? 'female' : 'male'}:${f.body.height}`;
+const bodyKey = (f: Figure) => `${f.body.sex >= 0.5 ? 'female' : 'male'}:${f.body.height}:${buildOf(f.body)}`;
 
 /** Figures' mannequins, posed as asked, to work things out with. */
 export class Rig {
@@ -190,9 +191,9 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
       const s = m.joints[c].position;
       return at(m.joints[c].parent!.name as JointName, [s.x, s.y + 0.06 * k, s.z]);
     }
-    case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k]);
-    case 'back': return at('chest', [0, 0.13 * k, -0.15 * k]);
-    case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);
+    case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k * buildOf(f.body)]);
+    case 'back': return at('chest', [0, 0.13 * k, -0.15 * k * buildOf(f.body)]);
+    case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k * buildOf(f.body)]);
     case 'leftUpperLeg': case 'rightUpperLeg': {
       // (Its side, just out from the torso there.)
       const x = hipHalfWidth(f.body) + 0.01 * k;
@@ -332,13 +333,15 @@ export function capsules(rig: Rig, f: Figure): Capsule[] {
   const m = rig.model(f);
   // (Sized for a 1.7 m figure: scaled as its parts are.)
   const s = scaleOf(f.body) * (1.8 / 1.7);
+  // (As thick as its build: the bones' lengths stay.)
+  const b = buildOf(f.body);
   const w = (k: JointName) => m.joints[k].getWorldPosition(new THREE.Vector3());
-  return BONES.map((b) => {
-    const a = w(b.a);
-    if (!b.b) return { p: a, q: m.joints.head.localToWorld(new THREE.Vector3(0, 0.12 * s, 0)), r: b.r * s, bone: b.a };
-    const end = w(b.b);
-    const p = a.clone().lerp(end, b.from ?? 0);
-    const q = a.clone().lerp(end, b.to ?? 1);
-    return { p, q, r: b.r * s * 0.95, bone: b.a };
+  return BONES.map((bone) => {
+    const a = w(bone.a);
+    if (!bone.b) return { p: a, q: m.joints.head.localToWorld(new THREE.Vector3(0, 0.12 * s, 0)), r: bone.r * s, bone: bone.a };
+    const end = w(bone.b);
+    const p = a.clone().lerp(end, bone.from ?? 0);
+    const q = a.clone().lerp(end, bone.to ?? 1);
+    return { p, q, r: bone.r * s * 0.95 * b, bone: bone.a };
   });
 }

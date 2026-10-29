@@ -45,6 +45,8 @@ export interface BodyParams {
   sex: number;
   /** Standing height in metres. */
   height: number;
+  /** How broad: 1 the bot as made (not set), less slimmer, more heavier (body.ts BUILD). */
+  build?: number;
 }
 
 export interface Figure {

@@ -7,7 +7,7 @@ import {
 import {
   arrange, offsetPerformance, setIdleLife, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
 } from '@/lib/actions';
-import { HEIGHT } from '@/lib/body';
+import { BUILD, HEIGHT, buildOf } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
@@ -357,7 +357,7 @@ export function HandsPanel({ t }: { t: Target }) {
 
 const modelsOf = (t: Target) => [...BUILT_IN_CHARACTERS, ...(t.store.getState().library.models ?? [])];
 export const bodySummary = (t: Target) => modelsOf(t).find((m) => m.id === t.figure!.model)?.name
-  ?? `${t.figure!.body.sex >= 0.5 ? 'Woman' : 'Man'} · ${HEIGHT.format(t.figure!.body.height)}`;
+  ?? `${t.figure!.body.sex >= 0.5 ? 'Woman' : 'Man'} · ${HEIGHT.format(t.figure!.body.height)}${buildOf(t.figure!.body) === 1 ? '' : ` · ${buildOf(t.figure!.body) < 1 ? 'slimmer' : 'heavier'}`}`;
 
 /** Who the figure is: drawn as the mannequin or a character, its colour in the scene, its body. */
 export function BodyPanel({ t }: { t: Target }) {
@@ -405,6 +405,9 @@ export function BodyPanel({ t }: { t: Target }) {
         />
       )}
       <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
+      {!drawnAs && (
+        <Slider label="Build" min={BUILD.min} max={BUILD.max} step={BUILD.step} value={buildOf(body)} display={BUILD.format(buildOf(body))} onChange={(build) => setBody({ build: Math.abs(build - 1) < 0.005 ? undefined : build }, 'body:build')} />
+      )}
     </>
   );
 }
