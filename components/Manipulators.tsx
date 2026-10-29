@@ -111,7 +111,7 @@ export function partUnder(intersections: THREE.Intersection[], usable: (o: THREE
   if (!first) return null;
   // (Only on what a hand or foot rests on: not a forearm or shin in front of the other one.)
   const restsOn = RESTED_ON.has(first.o!.userData.joint as JointName);
-  const end = restsOn && hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && ENDS[h.o!.userData.joint as JointName]);
+  const end = !restsOn ? undefined : hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && ENDS[h.o!.userData.joint as JointName]);
   return (end ?? first).o!;
 }
 
