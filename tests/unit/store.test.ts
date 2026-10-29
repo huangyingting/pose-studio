@@ -97,11 +97,18 @@ describe('Store', () => {
     expect(b.getState().sceneIndex).toBe(1);
   });
 
-  it('never deletes the last pose', () => {
+  it('deleting the last scene leaves a new blank one in its place (undone, it is back)', () => {
     const storage = seeded();
     storage.setItem(Store.LIBRARY_KEY, JSON.stringify({ version: 2, scenes: [refScenes()[0]] }));
     const store = new Store(storage);
-    expect(deleteScene(store)).toBe(false);
+    const old = store.scene;
+    expect(deleteScene(store)).toBe(true);
+    expect(store.getState().library.scenes).toHaveLength(1);
+    expect(store.scene.id).not.toBe(old.id);
+    expect(store.scene.name).toBe('Scene 1');
+    expect(store.scene.figures).toHaveLength(1);
+    store.undo();
+    expect(store.scene.id).toBe(old.id);
   });
 
   it('reports storage failures instead of throwing', () => {

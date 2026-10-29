@@ -67,9 +67,11 @@ export function nextName(base: string, taken: string[]) {
 
 export function deleteScene(store: Store, index = store.getState().sceneIndex) {
   const { library, sceneIndex } = store.getState();
-  if (library.scenes.length <= 1) return false;
-  store.commit((lib) => ({ ...lib, scenes: lib.scenes.filter((_, i) => i !== index) }), '', {
-    sceneIndex: index <= sceneIndex ? Math.max(0, sceneIndex - 1) : sceneIndex, selection: null,
+  if (index < 0 || index >= library.scenes.length) return false;
+  // (The last one: a new blank scene in its place, as a new project has.)
+  const blank = library.scenes.length === 1 ? [newScene('Scene 1')] : [];
+  store.commit((lib) => ({ ...lib, scenes: [...lib.scenes.filter((_, i) => i !== index), ...blank] }), '', {
+    sceneIndex: index <= sceneIndex ? Math.max(0, sceneIndex - 1) : sceneIndex, selection: null, activeFigure: null,
   });
   store.select(openingSelection(store.scene));
   return true;

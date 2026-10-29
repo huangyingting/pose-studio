@@ -980,7 +980,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'scene.delete', title: 'Delete', icon: Trash2, danger: true, when: (c) => c.scene !== undefined, enabled: (c) => c.store.getState().library.scenes.length > 1,
+    id: 'scene.delete', title: 'Delete', icon: Trash2, danger: true, when: (c) => c.scene !== undefined,
     run: (c) => { const s = c.store.getState().library.scenes[c.scene!]; if (deleteScene(c.store, c.scene!)) App().notifyUndo(`Deleted “${s.name}”`); },
   },
 

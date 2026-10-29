@@ -1797,6 +1797,18 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   expect((await state(page)).library.scenes).toHaveLength(scenes);
   const s = await live(page);
   expect(s.scene.animation!.actions.filter((x) => x.source.kind === 'clip').map((x) => x.roles.map((r) => r.figure))).toEqual([[second.id]]);
+
+  // The first takes the hit: timed to land with the second's punch.
+  await openSection(page, 'Scene');
+  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure\b/ }).first().click();
+  await openSection(page, 'Library');
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Take a hit [\d.]+ s$/ }).click();
+  const hit = () => live(page).then((x) => x.scene.animation!.actions.find((a) => a.source.kind === 'clip' && a.roles[0].figure !== second.id)!);
+  const before = (await hit()).start;
+  await page.locator('.tl-travel', { hasText: 'Take a hit' }).click({ button: 'right' });
+  // (Under React to: everyone else's motions.)
+  await page.getByRole('menuitem', { name: /: Jab & cross/ }).click();
+  await expect.poll(async () => (await hit()).start).not.toBe(before);
 });
 
 test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ribbon; the high jump set-up', async ({ page }) => {
