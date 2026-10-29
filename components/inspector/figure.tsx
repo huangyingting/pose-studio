@@ -406,7 +406,7 @@ export function BodyPanel({ t }: { t: Target }) {
       )}
       <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
       {!drawnAs && (
-        <Slider label="Build" min={BUILD.min} max={BUILD.max} step={BUILD.step} value={buildOf(body)} display={BUILD.format(buildOf(body))} onChange={(build) => setBody({ build: Math.abs(build - 1) < 0.005 ? undefined : build }, 'body:build')} />
+        <Slider label="Build" min={BUILD.min} max={BUILD.max} step={BUILD.step} value={buildOf(body)} display={BUILD.format(buildOf(body))} onChange={(b) => setBody({ breadth: Math.abs(b - 1) < 0.005 ? undefined : b }, 'body:build')} />
       )}
     </>
   );

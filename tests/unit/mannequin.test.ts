@@ -119,8 +119,8 @@ describe('Mannequin', () => {
 
   it('is slimmer or heavier by its build, as tall either way', () => {
     const size = (build: number) => {
-      const m = new Mannequin(new Ink(), { ...DEFAULT_BODY, build });
-      m.apply(newFigure({ body: { ...DEFAULT_BODY, build } }));
+      const m = new Mannequin(new Ink(), { ...DEFAULT_BODY, breadth: build });
+      m.apply(newFigure({ body: { ...DEFAULT_BODY, breadth: build } }));
       const box = new THREE.Box3();
       m.forEachPoint((p) => box.expandByPoint(p));
       return box.getSize(new THREE.Vector3());
@@ -136,7 +136,7 @@ describe('Mannequin', () => {
     const m = make();
     expect(m.setBody(DEFAULT_BODY)).toBe(false);
     expect(m.setBody({ ...DEFAULT_BODY, height: 1.8 })).toBe(true);
-    expect(m.setBody({ ...DEFAULT_BODY, height: 1.8, build: 1.2 })).toBe(true);
+    expect(m.setBody({ ...DEFAULT_BODY, height: 1.8, breadth: 1.2 })).toBe(true);
   });
 
   it('is picked where it is posed: a raised arm where it now is, not where it hung', () => {
