@@ -6,7 +6,7 @@
  *     npm run dev -- -p 3399    (then, in another terminal)
  *     npx jiti scripts/characters/import.ts data/library/characters/{Adam,Brute,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
  *     npx jiti scripts/characters/import.ts /tmp/swat-operator.glb /tmp/male-base.glb
- *     npx jiti scripts/characters/import.ts /tmp/mh/{woman,man,child}.glb
+ *     npx jiti scripts/characters/import.ts /tmp/mh/{woman,man,qipao,satin-dress,party-dress,office}.glb
  *
  * (Mixamo's with natural proportions, and Brute; not the cartoon ones, nor Mixamo's own mannequin.)
  *
@@ -31,13 +31,13 @@ const APP = process.env.APP ?? 'http://localhost:3399/';
 // (Remy's file is drawn at twice a man's size.)
 const UNITS: Record<string, number> = { remy: 0.005 };
 // Who is a woman; the rest are men.
-const WOMEN = new Set(['elizabeth', 'erika-archer', 'woman', 'girl', 'qipao', 'satin-dress', 'party-dress', 'office']);
+const WOMEN = new Set(['elizabeth', 'erika-archer', 'woman', 'qipao', 'satin-dress', 'party-dress', 'office']);
 // Named by their roles, not as Mixamo names them (their files' names stay their ids).
 const ROLES: Record<string, string> = {
   adam: 'Jogger', brute: 'Barbarian', elizabeth: 'Casual woman', 'erika-archer': 'Archer', joe: 'Businessman',
   ninja: 'Ninja', 'paladin-j-nordstrom': 'Knight', pete: 'Construction worker', remy: 'Student', swat: 'SWAT officer',
   'male-base': 'Life model',
-  woman: 'Woman', man: 'Man', child: 'Boy', girl: 'Girl',
+  woman: 'Woman', man: 'Man',
   qipao: 'Qipao', 'satin-dress': 'Satin dress', 'party-dress': 'Party dress', office: 'Office lady',
 };
 

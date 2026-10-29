@@ -1,11 +1,9 @@
-"""The built-in Man, Woman, Boy and Girl, made with MakeHuman (MPFB in Blender), all CC0.
+"""The built-in Man, Woman and women in dresses, made with MakeHuman (MPFB in Blender), all CC0.
 
-    blender -b --python scripts/characters/makehuman.py -- <out dir> [man|woman|child|girl ...]
-
-(The boy's file is child.glb: scenes know him by that.)
+    blender -b --python scripts/characters/makehuman.py -- <out dir> [man|woman|qipao|satin-dress|party-dress|office ...]
 
 Each is MakeHuman's base mesh shaped by its macro settings (Chinese, a young adult with ideal
-proportions; children of about eight) and by targets for a face and body found beautiful in
+proportions) and by targets for a face and body found beautiful in
 China (below), made its height (the woman 1.70 m, the man 1.80 m), rigged with MakeHuman's Mixamo-named skeleton,
 with eyes, brows, lashes, hair and fitted clothes from MakeHuman's system assets (CC0: copied into
 MPFB's user data, ~/.config/blender/4.0/mpfb/data). Its materials made plain for glTF: the skin
@@ -42,7 +40,7 @@ def both(name, w):
 # Faces found beautiful in China (MakeHuman's face targets: folder/name, weight). The woman: an
 # oval face narrowing to a small V chin (瓜子脸), big eyes with a double fold, a slim straight nose
 # with a raised bridge, a small full mouth. The man: a clean jaw, straight brows (剑眉), a high
-# straight nose. The children: round cheeks, big eyes, small noses.
+# straight nose.
 WOMAN_FACE = [
     ('head/head-oval', 0.8), ('head/head-scale-horiz-decr', 0.25), ('chin/chin-triangle', 0.5), ('chin/chin-width-decr', 0.5),
     ('chin/chin-prominent-incr', 0.2), ('chin/chin-jaw-drop-decr', 0.2),
@@ -62,13 +60,6 @@ MAN_FACE = [
     ('nose/nose-point-width-decr', 0.35), ('nose/nose-nostrils-width-decr', 0.3),
     ('mouth/mouth-cupidsbow-incr', 0.2), ('mouth/mouth-angles-up', 0.15), ('eyebrows/eyebrows-angle-up', 0.4),
 ]
-CHILD_FACE = [
-    ('head/head-oval', 0.5), ('head/head-scale-horiz-decr', 0.25), ('chin/chin-width-decr', 0.35), ('chin/chin-triangle', 0.25),
-    *both('cheek/{s}-cheek-volume-decr', 0.3), *both('cheek/{s}-cheek-bones-decr', 0.3),
-    *both('eyes/{s}-eye-scale-incr', 0.35), *both('eyes/{s}-eye-eyefold-up', 0.4), *both('eyes/{s}-eye-epicanthus-out', 0.3),
-    ('nose/nose-scale-horiz-decr', 0.3), ('nose/nose-point-width-decr', 0.35), ('nose/nose-hump-decr', 0.4), ('nose/nose-scale-depth-incr', 0.2),
-    ('mouth/mouth-scale-horiz-decr', 0.2), ('mouth/mouth-angles-up', 0.3),
-]
 # Bodies: long and slender, the shoulders narrow and low (a long neck), long legs.
 SLENDER = [
     ('torso/measure-shoulder-dist-decr', 0.6), ('torso/torso-vshape-decr', 0.3), ('torso/measure-waist-circ-decr', 0.45),
@@ -78,12 +69,9 @@ SLENDER = [
 ]
 # (Shoulders low and sloping, not squared and high: a long neck, small trapezius and deltoids.)
 LEAN = [
-    ('torso/measure-shoulder-dist-decr', 0.5), ('torso/torso-vshape-decr', 0.2), ('torso/torso-muscle-dorsi-decr', 0.4),
+    ('torso/measure-shoulder-dist-decr', 0.8), ('torso/torso-vshape-decr', 0.35), ('torso/torso-muscle-dorsi-decr', 0.5),
     ('torso/measure-waist-circ-decr', 0.25), ('legs/measure-upperleg-height-incr', 0.3), ('legs/lowerlegs-height-incr', 0.25),
-    ('neck/neck-scale-vert-incr', 0.7), ('neck/measure-neck-circ-decr', 0.3), *both('arms/{s}-upperarm-shoulder-muscle-decr', 0.5),
-]
-CHILD_BODY = [
-    ('torso/measure-shoulder-dist-decr', 0.5), ('neck/neck-scale-vert-incr', 0.6), *both('arms/{s}-upperarm-shoulder-muscle-decr', 0.4),
+    ('neck/neck-scale-vert-incr', 0.8), ('neck/measure-neck-circ-decr', 0.35), *both('arms/{s}-upperarm-shoulder-muscle-decr', 0.8),
 ]
 
 ASIAN = {'asian': 0.85, 'caucasian': 0.15, 'african': 0.0}
@@ -99,20 +87,7 @@ PEOPLE = {
         'macro': {'gender': 1.0, 'age': 0.45, 'muscle': 0.5, 'weight': 0.38, 'proportions': 1.0, 'height': 0.75, 'cupsize': 0.5, 'firmness': 0.5},
         'targets': MAN_FACE + LEAN, 'height': 1.80,
         'skin': (0.93, 0.8, 0.69), 'eyebrows': 'eyebrow002', 'eyelashes': 'eyelashes01', 'hair': ('short02', (0.05, 0.045, 0.04)),
-        'clothes': ['male_casualsuit01', 'shoes01'],
-    },
-    # Children of about eight, a boy and a girl.
-    'child': {
-        'macro': {'gender': 1.0, 'age': 0.12, 'muscle': 0.45, 'weight': 0.38, 'proportions': 0.5, 'height': 0.5, 'cupsize': 0.5, 'firmness': 0.5},
-        'targets': CHILD_FACE + CHILD_BODY, 'height': 1.28,
-        'skin': (0.98, 0.87, 0.8), 'eyebrows': 'eyebrow001', 'eyelashes': 'eyelashes01', 'hair': ('short04', (0.05, 0.045, 0.04)),
-        'clothes': ['male_casualsuit02', 'shoes03'],
-    },
-    'girl': {
-        'macro': {'gender': 0.0, 'age': 0.115, 'muscle': 0.4, 'weight': 0.36, 'proportions': 0.5, 'height': 0.5, 'cupsize': 0.0, 'firmness': 0.5},
-        'targets': CHILD_FACE + CHILD_BODY, 'height': 1.26,
-        'skin': (0.98, 0.87, 0.8), 'eyebrows': 'eyebrow001', 'eyelashes': 'eyelashes02', 'hair': ('ponytail01', (0.05, 0.04, 0.035)),
-        'clothes': ['female_casualsuit02', 'shoes02'],
+        'clothes': ['male_casualsuit06', 'shoes01'],
     },
 }
 
@@ -125,12 +100,22 @@ SHEER_BLACK = (0.16, 0.14, 0.15)
 SKIN_TONE = (0.97, 0.86, 0.79)
 
 
+# Fabrics: textures made for these (scripts/characters/fabrics: gpt-image, tileable), wrapped round the body.
+GEN = os.path.expanduser('~/materials/generated')
+
+
+def fabric(name):
+    path = os.path.join(GEN, name + '.png')
+    return path if os.path.exists(path) else None
+
+
 def stockings(color, to=0.47):
-    return {'kind': 'top', 'name': 'Stockings', 'from': 0.045, 'to': to, 'color': color, 'offset': 0.003}
+    return {'kind': 'top', 'name': 'Stockings', 'from': 0.045, 'to': to, 'color': color, 'offset': 0.003, 'smooth': 6}
 
 
 def pumps(color):
-    return {'kind': 'top', 'name': 'Shoes', 'from': 0.0, 'to': 0.05, 'color': color, 'offset': 0.004}
+    """Closed shoes over the feet (their toes smoothed into a toe box), opening a little below the ankle."""
+    return {'kind': 'top', 'name': 'Shoes', 'from': -0.01, 'to': 0.036, 'color': color, 'offset': 0.008, 'smooth': 12, 'thick': 0.004}
 
 
 PEOPLE.update({
@@ -139,8 +124,8 @@ PEOPLE.update({
         'macro': GLAM, 'targets': WOMAN_FACE + SLENDER + CURVES, 'height': 1.70,
         'skin': SKIN_TONE, 'eyebrows': 'eyebrow008', 'eyelashes': 'eyelashes02', 'hair': ('long01', (0.05, 0.04, 0.035)), 'clothes': [],
         'outfit': [
-            {'kind': 'top', 'name': 'Qipao', 'from': 0.5, 'to': 0.875, 'sleeves': 0.79, 'color': (0.1, 0.13, 0.32), 'flowers': [(0.85, 0.55, 0.6), (0.92, 0.88, 0.8)]},
-            {'kind': 'skirt', 'name': 'Qipao skirt', 'top': 0.56, 'hem': 0.45, 'flare': 1.02, 'color': (0.1, 0.13, 0.32), 'flowers': [(0.85, 0.55, 0.6), (0.92, 0.88, 0.8)]},
+            {'kind': 'top', 'name': 'Qipao', 'from': 0.5, 'to': 0.875, 'sleeves': 0.3, 'color': (0.1, 0.13, 0.32), 'texture': fabric('qipao-brocade')},
+            {'kind': 'skirt', 'name': 'Qipao skirt', 'top': 0.56, 'hem': 0.45, 'flare': 1.02, 'color': (0.1, 0.13, 0.32), 'texture': fabric('qipao-brocade')},
             stockings(SHEER_BLACK, 0.47), pumps((0.06, 0.05, 0.05)),
         ],
     },
@@ -149,8 +134,8 @@ PEOPLE.update({
         'macro': GLAM, 'targets': WOMAN_FACE + SLENDER + CURVES, 'height': 1.70,
         'skin': SKIN_TONE, 'eyebrows': 'eyebrow008', 'eyelashes': 'eyelashes02', 'hair': ('long01', (0.05, 0.04, 0.035)), 'clothes': [],
         'outfit': [
-            {'kind': 'top', 'name': 'Dress', 'from': 0.55, 'to': 0.735, 'color': (0.56, 0.7, 0.86)},
-            {'kind': 'skirt', 'name': 'Dress skirt', 'top': 0.58, 'hem': 0.31, 'flare': 1.08, 'color': (0.56, 0.7, 0.86)},
+            {'kind': 'top', 'name': 'Dress', 'from': 0.55, 'to': 0.735, 'color': (0.56, 0.7, 0.86), 'texture': fabric('blue-satin')},
+            {'kind': 'skirt', 'name': 'Dress skirt', 'top': 0.58, 'hem': 0.31, 'flare': 1.08, 'color': (0.56, 0.7, 0.86), 'texture': fabric('blue-satin')},
             pumps((0.78, 0.78, 0.8)),
         ],
     },
@@ -159,7 +144,7 @@ PEOPLE.update({
         'macro': GLAM, 'targets': WOMAN_FACE + SLENDER + CURVES, 'height': 1.70,
         'skin': SKIN_TONE, 'eyebrows': 'eyebrow008', 'eyelashes': 'eyelashes02', 'hair': ('ponytail01', (0.05, 0.04, 0.035)), 'clothes': [],
         'outfit': [
-            {'kind': 'top', 'name': 'Corset', 'from': 0.56, 'to': 0.74, 'color': (0.07, 0.06, 0.07)},
+            {'kind': 'top', 'name': 'Corset', 'from': 0.56, 'to': 0.74, 'color': (0.07, 0.06, 0.07), 'texture': fabric('black-lace')},
             {'kind': 'skirt', 'name': 'Tulle skirt', 'top': 0.58, 'hem': 0.44, 'flare': 1.5, 'color': (0.1, 0.09, 0.1)},
             stockings(SHEER_BLACK, 0.47), pumps((0.06, 0.05, 0.05)),
         ],
@@ -169,8 +154,8 @@ PEOPLE.update({
         'macro': GLAM, 'targets': WOMAN_FACE + SLENDER + CURVES, 'height': 1.70,
         'skin': SKIN_TONE, 'eyebrows': 'eyebrow008', 'eyelashes': 'eyelashes02', 'hair': ('long01', (0.05, 0.04, 0.035)), 'clothes': [],
         'outfit': [
-            {'kind': 'top', 'name': 'Dress', 'from': 0.55, 'to': 0.83, 'sleeves': 0.76, 'color': (0.89, 0.66, 0.7)},
-            {'kind': 'skirt', 'name': 'Dress skirt', 'top': 0.58, 'hem': 0.32, 'flare': 0.97, 'color': (0.89, 0.66, 0.7)},
+            {'kind': 'top', 'name': 'Dress', 'from': 0.55, 'to': 0.83, 'sleeves': 0.35, 'color': (0.89, 0.66, 0.7), 'texture': fabric('pink-tweed'), 'tile': 0.2},
+            {'kind': 'skirt', 'name': 'Dress skirt', 'top': 0.58, 'hem': 0.32, 'flare': 0.97, 'color': (0.89, 0.66, 0.7), 'texture': fabric('pink-tweed'), 'tile': 0.2},
             stockings((0.9, 0.76, 0.68), 0.5), pumps((0.82, 0.62, 0.55)),
         ],
     },
@@ -261,8 +246,12 @@ def body_verts(body):
     return out
 
 
-def shell(body, keep, name, offset):
-    """A copy of the body's surface over the vertices kept (their indices), `offset` out from the skin."""
+def shell(body, keep, name, offset, planes=(), smooth=12, thick=0.003):
+    """
+    A copy of the body's surface over the vertices kept (their indices), cut clean by `planes`
+    (point, normal: what lies beyond each goes), smoothed (cloth over the body, not its every
+    bump), `offset` out from the skin and `thick` thick, so its edges are straight and have a body.
+    """
     obj = body.copy()
     obj.data = body.data.copy()
     obj.name = obj.data.name = name
@@ -279,15 +268,32 @@ def shell(body, keep, name, offset):
     bm.from_mesh(obj.data)
     bm.verts.ensure_lookup_table()
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.index not in keep], context='VERTS')
-    # (Smoothed: cloth over the body, not its every bump.)
+    for point, normal, near in planes:
+        # (A cut across an arm cuts only round that arm: within `near` of its line.)
+        def close(f):
+            if not near:
+                return True
+            c = f.calc_center_median()
+            o, d, r = near
+            t = (c - o).dot(d)
+            return (c - (o + d * t)).length < r and t > -0.12
+        faces = [f for f in bm.faces if close(f)]
+        geom = list({v for f in faces for v in f.verts}) + list({e for f in faces for e in f.edges}) + faces
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=point, plane_no=normal, clear_outer=True)
+    # (Bits the cuts left apart from the rest: gone.)
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if len(f.verts) < 3], context='FACES')
     inner = [v for v in bm.verts if not v.is_boundary]
-    for _ in range(12):
+    for _ in range(smooth):
         bmesh.ops.smooth_vert(bm, verts=inner, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
     bm.normal_update()
     for v in bm.verts:
         v.co += v.normal * offset
     bm.to_mesh(obj.data)
     bm.free()
+    if thick:
+        sol = obj.modifiers.new('Thickness', 'SOLIDIFY')
+        sol.thickness = thick
+        sol.offset = 1.0
     return obj
 
 
@@ -384,62 +390,80 @@ def skirt(body, rig, verts, top, hem, flare, name, sides=48, rows=16):
     return obj
 
 
-def pattern(name, ground, flowers, n=220, size=512):
-    """A cloth's texture: its ground colour scattered with small flowers (a qipao's silk)."""
-    img = bpy.data.images.new(name, size, size)
-    px = np.ones((size, size, 4))
-    px[:, :, :3] = ground
-    rng = np.random.default_rng(7)
-    yy, xx = np.mgrid[0:size, 0:size]
-    for _ in range(n):
-        cx, cy, r = rng.uniform(0, size), rng.uniform(0, size), rng.uniform(2.5, 5.5)
-        col = np.array(flowers[rng.integers(len(flowers))])
-        for k in range(5):
-            a = 2 * math.pi * k / 5
-            px[(xx - cx - math.cos(a) * r * 0.6) ** 2 + (yy - cy - math.sin(a) * r * 0.6) ** 2 < (r * 0.45) ** 2, :3] = col
-        px[(xx - cx) ** 2 + (yy - cy) ** 2 < (r * 0.3) ** 2, :3] = (0.9, 0.75, 0.35)
-    img.pixels[:] = px.ravel()
-    img.filepath_raw = os.path.join(bpy.app.tempdir, name + '.png')
-    img.file_format = 'PNG'
-    img.save()
-    return img.filepath_raw
+def arm_axes(body, rig):
+    """Each arm's shoulder joint and the way down it to the elbow (the body's space), and the upper arm's length."""
+    out = []
+    to_body = body.matrix_world.inverted() @ rig.matrix_world
+    for side in ('Left', 'Right'):
+        bone = lambda n: next(b for b in rig.data.bones if b.name.endswith(side + n))  # noqa: E731
+        shoulder, elbow = to_body @ bone('Arm').head_local, to_body @ bone('ForeArm').head_local
+        out.append((shoulder, (elbow - shoulder).normalized(), (elbow - shoulder).length))
+    return out
 
 
 def dress(body, rig, outfit):
-    """The outfit's pieces made on the body (lib heights are its share of the body's height)."""
+    """The outfit's pieces made on the body (its heights are shares of the body's height)."""
     verts = body_verts(body)
     hidden = set()
     zs = [p.z for _, p, _, _ in verts]
     lo, h = min(zs), max(zs) - min(zs)
     at = lambda f: lo + f * h  # noqa: E731
+    arms = arm_axes(body, rig)
+    up, down = Vector((0, 0, 1)), Vector((0, 0, -1))
     made = []
     for piece in outfit:
         kind, color = piece['kind'], piece['color']
-        image = pattern(piece['name'], color, piece['flowers']) if 'flowers' in piece else None
+        image = piece.get('texture')
         if kind == 'skirt':
             o = skirt(body, rig, verts, at(piece['top']), at(piece['hem']), piece.get('flare', 1.0), piece['name'])
+            sol = o.modifiers.new('Thickness', 'SOLIDIFY')
+            sol.thickness, sol.offset = 0.003, 1.0
         else:
             a, b = at(piece['from']), at(piece['to'])
-            sleeves = piece.get('sleeves')
-            keep = {i for i, p, bone, _ in verts if a <= p.z <= b and (not any(x in bone for x in ARM) or (sleeves is not None and p.z >= at(sleeves) and 'Hand' not in bone))}
-            o = shell(body, keep, piece['name'], piece.get('offset', 0.01))
-            hidden |= keep
+            # Sleeves: how far down the upper arm (0: cut at the shoulder; none: no arm at all, an armhole).
+            sleeve = piece.get('sleeves', -0.12)
+            cuts = [(Vector((0, 0, a)), down, None), (Vector((0, 0, b)), up, None)]
+            # (Round the arms only for what reaches up to them.)
+            if b > at(0.7):
+                cuts += [(s + d * (sleeve * n), d, (s, d, 0.11)) for s, d, n in arms]
+
+            def beyond(p, m):
+                for c, n, near in cuts:
+                    if near:
+                        o, d, r = near
+                        t = (p - o).dot(d)
+                        if (p - (o + d * t)).length > r or t < -0.12:
+                            continue
+                    if (p - c).dot(n) > -m:
+                        return True
+                return False
+            keep = {i for i, p, bone, _ in verts if a - 0.03 <= p.z <= b + 0.03 and 'Hand' not in bone and 'ForeArm' not in bone}
+            o = shell(body, keep, piece['name'], piece.get('offset', 0.01), cuts, piece.get('smooth', 12), piece.get('thick', 0.003))
+            # (The skin a centimetre in from the cut, under the cloth: hidden.)
+            hidden |= {i for i, p, bone, _ in verts if i in keep and not beyond(p, 0.012)}
         plain(o, color, image)
+        if image:
+            wrap(o, piece.get('tile', 0.3))
         made.append(o)
-    # The skin under the shells taken away (a mask), so that none shows through as the body bends;
-    # their edges kept, under the cloth.
+    # The skin under the shells taken away (a mask), so that none shows through as the body bends.
     if hidden:
-        edge = set()
-        for e in body.data.edges:
-            a, b = e.vertices
-            if (a in hidden) != (b in hidden):
-                edge.update((a, b))
         under = body.vertex_groups.new(name='under-dress')
-        under.add([i for i in hidden if i not in edge], 1.0, 'REPLACE')
+        under.add(list(hidden), 1.0, 'REPLACE')
         mask = body.modifiers.new('Under the dress', 'MASK')
         mask.vertex_group = 'under-dress'
         mask.invert_vertex_group = True
     return made
+
+
+def wrap(obj, tile):
+    """Its texture wrapped round the body (round it and up it), `tile` metres a repeat, its seam at the back."""
+    me = obj.data
+    uv = me.uv_layers.active or me.uv_layers.new()
+    for poly in me.polygons:
+        for li, vi in zip(poly.loop_indices, poly.vertices):
+            p = me.vertices[vi].co
+            a = math.atan2(p.x, -p.y)
+            uv.data[li].uv = (a * 0.14 / tile, p.z / tile)
 
 
 def scalp(body, hair, eyes, color):
@@ -517,5 +541,5 @@ def build(who, out):
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 out_dir = args[0] if args else '/tmp'
-for who in args[1:] or ['woman', 'man', 'child', 'girl']:
+for who in args[1:] or ['woman', 'man', 'qipao', 'satin-dress', 'party-dress', 'office']:
     build(who, out_dir)

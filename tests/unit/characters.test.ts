@@ -62,9 +62,8 @@ describe('built-in characters', () => {
     expect(fa.model).toBe(man.id);
     expect(fa.body).not.toEqual(fb.body);
     expect(parseScene(JSON.parse(JSON.stringify(store.scene))).figures.map((f) => f.model)).toEqual([man.id, woman.id]);
-    // Each with its own body under it: a man's, a woman's; a boy's and a girl's are children's heights.
+    // Each with its own body under it: a man's, a woman's.
     expect(fa.body).toEqual(man.body);
-    for (const name of ['Boy', 'Girl']) expect(BUILT_IN_CHARACTERS.find((c) => c.name === name)!.body!.height, name).toBeLessThan(1.4);
     store.setTime(0);
     expect(applyMotion(store, a, 'dance')).toBe(true);
     store.setTime(0);
