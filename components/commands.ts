@@ -180,6 +180,7 @@ export function selectionCtx(store: Store): Ctx {
     case 'shot': return { store, shot: sel.shot };
     case 'action': return { store, action: sel.action, figure: sel.figure };
     case 'light': return { store, light: sel.light };
+    case 'ambient': return { store };
     case 'many': return { store, many: { figures: sel.figures, props: sel.props } };
   }
 }

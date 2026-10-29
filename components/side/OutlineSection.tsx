@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Castle, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, UserRound, X } from 'lucide-react';
+import { Camera, Castle, Clapperboard, Cloudy, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, UserRound, X } from 'lucide-react';
 import {
   addCamera, addFigure, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
@@ -244,6 +244,20 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
                 </li>
               );
             })}
+            {/* (The light from all round, always there.) */}
+            <li className={selection?.kind === 'ambient' ? 'on' : undefined}>
+              <button
+                type="button"
+                className="layer-main"
+                data-tip={`The light from all round, ${Math.round(lighting.ambient.intensity * 100)}%`}
+                data-tip-side="right"
+                onClick={() => store.select({ kind: 'ambient' })}
+              >
+                <Cloudy size={15} strokeWidth={1.75} aria-hidden />
+                <span className="layer-name">Ambient light</span>
+                <i className="light-dot" style={{ background: `linear-gradient(${lighting.ambient.sky} 50%, ${lighting.ambient.ground} 50%)` }} aria-hidden />
+              </button>
+            </li>
           </ul>
         </div>
 

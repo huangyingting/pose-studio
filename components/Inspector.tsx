@@ -23,10 +23,10 @@ export default function Inspector({ ctx, onHide }: { ctx: InspectorContext; onHi
   useScene();
   const t = targetOf(store, ctx);
   const hide = <IconButton icon={PanelRightClose} label="Hide the inspector" shortcut={shortcutOf('app.inspector')} className="panel-hide hide-mobile" size={15} onClick={onHide} />;
-  const scene = !t.figure && !t.prop && !t.span && !t.camera && !t.action && !t.light && !t.many;
+  const scene = !t.figure && !t.prop && !t.span && !t.camera && !t.action && !t.light && !t.ambient && !t.many;
   const chrome: HeaderChrome = scene ? { after: hide } : {
     before: (
-      <button type="button" className="crumb" data-tip="The scene: its light and look" onClick={() => store.select(null)}>
+      <button type="button" className="crumb" data-tip="The scene" onClick={() => store.select(null)}>
         Scene <ChevronRight size={12} aria-hidden />
       </button>
     ),

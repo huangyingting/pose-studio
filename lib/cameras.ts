@@ -378,10 +378,13 @@ function smoothBody(scene: Scene, ids: string[] | undefined, t: number, window: 
   const a = scene.animation;
   if (!a || window <= 0) return measure(scene, ids, t);
   const half = window / 2;
+  // (Sampled about ten times over the window, at times fixed whatever t is: each a whole pose of
+  // everyone it frames, shared with the times near it.)
+  const step = Math.max(1 / a.fps, window / 10);
   const sum = { x: 0, z: 0, top: 0, height: 0, sin: 0, cos: 0, hx: 0, hy: 0, hz: 0, stature: 0, wx: 0, wz: 0, w: 0 };
-  for (let i = Math.ceil((t - half) * a.fps); i <= Math.floor((t + half) * a.fps); i++) {
-    const at = Math.min(a.duration, Math.max(0, i / a.fps));
-    const w = 1 - Math.abs(i / a.fps - t) / half;
+  for (let i = Math.ceil((t - half) / step); i <= Math.floor((t + half) / step); i++) {
+    const at = Math.min(a.duration, Math.max(0, i * step));
+    const w = 1 - Math.abs(i * step - t) / half;
     if (w <= 0) continue;
     const b = measure(scene, ids, at);
     sum.x += b.x * w;

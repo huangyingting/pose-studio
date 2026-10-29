@@ -13,7 +13,9 @@ import {
 } from './figure';
 import { HeldByPanel, PhysicsActions, PhysicsPanel, PropHeader, TransformPanel, transformInfo } from './prop';
 import { CaptionPanel, ReferenceActions, ReferencePanel, SceneHeader, referenceSummary } from './scene';
-import { AmbientPanel, LightHeader, LightPanel, ambientInfo, ambientSummary, lightInfo, lightSummary, lightTitle } from './light';
+import {
+  AmbientHeader, AmbientPanel, ColourPanel, KindPanel, LightHeader, PlacePanel, ambientInfo, ambientSummary, colourSummary, kindSummary, placeInfo, placeSummary,
+} from './light';
 import { ManyHeader, ManyPanel, manySummary } from './many';
 import { FilmedByPanel, ShotHeader, ShotPanel, filmedBySummary, shotSummary } from './shot';
 import type { Target } from './target';
@@ -39,7 +41,7 @@ export interface InspectorSection {
 }
 
 const posable = (t: Target) => !!t.figure && !t.figure.proxy;
-const isScene = (t: Target) => !t.figure && !t.prop && !t.span && !t.camera && !t.action && !t.light && !t.many;
+const isScene = (t: Target) => !t.figure && !t.prop && !t.span && !t.camera && !t.action && !t.light && !t.ambient && !t.many;
 
 export const INSPECTOR_SECTIONS: InspectorSection[] = [
   // A figure (a stand-in has a posture instead of a pose).
@@ -106,9 +108,11 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   // Several things at once.
   { id: 'many', title: 'Selected', when: (t) => !!t.many, Panel: ManyPanel, summary: manySummary },
 
-  // A light, and the scene's lighting (its scheme and ambient light: with a light, or the scene).
-  { id: 'light', title: lightTitle, when: (t) => !!t.light, Panel: LightPanel, summary: lightSummary, info: lightInfo },
-  { id: 'ambient', title: 'Ambient light', when: isScene, Panel: AmbientPanel, summary: ambientSummary, info: ambientInfo },
+  // A light (what kind, where, how bright and what colour), and the scene's ambient light.
+  { id: 'lightKind', title: 'Kind', when: (t) => !!t.light, Panel: KindPanel, summary: kindSummary },
+  { id: 'lightPlace', title: 'Position', when: (t) => !!t.light, Panel: PlacePanel, summary: placeSummary, info: placeInfo },
+  { id: 'lightColour', title: 'Brightness & colour', when: (t) => !!t.light, Panel: ColourPanel, summary: colourSummary },
+  { id: 'ambient', title: 'Sky and ground', when: (t) => !!t.ambient, Panel: AmbientPanel, summary: ambientSummary, info: ambientInfo },
 
   // The scene itself (nothing selected).
   { id: 'caption', title: 'Scene', when: (t) => isScene(t) && !t.scene.animation, Panel: CaptionPanel, defaultOpen: false, summary: (t) => t.scene.caption || 'No caption' },
@@ -126,6 +130,7 @@ export function Header({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   if (t.camera) return <CameraHeader t={t} chrome={chrome} />;
   if (t.action) return <ActionHeader t={t} chrome={chrome} />;
   if (t.light) return <LightHeader t={t} chrome={chrome} />;
+  if (t.ambient) return <AmbientHeader chrome={chrome} />;
   if (t.many) return <ManyHeader t={t} chrome={chrome} />;
   return <SceneHeader t={t} chrome={chrome} />;
 }
