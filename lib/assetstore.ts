@@ -20,6 +20,19 @@ const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBu
 /** Whether a newer build (in another tab) has the database: this tab can no longer keep or read anything in it. */
 let outdated = false;
 const OUTDATED = 'Pose Studio was updated in another tab: reload this one to keep saving';
+const outdatedListeners = new Set<() => void>();
+
+/** Be told (once) when a newer build has the database: this tab should be reloaded. Returns the way to stop. */
+export function onOutdated(f: () => void) {
+  outdatedListeners.add(f);
+  return () => { outdatedListeners.delete(f); };
+}
+
+function becameOutdated() {
+  if (outdated) return;
+  outdated = true;
+  for (const f of outdatedListeners) f();
+}
 
 function open(): Promise<IDBDatabase> | null {
   if (typeof indexedDB === 'undefined') return null;
@@ -33,13 +46,13 @@ function open(): Promise<IDBDatabase> | null {
       // (Another tab of a newer build needing a newer version: this one lets it, and says so when next asked.)
       req.result.onversionchange = () => {
         req.result.close();
-        outdated = true;
+        becameOutdated();
       };
       resolve(req.result);
     };
     req.onerror = () => {
       // (Already a newer version: opened by a newer build.)
-      if (req.error?.name === 'VersionError') outdated = true;
+      if (req.error?.name === 'VersionError') becameOutdated();
       reject(outdated ? new Error(OUTDATED) : req.error);
     };
   });

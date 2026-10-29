@@ -483,7 +483,11 @@ export function modelTemplate(id: string): THREE.Object3D | null {
       templates.set(id, await parseModel(info.format, data));
       changed();
     })
-    .catch((err) => console.warn(`Could not read the model ${info.name}:`, err))
+    // (Not read: not asked for again this visit, rather than on every sync.)
+    .catch((err) => {
+      unreachable.add(id);
+      console.warn(`Could not read the model ${info.name}:`, err);
+    })
     .finally(() => loading.delete(id));
   return null;
 }
