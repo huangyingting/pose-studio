@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || undefined,
   poweredByHeader: false,
   pageExtensions: edition === 'server' ? ['server.ts', 'tsx', 'ts'] : ['tsx', 'ts'],
+  // Which build this is (what a browser keeps from one, the library's thumbnails, is drawn again for
+  // the next); none while developing (code changes without a new build: nothing kept).
+  env: { NEXT_PUBLIC_BUILD: process.env.GITHUB_SHA ?? (process.env.NODE_ENV === 'production' ? String(Date.now()) : '') },
   turbopack: {
     resolveAlias: { '@edition/server': edition === 'server' ? './components/server/index.ts' : './components/server/none.ts' },
   },

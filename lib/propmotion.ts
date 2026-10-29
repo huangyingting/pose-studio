@@ -301,7 +301,7 @@ export class PropTimeline {
       const palm = this.palmAt(next.figure, next.hand, next.t);
       const catcher = this.scene.figures.find((f) => f.id === next.figure);
       if (!at || !palm || !catcher) continue;
-      const g = grip(prop, next.hand, catcher.body.height);
+      const g = grip(prop, next.hand, catcher.body);
       if (now.kind === 'free' && palm.distanceTo(at.centre) > CATCH_REACH) {
         this.misses.push({ t: next.t, figure: next.figure });
         continue;
@@ -368,7 +368,7 @@ export class PropTimeline {
     const w = wristAt(this.freeAt, figure, hand, t);
     const f = this.scene.figures.find((x) => x.id === figure);
     if (!w || !f) return null;
-    const g = grip(this.prop, hand, f.body.height);
+    const g = grip(this.prop, hand, f.body);
     const centre = bodyOf(this.prop).centre;
     return centre.applyMatrix4(compose(g.position, g.rotation)).applyMatrix4(w);
   }

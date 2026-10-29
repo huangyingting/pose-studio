@@ -15,6 +15,8 @@ import { DEFAULT_LIGHT, LightRig, lampAt, lightDome, lightFrom } from '@/lib/lig
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
+import { awake, setDrawer, wake } from './frames';
+import { LINES_LAYER } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
@@ -317,6 +319,8 @@ export default function Viewport({
       }}
     >
       <Canvas
+        // (Drawn on demand: see components/frames.ts.)
+        frameloop="demand"
         flat
         shadows="percentage"
         dpr={[1, 2]}
@@ -330,6 +334,7 @@ export default function Viewport({
         }}
       >
         <color attach="background" args={[styleDef(film.style).background]} />
+        <Waker store={store} clock={clock} sv={sv} />
         <Lights sv={sv} style={film.style} scene={scene} />
         <DropLine />
         {settings.showGrid && (
@@ -552,17 +557,18 @@ function GizmoWarmup() {
 type Trail = { id: string; rig: boolean; times: number[]; points: THREE.Vector3[] };
 
 /**
- * The cameras' trails (where each is every tenth of a second), worked out once a drag rests and a
+ * The cameras' trails (where each is every tenth of a second; a rig's only while it is selected), worked out once a drag rests and a
  * little at a time between frames (a camera on someone poses them at each sample: a long block of
  * work at once would hold up the drop). The trails before stay shown until the new ones are done;
  * each keeps to its own camera.
  */
-function useTrails(scene: Scene): Trail[] {
+function useTrails(scene: Scene, rig: string | null): Trail[] {
   const [trails, setTrails] = useState<Trail[]>([]);
   const { cameras, animation } = scene;
   useEffect(() => {
     const aspect = frameAspect();
-    const jobs = cameras.map((c) => ({ cam: c, trail: { id: c.id, rig: c.kind === 'rig', times: trailTimes(scene, c), points: [] as THREE.Vector3[] } }));
+    // (A rig's only while it is selected: each of its points poses whom it films, again after every edit.)
+    const jobs = cameras.filter((c) => c.kind !== 'rig' || c.id === rig).map((c) => ({ cam: c, trail: { id: c.id, rig: c.kind === 'rig', times: trailTimes(scene, c), points: [] as THREE.Vector3[] } }));
     let job = 0;
     let timer = 0;
     const work = () => {
@@ -579,7 +585,7 @@ function useTrails(scene: Scene): Trail[] {
     return () => window.clearTimeout(timer);
     // (The cameras and the motion, not the figures as the playhead poses them.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameras, animation]);
+  }, [cameras, animation, rig]);
   return trails;
 }
 
@@ -660,10 +666,11 @@ class Ghost {
     this.view.dispose();
   }
 
-  /** Show a scene (nothing: hide). */
+  /** Show a scene (nothing: hide); the canvas woken to draw it (it may change off the canvas: from the Library, the wheel, a key). */
   show(scene: Scene | null) {
     this.root.visible = !!scene;
     if (scene) this.view.sync(scene);
+    wake();
   }
 
   /** Follow the pointer over `el` for `placing`; the wheel and R turn it. Returns the stop. */
@@ -800,6 +807,42 @@ function ShotDriver({ store, scene, clock, time, through, captureRef }: {
   return null;
 }
 
+/**
+ * Wakes the canvas (drawn on demand) when what it shows may change: the document or the selection,
+ * the scene view, the pointer on it or a key, a model come in; and draws on while it is awake (a
+ * moment after) and while playing.
+ */
+function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView }) {
+  const invalidate = useThree((s) => s.invalidate);
+  const el = useThree((s) => s.gl.domElement);
+  useEffect(() => {
+    setDrawer(invalidate);
+    const up = () => wake();
+    // (The pointer on the canvas; or anywhere while a button is held: a drag begun on it goes on
+    // past its edge, following the pointer on the window.)
+    const pointer = (e: PointerEvent) => { if (e.buttons || e.type !== 'pointermove' || e.target === el) wake(); };
+    const offs = [store.subscribe(up), clock.subscribe(up), sv.subscribe(up), onModels(up)];
+    const events = ['pointermove', 'pointerdown', 'pointerup'] as const;
+    for (const e of events) window.addEventListener(e, pointer, { passive: true, capture: true });
+    el.addEventListener('wheel', up, { passive: true });
+    window.addEventListener('keydown', up, true);
+    window.addEventListener('keyup', up, true);
+    wake();
+    return () => {
+      setDrawer(null);
+      offs.forEach((off) => off());
+      for (const e of events) window.removeEventListener(e, pointer, { capture: true });
+      el.removeEventListener('wheel', up);
+      window.removeEventListener('keydown', up, true);
+      window.removeEventListener('keyup', up, true);
+    };
+  }, [invalidate, el, store, clock, sv]);
+  useFrame(() => {
+    if (clock.playing || awake()) invalidate();
+  }, -100);
+  return null;
+}
+
 /** Takes over R3F's render loop to add the interior line-art pass. */
 function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
   const pass = useMemo(() => new LineArtPass(), []);
@@ -810,6 +853,8 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     sv.ink.setThickness(lineWidth);
   }, [sv, size, lineWidth]);
   useFrame(({ gl, scene, camera }) => {
+    // (Its outlines and lines are on a layer of their own: seen too.)
+    camera.layers.enable(LINES_LAYER);
     pass.prepare(gl, sv, camera, lineWidth * 0.8);
     gl.render(scene, camera);
     pass.overlay(gl);
@@ -962,6 +1007,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       camera.far = 200;
       camera.updateProjectionMatrix();
       controls.update();
+      wake();
     });
   };
 
@@ -1009,6 +1055,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     cam.position.copy(was.position);
     orbit?.target.copy(was.target);
     orbit?.update();
+    wake();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shotMode, get]);
 
@@ -1041,7 +1088,10 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
   const cameras = scene.cameras;
   // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
-  const trails = useTrails(useSettled(scene));
+  // (A rig's trail while it, or a shot it films, is selected.)
+  const chosen = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : undefined;
+  const shown = chosen && cameras.find((c) => c.id === chosen)?.kind === 'rig' ? chosen : null;
+  const trails = useTrails(useSettled(scene), shown);
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect());

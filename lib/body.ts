@@ -16,7 +16,7 @@ export const BODY_FIELDS: { key: keyof BodyParams; label: string; min: number; m
   { key: 'height', label: 'Height', min: 1.1, max: 2.2, step: 0.01, format: (v) => `${v.toFixed(2)} m` },
   { key: 'build', label: 'Build', min: 0, max: 1, step: 0.01, format: (v) => (v < 0.33 ? 'Slim' : v < 0.66 ? 'Average' : 'Heavy') },
   { key: 'head', label: 'Head size', min: 0.75, max: 1.4, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
-  { key: 'legs', label: 'Leg length', min: 0.85, max: 1.15, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
+  { key: 'legs', label: 'Leg length', min: 0.75, max: 1.15, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
   { key: 'bust', label: 'Chest', min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
 ];
 

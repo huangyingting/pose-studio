@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { sided } from './joints';
-import { IK_CHAINS, Mannequin, setWorldQuaternion, torsoHalfWidth, worldPos } from './mannequin';
+import { IK_CHAINS, Mannequin, scaleOf, setWorldQuaternion, torsoHalfWidth, worldPos } from './mannequin';
 import { angle, facingOf, turnBones } from './pose';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
@@ -100,27 +100,63 @@ export function inFrontOf(a: Figure, b: Figure, d = 1): Figure {
 /* ---------- posing against other figures (needs the 3D model) ---------- */
 
 /** Builds and caches posed mannequins for a set of figures, to measure and solve against. */
+/*
+ * Mannequins to work things out with (where hands reach, feet land, cameras frame), never drawn:
+ * bare (no outlines or lines), and kept between rigs by body, as building one is what costs (a rig
+ * is made for each thing worked out; its mannequins go back when it is done with).
+ */
+const spare = new Map<string, Mannequin[]>();
+const SPARE_PER_BODY = 4;
+/** In all: the bodies used longest ago let go first (a body slider's steps, a fit's trial bodies). */
+const SPARE = 16;
+let spares = 0;
+const calculating = new Ink();
+const bodyKey = (f: Figure) => `${JSON.stringify(f.body)}${f.proxy ? ':stand-in' : ''}`;
+
+/** Figures' mannequins, posed as asked, to work things out with. */
 export class Rig {
-  private ink = new Ink();
-  private models = new Map<string, Mannequin>();
+  private models = new Map<string, { m: Mannequin; key: string }>();
   /** What grounded figures stand on (the tops of props, as in the scene), or the floor (null). */
   ground: ((x: number, z: number) => number) | null = null;
 
   model(f: Figure) {
-    let m = this.models.get(f.id);
-    if (!m) {
-      m = new Mannequin(this.ink, f.body, f.id);
-      this.models.set(f.id, m);
+    let held = this.models.get(f.id);
+    if (!held) {
+      const key = bodyKey(f);
+      const kept = spare.get(key)?.pop();
+      if (kept) spares--;
+      const m = kept ?? new Mannequin(calculating, f.body, f.id, false, true);
+      m.retag(f.id);
+      held = { m, key };
+      this.models.set(f.id, held);
     }
-    m.setGround(this.ground);
-    m.apply(f);
-    return m;
+    held.m.setGround(this.ground);
+    held.m.apply(f);
+    held.key = bodyKey(f);
+    return held.m;
   }
 
+  /** Done with: its mannequins kept for the next rig (as many as are worth keeping). */
   dispose() {
-    for (const m of this.models.values()) m.dispose();
+    for (const { m, key } of this.models.values()) {
+      const list = spare.get(key) ?? [];
+      if (list.length >= SPARE_PER_BODY) {
+        m.dispose();
+        continue;
+      }
+      list.push(m);
+      // (Its body the latest used: last in the map's order.)
+      spare.delete(key);
+      spare.set(key, list);
+      spares++;
+      while (spares > SPARE) {
+        const [oldest, ms] = spare.entries().next().value!;
+        spare.delete(oldest);
+        for (const x of ms) x.dispose();
+        spares -= ms.length;
+      }
+    }
     this.models.clear();
-    this.ink.dispose();
   }
 }
 
@@ -145,7 +181,7 @@ export const CONTACT_LABELS: Record<Contact, string> = {
 
 /** World position of a contact point on a posed figure (on the surface, not inside). */
 export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
-  const k = f.body.height / 1.8;
+  const k = scaleOf(f.body);
   const at = (j: JointName, local: Vec3) => m.joints[j].localToWorld(new THREE.Vector3(...local));
   switch (c) {
     case 'head': return at('head', [0, 0.17 * k, 0]);
@@ -196,7 +232,7 @@ export function contactSpot(m: Mannequin, f: Figure, c: Contact): { bone: JointN
  */
 export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, limits = true) {
   const m = rig.model(f);
-  const k = f.body.height / 1.8;
+  const k = scaleOf(f.body);
   const shoulder = worldPos(m.joints[sided('UpperArm', side)]);
   const wristTarget = target.clone().add(shoulder.clone().sub(target).normalize().multiplyScalar(0.07 * k));
   const wrist = m.joints[sided('Hand', side)];
@@ -237,7 +273,7 @@ export function reach(rig: Rig, f: Figure, side: Side, target: THREE.Vector3, li
  */
 export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true): Figure['bones'] {
   const m = rig.model(f);
-  const k = f.body.height / 1.8;
+  const k = scaleOf(f.body);
   /** Direction to the target as yaw / pitch-down (degrees) in the chest's frame. */
   const aim = () => {
     const eye = m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * k, 0.05 * k));
@@ -271,7 +307,7 @@ export function lookAt(rig: Rig, f: Figure, target: THREE.Vector3, limits = true
 
 /** Head centre of a posed figure, for looking at someone. */
 export function headPoint(m: Mannequin, f: Figure) {
-  return m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * (f.body.height / 1.8), 0.02));
+  return m.joints.head.localToWorld(new THREE.Vector3(0, 0.1 * scaleOf(f.body), 0.02));
 }
 
 /* ---------- the body as capsules (bodies through each other, a ball through someone) ---------- */
@@ -294,7 +330,8 @@ export interface Capsule { p: THREE.Vector3; q: THREE.Vector3; r: number; bone: 
 /** A posed figure's bones as capsules. */
 export function capsules(rig: Rig, f: Figure): Capsule[] {
   const m = rig.model(f);
-  const s = f.body.height / 1.7;
+  // (Sized for a 1.7 m figure of the mannequin's first proportions: scaled as its parts are.)
+  const s = scaleOf(f.body) * (1.8 / 1.7);
   const w = (k: JointName) => m.joints[k].getWorldPosition(new THREE.Vector3());
   return BONES.map((b) => {
     const a = w(b.a);

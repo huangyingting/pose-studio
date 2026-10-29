@@ -92,9 +92,11 @@ const FRAG = /* glsl */ `
   uniform float opacity;
   uniform sampler2D map;
   uniform bool useMap;
+  uniform mat3 mapTransform;
   uniform vec3 shade;
   uniform sampler2D shadeMap;
   uniform bool useShadeMap;
+  uniform mat3 shadeMapTransform;
   uniform float shift;
   uniform float toony;
   uniform vec3 rim;
@@ -103,17 +105,20 @@ const FRAG = /* glsl */ `
   uniform vec3 emissive;
   uniform sampler2D emissiveMap;
   uniform bool useEmissiveMap;
+  uniform mat3 emissiveMapTransform;
   uniform int alphaMode;
   uniform float cutoff;
   varying vec3 vNormal;
   varying vec3 vWorld;
   varying vec2 vUv;
+  // (A texture's own placement on the model: its offset, repeat and turn, as glTF's texture transform has them.)
+  vec2 placed(mat3 t) { return (t * vec3(vUv, 1.0)).xy; }
   void main() {
     vec4 base = vec4(color, opacity);
-    if (useMap) base *= texture2D(map, vUv);
+    if (useMap) base *= texture2D(map, placed(mapTransform));
     if (alphaMode == 1 && base.a < cutoff) discard;
     vec3 shaded = shade;
-    if (useShadeMap) shaded *= texture2D(shadeMap, vUv).rgb;
+    if (useShadeMap) shaded *= texture2D(shadeMap, placed(shadeMapTransform)).rgb;
     vec3 n = normalize(vNormal);
     if (!gl_FrontFacing) n = -n;
     vec3 v = normalize(cameraPosition - vWorld);
@@ -123,7 +128,7 @@ const FRAG = /* glsl */ `
     vec3 col = mix(shaded, base.rgb, lit);
     col += rim * pow(clamp(1.0 - max(dot(n, v), 0.0) + rimLift, 0.0, 1.0), max(rimPower, 1e-3));
     vec3 glow = emissive;
-    if (useEmissiveMap) glow *= texture2D(emissiveMap, vUv).rgb;
+    if (useEmissiveMap) glow *= texture2D(emissiveMap, placed(emissiveMapTransform)).rgb;
     gl_FragColor = vec4(col + glow, alphaMode == 2 ? base.a : 1.0);
     #include <colorspace_fragment>
   }
@@ -131,6 +136,10 @@ const FRAG = /* glsl */ `
 
 /** The material for a look, lit by the key light (`lightDir`: towards it, shared). */
 export function toonMaterial(look: ToonLook, lightDir: { value: THREE.Vector3 }): THREE.ShaderMaterial {
+  const placing = (t: THREE.Texture | null) => {
+    t?.updateMatrix();
+    return { value: t ? t.matrix : new THREE.Matrix3() };
+  };
   return new THREE.ShaderMaterial({
     uniforms: {
       lightDir,
@@ -138,9 +147,11 @@ export function toonMaterial(look: ToonLook, lightDir: { value: THREE.Vector3 })
       opacity: { value: look.opacity },
       map: { value: look.map },
       useMap: { value: !!look.map },
+      mapTransform: placing(look.map),
       shade: { value: look.shade },
       shadeMap: { value: look.shadeMap },
       useShadeMap: { value: !!look.shadeMap },
+      shadeMapTransform: placing(look.shadeMap),
       shift: { value: look.shift },
       toony: { value: look.toony },
       rim: { value: look.rim },
@@ -149,6 +160,7 @@ export function toonMaterial(look: ToonLook, lightDir: { value: THREE.Vector3 })
       emissive: { value: look.emissive },
       emissiveMap: { value: look.emissiveMap },
       useEmissiveMap: { value: !!look.emissiveMap },
+      emissiveMapTransform: placing(look.emissiveMap),
       alphaMode: { value: look.alpha === 'mask' ? 1 : look.alpha === 'blend' ? 2 : 0 },
       cutoff: { value: look.cutoff },
     },

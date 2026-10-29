@@ -47,6 +47,36 @@ remy.glb, swat.glb
   Characters from Adobe Mixamo (https://www.mixamo.com), included at the repository owner's
   request; Adobe's terms for Mixamo apply (https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html).
 
-  Changes (scripts/characters/mixamo.ts): converted from FBX to GLB by the app's own import, with
+  Changes (scripts/characters/import.ts): converted from FBX to GLB by the app's own import, with
   only their colour textures (fitted within 1024 px), each vertex once, in metres; their bones
   renamed as the app's skeleton's. Their meshes, skeletons and painting are as they came.
+
+swat-operator.glb ("Tactical officer")
+
+  "S.W.A.T. Operator" by SpatialNeglect (jeandiz)
+  https://sketchfab.com/3d-models/swat-operator-9e82fabf26194896b5ad4a364d864eab
+  License: Creative Commons Attribution 4.0 (CC BY 4.0) https://creativecommons.org/licenses/by/4.0/
+
+  Changes (scripts/characters/rig.py, then scripts/characters/import.ts): the rifle taken out;
+  the pieces joined and their seams welded; rigged with the app's skeleton (no fingers) and
+  weighted to it; the arms straightened from holding the rifle and raised level (a T-pose); only
+  the colour textures kept (fitted within 1024 px, JPEG).
+
+male-base.glb ("Life model")
+
+  "Male body base mesh (highpoly)" by Mandrake (mandrake_3d)
+  https://sketchfab.com/3d-models/male-body-base-mesh-highpoly-9311f4f8fa1a4fe4bb0027ff7e8fd795
+  License: Creative Commons Attribution 4.0 (CC BY 4.0) https://creativecommons.org/licenses/by/4.0/
+
+  Changes (scripts/characters/rig.py, then scripts/characters/import.ts): its five parts joined
+  and welded, reduced from 476k to 40k faces, scaled to 1.8 m, rigged with the app's skeleton (no
+  fingers) and weighted to it.
+
+android.glb ("Android"), fashion-model.glb ("Fashion model"), athlete.glb ("Athlete")
+
+  Generated with Meshy (https://www.meshy.ai) by the repository's owner, who holds the rights to
+  them; included at their request.
+
+  Changes (scripts/characters/rig.py, then scripts/characters/import.ts): scaled to a person's
+  height, reduced to 60k faces, rigged with the app's skeleton (no fingers) and weighted to it
+  through a watertight copy; only the colour textures kept (fitted within 1024 px, JPEG).

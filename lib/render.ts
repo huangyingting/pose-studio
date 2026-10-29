@@ -3,6 +3,7 @@ import { frameTimes } from './animation';
 import { sceneAt } from './evaluate';
 import { wrapDeg } from './joints';
 import { DEFAULT_LIGHT, LightRig } from './lighting';
+import { LINES_LAYER } from './ink';
 import { LineArtPass } from './lineart';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
@@ -214,7 +215,8 @@ export type Pass = 'beauty' | 'depth' | 'normal';
 export class SceneRenderer {
   private renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(20, 1, 0.05, 100);
+  // (It sees the parts' outlines and lines too, on a layer of their own.)
+  private camera = (() => { const c = new THREE.PerspectiveCamera(20, 1, 0.05, 100); c.layers.enable(LINES_LAYER); return c; })();
   private view = new SceneView();
   private lights = new LightRig();
   private lines = new LineArtPass();
@@ -295,7 +297,10 @@ export class SceneRenderer {
       this.depth.uniforms.far.value = far + pad;
     }
     this.scene.overrideMaterial = pass === 'depth' ? this.depth : this.normals;
+    // (The parts alone: their lines left out.)
+    this.camera.layers.set(0);
     this.renderer.render(this.scene, this.camera);
+    this.camera.layers.enable(LINES_LAYER);
     this.scene.overrideMaterial = null;
     this.view.setIdMode(false);
     this.lights.object.visible = true;

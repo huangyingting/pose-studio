@@ -1,4 +1,5 @@
 import { LIBRARY, hasClip } from './assets';
+import { loadThumb, saveThumb } from './assetstore';
 import { fetchLibraryClips } from './librarymotions';
 import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
@@ -150,10 +151,10 @@ const THUMB = 144;
 const thumbs = new Map<string, string>();
 const waiting = new Map<string, { make(): string; done: Set<(url: string) => void> }>();
 let draining = false;
-// When the page is idle (the canvas draws every frame, so not waiting for long).
+// When the page is idle (not waiting for long).
 const idle = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 100 }) : setTimeout(fn, 0));
 
-function drain() {
+async function drain() {
   const next = waiting.entries().next();
   if (next.done) {
     draining = false;
@@ -162,14 +163,17 @@ function drain() {
   const [key, job] = next.value;
   waiting.delete(key);
   try {
-    const url = job.make();
+    // Kept from an earlier visit (this build's); or drawn now, and kept.
+    const kept = await loadThumb(key);
+    const url = kept ?? job.make();
+    if (!kept) void saveThumb(key, url).catch(() => {});
     thumbs.set(key, url);
     job.done.forEach((fn) => fn(url));
   } catch (err) {
     // One that cannot be drawn (a template that fails to build) stays blank; the others still come.
     console.warn(`Could not draw the thumbnail ${key}:`, err);
   }
-  idle(drain);
+  idle(() => void drain());
 }
 
 /** A thumbnail: at once if it was drawn before, or later (`onUrl`). Returns a function that stops waiting. */
@@ -184,7 +188,7 @@ export function requestThumb(key: string, make: () => string, onUrl: (url: strin
   waiting.set(key, job);
   if (!draining) {
     draining = true;
-    idle(drain);
+    idle(() => void drain());
   }
   return () => job.done.delete(onUrl);
 }

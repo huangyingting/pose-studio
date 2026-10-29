@@ -8,7 +8,7 @@ import { legsOf } from './locomotion';
 import { Rig } from './relations';
 import { setWorldQuaternion } from './mannequin';
 import { fingerBones, PARENT, worldTurns } from './skeleton';
-import type { Ink } from './ink';
+import { LINES_LAYER, idMaterialOf, type Ink } from './ink';
 import { styleDef } from './styles';
 import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Proportions, type Style } from './types';
 import { uid } from './uid';
@@ -278,6 +278,7 @@ export class ModelRig {
         hull = new THREE.Mesh(mesh.geometry, ink.outline);
       }
       hull.frustumCulled = false;
+      hull.layers.set(LINES_LAYER);
       hull.raycast = () => {};
       mesh.add(hull);
       this.hulls.push(hull);
@@ -316,14 +317,9 @@ export class ModelRig {
     });
   }
 
-  /** Flat per-part colours for the line pass (as the mannequin's parts); returns the next free id. */
-  setIdMode(on: boolean, firstId: number, style: Style, tint: string | null) {
-    if (!on) {
-      this.setLook(style, tint);
-      return firstId;
-    }
-    this.meshes.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
-    for (const h of this.hulls) h.visible = false;
+  /** Flat per-part colours for the line pass (as the mannequin's parts), or back as they were; returns the next free id. */
+  setIdMode(on: boolean, firstId: number) {
+    this.meshes.forEach((mesh, i) => idMaterialOf(mesh, on ? this.ink.idMaterial(firstId + i) : null));
     return firstId + this.meshes.length;
   }
 
@@ -449,6 +445,9 @@ export function bodyFor(f: Figure, id: string): BodyParams {
 const infos = new Map<string, ModelInfo>();
 const templates = new Map<string, THREE.Object3D>();
 const loading = new Set<string>();
+/** When a model's file last could not be got: asked for again after RETRY_MS. */
+const failedAt = new Map<string, number>();
+const RETRY_MS = 30_000;
 const unreachable = new Set<string>();
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((f) => f());
@@ -469,25 +468,40 @@ export function onModels(f: () => void) {
 }
 
 /** A model, as read from its file (null until it has been: reading starts now). */
+/** A model's file is here now (synced): asked for at once, whatever failed before. */
+export function modelArrived(id: string) {
+  failedAt.delete(id);
+  unreachable.delete(id);
+  return modelTemplate(id);
+}
+
 export function modelTemplate(id: string): THREE.Object3D | null {
   const hit = templates.get(id);
   const info = infos.get(id);
-  if (hit || !info || loading.has(id) || unreachable.has(id)) return hit ?? null;
+  if (hit || !info || loading.has(id) || unreachable.has(id) || Date.now() - (failedAt.get(id) ?? -Infinity) < RETRY_MS) return hit ?? null;
   loading.add(id);
-  // A built-in character's file comes with the app (not asked for again this visit if it does
-  // not come: offline); an imported one's is kept as an asset (it may come later, synced).
+  // A built-in character's file comes with the app; an imported one's is kept as an asset (it may
+  // come later, synced: none yet is no failure).
   const builtIn = isBuiltInCharacter(id);
-  const file = builtIn ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : null), () => null) : loadModelFile(id);
+  // Not got (offline, the server, the browser's storage): asked for again after a while (the
+  // scene woken to ask then). Got but not readable: not again this visit.
+  const later = (err?: unknown) => {
+    failedAt.set(id, Date.now());
+    setTimeout(changed, RETRY_MS);
+    if (err) console.warn(`Could not get the model ${info.name}:`, err);
+  };
+  const file = builtIn ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`)))) : loadModelFile(id);
   void file
     .then(async (data) => {
-      if (!data) {
-        if (builtIn) unreachable.add(id);
-        return;
+      if (!data) return;
+      try {
+        templates.set(id, await parseModel(info.format, data));
+        changed();
+      } catch (err) {
+        unreachable.add(id);
+        console.warn(`Could not read the model ${info.name}:`, err);
       }
-      templates.set(id, await parseModel(info.format, data));
-      changed();
-    })
-    .catch((err) => console.warn(`Could not read the model ${info.name}:`, err))
+    }, later)
     .finally(() => loading.delete(id));
   return null;
 }

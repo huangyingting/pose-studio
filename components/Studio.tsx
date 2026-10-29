@@ -33,6 +33,7 @@ import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
 import { IconButton, Menu, Toasts, type Notify, type Toast } from './ui';
+import { onOutdated } from '@/lib/assetstore';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
@@ -148,6 +149,9 @@ function App() {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
   }, []);
+
+  // A newer build opened in another tab has the browser's storage: this one says so, once.
+  useEffect(() => onOutdated(() => notify('Pose Studio was updated in another tab: reload this one to keep saving', 'error', { label: 'Reload', run: () => location.reload() })), [notify]);
 
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
   const labelPoint = useCallback((sel: NonNullable<typeof selection>) => apiRef.current?.labelPoint(sel) ?? null, []);

@@ -4,6 +4,7 @@ import { HAND_PRESETS } from '@/lib/hands';
 import { loadModelFile } from '@/lib/assetstore';
 import { Fitted, MissingBones, ModelRig, importModel, mapBones, missingBones, parseModel } from '@/lib/model';
 import { Ink } from '@/lib/ink';
+import { legsOf } from '@/lib/locomotion';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
 import { setFigureModel } from '@/lib/actions';
@@ -59,7 +60,8 @@ describe('models: characters from other tools fitted to the skeleton', () => {
         expect(angleBetween(bone(b).sub(bone(a)), joint(q).sub(joint(p))), `${a}→${b}`).toBeLessThan(3);
       }
       // Its size: the hips as high above the ankles as the mannequin's (so the feet reach the floor).
-      expect(model.object.scale.x * 95).toBeCloseTo(0.83, 1);
+      const legs = legsOf(f.body);
+      expect(model.object.scale.x * 95).toBeCloseTo(legs.rootY - legs.ankleY, 2);
     });
   }
 
@@ -118,7 +120,9 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     sv.setStyle('shaded');
     sv.setIdMode(true);
     expect(new Set(meshes.map((m) => m.material)).size).toBe(meshes.length);
-    expect(hulls.some((h) => h.visible)).toBe(false);
+    // (Its outlines left out of the pass: on a layer of their own, which it does not draw.)
+    const pass = new THREE.Layers();
+    expect(hulls.some((h) => h.layers.test(pass))).toBe(false);
     sv.setIdMode(false);
     expect(meshes.every((m) => m.material === sv.ink.materialsFor('shaded').body)).toBe(true);
     sv.dispose();

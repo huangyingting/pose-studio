@@ -92,7 +92,11 @@ export class LineArtPass {
     renderer.setRenderTarget(this.target);
     renderer.clear();
     view.setIdMode(true);
+    // (The parts alone: their lines, on a layer of their own, left out.)
+    const layers = camera.layers.mask;
+    camera.layers.set(0);
     renderer.render(view.root, camera);
+    camera.layers.mask = layers;
     view.setIdMode(false);
     renderer.setRenderTarget(prevTarget);
     renderer.setClearColor(this.clearColor, prevAlpha);

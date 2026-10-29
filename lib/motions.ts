@@ -7,8 +7,9 @@ import { sided, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
 import { Rig, headPoint, leftward, forward, reach, withFacing } from './relations';
 import { buildStaging, waltzHold } from './stagings';
-import { GRAVITY, feetOf, plantFeet, travelTime } from './locomotion';
+import { GRAVITY, feetOf, legsOf, plantFeet, travelTime } from './locomotion';
 import { keysAction } from './track';
+import { scaleOf } from './mannequin';
 import { uid } from './uid';
 import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName, Pose, Scene, Side, Travel, Vec3, View } from './types';
 
@@ -108,7 +109,8 @@ function travelling(scene: Scene, figure: string, t0: number, t1: number, mode: 
 
 /** A figure walking, running or jumping `distance` metres ahead, its steps generated. */
 function travelled(f: Figure, kind: Travel, distance: number, o: { view: View }): Scene {
-  const t = Math.round(travelTime(kind, distance, f.body) * 24) / 24;
+  // (Whole frames, kept to the millionths a saved scene keeps.)
+  const t = Math.round((Math.round(travelTime(kind, distance, f.body) * 24) / 24) * 1e6) / 1e6;
   const there = { ...f, position: [f.position[0], f.position[1], f.position[2] + distance] as Vec3 };
   return travelling(animated(f.name, [{ t: 0, figures: [f] }, { t, figures: [there] }], { duration: t, loop: false, ...o }), f.id, 0, t, kind);
 }
@@ -248,18 +250,22 @@ function atHeights(rig: Rig, keys: Key[]): Key[] {
  */
 function fallBack(rig: Rig, f: Figure) {
   const stand = posed(f, STAND);
+  // (How far back the hips go, crouching and then lying: shares of the leg's length.)
+  const legs = legsOf(f.body);
+  const leg = legs.thigh + legs.shin;
   const totter = posed(f, { hips: [-14, 0, 0], leftUpperLeg: [-10, 0, 6], rightUpperLeg: [5, 0, -6], leftLowerLeg: [20, 0, 0], rightLowerLeg: [70, 0, 0], leftUpperArm: [-90, 0, 30], rightUpperArm: [-100, 0, -30], leftLowerArm: [-20, 0, 0], rightLowerArm: [-20, 0, 0], neck: [20, 0, 0] });
   const crouch = posed(f, { hips: [-10, 0, 0], leftUpperLeg: [-115, 0, 12], rightUpperLeg: [-115, 0, -12], leftLowerLeg: [140, 0, 0], rightLowerLeg: [140, 0, 0], leftFoot: [-25, 0, 0], rightFoot: [-25, 0, 0], leftUpperArm: [-70, 0, 25], rightUpperArm: [-70, 0, -25], spine: [20, 0, 0], neck: [25, 0, 0] });
-  const down = { ...posed(f, { hips: [-88, 0, 0], leftUpperLeg: [-70, 0, 10], rightUpperLeg: [-55, 0, -10], leftLowerLeg: [100, 0, 0], rightLowerLeg: [80, 0, 0], leftUpperArm: [0, 0, 50], rightUpperArm: [0, 0, -50], neck: [8, 0, 0] }), position: [f.position[0], 0, f.position[2] - 0.55] as Vec3 };
+  const down = { ...posed(f, { hips: [-88, 0, 0], leftUpperLeg: [-70, 0, 10], rightUpperLeg: [-55, 0, -10], leftLowerLeg: [100, 0, 0], rightLowerLeg: [80, 0, 0], leftUpperArm: [0, 0, 50], rightUpperArm: [0, 0, -50], neck: [8, 0, 0] }), position: [f.position[0], 0, f.position[2] - 0.7 * leg] as Vec3 };
   const tottering = plantFeet(rig, totter, stand, ['L']);
-  const crouched = plantFeet(rig, { ...crouch, position: [f.position[0], 0, f.position[2] - 0.15] }, stand);
+  const crouched = plantFeet(rig, { ...crouch, position: [f.position[0], 0, f.position[2] - 0.19 * leg] }, stand);
   const lying = plantFeet(rig, down, crouched);
+  // (Into the crouch over ten frames: a long leg folds far, its knee splaying as the foot stays.)
   const falling = [
     { frame: 7, pose: tottering },
-    ...inBetween(rig, tottering, crouched, 3, stand, ['L']).map((pose, i) => ({ frame: 9 + 2 * i, pose })),
-    { frame: 15, pose: crouched },
-    ...inBetween(rig, crouched, lying, 4, crouched).map((pose, i) => ({ frame: 17 + 2 * i, pose })),
-    { frame: 25, pose: lying },
+    ...inBetween(rig, tottering, crouched, 4, stand, ['L']).map((pose, i) => ({ frame: 9 + 2 * i, pose })),
+    { frame: 17, pose: crouched },
+    ...inBetween(rig, crouched, lying, 4, crouched).map((pose, i) => ({ frame: 19 + 2 * i, pose })),
+    { frame: 27, pose: lying },
   ];
   return { stand, lying, falling };
 }
@@ -365,7 +371,20 @@ export const MOTIONS: Motion[] = [
       const keys: Key[] = Array.from({ length: 9 }, (_, i) => ({ t: i * 0.375, figures: couple.map((f) => turnAbout(f, -45 * i)) }));
       const scene = animated('Waltz turn', keys, { duration: 3, loop: false, view: { yaw: 30, pitch: 10, fov: 26 } });
       const turning = couple.reduce((sc, f) => travelling(sc, f.id, 0, 3, 'walk', true), scene);
-      return { ...turning, animation: { ...turning.animation!, loop: true } };
+      // The hold kept all the way round (each steps its own way): the lead's right hand on the
+      // partner's back, the partner's left on the lead's shoulder, the partner's right in the lead's left.
+      const [lead, partner] = couple;
+      const held = (f: Figure, hand: 'leftHand' | 'rightHand', on: Figure, bone: JointName) => {
+        const m = rig.model(f);
+        const wrist = m.joints[hand].getWorldPosition(new THREE.Vector3());
+        const shoulder = m.joints[hand === 'leftHand' ? 'leftUpperArm' : 'rightUpperArm'].getWorldPosition(new THREE.Vector3());
+        // (The palm: as far on from the wrist as a hold puts the wrist back from it.)
+        const palm = wrist.clone().add(wrist.clone().sub(shoulder).normalize().multiplyScalar(0.07 * scaleOf(f.body)));
+        const at = rig.model(on).joints[bone].worldToLocal(palm);
+        return { id: uid('hold'), figure: f.id, bone: hand, target: { figure: on.id, bone, at: at.toArray().map((v) => Math.round(v * 1e4) / 1e4) as Vec3 }, start: 0, end: 3 };
+      };
+      const constraints = [held(lead, 'rightHand', partner, 'chest'), held(partner, 'leftHand', lead, 'rightUpperArm'), held(partner, 'rightHand', lead, 'leftHand')];
+      return { ...turning, animation: { ...turning.animation!, loop: true, constraints } };
     }),
   },
   {
@@ -407,6 +426,11 @@ export const MOTIONS: Motion[] = [
     name: 'Clinch & takedown',
     group: 'Together',
     people: 2,
+    // Each holds the other's shoulders: not one much taller than the other (a child and a big man).
+    fit: ([a, b]) => {
+      const [tall, small] = a.body.height >= b.body.height ? [a, b] : [b, a];
+      return tall.body.height - small.body.height > 0.6 ? `${small.name} is too small to tie up with ${tall.name}` : null;
+    },
     build: () => withRig((rig) => {
       // Built facing each other along Z (B at the origin facing +Z, A in front facing back), then
       // turned side-on to the camera. They tie up (A gripping B's collar and sleeve, B's hands on A's shoulders),
@@ -420,7 +444,9 @@ export const MOTIONS: Motion[] = [
       const tie = (f: Figure, other: Figure, right: THREE.Vector3, left: THREE.Vector3) => reachTo(rig, reachTo(rig, f, 'R', right), 'L', left);
       const grips = (f: Figure) => tie(f, bStand, local(rig, bStand, 'leftUpperArm', [0.04, -0.06, 0.15]), local(rig, bStand, 'rightUpperArm', [0, -0.04, 0.14]));
       const aClinch = { ...grips(adjusted(a0, { spine: [10, 0, 0] })), hands: { L: hand('Grip'), R: hand('Grip') } };
-      const bClinch = { ...tie(adjusted(bStand, { spine: [10, 0, 0] }), a0, local(rig, a0, 'leftUpperArm', [0, 0.04, 0]), local(rig, a0, 'rightUpperArm', [0, 0.04, 0])), hands: { L: hand('Grip'), R: hand('Grip') } };
+      // B's hands on A's shoulders, wherever A is (they go with A as A steps in).
+      const onShoulders = (a: Figure) => ({ ...tie(adjusted(bStand, { spine: [10, 0, 0] }), a, local(rig, a, 'leftUpperArm', [0, 0.04, 0]), local(rig, a, 'rightUpperArm', [0, 0.04, 0])), hands: { L: hand('Grip'), R: hand('Grip') } });
+      const bClinch = onShoulders(aClinch);
       // A's right foot: up, then down behind B's left heel (a little outside it), then back.
       const aFeet = feetOf(rig, aClinch);
       const bLeft = feetOf(rig, bStand, ['L'])[0];
@@ -440,8 +466,9 @@ export const MOTIONS: Motion[] = [
         { t: 0, figures: [a0, bStand] },
         { t: at(8), figures: [aClinch, bClinch] },
         { t: at(14), figures: [aClinch, bClinch] },
-        { t: at(18), figures: [aLift, bClinch] },
-        { t: at(22), figures: [aIn, bClinch] },
+        // (B's hands go with A's shoulders from the tie-up to A's step in.)
+        { t: at(18), figures: [aLift] },
+        { t: at(22), figures: [aIn, onShoulders(aIn)] },
       ];
       // B falls (its fall's frame 7, the totter, at A's push); A's foot is out before B comes down on it.
       for (const { frame, pose } of falling) {

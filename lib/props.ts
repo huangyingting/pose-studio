@@ -244,7 +244,7 @@ export class PropObject {
       this.object.visible = this.shown;
       this.shown = null;
     }
-    return this.parts.setIdMode(on, firstId, this.style, () => this.selected);
+    return this.parts.setIdMode(on, firstId);
   }
 
   /** Whether it was shown before the line pass hid it (null: not hidden by it). */

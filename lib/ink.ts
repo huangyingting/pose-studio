@@ -11,8 +11,9 @@ import type { Style, Vec3 } from './types';
  * outline).
  */
 function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.Texture; cutoff: number }) {
+  cutout?.map.updateMatrix();
   return new THREE.ShaderMaterial({
-    uniforms: cutout ? { ...uniforms, map: { value: cutout.map }, cutoff: { value: cutout.cutoff } } : uniforms,
+    uniforms: cutout ? { ...uniforms, map: { value: cutout.map }, mapTransform: { value: cutout.map.matrix }, cutoff: { value: cutout.cutoff } } : uniforms,
     ...(cutout ? { defines: { CUTOUT: '' } } : {}),
     side: THREE.BackSide,
     vertexShader: /* glsl */ `
@@ -21,12 +22,14 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
       uniform vec2 resolution;
       #include <skinning_pars_vertex>
       #ifdef CUTOUT
+        uniform mat3 mapTransform;
         varying vec2 vUv;
       #endif
       ${NOISE_GLSL}
       void main() {
         #ifdef CUTOUT
-          vUv = uv;
+          // (Where the texture is placed on the model: glTF's texture transform.)
+          vUv = (mapTransform * vec3(uv, 1.0)).xy;
         #endif
         #include <beginnormal_vertex>
         #include <skinbase_vertex>
@@ -67,6 +70,12 @@ export interface Ghost {
   opacity: number;
 }
 
+/**
+ * The layer outlines, rings and face lines are drawn on (the parts on the default one): passes
+ * that draw the parts alone (their IDs for the inner lines, depth, normals) leave it out.
+ */
+export const LINES_LAYER = 1;
+
 /** Encode a part id as a colour with 16 levels per channel (robust to 8-bit precision). */
 export function encodeId(id: number) {
   const n = id + 1;
@@ -82,6 +91,25 @@ const ID_VERT = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
 const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }';
+/** For a part made of pieces (a hand): each piece its own ID, the part's first one plus the piece's number. */
+const PIECES_VERT = /* glsl */ `
+  attribute float piece;
+  varying float vPiece;
+  #include <skinning_pars_vertex>
+  void main() {
+    vPiece = piece;
+    #include <skinbase_vertex>
+    #include <begin_vertex>
+    #include <skinning_vertex>
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+  }`;
+const PIECES_FRAG = /* glsl */ `
+  uniform float first;
+  varying float vPiece;
+  void main() {
+    float n = first + 1.0 + floor(vPiece + 0.5);
+    gl_FragColor = vec4(mod(n, 16.0) / 15.0, mod(floor(n / 16.0), 16.0) / 15.0, mod(floor(n / 256.0), 16.0) / 15.0, 1.0);
+  }`;
 
 interface StyleMaterials {
   body: THREE.Material;
@@ -90,6 +118,17 @@ interface StyleMaterials {
   hover: THREE.Material;
   prop: THREE.Material;
   propSel: THREE.Material;
+}
+
+/** A part drawn in an ID material (the one it had kept, to have back: null). */
+export function idMaterialOf(mesh: THREE.Mesh, id: THREE.Material | null) {
+  if (id) {
+    mesh.userData.drawnAs ??= mesh.material;
+    mesh.material = id;
+  } else if (mesh.userData.drawnAs) {
+    mesh.material = mesh.userData.drawnAs as THREE.Material;
+    delete mesh.userData.drawnAs;
+  }
 }
 
 /** Shared materials and uniforms for one rendering context (the editor or the exporter). */
@@ -126,11 +165,15 @@ export class Ink {
     }
   }
 
-  idMaterial(id: number) {
-    let m = this.idMats.get(id);
+  /** A part's ID material (`pieces`: one whose geometry numbers its pieces, each drawn as its own ID from `id` on). */
+  idMaterial(id: number, pieces = false) {
+    const key = pieces ? -1 - id : id;
+    let m = this.idMats.get(key);
     if (!m) {
-      m = new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
-      this.idMats.set(id, m);
+      m = pieces
+        ? new THREE.ShaderMaterial({ uniforms: { first: { value: id } }, vertexShader: PIECES_VERT, fragmentShader: PIECES_FRAG })
+        : new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
+      this.idMats.set(key, m);
     }
     return m;
   }
@@ -299,7 +342,8 @@ export class InkedParts {
   /** Drawn see-through, without lines (it stands between the camera and what is edited). */
   faded = false;
 
-  constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
+  /** `bare`: its parts only, without outlines or lines (one only worked out with, never drawn). */
+  constructor(private ink: Ink, private kind: 'figure' | 'prop', private bare = false) {}
 
   /**
    * A part, its outline and lines: skinned (moving with several joints, bound by bindSkins) when its
@@ -312,15 +356,23 @@ export class InkedParts {
     if (pos) mesh.position.set(...pos);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    this.geometries.add(geo);
+    if (this.bare) {
+      for (const r of rings) r.dispose();
+      parent.add(mesh);
+      this.bodies.push(mesh);
+      return mesh;
+    }
     const hull = made(geo, this.ink.outline);
     hull.raycast = () => {};
+    hull.layers.set(LINES_LAYER);
     mesh.add(hull);
     this.decorations.push(hull);
     this.hulls.push(hull);
-    this.geometries.add(geo);
     for (const r of rings) {
       const m = made(r, this.ink.ring);
       m.raycast = () => {};
+      m.layers.set(LINES_LAYER);
       mesh.add(m);
       this.decorations.push(m);
       this.rings.push(m);
@@ -345,9 +397,14 @@ export class InkedParts {
 
   /** Thin lines drawn on a part's surface (eyes, brows, mouth), in the style's face colour. */
   addFaceLines(mesh: THREE.Mesh, geos: THREE.BufferGeometry[]) {
+    if (this.bare) {
+      for (const g of geos) g.dispose();
+      return;
+    }
     for (const g of geos) {
       const line = new THREE.Mesh(g, this.ink.face);
       line.raycast = () => {};
+      line.layers.set(LINES_LAYER);
       mesh.add(line);
       this.decorations.push(line);
       this.faceLines.push(line);
@@ -364,14 +421,20 @@ export class InkedParts {
   }
 
   /** Swap to flat per-part colours for the ID pass; returns the next free id. */
-  setIdMode(on: boolean, firstId: number, style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
-    if (on) {
-      for (const d of this.decorations) d.visible = false;
-      this.bodies.forEach((mesh, i) => { mesh.material = this.ink.idMaterial(firstId + i); });
-    } else {
-      this.refresh(style, isSelected);
+  /**
+   * Its parts in flat ID colours for the inner-line pass (on), or back as they were (off): only
+   * their materials swapped (its lines, on their own layer, are left out by the pass). Returns the
+   * next free id.
+   */
+  setIdMode(on: boolean, firstId: number) {
+    let id = firstId;
+    for (const mesh of this.bodies) {
+      // (A part of several pieces, a hand: as many IDs, so the lines between its fingers are drawn.)
+      const pieces = (mesh.geometry.userData.pieces as number | undefined) ?? 0;
+      idMaterialOf(mesh, on ? this.ink.idMaterial(id, pieces > 0) : null);
+      id += Math.max(1, pieces);
     }
-    return firstId + this.bodies.length;
+    return id;
   }
 
   refresh(style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
@@ -413,16 +476,28 @@ export class InkedParts {
    */
   lowest(): number {
     const centre = new THREE.Vector3();
+    const moved = new THREE.Matrix4();
     const parts: { mesh: THREE.Mesh; low: number }[] = [];
     for (const mesh of this.bodies) {
       if (!mesh.visible) continue;
       const g = mesh.geometry;
       if (!g.boundingSphere) g.computeBoundingSphere();
       const s = g.boundingSphere!;
-      centre.copy(s.center).applyMatrix4(mesh.matrixWorld);
-      // (A skinned part, bent, can reach a little beyond its sphere at rest.)
-      const bent = (mesh as THREE.SkinnedMesh).isSkinnedMesh ? 0.1 : 0;
-      parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() - bent });
+      const skinned = mesh as THREE.SkinnedMesh;
+      if (!skinned.isSkinnedMesh) {
+        centre.copy(s.center).applyMatrix4(mesh.matrixWorld);
+        parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() });
+        continue;
+      }
+      // (A skinned part: each vertex a weighting of where its bones take it, so no lower than the
+      // lowest of its sphere at rest as each of its bones takes it.)
+      let low = Infinity;
+      skinned.skeleton.bones.forEach((b, i) => {
+        moved.multiplyMatrices(b.matrixWorld, skinned.skeleton.boneInverses[i]).multiply(skinned.bindMatrix);
+        centre.copy(s.center).applyMatrix4(moved);
+        low = Math.min(low, centre.y - s.radius * moved.getMaxScaleOnAxis());
+      });
+      parts.push({ mesh, low });
     }
     parts.sort((a, b) => a.low - b.low);
     let min = Infinity;
@@ -441,11 +516,16 @@ export class InkedParts {
     return min;
   }
 
-  /** Bind the skinned parts (their joints at rest now, their world matrices up to date) to a skeleton. */
-  bindSkins(skeleton: THREE.Skeleton) {
+  /**
+   * Bind skinned parts (their joints at rest now, their world matrices up to date) to a skeleton:
+   * `parts` and their outlines and lines (or all of them not bound yet).
+   */
+  bindSkins(skeleton: THREE.Skeleton, parts?: THREE.Mesh[]) {
     this.skeletons.push(skeleton);
-    for (const m of [...this.bodies, ...this.decorations]) {
-      if ((m as THREE.SkinnedMesh).isSkinnedMesh) (m as THREE.SkinnedMesh).bind(skeleton, m.matrixWorld);
+    const meshes = parts ? parts.flatMap((p) => [p, ...p.children]) : [...this.bodies, ...this.decorations];
+    for (const m of meshes) {
+      const s = m as THREE.SkinnedMesh;
+      if (s.isSkinnedMesh && (parts || !s.skeleton)) s.bind(skeleton, s.matrixWorld);
     }
   }
 
@@ -553,14 +633,12 @@ export function egg(rx: number, ry: number, rz: number, taper: number, n = 32, s
 }
 
 /** Tapered capsule hanging from y=0 down to y=-len, with an optional muscle bulge. */
-export function limb(len: number, r1: number, r2: number, bulge = 0, bulgeAt = 0.35, segments = 32) {
+export function limb(len: number, r1: number, r2: number, bulge = 0, bulgeAt = 0.35, segments = 24, shaft = 18, cap = 8) {
   const radius = (t: number) => {
     const s = t < bulgeAt ? (t / bulgeAt) * 0.5 : 0.5 + ((t - bulgeAt) / (1 - bulgeAt)) * 0.5;
     return r1 + (r2 - r1) * t + bulge * Math.sin(Math.PI * s);
   };
   const pts: THREE.Vector2[] = [];
-  const cap = 8;
-  const shaft = 18;
   for (let i = 0; i <= cap; i++) {
     const a = -Math.PI / 2 + (i / cap) * (Math.PI / 2);
     pts.push(new THREE.Vector2(r2 * Math.cos(a), -len + r2 * Math.sin(a)));

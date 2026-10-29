@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { bulge, contour, egg, ellipsoid, Ink, InkedParts, limb, meridian, smoothNormals, type Highlight } from './ink';
 import { headForms } from './head';
 import { clampRotation, jointLimits, sided, wrapDeg, type LimbPart } from './joints';
@@ -69,6 +70,22 @@ export function stableEuler(e: THREE.Euler, prev: Vec3): Vec3 {
 
 const mix = (m: number, f: number, female: number) => m + (f - m) * female;
 
+/**
+ * An artist's proportions (8 heads tall, the crotch at half the height, long legs): the parts'
+ * sizes below are for a figure 1.8 / STATURE m tall, scaled so a figure is as tall as its height.
+ */
+const STATURE = 0.932;
+/** The legs' and arms' segments (units of a 1.8 m figure; the legs' × the body's leg length). */
+const THIGH = 0.47, SHIN = 0.47, UPPER_ARM = 0.33, FOREARM = 0.29;
+/** The shares of a figure's height that its legs and its head are (at leg length and head size 1). */
+const LEGS_SHARE = 0.487, HEAD_SHARE = 0.118;
+
+/**
+ * A body's scale (its parts' sizes below times this): its height is kept as its legs or head are
+ * made longer or shorter (the rest of it scaled to make up the difference).
+ */
+export const scaleOf = (b: BodyParams) => ((b.height / 1.8) * STATURE) / (1 + LEGS_SHARE * (b.legs - 1) + HEAD_SHARE * (b.head - 1));
+
 /*
  * Sex blends the secondary sex characteristics an artist looks for in a figure:
  *   male    broad shoulders and rib cage tapering to narrow hips (V shape), pectorals, trapezius
@@ -77,8 +94,7 @@ const mix = (m: number, f: number, female: number) => m + (f - m) * female;
  *           glutes and upper thighs, slender neck and limbs, rounder head with a narrower chin
  */
 function proportions(b: BodyParams) {
-  // (Its parts' sizes below are for a figure STATURE times as tall: scaled to its height.)
-  const k = (b.height / 1.8) * STATURE;
+  const k = scaleOf(b);
   const female = b.sex;
   const male = 1 - b.sex;
   const mix = (m: number, f: number) => m + (f - m) * female;
@@ -90,7 +106,7 @@ function proportions(b: BodyParams) {
     torso,
     limbR: (0.82 + 0.42 * b.build) * mix(1.1, 0.92) * k,
     legs: b.legs * k,
-    head: b.head * mix(1.02, 0.97) * k,
+    head: b.head * mix(1.1, 1.09) * k,
     headTaper: mix(0.03, 0.17),
     neckR: mix(0.05, 0.038) * (0.9 + 0.25 * b.build) * k,
     /** The torso's section at a height from the hips joint (its build widens and deepens it). */
@@ -117,14 +133,6 @@ function proportions(b: BodyParams) {
  * waist, narrowest (narrower on a woman); the bottom of the rib cage; the chest, deepest at the
  * nipples, widest under the arms; the shoulders' slope to the neck.
  */
-/**
- * An artist's proportions (8 heads tall, the crotch at half the height, long legs), the parts'
- * sizes below are for a figure 1.8 / STATURE m tall: scaled so a figure is as tall as its height.
- */
-const STATURE = 0.932;
-/** The legs' and arms' segments (units of a 1.8 m figure, legs × the body's leg length). */
-const THIGH = 0.47, SHIN = 0.47, UPPER_ARM = 0.33, FOREARM = 0.29;
-
 const TORSO_Y = [-0.115, -0.085, -0.04, 0, 0.06, 0.12, 0.17, 0.23, 0.3, 0.38, 0.44, 0.49, 0.53];
 const TORSO = {
   male: {
@@ -171,7 +179,7 @@ function torsoFront(at: (y: number) => Section, x: number, y: number) {
  * A piece of the torso, from y0 to y1, its ends rounded inwards (`caps`: how far), so a bent joint
  * shows a rounded end, not a hole. Made in the hips' frame.
  */
-function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 64, square = SQUARE) {
+function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 48, square = SQUARE) {
   const rings: { y: number; scale: number; s: Section }[] = [];
   const capRings = 6;
   for (let i = capRings; i > 0; i--) {
@@ -233,6 +241,8 @@ function torsoMidline(at: (y: number) => Section, y0: number, y1: number, backFr
 
 /** How far the torso reaches to either side at a height from the hips joint (contacts on its surface). */
 export const torsoHalfWidth = (body: BodyParams, y: number) => proportions(body).section(y).w;
+/** How big a body's torso is across and through (its scale, widened by its build). */
+export const torsoScale = (body: BodyParams) => proportions(body).torso;
 
 type Egg = { rx: number; ry: number; rz: number; taper: number };
 
@@ -308,10 +318,17 @@ const FINGER_LAYOUT = [
 ];
 const CURL_ANGLES = [75, 95, 65].map((a) => a * D2R);
 
+/** A piece of a hand (the palm, a finger's segment) and what moves it. */
+interface HandPiece { geo: THREE.BufferGeometry; on: THREE.Object3D }
+
 interface FingerRig {
   /** [thumb, index, middle, ring, pinky] × 3 segment groups */
   segments: THREE.Group[][];
   side: 1 | -1;
+  wrist?: THREE.Group;
+  joint?: JointName;
+  /** Its pieces until they are made one part (skinHand). */
+  pieces?: HandPiece[];
 }
 
 /** A jointed art mannequin built from primitives, rendered as line art. */
@@ -332,8 +349,9 @@ export class Mannequin {
   /** Built as a capsule stand-in (same skeleton, simple shapes, no hands or face). */
   private standIn = false;
 
-  constructor(private ink: Ink, body: BodyParams, readonly id = '', standIn = false) {
-    this.parts = new InkedParts(ink, 'figure');
+  /** `bare`: only to work things out with (its joints and parts), never drawn: no outlines or lines. */
+  constructor(private ink: Ink, body: BodyParams, public id = '', standIn = false, private readonly bare = false) {
+    this.parts = new InkedParts(ink, 'figure', bare);
     this.setBody(body, standIn);
   }
 
@@ -346,7 +364,7 @@ export class Mannequin {
     this.parts.dispose();
     this.object.clear();
     this.joints = {} as Record<JointName, THREE.Group>;
-    this.parts = new InkedParts(this.ink, 'figure');
+    this.parts = new InkedParts(this.ink, 'figure', this.bare);
     this.build(proportions(body));
     this.refresh();
     this.parts.setFeatures(this.faces);
@@ -374,7 +392,7 @@ export class Mannequin {
     const at = P.section;
     const [waistY, chestY] = SEAMS.map((y) => y * k);
     const [bottom, top] = [TORSO_Y[0] * k, TORSO_Y[TORSO_Y.length - 1] * k];
-    const step = 0.006 * k;
+    const step = 0.009 * k;
     // (Each piece's ends rounded into the next, hidden until the joint between them bends.)
     const cap = 0.035 * k;
     const pelvis = torsoPiece(at, bottom, waistY, [0.02 * k, cap], step);
@@ -504,6 +522,7 @@ export class Mannequin {
       });
       this.object.updateMatrixWorld(true);
       this.parts.bindSkins(new THREE.Skeleton(bones));
+      for (const side of ['L', 'R'] as const) this.skinHand(this.hands[side]);
     }
   }
 
@@ -513,18 +532,20 @@ export class Mannequin {
     const R = P.limbR;
     const add = (j: JointName, geo: THREE.BufferGeometry, pos?: Vec3, rings: THREE.BufferGeometry[] = []) =>
       this.parts.add(this.joints[j], geo, { joint: j, figure: this.id }, pos, rings);
-    const up = (len: number, r1: number, r2: number) => limb(len, r1, r2, 0, 0.35, 24).geometry.rotateZ(Math.PI);
+    // (Capsules: coarser than the mannequin's parts, a stand-in is the lighter of the two.)
+    const capsule = (len: number, r1: number, r2: number) => limb(len, r1, r2, 0, 0.35, 16, 8, 5).geometry;
+    const up = (len: number, r1: number, r2: number) => capsule(len, r1, r2).rotateZ(Math.PI);
     const torso = up(0.6 * k, 0.15 * P.torso, mix(0.17, 0.14, P.female) * P.torso).scale(1, 1, 0.68);
     add('hips', torso, [0, -0.12 * k, 0]);
     add('head', egg(head.rx, head.ry, head.rz, head.taper), [0, 0.1 * P.head, 0.01 * P.head], [meridian(head.ry, head.rz, head.taper)]);
     for (const side of ['L', 'R'] as const) {
-      add(sided('UpperArm', side), limb(UPPER_ARM * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
-      add(sided('LowerArm', side), limb((FOREARM + 0.095) * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
-      add(sided('UpperLeg', side), limb(THIGH * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
-      add(sided('LowerLeg', side), limb(SHIN * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
+      add(sided('UpperArm', side), capsule(UPPER_ARM * k, 0.05 * R, 0.038 * R));
+      add(sided('LowerArm', side), capsule((FOREARM + 0.095) * k, 0.038 * R, 0.032 * R));
+      add(sided('UpperLeg', side), capsule(THIGH * P.legs, 0.08 * R, 0.05 * R));
+      add(sided('LowerLeg', side), capsule(SHIN * P.legs, 0.05 * R, 0.04 * R));
       // Round joints keep bent limbs smooth where the capsules meet.
-      add(sided('LowerArm', side), new THREE.SphereGeometry(0.044 * R, 20, 14));
-      add(sided('LowerLeg', side), new THREE.SphereGeometry(0.058 * R, 20, 14));
+      add(sided('LowerArm', side), new THREE.SphereGeometry(0.044 * R, 16, 10));
+      add(sided('LowerLeg', side), new THREE.SphereGeometry(0.058 * R, 16, 10));
       const fk = k * P.extremity;
       add(sided('Foot', side), ellipsoid(0.045 * R, 0.035 * fk, 0.11 * fk), [0, -0.04 * k, 0.05 * fk]);
     }
@@ -536,7 +557,7 @@ export class Mannequin {
    * surface, finished with a few quiet lines (upper eyelids, the line between the lips and
    * under the nose). A plain construction head stands in when face features are off.
    */
-  /** The head (lib/head.ts): its form, its face (shown with face features) or a plain one, ears, hair. */
+  /** The head (lib/head.ts): its form, its face (shown with face features) or a plain one, ears. */
   private buildHead(h: number, female: number) {
     const pos: Vec3 = [0, 0.1 * h, 0.01 * h];
     const at = (p: Vec3): Vec3 => [pos[0] + p[0], pos[1] + p[1], pos[2] + p[2]];
@@ -549,8 +570,6 @@ export class Mannequin {
     this.parts.add(this.joints.head, forms.ear, tag, at(forms.earAt));
     const [x, y, z] = forms.earAt;
     this.parts.add(this.joints.head, mirrored(forms.ear), tag, at([-x, y, z]));
-    // (The hair is not picked: a click on it reaches what is under it, a hand on the head or the head.)
-    this.parts.add(this.joints.head, forms.hair, tag, pos).raycast = () => {};
   }
 
   /** Show or hide the face details. */
@@ -561,8 +580,9 @@ export class Mannequin {
 
   /** Palm + thumb + four three-segment fingers. The palm faces the body (−X for the left hand). */
   private buildHand(wrist: THREE.Group, j: JointName, s: 1 | -1, k: number): FingerRig {
-    const tag = { joint: j, figure: this.id };
-    this.parts.add(wrist, ellipsoid(0.017 * k, 0.05 * k, 0.041 * k, 24, 16), tag, [0, -0.055 * k, 0]);
+    // (The palm and the fingers' segments, each on what moves it: made one skinned part once the
+    // figure is built, as one thing to draw instead of sixteen.)
+    const pieces: HandPiece[] = [{ geo: ellipsoid(0.017 * k, 0.05 * k, 0.041 * k, 24, 16).translate(0, -0.055 * k, 0), on: wrist }];
 
     const chain = (base: THREE.Group, lens: number[], r: number) => {
       const groups: THREE.Group[] = [base];
@@ -576,7 +596,8 @@ export class Mannequin {
           parent = g;
         }
         const radius = r * k * (1 - i * 0.1);
-        this.parts.add(parent, limb(len * k, radius, radius * 0.9, 0, 0.35, 12).geometry, tag);
+        // (A finger's segment: a few centimetres, a coarse capsule is as round.)
+        pieces.push({ geo: limb(len * k, radius, radius * 0.9, 0, 0.35, 10, 3, 4).geometry, on: parent });
       });
       return groups;
     };
@@ -593,7 +614,39 @@ export class Mannequin {
       wrist.add(base);
       segments.push(chain(base, f.len, f.r));
     }
-    return { segments, side: s };
+    return { segments, side: s, wrist, joint: j, pieces };
+  }
+
+  /** A hand's pieces as one part, each vertex moved by the bone of the piece it is from (at rest now). */
+  private skinHand(hand: FingerRig) {
+    const { wrist, joint, pieces } = hand;
+    if (!wrist || !joint || !pieces?.length) return;
+    const toWrist = wrist.matrixWorld.clone().invert();
+    const bones: THREE.Bone[] = [];
+    const geos: THREE.BufferGeometry[] = [];
+    pieces.forEach(({ geo, on }) => {
+      let bone = bones.findIndex((b) => b.parent === on);
+      if (bone < 0) {
+        const b = new THREE.Bone();
+        on.add(b);
+        b.updateMatrixWorld();
+        bones.push(b);
+        bone = bones.length - 1;
+      }
+      const g = geo.applyMatrix4(toWrist.clone().multiply(on.matrixWorld));
+      const n = g.attributes.position.count;
+      g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Array(n * 4).fill(0).map((_, i) => (i % 4 === 0 ? bone : 0)), 4));
+      g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(new Array(n * 4).fill(0).map((_, i) => (i % 4 === 0 ? 1 : 0)), 4));
+      g.setAttribute('piece', new THREE.Float32BufferAttribute(new Array(n).fill(geos.length), 1));
+      geos.push(g);
+    });
+    const merged = mergeGeometries(geos)!;
+    merged.userData.pieces = geos.length;
+    for (const g of geos) g.dispose();
+    const part = this.parts.add(wrist, merged, { joint, figure: this.id });
+    part.updateMatrixWorld(true);
+    this.parts.bindSkins(new THREE.Skeleton(bones), [part]);
+    hand.pieces = [];
   }
 
   setHand(side: Side, hand: Hand) {
@@ -664,6 +717,13 @@ export class Mannequin {
   private surface: ((x: number, z: number) => number) | null = null;
 
   /** What it stands on besides the floor: the height of the props under a floor point. */
+  /** Its parts tagged as another figure's (a mannequin worked out with, passed on to the next). */
+  retag(id: string) {
+    if (id === this.id) return;
+    this.id = id;
+    for (const m of this.parts.bodies) m.userData.figure = id;
+  }
+
   setGround(surface: ((x: number, z: number) => number) | null) {
     this.surface = surface;
   }
@@ -788,7 +848,7 @@ export class Mannequin {
   }
 
   setIdMode(on: boolean, firstId: number) {
-    return this.parts.setIdMode(on, firstId, this.style, this.isSelected);
+    return this.parts.setIdMode(on, firstId);
   }
 
   /** A colour mixed into the body, to tell figures apart (null: none). */

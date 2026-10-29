@@ -15,7 +15,7 @@ const RAW: RawPose[] = [
   {
     name: 'Hand on head', view: v(0, 4), joints: {
       hips: [0, 0, -3], spine: [0, -4, 3], chest: [0, -6, -6], neck: [0, 0, 4], head: [6, 8, 10],
-      leftUpperArm: [-10, 90, 150], leftLowerArm: [-135, 0, 0], rightUpperArm: [10, 90, -40], rightLowerArm: [-100, 0, 0],
+      leftUpperArm: [-10, 90, 150], leftLowerArm: [-135, 0, 0], rightUpperArm: [10, 90, -55], rightLowerArm: [-95, 0, 0],
       leftUpperLeg: [-12, -10, 4], leftLowerLeg: [22, 0, 0], leftFoot: [35, 0, 0], rightUpperLeg: [2, 0, -7], rightLowerLeg: [3, 0, 0],
     },
   },
@@ -29,7 +29,7 @@ const RAW: RawPose[] = [
   {
     name: 'Back view, hand on hip', view: v(180, 4), joints: {
       hips: [0, 0, -3], chest: [0, 15, 0], neck: [0, 10, 0], head: [5, 35, -5],
-      rightUpperArm: [10, 90, -40], rightLowerArm: [-100, 0, 0], leftUpperArm: [5, 0, 12], leftLowerArm: [-8, 0, 0],
+      rightUpperArm: [10, 90, -55], rightLowerArm: [-95, 0, 0], leftUpperArm: [5, 0, 12], leftLowerArm: [-8, 0, 0],
       leftUpperLeg: [-8, -10, 8], leftLowerLeg: [18, 0, 0], leftFoot: [30, 0, 0], rightUpperLeg: [2, 0, -6],
     },
   },

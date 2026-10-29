@@ -1,6 +1,6 @@
 import { clipById, clipIdsOf } from './assets';
 import { loadImage, loadModelFile, saveClips, saveImage, saveModelFile } from './assetstore';
-import { modelTemplate } from './model';
+import { modelArrived } from './model';
 import { parseClip, parseLibrary } from './doc';
 import { withBase } from './paths';
 import type { Store } from './store';
@@ -160,7 +160,7 @@ export class CloudSync {
         const got = await fetch(url(id));
         if (got.ok) {
           await saveModelFile(id, await got.arrayBuffer());
-          modelTemplate(id);
+          modelArrived(id);
         }
       }
     }

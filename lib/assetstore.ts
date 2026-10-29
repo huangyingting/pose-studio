@@ -12,19 +12,51 @@ const DB = 'pose-studio-assets';
 const CLIPS = 'clips';
 const MODELS = 'models';
 const IMAGES = 'images';
+const THUMBS = 'thumbs';
 
 let db: Promise<IDBDatabase> | null = null;
-const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>() };
+const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>(), thumbs: new Map<string, string>() };
+
+/** Whether a newer build (in another tab) has the database: this tab can no longer keep or read anything in it. */
+let outdated = false;
+const OUTDATED = 'Pose Studio was updated in another tab: reload this one to keep saving';
+const outdatedListeners = new Set<() => void>();
+
+/** Be told (once) when a newer build has the database: this tab should be reloaded. Returns the way to stop. */
+export function onOutdated(f: () => void) {
+  // (Already: told now.)
+  if (outdated) f();
+  outdatedListeners.add(f);
+  return () => { outdatedListeners.delete(f); };
+}
+
+function becameOutdated() {
+  if (outdated) return;
+  outdated = true;
+  for (const f of outdatedListeners) f();
+}
 
 function open(): Promise<IDBDatabase> | null {
   if (typeof indexedDB === 'undefined') return null;
+  if (outdated) return Promise.reject(new Error(OUTDATED));
   db ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 3);
+    const req = indexedDB.open(DB, 4);
     req.onupgradeneeded = () => {
-      for (const name of [CLIPS, MODELS, IMAGES]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
+      for (const name of [CLIPS, MODELS, IMAGES, THUMBS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      // (Another tab of a newer build needing a newer version: this one lets it, and says so when next asked.)
+      req.result.onversionchange = () => {
+        req.result.close();
+        becameOutdated();
+      };
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      // (Already a newer version: opened by a newer build.)
+      if (req.error?.name === 'VersionError') becameOutdated();
+      reject(outdated ? new Error(OUTDATED) : req.error);
+    };
   });
   return db;
 }
@@ -94,4 +126,48 @@ export async function saveImage(id: string, image: Blob) {
 export async function loadImage(id: string): Promise<Blob | null> {
   const got = run<{ id: string; image: Blob } | undefined>(IMAGES, 'readonly', (s) => s.get(id));
   return got ? (await got)?.image ?? null : memory.images.get(id) ?? null;
+}
+
+/*
+ * The library's thumbnails, kept between visits for this build of the app (a build's templates
+ * and poses can look different from the last one's: drawn again then, once).
+ */
+const BUILD = process.env.NEXT_PUBLIC_BUILD ?? '';
+let pruned = false;
+let thumbsOff = false;
+
+/**
+ * A kept thumbnail (an image URL), or null: none kept, or none to wait for (not kept while
+ * developing; the browser's storage refused, or slow to open: drawn instead).
+ */
+export async function loadThumb(key: string): Promise<string | null> {
+  if (!BUILD || thumbsOff) return null;
+  const got = run<{ id: string; url: string } | undefined>(THUMBS, 'readonly', (s) => s.get(`${BUILD}|${key}`));
+  if (!got) return memory.thumbs.get(key) ?? null;
+  // (Once one could not be read, or not soon, none is looked for again this visit.)
+  const late = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500));
+  const url = await Promise.race([got.then((x) => x?.url ?? null, () => undefined), late]);
+  if (url === undefined) thumbsOff = true;
+  return url ?? null;
+}
+
+/** Keep a thumbnail (the first time in a visit, those of other builds let go); nothing if it cannot be. */
+export async function saveThumb(key: string, url: string) {
+  if (!BUILD) return;
+  const d = open();
+  if (!d) {
+    memory.thumbs.set(key, url);
+    return;
+  }
+  try {
+    const store = (await d).transaction(THUMBS, 'readwrite').objectStore(THUMBS);
+    if (!pruned) {
+      pruned = true;
+      const all = store.getAllKeys();
+      all.onsuccess = () => { for (const k of all.result) if (!String(k).startsWith(`${BUILD}|`)) store.delete(k); };
+    }
+    store.put({ id: `${BUILD}|${key}`, url });
+  } catch {
+    // (Not kept: drawn again next visit.)
+  }
 }

@@ -127,7 +127,7 @@ describe('Mannequin', () => {
     const m = make();
     const tipOf = () => {
       const box = new THREE.Box3();
-      m.parts.bodies.filter((b) => b.userData.joint === 'leftHand').forEach((b) => box.expandByObject(b));
+      m.parts.bodies.filter((b) => b.userData.joint === 'leftHand').forEach((b) => box.expandByObject(b, true)); // (precise: a skinned hand as its bones have it)
       return box;
     };
     m.apply(newFigure());

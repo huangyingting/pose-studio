@@ -4,7 +4,7 @@ import { RELAXED_HAND } from './hands';
 import { samplePart } from './clip';
 import { clampRotation } from './joints';
 import { feetOf, plantFeet } from './locomotion';
-import { IK_CHAINS, rotateWorld } from './mannequin';
+import { IK_CHAINS, rotateWorld, scaleOf } from './mannequin';
 import { angleToQuat, fromQuat, quatToAngle, toQuat } from './pose';
 import { Rig } from './relations';
 import type { Clip, ClipContact, Figure, Holder, JointName } from './types';
@@ -57,7 +57,7 @@ const BONE_END: Partial<Record<JointName, JointName>> = {
   leftUpperLeg: 'leftLowerLeg', rightUpperLeg: 'rightLowerLeg', leftLowerLeg: 'leftFoot', rightLowerLeg: 'rightFoot',
 };
 /** A hand on the trunk is held in the chest's frame (it may sit over the spine or the chest from frame to frame). */
-const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'neck'];
+export const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'neck'];
 
 /**
  * Where the parts of a clip of several people hold each other: stretches where a hand stays on
@@ -107,7 +107,7 @@ export function detectGrips(clip: Clip, fps: number): ClipContact[] {
         const held = from >= 0 ? touches[from][p][h]! : null;
         // The same spot of the same bone (a hand that slides along is not a hold); a frame or two
         // off it is the same hold still.
-        const same = !!now && !!held && now.part === held.part && now.bone === held.bone && now.at.distanceTo(held.at) < 0.04;
+        const same = !!now && !!held && now.part === held.part && now.bone === held.bone && now.at.distanceTo(held.at) < 0.06;
         if (same) last = i;
         else if (from >= 0 && i - last > 2) close();
         if (from < 0 && now) [from, last] = [i, i];
@@ -187,7 +187,7 @@ export function solveHolds(rig: Rig, f: Figure, holds: Hold[], limits = true): P
       // A hand turns its arm by the least it takes (continuous as the target moves, from the pose
       // the arm is in); a hand held on a spot has its palm there, its wrist a little before it.
       const shoulder = m.joints[chain[0]].getWorldPosition(new THREE.Vector3());
-      const wrist = h.relative ? h.at : h.at.clone().add(shoulder.sub(h.at).normalize().multiplyScalar(0.07 * (fig.body.height / 1.8)));
+      const wrist = h.relative ? h.at : h.at.clone().add(shoulder.sub(h.at).normalize().multiplyScalar(0.07 * scaleOf(fig.body)));
       reachLeast(m, chain, wrist);
       solved = m.read().bones;
     }

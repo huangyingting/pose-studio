@@ -7,7 +7,7 @@ import type { Vec3 } from './types';
  * than the face, its back rounded and tucked in above the neck; the face narrowing past the
  * cheekbones to the jaw and chin (a squarer jaw on a man); the face's forms sculpted into it (brow,
  * eye sockets, nose, lips, chin, cheekbones); ears, between the brow and the base of the nose,
- * behind the jaw; and hair as one sculpted mass (a buzz cut on a man; a short bob on a woman). In units of the head's size `h` (a 1.8 m figure's is 1), the eyes at y = 0, the
+ * behind the jaw. In units of the head's size `h` (a 1.8 m figure's is 1), the eyes at y = 0, the
  * face towards +z.
  */
 
@@ -41,7 +41,7 @@ function headPoint(dir: THREE.Vector3, female: number): THREE.Vector3 {
 
 /** The head's form as a mesh. */
 function headMesh(female: number, h: number) {
-  const geo = new THREE.SphereGeometry(1, 96, 72);
+  const geo = new THREE.SphereGeometry(1, 80, 60);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -133,87 +133,6 @@ function earGeometry(h: number) {
   return smoothNormals(geo).rotateX(-0.22).rotateY(-0.32);
 }
 
-/** Where a man's hair starts all round (unit-sphere height, by the angle round from the face): forehead, temples, over the ears, the nape. */
-function hairline(angle: number) {
-  const a = Math.abs(angle);
-  return a < 0.9 ? 0.5 - 0.22 * smooth(0, 0.9, a)
-    : a < 1.75 ? 0.28 - 0.26 * smooth(0.9, 1.75, a)
-      : 0.02 - 0.6 * smooth(1.75, 2.7, a);
-}
-
-/** Where a woman's bob ends all round: its fringe above her brows, down to her jaw at the sides and back (her face left open between). */
-function bobEdge(angle: number) {
-  const a = Math.abs(angle);
-  return 0.24 - 0.1 * smooth(0.2, 0.7, a) - 0.82 * smooth(0.7, 1.35, a);
-}
-
-/** The head's middle (unit), which hair stands out from. */
-const MIDDLE = new THREE.Vector3(0, 0.004, -0.008);
-
-/**
- * The hair: a man's a buzz cut (a thin, even cap from his hairline up); a woman's a short bob,
- * from the crown down: a fringe over her forehead, and at the sides and back falling straight
- * from where her head is widest to her jaw (clear of her ears), its ends turned in a little.
- */
-function hairGeometry(female: number, h: number) {
-  const bob = female >= 0.5;
-  const columns = 96;
-  const rows = 40;
-  // (How far out the bob hangs at each angle: the head at its widest there, and its thickness.)
-  const widest = (angle: number) => {
-    const d = new THREE.Vector3(Math.sin(angle) * 0.995, 0.1, Math.cos(angle) * 0.995).normalize();
-    const p = headPoint(d, female).sub(MIDDLE);
-    return Math.hypot(p.x, p.z) + 0.009 + 0.011 * Math.abs(Math.sin(angle));
-  };
-  const pos: number[] = [];
-  for (let r = 0; r <= rows; r++) {
-    for (let c = 0; c < columns; c++) {
-      const angle = (c / columns) * Math.PI * 2 - Math.PI;
-      const start = bob ? bobEdge(angle) : hairline(angle);
-      const v = r / rows;
-      const y = start + (1 - start) * (1 - (1 - v) ** 1.5);
-      const round = Math.sqrt(Math.max(0, 1 - y * y));
-      const d = new THREE.Vector3(Math.sin(angle) * round, y, Math.cos(angle) * round);
-      const p = headPoint(d, female);
-      const n = p.clone().sub(MIDDLE).normalize();
-      if (!bob) {
-        // (Close-cropped: as thick at the hairline as over the crown.)
-        p.addScaledVector(n, 0.0032 + 0.0012 * Math.max(0, y) * smooth(0, 0.2, v));
-      } else {
-        p.addScaledVector(n, 0.006 + 0.008 * Math.max(0, y) + 0.003 * Math.max(0, d.z) * smooth(0.1, 0.6, y));
-        // Below its widest, at the sides and back, it falls (gradually: out to where it hangs);
-        // at the back closer in, to the nape; its ends turned in.
-        const side = smooth(0.6, 1.1, Math.abs(angle));
-        const fall = smooth(0.15, -0.3, y);
-        if (side > 0 && fall > 0) {
-          const q = p.clone().sub(MIDDLE);
-          const r0 = Math.hypot(q.x, q.z);
-          const back = smooth(1.9, 2.8, Math.abs(angle));
-          const r1 = (widest(angle) - 0.012 * back) * (1 - 0.05 * smooth(-0.45, bobEdge(angle), y));
-          if (r1 > r0) {
-            const k = 1 + (r1 / r0 - 1) * side * fall;
-            p.set(MIDDLE.x + q.x * k, p.y, MIDDLE.z + q.z * k);
-          }
-        }
-      }
-      p.multiplyScalar(h);
-      pos.push(p.x, p.y, p.z);
-    }
-  }
-  const index: number[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < columns; c++) {
-      const a = r * columns + c, b = r * columns + ((c + 1) % columns), d = a + columns, e = b + columns;
-      index.push(a, b, d, b, e, d);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setIndex(index);
-  // (Its top row all one point, the crown: one normal there.)
-  return smoothNormals(geo);
-}
-
 export interface HeadForms {
   /** The head without its face (while faces are off). */
   plain: THREE.BufferGeometry;
@@ -223,7 +142,6 @@ export interface HeadForms {
   /** The left ear and where it goes (the right: its mirror). */
   ear: THREE.BufferGeometry;
   earAt: Vec3;
-  hair: THREE.BufferGeometry;
 }
 
 // The last few heads made (a body's other settings change more often than its head and sex).
@@ -239,7 +157,7 @@ export function headForms(h: number, female: number): HeadForms {
     if (made.size > 6) made.delete(made.keys().next().value!);
   }
   const f = forms;
-  return { ...f, plain: f.plain.clone(), face: f.face.clone(), lines: f.lines.map((l) => l.clone()), ear: f.ear.clone(), hair: f.hair.clone() };
+  return { ...f, plain: f.plain.clone(), face: f.face.clone(), lines: f.lines.map((l) => l.clone()), ear: f.ear.clone() };
 }
 
 function makeHead(h: number, female: number): HeadForms {
@@ -287,6 +205,5 @@ function makeHead(h: number, female: number): HeadForms {
   return {
     plain, face, lines,
     ear: earGeometry(h), earAt: [side + 0.004 * h, earY * h, -0.012 * h],
-    hair: hairGeometry(female, h),
   };
 }

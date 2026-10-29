@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
 import { fitWarp, moveMark } from '@/lib/actions';
-import { actionsOf, footprints, marksOf, overWarp, figurePoseAt } from '@/lib/evaluate';
+import { actionsOf, figureRootAt, footprints, marksOf, overWarp } from '@/lib/evaluate';
 import { angle, facingOf, nearer } from '@/lib/pose';
 import { CONTACT_LABELS, contactPoint, type Contact } from '@/lib/relations';
 import { holdOn, holdProp } from '@/lib/actions';
@@ -837,10 +837,10 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
     const points: [number, number, number][] = [];
     const steps = Math.max(2, Math.ceil(sa.duration * 15));
     for (let i = 0; i <= steps; i++) {
-      // (Only this figure: the others and the props are not worked out at every step.)
-      const f = figurePoseAt(settled, figureId, (sa.duration * i) / steps)!;
-      const lift = Math.max(0, f.position[1] - ground(f.position[0], f.position[2]) - legs.rootY);
-      points.push([f.position[0], ground(f.position[0], f.position[2]) + 0.012 + lift, f.position[2]]);
+      // (Only where this figure is: not its whole pose, nor the others' and the props'.)
+      const [x, y, z] = figureRootAt(settled, figureId, (sa.duration * i) / steps)!;
+      const lift = Math.max(0, y - ground(x, z) - legs.rootY);
+      points.push([x, ground(x, z) + 0.012 + lift, z]);
     }
     return { points, prints: footprints(settled, figureId) };
   }, [settled, figureId, ground]);
