@@ -15,7 +15,10 @@ export const MAX_LIGHTS = 4;
 
 export const ROLE_NAMES: Record<LightRole, string> = { key: 'Key light', fill: 'Fill light', rim: 'Rim light', custom: 'Light' };
 
-/** A colour temperature (K) as a colour, daylight (6500 K) white. */
+/**
+ * A colour temperature (K) as a colour, daylight (6500 K) white, as a camera balanced for daylight
+ * sees it: a candle's light a warm peach, not a pure orange; a blue sky's shade a pale blue.
+ */
 export function kelvinColor(kelvin: number): string {
   const rgb = (k: number) => {
     const t = k / 100;
@@ -25,22 +28,24 @@ export function kelvinColor(kelvin: number): string {
     return [r, g, b];
   };
   const white = rgb(6500);
-  const c = rgb(kelvin).map((v, i) => Math.round(255 * Math.min(1, Math.max(0, v / white[i]))));
+  // (A third of the way back to white: what the eye and the camera's balance make of it.)
+  const c = rgb(kelvin).map((v, i) => Math.round(255 * (0.35 + 0.65 * Math.min(1, Math.max(0, v / white[i])))));
   return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /** Colour temperatures a light can take (K). */
 export const KELVIN = { min: 1800, max: 10000, white: 6500 };
 
-/** Colours to pick a light's from: temperatures, and two neon colours. */
+/** Lights from life to pick a light's colour from: by their colour temperatures, and a sodium street lamp's. */
 export const LIGHT_SWATCHES: { name: string; color: string; kelvin?: number }[] = [
   { name: 'Candle', kelvin: 1900 },
-  { name: 'Lamp', kelvin: 3000 },
-  { name: 'Daylight', kelvin: 5600 },
-  { name: 'White', kelvin: 6500 },
-  { name: 'Overcast', kelvin: 8000 },
-  { name: 'Neon blue', color: '#3d7bff' },
-  { name: 'Neon purple', color: '#b34dff' },
+  { name: 'Light bulb', kelvin: 2700 },
+  { name: 'Sunset', kelvin: 3500 },
+  { name: 'Sun', kelvin: 5500 },
+  { name: 'Daylight', kelvin: 6500 },
+  { name: 'Overcast', kelvin: 7500 },
+  { name: 'Blue sky shade', kelvin: 9500 },
+  { name: 'Street lamp', color: '#ffd09e' },
 ].map((s) => ({ ...s, color: s.color ?? kelvinColor(s.kelvin!) }));
 
 /** A light (a new one: its own id). */
@@ -76,36 +81,36 @@ export const LIGHTING_PRESETS: { id: string; name: string; lighting: Lighting }[
   },
   {
     id: 'rembrandt', name: 'Rembrandt', lighting: {
-      lights: [newLight('key', { azimuth: 50, elevation: 45, intensity: 1.35, kelvin: 4500 }, 'key'), newLight('fill', { azimuth: -60, elevation: 10, intensity: 0.15 }, 'fill')],
-      ambient: ambient(0.45, '#f2ece4', '#4a4038'),
+      lights: [newLight('key', { azimuth: 50, elevation: 45, intensity: 1.35, kelvin: 3200 }, 'key'), newLight('fill', { azimuth: -60, elevation: 10, intensity: 0.15, kelvin: 3200 }, 'fill')],
+      ambient: ambient(0.45, '#efe8de', '#4d4740'),
     },
   },
   {
     id: 'back', name: 'Backlit', lighting: {
       lights: [newLight('key', { azimuth: 180, elevation: 25, intensity: 1.6 }, 'key')],
-      ambient: ambient(0.3, '#6b7a99', '#1c2030'),
+      ambient: ambient(0.35, '#a9b4c4', '#3a3a3c'),
     },
   },
-  { id: 'noon', name: 'Noon sun', lighting: { lights: [newLight('key', { azimuth: 10, elevation: 82, intensity: 1.45, kelvin: 5600 }, 'key')], ambient: ambient(1, '#dfeaff', '#d8cbb4') } },
+  { id: 'noon', name: 'Noon sun', lighting: { lights: [newLight('key', { azimuth: 10, elevation: 82, intensity: 1.45, kelvin: 5500 }, 'key')], ambient: ambient(1, '#e6eefc', '#d6cdbd') } },
   {
     id: 'dusk', name: 'Dusk', lighting: {
-      lights: [newLight('key', { azimuth: -75, elevation: 10, intensity: 0.95, kelvin: 2600 }, 'key'), newLight('fill', { azimuth: 100, elevation: 30, intensity: 0.3, kelvin: 9500 }, 'fill')],
-      ambient: ambient(0.75, '#9fb0d9', '#6b4a3a'),
+      lights: [newLight('key', { azimuth: -75, elevation: 10, intensity: 0.95, kelvin: 3000 }, 'key'), newLight('fill', { azimuth: 100, elevation: 30, intensity: 0.3, kelvin: 9500 }, 'fill')],
+      ambient: ambient(0.75, '#b9c2d8', '#7d6a5c'),
     },
   },
   {
     id: 'night', name: 'Moonlight', lighting: {
-      lights: [newLight('key', { azimuth: 130, elevation: 50, intensity: 0.6, kelvin: 10000 }, 'key')],
-      ambient: ambient(0.55, '#5a6a99', '#20242e'),
+      lights: [newLight('key', { azimuth: 130, elevation: 50, intensity: 0.6, kelvin: 8500 }, 'key')],
+      ambient: ambient(0.5, '#6f7b94', '#2c2f36'),
     },
   },
   {
-    id: 'neon', name: 'Night neon', lighting: {
+    id: 'streetlight', name: 'Night street', lighting: {
       lights: [
-        newLight('key', { azimuth: 65, elevation: 25, intensity: 1.1, color: '#b34dff' }, 'key'),
-        newLight('rim', { azimuth: -135, elevation: 30, intensity: 1.1, color: '#3d7bff' }, 'rim'),
+        newLight('key', { azimuth: 55, elevation: 55, intensity: 1, color: '#ffd09e' }, 'key'),
+        newLight('rim', { azimuth: -140, elevation: 30, intensity: 0.5, kelvin: 8500 }, 'rim'),
       ],
-      ambient: ambient(0.35, '#2a3060', '#120e1c'),
+      ambient: ambient(0.35, '#4b5263', '#2e2a26'),
     },
   },
 ];
