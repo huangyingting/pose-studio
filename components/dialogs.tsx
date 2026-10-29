@@ -75,7 +75,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const model = scope === 'model';
   // Videos and keyframe packs are framed by the shot cameras at a video size.
   const filmed = video || pack;
-  const shots = whole ? story : sceneShots(scene);
+  const sceneStory = useMemo(() => sceneShots(scene), [scene]);
+  const shots = whole ? story : sceneStory;
   const canRecord = videoSupported();
 
   // The pose library sheet shows each pose on its own figure (the reference sheet layout).

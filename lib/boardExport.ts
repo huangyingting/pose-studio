@@ -3,6 +3,7 @@ import { storyLength, type StoryShot } from './board';
 import type { Pass } from './render';
 import type { Style } from './types';
 import { createEncoder, drawShot } from './video';
+import { videoRenderer } from './thumbnails';
 
 /*
  * The story's outputs: a board sheet (a numbered panel per shot, in the project's frame, with
@@ -119,7 +120,7 @@ export async function recordStory(shots: StoryShot[], o: StoryOptions & { width:
     if (signal?.aborted) break;
     if (!x.span) {
       // A still scene is one frame held for its time.
-      drawShot(enc.ctx, x.scene, 0, draw);
+      drawShot(enc.ctx, x.scene, 0, draw, videoRenderer());
       caption(x.caption);
       await enc.add(time, x.length);
       time += x.length;
@@ -129,7 +130,7 @@ export async function recordStory(shots: StoryShot[], o: StoryOptions & { width:
     const n = Math.max(1, Math.round(x.length * fps));
     for (let i = 0; i < n; i++) {
       if (signal?.aborted) break;
-      drawShot(enc.ctx, x.scene, x.span.start + i / fps, draw);
+      drawShot(enc.ctx, x.scene, x.span.start + i / fps, draw, videoRenderer());
       caption(x.caption);
       await enc.add(time + i / fps, 1 / fps);
       onProgress?.((time + i / fps) / total);

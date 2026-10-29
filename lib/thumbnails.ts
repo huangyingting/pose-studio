@@ -2,10 +2,19 @@ import { SceneRenderer } from './render';
 import type { Scene } from './types';
 
 let renderer: SceneRenderer | null = null;
+let recorder: SceneRenderer | null = null;
 
-/** One off-screen WebGL renderer shared by thumbnails and exports. */
+/** One off-screen WebGL renderer shared by thumbnails and still exports. */
 export function sharedRenderer() {
   return (renderer ??= new SceneRenderer());
+}
+
+/**
+ * The one videos are recorded with, frame after frame at their size: its own, so the previews and
+ * thumbnails drawn meanwhile (at their sizes) do not make it resize every frame.
+ */
+export function videoRenderer() {
+  return (recorder ??= new SceneRenderer());
 }
 
 const cache = new Map<string, string>();

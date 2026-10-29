@@ -1,7 +1,7 @@
 import { sceneAt } from './evaluate';
 import { cameraAt } from './cameras';
 import { styleDef } from './styles';
-import { sharedRenderer } from './thumbnails';
+import { sharedRenderer, videoRenderer } from './thumbnails';
 import type { Pass } from './render';
 import type { Scene, Style } from './types';
 
@@ -63,8 +63,8 @@ export interface VideoOptions {
 }
 
 /** Draw one frame of a scene through its shot camera at time t. */
-export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>) {
-  const src = sharedRenderer().renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
+export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>, renderer = sharedRenderer()) {
+  const src = renderer.renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
     style: o.style, pass: o.pass, camera: cameraAt(scene, t, o.width / o.height),
   });
   ctx.fillStyle = styleDef(o.style).background;
@@ -85,7 +85,7 @@ export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (f
       throw new Error('Cancelled');
     }
     const t = o.range ? r0 + i / a.fps : a.loop ? (i % perLoop) / a.fps : Math.min(a.duration, (i % (perLoop + 1)) / a.fps);
-    drawShot(enc.ctx, scene, t, o);
+    drawShot(enc.ctx, scene, t, o, videoRenderer());
     await enc.add(i / a.fps, 1 / a.fps);
     onProgress?.((i + 1) / total);
   }

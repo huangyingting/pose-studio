@@ -250,7 +250,9 @@ export class SceneRenderer {
   /** Size the output and pose the view for a frame (everything but the camera). */
   private setup(doc: Scene, w: number, h: number, line: number, opts: RenderOptions) {
     const style = opts.style ?? 'line';
-    this.renderer.setSize(w, h, false);
+    // (Only when it changes: resizing clears the drawing buffer and costs more than drawing a frame.)
+    const size = this.renderer.getSize(new THREE.Vector2());
+    if (size.x !== w || size.y !== h) this.renderer.setSize(w, h, false);
     this.background.set(styleDef(style).background);
     this.scene.background = opts.transparent ? null : this.background;
     this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
