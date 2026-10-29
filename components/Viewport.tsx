@@ -16,6 +16,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { awake, setDrawer, wake } from './frames';
+import { LINES_LAYER } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
@@ -852,6 +853,8 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     sv.ink.setThickness(lineWidth);
   }, [sv, size, lineWidth]);
   useFrame(({ gl, scene, camera }) => {
+    // (Its outlines and lines are on a layer of their own: seen too.)
+    camera.layers.enable(LINES_LAYER);
     pass.prepare(gl, sv, camera, lineWidth * 0.8);
     gl.render(scene, camera);
     pass.overlay(gl);
@@ -1086,7 +1089,8 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const cameras = scene.cameras;
   // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
   // (A rig's trail while it, or a shot it films, is selected.)
-  const shown = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera ?? null : null;
+  const chosen = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera : undefined;
+  const shown = chosen && cameras.find((c) => c.id === chosen)?.kind === 'rig' ? chosen : null;
   const trails = useTrails(useSettled(scene), shown);
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
