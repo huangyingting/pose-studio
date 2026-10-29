@@ -101,7 +101,7 @@ export default function LibrarySection({ notify, notifyUndo, onPick }: SectionPr
 
 /** The categories as icon tabs: the open one with its name, the others with it in a tooltip; past five, the last place is a ⋯. */
 function Tabs({ tab, onPick }: { tab: LibraryTab; onPick(id: LibraryTab): void }) {
-  const MAX = 5;
+  const MAX = 6;
   const shown = LIBRARY_CATEGORIES.length > MAX ? LIBRARY_CATEGORIES.slice(0, MAX - 1) : LIBRARY_CATEGORIES;
   const more = LIBRARY_CATEGORIES.slice(shown.length);
   return (

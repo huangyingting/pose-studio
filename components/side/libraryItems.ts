@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
-import { Ban, Castle, Clapperboard, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
+import { Ban, Castle, Clapperboard, SunMedium, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
 import {
   applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose,
-  placeTemplate, setFigureModel, setSceneSet,
+  applyLightingPreset, placeTemplate, setFigureModel, setSceneSet,
 } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
@@ -18,10 +18,11 @@ import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
 import {
-  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, setPreview, setThumb, templatePreview, templateThumb, type PreviewJob,
+  cameraPreview, characterPreview, characterThumb, lightingPreview, lightingThumb, motionPreview, posePreview, poseThumb, setPreview, setThumb, templatePreview, templateThumb, type PreviewJob,
 } from '@/lib/previews';
 import { STAGINGS } from '@/lib/stagings';
 import { SETS, SET_GROUPS } from '@/lib/sets';
+import { LIGHTING_PRESETS, lightingName, lightingOf } from '@/lib/lighting';
 import { shotSpans, spanAt } from '@/lib/shots';
 import type { LibraryTab, Store } from '@/lib/store';
 import { CameraBar, CharactersBar, MotionsBar, PosesBar, type BarProps } from './LibraryBars';
@@ -251,6 +252,25 @@ function sets(store: Store, ui: LibraryUi): LibraryItem[] {
   return [none, ...built];
 }
 
+/** Lighting schemes: the scene's lights at once, placed round its people (the set's own lamps kept). */
+function lighting(store: Store, ui: LibraryUi): LibraryItem[] {
+  const now = lightingOf(store.scene);
+  return LIGHTING_PRESETS.map((p): LibraryItem => ({
+    key: `lighting:${p.id}`,
+    tab: 'lighting',
+    part: 'Lighting',
+    group: 'Schemes',
+    name: p.name,
+    about: p.description,
+    icon: SunMedium,
+    on: lightingName(now) === p.name,
+    note: `Click to light ${store.scene.name} so (shows in the lit styles)`,
+    run: () => { applyLightingPreset(store, p.id); ui.notifyUndo(`Lighting: ${p.name}`); ui.onPick?.(); },
+    preview: () => lightingPreview(p.id, p.lighting),
+    thumb: lightingThumb(p.id, p.lighting),
+  }));
+}
+
 function characters(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
   // (`credit`: who made it and on what terms, as its file says: a VRM avatar's.)
@@ -349,6 +369,8 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   { id: 'motions', label: 'Motions', icon: Film, items: motions, Bar: MotionsBar },
   // Where the scene is played: a set behind it.
   { id: 'sets', label: 'Sets', icon: Castle, grid: true, items: sets },
+  // How the scene is lit, at once (each light itself in the outline and the inspector).
+  { id: 'lighting', label: 'Lighting', icon: SunMedium, grid: true, items: lighting },
   // Coverage of the scene, and moves for a shot or a camera.
   { id: 'camera', label: 'Camera', icon: Video, items: camera, Bar: CameraBar },
 ];

@@ -44,7 +44,7 @@ export type Theme = (typeof THEMES)[number];
 /** How wide a side panel can be dragged. */
 export const PANEL_WIDTH = { min: 200, max: 520 };
 
-export const LIBRARY_TABS = ['characters', 'poses', 'motions', 'sets', 'camera'] as const;
+export const LIBRARY_TABS = ['characters', 'poses', 'motions', 'sets', 'lighting', 'camera'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export const SIDE_SECTIONS = ['scene', 'library', 'ai'] as const;

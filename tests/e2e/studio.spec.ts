@@ -92,7 +92,7 @@ async function viewMenu(page: Page, item: string | RegExp) {
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 /** Pick what the Library lists (the drop-down beside its title). */
-async function libraryShows(page: Page, what: 'Templates' | 'Characters' | 'Poses' | 'Motions' | 'Camera') {
+async function libraryShows(page: Page, what: 'Templates' | 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting' | 'Camera') {
   await page.getByRole('tablist', { name: 'Library' }).getByRole('tab', { name: what, exact: true }).click();
 }
 
@@ -1884,8 +1884,11 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await lights.getByRole('button', { name: 'Key light', exact: true }).click();
   await page.getByRole('button', { name: 'Switch to Clay' }).click();
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Clay');
-  // The Dusk scheme, kept with the scene: a low warm key light and a cool fill.
-  await page.getByRole('group', { name: 'Lighting schemes' }).getByRole('button', { name: 'Dusk' }).click();
+  // The Dusk scheme (from the Library's Lighting), kept with the scene: a low warm key light and a cool fill.
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Lighting');
+  await page.getByRole('region', { name: 'Lighting' }).getByRole('button', { name: 'Dusk', exact: true }).click();
+  await openSection(page, 'Scene');
   s = await live(page);
   expect(s.scene.lighting!.lights.map((l) => [l.kind, l.name])).toEqual([['sun', 'Key light'], ['lamp', 'Fill light']]);
   expect(s.scene.lighting!.lights[0].kelvin).toBeLessThanOrEqual(3000);
@@ -1901,10 +1904,10 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await expect(page.getByText(/^From the left, /)).toBeVisible();
   // A rim light added (a lamp put behind the people, selected), a street lamp's colour: Alt-click
   // a figure from the front moves it round to the front of them.
-  // (Added from the inspector's list of the scene's lights: the new one selected there.)
-  await page.locator('.light-list').getByRole('button', { name: 'Add a light' }).click();
+  // (Added from the outline's Lights: the new one selected there.)
+  await page.getByRole('button', { name: 'Add a light' }).click();
   await page.getByRole('menuitem', { name: 'Rim light' }).click();
-  await expect(page.getByRole('list', { name: 'Scene lights' }).getByRole('button', { name: /^Rim light/, pressed: true })).toBeVisible();
+  await expect(lights.locator('li.on')).toContainText('Rim light');
   await page.getByRole('radiogroup', { name: 'Light colour' }).getByRole('radio', { name: 'Street lamp' }).click();
   s = await live(page);
   expect(s.scene.lighting!.lights[2]).toMatchObject({ kind: 'lamp', name: 'Rim light', color: '#ffd09e', shadows: false });

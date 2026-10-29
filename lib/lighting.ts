@@ -88,11 +88,11 @@ export const DEFAULT_LIGHTING: Lighting = { lights: [keySun()], ambient: ambient
 const SUBJECT: Vec3 = [0, 1.3, 0];
 
 /** Lighting schemes: a scene's lights at once, to start from (lamps round the people at the stage origin). */
-export const LIGHTING_PRESETS: { id: string; name: string; lighting: Lighting }[] = [
-  { id: 'studio', name: 'Studio', lighting: DEFAULT_LIGHTING },
-  { id: 'soft', name: 'Soft', lighting: { lights: [keySun({ azimuth: 25, elevation: 65, intensity: 0.8, kelvin: 6000, shadows: false })], ambient: ambient(1.15) } },
+export const LIGHTING_PRESETS: { id: string; name: string; description: string; lighting: Lighting }[] = [
+  { id: 'studio', name: 'Studio', description: 'One sun from the front-left, above: clear and even, with shadows.', lighting: DEFAULT_LIGHTING },
+  { id: 'soft', name: 'Soft', description: 'A high, gentle sun without shadows and a bright sky: soft and flat.', lighting: { lights: [keySun({ azimuth: 25, elevation: 65, intensity: 0.8, kelvin: 6000, shadows: false })], ambient: ambient(1.15) } },
   {
-    id: 'three-point', name: 'Three-point', lighting: {
+    id: 'three-point', name: 'Three-point', description: 'The classic portrait lighting: a key from the front-left, a dim fill from the other side, a rim light behind.', lighting: {
       lights: [
         keySun({ azimuth: 40, elevation: 35, intensity: 1.1 }),
         newLight('lamp', { name: 'Fill light', position: [-2.3, 1.6, 1.9], intensity: 0.45, range: 9 }, 'fill'),
@@ -102,22 +102,22 @@ export const LIGHTING_PRESETS: { id: string; name: string; lighting: Lighting }[
     },
   },
   {
-    id: 'rembrandt', name: 'Rembrandt', lighting: {
+    id: 'rembrandt', name: 'Rembrandt', description: 'A warm key high to one side and almost no fill: half the face in shadow.', lighting: {
       lights: [keySun({ azimuth: 50, elevation: 45, intensity: 1.35, kelvin: 3200 }), newLight('lamp', { name: 'Fill light', position: [-2.4, 1.3, 1.6], intensity: 0.18, range: 8, kelvin: 3200 }, 'fill')],
       ambient: ambient(0.45, '#efe8de', '#4d4740'),
     },
   },
-  { id: 'back', name: 'Backlit', lighting: { lights: [keySun({ azimuth: 180, elevation: 25, intensity: 1.6 })], ambient: ambient(0.35, '#a9b4c4', '#3a3a3c') } },
-  { id: 'noon', name: 'Noon sun', lighting: { lights: [keySun({ azimuth: 10, elevation: 82, intensity: 1.45, kelvin: 5500 })], ambient: ambient(1, '#e6eefc', '#d6cdbd') } },
+  { id: 'back', name: 'Backlit', description: 'The sun behind the people and a dim sky: their shapes against the light.', lighting: { lights: [keySun({ azimuth: 180, elevation: 25, intensity: 1.6 })], ambient: ambient(0.35, '#a9b4c4', '#3a3a3c') } },
+  { id: 'noon', name: 'Noon sun', description: 'The sun almost overhead and a blue sky: short, hard shadows.', lighting: { lights: [keySun({ azimuth: 10, elevation: 82, intensity: 1.45, kelvin: 5500 })], ambient: ambient(1, '#e6eefc', '#d6cdbd') } },
   {
-    id: 'dusk', name: 'Dusk', lighting: {
+    id: 'dusk', name: 'Dusk', description: 'A low warm sun from the side and cool light from the sky.', lighting: {
       lights: [keySun({ azimuth: -75, elevation: 10, intensity: 0.95, kelvin: 3000 }), newLight('lamp', { name: 'Fill light', position: [2.6, 2, 1.2], intensity: 0.3, range: 9, kelvin: 9500 }, 'fill')],
       ambient: ambient(0.75, '#b9c2d8', '#7d6a5c'),
     },
   },
-  { id: 'night', name: 'Moonlight', lighting: { lights: [keySun({ azimuth: 130, elevation: 50, intensity: 0.6, kelvin: 8500 })], ambient: ambient(0.5, '#6f7b94', '#2c2f36') } },
+  { id: 'night', name: 'Moonlight', description: 'Cool, dim moonlight from behind and a dark sky.', lighting: { lights: [keySun({ azimuth: 130, elevation: 50, intensity: 0.6, kelvin: 8500 })], ambient: ambient(0.5, '#6f7b94', '#2c2f36') } },
   {
-    id: 'streetlight', name: 'Night street', lighting: {
+    id: 'streetlight', name: 'Night street', description: 'A warm street lamp above and cool moonlight behind: a city at night.', lighting: {
       lights: [
         newLight('lamp', { name: 'Street lamp', position: [1.2, 4.6, 0.8], spot: 80, aim: { point: [0, 0, 0] }, intensity: 1.4, range: 12, color: '#ffd09e' }, 'key'),
         newLight('sun', { name: 'Moonlight', azimuth: -140, elevation: 30, intensity: 0.4, kelvin: 8500, shadows: false }, 'rim'),

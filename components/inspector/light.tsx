@@ -1,18 +1,15 @@
 'use client';
 
-import { AppWindow, Lightbulb, Plus, Sun, SunMedium, type LucideIcon } from 'lucide-react';
-import { addLight, applyLightingPreset, editAmbient, editLight, placeSceneLight, subjectOf } from '@/lib/actions';
+import { AppWindow, Lightbulb, Sun, type LucideIcon } from 'lucide-react';
+import { editAmbient, editLight, placeSceneLight, subjectOf } from '@/lib/actions';
 import { projectSettingsOf } from '@/lib/project';
 import {
-  KELVIN, KIND_NAMES, LIGHTING_PRESETS, LIGHT_SWATCHES, MAX_LIGHTS, PLACES, PLACE_NAMES, kelvinColor, lightText, lightingName, lightingOf,
+  KELVIN, KIND_NAMES, LIGHT_SWATCHES, PLACES, PLACE_NAMES, kelvinColor, lightText, lightingName, lightingOf,
 } from '@/lib/lighting';
-import { poseScene, builtInPoses } from '@/lib/poses';
-import { sharedRenderer } from '@/lib/thumbnails';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
-import { LIGHT_KINDS, type Light, type LightKind, type Lighting } from '@/lib/types';
+import { LIGHT_KINDS, type Light, type LightKind } from '@/lib/types';
 import { command, menu } from '../commands';
-import { Thumbnail } from '../side/LibrarySection';
-import { Field, Menu, NameHeader, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
+import { Field, NameHeader, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /*
@@ -29,8 +26,8 @@ const lit = (t: Target) => styleDef(projectSettingsOf(t.store.getState().library
 export const lightTitle = (t: Target) => t.light!.name;
 export const lightSummary = (t: Target) => `${lightText(t.light!)} · ${Math.round(t.light!.intensity * 100)}%`;
 export const lightInfo = () => 'Saved with the scene and used by its exports. Drag it on the canvas (the sun over its dome, a lamp or a window over the floor), or Alt-click a figure to light it from where you look.';
-export const lightingSummary = (t: Target) => lightingName(lightingOf(t.scene));
-export const lightingInfo = () => 'Pick a scheme, then change it: select a light to change it, or add a sun, a lamp or a window. A set brings its own lamps and windows.';
+export const ambientSummary = (t: Target) => `${lightingName(lightingOf(t.scene))} · ${Math.round(lightingOf(t.scene).ambient.intensity * 100)}%`;
+export const ambientInfo = () => 'The light from all round: the sky above, the ground below. Pick a lighting scheme in the Library; select a light in the outline to change it.';
 
 export function LightHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   const l = t.light!;
@@ -58,53 +55,6 @@ function Unlit({ t }: { t: Target }) {
   );
 }
 
-/** What can be added: a sun, a lamp, a window, or a lamp put as a fill or a rim. */
-const ADDS = [...LIGHT_KINDS, 'fill', 'rim'] as const;
-
-/**
- * The scene's lights, one row each (its kind, its name, its brightness; the one selected marked,
- * a click selects another; the set's own marked), and adding one.
- */
-function LightList({ t }: { t: Target }) {
-  const lighting = lightingOf(t.scene);
-  const full = lighting.lights.length >= MAX_LIGHTS;
-  return (
-    <div className="light-list">
-      <ul aria-label="Scene lights">
-        {lighting.lights.map((l) => {
-          const Icon = KIND_ICONS[l.kind];
-          return (
-            <li key={l.id}>
-              <button type="button" className={t.light?.id === l.id ? 'on' : undefined} aria-pressed={t.light?.id === l.id} onClick={() => t.store.select({ kind: 'light', light: l.id })}>
-                <Icon size={14} aria-hidden />
-                <span>{l.name}</span>
-                {l.practical && <small className="light-tag" data-tip="Comes with the set">Set</small>}
-                <i className="light-dot" style={{ background: l.color }} aria-hidden />
-                <em>{Math.round(l.intensity * 100)}%</em>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {full ? (
-        <span className="hint">{MAX_LIGHTS} lights at most</span>
-      ) : (
-        <Menu
-          label="Add a light"
-          className="btn subtle"
-          items={() => ADDS.map((w) => ({
-            label: w === 'fill' ? 'Fill light' : w === 'rim' ? 'Rim light' : KIND_NAMES[w],
-            icon: w === 'fill' || w === 'rim' ? Lightbulb : KIND_ICONS[w],
-            onSelect: () => { addLight(t.store, w); },
-          }))}
-        >
-          <Plus size={14} aria-hidden /> Add a light
-        </Menu>
-      )}
-    </div>
-  );
-}
-
 /** What a lamp aims at: nothing (all round; a spot straight down), the people, or one figure. */
 function aimValue(l: Light) {
   return !l.aim ? 'none' : 'figure' in l.aim ? l.aim.figure : 'people';
@@ -122,7 +72,6 @@ export function LightPanel({ t }: { t: Target }) {
   return (
     <>
       <Unlit t={t} />
-      <LightList t={t} />
       <Segmented
         label="Kind of light"
         full
@@ -209,33 +158,17 @@ export function LightPanel({ t }: { t: Target }) {
   );
 }
 
-/** A scheme's thumbnail: a figure in Clay, lit by it. */
-const schemeThumb = (id: string, lighting: Lighting) => ({
-  key: `lighting:${id}:${JSON.stringify(lighting)}`,
-  make: () => {
-    const p = builtInPoses()[0];
-    return sharedRenderer().render({ ...poseScene(p), lighting }, 144, 144, 1.2, { style: 'shaded', margin: 0.08, angle: { yaw: 20, pitch: 10, fov: 30 } }).toDataURL('image/png');
-  },
-});
-
-/** The scene's lighting: the schemes (a thumbnail each), its lights (with nothing selected), and the ambient light. */
-export function LightingPanel({ t }: { t: Target }) {
-  const lighting = lightingOf(t.scene);
-  const a = lighting.ambient;
-  const now = lightingName(lighting);
+/**
+ * The scene's ambient light (nothing selected): how bright, the sky's colour above and the
+ * ground's below. Its lights are in the outline (each selected to change it), the lighting schemes
+ * in the Library.
+ */
+export function AmbientPanel({ t }: { t: Target }) {
+  const a = lightingOf(t.scene).ambient;
   return (
     <>
-      {!t.light && <Unlit t={t} />}
-      <div className="light-presets" role="group" aria-label="Lighting schemes">
-        {LIGHTING_PRESETS.map((p) => (
-          <button key={p.id} type="button" className={now === p.name ? 'on' : undefined} aria-pressed={now === p.name} onClick={() => applyLightingPreset(t.store, p.id)}>
-            <Thumbnail thumb={schemeThumb(p.id, p.lighting)} fallback={<SunMedium size={18} aria-hidden />} />
-            <span>{p.name}</span>
-          </button>
-        ))}
-      </div>
-      {!t.light && <LightList t={t} />}
-      <Slider label="Ambient" min={0} max={2} step={0.05} value={a.intensity} display={`${Math.round(a.intensity * 100)}%`} onChange={(intensity) => editAmbient(t.store, { intensity }, 'ambient')} />
+      <Unlit t={t} />
+      <Slider label="Brightness" min={0} max={2} step={0.05} value={a.intensity} display={`${Math.round(a.intensity * 100)}%`} onChange={(intensity) => editAmbient(t.store, { intensity }, 'ambient')} />
       <div className="ambient-colours">
         <Field label="Sky">
           <input type="color" aria-label="Sky colour" value={a.sky} onChange={(e) => editAmbient(t.store, { sky: e.target.value }, 'ambient')} />
@@ -244,6 +177,7 @@ export function LightingPanel({ t }: { t: Target }) {
           <input type="color" aria-label="Ground colour" value={a.ground} onChange={(e) => editAmbient(t.store, { ground: e.target.value }, 'ambient')} />
         </Field>
       </div>
+      <p className="hint">The lights themselves are in the outline; lighting schemes in the Library.</p>
     </>
   );
 }

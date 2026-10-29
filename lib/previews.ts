@@ -5,11 +5,11 @@ import { newAnimation } from './animation';
 import { sceneAt } from './evaluate';
 import { newFigure, newScene } from './doc';
 import { bodyFor, modelTemplate } from './model';
-import { poseScene } from './poses';
+import { builtInPoses, poseScene } from './poses';
 import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type CameraMove } from './cameras';
 import { newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
-import type { PoseAsset, Scene, Style, View } from './types';
+import type { Lighting, PoseAsset, Scene, Style, View } from './types';
 
 /*
  * Previews for the library, shown while the pointer rests on an item: a pose as a still, a
@@ -118,6 +118,19 @@ export function templatePreview(id: string, build: () => Scene, style: Style): P
   }
   return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, margin: 0.1, angle: angleAt(scene) }).toDataURL('image/png') };
 }
+
+/** A lighting scheme: a figure in Clay lit by it, seen from the front-right (in the style it shows in). */
+export function lightingPreview(id: string, lighting: Lighting): PreviewJob {
+  return { key: `lighting:${id}`, count: 1, frame: () => sharedRenderer().render(lightingScene(lighting), W, H, LINE, { style: 'shaded', margin: 0.1, angle: LIGHTING_VIEW }).toDataURL('image/png') };
+}
+
+/** A lighting scheme's thumbnail. */
+export const lightingThumb = (id: string, lighting: Lighting) => ({
+  key: `lighting:${id}:${JSON.stringify(lighting)}`,
+  make: () => sharedRenderer().render(lightingScene(lighting), 144, 144, 1.2, { style: 'shaded', margin: 0.08, angle: LIGHTING_VIEW }).toDataURL('image/png'),
+});
+const LIGHTING_VIEW = { yaw: 20, pitch: 10, fov: 30 };
+const lightingScene = (lighting: Lighting): Scene => ({ ...poseScene(builtInPoses()[0]), lighting });
 
 /** A set, a figure in it for its size, seen from in front and a little above (all of it). */
 export function setPreview(id: string, style: Style): PreviewJob {
