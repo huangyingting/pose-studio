@@ -1952,7 +1952,7 @@ test('a motion file is imported into My motions and given to the figure', async 
 test('a built-in character is fetched only when a figure is drawn as it', async ({ page }) => {
   const fetched: string[] = [];
   // Its thumbnails come with the app; a character's file only when it is used.
-  page.on('request', (r) => { if (/\/characters\/.*\.glb$/.test(r.url())) fetched.push(r.url()); });
+  page.on('request', (r) => { if (/\/characters\/.*\.glb(\?|$)/.test(r.url())) fetched.push(r.url()); });
   await openSection(page, 'Library');
   await libraryShows(page, 'Characters');
   const list = page.getByRole('region', { name: 'Characters' });
@@ -1960,7 +1960,7 @@ test('a built-in character is fetched only when a figure is drawn as it', async 
   expect(fetched).toEqual([]);
   await list.getByRole('button', { name: /^Woman/ }).click();
   await expect.poll(() => fetched.length).toBe(1);
-  expect(fetched[0]).toMatch(/\/characters\/woman\.glb$/);
+  expect(fetched[0]).toMatch(/\/characters\/woman\.glb(\?|$)/);
   expect((await state(page)).scene.figures[0] as unknown as { model?: string }).toMatchObject({ model: 'character:woman' });
 });
 

@@ -1,12 +1,13 @@
 Built-in characters
 ===================
 
-man.glb, woman.glb, child.glb (the boy), girl.glb
+man.glb, woman.glb, child.glb (the boy), girl.glb, qipao.glb, satin-dress.glb, party-dress.glb, office.glb
 
   Made with MakeHuman's base mesh, targets, Mixamo-named rig and system assets (eyes, eyebrows,
   eyelashes, hair, clothes, shoes), through MPFB 2 (the MakeHuman plugin for Blender), by
   scripts/characters/makehuman.py: Chinese, slender, ideal proportions, a young adult man (1.80 m)
-  and woman (1.70 m), a boy and a girl of about eight, with face and body targets; exported as GLB with colour textures fitted
+  and woman (1.70 m), a boy and a girl of about eight, and women in dresses (made on the body:
+  their tops shells of its surface, their skirts tubes round the legs), with face and body targets; exported as GLB with colour textures fitted
   within 512 px (hair, brows and lashes tinted dark), then imported as the app imports characters.
   https://github.com/makehumancommunity/mpfb2 (assets: LICENSE.ASSETS.md)
   http://files.makehumancommunity.org/asset_packs/makehuman_system_assets/

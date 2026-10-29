@@ -10,7 +10,7 @@ import { BONES as SKELETON, type BodyParams, type ModelInfo } from './types';
 
 const PREFIX = 'character:';
 /** The files' version: raised when one is remade, so that a browser does not keep the old one. */
-const FILES = 3;
+const FILES = 4;
 
 // A VRM avatar, a MakeHuman, Mixamo or Sketchfab character made one of ours (scripts/vrm-character.py,
 // scripts/characters/import.ts): its bones named as our skeleton's (some without a finger's end).
@@ -24,7 +24,7 @@ const WHOLE_HANDS = oursWithout(...SKELETON.filter((b) => /Thumb|Index|Middle|Ri
 const sketchfab = (id: string, name: string, body: BodyParams, author: string): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones: WHOLE_HANDS, body, credit: `by ${author} · CC BY 4.0` });
 
 /**
- * The built-in characters: a man, a woman, a boy and a girl made with MakeHuman (Chinese, slender,
+ * The built-in characters: a man, a woman, a boy, a girl and women in dresses made with MakeHuman (Chinese, slender,
  * ideal proportions, faces found beautiful in China, in fitted clothes: scripts/characters/makehuman.py),
  * CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
@@ -35,10 +35,15 @@ const sketchfab = (id: string, name: string, body: BodyParams, author: string): 
  */
 export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   makehuman('woman', 'Woman', { sex: 1, height: 1.71 }),
-  makehuman('man', 'Man', { sex: 0, height: 1.95 }),
+  makehuman('man', 'Man', { sex: 0, height: 1.94 }),
   // (The boy's file and id are the child's: scenes know him by that.)
-  makehuman('child', 'Boy', { sex: 0, height: 1.24 }),
-  makehuman('girl', 'Girl', { sex: 1, height: 1.12 }),
+  makehuman('child', 'Boy', { sex: 0, height: 1.21 }),
+  makehuman('girl', 'Girl', { sex: 1, height: 1.1 }),
+  // Women in dresses (after the looks of a costume gallery).
+  makehuman('qipao', 'Qipao', { sex: 1, height: 1.7 }),
+  makehuman('satin-dress', 'Satin dress', { sex: 1, height: 1.7 }),
+  makehuman('party-dress', 'Party dress', { sex: 1, height: 1.7 }),
+  makehuman('office', 'Office lady', { sex: 1, height: 1.7 }),
   {
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.49 },
     credit: 'by Ueda · personal use · credit required',
