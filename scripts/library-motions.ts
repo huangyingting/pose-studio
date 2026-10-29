@@ -104,7 +104,9 @@ function level(clip: Clip): Clip {
 
 /* ---------- the library ---------- */
 
-const read = async (file: string) => level(refineClip(parseClip(JSON.parse(await readFile(join(from, file), 'utf8')))!));
+/** A clip as captured: its people's bodies a sex and a height (a capture's actor has no build of ours). */
+const asCaptured = (clip: Clip): Clip => ({ ...clip, parts: clip.parts.map((p) => (p.body ? { ...p, body: { sex: p.body.sex, height: p.body.height } } : p)) });
+const read = async (file: string) => level(refineClip(asCaptured(parseClip(JSON.parse(await readFile(join(from, file), 'utf8')))!)));
 const files = (await readdir(from)).filter((f) => f.endsWith('.clip.json')).sort();
 const clips = new Map<string, Clip>();
 for (const f of files) {

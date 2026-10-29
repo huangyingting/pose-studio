@@ -263,7 +263,7 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 1.05
+  "impact": 1.01
  },
  {
   "id": "library:idle",
@@ -280,7 +280,7 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 0.46
+  "impact": 0.5
  },
  {
   "id": "library:jazz-dancing",
@@ -450,7 +450,7 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 0.65
+  "impact": 0.67
  },
  {
   "id": "library:punching-bag",
