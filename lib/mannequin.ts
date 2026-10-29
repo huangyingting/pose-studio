@@ -81,6 +81,8 @@ function proportions(b: BodyParams) {
   const male = 1 - b.sex;
   const mix = (m: number, f: number) => m + (f - m) * female;
   const torso = (0.9 + 0.3 * b.build) * k;
+  const curve = (key: keyof typeof TORSO.male) => smoothThrough(TORSO_Y.map((y) => y * k), TORSO.male[key].map((m, i) => mix(m, TORSO.female[key][i]) * torso));
+  const [w, front, back] = [curve('w'), curve('front'), curve('back')];
   return {
     k,
     torso,
@@ -89,9 +91,8 @@ function proportions(b: BodyParams) {
     head: b.head * mix(1.02, 0.97) * k,
     headTaper: mix(0.03, 0.17),
     neckR: mix(0.05, 0.038) * (0.9 + 0.25 * b.build) * k,
-    pelvis: { rx: mix(0.142, 0.186) * torso, ry: mix(0.122, 0.135) * k, rz: mix(0.104, 0.122) * torso, taper: mix(-0.08, -0.34) },
-    waist: { rx: mix(0.14, 0.106) * torso, ry: 0.13 * k, rz: mix(0.1, 0.084) * torso, taper: mix(0.16, 0.05) },
-    chest: { rx: mix(0.194, 0.146) * torso, ry: mix(0.196, 0.172) * k, rz: mix(0.122, 0.096) * torso, taper: mix(0.38, 0.16) },
+    /** The torso's section at a height from the hips joint (its build widens and deepens it). */
+    section: (y: number): Section => ({ w: w(y), front: front(y), back: back(y) }),
     shoulderX: mix(0.206, 0.158) * (0.92 + 0.16 * b.build) * k,
     hipX: mix(0.08, 0.102) * torso,
     /** Breast size (female). */
@@ -104,6 +105,120 @@ function proportions(b: BodyParams) {
     extremity: mix(1.06, 0.92),
     female,
   };
+}
+
+/*
+ * The torso, as one form from the crotch to the base of the neck (an artist's figure, not eggs):
+ * at each height (from the hips joint, for a 1.8 m figure) its half-width, and its depth in front
+ * of and behind the spine. Read upwards: the crotch; the buttocks, fullest just below the hip
+ * joints; the hips at the great trochanters (wider on a woman); the iliac crests; the belly; the
+ * waist, narrowest (narrower on a woman); the bottom of the rib cage; the chest, deepest at the
+ * nipples, widest under the arms; the shoulders' slope to the neck.
+ */
+const TORSO_Y = [-0.135, -0.1, -0.05, 0, 0.06, 0.12, 0.17, 0.23, 0.3, 0.38, 0.44, 0.49, 0.53];
+const TORSO = {
+  male: {
+    w: [0.055, 0.125, 0.156, 0.155, 0.146, 0.134, 0.128, 0.145, 0.168, 0.184, 0.186, 0.16, 0.072],
+    front: [0.04, 0.074, 0.084, 0.088, 0.092, 0.092, 0.088, 0.098, 0.114, 0.122, 0.11, 0.082, 0.045],
+    back: [0.05, 0.094, 0.106, 0.098, 0.082, 0.072, 0.068, 0.078, 0.094, 0.104, 0.106, 0.09, 0.05],
+  },
+  female: {
+    w: [0.06, 0.14, 0.178, 0.178, 0.155, 0.128, 0.114, 0.124, 0.138, 0.145, 0.145, 0.128, 0.06],
+    front: [0.042, 0.076, 0.082, 0.086, 0.088, 0.086, 0.08, 0.086, 0.094, 0.098, 0.094, 0.074, 0.04],
+    back: [0.055, 0.108, 0.12, 0.108, 0.088, 0.072, 0.066, 0.074, 0.084, 0.09, 0.09, 0.08, 0.042],
+  },
+};
+/** The seams: where the pelvis ends and the abdomen begins (the spine joint), and the chest (its joint). */
+const SEAMS = [0.07, 0.24];
+
+/** A smooth curve through points (monotone: no bulge between them that is not in them). */
+function smoothThrough(xs: number[], ys: number[]) {
+  const n = xs.length;
+  const d = xs.slice(1).map((x, i) => (ys[i + 1] - ys[i]) / (x - xs[i]));
+  const m = xs.map((_, i) => (i === 0 ? d[0] : i === n - 1 ? d[n - 2] : d[i - 1] * d[i] <= 0 ? 0 : (2 * d[i - 1] * d[i]) / (d[i - 1] + d[i])));
+  return (x: number) => {
+    let i = 0;
+    while (i < n - 2 && x > xs[i + 1]) i++;
+    const h = xs[i + 1] - xs[i];
+    const t = THREE.MathUtils.clamp((x - xs[i]) / h, 0, 1);
+    const t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h * m[i + 1];
+  };
+}
+
+type Section = { w: number; front: number; back: number };
+/** How square the torso's cross-sections are (2: an ellipse). */
+const SQUARE = 2.6;
+
+/** Where the front of the torso is at (x, y). */
+function torsoFront(at: (y: number) => Section, x: number, y: number) {
+  const s = at(y);
+  const c = Math.min(1, Math.abs(x) / s.w) ** (SQUARE / 2);
+  return s.front * Math.sqrt(Math.max(0, 1 - c * c)) ** (2 / SQUARE);
+}
+
+/**
+ * A piece of the torso, from y0 to y1, its ends rounded inwards (`caps`: how far), so a bent joint
+ * shows a rounded end, not a hole. Made in the hips' frame.
+ */
+function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 64) {
+  const rings: { y: number; scale: number; s: Section }[] = [];
+  const capRings = 6;
+  for (let i = capRings; i > 0; i--) {
+    const a = (i / capRings) * (Math.PI / 2);
+    rings.push({ y: y0 - caps[0] * Math.sin(a), scale: Math.cos(a), s: at(y0) });
+  }
+  const count = Math.max(2, Math.ceil((y1 - y0) / step));
+  for (let i = 0; i <= count; i++) {
+    const y = y0 + ((y1 - y0) * i) / count;
+    rings.push({ y, scale: 1, s: at(y) });
+  }
+  for (let i = 1; i <= capRings; i++) {
+    const a = (i / capRings) * (Math.PI / 2);
+    rings.push({ y: y1 + caps[1] * Math.sin(a), scale: Math.cos(a), s: at(y1) });
+  }
+  const pos: number[] = [];
+  const index: number[] = [];
+  const e = 2 / SQUARE;
+  for (const r of rings) {
+    for (let j = 0; j < n; j++) {
+      const t = (j / n) * Math.PI * 2;
+      const c = Math.cos(t), sn = Math.sin(t);
+      const x = Math.sign(c) * Math.abs(c) ** e * r.s.w * r.scale;
+      const z = Math.sign(sn) * Math.abs(sn) ** e * (sn > 0 ? r.s.front : r.s.back) * r.scale;
+      pos.push(x, r.y, z);
+    }
+  }
+  // (The poles: one point at each end.)
+  const bottom = pos.length / 3;
+  pos.push(0, y0 - caps[0], 0);
+  const top = bottom + 1;
+  pos.push(0, y1 + caps[1], 0);
+  for (let i = 0; i < rings.length - 1; i++) {
+    for (let j = 0; j < n; j++) {
+      const a = i * n + j, b = i * n + ((j + 1) % n), c = a + n, d = b + n;
+      index.push(a, c, b, b, c, d);
+    }
+  }
+  const last = (rings.length - 1) * n;
+  for (let j = 0; j < n; j++) {
+    index.push(bottom, j, (j + 1) % n);
+    index.push(top, last + ((j + 1) % n), last + j);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(index);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Its centre line, down the front and up the back (where it faces, in line drawings). */
+function torsoMidline(at: (y: number) => Section, y0: number, y1: number) {
+  const ys = Array.from({ length: 25 }, (_, i) => y0 + ((y1 - y0) * i) / 24);
+  return [
+    contour(ys.map((y) => new THREE.Vector3(0, y, at(y).front + 0.001))),
+    contour(ys.map((y) => new THREE.Vector3(0, y, -at(y).back - 0.001))),
+  ];
 }
 
 type Egg = { rx: number; ry: number; rz: number; taper: number };
@@ -163,7 +278,7 @@ function onFace(e: Egg, sculpts: Sculpt[], x: number, y: number, lift: number) {
 }
 
 /** The curved lower edge of one pectoral, from the sternum out towards the armpit. */
-function pectoralLine(c: Egg, s: number, pecY: number, torso: number, k: number, pm: number) {
+function pectoralLine(at: (y: number) => Section, s: number, pecY: number, torso: number, k: number, pm: number) {
   const pts: THREE.Vector3[] = [];
   for (let i = 0; i <= 12; i++) {
     const t = i / 12;
@@ -171,7 +286,7 @@ function pectoralLine(c: Egg, s: number, pecY: number, torso: number, k: number,
     // Low and flat near the sternum, sweeping up to the armpit.
     const y = pecY - 0.05 * k + 0.07 * k * t * t;
     const lift = 0.012 * pm * torso * Math.sin(Math.PI * Math.min(1, t * 1.15));
-    pts.push(new THREE.Vector3(x, y, eggFront(c, x, y) + lift + 0.001));
+    pts.push(new THREE.Vector3(x, y, torsoFront(at, x, y) + lift + 0.001));
   }
   return contour(pts);
 }
@@ -249,42 +364,45 @@ export class Mannequin {
     const ball = (r: number) => new THREE.SphereGeometry(r, 24, 16);
 
     const root = joint('hips', this.object, 0, 1);
-    const pv = P.pelvis;
-    const pelvis = egg(pv.rx, pv.ry, pv.rz, pv.taper);
+    const at = P.section;
+    const [waistY, chestY] = SEAMS.map((y) => y * k);
+    const [bottom, top] = [TORSO_Y[0] * k, TORSO_Y[TORSO_Y.length - 1] * k];
+    const step = 0.006 * k;
+    // (Each piece's ends rounded into the next, hidden until the joint between them bends.)
+    const cap = 0.035 * k;
+    const pelvis = torsoPiece(at, bottom, waistY, [0.02 * k, cap], step);
     // Glutes: rounder and fuller on female figures.
     for (const s of [1, -1]) {
-      bulge(pelvis, [s * 0.056 * P.torso, -0.035 * k, -pv.rz * 0.85], [0.07 * P.torso, 0.08 * k, 0.09 * P.torso], 0.026 * P.hips * P.torso);
+      bulge(pelvis, [s * 0.062 * P.torso, -0.065 * k, -at(-0.065 * k).back], [0.075 * P.torso, 0.075 * k, 0.08 * P.torso], 0.01 * P.hips * P.torso);
     }
-    part('hips', smoothNormals(pelvis), [0, -0.04 * k, 0], [meridian(pv.ry, pv.rz, pv.taper)]);
+    part('hips', smoothNormals(pelvis), undefined, torsoMidline(at, bottom, waistY));
 
-    const spine = joint('spine', root, 0, 0.07 * k);
-    const w = P.waist;
-    part('spine', egg(w.rx, w.ry, w.rz, w.taper), [0, 0.09 * k, 0], [meridian(w.ry, w.rz, w.taper)]);
+    const spine = joint('spine', root, 0, waistY);
+    part('spine', torsoPiece(at, waistY, chestY, [cap, cap], step), [0, -waistY, 0], torsoMidline(at, waistY, chestY));
 
-    const chest = joint('chest', spine, 0, 0.17 * k);
-    const c = P.chest;
-    const ribs = egg(c.rx, c.ry, c.rz, c.taper);
-    const chestLines = [meridian(c.ry, c.rz, c.taper)];
+    const chest = joint('chest', spine, 0, chestY - waistY);
+    const ribs = torsoPiece(at, chestY, top, [cap, 0.02 * k], step);
+    const chestLines = torsoMidline(at, chestY, top);
     if (P.muscle > 0.2) {
       // Pectorals: sculpted into the rib cage, with a contour line along their lower edge.
       const pm = Math.min(1.2, P.muscle);
-      const pecY = 0.04 * k;
+      const pecY = 0.4 * k;
       for (const s of [1, -1]) {
-        bulge(ribs, [s * 0.072 * P.torso, pecY, c.rz * 0.9], [0.08 * P.torso, 0.058 * k, 0.07 * P.torso], 0.016 * pm * P.torso);
+        bulge(ribs, [s * 0.072 * P.torso, pecY, torsoFront(at, 0.072 * P.torso, pecY)], [0.08 * P.torso, 0.058 * k, 0.07 * P.torso], 0.014 * pm * P.torso);
       }
-      chestLines.push(...[1, -1].map((s) => pectoralLine(c, s, pecY, P.torso, k, pm)));
+      chestLines.push(...[1, -1].map((s) => pectoralLine(at, s, pecY, P.torso, k, pm)));
     }
-    part('chest', smoothNormals(ribs), [0, 0.12 * k, 0], chestLines);
     if (P.bust > 0.02) {
-      // Breasts: set low and apart, angled outwards and down.
-      const r = (0.04 + 0.034 * P.bust) * P.torso;
+      // Breasts: shaped into the chest, low and apart, their fullness below their middle.
+      const by = 0.355 * k;
       for (const s of [1, -1]) {
-        const breast = ellipsoid(r, r * 1.04, r * 0.84, 28, 20).rotateX(0.16).rotateY(s * 0.28);
-        part('chest', breast, [s * (0.03 * P.torso + r * 0.85), 0.092 * k, c.rz * 0.6 + r * 0.3]);
+        const bx = s * 0.078 * P.torso;
+        bulge(ribs, [bx, by, torsoFront(at, bx, by)], [0.07 * P.torso, 0.072 * k, 0.09 * P.torso], (0.012 + 0.04 * P.bust) * P.torso);
       }
     }
+    part('chest', smoothNormals(ribs), [0, -chestY, 0], chestLines);
 
-    const neck = joint('neck', chest, 0, 0.29 * k);
+    const neck = joint('neck', chest, 0, top - chestY);
     part('neck', limb(0.1 * k, P.neckR * 0.92, P.neckR).geometry.rotateZ(Math.PI), [0, -0.02 * k, 0]);
 
     joint('head', neck, 0, 0.08 * k);
@@ -314,9 +432,10 @@ export class Mannequin {
       this.hands[side] = this.standIn ? { segments: [], side: s } : this.buildHand(wrist, n('Hand'), s, k * P.extremity);
 
       const hip = joint(n('UpperLeg'), root, P.hipX * s, -0.07 * k);
-      part(n('UpperLeg'), ball(0.08 * R));
+      part(n('UpperLeg'), ball(0.08 * R * (1 + 0.16 * P.female)));
       // Fuller upper thighs on female figures, more taper on male ones.
-      const thigh = limb(0.4 * P.legs, 0.085 * R * (0.92 + 0.12 * P.hips), 0.05 * R, (0.006 + 0.008 * P.hips) * R, 0.28);
+      // (As full at the top as the hips round it: fuller on a woman, whose limbs are slenderer.)
+      const thigh = limb(0.4 * P.legs, 0.085 * R * (0.92 + 0.12 * P.hips) * (1 + 0.16 * P.female), 0.05 * R, (0.006 + 0.008 * P.hips) * R, 0.28);
       part(n('UpperLeg'), thigh.geometry, undefined, [thigh.ring(0.45)]);
 
       const knee = joint(n('LowerLeg'), hip, 0, -0.43 * P.legs);

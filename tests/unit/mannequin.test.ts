@@ -6,7 +6,7 @@ import { Ink } from '@/lib/ink';
 import { IK_CHAINS, Mannequin, POLE_CHAINS, worldPos } from '@/lib/mannequin';
 import { builtInPoses, poseScene } from '@/lib/poses';
 import { angle, anglesOf, bonesOf, fromQuat } from '@/lib/pose';
-import { JOINTS } from '@/lib/types';
+import { JOINTS, type JointName } from '@/lib/types';
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
@@ -146,10 +146,29 @@ describe('sex characteristics', () => {
     const female = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 1 });
     const ratio = (m: Mannequin) => width(m, 'leftUpperArm') / width(m, 'leftUpperLeg');
     expect(ratio(male)).toBeGreaterThan(ratio(female) * 1.4);
-    // Pectoral contour lines on the male chest, breasts as separate forms on the female one.
-    const chestParts = (m: Mannequin) => m.parts.bodies.filter((b) => b.userData.joint === 'chest').length;
-    expect(chestParts(female)).toBe(chestParts(male) + 2);
-    male.dispose();
-    female.dispose();
+    // An hourglass: her waist narrower than her hips and chest, by more than his.
+    const across = (m: Mannequin, joint: JointName, y: number) => {
+      const body = m.parts.bodies.find((b) => b.userData.joint === joint)!;
+      const pos = (body.geometry as THREE.BufferGeometry).attributes.position;
+      let w = 0;
+      // (Its pieces are made in the hips' frame: heights from the hips joint.)
+      const k = DEFAULT_BODY.height / 1.8;
+      for (let i = 0; i < pos.count; i++) if (Math.abs(pos.getY(i) - y * k) < 0.01) w = Math.max(w, Math.abs(pos.getX(i)));
+      return w;
+    };
+    const shape = (m: Mannequin) => ({ hips: across(m, 'hips', -0.05), waist: across(m, 'spine', 0.17), chest: across(m, 'chest', 0.42) });
+    const [him, her] = [shape(male), shape(female)];
+    expect(her.waist / her.hips).toBeLessThan(him.waist / him.hips - 0.1);
+    expect(her.hips).toBeGreaterThan(her.chest);
+    expect(him.chest).toBeGreaterThan(him.hips);
+    // Breasts shaped into her chest: it reaches further forward with a bust than without.
+    const flat = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 1, bust: 0 });
+    const front = (m: Mannequin) => {
+      const body = m.parts.bodies.find((b) => b.userData.joint === 'chest')!;
+      (body.geometry as THREE.BufferGeometry).computeBoundingBox();
+      return (body.geometry as THREE.BufferGeometry).boundingBox!.max.z;
+    };
+    expect(front(female)).toBeGreaterThan(front(flat) + 0.01);
+    for (const m of [male, female, flat]) m.dispose();
   });
 });
