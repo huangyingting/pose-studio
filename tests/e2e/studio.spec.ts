@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { builtInPoses, poseScene } from '../../lib/poses';
+import { poseScene, referencePoses } from '../../lib/poses';
 import { MAX_DURATION, PAST_END } from '../../lib/animation';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
@@ -10,7 +10,7 @@ import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
 
 /** The 20 reference poses as scenes. */
-const refScenes = () => builtInPoses().map((p) => poseScene(p));
+const refScenes = () => referencePoses().map((p) => poseScene(p));
 
 type Hook = {
   store: {

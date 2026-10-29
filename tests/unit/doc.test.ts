@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { mirrorFigure, newFigure, newProp, parseLibrary, parseScene, symmetrize } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
-import { builtInPoses, poseScene } from '@/lib/poses';
+import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
-const refScenes = () => builtInPoses().map((p) => poseScene(p));
+const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { JOINTS } from '@/lib/types';
 import { angle, anglesOf, bonesOf } from '@/lib/pose';
 

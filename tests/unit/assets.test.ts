@@ -5,7 +5,7 @@ import { BUILT_IN, clipById } from '@/lib/assets';
 import { keysClip } from '@/lib/clip';
 import { clipsIn, newFigure, newScene, parseLibrary } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
-import { allPoses, builtInPoses, withPose } from '@/lib/poses';
+import { allPoses, builtInPoses, referencePoses, withPose } from '@/lib/poses';
 import { insertClip } from '@/lib/track';
 import { facing, withFacing } from '@/lib/relations';
 import { Store } from '@/lib/store';
@@ -27,7 +27,10 @@ describe('library assets applied to the scene', () => {
   it('a new project is one blank scene; the 20 reference poses are library assets', () => {
     const store = new Store(new MemoryStorage());
     expect(store.getState().library.scenes.map((s) => s.name)).toEqual(['Scene 1']);
-    expect(builtInPoses()).toHaveLength(20);
+    expect(referencePoses()).toHaveLength(20);
+    // And the gallery's, after them, each in a group of the library.
+    expect(builtInPoses().length).toBeGreaterThan(80);
+    expect(builtInPoses().slice(0, 20)).toEqual(referencePoses());
     expect(builtInPoses()[0].name).toBe('Hand on head');
   });
 

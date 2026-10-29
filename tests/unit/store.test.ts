@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { addFigure, addProp, deleteFigure, deleteScene, duplicateCurrentScene, editReference, moveScene, setReferenceImage } from '@/lib/actions';
 import { loadImage } from '@/lib/assetstore';
 import { parseScene } from '@/lib/doc';
-import { builtInPoses, poseScene } from '@/lib/poses';
+import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
-const refScenes = () => builtInPoses().map((p) => poseScene(p));
+const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { decodeScene, encodeScene, sceneParam } from '@/lib/share';
 import { Store } from '@/lib/store';
 

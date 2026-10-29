@@ -5,10 +5,10 @@ import { newAnimation } from '@/lib/animation';
 import { parseProjectSettings } from '@/lib/project';
 import { angleAt } from '@/lib/cameras';
 import { buildSession, DEFAULT_PRACTICE, formatTime, parsePracticeOptions, sessionLength } from '@/lib/practice';
-import { builtInPoses, poseScene } from '@/lib/poses';
+import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
-const refScenes = () => builtInPoses().map((p) => poseScene(p));
+const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { DEFAULT_EXPORT, exportCells, parseExportOptions, sheetSize } from '@/lib/render';
 import { Store } from '@/lib/store';
 

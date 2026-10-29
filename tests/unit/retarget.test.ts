@@ -5,10 +5,10 @@ import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
 import { sided } from '@/lib/joints';
 import { Mannequin, worldPos } from '@/lib/mannequin';
-import { builtInPoses, poseScene } from '@/lib/poses';
+import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
-const refScenes = () => builtInPoses().map((p) => poseScene(p));
+const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { fromMediaPipe, LM, retarget } from '@/lib/retarget';
 import type { JointName } from '@/lib/types';
 import { angle } from '../../lib/pose';

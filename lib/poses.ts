@@ -1,6 +1,6 @@
 import { DEFAULT_VIEW, cameraFrom, newFigure, newScene } from './doc';
 import { cloneHand } from './hands';
-import { BUILT_IN_POSES } from './presets';
+import { BUILT_IN_POSES, GALLERY_POSES } from './presets';
 import { facing, withFacing } from './relations';
 import type { Figure, Library, PoseAsset, Scene, View } from './types';
 import { uid } from './uid';
@@ -10,10 +10,16 @@ import { uid } from './uid';
  * user saved. A pose applies to a figure's joints and hands, wherever it stands and faces.
  */
 
-/** The 20 built-in poses (never stored in the library), each in a group (standing, sitting, …). */
-export function builtInPoses() {
+/** The 20 reference poses, from the drawing reference sheet. */
+export function referencePoses() {
   return BUILT_IN_POSES;
 }
+
+/** The built-in poses (never stored in the library): the reference ones and the gallery's, each in a group (standing, sitting, …). */
+export function builtInPoses() {
+  return ALL;
+}
+const ALL = [...BUILT_IN_POSES, ...GALLERY_POSES];
 
 export function allPoses(lib: Library): PoseAsset[] {
   return [...builtInPoses(), ...(lib.poses ?? [])];

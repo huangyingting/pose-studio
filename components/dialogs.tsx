@@ -8,7 +8,7 @@ import { boardSheet, boardSize, recordStory } from '@/lib/boardExport';
 import { sceneAt } from '@/lib/evaluate';
 import { addCamera, applyPhotoPose, setReferenceImage } from '@/lib/actions';
 import { newFigure } from '@/lib/doc';
-import { allPoses, poseScene } from '@/lib/poses';
+import { poseScene, referencePoses } from '@/lib/poses';
 import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
@@ -79,11 +79,13 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const shots = whole ? story : sceneStory;
   const canRecord = videoSupported();
 
-  // The pose library sheet shows each pose on its own figure (the reference sheet layout).
-  const poseCount = allPoses(library).length;
+  // The pose sheet shows each pose on its own figure (the reference sheet's layout): the reference
+  // poses and my own (the gallery's would make it too big to draw).
+  const sheetPoses = useMemo(() => [...referencePoses(), ...(library.poses ?? [])], [library]);
+  const poseCount = sheetPoses.length;
   const cells = useMemo(
-    () => exportCells(scope === 'poses' ? allPoses(library).map((p) => poseScene(p)) : scenes, scene, { ...o, scope }, time, camera || undefined),
-    [o, scope, scenes, scene, library, time, camera],
+    () => exportCells(scope === 'poses' ? sheetPoses.map((p) => poseScene(p)) : scenes, scene, { ...o, scope }, time, camera || undefined),
+    [o, scope, scenes, scene, sheetPoses, time, camera],
   );
   const size = filmed ? videoSize(o.videoSize, frameAspect()) : scope === 'board' ? boardSize(story.length, o.columns, o.labels) : sheetSize(cells.length, o);
   const { width, height } = size;

@@ -1,5 +1,6 @@
+import GALLERY from './gallery-poses.json';
 import { HAND_PRESETS } from './hands';
-import { bonesOf, type Angles } from './pose';
+import { bonesOf, type Angles, type Bones } from './pose';
 import type { Hand, PoseAsset, View } from './types';
 
 interface RawPose {
@@ -189,8 +190,16 @@ const GROUP: Record<string, PoseGroup> = {
   'Lying, head propped': 'Lying', 'Prone, chin in hands': 'Lying', 'Cobra': 'Lying', 'Lying, leg raised': 'Lying',
 };
 
-/** The built-in poses (from the drawing reference sheet), with stable ids. */
+/** The reference poses (from the drawing reference sheet), with stable ids. */
 export const BUILT_IN_POSES: (PoseAsset & { group: PoseGroup })[] = RAW.map((p, i) => {
   const [l, r] = HAND_HINTS[p.name] ?? ['Relaxed', 'Relaxed'];
   return { id: `preset${i + 1}`, name: p.name, bones: bonesOf(p.joints), hands: { L: hand(l), R: hand(r) }, view: p.view, group: GROUP[p.name] };
 });
+
+/**
+ * The gallery poses: full-body pose drawings made library poses (scripts/poses/gallery.ts), each
+ * in its group, its hands relaxed.
+ */
+export const GALLERY_POSES: (PoseAsset & { group: PoseGroup })[] = (GALLERY as { id: string; name: string; group: PoseGroup; bones: Bones; view: View }[]).map((p) => ({
+  ...p, hands: { L: hand('Relaxed'), R: hand('Relaxed') },
+}));

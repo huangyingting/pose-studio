@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { newAnimation } from '@/lib/animation';
 import { newFigure, newScene } from '@/lib/doc';
-import { builtInPoses, poseScene } from '@/lib/poses';
+import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
-const refScenes = () => builtInPoses().map((p) => poseScene(p));
+const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { canonical, mergeLibraries, sceneHash, syncBase } from '@/lib/sync';
 import type { Library, Scene } from '@/lib/types';
 import { withAngles } from '../../lib/pose';

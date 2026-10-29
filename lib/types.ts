@@ -506,7 +506,6 @@ export interface PoseAsset {
   view: View;
 }
 
-/** A scene in the story: an animated one shows its shots; a still one is on screen for `hold` seconds. */
 /** The project's settings: one frame shape, one render style. */
 export interface ProjectSettings {
   frame: FrameShape;
