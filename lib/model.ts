@@ -445,7 +445,7 @@ export function bodyFor(f: Figure, id: string): BodyParams {
 const infos = new Map<string, ModelInfo>();
 const templates = new Map<string, THREE.Object3D>();
 const loading = new Set<string>();
-/** When a model's file last could not be read: asked for again after RETRY_MS. */
+/** When a model's file last could not be got: asked for again after RETRY_MS. */
 const failedAt = new Map<string, number>();
 const RETRY_MS = 30_000;
 const unreachable = new Set<string>();
@@ -468,29 +468,40 @@ export function onModels(f: () => void) {
 }
 
 /** A model, as read from its file (null until it has been: reading starts now). */
+/** A model's file is here now (synced): asked for at once, whatever failed before. */
+export function modelArrived(id: string) {
+  failedAt.delete(id);
+  unreachable.delete(id);
+  return modelTemplate(id);
+}
+
 export function modelTemplate(id: string): THREE.Object3D | null {
   const hit = templates.get(id);
   const info = infos.get(id);
   if (hit || !info || loading.has(id) || unreachable.has(id) || Date.now() - (failedAt.get(id) ?? -Infinity) < RETRY_MS) return hit ?? null;
   loading.add(id);
-  // A built-in character's file comes with the app (not asked for again this visit if it does
-  // not come: offline); an imported one's is kept as an asset (it may come later, synced).
+  // A built-in character's file comes with the app; an imported one's is kept as an asset (it may
+  // come later, synced: none yet is no failure).
   const builtIn = isBuiltInCharacter(id);
-  const file = builtIn ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : null), () => null) : loadModelFile(id);
+  // Not got (offline, the server, the browser's storage): asked for again after a while (the
+  // scene woken to ask then). Got but not readable: not again this visit.
+  const later = (err?: unknown) => {
+    failedAt.set(id, Date.now());
+    setTimeout(changed, RETRY_MS);
+    if (err) console.warn(`Could not get the model ${info.name}:`, err);
+  };
+  const file = builtIn ? fetch(characterFile(id)).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`)))) : loadModelFile(id);
   void file
     .then(async (data) => {
-      if (!data) {
-        if (builtIn) unreachable.add(id);
-        return;
+      if (!data) return;
+      try {
+        templates.set(id, await parseModel(info.format, data));
+        changed();
+      } catch (err) {
+        unreachable.add(id);
+        console.warn(`Could not read the model ${info.name}:`, err);
       }
-      templates.set(id, await parseModel(info.format, data));
-      changed();
-    })
-    // (Not read: not asked for again for a while, rather than on every sync.)
-    .catch((err) => {
-      failedAt.set(id, Date.now());
-      console.warn(`Could not read the model ${info.name}:`, err);
-    })
+    }, later)
     .finally(() => loading.delete(id));
   return null;
 }
