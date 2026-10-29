@@ -15,6 +15,7 @@ import { DEFAULT_LIGHT, LightRig, lampAt, lightDome, lightFrom } from '@/lib/lig
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
+import { awake, setDrawer, wake } from './frames';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
@@ -317,6 +318,8 @@ export default function Viewport({
       }}
     >
       <Canvas
+        // (Drawn on demand: see components/frames.ts.)
+        frameloop="demand"
         flat
         shadows="percentage"
         dpr={[1, 2]}
@@ -330,6 +333,7 @@ export default function Viewport({
         }}
       >
         <color attach="background" args={[styleDef(film.style).background]} />
+        <Waker store={store} clock={clock} sv={sv} />
         <Lights sv={sv} style={film.style} scene={scene} />
         <DropLine />
         {settings.showGrid && (
@@ -628,7 +632,8 @@ function HoverGhost() {
   const size = useThree((s) => s.size);
   useEffect(() => () => ghost.dispose(), [ghost]);
   useEffect(() => ghost.resize(size.width, size.height), [ghost, size]);
-  useLayoutEffect(() => ghost.show(scene), [ghost, scene]);
+  // (Shown from the Library, off the canvas: it wakes it.)
+  useLayoutEffect(() => { ghost.show(scene); wake(); }, [ghost, scene]);
   return <primitive object={ghost.root} />;
 }
 
@@ -800,6 +805,37 @@ function ShotDriver({ store, scene, clock, time, through, captureRef }: {
   return null;
 }
 
+/**
+ * Wakes the canvas (drawn on demand) when what it shows may change: the document or the selection,
+ * the scene view, the pointer on it or a key, a model come in; and draws on while it is awake (a
+ * moment after) and while playing.
+ */
+function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView }) {
+  const invalidate = useThree((s) => s.invalidate);
+  const el = useThree((s) => s.gl.domElement);
+  useEffect(() => {
+    setDrawer(invalidate);
+    const up = () => wake();
+    const offs = [store.subscribe(up), clock.subscribe(up), sv.subscribe(up), onModels(up)];
+    const events = ['pointermove', 'pointerdown', 'pointerup', 'wheel'] as const;
+    for (const e of events) el.addEventListener(e, up, { passive: true });
+    window.addEventListener('keydown', up);
+    window.addEventListener('keyup', up);
+    wake();
+    return () => {
+      setDrawer(null);
+      offs.forEach((off) => off());
+      for (const e of events) el.removeEventListener(e, up);
+      window.removeEventListener('keydown', up);
+      window.removeEventListener('keyup', up);
+    };
+  }, [invalidate, el, store, clock, sv]);
+  useFrame(() => {
+    if (clock.playing || awake()) invalidate();
+  }, -100);
+  return null;
+}
+
 /** Takes over R3F's render loop to add the interior line-art pass. */
 function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
   const pass = useMemo(() => new LineArtPass(), []);
@@ -962,6 +998,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       camera.far = 200;
       camera.updateProjectionMatrix();
       controls.update();
+      wake();
     });
   };
 
@@ -1009,6 +1046,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     cam.position.copy(was.position);
     orbit?.target.copy(was.target);
     orbit?.update();
+    wake();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shotMode, get]);
 
