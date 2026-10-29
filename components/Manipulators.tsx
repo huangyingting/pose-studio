@@ -97,6 +97,19 @@ const tagged = (o: THREE.Object3D | null) => {
   return o;
 };
 
+/**
+ * The part a press or click under the pointer takes (`usable`: not one to reach past, a
+ * see-through prop): the nearest; but a hand or foot of the same figure just behind it (resting
+ * on the body, up to 8 cm in, as a palm on a hip is), that, as it is what one reaches for there.
+ */
+export function partUnder(intersections: THREE.Intersection[], usable: (o: THREE.Object3D) => boolean) {
+  const hits = intersections.map((i) => ({ o: tagged(i.object), d: i.distance })).filter((h) => h.o && usable(h.o));
+  const first = hits[0];
+  if (!first) return null;
+  const end = hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && ENDS[h.o!.userData.joint as JointName]);
+  return (end ?? first).o!;
+}
+
 /** " · 0.80 m from Kai": how far a figure stands from the nearest other one. */
 export function nearestText(sv: SceneView, scene: Scene, id: string, at: THREE.Vector3) {
   let best: { name: string; d: number } | null = null;
@@ -512,18 +525,10 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     };
   };
 
-  /**
-   * The part under the pointer a press takes (null: another object's turn, the event goes on to
-   * it): the nearest; but a hand or foot just behind it (resting on the body, up to 8 cm in),
-   * that (a palm on a hip sits a few centimetres into it), as it is what one reaches for there.
-   */
+  /** The part this call of a pointer event is for: the part under the pointer (null: another object's turn, the event goes on to it). */
   const pressed = (e: ThreeEvent<PointerEvent>) => {
-    const hits = e.intersections.map((i) => ({ o: tagged(i.object), d: i.distance })).filter((h) => h.o);
-    const first = hits[0];
-    if (!first) return null;
-    const end = hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && target(h.o!)?.kind === 'end');
-    const chosen = (end ?? first).o!;
-    return tagged(e.object) === chosen ? chosen : null;
+    const chosen = partUnder(e.intersections, (o) => target(o) !== null);
+    return chosen && tagged(e.object) === chosen ? chosen : null;
   };
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {

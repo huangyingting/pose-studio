@@ -21,7 +21,7 @@ import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { Figure, JointName, Light, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText } from './Manipulators';
+import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
 import type { Contact } from '@/lib/relations';
 import TurnButtons from './TurnButtons';
 import JointCard from './JointCard';
@@ -169,11 +169,9 @@ export default function Viewport({
       setSceneLight(store, lightFrom(scene.light ?? DEFAULT_LIGHT, e.camera.position.clone().sub(e.point)), '');
       return;
     }
-    let o: THREE.Object3D | null = e.object;
-    while (o && !o.userData.joint && !o.userData.prop) o = o.parent;
+    // (A see-through prop, in front of the figure being edited, lets the click through.)
+    const o = partUnder(e.intersections, (x) => !(x.userData.prop && sv.props.get(x.userData.prop as string)?.parts.faded));
     if (!o) return;
-    // A see-through prop (in front of the figure being edited) lets the click through.
-    if (o.userData.prop && sv.props.get(o.userData.prop as string)?.parts.faded) return;
     e.stopPropagation();
     // A second tap on the same figure soon after (touch has no double-click on the canvas): all of it.
     const now = performance.now();
