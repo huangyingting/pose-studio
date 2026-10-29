@@ -221,6 +221,9 @@ function torsoMidline(at: (y: number) => Section, y0: number, y1: number) {
   ];
 }
 
+/** How far the torso reaches to either side at a height from the hips joint (contacts on its surface). */
+export const torsoHalfWidth = (body: BodyParams, y: number) => proportions(body).section(y).w;
+
 type Egg = { rx: number; ry: number; rz: number; taper: number };
 
 /** Point on the front of an egg() surface at (x, y), in the egg's local coordinates. */

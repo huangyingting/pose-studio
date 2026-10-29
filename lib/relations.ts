@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { sided } from './joints';
-import { IK_CHAINS, Mannequin, setWorldQuaternion, worldPos } from './mannequin';
+import { IK_CHAINS, Mannequin, setWorldQuaternion, torsoHalfWidth, worldPos } from './mannequin';
 import { angle, facingOf, turnBones } from './pose';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
@@ -157,8 +157,11 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
     case 'chest': return at('chest', [0, 0.13 * k, 0.15 * k]);
     case 'back': return at('chest', [0, 0.13 * k, -0.15 * k]);
     case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);
-    case 'leftUpperLeg': return at('hips', [0.17 * k, 0.01 * k, 0]);
-    case 'rightUpperLeg': return at('hips', [-0.17 * k, 0.01 * k, 0]);
+    case 'leftUpperLeg': case 'rightUpperLeg': {
+      // (Its side, just out from the torso there.)
+      const x = torsoHalfWidth(f.body, 0.01 * k) + 0.01 * k;
+      return at('hips', [c === 'leftUpperLeg' ? x : -x, 0.01 * k, 0]);
+    }
     case 'leftLowerLeg': case 'rightLowerLeg': {
       // The kneecap: out along the bend (thigh direction minus shin direction), or the front of a straight leg.
       const side = c === 'leftLowerLeg' ? 'L' : 'R';

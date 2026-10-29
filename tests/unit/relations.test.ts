@@ -59,6 +59,23 @@ describe('posing against another figure', () => {
     rig.dispose();
   });
 
+  it('puts a hip on the side of the pelvis, whatever its build (not inside it)', () => {
+    const rig = new Rig();
+    for (const body of [{ sex: 1, build: 1 }, { sex: 0, build: 0.75 }, { sex: 1, build: 0 }]) {
+      const f = { ...at(0, 0), body: { ...at(0, 0).body, ...body } };
+      const m = rig.model(f);
+      const hips = m.joints.hips.worldToLocal(contactPoint(m, f, 'leftUpperLeg'));
+      const k = f.body.height / 1.8;
+      const pelvis = m.parts.bodies.find((b) => b.userData.joint === 'hips')!.geometry as THREE.BufferGeometry;
+      const pos = pelvis.attributes.position;
+      let side = 0;
+      for (let i = 0; i < pos.count; i++) if (Math.abs(pos.getY(i) - 0.01 * k) < 0.01) side = Math.max(side, pos.getX(i));
+      expect(hips.x).toBeGreaterThan(side);
+      expect(hips.x).toBeLessThan(side + 0.03);
+    }
+    rig.dispose();
+  });
+
   it('reports targets out of reach', () => {
     const rig = new Rig();
     const a = at(0, 0);
