@@ -387,7 +387,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const { store, later } = boxing('Woman', 'Big man');
     light(store, 'rembrandt');
     shoot(store, [later], ['handheld', 'hero']);
-    expectFilm(store, 'side', 2);
+    expectFilm(store, 'rembrandt', 2);
   }, 300_000);
 
   it('a fight: they walk in, one kicks, the other goes down', () => {
