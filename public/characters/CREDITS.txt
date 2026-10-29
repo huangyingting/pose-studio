@@ -1,29 +1,19 @@
 Built-in characters
 ===================
 
-man.glb, woman.glb
+man.glb, woman.glb, child.glb
 
-  From "Universal Base Characters" (Standard, free version) by Quaternius
-  https://quaternius.com/packs/universalbasecharacters.html
-  https://quaternius.itch.io/universal-base-characters
-
-  License: CC0 1.0 Universal (CC0 1.0), Public Domain Dedication
-  https://creativecommons.org/publicdomain/zero/1.0/
-
-  Changes: the Superhero_Male_FullBody and Superhero_Female_FullBody glTF models packed into
-  binary glTF (GLB) without their textures (the app draws characters in its own styles), to
-  keep the files small. The meshes and skeletons are as they came.
-
-child.glb
-
-  Made with MakeHuman's base mesh, targets and Mixamo-named rig, through MPFB 2.0-b1 (the
-  MakeHuman plugin for Blender), shaped by MakeHuman's macro settings (a child of about
-  eleven), its targets baked, exported as GLB without textures.
+  Made with MakeHuman's base mesh, targets, Mixamo-named rig and system assets (eyes, eyebrows,
+  eyelashes, hair, clothes, shoes), through MPFB 2 (the MakeHuman plugin for Blender), by
+  scripts/characters/makehuman.py: East Asian, ideal proportions, a young adult man and woman
+  and a child of about eleven, with face targets; exported as GLB with colour textures fitted
+  within 512 px (hair, brows and lashes tinted dark), then imported as the app imports characters.
   https://github.com/makehumancommunity/mpfb2 (assets: LICENSE.ASSETS.md)
-  https://github.com/makehumancommunity/makehuman/blob/master/LICENSE.md
+  http://files.makehumancommunity.org/asset_packs/makehuman_system_assets/
 
-  License: the MakeHuman / MPFB assets (base mesh, targets, rigs) are CC0 1.0 Universal, and so
-  is what is made from them. (MPFB's program code is GPLv3; none of it ships with the app.)
+  License: the MakeHuman / MPFB assets (base mesh, targets, rigs, system assets) are CC0 1.0
+  Universal, and so is what is made from them. (MPFB's program code is GPLv3; none of it ships
+  with the app.)
 
 
 aoi.glb

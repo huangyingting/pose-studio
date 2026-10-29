@@ -1,10 +1,12 @@
 /*
- * Characters made built-in ones (public/characters/<id>.glb and .png): Mixamo's, and figures
- * rigged by scripts/characters/rig.py (Sketchfab's).
+ * Characters made built-in ones (public/characters/<id>.glb and .png): Mixamo's, figures rigged by
+ * scripts/characters/rig.py (Sketchfab's), and the Man, Woman and Child made with MakeHuman
+ * (scripts/characters/makehuman.py).
  *
  *     npm run dev -- -p 3399    (then, in another terminal)
  *     npx jiti scripts/characters/import.ts data/library/characters/{Adam,Brute,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
  *     npx jiti scripts/characters/import.ts /tmp/swat-operator.glb /tmp/male-base.glb
+ *     npx jiti scripts/characters/import.ts /tmp/mh/{woman,man,child}.glb
  *
  * (Mixamo's with natural proportions, and Brute; not the cartoon ones, nor Mixamo's own mannequin.)
  *
@@ -29,12 +31,13 @@ const APP = process.env.APP ?? 'http://localhost:3399/';
 // (Remy's file is drawn at twice a man's size.)
 const UNITS: Record<string, number> = { remy: 0.005 };
 // Who is a woman; the rest are men.
-const WOMEN = new Set(['elizabeth', 'erika-archer']);
+const WOMEN = new Set(['elizabeth', 'erika-archer', 'woman']);
 // Named by their roles, not as Mixamo names them (their files' names stay their ids).
 const ROLES: Record<string, string> = {
   adam: 'Jogger', brute: 'Barbarian', elizabeth: 'Casual woman', 'erika-archer': 'Archer', joe: 'Businessman',
   ninja: 'Ninja', 'paladin-j-nordstrom': 'Knight', pete: 'Construction worker', remy: 'Student', swat: 'SWAT officer',
   'male-base': 'Life model',
+  woman: 'Woman', man: 'Man', child: 'Child',
 };
 
 type Gltf = { scene?: number; scenes: { nodes: number[] }[]; nodes: { name?: string; scale?: number[]; children?: number[] }[]; materials?: Record<string, Record<string, unknown>>[]; images?: unknown; textures?: unknown; samplers?: unknown };
