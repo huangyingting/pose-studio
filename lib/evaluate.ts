@@ -645,7 +645,17 @@ function evaluator(scene: Scene): Evaluator {
   const props = scene.props.map((p) => (animated(a, p.id) ? [p.id, p.kind, p.scale, p.physics] : [p.id, p.kind, p.scale, p.position, p.rotation, p.hold]));
   const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body]), surfacesKey(scene.props), props, physicsReady(), clipsVersion()]);
   const hit = cache.get(a);
-  if (hit && hit.key === key) return hit.ev;
+  if (hit && hit.key === key) {
+    // (In use again: the last to give its mannequins back; one that gave them back already, among
+    // the recent again, to give back the ones it takes now.)
+    const i = recent.indexOf(hit.ev);
+    if (i !== recent.length - 1) {
+      if (i >= 0) recent.splice(i, 1);
+      recent.push(hit.ev);
+      if (recent.length > RECENT) recent.shift()!.dispose();
+    }
+    return hit.ev;
+  }
   hit?.ev.dispose();
   const ev = new Evaluator(scene);
   cache.set(a, { key, ev });
