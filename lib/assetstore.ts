@@ -17,8 +17,11 @@ const THUMBS = 'thumbs';
 let db: Promise<IDBDatabase> | null = null;
 const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>(), thumbs: new Map<string, string>() };
 
+/** Whether this tab let a newer build's tab have the database: kept in memory from then on (this visit). */
+let yielded = false;
+
 function open(): Promise<IDBDatabase> | null {
-  if (typeof indexedDB === 'undefined') return null;
+  if (typeof indexedDB === 'undefined' || yielded) return null;
   db ??= new Promise((resolve, reject) => {
     const req = indexedDB.open(DB, 4);
     req.onupgradeneeded = () => {
@@ -28,11 +31,16 @@ function open(): Promise<IDBDatabase> | null {
       // (Another tab of a newer build needing a newer version: this one lets it.)
       req.result.onversionchange = () => {
         req.result.close();
+        yielded = true;
         db = null;
       };
       resolve(req.result);
     };
-    req.onerror = () => reject(req.error);
+    // (Not opened: tried again next time.)
+    req.onerror = () => {
+      db = null;
+      reject(req.error);
+    };
   });
   return db;
 }
@@ -110,17 +118,21 @@ export async function loadImage(id: string): Promise<Blob | null> {
  */
 const BUILD = process.env.NEXT_PUBLIC_BUILD ?? '';
 let pruned = false;
+let thumbsOff = false;
 
 /**
  * A kept thumbnail (an image URL), or null: none kept, or none to wait for (not kept while
  * developing; the browser's storage refused, or slow to open: drawn instead).
  */
 export async function loadThumb(key: string): Promise<string | null> {
-  if (!BUILD) return null;
+  if (!BUILD || thumbsOff) return null;
   const got = run<{ id: string; url: string } | undefined>(THUMBS, 'readonly', (s) => s.get(`${BUILD}|${key}`));
   if (!got) return memory.thumbs.get(key) ?? null;
-  const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
-  return Promise.race([got.then((x) => x?.url ?? null, () => null), late]);
+  // (Once one could not be read, or not soon, none is looked for again this visit.)
+  const late = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500));
+  const url = await Promise.race([got.then((x) => x?.url ?? null, () => undefined), late]);
+  if (url === undefined) thumbsOff = true;
+  return url ?? null;
 }
 
 /** Keep a thumbnail (the first time in a visit, those of other builds let go); nothing if it cannot be. */
