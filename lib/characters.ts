@@ -57,7 +57,7 @@ const meshy = (id: string, name: string, body: BodyParams): ModelInfo => ({ id: 
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
- * two of Sketchfab's (CC BY) and three made with Meshy, rigged here. Each with the body the
+ * two of Sketchfab's (CC BY) and two made with Meshy, rigged here. Each with the body the
  * mannequin under it takes (its height, build, head and legs, measured from the character), which
  * contacts and the motion check use.
  */
@@ -85,8 +85,7 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a tactical officer without his rifle, and a life model.
   sketchfab('swat-operator', 'Tactical officer', { sex: 0, height: 1.83, build: 0.18, head: 0.88, legs: 0.79, bust: 0 }, 'SpatialNeglect'),
   sketchfab('male-base', 'Life model', { sex: 0, height: 1.78, build: 0, head: 0.88, legs: 0.89, bust: 0 }, 'Mandrake'),
-  // Generated with Meshy (AI) by the repository's owner (scripts/characters/rig.py, then import.ts).
-  meshy('android', 'Android', { sex: 1, height: 1.73, build: 1, head: 0.96, legs: 0.98, bust: 0.3 }),
+  // Generated with Meshy (AI) by the repository's owner, drawn in our styles (scripts/characters/rig.py, then import.ts).
   meshy('fashion-model', 'Fashion model', { sex: 1, height: 1.65, build: 1, head: 0.95, legs: 0.84, bust: 0.5 }),
   meshy('athlete', 'Athlete', { sex: 1, height: 1.67, build: 1, head: 0.85, legs: 1, bust: 0.4 }),
 ];

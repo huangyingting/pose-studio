@@ -30,12 +30,12 @@ const APP = process.env.APP ?? 'http://localhost:3399/';
 // (Remy's file is drawn at twice a man's size.)
 const UNITS: Record<string, number> = { remy: 0.005 };
 // Who is a woman (and her bust); the rest are men.
-const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-archer': [1, 0.4], android: [1, 0.3], 'fashion-model': [1, 0.5], athlete: [1, 0.4] };
+const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-archer': [1, 0.4], 'fashion-model': [1, 0.5], athlete: [1, 0.4] };
 // Named by their roles, not as Mixamo names them (their files' names stay their ids).
 const ROLES: Record<string, string> = {
   adam: 'Jogger', brute: 'Barbarian', elizabeth: 'Casual woman', 'erika-archer': 'Archer', joe: 'Businessman',
   ninja: 'Ninja', 'paladin-j-nordstrom': 'Knight', pete: 'Construction worker', remy: 'Student', swat: 'SWAT officer',
-  'swat-operator': 'Tactical officer', 'male-base': 'Life model', android: 'Android', 'fashion-model': 'Fashion model', athlete: 'Athlete',
+  'swat-operator': 'Tactical officer', 'male-base': 'Life model', 'fashion-model': 'Fashion model', athlete: 'Athlete',
 };
 
 type Gltf = { scene?: number; scenes: { nodes: number[] }[]; nodes: { name?: string; scale?: number[]; children?: number[] }[]; materials?: Record<string, Record<string, unknown>>[]; images?: unknown; textures?: unknown; samplers?: unknown };
