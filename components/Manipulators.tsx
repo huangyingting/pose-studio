@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { Check, Footprints, Undo2 } from 'lucide-react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
@@ -889,10 +890,10 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
         const act = m.act ? store.scene.animation?.actions.find((x) => x.id === m.act) : undefined;
         if (act && overWarp(store.scene, act, figureId)) {
           openContextMenu(last, [
-            { label: 'Move it back (as far as the motion stretches)', onSelect: () => fitWarp(store, act.id, figureId, 'back') },
-            { label: 'Walk the rest of the way after it', onSelect: () => fitWarp(store, act.id, figureId, 'walk') },
-            { label: 'Leave it there', onSelect: () => {} },
-          ], 'Further than the motion can stretch');
+            { label: 'Move it back', icon: Undo2, onSelect: () => fitWarp(store, act.id, figureId, 'back') },
+            { label: 'Walk the rest', icon: Footprints, onSelect: () => fitWarp(store, act.id, figureId, 'walk') },
+            { label: 'Leave it', icon: Check, onSelect: () => {} },
+          ], 'Too far for this motion');
         }
       },
     );
