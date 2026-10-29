@@ -89,6 +89,8 @@ class Evaluator {
   private readonly poses = new Map<string, Pose>();
   private readonly marks = new Map<string, Mark>();
   private readonly chains = new Map<string, Chain>();
+  /** Each walk's upper body on the way (from the pose it leaves in to the one it arrives in). */
+  private readonly uppers = new WeakMap<Chain, ClipPart>();
   private readonly anchors = new Map<string, ReturnType<typeof feetOf>>();
   private readonly timelines = new Map<string, PropTimeline | null>();
 
@@ -118,6 +120,17 @@ class Evaluator {
       this.poses.set(key, p);
     }
     return p;
+  }
+
+  /**
+   * Where a figure is at t: its pose's place before contacts are held (holding on with its hands
+   * and feet does not move it), but with them when its hips are held (carried, lying on something).
+   */
+  root(id: string, t: number): Vec3 | null {
+    const f = this.figures.get(id);
+    if (!f) return null;
+    const carried = this.a.constraints?.some((c) => c.figure === id && c.bone === 'hips' && t >= c.start - EASE && t <= c.end + EASE);
+    return carried ? this.pose(id, t)!.position : this.free(f, t).position;
   }
 
   /** A figure's pose at t before contacts are held (what others' holds on it are measured on). */
@@ -163,10 +176,10 @@ class Evaluator {
   }
 
   /** Where one of a figure's bones is at t (before holds), with a point in its frame. */
-  private onBody(id: string, bone: JointName, at: Vec3, t: number, scale = 1): THREE.Vector3 | null {
+  private onBody(id: string, bone: JointName, at: Vec3, t: number, scale: Vec3 = [1, 1, 1]): THREE.Vector3 | null {
     const f = this.figures.get(id);
     if (!f) return null;
-    return this.rig.model({ ...f, ...this.free(f, t) }).joints[bone].localToWorld(new THREE.Vector3(...at).multiplyScalar(scale));
+    return this.rig.model({ ...f, ...this.free(f, t) }).joints[bone].localToWorld(new THREE.Vector3(...at).multiply(new THREE.Vector3(...scale)));
   }
 
   /**
@@ -245,9 +258,11 @@ class Evaluator {
         if (!partner || !body) return;
         // Where on the partner's body the clip has the hand now, on the partner as it is (however big).
         // (A leg's bones are as long as its leg length makes them; the torso as wide and deep as its
-        // build makes it; the rest, as the body's scale.)
+        // build makes it, as tall as its scale; the rest, as the body's scale.)
         const was = clip.parts[c.on.part].body ?? body;
-        const size = TRUNK.includes(c.on.bone) ? torsoScale(body) / torsoScale(was) : (scaleOf(body) / scaleOf(was)) * (/Leg|Foot/.test(c.on.bone) ? body.legs / was.legs : 1);
+        const k = scaleOf(body) / scaleOf(was);
+        const across = torsoScale(body) / torsoScale(was);
+        const size: Vec3 = TRUNK.includes(c.on.bone) ? [across, k, across] : /Leg|Foot/.test(c.on.bone) ? [k, k * (body.legs / was.legs), k] : [k, k, k];
         const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, size);
         if (spot) out.push({ bone, at: spot, weight, relative: true });
       });
@@ -577,7 +592,11 @@ class Evaluator {
   private travel(f: Figure, act: Action, t: number): Pose {
     const c = this.chain(f, act);
     // The upper body goes from the pose it leaves in to the one it arrives in; the legs, root and arm swing are generated.
-    const part = partFromPoses('', [{ t: c.t0, pose: fromAngles(c.start) }, { t: c.t1, pose: fromAngles(c.end) }], 'smooth');
+    let part = this.uppers.get(c);
+    if (!part) {
+      part = partFromPoses('', [{ t: c.t0, pose: fromAngles(c.start) }, { t: c.t1, pose: fromAngles(c.end) }], 'smooth');
+      this.uppers.set(c, part);
+    }
     const on = samplePart(part, t, 0, false);
     if (t <= c.t0 + EPS) return fromAngles(c.start);
     if (t >= c.t1 - EPS) return fromAngles(c.end);
@@ -609,6 +628,13 @@ export function correctionOf(base: Pose, edited: Pose): Pose {
 }
 
 const cache = new WeakMap<Animation, { key: string; ev: Evaluator }>();
+/**
+ * The evaluators made last: one older than these gives its mannequins back to be used again (an
+ * edit makes a new animation, so a new evaluator; building mannequins for each is what costs). It
+ * still works if its animation comes back (an undo): it takes them again.
+ */
+const recent: Evaluator[] = [];
+const RECENT = 4;
 
 /** The evaluator of a scene's animation (shared while the animation, cast and ground stay the same). */
 function evaluator(scene: Scene): Evaluator {
@@ -623,6 +649,8 @@ function evaluator(scene: Scene): Evaluator {
   hit?.ev.dispose();
   const ev = new Evaluator(scene);
   cache.set(a, { key, ev });
+  recent.push(ev);
+  if (recent.length > RECENT) recent.shift()!.dispose();
   return ev;
 }
 
@@ -640,6 +668,13 @@ export function figurePoseAt(scene: Scene, id: string, t: number): Figure | null
   if (!f || !scene.animation) return f ?? null;
   const p = evaluator(scene).pose(id, t)!;
   return { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded };
+}
+
+/** Where a figure is at time t (its root: on the floor, or its pelvis's height off it). */
+export function figureRootAt(scene: Scene, id: string, t: number): Vec3 | null {
+  const f = scene.figures.find((x) => x.id === id);
+  if (!f || !scene.animation) return f?.position ?? null;
+  return evaluator(scene).root(id, t);
 }
 
 /** A figure's pose at t under its corrections (its base actions, with upper-body ones over them). */

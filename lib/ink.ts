@@ -88,6 +88,25 @@ const ID_VERT = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
 const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }';
+/** For a part made of pieces (a hand): each piece its own ID, the part's first one plus the piece's number. */
+const PIECES_VERT = /* glsl */ `
+  attribute float piece;
+  varying float vPiece;
+  #include <skinning_pars_vertex>
+  void main() {
+    vPiece = piece;
+    #include <skinbase_vertex>
+    #include <begin_vertex>
+    #include <skinning_vertex>
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+  }`;
+const PIECES_FRAG = /* glsl */ `
+  uniform float first;
+  varying float vPiece;
+  void main() {
+    float n = first + 1.0 + floor(vPiece + 0.5);
+    gl_FragColor = vec4(mod(n, 16.0) / 15.0, mod(floor(n / 16.0), 16.0) / 15.0, mod(floor(n / 256.0), 16.0) / 15.0, 1.0);
+  }`;
 
 interface StyleMaterials {
   body: THREE.Material;
@@ -143,11 +162,15 @@ export class Ink {
     }
   }
 
-  idMaterial(id: number) {
-    let m = this.idMats.get(id);
+  /** A part's ID material (`pieces`: one whose geometry numbers its pieces, each drawn as its own ID from `id` on). */
+  idMaterial(id: number, pieces = false) {
+    const key = pieces ? -1 - id : id;
+    let m = this.idMats.get(key);
     if (!m) {
-      m = new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
-      this.idMats.set(id, m);
+      m = pieces
+        ? new THREE.ShaderMaterial({ uniforms: { first: { value: id } }, vertexShader: PIECES_VERT, fragmentShader: PIECES_FRAG })
+        : new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
+      this.idMats.set(key, m);
     }
     return m;
   }
@@ -401,8 +424,14 @@ export class InkedParts {
    * next free id.
    */
   setIdMode(on: boolean, firstId: number) {
-    this.bodies.forEach((mesh, i) => idMaterialOf(mesh, on ? this.ink.idMaterial(firstId + i) : null));
-    return firstId + this.bodies.length;
+    let id = firstId;
+    for (const mesh of this.bodies) {
+      // (A part of several pieces, a hand: as many IDs, so the lines between its fingers are drawn.)
+      const pieces = (mesh.geometry.userData.pieces as number | undefined) ?? 0;
+      idMaterialOf(mesh, on ? this.ink.idMaterial(id, pieces > 0) : null);
+      id += Math.max(1, pieces);
+    }
+    return id;
   }
 
   refresh(style: Style, isSelected: (m: THREE.Mesh) => Highlight) {
@@ -484,11 +513,16 @@ export class InkedParts {
     return min;
   }
 
-  /** Bind the skinned parts (their joints at rest now, their world matrices up to date) to a skeleton. */
-  bindSkins(skeleton: THREE.Skeleton) {
+  /**
+   * Bind skinned parts (their joints at rest now, their world matrices up to date) to a skeleton:
+   * `parts` and their outlines and lines (or all of them not bound yet).
+   */
+  bindSkins(skeleton: THREE.Skeleton, parts?: THREE.Mesh[]) {
     this.skeletons.push(skeleton);
-    for (const m of [...this.bodies, ...this.decorations]) {
-      if ((m as THREE.SkinnedMesh).isSkinnedMesh) (m as THREE.SkinnedMesh).bind(skeleton, m.matrixWorld);
+    const meshes = parts ? parts.flatMap((p) => [p, ...p.children]) : [...this.bodies, ...this.decorations];
+    for (const m of meshes) {
+      const s = m as THREE.SkinnedMesh;
+      if (s.isSkinnedMesh && (parts || !s.skeleton)) s.bind(skeleton, s.matrixWorld);
     }
   }
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { bulge, contour, egg, ellipsoid, Ink, InkedParts, limb, meridian, smoothNormals, type Highlight } from './ink';
 import { headForms } from './head';
 import { clampRotation, jointLimits, sided, wrapDeg, type LimbPart } from './joints';
@@ -317,10 +318,17 @@ const FINGER_LAYOUT = [
 ];
 const CURL_ANGLES = [75, 95, 65].map((a) => a * D2R);
 
+/** A piece of a hand (the palm, a finger's segment) and what moves it. */
+interface HandPiece { geo: THREE.BufferGeometry; on: THREE.Object3D }
+
 interface FingerRig {
   /** [thumb, index, middle, ring, pinky] × 3 segment groups */
   segments: THREE.Group[][];
   side: 1 | -1;
+  wrist?: THREE.Group;
+  joint?: JointName;
+  /** Its pieces until they are made one part (skinHand). */
+  pieces?: HandPiece[];
 }
 
 /** A jointed art mannequin built from primitives, rendered as line art. */
@@ -514,6 +522,7 @@ export class Mannequin {
       });
       this.object.updateMatrixWorld(true);
       this.parts.bindSkins(new THREE.Skeleton(bones));
+      for (const side of ['L', 'R'] as const) this.skinHand(this.hands[side]);
     }
   }
 
@@ -571,8 +580,9 @@ export class Mannequin {
 
   /** Palm + thumb + four three-segment fingers. The palm faces the body (−X for the left hand). */
   private buildHand(wrist: THREE.Group, j: JointName, s: 1 | -1, k: number): FingerRig {
-    const tag = { joint: j, figure: this.id };
-    this.parts.add(wrist, ellipsoid(0.017 * k, 0.05 * k, 0.041 * k, 24, 16), tag, [0, -0.055 * k, 0]);
+    // (The palm and the fingers' segments, each on what moves it: made one skinned part once the
+    // figure is built, as one thing to draw instead of sixteen.)
+    const pieces: HandPiece[] = [{ geo: ellipsoid(0.017 * k, 0.05 * k, 0.041 * k, 24, 16).translate(0, -0.055 * k, 0), on: wrist }];
 
     const chain = (base: THREE.Group, lens: number[], r: number) => {
       const groups: THREE.Group[] = [base];
@@ -587,7 +597,7 @@ export class Mannequin {
         }
         const radius = r * k * (1 - i * 0.1);
         // (A finger's segment: a few centimetres, a coarse capsule is as round.)
-        this.parts.add(parent, limb(len * k, radius, radius * 0.9, 0, 0.35, 10, 3, 4).geometry, tag);
+        pieces.push({ geo: limb(len * k, radius, radius * 0.9, 0, 0.35, 10, 3, 4).geometry, on: parent });
       });
       return groups;
     };
@@ -604,7 +614,39 @@ export class Mannequin {
       wrist.add(base);
       segments.push(chain(base, f.len, f.r));
     }
-    return { segments, side: s };
+    return { segments, side: s, wrist, joint: j, pieces };
+  }
+
+  /** A hand's pieces as one part, each vertex moved by the bone of the piece it is from (at rest now). */
+  private skinHand(hand: FingerRig) {
+    const { wrist, joint, pieces } = hand;
+    if (!wrist || !joint || !pieces?.length) return;
+    const toWrist = wrist.matrixWorld.clone().invert();
+    const bones: THREE.Bone[] = [];
+    const geos: THREE.BufferGeometry[] = [];
+    pieces.forEach(({ geo, on }) => {
+      let bone = bones.findIndex((b) => b.parent === on);
+      if (bone < 0) {
+        const b = new THREE.Bone();
+        on.add(b);
+        b.updateMatrixWorld();
+        bones.push(b);
+        bone = bones.length - 1;
+      }
+      const g = geo.applyMatrix4(toWrist.clone().multiply(on.matrixWorld));
+      const n = g.attributes.position.count;
+      g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Array(n * 4).fill(0).map((_, i) => (i % 4 === 0 ? bone : 0)), 4));
+      g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(new Array(n * 4).fill(0).map((_, i) => (i % 4 === 0 ? 1 : 0)), 4));
+      g.setAttribute('piece', new THREE.Float32BufferAttribute(new Array(n).fill(geos.length), 1));
+      geos.push(g);
+    });
+    const merged = mergeGeometries(geos)!;
+    merged.userData.pieces = geos.length;
+    for (const g of geos) g.dispose();
+    const part = this.parts.add(wrist, merged, { joint, figure: this.id });
+    part.updateMatrixWorld(true);
+    this.parts.bindSkins(new THREE.Skeleton(bones), [part]);
+    hand.pieces = [];
   }
 
   setHand(side: Side, hand: Hand) {
