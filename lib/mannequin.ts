@@ -245,6 +245,27 @@ function ridge(geo: THREE.BufferGeometry, line: THREE.Vector3[], radius: number,
   pos.needsUpdate = true;
 }
 
+/**
+ * Skin weights for the torso's pieces (made in the hips' frame): each vertex on the hips, spine
+ * or chest (bones 0, 1, 2), blended across the seams between them, so the pieces' edges move
+ * together and the waist bends and twists as one form.
+ */
+function torsoSkin(geo: THREE.BufferGeometry, seams: [number, number], blend: number) {
+  const pos = geo.attributes.position;
+  const index = new Uint16Array(pos.count * 4);
+  const weight = new Float32Array(pos.count * 4);
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const a = THREE.MathUtils.smoothstep(y, seams[0] - blend, seams[0] + blend);
+    const b = THREE.MathUtils.smoothstep(y, seams[1] - blend, seams[1] + blend);
+    index.set([0, 1, 2, 0], i * 4);
+    weight.set([1 - a, a * (1 - b), b, 0], i * 4);
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(index, 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weight, 4));
+  return geo;
+}
+
 /** A part's mirror image across the body's middle (its triangles turned to face out again). */
 function mirrored(geo: THREE.BufferGeometry) {
   const out = geo.clone().scale(-1, 1, 1);
@@ -363,10 +384,11 @@ export class Mannequin {
       pp.setY(i, y + 0.035 * k * low * Math.exp(-((x / (0.032 * P.torso)) ** 2)) * Math.min(1, -z / (0.05 * P.torso)));
     }
     // (Its back line stops above the cleft between the glutes.)
-    part('hips', smoothNormals(pelvis), undefined, torsoMidline(at, bottom, waistY, 0));
+    const skin = (g: THREE.BufferGeometry) => torsoSkin(g, [waistY, chestY], 0.045 * k);
+    part('hips', skin(smoothNormals(pelvis)), undefined, torsoMidline(at, bottom, waistY, 0).map(skin));
 
     const spine = joint('spine', root, 0, waistY);
-    part('spine', torsoPiece(at, waistY, chestY, [cap, cap], step), [0, -waistY, 0], torsoMidline(at, waistY, chestY));
+    part('spine', skin(torsoPiece(at, waistY, chestY, [cap, cap], step)), [0, -waistY, 0], torsoMidline(at, waistY, chestY).map(skin));
 
     const chest = joint('chest', spine, 0, chestY - waistY);
     const ribs = torsoPiece(at, chestY, top, [cap, 0.02 * k], step);
@@ -388,7 +410,7 @@ export class Mannequin {
         bulge(ribs, [bx, by, torsoFront(at, bx, by)], [0.07 * P.torso, 0.072 * k, 0.09 * P.torso], (0.012 + 0.04 * P.bust) * P.torso);
       }
     }
-    part('chest', smoothNormals(ribs), [0, -chestY, 0], chestLines);
+    part('chest', skin(smoothNormals(ribs)), [0, -chestY, 0], chestLines.map(skin));
 
     const neck = joint('neck', chest, 0, top - chestY);
     // The neck: from the trapezius' slope at its base up under the skull, leaning forward a little;
@@ -464,6 +486,16 @@ export class Mannequin {
       part(n('Foot'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
     }
     if (this.standIn) this.buildStandIn(P, { rx: hx, ry: hy, rz: hz, taper: ht });
+    else {
+      // The torso's pieces bound to the hips, spine and chest as they stand now (at rest).
+      const bones = (['hips', 'spine', 'chest'] as const).map((j) => {
+        const b = new THREE.Bone();
+        this.joints[j].add(b);
+        return b;
+      });
+      this.object.updateMatrixWorld(true);
+      this.parts.bindSkins(new THREE.Skeleton(bones));
+    }
   }
 
   /** Capsules on the same skeleton: a torso, a plain head (its centre line shows where it faces) and limbs. */

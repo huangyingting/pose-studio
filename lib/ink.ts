@@ -292,6 +292,7 @@ export class InkedParts {
   private featuresOn = true;
   private style: Style = 'line';
   private geometries = new Set<THREE.BufferGeometry>();
+  private skeletons: THREE.Skeleton[] = [];
 
   /** A colour mixed into the body (to tell figures apart). */
   tint: string | null = null;
@@ -300,20 +301,25 @@ export class InkedParts {
 
   constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
 
+  /**
+   * A part, its outline and lines: skinned (moving with several joints, bound by bindSkins) when its
+   * geometry has skin weights.
+   */
   add(parent: THREE.Object3D, geo: THREE.BufferGeometry, tag: Record<string, unknown>, pos?: Vec3, rings: THREE.BufferGeometry[] = []) {
-    const mesh = new THREE.Mesh(geo, this.ink.materialsFor('line').body);
+    const made = (g: THREE.BufferGeometry, m: THREE.Material) => (g.attributes.skinIndex ? new THREE.SkinnedMesh(g, m) : new THREE.Mesh(g, m));
+    const mesh = made(geo, this.ink.materialsFor('line').body);
     Object.assign(mesh.userData, tag);
     if (pos) mesh.position.set(...pos);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    const hull = new THREE.Mesh(geo, this.ink.outline);
+    const hull = made(geo, this.ink.outline);
     hull.raycast = () => {};
     mesh.add(hull);
     this.decorations.push(hull);
     this.hulls.push(hull);
     this.geometries.add(geo);
     for (const r of rings) {
-      const m = new THREE.Mesh(r, this.ink.ring);
+      const m = made(r, this.ink.ring);
       m.raycast = () => {};
       mesh.add(m);
       this.decorations.push(m);
@@ -431,16 +437,28 @@ export class InkedParts {
     return min;
   }
 
+  /** Bind the skinned parts (their joints at rest now, their world matrices up to date) to a skeleton. */
+  bindSkins(skeleton: THREE.Skeleton) {
+    this.skeletons.push(skeleton);
+    for (const m of [...this.bodies, ...this.decorations]) {
+      if ((m as THREE.SkinnedMesh).isSkinnedMesh) (m as THREE.SkinnedMesh).bind(skeleton, m.matrixWorld);
+    }
+  }
+
   forEachPoint(cb: (p: THREE.Vector3) => void) {
     const p = new THREE.Vector3();
     for (const mesh of this.bodies) {
       if (!mesh.visible) continue;
       const pos = mesh.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i++) cb(p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
+      // (A skinned part as posed.)
+      const skinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh;
+      for (let i = 0; i < pos.count; i++) cb((skinned ? mesh.getVertexPosition(i, p) : p.fromBufferAttribute(pos, i)).applyMatrix4(mesh.matrixWorld));
     }
   }
 
   dispose() {
+    for (const s of this.skeletons) s.dispose();
+    this.skeletons.length = 0;
     for (const g of this.geometries) g.dispose();
     this.geometries.clear();
     this.bodies.length = 0;
