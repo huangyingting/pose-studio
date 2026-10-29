@@ -97,6 +97,15 @@ export function renameScene(store: Store, name: string) {
   store.updateScene((s) => ({ ...s, name }), 'rename');
 }
 
+/** Play the open scene in a set (lib/sets.ts), or in none. */
+export function setSceneSet(store: Store, id: string | null) {
+  store.updateScene((s) => {
+    const { set: _, ...rest } = s;
+    void _;
+    return id ? { ...rest, set: id } : rest;
+  });
+}
+
 /** Light the open scene: all its lights at once (a scheme). The light selected, gone, gives way to the key light. */
 export function setLighting(store: Store, lighting: Lighting, key = '') {
   store.updateScene((s) => ({ ...s, lighting }), key);

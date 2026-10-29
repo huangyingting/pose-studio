@@ -119,6 +119,19 @@ export function templatePreview(id: string, build: () => Scene, style: Style): P
   return { key, count: 1, frame: () => sharedRenderer().render(scene, W, H, LINE, { style, margin: 0.1, angle: angleAt(scene) }).toDataURL('image/png') };
 }
 
+/** A set, a figure in it for its size, seen from in front and a little above (all of it). */
+export function setPreview(id: string, style: Style): PreviewJob {
+  return { key: `set:${style}:${id}`, count: 1, frame: () => sharedRenderer().render(setScene(id), W, H, LINE, { style, margin: 0.04, angle: SET_VIEW, wholeSet: true }).toDataURL('image/png') };
+}
+
+/** A set's thumbnail (in line art). */
+export const setThumb = (id: string) => ({
+  key: `set:${id}`,
+  make: () => sharedRenderer().render(setScene(id), 144, 144, 1.1, { style: 'line', margin: 0.04, angle: SET_VIEW, wholeSet: true }).toDataURL('image/png'),
+});
+const SET_VIEW = { yaw: 20, pitch: 22, fov: 40 };
+const setScene = (id: string): Scene => ({ ...newScene('Set', [newFigure()]), set: id });
+
 /** A motion playing, followed by a camera from its scene's angle. */
 export function motionPreview(id: string, build: () => Scene, style: Style): PreviewJob {
   return filmed(`motion:${style}:${id}`, () => filmWith(build(), 'static', { follow: true }), style);

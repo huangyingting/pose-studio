@@ -5,6 +5,7 @@ import { ModelRig, modelInfo, modelTemplate } from './model';
 import { PropObject } from './props';
 import { groundOf } from './surfaces';
 import type { JointName, Scene, Selection, Style } from './types';
+import { SetObject } from './sets';
 
 /** What the pointer would move: (some joints of) a figure, a prop, or a held prop and the arm holding it. */
 export type Hover = { figure?: string; joints?: JointName[]; prop?: string } | null;
@@ -20,6 +21,8 @@ export class SceneView {
   readonly props = new Map<string, PropObject>();
   /** Figures drawn as imported characters (the mannequin stays, unseen, to pick and pose them by). */
   readonly models = new Map<string, ModelRig>();
+  /** The set the scene is played in (lib/sets.ts), if it has one. */
+  set: SetObject | null = null;
   /** Each figure's colour (characters are tinted with it too). */
   private tints = new Map<string, string | null>();
   /** Bumped whenever objects are created/destroyed/rebuilt (joint references change). */
@@ -102,6 +105,13 @@ export class SceneView {
       this.models.delete(id);
     }
 
+    if (this.set?.id !== scene.set) {
+      if (this.set) { this.set.object.removeFromParent(); this.set.dispose(); }
+      this.set = scene.set ? new SetObject(this.ink, scene.set) : null;
+      if (this.set) { this.set.setStyle(this.style); this.root.add(this.set.object); }
+      changed = true;
+    }
+
     const propIds = new Set(scene.props.map((p) => p.id));
     for (const [id, p] of this.props) {
       const doc = scene.props.find((x) => x.id === id);
@@ -167,6 +177,7 @@ export class SceneView {
     this.ink.setStyle(style);
     for (const m of this.figures.values()) m.setStyle(style);
     for (const p of this.props.values()) p.setStyle(style);
+    this.set?.setStyle(style);
     for (const [id, r] of this.models) r.setLook(style, this.tints.get(id) ?? null);
   }
 
@@ -212,6 +223,7 @@ export class SceneView {
     for (const m of this.figures.values()) id = m.setIdMode(on, id);
     for (const p of this.props.values()) id = p.setIdMode(on, id);
     for (const r of this.models.values()) id = r.setIdMode(on, id);
+    if (this.set) id = this.set.parts.setIdMode(on, id);
   }
 
   forEachPoint(cb: (p: THREE.Vector3) => void, figuresOnly = false) {

@@ -132,6 +132,8 @@ export interface Scene {
   coverage?: { id: string; roles: Record<string, string>; live?: boolean };
   /** The scene's lights and ambient light (lib/lighting.ts DEFAULT_LIGHTING without them). */
   lighting?: Lighting;
+  /** The set it is played in (a built-in one's id, lib/sets.ts), behind its people and props. */
+  set?: string;
   /** What happens in it (a still scene's caption in the story; an animated one's are its shots'). */
   caption?: string;
   /** Left out of the story (the storyboard and its exports); the scene list's order is the story's. */

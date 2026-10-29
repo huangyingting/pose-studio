@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound } from 'lucide-react';
+import { Camera, Castle, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound, X } from 'lucide-react';
 import {
-  addCamera, addFigure, addLight, addProp, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
+  addCamera, addFigure, addLight, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
 import { MAX_LIGHTS, lightName, lightText, lightingOf } from '@/lib/lighting';
 import { shotSpans } from '@/lib/shots';
+import { setById } from '@/lib/sets';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
 import { openContextMenu } from '../ContextMenu';
 import { PROP_ICONS } from '../icons';
@@ -118,8 +119,10 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
               label="Add to set"
               className="ibtn"
               align="end"
-              tip="Add a prop: on the floor, or in the selected figure's hand"
+              tip="Add a prop, or pick a set to play the scene in"
               items={[
+                { label: scene.set ? 'Change the set…' : 'Pick a set…', icon: Castle, onSelect: () => store.setSettings({ side: 'library', libraryTab: 'sets' }) },
+                { group: 'On the floor' },
                 // (Or dragged: onto the floor, at the drop point; a handheld one onto a figure, into its hand.)
                 ...PROP_KINDS.filter((k) => !HANDHELD.includes(k)).map((k) => ({ label: PROP_LABELS[k], icon: PROP_ICONS[k], onSelect: () => placeOrAdd(placingProp(store, k), () => addProp(store, k)), drag: { floor: (at: Vec3) => addProp(store, k, at) } })),
                 { group: 'In the hand' },
@@ -133,6 +136,17 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
             </Menu>
           </div>
           <ul className="layers" aria-label="Set">
+            {setById(scene.set) && (
+              <li>
+                <button type="button" className="layer-main" data-tip="The set the scene is played in: change it in the Library's Sets" data-tip-side="right" onClick={() => store.setSettings({ side: 'library', libraryTab: 'sets' })}>
+                  <Castle size={15} strokeWidth={1.75} aria-hidden />
+                  <span className="layer-name">{setById(scene.set)!.name}</span>
+                </button>
+                <span className="layer-actions">
+                  <IconButton icon={X} label={`Take the set ${setById(scene.set)!.name} away`} className="row-action" size={13} onClick={() => setSceneSet(store, null)} />
+                </span>
+              </li>
+            )}
             {scene.props.map((p) => {
               const on = (selection?.kind === 'prop' && selection.prop === p.id) || (selection?.kind === 'many' && selection.props.includes(p.id));
               return (

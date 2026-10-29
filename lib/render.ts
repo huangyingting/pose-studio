@@ -206,6 +206,8 @@ export interface RenderOptions {
   minDistance?: number;
   /** The styled picture, or a depth / normal pass. */
   pass?: Pass;
+  /** Fit its set in the picture too (a set's thumbnail), not only its people and props. */
+  wholeSet?: boolean;
 }
 
 export type Pass = 'beauty' | 'depth' | 'normal';
@@ -311,7 +313,9 @@ export class SceneRenderer {
   render(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { angle: View }): HTMLCanvasElement {
     this.setup(doc, w, h, line, opts);
     this.camera.aspect = w / h;
-    fitCamera(this.camera, this.drawn, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
+    const set = this.view.set;
+    const what = opts.wholeSet && set ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { this.drawn.forEachPoint(cb); set.forEachPoint(cb); } } : this.drawn;
+    fitCamera(this.camera, what, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
     return this.draw(line, opts);
   }
 

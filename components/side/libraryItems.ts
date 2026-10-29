@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
-import { Clapperboard, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
+import { Ban, Castle, Clapperboard, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
 import {
   applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose,
-  placeTemplate, setFigureModel,
+  placeTemplate, setFigureModel, setSceneSet,
 } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
@@ -18,9 +18,10 @@ import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
 import {
-  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, templatePreview, templateThumb, type PreviewJob,
+  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, setPreview, setThumb, templatePreview, templateThumb, type PreviewJob,
 } from '@/lib/previews';
 import { STAGINGS } from '@/lib/stagings';
+import { SETS, SET_GROUPS } from '@/lib/sets';
 import { shotSpans, spanAt } from '@/lib/shots';
 import type { LibraryTab, Store } from '@/lib/store';
 import { CameraBar, CharactersBar, MotionsBar, PosesBar, type BarProps } from './LibraryBars';
@@ -225,6 +226,31 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
   return [...built, ...files, ...mine];
 }
 
+/** Sets the scene can be played in (lib/sets.ts): one at a time, or none. */
+function sets(store: Store, ui: LibraryUi): LibraryItem[] {
+  const now = store.scene.set;
+  const none: LibraryItem = {
+    key: 'set:none', tab: 'sets', part: 'Sets', group: 'Indoor', name: 'No set', icon: Ban, on: !now,
+    note: 'The bare stage', run: () => { if (now) { setSceneSet(store, null); ui.notifyUndo('No set'); } },
+  };
+  const built = SET_GROUPS.flatMap((g) => SETS.filter((s) => s.group === g)).map((s): LibraryItem => ({
+    key: `set:${s.id}`,
+    tab: 'sets',
+    part: 'Sets',
+    group: s.group,
+    name: s.name,
+    meta: s.place,
+    about: s.description,
+    icon: Castle,
+    on: now === s.id,
+    note: now === s.id ? 'The scene\'s set' : `Click to play ${store.scene.name} in it`,
+    run: () => { if (now !== s.id) { setSceneSet(store, s.id); ui.notifyUndo(`Set: ${s.name}`); ui.onPick?.(); } },
+    preview: () => setPreview(s.id, style(store)),
+    thumb: setThumb(s.id),
+  }));
+  return [none, ...built];
+}
+
 function characters(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
   // (`credit`: who made it and on what terms, as its file says: a VRM avatar's.)
@@ -321,6 +347,8 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   { id: 'poses', label: 'Poses', icon: PersonStanding, grid: true, items: poses, Bar: PosesBar },
   // On the selected figure's track, at the playhead.
   { id: 'motions', label: 'Motions', icon: Film, items: motions, Bar: MotionsBar },
+  // Where the scene is played: a set behind it.
+  { id: 'sets', label: 'Sets', icon: Castle, grid: true, items: sets },
   // Coverage of the scene, and moves for a shot or a camera.
   { id: 'camera', label: 'Camera', icon: Video, items: camera, Bar: CameraBar },
 ];

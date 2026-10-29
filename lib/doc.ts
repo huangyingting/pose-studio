@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mirrorJointName, sideOf, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bones, type Quat } from './pose';
 import { parseLighting } from './lighting';
+import { setById } from './sets';
 import {
   BONES, FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
   type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type ModelInfo, type PoseAsset,
@@ -258,6 +259,7 @@ export function parseScene(v: unknown, i = 0): Scene {
       .map((p) => (p.hold && !ids.has(p.hold.figure) ? { ...p, hold: undefined } : p)),
     cameras: parseCameras(v.cameras),
     ...(parseLighting(v.lighting) ? { lighting: parseLighting(v.lighting)! } : {}),
+    ...(typeof v.set === 'string' && setById(v.set) ? { set: v.set } : {}),
     ...(typeof v.caption === 'string' && v.caption ? { caption: v.caption.slice(0, 500) } : {}),
     ...(v.offStory === true ? { offStory: true } : {}),
     ...(typeof v.hold === 'number' && Number.isFinite(v.hold) ? { hold: Math.min(60, Math.max(0.2, v.hold)) } : {}),
