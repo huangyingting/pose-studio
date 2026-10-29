@@ -2,7 +2,7 @@
 
     blender -b --python scripts/characters/rig.py -- <id> <model.glb> <out.glb>
 
-For figures downloaded as a mesh only (Sketchfab's, CC BY): what is not the person goes (a rifle
+For figures that come as a mesh only (Sketchfab's, CC BY; ones made with Meshy): what is not the person goes (a rifle
 held); the pieces are joined and their seams welded; a skeleton with our bones' names is put where
 the figure's joints are (found by eye from views of it, below, in Blender's axes: z up, the figure
 facing -y); the mesh is weighted to it (Blender's automatic weights); arms held bent are
@@ -58,6 +58,46 @@ FIGURES = {
             'rightHand': (-0.47, -0.17, 0.95), 'rightHandEnd': (-0.5, -0.2, 0.8),
             'leftUpperLeg': (0.09, -0.08, 0.92), 'leftLowerLeg': (0.13, -0.07, 0.5), 'leftFoot': (0.17, -0.03, 0.08), 'leftToes': (0.2, -0.2, 0.02),
             'rightUpperLeg': (-0.09, -0.08, 0.92), 'rightLowerLeg': (-0.13, -0.07, 0.5), 'rightFoot': (-0.17, -0.03, 0.08), 'rightToes': (-0.2, -0.2, 0.02),
+        },
+    },
+    # Made with Meshy (AI), at the repository owner's request: one mesh each, standing.
+    'android': {
+        'proxy': True, 'source': 'meshy-model-2026-10-29T06-47-56-144Z.glb', 'drop': [], 'size': (0.919, 0.952), 'whole': True, 'faces': 60_000,
+        'joints': {
+            'hips': (0.0, 0.02, 0.98), 'spine': (0.0, 0.03, 1.08), 'chest': (0.0, 0.03, 1.2), 'upperChest': (0.0, 0.03, 1.32),
+            'neck': (0.0, 0.03, 1.47), 'head': (0.0, 0.02, 1.55), 'headEnd': (0.0, 0.0, 1.75),
+            'leftShoulder': (0.05, 0.03, 1.44), 'leftUpperArm': (0.19, 0.03, 1.39), 'leftLowerArm': (0.245, 0.04, 1.08),
+            'leftHand': (0.27, -0.02, 0.86), 'leftHandEnd': (0.28, -0.03, 0.74),
+            'rightShoulder': (-0.05, 0.03, 1.44), 'rightUpperArm': (-0.19, 0.03, 1.39), 'rightLowerArm': (-0.245, 0.04, 1.08),
+            'rightHand': (-0.27, -0.02, 0.86), 'rightHandEnd': (-0.28, -0.03, 0.74),
+            'leftUpperLeg': (0.09, 0.02, 0.9), 'leftLowerLeg': (0.11, 0.01, 0.5), 'leftFoot': (0.11, 0.03, 0.08), 'leftToes': (0.11, -0.1, 0.02),
+            'rightUpperLeg': (-0.09, 0.02, 0.9), 'rightLowerLeg': (-0.11, 0.01, 0.5), 'rightFoot': (-0.11, 0.03, 0.08), 'rightToes': (-0.11, -0.1, 0.02),
+        },
+    },
+    'fashion-model': {
+        'proxy': True, 'source': 'meshy-model-2026-10-29T06-48-26-810Z.glb', 'drop': [], 'size': (0.8828, 0.952), 'whole': True, 'faces': 60_000,
+        'joints': {
+            'hips': (0.0, -0.01, 0.9), 'spine': (0.0, -0.01, 1.0), 'chest': (0.0, -0.01, 1.12), 'upperChest': (0.0, -0.01, 1.24),
+            'neck': (0.0, -0.02, 1.4), 'head': (0.0, -0.03, 1.48), 'headEnd': (0.0, -0.03, 1.68),
+            'leftShoulder': (0.04, -0.02, 1.37), 'leftUpperArm': (0.16, -0.02, 1.36), 'leftLowerArm': (0.41, -0.02, 1.355),
+            'leftHand': (0.64, -0.02, 1.34), 'leftHandEnd': (0.79, -0.02, 1.33),
+            'rightShoulder': (-0.04, -0.02, 1.37), 'rightUpperArm': (-0.16, -0.02, 1.36), 'rightLowerArm': (-0.41, -0.02, 1.355),
+            'rightHand': (-0.64, -0.02, 1.34), 'rightHandEnd': (-0.79, -0.02, 1.33),
+            'leftUpperLeg': (0.08, -0.01, 0.82), 'leftLowerLeg': (0.07, -0.03, 0.46), 'leftFoot': (0.06, 0.0, 0.1), 'leftToes': (0.06, -0.13, 0.02),
+            'rightUpperLeg': (-0.08, -0.01, 0.82), 'rightLowerLeg': (-0.07, -0.03, 0.46), 'rightFoot': (-0.06, 0.0, 0.1), 'rightToes': (-0.06, -0.13, 0.02),
+        },
+    },
+    'athlete': {
+        'proxy': True, 'source': 'meshy-model-2026-10-29T06-51-15-066Z.glb', 'drop': [], 'size': (0.85, 1.0), 'whole': True, 'faces': 60_000,
+        'joints': {
+            'hips': (0.0, 0.02, 0.98), 'spine': (0.0, 0.02, 1.08), 'chest': (0.0, 0.02, 1.2), 'upperChest': (0.0, 0.02, 1.32),
+            'neck': (0.0, 0.02, 1.45), 'head': (0.0, 0.0, 1.53), 'headEnd': (0.0, 0.0, 1.7),
+            'leftShoulder': (0.04, 0.02, 1.42), 'leftUpperArm': (0.16, 0.03, 1.38), 'leftLowerArm': (0.21, 0.03, 1.1),
+            'leftHand': (0.24, 0.02, 0.87), 'leftHandEnd': (0.24, 0.0, 0.76),
+            'rightShoulder': (-0.04, 0.02, 1.42), 'rightUpperArm': (-0.16, 0.03, 1.38), 'rightLowerArm': (-0.21, 0.03, 1.1),
+            'rightHand': (-0.24, 0.02, 0.87), 'rightHandEnd': (-0.24, 0.0, 0.76),
+            'leftUpperLeg': (0.09, 0.02, 0.9), 'leftLowerLeg': (0.13, 0.02, 0.5), 'leftFoot': (0.17, 0.05, 0.09), 'leftToes': (0.18, -0.12, 0.03),
+            'rightUpperLeg': (-0.09, 0.02, 0.9), 'rightLowerLeg': (-0.13, 0.02, 0.5), 'rightFoot': (-0.17, 0.05, 0.09), 'rightToes': (-0.18, -0.12, 0.03),
         },
     },
 }
@@ -147,6 +187,38 @@ def allowed(o, arm, bones, joints, scale, arms_apart):
         o.vertex_groups[n1].add([v.index], 1 - w0, 'REPLACE')
 
 
+def by_proxy(o, arm):
+    """
+    Weighted through a watertight copy (a generated figure's one surface is rarely closed, and the
+    automatic weights fail on it): the copy weighted, its weights handed to the nearest of the figure's.
+    """
+    bpy.ops.object.select_all(action='DESELECT')
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.duplicate()
+    proxy = bpy.context.view_layer.objects.active
+    proxy.data.remesh_voxel_size = 0.008 * ZOOM
+    bpy.ops.object.voxel_remesh()
+    bpy.ops.object.select_all(action='DESELECT')
+    proxy.select_set(True)
+    arm.select_set(True)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    for g in proxy.vertex_groups:
+        if not o.vertex_groups.get(g.name):
+            o.vertex_groups.new(name=g.name)
+    move = o.modifiers.new('Weights', 'DATA_TRANSFER')
+    move.object = proxy
+    move.use_vert_data = True
+    move.data_types_verts = {'VGROUP_WEIGHTS'}
+    move.vert_mapping = 'POLYINTERP_NEAREST'
+    move.layers_vgroup_select_src = 'ALL'
+    move.layers_vgroup_select_dst = 'NAME'
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier=move.name)
+    bpy.data.objects.remove(proxy)
+
+
 def gap(p, a, b):
     ab = b - a
     t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
@@ -228,11 +300,14 @@ def main():
     kinds = {name: kind for kind, names in spec.get('pieces', {}).items() for name in names}
     for o in meshes:
         kind = kinds.get(o.name, 'torso' if spec.get('pieces') else 'body')
-        bpy.ops.object.select_all(action='DESELECT')
-        o.select_set(True)
-        arm.select_set(True)
-        bpy.context.view_layer.objects.active = arm
-        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        if spec.get('proxy'):
+            by_proxy(o, arm)
+        else:
+            bpy.ops.object.select_all(action='DESELECT')
+            o.select_set(True)
+            arm.select_set(True)
+            bpy.context.view_layer.objects.active = arm
+            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
         allowed(o, arm, FOLLOWS[kind], joints, ZOOM, kind == 'body' and bool(spec.get('pieces')))
 
     # One mesh, at its size again.
