@@ -299,7 +299,8 @@ export class InkedParts {
   /** Drawn see-through, without lines (it stands between the camera and what is edited). */
   faded = false;
 
-  constructor(private ink: Ink, private kind: 'figure' | 'prop') {}
+  /** `bare`: its parts only, without outlines or lines (one only worked out with, never drawn). */
+  constructor(private ink: Ink, private kind: 'figure' | 'prop', private bare = false) {}
 
   /**
    * A part, its outline and lines: skinned (moving with several joints, bound by bindSkins) when its
@@ -312,12 +313,18 @@ export class InkedParts {
     if (pos) mesh.position.set(...pos);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    this.geometries.add(geo);
+    if (this.bare) {
+      for (const r of rings) r.dispose();
+      parent.add(mesh);
+      this.bodies.push(mesh);
+      return mesh;
+    }
     const hull = made(geo, this.ink.outline);
     hull.raycast = () => {};
     mesh.add(hull);
     this.decorations.push(hull);
     this.hulls.push(hull);
-    this.geometries.add(geo);
     for (const r of rings) {
       const m = made(r, this.ink.ring);
       m.raycast = () => {};
@@ -345,6 +352,10 @@ export class InkedParts {
 
   /** Thin lines drawn on a part's surface (eyes, brows, mouth), in the style's face colour. */
   addFaceLines(mesh: THREE.Mesh, geos: THREE.BufferGeometry[]) {
+    if (this.bare) {
+      for (const g of geos) g.dispose();
+      return;
+    }
     for (const g of geos) {
       const line = new THREE.Mesh(g, this.ink.face);
       line.raycast = () => {};

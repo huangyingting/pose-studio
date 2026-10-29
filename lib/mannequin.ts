@@ -323,8 +323,9 @@ export class Mannequin {
   /** Built as a capsule stand-in (same skeleton, simple shapes, no hands or face). */
   private standIn = false;
 
-  constructor(private ink: Ink, body: BodyParams, readonly id = '', standIn = false) {
-    this.parts = new InkedParts(ink, 'figure');
+  /** `bare`: only to work things out with (its joints and parts), never drawn: no outlines or lines. */
+  constructor(private ink: Ink, body: BodyParams, public id = '', standIn = false, private readonly bare = false) {
+    this.parts = new InkedParts(ink, 'figure', bare);
     this.setBody(body, standIn);
   }
 
@@ -337,7 +338,7 @@ export class Mannequin {
     this.parts.dispose();
     this.object.clear();
     this.joints = {} as Record<JointName, THREE.Group>;
-    this.parts = new InkedParts(this.ink, 'figure');
+    this.parts = new InkedParts(this.ink, 'figure', this.bare);
     this.build(proportions(body));
     this.refresh();
     this.parts.setFeatures(this.faces);
@@ -653,6 +654,13 @@ export class Mannequin {
   private surface: ((x: number, z: number) => number) | null = null;
 
   /** What it stands on besides the floor: the height of the props under a floor point. */
+  /** Its parts tagged as another figure's (a mannequin worked out with, passed on to the next). */
+  retag(id: string) {
+    if (id === this.id) return;
+    this.id = id;
+    for (const m of this.parts.bodies) m.userData.figure = id;
+  }
+
   setGround(surface: ((x: number, z: number) => number) | null) {
     this.surface = surface;
   }

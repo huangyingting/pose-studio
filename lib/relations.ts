@@ -100,27 +100,47 @@ export function inFrontOf(a: Figure, b: Figure, d = 1): Figure {
 /* ---------- posing against other figures (needs the 3D model) ---------- */
 
 /** Builds and caches posed mannequins for a set of figures, to measure and solve against. */
+/*
+ * Mannequins to work things out with (where hands reach, feet land, cameras frame), never drawn:
+ * bare (no outlines or lines), and kept between rigs by body, as building one is what costs (a rig
+ * is made for each thing worked out; its mannequins go back when it is done with).
+ */
+const spare = new Map<string, Mannequin[]>();
+const SPARE_PER_BODY = 4;
+const calculating = new Ink();
+const bodyKey = (f: Figure) => `${JSON.stringify(f.body)}${f.proxy ? ':stand-in' : ''}`;
+
+/** Figures' mannequins, posed as asked, to work things out with. */
 export class Rig {
-  private ink = new Ink();
-  private models = new Map<string, Mannequin>();
+  private models = new Map<string, { m: Mannequin; key: string }>();
   /** What grounded figures stand on (the tops of props, as in the scene), or the floor (null). */
   ground: ((x: number, z: number) => number) | null = null;
 
   model(f: Figure) {
-    let m = this.models.get(f.id);
-    if (!m) {
-      m = new Mannequin(this.ink, f.body, f.id);
-      this.models.set(f.id, m);
+    let held = this.models.get(f.id);
+    if (!held) {
+      const key = bodyKey(f);
+      const m = spare.get(key)?.pop() ?? new Mannequin(calculating, f.body, f.id, false, true);
+      m.retag(f.id);
+      held = { m, key };
+      this.models.set(f.id, held);
     }
-    m.setGround(this.ground);
-    m.apply(f);
-    return m;
+    held.m.setGround(this.ground);
+    held.m.apply(f);
+    held.key = bodyKey(f);
+    return held.m;
   }
 
+  /** Done with: its mannequins kept for the next rig (as many as are worth keeping). */
   dispose() {
-    for (const m of this.models.values()) m.dispose();
+    for (const { m, key } of this.models.values()) {
+      const list = spare.get(key) ?? [];
+      if (list.length < SPARE_PER_BODY) {
+        list.push(m);
+        spare.set(key, list);
+      } else m.dispose();
+    }
     this.models.clear();
-    this.ink.dispose();
   }
 }
 
