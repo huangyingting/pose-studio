@@ -2,7 +2,9 @@
  * Mixamo characters made built-in ones (public/characters/<id>.glb and .png).
  *
  *     npm run dev -- -p 3399    (then, in another terminal)
- *     npx jiti scripts/characters/mixamo.ts data/library/characters/*.fbx
+ *     npx jiti scripts/characters/mixamo.ts data/library/characters/{Adam,Elizabeth,'Erika Archer',Joe,Ninja,'Paladin J Nordstrom',Pete,Remy,Swat}.fbx
+ *
+ * (Those with natural proportions; not the cartoon ones, nor Mixamo's own mannequin.)
  *
  * Each FBX is imported in the running app as a user would (Import character…), which keeps it as a
  * GLB with its colour textures (lib/model.ts: fitted within 1024 px, JPEG where nothing shows
@@ -25,10 +27,8 @@ import { BONES, type BodyParams } from '../../lib/types';
 const APP = process.env.APP ?? 'http://localhost:3399/';
 // (Remy's file is drawn at twice a man's size.)
 const UNITS: Record<string, number> = { remy: 0.005 };
-// Who is a woman (and her bust), or neither (the Mixamo mannequin); the rest are men and boys.
-const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-archer': [1, 0.4], michelle: [1, 0.4], 'sporty-granny': [1, 0.5], dummy: [0.5, 0] };
-// (Mixamo's mannequin is a Dummy here: the app's own is the Mannequin.)
-const NAMES: Record<string, string> = { Mannequin: 'Dummy' };
+// Who is a woman (and her bust); the rest are men.
+const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-archer': [1, 0.4] };
 
 type Gltf = { scene?: number; scenes: { nodes: number[] }[]; nodes: { name?: string; scale?: number[]; children?: number[] }[]; materials?: Record<string, Record<string, unknown>>[]; images?: unknown; textures?: unknown; samplers?: unknown };
 
@@ -140,7 +140,7 @@ for (const file of files) {
       };
     };
   }), info.id);
-  const name = NAMES[basename(file, '.fbx')] ?? basename(file, '.fbx');
+  const name = basename(file, '.fbx');
   const id = name.toLowerCase().replace(/\s+/g, '-');
   const { out, lacks, body } = await made(id, Buffer.from(data, 'base64'));
   writeFileSync(`public/characters/${id}.glb`, out);
