@@ -596,14 +596,12 @@ export function egg(rx: number, ry: number, rz: number, taper: number, n = 32, s
 }
 
 /** Tapered capsule hanging from y=0 down to y=-len, with an optional muscle bulge. */
-export function limb(len: number, r1: number, r2: number, bulge = 0, bulgeAt = 0.35, segments = 32) {
+export function limb(len: number, r1: number, r2: number, bulge = 0, bulgeAt = 0.35, segments = 24, shaft = 18, cap = 8) {
   const radius = (t: number) => {
     const s = t < bulgeAt ? (t / bulgeAt) * 0.5 : 0.5 + ((t - bulgeAt) / (1 - bulgeAt)) * 0.5;
     return r1 + (r2 - r1) * t + bulge * Math.sin(Math.PI * s);
   };
   const pts: THREE.Vector2[] = [];
-  const cap = 8;
-  const shaft = 18;
   for (let i = 0; i <= cap; i++) {
     const a = -Math.PI / 2 + (i / cap) * (Math.PI / 2);
     pts.push(new THREE.Vector2(r2 * Math.cos(a), -len + r2 * Math.sin(a)));

@@ -41,7 +41,7 @@ function headPoint(dir: THREE.Vector3, female: number): THREE.Vector3 {
 
 /** The head's form as a mesh. */
 function headMesh(female: number, h: number) {
-  const geo = new THREE.SphereGeometry(1, 96, 72);
+  const geo = new THREE.SphereGeometry(1, 80, 60);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {

@@ -162,7 +162,7 @@ function torsoFront(at: (y: number) => Section, x: number, y: number) {
  * A piece of the torso, from y0 to y1, its ends rounded inwards (`caps`: how far), so a bent joint
  * shows a rounded end, not a hole. Made in the hips' frame.
  */
-function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 64, square = SQUARE) {
+function torsoPiece(at: (y: number) => Section, y0: number, y1: number, caps: [number, number], step: number, n = 48, square = SQUARE) {
   const rings: { y: number; scale: number; s: Section }[] = [];
   const capRings = 6;
   for (let i = capRings; i > 0; i--) {
@@ -366,7 +366,7 @@ export class Mannequin {
     const at = P.section;
     const [waistY, chestY] = SEAMS.map((y) => y * k);
     const [bottom, top] = [TORSO_Y[0] * k, TORSO_Y[TORSO_Y.length - 1] * k];
-    const step = 0.006 * k;
+    const step = 0.009 * k;
     // (Each piece's ends rounded into the next, hidden until the joint between them bends.)
     const cap = 0.035 * k;
     const pelvis = torsoPiece(at, bottom, waistY, [0.02 * k, cap], step);
@@ -566,7 +566,8 @@ export class Mannequin {
           parent = g;
         }
         const radius = r * k * (1 - i * 0.1);
-        this.parts.add(parent, limb(len * k, radius, radius * 0.9, 0, 0.35, 12).geometry, tag);
+        // (A finger's segment: a few centimetres, a coarse capsule is as round.)
+        this.parts.add(parent, limb(len * k, radius, radius * 0.9, 0, 0.35, 10, 3, 4).geometry, tag);
       });
       return groups;
     };
