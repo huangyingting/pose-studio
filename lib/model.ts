@@ -525,11 +525,40 @@ async function asGlb(format: ModelInfo['format'], data: ArrayBuffer, others: Fil
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
       root = (await new GLTFLoader(manager).parseAsync(data, '')).scene;
     }
+    exportable(root);
     const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
     return (await new GLTFExporter().parseAsync(root, { binary: true, maxTextureSize: 1024 })) as ArrayBuffer;
   } finally {
     for (const url of urls.values()) URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * Its textures made fit to be written: one that did not load (a file not chosen, a kind the
+ * browser cannot read) left off (the character imported without it); one read as pixels (a TGA)
+ * drawn on a canvas (the exporter fits a canvas within its size, but crops pixels).
+ */
+function exportable(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const m of [mesh.material].flat() as unknown as Record<string, unknown>[]) {
+      for (const [key, value] of Object.entries(m)) {
+        const texture = value as THREE.Texture | null;
+        if (!texture?.isTexture) continue;
+        const image = texture.image as { width?: number; height?: number; data?: ArrayLike<number> } | null;
+        if (!image?.width || !image.height) {
+          m[key] = null;
+        } else if (image.data) {
+          const canvas = document.createElement('canvas');
+          canvas.width = image.width;
+          canvas.height = image.height;
+          canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(image.data), image.width, image.height), 0, 0);
+          texture.image = canvas;
+        }
+      }
+    }
+  });
 }
 
 /**
