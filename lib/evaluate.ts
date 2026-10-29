@@ -500,10 +500,12 @@ class Evaluator {
     // Off the ground, what touches the floor in the clip (a hand in a cartwheel) touches it on any body.
     if (!raw.grounded && part.body && JSON.stringify(part.body) !== JSON.stringify(f.body)) {
       const touch = this.rig.model({ ...f, id: `clip:${part.name}`, body: part.body, ...raw }).lowest();
-      if (touch < 0.05) {
+      // (Fully while it touches, less as it rises off the floor: no step as it leaves it.)
+      const w = 1 - smooth((touch - 0.03) / 0.12);
+      if (w > 0) {
         // (The model is lifted out of the floor, if it went in: measured from where it was put.)
         const m = this.rig.model({ ...f, ...raw, position: [0, y, 0] });
-        y -= m.lowest() - (m.joints.hips.position.y - y) - touch;
+        y -= w * (m.lowest() - (m.joints.hips.position.y - y) - touch);
       }
     }
     let pose = turned({ ...raw, position: [start.at[0] + dx, y, start.at[1] + dz] }, by);

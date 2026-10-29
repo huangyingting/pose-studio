@@ -151,7 +151,7 @@ const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle
 
 
 /** A bone and its outermost points (at rest): where they are is where the bone takes them. */
-interface Sample { bone: THREE.Bone; inverse: THREE.Matrix4; points: Float32Array }
+interface Sample { bone: THREE.Bone; inverse: THREE.Matrix4; points: Float32Array; part: JointName }
 
 /** The directions a bone's outermost points are found in (from the middle of a cube to the points on its surface, five to a side). */
 const STEPS = [-2, -1, 0, 1, 2];
@@ -181,8 +181,22 @@ function outline(bot: Bot, k: number, bones: THREE.Bone[], inverses: THREE.Matri
     if (!ids.length) return [];
     const points = new Float32Array(ids.length * 3);
     ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = bot.positions[v * 3 + c] * k; });
-    return [{ bone, inverse: inverses[b], points }];
+    return [{ bone, inverse: inverses[b], points, part: partOf(BOT_TARGETS[b]) }];
   });
+}
+
+/** A skinned part's bounds (in its own frame) as its bones have it now: around its bones' outermost points, with room for its blending. */
+function fitBounds(mesh: THREE.SkinnedMesh, samples: Sample[]) {
+  const box = (mesh.boundingBox ??= new THREE.Box3()).makeEmpty();
+  const toLocal = mesh.matrixWorld.clone().invert();
+  const m = new THREE.Matrix4();
+  const p = new THREE.Vector3();
+  for (const { bone, inverse, points } of samples) {
+    m.multiplyMatrices(toLocal, bone.matrixWorld).multiply(inverse);
+    for (let i = 0; i < points.length; i += 3) box.expandByPoint(p.set(points[i], points[i + 1], points[i + 2]).applyMatrix4(m));
+  }
+  box.expandByScalar(0.03);
+  box.getBoundingSphere((mesh.boundingSphere ??= new THREE.Sphere()));
 }
 
 /** The mannequin: Mixamo's X Bot or Y Bot on the app's skeleton, drawn in the app's styles. */
@@ -337,7 +351,16 @@ export class Mannequin {
       geo.userData.pieces = hand ? 12 : 2;
       // (The trunk one form: its parts share their IDs, no line where one joint takes over from the next.)
       const form = part === 'hips' || part === 'spine' || part === 'chest' ? { form: 'trunk' } : {};
-      parts.push(this.parts.add(this.object, geo, { joint: part, figure: this.id, ...form }));
+      const mesh = this.parts.add(this.object, geo, { joint: part, figure: this.id, ...form }) as THREE.SkinnedMesh;
+      // Picked where it is as posed (three keeps a skinned mesh's bounds from when it was first
+      // asked, its arm still down after it is raised); drawn wherever it goes.
+      const mine = this.samples.filter((x) => x.part === part);
+      mesh.raycast = (raycaster, hits) => {
+        fitBounds(mesh, mine);
+        THREE.SkinnedMesh.prototype.raycast.call(mesh, raycaster, hits);
+      };
+      mesh.traverse((o) => { o.frustumCulled = false; });
+      parts.push(mesh);
     }
     this.object.updateMatrixWorld(true);
     this.parts.bindSkins(skeleton, parts);

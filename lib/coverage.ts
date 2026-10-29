@@ -128,7 +128,7 @@ export const COVERAGES: Coverage[] = [
     description: 'A single camera that goes with them, turning as they turn: no cuts',
     roles: ['A'],
     cameras: [
-      { key: 'take', name: 'One take on {A}', subject: 'A', rig: { body: 'follow', yaw: 35, pitch: 5, turn: true, size: 'mws', lens: 35, smooth: 1.5 } },
+      { key: 'take', name: 'One take on {A}', subject: 'A', rig: { body: 'follow', yaw: 50, pitch: 5, turn: true, size: 'mws', lens: 35, smooth: 1.5 } },
     ],
     cuts: [{ on: 'start', camera: 'take' }],
   },

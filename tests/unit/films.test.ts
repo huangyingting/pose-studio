@@ -78,8 +78,12 @@ function boxing(ben: string, kai: string) {
   name(store, b, 'Kai');
   store.updateFigure(b, (f) => ({ ...f, body: body(kai) }));
   arrange(store, a, b, 'faceEachOther');
-  // Ben throws, Kai blocks: each their own motion.
-  const later = 0;
+  // They square up: a jab and a cross, blocked (each their own motion); then the combination.
+  store.setTime(0);
+  applyMotion(store, a, 'jab-cross');
+  store.setTime(0);
+  applyMotion(store, b, 'block-duck');
+  const later = store.scene.animation!.duration;
   store.setTime(later);
   applyMotion(store, a, 'jab-cross');
   store.setTime(later);
@@ -404,9 +408,9 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     light(store, 'studio');
     shoot(store, [walk.to], ['static', 'orbit90']);
     expectFilm(store, 'studio', 2);
-    // Kai ends on the floor.
+    // Kai goes down (and gets up again: the fall's own).
     const sv = new SceneView();
-    sv.sync(sceneAt(store.scene, store.scene.animation!.duration));
+    sv.sync(sceneAt(store.scene, walk.to + 1.5));
     expect(sv.figures.get(b)!.joints.chest.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(0.5);
     sv.dispose();
   }, 300_000);

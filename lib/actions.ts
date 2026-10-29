@@ -629,7 +629,7 @@ export function carryProblem(store: Store, figure: string, prop: string): string
   const p = store.scene.props.find((x) => x.id === prop);
   const back = store.scene.figures.find((f) => f.id === figure);
   const front = store.scene.figures.find((f) => f.id === p?.hold?.figure);
-  return back && front && back.body.height - front.body.height > 0.45 ? `${back.name} is too tall to carry ${p!.name} level with ${front.name}` : null;
+  return back && front && back.body.height - front.body.height > 0.4 ? `${back.name} is too tall to carry ${p!.name} level with ${front.name}` : null;
 }
 
 export function holdHandle(store: Store, figure: string, prop: string, hand: Side) {

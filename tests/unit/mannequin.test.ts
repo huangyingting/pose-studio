@@ -123,6 +123,22 @@ describe('Mannequin', () => {
     expect(m.setBody({ ...DEFAULT_BODY, height: 1.8 })).toBe(true);
   });
 
+  it('is picked where it is posed: a raised arm where it now is, not where it hung', () => {
+    const m = make();
+    const pick = (at: THREE.Vector3) => {
+      m.object.updateMatrixWorld(true);
+      const ray = new THREE.Raycaster(at.clone().add(new THREE.Vector3(0, 0, 2)), new THREE.Vector3(0, 0, -1));
+      return ray.intersectObjects(m.parts.bodies, false)[0]?.object.userData.joint;
+    };
+    m.apply(newFigure());
+    expect(pick(worldPos(m.joints.leftLowerArm))).toBe('leftLowerArm');
+    // Raised over the head: picked up there.
+    m.apply(newFigure({ bones: bonesOf({ leftUpperArm: [0, 0, 170], leftLowerArm: [-5, 0, 0] }) }));
+    const elbow = worldPos(m.joints.leftLowerArm);
+    expect(elbow.y).toBeGreaterThan(worldPos(m.joints.head).y);
+    expect(pick(elbow)).toBe('leftLowerArm');
+  });
+
   it('curls fingers into a fist', () => {
     const m = make();
     const tipOf = () => {
