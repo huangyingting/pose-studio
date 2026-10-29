@@ -29,6 +29,11 @@ const APP = process.env.APP ?? 'http://localhost:3399/';
 const UNITS: Record<string, number> = { remy: 0.005 };
 // Who is a woman (and her bust); the rest are men.
 const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-archer': [1, 0.4] };
+// Named by their roles, not as Mixamo names them (their files' names stay their ids).
+const ROLES: Record<string, string> = {
+  adam: 'Jogger', brute: 'Barbarian', elizabeth: 'Casual woman', 'erika-archer': 'Archer', joe: 'Businessman',
+  ninja: 'Ninja', 'paladin-j-nordstrom': 'Knight', pete: 'Construction worker', remy: 'Student', swat: 'SWAT officer',
+};
 
 type Gltf = { scene?: number; scenes: { nodes: number[] }[]; nodes: { name?: string; scale?: number[]; children?: number[] }[]; materials?: Record<string, Record<string, unknown>>[]; images?: unknown; textures?: unknown; samplers?: unknown };
 
@@ -140,8 +145,8 @@ for (const file of files) {
       };
     };
   }), info.id);
-  const name = basename(file, '.fbx');
-  const id = name.toLowerCase().replace(/\s+/g, '-');
+  const id = basename(file, '.fbx').toLowerCase().replace(/\s+/g, '-');
+  const name = ROLES[id] ?? basename(file, '.fbx');
   const { out, lacks, body } = await made(id, Buffer.from(data, 'base64'));
   writeFileSync(`public/characters/${id}.glb`, out);
   writeFileSync(`public/characters/${id}.png`, Buffer.from(info.thumb!.split(',')[1], 'base64'));

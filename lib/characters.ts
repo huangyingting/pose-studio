@@ -51,7 +51,7 @@ const mixamo = (id: string, name: string, body: BodyParams, bones = OURS): Model
  * The built-in characters: a man and a woman (Quaternius, Universal Base Characters); a child, a
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks), and Mio, Aoi made over; ten of
- * Mixamo's characters (natural proportions, and Brute), in their own colours (Adobe's). Each with the body the mannequin
+ * Mixamo's characters (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's). Each with the body the mannequin
  * under it takes (its height, build, head and legs, measured from the character), which contacts
  * and the motion check use.
  */
@@ -71,16 +71,16 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
     credit: 'after Aoi by Ueda · personal use · credit required',
   },
   // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/mixamo.ts).
-  mixamo('adam', 'Adam', { sex: 0, height: 1.68, build: 1, head: 1.08, legs: 1.01, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
-  mixamo('brute', 'Brute', { sex: 0, height: 2.03, build: 1, head: 0.99, legs: 1.05, bust: 0 }),
-  mixamo('elizabeth', 'Elizabeth', { sex: 1, height: 1.56, build: 1, head: 1.36, legs: 1.08, bust: 0.4 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
-  mixamo('erika-archer', 'Erika Archer', { sex: 1, height: 1.66, build: 0.78, head: 1.05, legs: 1.15, bust: 0.4 }),
-  mixamo('joe', 'Joe', { sex: 0, height: 1.61, build: 1, head: 1.18, legs: 1.08, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('adam', 'Jogger', { sex: 0, height: 1.68, build: 1, head: 1.08, legs: 1.01, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
+  mixamo('brute', 'Barbarian', { sex: 0, height: 2.03, build: 1, head: 0.99, legs: 1.05, bust: 0 }),
+  mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.56, build: 1, head: 1.36, legs: 1.08, bust: 0.4 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('erika-archer', 'Archer', { sex: 1, height: 1.66, build: 0.78, head: 1.05, legs: 1.15, bust: 0.4 }),
+  mixamo('joe', 'Businessman', { sex: 0, height: 1.61, build: 1, head: 1.18, legs: 1.08, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightLittleDistal')),
   mixamo('ninja', 'Ninja', { sex: 0, height: 1.81, build: 0.43, head: 0.89, legs: 0.89, bust: 0 }),
-  mixamo('paladin-j-nordstrom', 'Paladin J Nordstrom', { sex: 0, height: 1.7, build: 0.13, head: 0.89, legs: 0.98, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightRingDistal', 'rightLittleDistal')),
-  mixamo('pete', 'Pete', { sex: 0, height: 1.74, build: 0.91, head: 1.12, legs: 0.96, bust: 0 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
-  mixamo('remy', 'Remy', { sex: 0, height: 1.81, build: 0.13, head: 1.02, legs: 1.02, bust: 0 }),
-  mixamo('swat', 'Swat', { sex: 0, height: 1.79, build: 0, head: 0.93, legs: 0.93, bust: 0 }),
+  mixamo('paladin-j-nordstrom', 'Knight', { sex: 0, height: 1.7, build: 0.13, head: 0.89, legs: 0.98, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightRingDistal', 'rightLittleDistal')),
+  mixamo('pete', 'Construction worker', { sex: 0, height: 1.74, build: 0.91, head: 1.12, legs: 0.96, bust: 0 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
+  mixamo('remy', 'Student', { sex: 0, height: 1.81, build: 0.13, head: 1.02, legs: 1.02, bust: 0 }),
+  mixamo('swat', 'SWAT officer', { sex: 0, height: 1.79, build: 0, head: 0.93, legs: 0.93, bust: 0 }),
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);
