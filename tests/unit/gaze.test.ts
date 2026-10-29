@@ -55,8 +55,10 @@ describe('eyes on someone or something; colours', () => {
     setGaze(store, a, { figure: b });
     const sv = new SceneView();
     sv.sync(store.scene);
-    const tinted = (sv.figures.get(a)!.parts.bodies[0].material as THREE.MeshBasicMaterial).color.getHexString();
-    const plain = (sv.figures.get(b)!.parts.bodies[0].material as THREE.MeshBasicMaterial).color.getHexString();
+    // (Line art's body: flat, its colour the material's base.)
+    const base = (id: string) => ((sv.figures.get(id)!.parts.bodies[0].material as THREE.ShaderMaterial).uniforms.base.value as THREE.Color).getHexString();
+    const tinted = base(a);
+    const plain = base(b);
     expect(tinted).not.toBe(plain);
     sv.dispose();
     const copy = duplicateScene(store.scene);

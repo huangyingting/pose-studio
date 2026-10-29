@@ -137,9 +137,29 @@ const ANIME_FRAG = /* glsl */ `
   }
 `;
 
-export type ShaderStyle = 'ink' | 'sketch' | 'anime';
+/**
+ * Flat, with a line where the surface turns away from the eye inside the figure too (under a
+ * breast, the jaw, a knee bent towards the camera), not only round its outside: line art, minimal.
+ */
+const CONTOUR_FRAG = /* glsl */ `
+  ${COMMON}
+  void main() {
+    vec3 n = normalize(vNormal);
+    vec3 v = normalize(cameraPosition - vWorld);
+    float line = smoothstep(0.2, 0.08, abs(dot(n, v)));
+    // And in the creases, where the surface folds inwards (its normals turning towards each other
+    // across a pixel more than a limb's roundness turns them): under a breast, at the armpit.
+    vec3 px = dFdx(vWorld), py = dFdy(vWorld);
+    float concave = -(dot(dFdx(n), px) / max(dot(px, px), 1e-10) + dot(dFdy(n), py) / max(dot(py, py), 1e-10));
+    line = max(line, smoothstep(16.0, 40.0, concave) * 0.8);
+    gl_FragColor = vec4(mix(base, shade, line * 0.9), 1.0);
+    #include <colorspace_fragment>
+  }
+`;
 
-const FRAGMENTS: Record<ShaderStyle, string> = { ink: INK_FRAG, sketch: SKETCH_FRAG, anime: ANIME_FRAG };
+export type ShaderStyle = 'ink' | 'sketch' | 'anime' | 'contour';
+
+const FRAGMENTS: Record<ShaderStyle, string> = { ink: INK_FRAG, sketch: SKETCH_FRAG, anime: ANIME_FRAG, contour: CONTOUR_FRAG };
 
 export interface SharedUniforms {
   lightDir: { value: THREE.Vector3 };

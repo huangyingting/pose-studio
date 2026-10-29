@@ -271,7 +271,8 @@ export class Ink {
     }
     const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
     const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
-    const shader = (s: 'ink' | 'sketch' | 'anime', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
+    const shader = (s: 'ink' | 'sketch' | 'anime' | 'contour', base: string, shade: string) => styleMaterial(s, this.uniforms, base, shade);
+    const contour = (base: string, line: string) => shader('contour', base, line);
     switch (style) {
       case 'shaded':
         return { body: lambert(body('#f2f0ec')), bodySel: lambert('#a8c6ff'), hover: lambert('#d3e1fb'), prop: lambert('#d9d6cf'), propSel: lambert('#a8c6ff') };
@@ -310,9 +311,9 @@ export class Ink {
         };
       }
       case 'minimal':
-        return { body: basic(body('#ffffff')), bodySel: basic('#e2e9ff'), hover: basic('#f0f4ff'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
+        return { body: contour(body('#ffffff'), '#a29d93'), bodySel: contour('#e2e9ff', '#a29d93'), hover: contour('#f0f4ff', '#a29d93'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
       default:
-        return { body: basic(body('#ffffff')), bodySel: basic('#d5e5ff'), hover: basic('#ebf2ff'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
+        return { body: contour(body('#ffffff'), '#0b0b0b'), bodySel: contour('#d5e5ff', '#0b0b0b'), hover: contour('#ebf2ff', '#0b0b0b'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
     }
   }
 

@@ -13,6 +13,7 @@ import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName,
 import { uid } from './uid';
 import { readVrm, type VrmInfo } from './vrm';
 import { ownLooks, paintedLook, toonMaterial, type ToonLook } from './toon';
+import { featureMaterial, weighHead } from './features';
 
 /*
  * Rigs from other tools (a Mixamo character, a VRM avatar, a BVH capture's skeleton) fitted to the
@@ -327,6 +328,8 @@ export class ModelRig {
   private toons: (THREE.ShaderMaterial | undefined)[] = [];
   /** Their outline hulls (posed with them). */
   private hulls: THREE.Mesh[] = [];
+  /** The face's features inked from its textures, by mesh (lib/features.ts): for the styles that draw it in one colour. */
+  private features: (THREE.Mesh | undefined)[] = [];
 
   constructor(template: THREE.Object3D, readonly info: ModelInfo, private ink: Ink) {
     const copy = cloneSkinned(template);
@@ -359,6 +362,38 @@ export class ModelRig {
       mesh.add(hull);
       this.hulls.push(hull);
     }
+    this.features = this.meshes.map((mesh, i) => this.featuresOf(mesh, i));
+  }
+
+  /** A mesh's face features, if it has a texture and is of the head (not its hair). */
+  private featuresOf(mesh: THREE.Mesh, i: number): THREE.Mesh | undefined {
+    const map = this.looks[i]?.map;
+    const head = this.fitted.bones.get('head');
+    const named = `${mesh.name} ${(mesh.material as THREE.Material).name ?? ''}`;
+    if (!map || !head || /hair|hat|helmet|cap\b/i.test(named)) return undefined;
+    const ofHead = new Set<THREE.Object3D>();
+    head.traverse((o) => { ofHead.add(o); });
+    const skinned = mesh as THREE.SkinnedMesh;
+    let under = false;
+    for (let o: THREE.Object3D | null = mesh.parent; o; o = o.parent) under ||= ofHead.has(o);
+    const indices = new Set(skinned.isSkinnedMesh ? skinned.skeleton.bones.flatMap((b, k) => (ofHead.has(b) ? [k] : [])) : []);
+    if (!weighHead(mesh.geometry, indices, !skinned.isSkinnedMesh && under)) return undefined;
+    const material = featureMaterial(map, this.ink.uniforms.color);
+    let f: THREE.Mesh;
+    if (skinned.isSkinnedMesh) {
+      const sk = new THREE.SkinnedMesh(mesh.geometry, material);
+      sk.bindMode = skinned.bindMode;
+      sk.bind(skinned.skeleton, skinned.bindMatrix);
+      f = sk;
+    } else {
+      f = new THREE.Mesh(mesh.geometry, material);
+    }
+    f.frustumCulled = false;
+    f.renderOrder = 2;
+    f.layers.set(LINES_LAYER);
+    f.raycast = () => {};
+    mesh.add(f);
+    return f;
   }
 
   private linked = false;
@@ -369,6 +404,8 @@ export class ModelRig {
     this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
     this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? m.body; });
+    // (Its face from its textures where it is drawn in one colour; in its own look, the look has it.)
+    this.features.forEach((f, i) => { if (f) f.visible = !this.own(i) && !this.ink.ghost && style !== 'toon'; });
     this.setLinked(this.linked);
   }
 
@@ -437,6 +474,7 @@ export class ModelRig {
   /** (Its geometry and textures are the model's, shared by every figure drawn as it.) */
   dispose() {
     for (const m of this.toons) m?.dispose();
+    for (const f of this.features) (f?.material as THREE.Material | undefined)?.dispose();
     this.object.clear();
   }
 }
