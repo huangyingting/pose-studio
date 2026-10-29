@@ -424,16 +424,28 @@ export class InkedParts {
    */
   lowest(): number {
     const centre = new THREE.Vector3();
+    const moved = new THREE.Matrix4();
     const parts: { mesh: THREE.Mesh; low: number }[] = [];
     for (const mesh of this.bodies) {
       if (!mesh.visible) continue;
       const g = mesh.geometry;
       if (!g.boundingSphere) g.computeBoundingSphere();
       const s = g.boundingSphere!;
-      centre.copy(s.center).applyMatrix4(mesh.matrixWorld);
-      // (A skinned part, bent, can reach a little beyond its sphere at rest.)
-      const bent = (mesh as THREE.SkinnedMesh).isSkinnedMesh ? 0.1 : 0;
-      parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() - bent });
+      const skinned = mesh as THREE.SkinnedMesh;
+      if (!skinned.isSkinnedMesh) {
+        centre.copy(s.center).applyMatrix4(mesh.matrixWorld);
+        parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() });
+        continue;
+      }
+      // (A skinned part: each vertex a weighting of where its bones take it, so no lower than the
+      // lowest of its sphere at rest as each of its bones takes it.)
+      let low = Infinity;
+      skinned.skeleton.bones.forEach((b, i) => {
+        moved.multiplyMatrices(b.matrixWorld, skinned.skeleton.boneInverses[i]).multiply(skinned.bindMatrix);
+        centre.copy(s.center).applyMatrix4(moved);
+        low = Math.min(low, centre.y - s.radius * moved.getMaxScaleOnAxis());
+      });
+      parts.push({ mesh, low });
     }
     parts.sort((a, b) => a.low - b.low);
     let min = Infinity;

@@ -107,6 +107,9 @@ export function inFrontOf(a: Figure, b: Figure, d = 1): Figure {
  */
 const spare = new Map<string, Mannequin[]>();
 const SPARE_PER_BODY = 4;
+/** In all: the bodies used longest ago let go first (a body slider's steps, a fit's trial bodies). */
+const SPARE = 16;
+let spares = 0;
 const calculating = new Ink();
 const bodyKey = (f: Figure) => `${JSON.stringify(f.body)}${f.proxy ? ':stand-in' : ''}`;
 
@@ -120,7 +123,9 @@ export class Rig {
     let held = this.models.get(f.id);
     if (!held) {
       const key = bodyKey(f);
-      const m = spare.get(key)?.pop() ?? new Mannequin(calculating, f.body, f.id, false, true);
+      const kept = spare.get(key)?.pop();
+      if (kept) spares--;
+      const m = kept ?? new Mannequin(calculating, f.body, f.id, false, true);
       m.retag(f.id);
       held = { m, key };
       this.models.set(f.id, held);
@@ -135,10 +140,21 @@ export class Rig {
   dispose() {
     for (const { m, key } of this.models.values()) {
       const list = spare.get(key) ?? [];
-      if (list.length < SPARE_PER_BODY) {
-        list.push(m);
-        spare.set(key, list);
-      } else m.dispose();
+      if (list.length >= SPARE_PER_BODY) {
+        m.dispose();
+        continue;
+      }
+      list.push(m);
+      // (Its body the latest used: last in the map's order.)
+      spare.delete(key);
+      spare.set(key, list);
+      spares++;
+      while (spares > SPARE) {
+        const [oldest, ms] = spare.entries().next().value!;
+        spare.delete(oldest);
+        for (const x of ms) x.dispose();
+        spares -= ms.length;
+      }
     }
     this.models.clear();
   }
