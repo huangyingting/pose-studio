@@ -347,7 +347,9 @@ function extent(scene: Scene, id: string, t: number) {
     for (const mesh of f ? rig.model(f).parts.bodies : []) {
       if (!mesh.visible) continue;
       const pos = mesh.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i += 4) box.expandByPoint(p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
+      // (A skinned part as posed.)
+      const skinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh;
+      for (let i = 0; i < pos.count; i += 4) box.expandByPoint((skinned ? mesh.getVertexPosition(i, p) : p.fromBufferAttribute(pos, i)).applyMatrix4(mesh.matrixWorld));
     }
     const head = f ? rig.model(f).joints.head.getWorldPosition(new THREE.Vector3()) : box.getCenter(new THREE.Vector3());
     e = { box, facing: f ? facingOf(f.bones) : 0, head: { x: head.x, y: head.y, z: head.z }, stature: f?.body.height ?? 1.7 };

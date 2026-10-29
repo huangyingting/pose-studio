@@ -1619,6 +1619,8 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   const elbow = await project(page, 'leftLowerArm');
   const hand = await project(page, 'leftHand');
   await page.mouse.click((elbow.x + hand.x) / 2, (elbow.y + hand.y) / 2);
+  // (Off the figure: on it, the hint says what a drag of what is under the pointer does.)
+  await page.mouse.move(150, 600);
   await expect(page.locator('.bar-hint')).toContainText('X / Y / Z + ← →:');
   const bend = async () => angle((await live(page)).scene.figures[0].bones, 'leftLowerArm')[0];
   const b0 = await bend();
@@ -1992,7 +1994,8 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
     return { model: store.figure?.model, models: store.getState().library.models ?? [] };
   });
   let f = await figure();
-  expect(f.models[0].bones.leftHand).toBe('mixamorigPaw');
+  // (Kept named as our skeleton's: the bone matched by hand too.)
+  expect(f.models[0].bones.leftHand).toBe('leftHand');
   expect(f.model).toBe(f.models[0].id);
   // Back to the mannequin, and the character again from the inspector after a reload (its file is kept).
   await page.getByRole('list', { name: 'Built in' }).getByRole('button', { name: /^Mannequin/ }).click();

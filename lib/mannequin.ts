@@ -540,8 +540,10 @@ export class Mannequin {
     this.parts.add(this.joints.head, forms.ear, tag, at(forms.earAt));
     const [x, y, z] = forms.earAt;
     this.parts.add(this.joints.head, mirrored(forms.ear), tag, at([-x, y, z]));
-    this.parts.add(this.joints.head, forms.hair, tag, pos);
-    if (forms.bun) this.parts.add(this.joints.head, forms.bun, tag, at(forms.bunAt));
+    // (The hair is not picked: a click on it reaches what is under it, a hand on the head or the head.)
+    const hair = [this.parts.add(this.joints.head, forms.hair, tag, pos)];
+    if (forms.bun) hair.push(this.parts.add(this.joints.head, forms.bun, tag, at(forms.bunAt)));
+    for (const m of hair) m.raycast = () => {};
   }
 
   /** Show or hide the face details. */

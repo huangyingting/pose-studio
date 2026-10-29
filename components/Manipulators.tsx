@@ -512,11 +512,25 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
     };
   };
 
+  /**
+   * The part under the pointer a press takes (null: another object's turn, the event goes on to
+   * it): the nearest; but a hand or foot just behind it (resting on the body, up to 8 cm in),
+   * that (a palm on a hip sits a few centimetres into it), as it is what one reaches for there.
+   */
+  const pressed = (e: ThreeEvent<PointerEvent>) => {
+    const hits = e.intersections.map((i) => ({ o: tagged(i.object), d: i.distance })).filter((h) => h.o);
+    const first = hits[0];
+    if (!first) return null;
+    const end = hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && target(h.o!)?.kind === 'end');
+    const chosen = (end ?? first).o!;
+    return tagged(e.object) === chosen ? chosen : null;
+  };
+
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0 || e.altKey) return;
     // Handles drawn over the body (the light's lamp) take precedence.
     if (e.intersections.some((i) => i.object.userData.handle)) return;
-    const o = tagged(e.object);
+    const o = pressed(e);
     const t = o && target(o);
     if (!t) return;
     e.stopPropagation();
@@ -576,7 +590,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (e.buttons) return;
     if (e.intersections.some((i) => i.object.userData.handle)) { sv.setHover(null); return; }
-    const o = tagged(e.object);
+    const o = pressed(e);
     const t = o && target(o);
     if (!t) return;
     sv.setHover(hover(t, e.shiftKey));

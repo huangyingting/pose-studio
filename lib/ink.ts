@@ -420,17 +420,21 @@ export class InkedParts {
       if (!g.boundingSphere) g.computeBoundingSphere();
       const s = g.boundingSphere!;
       centre.copy(s.center).applyMatrix4(mesh.matrixWorld);
-      parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() });
+      // (A skinned part, bent, can reach a little beyond its sphere at rest.)
+      const bent = (mesh as THREE.SkinnedMesh).isSkinnedMesh ? 0.1 : 0;
+      parts.push({ mesh, low: centre.y - s.radius * mesh.matrixWorld.getMaxScaleOnAxis() - bent });
     }
     parts.sort((a, b) => a.low - b.low);
     let min = Infinity;
     for (const { mesh, low } of parts) {
       if (low >= min) break;
-      // (Only the height: the matrix's second row.)
+      // (Only the height: the matrix's second row. A skinned part as posed.)
       const e = mesh.matrixWorld.elements;
       const pos = mesh.geometry.attributes.position;
+      const skinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh;
       for (let i = 0; i < pos.count; i++) {
-        const y = e[1] * pos.getX(i) + e[5] * pos.getY(i) + e[9] * pos.getZ(i) + e[13];
+        const v = skinned ? mesh.getVertexPosition(i, centre) : centre.fromBufferAttribute(pos, i);
+        const y = e[1] * v.x + e[5] * v.y + e[9] * v.z + e[13];
         if (y < min) min = y;
       }
     }

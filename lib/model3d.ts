@@ -50,8 +50,12 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
       }
       // The mannequin: its joints (and finger segments), and the solid parts on them.
       const bodies = new Set<THREE.Object3D>(m.parts.bodies.filter(shown));
+      // (Each joint's node, and the skinned parts (the torso's), bound to those nodes once all are made.)
+      const nodeOf = new Map<THREE.Object3D, THREE.Object3D>();
+      const skinned: { part: THREE.SkinnedMesh; from: THREE.SkinnedMesh }[] = [];
       const copy = (from: THREE.Object3D, name: string): THREE.Object3D => {
         const node = new THREE.Group();
+        nodeOf.set(from, node);
         node.name = name;
         node.position.copy(from.position);
         node.quaternion.copy(from.quaternion);
@@ -59,7 +63,14 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
         for (const child of from.children) {
           if (bodies.has(child)) {
             const mesh = child as THREE.Mesh;
-            const part = new THREE.Mesh(mesh.geometry, skin);
+            let part: THREE.Mesh;
+            if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+              const s = new THREE.SkinnedMesh(mesh.geometry, skin);
+              skinned.push({ part: s, from: mesh as THREE.SkinnedMesh });
+              part = s;
+            } else {
+              part = new THREE.Mesh(mesh.geometry, skin);
+            }
             part.position.copy(mesh.position);
             part.quaternion.copy(mesh.quaternion);
             part.scale.copy(mesh.scale);
@@ -73,6 +84,12 @@ export async function sceneToGlb(scene: Scene, time = 0): Promise<Blob> {
         return node;
       };
       out.add(copy(m.object, unique(f.name)));
+      // A skinned part bound to the joints' nodes as the figure's own is to its joints (each bone
+      // sits on its joint): the waist bends in the file as it does here.
+      for (const { part, from } of skinned) {
+        const bones = from.skeleton.bones.map((b) => nodeOf.get(b.parent!)!);
+        part.bind(new THREE.Skeleton(bones as THREE.Bone[], from.skeleton.boneInverses.map((x) => x.clone())), from.bindMatrix.clone());
+      }
     }
     for (const p of scene.props) {
       const o = sv.props.get(p.id);
