@@ -330,7 +330,8 @@ export interface Capsule { p: THREE.Vector3; q: THREE.Vector3; r: number; bone: 
 /** A posed figure's bones as capsules. */
 export function capsules(rig: Rig, f: Figure): Capsule[] {
   const m = rig.model(f);
-  const s = f.body.height / 1.7;
+  // (Sized for a 1.7 m figure of the mannequin's first proportions: scaled as its parts are.)
+  const s = scaleOf(f.body) * (1.8 / 1.7);
   const w = (k: JointName) => m.joints[k].getWorldPosition(new THREE.Vector3());
   return BONES.map((b) => {
     const a = w(b.a);

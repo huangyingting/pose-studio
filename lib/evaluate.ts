@@ -244,7 +244,9 @@ class Evaluator {
         const body = this.figures.get(partner ?? '')?.body;
         if (!partner || !body) return;
         // Where on the partner's body the clip has the hand now, on the partner as it is (however big).
-        const size = scaleOf(body) / scaleOf(clip.parts[c.on.part].body ?? body);
+        // (A leg's bones are as long as its leg length makes them; the rest, as the body's scale.)
+        const was = clip.parts[c.on.part].body ?? body;
+        const size = (scaleOf(body) / scaleOf(was)) * (/Leg|Foot/.test(c.on.bone) ? body.legs / was.legs : 1);
         const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, size);
         if (spot) out.push({ bone, at: spot, weight, relative: true });
       });
@@ -474,17 +476,12 @@ class Evaluator {
         raw = turned({ ...raw, position: [last.position[0] + dx, raw.position[1], last.position[2] + dz] }, lapTurn);
       }
     }
-    const own = legsOf(f.body).rootY / legsOf(part.body ?? f.body).rootY;
-    // (People in a clip together travel by the same, so they stay together: by the biggest's, as they were spaced.)
-    const size = Math.max(own, ...act.roles.map((r, n) => {
-      const body = this.figures.get(r.figure)?.body;
-      return body ? legsOf(body).rootY / legsOf(clip.parts[n]?.body ?? body).rootY : 0;
-    }));
+    const size = legsOf(f.body).rootY / legsOf(part.body ?? f.body).rootY;
     // (Turned so it starts facing the figure's way: where its person looks, not just its pelvis.)
     const facing0 = startFacing(part, first, mirror);
     const by = start.facing - facing0;
     const [dx, dz] = turn((raw.position[0] - first.position[0]) * size, (raw.position[2] - first.position[2]) * size, by);
-    let y = raw.grounded ? raw.position[1] : legsOf(f.body).rootY + (raw.position[1] - legsOf(part.body ?? f.body).rootY) * own;
+    let y = raw.grounded ? raw.position[1] : legsOf(f.body).rootY + (raw.position[1] - legsOf(part.body ?? f.body).rootY) * size;
     // Off the ground, what touches the floor in the clip (a hand in a cartwheel) touches it on any body.
     if (!raw.grounded && part.body && JSON.stringify(part.body) !== JSON.stringify(f.body)) {
       const touch = this.rig.model({ ...f, id: `clip:${part.name}`, body: part.body, ...raw }).lowest();

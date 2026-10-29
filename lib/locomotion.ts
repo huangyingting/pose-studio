@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clampRotation, sided, wrapDeg } from './joints';
 import { angleToQuat, bonesOf, type Angles } from './pose';
+import { scaleOf } from './mannequin';
 import { Rig } from './relations';
 import type { BodyParams, Figure, Hand, JointName, Side, Travel, Vec3 } from './types';
 
@@ -89,7 +90,7 @@ export function legsOf(body: BodyParams): Legs {
       ankleY: ankle.y,
       hipDrop: root.y - hip.y,
       hipX: Math.abs(hip.x - root.x),
-      foot: 0.13 * (root.y / 0.93),
+      foot: 0.13 * scaleOf(body),
     };
   } finally {
     rig.dispose();
