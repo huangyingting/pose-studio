@@ -632,8 +632,7 @@ function HoverGhost() {
   const size = useThree((s) => s.size);
   useEffect(() => () => ghost.dispose(), [ghost]);
   useEffect(() => ghost.resize(size.width, size.height), [ghost, size]);
-  // (Shown from the Library, off the canvas: it wakes it.)
-  useLayoutEffect(() => { ghost.show(scene); wake(); }, [ghost, scene]);
+  useLayoutEffect(() => ghost.show(scene), [ghost, scene]);
   return <primitive object={ghost.root} />;
 }
 
@@ -665,10 +664,11 @@ class Ghost {
     this.view.dispose();
   }
 
-  /** Show a scene (nothing: hide). */
+  /** Show a scene (nothing: hide); the canvas woken to draw it (it may change off the canvas: from the Library, the wheel, a key). */
   show(scene: Scene | null) {
     this.root.visible = !!scene;
     if (scene) this.view.sync(scene);
+    wake();
   }
 
   /** Follow the pointer over `el` for `placing`; the wheel and R turn it. Returns the stop. */
@@ -816,18 +816,23 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
   useEffect(() => {
     setDrawer(invalidate);
     const up = () => wake();
+    // (The pointer on the canvas; or anywhere while a button is held: a drag begun on it goes on
+    // past its edge, following the pointer on the window.)
+    const pointer = (e: PointerEvent) => { if (e.buttons || e.type !== 'pointermove' || e.target === el) wake(); };
     const offs = [store.subscribe(up), clock.subscribe(up), sv.subscribe(up), onModels(up)];
-    const events = ['pointermove', 'pointerdown', 'pointerup', 'wheel'] as const;
-    for (const e of events) el.addEventListener(e, up, { passive: true });
-    window.addEventListener('keydown', up);
-    window.addEventListener('keyup', up);
+    const events = ['pointermove', 'pointerdown', 'pointerup'] as const;
+    for (const e of events) window.addEventListener(e, pointer, { passive: true, capture: true });
+    el.addEventListener('wheel', up, { passive: true });
+    window.addEventListener('keydown', up, true);
+    window.addEventListener('keyup', up, true);
     wake();
     return () => {
       setDrawer(null);
       offs.forEach((off) => off());
-      for (const e of events) el.removeEventListener(e, up);
-      window.removeEventListener('keydown', up);
-      window.removeEventListener('keyup', up);
+      for (const e of events) window.removeEventListener(e, pointer, { capture: true });
+      el.removeEventListener('wheel', up);
+      window.removeEventListener('keydown', up, true);
+      window.removeEventListener('keyup', up, true);
     };
   }, [invalidate, el, store, clock, sv]);
   useFrame(() => {
