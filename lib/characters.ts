@@ -10,7 +10,7 @@ import { BONES as SKELETON, type BodyParams, type ModelInfo } from './types';
 
 const PREFIX = 'character:';
 /** The files' version: raised when one is remade, so that a browser does not keep the old one. */
-const FILES = 4;
+const FILES = 5;
 
 // A VRM avatar, a MakeHuman, Mixamo or Sketchfab character made one of ours (scripts/vrm-character.py,
 // scripts/characters/import.ts): its bones named as our skeleton's (some without a finger's end).

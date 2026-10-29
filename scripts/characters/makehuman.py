@@ -22,7 +22,7 @@ import math
 
 import bmesh
 import numpy as np
-from mathutils import Vector
+from mathutils import Vector, kdtree
 
 addon_utils.enable('mpfb', default_set=True)
 from mpfb.services.humanservice import HumanService  # noqa: E402
@@ -442,6 +442,28 @@ def dress(body, rig, outfit):
     return made
 
 
+def scalp(body, hair, eyes, color):
+    """
+    The skin the hair grows from coloured as the hair (a second material on the body's faces under
+    it): MakeHuman's hair cards leave the scalp showing at the hairline, a pale band and a line.
+    """
+    tree = kdtree.KDTree(len(hair.data.vertices))
+    for i, v in enumerate(hair.data.vertices):
+        tree.insert(hair.matrix_world @ v.co, i)
+    tree.balance()
+    brow = max((eyes.matrix_world @ v.co).z for v in eyes.data.vertices)
+    head = {i for i, p, bone, _ in body_verts(body) if 'Head' in bone and p.z > brow + 0.03 and tree.find(p)[2] < 0.018}
+    mat = bpy.data.materials.new(body.name + '.scalp')
+    mat.use_nodes = True
+    mat.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*color, 1.0)
+    mat.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value = 0.9
+    body.data.materials.append(mat)
+    for poly in body.data.polygons:
+        if all(v in head for v in poly.vertices):
+            poly.material_index = len(body.data.materials) - 1
+
+
+
 def build(who, out):
     spec = PEOPLE[who]
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -463,12 +485,14 @@ def build(who, out):
     o = HumanService.add_mhclo_asset(asset('hair', hair), body, asset_type='Hair', subdiv_levels=0, material_type='MAKESKIN')
     plain(o, (1, 1, 1), first_png(os.path.join(DATA, 'hair', hair)), alpha=True, tint=tint)
     parts.append(o)
+    hair_mesh = o
     for name in spec['clothes']:
         o = HumanService.add_mhclo_asset(asset('clothes', name), body, asset_type='Clothes', subdiv_levels=0, material_type='MAKESKIN')
         plain(o, (1, 1, 1), first_png(os.path.join(DATA, 'clothes', name)))
         parts.append(o)
     plain(body, spec['skin'])
     TargetService.bake_targets(body)
+    scalp(body, hair_mesh, eyes, tuple(c + 0.02 for c in tint))
     parts += dress(body, rig, spec.get('outfit', []))
     # Its height (soles to the top of the head: the body's own vertices, not the helpers') made the one it should have.
     group = body.vertex_groups['body'].index
