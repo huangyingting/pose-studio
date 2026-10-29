@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { poseScene, referencePoses } from '../../lib/poses';
+import { builtInPoses, poseScene, referencePoses } from '../../lib/poses';
 import { MAX_DURATION, PAST_END } from '../../lib/animation';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
@@ -188,7 +188,7 @@ test.afterEach(() => {
   expect(errors).toEqual([]);
 });
 
-test('a new project is one blank scene; the 20 reference poses are in the library', async ({ page }) => {
+test('a new project is one blank scene; the built-in poses are in the library', async ({ page }) => {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('.stage canvas').waitFor();
@@ -207,7 +207,7 @@ test('a new project is one blank scene; the 20 reference poses are in the librar
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
   // In groups (standing, sitting, kneeling, lying); resting on one shows it.
-  await expect(poses.locator('li')).toHaveCount(20);
+  await expect(poses.locator('li')).toHaveCount(builtInPoses().length);
   await poses.getByRole('button', { name: 'Cobra', exact: true }).hover();
   await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
@@ -1297,7 +1297,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   expect(a.bones).toEqual(refScenes()[0].figures[0].bones);
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
-  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(21);
+  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + 1);
   await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump ahead/ }).click();
   const sc = (await live(page)).scene;
