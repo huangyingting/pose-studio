@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { HAND_PRESETS } from '@/lib/hands';
 import { loadModelFile } from '@/lib/assetstore';
-import { Fitted, MissingBones, ModelRig, importModel, mapBones, missingBones } from '@/lib/model';
+import { Fitted, MissingBones, ModelRig, importModel, mapBones, missingBones, parseModel } from '@/lib/model';
 import { Ink } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
@@ -83,7 +83,11 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     const info = await importModel('Hero_Character.gltf', data);
     expect(info).toMatchObject({ name: 'Hero Character', format: 'glb' });
     expect(missingBones(info.bones)).toEqual([]);
-    expect(await loadModelFile(info.id)).toBe(data);
+    // Kept as a character of ours: its bones named as our skeleton's (all else as it was).
+    const kept = await parseModel('glb', (await loadModelFile(info.id))!);
+    expect(kept.getObjectByName('hips')).toBeDefined();
+    expect(kept.getObjectByName('mixamorigHips')).toBeUndefined();
+    expect(Object.entries(info.bones).every(([bone, name]) => bone === name)).toBe(true);
     const store = new Store(new MemoryStorage());
     store.commit((lib) => ({ ...lib, models: [info] }));
     const f = store.figure!;
@@ -95,8 +99,7 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(sv.figures.get(f.id)!.object.visible).toBe(false);
     // Its hips where the mannequin's are; its feet near the floor.
     const hips = sv.figures.get(f.id)!.joints.hips.getWorldPosition(new THREE.Vector3());
-    // (glTF keeps names to what animation paths allow: "mixamorigHips")
-    expect(info.bones.hips).toBe('mixamorigHips');
+    expect(info.bones.hips).toBe('hips');
     expect(rig.object.getObjectByName(info.bones.hips!)!.getWorldPosition(new THREE.Vector3()).distanceTo(hips)).toBeLessThan(1e-3);
     expect(Math.abs(rig.object.getObjectByName(info.bones.leftFoot!)!.getWorldPosition(new THREE.Vector3()).y - sv.figures.get(f.id)!.joints.leftFoot.getWorldPosition(new THREE.Vector3()).y)).toBeLessThan(0.05);
     // Drawn in the scene's style as the mannequin is (not in the file's materials), outlined; in
@@ -179,6 +182,8 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(err.names).toContain('mixamorigThing');
     // Mapped by hand: imported.
     const info = await importModel('x.gltf', new TextEncoder().encode(text).buffer as ArrayBuffer, { ...err.found, leftHand: 'mixamorigThing', leftLowerArm: 'mixamorigLeftForeArm', leftUpperArm: 'mixamorigLeftArm' });
-    expect(info.bones.leftHand).toBe('mixamorigThing');
+    // (The bone mapped by hand named as ours too.)
+    expect(info.bones.leftHand).toBe('leftHand');
+    expect((await parseModel('glb', (await loadModelFile(info.id))!)).getObjectByName('mixamorigThing')).toBeUndefined();
   });
 });

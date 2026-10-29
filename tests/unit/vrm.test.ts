@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { loadModelFile } from '@/lib/assetstore';
 import { Ink } from '@/lib/ink';
 import { MissingBones, ModelRig, importModel, mapBones, missingBones, parseModel } from '@/lib/model';
 import { ownLooks, paintedLook, type ToonLook } from '@/lib/toon';
@@ -21,7 +22,8 @@ describe('VRM avatars made our own (#15)', () => {
     expect(missingBones(mapBones(root)).length).toBeGreaterThan(0);
     const info = await importModel('Aoi.vrm', bytes(vrmGltf(1)));
     expect(missingBones(info.bones)).toEqual([]);
-    expect(info.bones.hips).toMatch(/^Bone_/);
+    // (Found by its humanoid; kept named as our skeleton's.)
+    expect(info.bones.hips).toBe('hips');
     expect(info.credit).toBe('by Ueda · personal use · credit required · not to be shared');
   });
 
@@ -58,7 +60,7 @@ describe('VRM avatars made our own (#15)', () => {
   it('reads a VRM 0.x too: its older thumb names, its MToon properties on its own scale', async () => {
     const info = await importModel('Old.vrm', bytes(vrmGltf(0)));
     expect(missingBones(info.bones)).toEqual([]);
-    expect(info.bones.leftThumbMetacarpal).toMatch(/^Bone_/);
+    expect(info.bones.leftThumbMetacarpal).toBe('leftThumbMetacarpal');
     expect(info.credit).toBe('by Ueda · personal use');
     const [look] = looksOf(await parseModel('glb', bytes(vrmGltf(0))));
     // (0.x blends from 0.1 up to lerp(1, 0.1, 0.8) = 0.28 of the light's −1…1: the same band on ours.)
@@ -72,8 +74,8 @@ describe('VRM avatars made our own (#15)', () => {
   });
 
   it('draws it in its own look in the Toon style (its outline its own), as any character in the others', async () => {
-    const root = await parseModel('glb', bytes(vrmGltf(1)));
     const info = await importModel('Aoi.vrm', bytes(vrmGltf(1)));
+    const root = await parseModel('glb', (await loadModelFile(info.id))!);
     const ink = new Ink();
     const model = new ModelRig(root, info, ink);
     const meshes: THREE.Mesh[] = [];

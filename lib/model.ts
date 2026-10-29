@@ -503,10 +503,48 @@ export async function parseModel(format: ModelInfo['format'], data: ArrayBuffer)
   }
   const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
   const gltf = await new GLTFLoader().parseAsync(data, '');
+  gltf.scene.traverse((o) => {
+    const node = gltf.parser.associations.get(o)?.nodes;
+    if (node !== undefined) nodeOf.set(o, node);
+  });
   const vrm = await readVrm(gltf);
   if (vrm) gltf.scene.userData.vrm = vrm;
   else ownTextures(gltf.scene);
   return gltf.scene;
+}
+
+/** Which of its file's nodes each object of a glTF scene was read from. */
+const nodeOf = new WeakMap<THREE.Object3D, number>();
+
+/**
+ * A glTF/GLB file with some of its nodes renamed (`names`: by node), all else as it was (a VRM's
+ * own extensions too).
+ */
+function renamed(data: ArrayBuffer, names: Map<number, string>): ArrayBuffer {
+  const bytes = new Uint8Array(data);
+  const glb = new DataView(data).getUint32(0, true) === 0x46546c67;
+  const length = glb ? new DataView(data).getUint32(12, true) : data.byteLength;
+  const json = JSON.parse(new TextDecoder().decode(glb ? bytes.subarray(20, 20 + length) : bytes)) as { nodes?: { name?: string }[] };
+  const nodes = json.nodes ?? [];
+  // (A node of another name that already has one of the new names gives it up.)
+  const taken = new Set(names.values());
+  nodes.forEach((n, i) => { if (!names.has(i) && n.name && taken.has(n.name)) n.name = `${n.name}_`; });
+  for (const [i, name] of names) nodes[i].name = name;
+  const text = new TextEncoder().encode(JSON.stringify(json));
+  if (!glb) return text.buffer as ArrayBuffer;
+  const padded = Math.ceil(text.length / 4) * 4;
+  const rest = bytes.subarray(20 + length);
+  const out = new Uint8Array(20 + padded + rest.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, 0x46546c67, true);
+  view.setUint32(4, 2, true);
+  view.setUint32(8, out.length, true);
+  view.setUint32(12, padded, true);
+  view.setUint32(16, 0x4e4f534a, true);
+  out.set(text, 20);
+  out.fill(0x20, 20 + text.length, 20 + padded);
+  out.set(rest, 20 + padded);
+  return out.buffer;
 }
 
 /** A character painted with textures (not a VRM avatar) drawn in its own colours in the Toon style: every mesh, textured or not. */
@@ -630,10 +668,31 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   const bones = map ?? { ...byName, ...vrm?.bones };
   const missing = missingBones(bones);
   if (missing.length) throw new MissingBones(rigBones(root).map((o) => o.name), bones, missing);
+  // Its bones named as our skeleton's, in the file kept and as read (a character of ours).
+  const names = new Map<number, string>();
+  const ours: BoneMap = {};
+  for (const [bone, was] of Object.entries(bones) as [Bone, string][]) {
+    const o = root.getObjectByName(was);
+    const node = o && nodeOf.get(o);
+    // (Not one of its file's nodes: as it is.)
+    if (node === undefined) {
+      ours[bone] = was;
+      continue;
+    }
+    names.set(node, bone);
+    ours[bone] = bone;
+  }
+  data = renamed(data, names);
+  const given = new Set(names.values());
+  root.traverse((o) => {
+    const node = nodeOf.get(o);
+    if (node !== undefined && names.has(node)) o.name = names.get(node)!;
+    else if (given.has(o.name)) o.name = `${o.name}_`;
+  });
   const info: ModelInfo = {
-    id: uid('model'), name: name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80) || 'Character', format, bones,
+    id: uid('model'), name: name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80) || 'Character', format, bones: ours,
   };
-  const proportions = characterProportions(root, bones);
+  const proportions = characterProportions(root, ours);
   if (proportions) info.proportions = proportions;
   if (vrm?.credit) info.credit = vrm.credit;
   await saveModelFile(info.id, data);
