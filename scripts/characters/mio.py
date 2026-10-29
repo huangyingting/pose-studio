@@ -46,7 +46,7 @@ BACK_HAIR = {
 SIDE_LOCK = {
     'y': [1.43, 1.36, 1.3, 1.26, 1.22, 1.17, 1.12],
     'x': [0.084, 0.088, 0.094, 0.1, 0.106, 0.11, 0.112],
-    'z': [0.028, 0.03, 0.036, 0.05, 0.075, 0.104, 0.118],
+    'z': [0.028, 0.03, 0.038, 0.062, 0.095, 0.125, 0.137],
     'half_width': [0.018, 0.022, 0.024, 0.024, 0.023, 0.021, 0.018],
     'wrap': [-0.008] * 7,
 }
@@ -172,8 +172,14 @@ def sheet(shape, facing, columns, rows, mirror=False):
         for c in range(columns - 1):
             a, b, d, e = r * columns + c, r * columns + c + 1, (r + 1) * columns + c, (r + 1) * columns + c + 1
             tris += [(a, d, b), (b, d, e)]
+    tris = np.array(tris, dtype=np.uint32)
+    # (Its triangles facing the way its normals do.)
+    flat = pos.reshape(-1, 3)
+    a, b, c = flat[tris[0]]
+    if np.dot(np.cross(b - a, c - a), nrm.reshape(-1, 3)[tris[0][0]]) < 0:
+        tris = tris[:, ::-1].copy()
     head = np.repeat(np.clip((ys - NECK[1]) / (NECK[0] - NECK[1]), 0, 1), columns)
-    return pos.reshape(-1, 3), nrm.reshape(-1, 3).astype(np.float32), uv.reshape(-1, 2), np.array(tris, dtype=np.uint32), head
+    return flat, nrm.reshape(-1, 3).astype(np.float32), uv.reshape(-1, 2), tris, head
 
 
 def long_hair():
