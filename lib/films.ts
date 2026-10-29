@@ -135,8 +135,8 @@ class Stage {
 /** A wuxia duel: a stand-off, a rush in, kick and block, punch and parry, an uppercut, a fall. */
 export function wuxiaDuel(): Scene {
   const s = new Stage('Wuxia duel', [
-    { name: 'Lin', body: 'Athletic', at: [-2.6, 0], facing: 90 },
-    { name: 'Mei', body: 'Slender', at: [2.6, 0], facing: -90 },
+    { name: 'Lin', body: 'Tall man', at: [-2.6, 0], facing: 90 },
+    { name: 'Mei', body: 'Tall woman', at: [2.6, 0], facing: -90 },
   ], 'dusk');
   s.play('Lin', 'fight-idle', 0, { seconds: 2.2 });
   s.play('Mei', 'fight-idle', 0, { seconds: 2.6 });
@@ -167,10 +167,10 @@ export function wuxiaDuel(): Scene {
 export function standOff(): Scene {
   const cop: [number, number] = [-2.6, 7.5], passer: [number, number] = [2.8, 3.4];
   const s = new Stage('Stand-off', [
-    { name: 'Vince', body: 'Heroic', at: [0, 0], facing: 0 },
-    { name: 'Ana', body: 'Slender', at: [0, 0.5], facing: 0 },
-    { name: 'Officer Diaz', body: 'Male', at: cop, facing: toward(cop, [0, 0]) },
-    { name: 'Passer-by', body: 'Female', at: passer, facing: toward(passer, [0, 0]) },
+    { name: 'Vince', body: 'Big man', at: [0, 0], facing: 0 },
+    { name: 'Ana', body: 'Tall woman', at: [0, 0.5], facing: 0 },
+    { name: 'Officer Diaz', body: 'Man', at: cop, facing: toward(cop, [0, 0]) },
+    { name: 'Passer-by', body: 'Woman', at: passer, facing: toward(passer, [0, 0]) },
   ], 'night');
   const end = 12;
   s.together('Vince', 'Ana', 'hostage', end);
@@ -185,9 +185,9 @@ export function standOff(): Scene {
 /** Street basketball: a drive up the court dribbling, a shot over the defender's jump, a fan cheering. */
 export function streetBasketball(): Scene {
   const s = new Stage('Street basketball', [
-    { name: 'Jay', body: 'Athletic', at: [0, 0], facing: 0 },
-    { name: 'Rico', body: 'Male', at: [0.3, 5], facing: 180 },
-    { name: 'Fan', body: 'Female', at: [3.2, 2.5], facing: -90 },
+    { name: 'Jay', body: 'Tall man', at: [0, 0], facing: 0 },
+    { name: 'Rico', body: 'Man', at: [0.3, 5], facing: 180 },
+    { name: 'Fan', body: 'Woman', at: [3.2, 2.5], facing: -90 },
   ], 'noon');
   const hoop = s.prop('hoop', [0, 0, 7.5], { turn: 180 });
   const ball = s.prop('sphere', [0.5, 0, 0.5], { scale: [0.24, 0.24, 0.24], name: 'Ball' });
@@ -208,11 +208,11 @@ export function streetBasketball(): Scene {
 export function houseParty(): Scene {
   const at = { rosa: [-0.7, 0], leo: [0.7, 0], dee: [2.4, 1.6], sam: [-2.4, 1.8], kim: [-1.5, 2.7] } as Record<string, [number, number]>;
   const s = new Stage('House party', [
-    { name: 'Rosa', body: 'Female', at: at.rosa, facing: toward(at.rosa, at.leo) },
-    { name: 'Leo', body: 'Male', at: at.leo, facing: toward(at.leo, at.rosa) },
-    { name: 'Dee', body: 'Slender', at: at.dee, facing: toward(at.dee, [0, 0]) },
-    { name: 'Sam', body: 'Athletic', at: at.sam, facing: toward(at.sam, at.kim) },
-    { name: 'Kim', body: 'Female', at: at.kim, facing: toward(at.kim, at.sam) },
+    { name: 'Rosa', body: 'Woman', at: at.rosa, facing: toward(at.rosa, at.leo) },
+    { name: 'Leo', body: 'Man', at: at.leo, facing: toward(at.leo, at.rosa) },
+    { name: 'Dee', body: 'Tall woman', at: at.dee, facing: toward(at.dee, [0, 0]) },
+    { name: 'Sam', body: 'Tall man', at: at.sam, facing: toward(at.sam, at.kim) },
+    { name: 'Kim', body: 'Woman', at: at.kim, facing: toward(at.kim, at.sam) },
   ], 'dusk');
   const end = 14;
   s.play('Rosa', 'salsa-dancing', 0, { seconds: end });

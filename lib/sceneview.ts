@@ -65,13 +65,13 @@ export class SceneView {
     for (const f of shown) {
       let m = this.figures.get(f.id);
       if (!m) {
-        m = new Mannequin(this.ink, f.body, f.id, !!f.proxy);
+        m = new Mannequin(this.ink, f.body, f.id);
         m.setStyle(this.style);
         m.setFaceFeatures(this.faces);
         this.figures.set(f.id, m);
         this.root.add(m.object);
         changed = true;
-      } else if (m.setBody(f.body, !!f.proxy)) {
+      } else if (m.setBody(f.body)) {
         changed = true;
       }
       m.setGround(ground);

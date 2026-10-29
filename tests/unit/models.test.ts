@@ -146,36 +146,17 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(new TextDecoder().decode(kept.slice(0, 4))).toBe('glTF');
   });
 
-  it('fits the mannequin under a character to its build, so contacts and checks are on the body that shows', async () => {
+  it('draws a character on the figure\'s own body (the mannequin under it as tall, of its sex)', async () => {
     const data = new TextEncoder().encode(characterGltf(true, true)).buffer as ArrayBuffer;
     const info = await importModel('Hero.gltf', data);
-    const p = info.proportions!;
-    expect(p.legs).toBeGreaterThan(0.3);
-    expect(p.legs).toBeLessThan(0.7);
     const store = new Store(new MemoryStorage());
     store.commit((lib) => ({ ...lib, models: [info] }));
     const f = store.figure!;
     const t0 = performance.now();
     setFigureModel(store, f.id, info.id);
     expect(performance.now() - t0).toBeLessThan(1500);
-    const fitted = store.figure!;
-    expect(fitted.model).toBe(info.id);
-    expect(fitted.body.height).toBe(f.body.height);
-    expect(fitted.body.sex).toBe(f.body.sex);
-    // The mannequin's own build now comes as near the character's as its settings allow.
-    const rig = new Rig();
-    const m = rig.model({ ...fitted, bones: {}, position: [0, 0, 0] });
-    let top = -Infinity;
-    m.forEachPoint((q) => { top = Math.max(top, q.y); });
-    const at = (j: 'hips' | 'leftFoot' | 'rightFoot') => m.joints[j].getWorldPosition(new THREE.Vector3());
-    const floor = Math.min(at('leftFoot').y, at('rightFoot').y);
-    const legs = (at('hips').y - floor) / (top - floor);
-    const before = rig.model({ ...f, bones: {}, position: [0, 0, 0] });
-    let top0 = -Infinity;
-    before.forEachPoint((q) => { top0 = Math.max(top0, q.y); });
-    const legs0 = (before.joints.hips.getWorldPosition(new THREE.Vector3()).y - floor) / (top0 - floor);
-    expect(Math.abs(legs - p.legs)).toBeLessThanOrEqual(Math.abs(legs0 - p.legs) + 1e-6);
-    rig.dispose();
+    expect(store.figure!.model).toBe(info.id);
+    expect(store.figure!.body).toEqual(f.body);
   });
 
   it('says which bones it could not find, to map them by hand', async () => {

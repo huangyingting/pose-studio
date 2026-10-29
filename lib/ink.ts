@@ -428,10 +428,16 @@ export class InkedParts {
    */
   setIdMode(on: boolean, firstId: number) {
     let id = firstId;
+    // (Parts of one form (the trunk's, cut where their joints take over) share their IDs: no line between them.)
+    const shared = new Map<string, number>();
     for (const mesh of this.bodies) {
       // (A part of several pieces, a hand: as many IDs, so the lines between its fingers are drawn.)
       const pieces = (mesh.geometry.userData.pieces as number | undefined) ?? 0;
-      idMaterialOf(mesh, on ? this.ink.idMaterial(id, pieces > 0) : null);
+      const group = mesh.userData.form as string | undefined;
+      const first = group && shared.has(group) ? shared.get(group)! : id;
+      idMaterialOf(mesh, on ? this.ink.idMaterial(first, pieces > 0) : null);
+      if (first !== id) continue;
+      if (group) shared.set(group, id);
       id += Math.max(1, pieces);
     }
     return id;
@@ -548,139 +554,4 @@ export class InkedParts {
     this.bodies.length = 0;
     this.decorations.length = 0;
   }
-}
-
-/* Geometry helpers shared by the mannequin and props. */
-
-/**
- * Push the surface outwards in a smooth ellipsoidal patch (muscles, glutes) instead of adding a
- * separate part, so the form reads in shading and silhouette without extra outlines.
- * `radius` is the patch size per axis; `amount` the peak displacement along the normal.
- */
-export function bulge(geo: THREE.BufferGeometry, center: Vec3, radius: Vec3, amount: number) {
-  const pos = geo.attributes.position;
-  const nrm = geo.attributes.normal;
-  const v = new THREE.Vector3();
-  const n = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const dx = (v.x - center[0]) / radius[0];
-    const dy = (v.y - center[1]) / radius[1];
-    const dz = (v.z - center[2]) / radius[2];
-    const d2 = dx * dx + dy * dy + dz * dz;
-    if (d2 >= 1) continue;
-    const w = (1 - d2) * (1 - d2);
-    n.fromBufferAttribute(nrm, i);
-    v.addScaledVector(n, amount * w);
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  pos.needsUpdate = true;
-  return geo;
-}
-
-/**
- * Recompute normals and average them across seam vertices that share a position (lathe seams),
- * which keeps the outline hull from cracking open along the seam.
- */
-export function smoothNormals(geo: THREE.BufferGeometry) {
-  geo.computeVertexNormals();
-  const pos = geo.attributes.position;
-  const nrm = geo.attributes.normal;
-  // (Vertices that share a position, to 0.01 mm: by a number made of their coordinates, within ±1 m.)
-  const key = (i: number) => {
-    const [x, y, z] = [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => Math.round(v * 1e5) + 100000);
-    return x >= 0 && x < 200000 && y >= 0 && y < 200000 && z >= 0 && z < 200000 ? (x * 200000 + y) * 200000 + z : `${x},${y},${z}`;
-  };
-  const groups = new Map<number | string, number[]>();
-  for (let i = 0; i < pos.count; i++) {
-    const k = key(i);
-    const g = groups.get(k);
-    if (g) g.push(i);
-    else groups.set(k, [i]);
-  }
-  for (const g of groups.values()) {
-    if (g.length < 2) continue;
-    let x = 0, y = 0, z = 0;
-    for (const i of g) {
-      x += nrm.getX(i);
-      y += nrm.getY(i);
-      z += nrm.getZ(i);
-    }
-    const l = Math.hypot(x, y, z) || 1;
-    for (const i of g) nrm.setXYZ(i, x / l, y / l, z / l);
-  }
-  nrm.needsUpdate = true;
-  return geo;
-}
-
-/** An open curve drawn as a thin contour line (e.g. the lower edge of the pectorals). */
-export function contour(points: THREE.Vector3[], radius = 0.0022) {
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false), points.length * 4, radius, 5, false);
-}
-
-export function ellipsoid(rx: number, ry: number, rz: number, w = 36, h = 24) {
-  return new THREE.SphereGeometry(1, w, h).scale(rx, ry, rz);
-}
-
-/** Egg-like body segment centred on the origin; taper > 0 widens the top, < 0 the bottom. */
-export function egg(rx: number, ry: number, rz: number, taper: number, n = 32, segments = 40) {
-  const pts: THREE.Vector2[] = [];
-  for (let i = 0; i <= n; i++) {
-    const phi = Math.PI * (1 - i / n);
-    pts.push(new THREE.Vector2(rx * Math.sin(phi) * (1 + taper * Math.cos(phi)), ry * Math.cos(phi)));
-  }
-  return new THREE.LatheGeometry(pts, segments).scale(1, 1, rz / rx);
-}
-
-/** Tapered capsule hanging from y=0 down to y=-len, with an optional muscle bulge. */
-export function limb(len: number, r1: number, r2: number, bulge = 0, bulgeAt = 0.35, segments = 24, shaft = 18, cap = 8) {
-  const radius = (t: number) => {
-    const s = t < bulgeAt ? (t / bulgeAt) * 0.5 : 0.5 + ((t - bulgeAt) / (1 - bulgeAt)) * 0.5;
-    return r1 + (r2 - r1) * t + bulge * Math.sin(Math.PI * s);
-  };
-  const pts: THREE.Vector2[] = [];
-  for (let i = 0; i <= cap; i++) {
-    const a = -Math.PI / 2 + (i / cap) * (Math.PI / 2);
-    pts.push(new THREE.Vector2(r2 * Math.cos(a), -len + r2 * Math.sin(a)));
-  }
-  for (let i = 1; i < shaft; i++) {
-    const t = 1 - i / shaft;
-    pts.push(new THREE.Vector2(radius(t), -len * t));
-  }
-  for (let i = 0; i <= cap; i++) {
-    const a = (i / cap) * (Math.PI / 2);
-    pts.push(new THREE.Vector2(r1 * Math.cos(a), r1 * Math.sin(a)));
-  }
-  const geometry = new THREE.LatheGeometry(pts, segments);
-  /** Cross-contour ring at fraction t (0 = top, 1 = bottom) of the limb. */
-  const ring = (t: number) => tube(circlePoints(radius(t), -len * t));
-  return { geometry, ring };
-}
-
-function circlePoints(r: number, y: number, n = 48) {
-  return Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    return new THREE.Vector3(r * Math.cos(a), y, r * Math.sin(a));
-  });
-}
-
-export function tube(points: THREE.Vector3[], radius = 0.0022) {
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, true), points.length * 2, radius, 5, true);
-}
-
-/** Vertical centre line (front + back) around an ellipsoid or egg. */
-export function meridian(ry: number, rz: number, taper = 0, n = 64) {
-  return tube(Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    return new THREE.Vector3(0, ry * Math.cos(a), rz * Math.sin(a) * (1 + taper * Math.cos(a)));
-  }));
-}
-
-/** Horizontal line around an ellipsoid (or egg) at height y. */
-export function latitude(rx: number, ry: number, rz: number, y: number, taper = 0, n = 64) {
-  const s = Math.sqrt(Math.max(0, 1 - (y / ry) ** 2)) * (1 + taper * (y / ry));
-  return tube(Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    return new THREE.Vector3(rx * s * Math.cos(a), y, rz * s * Math.sin(a));
-  }));
 }

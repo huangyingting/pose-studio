@@ -98,7 +98,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
   it('basketball: a fast break dribbled up court, a pass on the run, a shot through the hoop', () => {
     const { store, a } = fresh();
     name(store, a, 'Mia');
-    store.updateFigure(a, (f) => ({ ...f, body: body('Female') }));
+    store.updateFigure(a, (f) => ({ ...f, body: body('Woman') }));
     addFigure(store, [2, 0, 1]);
     const b = store.getState().activeFigure!;
     name(store, b, 'Leo');
@@ -146,7 +146,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     addFigure(store, [1.6, 0, 3.6]);
     const c = store.getState().activeFigure!;
     name(store, c, 'Sam');
-    store.updateFigure(c, (f) => ({ ...f, body: body('Heroic') }));
+    store.updateFigure(c, (f) => ({ ...f, body: body('Big man') }));
     seenFrom(store, { yaw: 90, pitch: 8, fov: 44 });
     addProp(store, 'sphere', [0.5, 0, 0.5]);
     const ball = store.scene.props[0].id;
@@ -198,8 +198,8 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     const b = store.getState().activeFigure!;
     addFigure(store, [2.4, 0, 0]);
     const c = store.getState().activeFigure!;
-    store.updateFigure(b, (f) => ({ ...f, body: body('Athletic') }));
-    store.updateFigure(c, (f) => ({ ...f, body: body('Slender') }));
+    store.updateFigure(b, (f) => ({ ...f, body: body('Tall man') }));
+    store.updateFigure(c, (f) => ({ ...f, body: body('Tall woman') }));
     seenFrom(store, { yaw: 90, pitch: 6, fov: 44 });
     // A low hurdle in the middle lane.
     addProp(store, 'box', [1.2, 0, 5]);
@@ -229,7 +229,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
       runners.push(store.getState().activeFigure!);
     }
     runners.forEach((id, i) => name(store, id, ['Ana', 'Ben', 'Cleo', 'Dev'][i]));
-    store.updateFigure(runners[2], (f) => ({ ...f, body: body('Athletic') }));
+    store.updateFigure(runners[2], (f) => ({ ...f, body: body('Tall man') }));
     seenFrom(store, { yaw: 90, pitch: 6, fov: 50 });
     addProp(store, 'stick');
     const baton = store.scene.props[0].id;
@@ -299,7 +299,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     addFigure(store, [4.5, 0, -1]);
     const c = store.getState().activeFigure!;
     name(store, c, 'Hurt');
-    store.updateFigure(c, (f) => ({ ...f, body: body('Slender') }));
+    store.updateFigure(c, (f) => ({ ...f, body: body('Tall woman') }));
     addProp(store, 'box', [3, 0, -1]);
     const stretcher = store.scene.props[0].id;
     moveProp(store, stretcher, { scale: [2.6, 0.06, 0.55] });
@@ -381,7 +381,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
   }, 300_000);
 
   it('boxing: two fighters face off, an exchange, then a combination and a hit', () => {
-    const { store, later } = boxing('Female', 'Heroic');
+    const { store, later } = boxing('Woman', 'Big man');
     light(store, 'side');
     shoot(store, [later], ['handheld', 'hero']);
     expectFilm(store, 'side', 2);
@@ -417,7 +417,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     addFigure(store, [2.5, 0, 0]);
     const b = store.getState().activeFigure!;
     name(store, b, 'Eva');
-    store.updateFigure(b, (f) => ({ ...f, body: body('Slender') }));
+    store.updateFigure(b, (f) => ({ ...f, body: body('Tall woman') }));
     addProp(store, 'ring');
     const ring = store.scene.props[1].id;
     // Ana: leap, pirouette, cartwheel, one after another.
@@ -476,8 +476,8 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
   }, 300_000);
 
   it('contacts hold on any bodies: the boxing exchange between builds big and small, a waltz between grown-ups', () => {
-    for (const [x, y] of [['Child', 'Heroic'], ['Heroic', 'Child'], ['Slender', 'Athletic'], ['Male', 'Female']]) expectClean(boxing(x, y).store.scene);
-    for (const [x, y] of [['Slender', 'Heroic'], ['Athletic', 'Slender'], ['Male', 'Female']]) {
+    for (const [x, y] of [['Child', 'Big man'], ['Big man', 'Child'], ['Tall woman', 'Tall man'], ['Man', 'Woman']]) expectClean(boxing(x, y).store.scene);
+    for (const [x, y] of [['Tall woman', 'Big man'], ['Tall man', 'Tall woman'], ['Man', 'Woman']]) {
       const { store, a } = fresh();
       addFigure(store, [1, 0, 0]);
       const b = store.getState().activeFigure!;
@@ -496,7 +496,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     // Someone tall in between, arms up.
     addFigure(store, [0, 0, 2]);
     const c = store.getState().activeFigure!;
-    store.updateFigure(c, (f) => ({ ...withFacing(f, 180), body: body('Heroic') }));
+    store.updateFigure(c, (f) => ({ ...withFacing(f, 180), body: body('Big man') }));
     store.setTime(0);
     setJoint(store, c, 'leftUpperArm', [-160, 0, 15], '');
     setJoint(store, c, 'rightUpperArm', [-160, 0, -15], '');

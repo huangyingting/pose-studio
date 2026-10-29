@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadModelFile, saveModelFile } from './assetstore';
-import { BODY_FIELDS } from './body';
 import { BUILT_IN_CHARACTERS, characterFile, isBuiltInCharacter } from './characters';
 import { legsOf } from './locomotion';
 import { Rig } from './relations';
@@ -10,7 +9,7 @@ import { setWorldQuaternion } from './mannequin';
 import { fingerBones, PARENT, worldTurns } from './skeleton';
 import { LINES_LAYER, idMaterialOf, type Ink } from './ink';
 import { styleDef } from './styles';
-import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Proportions, type Style } from './types';
+import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Style } from './types';
 import { uid } from './uid';
 import { readVrm, type VrmInfo } from './vrm';
 import { ownLooks, paintedLook, toonMaterial, type ToonLook } from './toon';
@@ -365,79 +364,10 @@ export class ModelRig {
   }
 }
 
-/* ---------- the mannequin fitted to a character ---------- */
-
-const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
-
-/** Proportions from where a body's joints are and the top of its head. */
-function proportionsFrom(at: (b: 'hips' | 'head' | 'leftUpperArm' | 'rightUpperArm' | 'leftFoot' | 'rightFoot') => THREE.Vector3, top: number): Proportions {
-  const floor = Math.min(at('leftFoot').y, at('rightFoot').y);
-  const height = Math.max(1e-6, top - floor);
-  return {
-    legs: r4((at('hips').y - floor) / height),
-    head: r4((top - at('head').y) / height),
-    shoulders: r4(at('leftUpperArm').distanceTo(at('rightUpperArm')) / height),
-  };
-}
-
-/**
- * A character's proportions, stood up at rest (a copy: the file's scene is left as it is). None
- * when its meshes do not reach over its head bone (nothing to measure the head by).
- */
-export function characterProportions(root: THREE.Object3D, map: BoneMap): Proportions | undefined {
-  const fitted = new Fitted(cloneSkinned(root), map);
-  fitted.frame.updateMatrixWorld(true);
-  // At rest the meshes are as they were bound: their vertices where the file has them.
-  let top = -Infinity;
-  const v = new THREE.Vector3();
-  fitted.frame.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    const pos = mesh.isMesh ? mesh.geometry.attributes.position : null;
-    for (let i = 0; pos && i < pos.count; i++) top = Math.max(top, v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).y);
-  });
-  if (!(top > fitted.at('head')!.y)) return undefined;
-  return proportionsFrom((b) => fitted.at(b)!, top);
-}
-
-/** The mannequin's proportions with a body. */
-function mannequinProportions(rig: Rig, f: Figure): Proportions {
-  const m = rig.model({ ...f, bones: {}, position: [0, 0, 0], grounded: true });
-  let top = -Infinity;
-  m.forEachPoint((p) => { top = Math.max(top, p.y); });
-  return proportionsFrom((b) => m.joints[b].getWorldPosition(new THREE.Vector3()), top);
-}
-
-/**
- * A body for the mannequin under a character: as tall as it was, of the same sex, with the
- * character's legs, head and shoulders, so that picking, contacts and the motion check are on the
- * body that shows. Each setting mostly moves one share (leg length the legs, head size the head,
- * build the shoulders), so each is found from the shares at its two ends, twice over.
- */
-export function fitBody(f: Figure, target: Proportions): BodyParams {
-  const rig = new Rig();
-  try {
-    let body: BodyParams = { ...f.body };
-    const settings: [keyof Proportions, 'legs' | 'head' | 'build'][] = [['legs', 'legs'], ['head', 'head'], ['shoulders', 'build']];
-    for (let round = 0; round < 2; round++) {
-      for (const [share, key] of settings) {
-        const field = BODY_FIELDS.find((x) => x.key === key)!;
-        const lo = mannequinProportions(rig, { ...f, body: { ...body, [key]: field.min } })[share];
-        const hi = mannequinProportions(rig, { ...f, body: { ...body, [key]: field.max } })[share];
-        if (Math.abs(hi - lo) < 1e-6) continue;
-        const u = Math.min(1, Math.max(0, (target[share] - lo) / (hi - lo)));
-        body = { ...body, [key]: Math.round((field.min + (field.max - field.min) * u) * 100) / 100 };
-      }
-    }
-    return body;
-  } finally {
-    rig.dispose();
-  }
-}
-
-/** The body of the mannequin under a figure drawn as a character: the character's own (listed, or fitted to its proportions). */
+/** The body of the mannequin under a figure drawn as a character: the character's own (a built-in's), or the figure's. */
 export function bodyFor(f: Figure, id: string): BodyParams {
   const info = infos.get(id);
-  return info?.body ? { ...info.body } : info?.proportions ? fitBody(f, info.proportions) : f.body;
+  return info?.body ? { ...info.body } : f.body;
 }
 
 /* ---------- the library's models: their files read when a figure is first drawn as one ---------- */
@@ -707,8 +637,6 @@ export async function importModel(name: string, data: ArrayBuffer, map?: BoneMap
   const info: ModelInfo = {
     id: uid('model'), name: name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80) || 'Character', format, bones: ours,
   };
-  const proportions = characterProportions(root, ours);
-  if (proportions) info.proportions = proportions;
   if (vrm?.credit) info.credit = vrm.credit;
   await saveModelFile(info.id, data);
   infos.set(info.id, info);

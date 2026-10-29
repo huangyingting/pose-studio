@@ -47,7 +47,7 @@ export const POSTURE_ANGLES: Record<Posture, Angles> = {
   lie: { hips: [-90, 0, 0], leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8] },
 };
 
-/** A capsule stand-in for blocking, in a posture. */
+/** A stand-in for blocking, in a posture. */
 export function withPosture(f: Figure, posture: Posture): Figure {
   const p = POSTURE_ANGLES[posture];
   const root = p.hips ?? [0, 0, 0];
@@ -502,13 +502,10 @@ function parseModelInfo(v: unknown): ModelInfo | null {
   if (!isObj(v) || typeof v.id !== 'string' || !v.id || !isObj(v.bones)) return null;
   const bones: ModelInfo['bones'] = {};
   for (const b of BONES) if (typeof v.bones[b] === 'string') bones[b] = (v.bones[b] as string).slice(0, 200);
-  const p = isObj(v.proportions) ? v.proportions : null;
-  const share = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x > 0 && x < 1 ? x : null);
-  const proportions = p && share(p.legs) && share(p.head) && share(p.shoulders) ? { legs: p.legs as number, head: p.head as number, shoulders: p.shoulders as number } : null;
   // A thumbnail is a small PNG drawn on import.
   const thumb = typeof v.thumb === 'string' && v.thumb.startsWith('data:image/png;base64,') && v.thumb.length < 200_000 ? v.thumb : null;
   const credit = typeof v.credit === 'string' && v.credit ? v.credit.slice(0, 160) : null;
-  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones, ...(proportions ? { proportions } : {}), ...(thumb ? { thumb } : {}), ...(credit ? { credit } : {}) };
+  return { id: v.id.slice(0, 80), name: str(v.name, 'Character').slice(0, 80), format: v.format === 'fbx' ? 'fbx' : 'glb', bones, ...(thumb ? { thumb } : {}), ...(credit ? { credit } : {}) };
 }
 
 function parseClipInfo(v: unknown): ClipInfo | null {

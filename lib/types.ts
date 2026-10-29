@@ -41,18 +41,10 @@ export interface Hand {
 }
 
 export interface BodyParams {
-  /** 0 = male, 1 = female; values in between blend proportions. */
+  /** 0: a man (Mixamo's Y Bot), 1: a woman (X Bot). */
   sex: number;
   /** Standing height in metres. */
   height: number;
-  /** 0 = slim, 1 = heavy. */
-  build: number;
-  /** Relative head size. */
-  head: number;
-  /** Relative leg length. */
-  legs: number;
-  /** Chest volume (mainly visible on female figures). */
-  bust: number;
 }
 
 export interface Figure {
@@ -483,8 +475,6 @@ export interface ModelInfo {
   name: string;
   format: 'glb' | 'fbx';
   bones: Partial<Record<Bone, string>>;
-  /** Its build as shares of its height (to fit the mannequin under it, which contacts and checks use). */
-  proportions?: Proportions;
   /** The body under it, if known (the built-in characters): a figure drawn as it takes it, its height and build. */
   body?: BodyParams;
   /** Its thumbnail for the library (an imported one's, drawn as it is imported). */
@@ -494,12 +484,6 @@ export interface ModelInfo {
 }
 
 /** A body's build as shares of its height: hips above the feet, the head above its joint, the shoulders' width. */
-export interface Proportions {
-  legs: number;
-  head: number;
-  shoulders: number;
-}
-
 /** An imported clip as the library lists it: its name, length and people (the frames are an asset). */
 export interface ClipInfo {
   id: string;

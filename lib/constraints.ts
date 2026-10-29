@@ -57,7 +57,7 @@ const BONE_END: Partial<Record<JointName, JointName>> = {
   leftUpperLeg: 'leftLowerLeg', rightUpperLeg: 'rightLowerLeg', leftLowerLeg: 'leftFoot', rightLowerLeg: 'rightFoot',
 };
 /** A hand on the trunk is held in the chest's frame (it may sit over the spine or the chest from frame to frame). */
-export const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'neck'];
+const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'neck'];
 
 /**
  * Where the parts of a clip of several people hold each other: stretches where a hand stays on

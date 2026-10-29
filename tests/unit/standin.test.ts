@@ -40,19 +40,14 @@ describe('stand-ins', () => {
     expect(describeShot(back)).toContain('a stand-in');
   });
 
-  it('build as capsules on the same skeleton and rest on the floor in every posture', () => {
+  it('rest on the floor in every posture', () => {
     const rig = new Rig();
     const f = newFigure();
-    const full = rig.model(f);
-    let parts = 0;
-    full.forEachPoint(() => parts++);
     const heights: Record<string, number> = {};
     for (const p of ['stand', 'sit', 'lie'] as const) {
       const m = rig.model(withPosture(f, p));
-      let n = 0;
       let min = Infinity;
-      m.forEachPoint((v) => { n++; min = Math.min(min, v.y); });
-      expect(n).toBeLessThan(parts / 3);
+      m.forEachPoint((v) => { min = Math.min(min, v.y); });
       expect(min).toBeCloseTo(0, 3);
       heights[p] = m.joints.head.getWorldPosition(m.joints.head.position.clone()).y;
     }

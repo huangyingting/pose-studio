@@ -56,33 +56,33 @@ const sketchfab = (id: string, name: string, body: BodyParams, author: string): 
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
  * two of Sketchfab's (CC BY), rigged here. Each with the body the mannequin under it takes (its
- * height, build, head and legs, measured from the character), which contacts and the motion check
- * use.
+ * sex, and the height that puts the mannequin's hips at the character's), which contacts and the
+ * motion check use.
  */
 export const BUILT_IN_CHARACTERS: ModelInfo[] = [
-  { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, body: { sex: 1, height: 1.77, build: 0.26, head: 0.97, legs: 0.85, bust: 0.4 } },
-  { id: `${PREFIX}man`, name: 'Man', format: 'glb', bones: BONES, body: { sex: 0, height: 1.8, build: 0.66, head: 0.88, legs: 0.8, bust: 0 } },
-  { id: `${PREFIX}child`, name: 'Child', format: 'glb', bones: MIXAMO, body: { sex: 0.5, height: 1.3, build: 0.85, head: 1.1, legs: 0.93, bust: 0 } },
-  { id: `${PREFIX}heavy-man`, name: 'Heavier man', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.71, build: 0.84, head: 1.01, legs: 0.99, bust: 0 } },
-  { id: `${PREFIX}older-woman`, name: 'Older woman', format: 'glb', bones: MIXAMO, body: { sex: 1, height: 1.5, build: 1, head: 0.97, legs: 0.9, bust: 0.5 } },
+  { id: `${PREFIX}woman`, name: 'Woman', format: 'glb', bones: BONES, body: { sex: 1, height: 1.63 } },
+  { id: `${PREFIX}man`, name: 'Man', format: 'glb', bones: BONES, body: { sex: 0, height: 1.74 } },
+  { id: `${PREFIX}child`, name: 'Child', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.32 } },
+  { id: `${PREFIX}heavy-man`, name: 'Heavier man', format: 'glb', bones: MIXAMO, body: { sex: 0, height: 1.8 } },
+  { id: `${PREFIX}older-woman`, name: 'Older woman', format: 'glb', bones: MIXAMO, body: { sex: 1, height: 1.42 } },
   {
-    id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.52, build: 0, head: 1.2, legs: 1.04, bust: 0.3 },
+    id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.49 },
     credit: 'by Ueda · personal use · credit required',
   },
   // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/import.ts).
-  mixamo('adam', 'Jogger', { sex: 0, height: 1.7, build: 1, head: 1.05, legs: 0.91, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
-  mixamo('brute', 'Barbarian', { sex: 0, height: 2.07, build: 1, head: 0.96, legs: 0.94, bust: 0 }),
-  mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.68, build: 1, head: 1.27, legs: 0.97, bust: 0.4 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
-  mixamo('erika-archer', 'Archer', { sex: 1, height: 1.77, build: 0.91, head: 0.98, legs: 1.05, bust: 0.4 }),
-  mixamo('joe', 'Businessman', { sex: 0, height: 1.71, build: 1, head: 1.14, legs: 0.97, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightLittleDistal')),
-  mixamo('ninja', 'Ninja', { sex: 0, height: 1.7, build: 0.76, head: 0.86, legs: 0.79, bust: 0 }),
-  mixamo('paladin-j-nordstrom', 'Knight', { sex: 0, height: 1.67, build: 0.49, head: 0.86, legs: 0.88, bust: 0 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightRingDistal', 'rightLittleDistal')),
-  mixamo('pete', 'Construction worker', { sex: 0, height: 1.74, build: 1, head: 1.07, legs: 0.85, bust: 0 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
-  mixamo('remy', 'Student', { sex: 0, height: 1.83, build: 0.5, head: 0.99, legs: 0.92, bust: 0 }),
-  mixamo('swat', 'SWAT officer', { sex: 0, height: 1.72, build: 0.17, head: 0.89, legs: 0.83, bust: 0 }),
+  mixamo('adam', 'Jogger', { sex: 0, height: 1.72 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightLittleDistal')),
+  mixamo('brute', 'Barbarian', { sex: 0, height: 2.14 }),
+  mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.58 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('erika-archer', 'Archer', { sex: 1, height: 1.79 }),
+  mixamo('joe', 'Businessman', { sex: 0, height: 1.75 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightLittleDistal')),
+  mixamo('ninja', 'Ninja', { sex: 0, height: 1.64 }),
+  mixamo('paladin-j-nordstrom', 'Knight', { sex: 0, height: 1.69 }, oursWithout('leftThumbDistal', 'leftIndexDistal', 'leftMiddleDistal', 'leftRingDistal', 'leftLittleDistal', 'rightThumbDistal', 'rightIndexDistal', 'rightMiddleDistal', 'rightRingDistal', 'rightLittleDistal')),
+  mixamo('pete', 'Construction worker', { sex: 0, height: 1.69 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
+  mixamo('remy', 'Student', { sex: 0, height: 1.86 }),
+  mixamo('swat', 'SWAT officer', { sex: 0, height: 1.7 }),
   // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a tactical officer without his rifle, and a life model.
-  sketchfab('swat-operator', 'Tactical officer', { sex: 0, height: 1.83, build: 0.18, head: 0.88, legs: 0.79, bust: 0 }, 'SpatialNeglect'),
-  sketchfab('male-base', 'Life model', { sex: 0, height: 1.78, build: 0, head: 0.88, legs: 0.89, bust: 0 }, 'Mandrake'),
+  sketchfab('swat-operator', 'Tactical officer', { sex: 0, height: 1.76 }, 'SpatialNeglect'),
+  sketchfab('male-base', 'Life model', { sex: 0, height: 1.81 }, 'Mandrake'),
 ];
 
 export const isBuiltInCharacter = (id: string) => id.startsWith(PREFIX);

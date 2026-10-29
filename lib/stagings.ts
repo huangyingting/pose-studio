@@ -108,12 +108,12 @@ export const STAGINGS: Staging[] = [
     name: 'Conversation',
     people: 2,
     build: () => withRig((rig) => {
-      let a = person('Anna', body('Female'), -0.55, 0, 0, {
+      let a = person('Anna', body('Woman'), -0.55, 0, 0, {
         leftUpperLeg: [0, 0, 5], rightUpperLeg: [-4, 0, -7], rightLowerLeg: [10, 0, 0],
         leftUpperArm: [0, 0, 8], leftLowerArm: [-12, 0, 0],
         rightUpperArm: [-38, 10, -14], rightLowerArm: [-78, 0, 0], rightHand: [-20, 0, 10],
       });
-      let b = person('Ben', body('Male'), 0.55, 0, 0, {
+      let b = person('Ben', body('Man'), 0.55, 0, 0, {
         leftUpperLeg: [-3, 0, 6], leftLowerLeg: [8, 0, 0], rightUpperLeg: [0, 0, -4],
         leftUpperArm: [8, -20, 40], leftLowerArm: [-105, 0, 0], rightUpperArm: [0, 0, -8], rightLowerArm: [-12, 0, 0],
       });
@@ -128,8 +128,8 @@ export const STAGINGS: Staging[] = [
     name: 'Handshake',
     people: 2,
     build: () => withRig((rig) => {
-      let a = person('Ben', body('Male'), -0.34, 0, 0, RELAXED_ARMS);
-      let b = person('Anna', body('Female'), 0.34, 0, 0, RELAXED_ARMS);
+      let a = person('Ben', body('Man'), -0.34, 0, 0, RELAXED_ARMS);
+      let b = person('Anna', body('Woman'), 0.34, 0, 0, RELAXED_ARMS);
       [a, b] = faceEachOther(a, b);
       const meet = new THREE.Vector3(0, 0.95, 0);
       a = reachTo(rig, a, 'R', meet.clone().add(new THREE.Vector3(-0.025, 0, 0)));
@@ -145,10 +145,10 @@ export const STAGINGS: Staging[] = [
     name: 'Hand on shoulder',
     people: 2,
     build: () => withRig((rig) => {
-      const b = person('Ben', body('Athletic'), 0.3, 0, -8, {
+      const b = person('Ben', body('Tall man'), 0.3, 0, -8, {
         leftUpperArm: [6, -25, 38], leftLowerArm: [-100, 0, 0], rightUpperArm: [0, 0, -10], rightLowerArm: [-15, 0, 0], leftUpperLeg: [0, 0, 6], rightUpperLeg: [-3, 0, -3],
       });
-      let a = besides(person('Anna', body('Female'), 0, 0, 0, RELAXED_ARMS), b, 'R', 0.58);
+      let a = besides(person('Anna', body('Woman'), 0, 0, 0, RELAXED_ARMS), b, 'R', 0.58);
       a = pose(a, { hips: [0, 8, 0], rightUpperLeg: [-3, 0, -6], rightLowerLeg: [6, 0, 0] });
       a = reachTo(rig, a, 'L', contactPoint(rig.model(b), b, 'rightUpperArm'));
       a = withHands(a, hand('Relaxed'));
@@ -171,8 +171,8 @@ export const STAGINGS: Staging[] = [
           spine: [4, 0, 0],
         } as Angles;
       };
-      let a = person('Anna', body('Female'), -0.27, 0, 0, stride('L'));
-      let b = person('Ben', body('Male'), 0.29, 0.04, 0, stride('R'));
+      let a = person('Anna', body('Woman'), -0.27, 0, 0, stride('L'));
+      let b = person('Ben', body('Man'), 0.29, 0.04, 0, stride('R'));
       const held = new THREE.Vector3(0.01, 0.82, 0.05);
       a = reachTo(rig, a, 'L', held.clone().add(new THREE.Vector3(-0.02, 0, 0)));
       b = reachTo(rig, b, 'R', held.clone().add(new THREE.Vector3(0.02, 0, 0)));
@@ -187,8 +187,8 @@ export const STAGINGS: Staging[] = [
     name: 'Waltz hold',
     people: 2,
     build: () => withRig((rig) => {
-      const a = person('Ben', body('Male'), 0.04, -0.2, 0, { ...RELAXED_ARMS, spine: [-3, 0, 0], chest: [-4, 0, 0] });
-      const b = person('Anna', body('Slender'), -0.04, 0.2, 180, { ...RELAXED_ARMS, spine: [-6, 0, 0], chest: [-8, 0, 0], neck: [-6, 0, 0] });
+      const a = person('Ben', body('Man'), 0.04, -0.2, 0, { ...RELAXED_ARMS, spine: [-3, 0, 0], chest: [-4, 0, 0] });
+      const b = person('Anna', body('Tall woman'), -0.04, 0.2, 180, { ...RELAXED_ARMS, spine: [-6, 0, 0], chest: [-8, 0, 0], neck: [-6, 0, 0] });
       return scene('Waltz hold', waltzHold(rig, a, b), { yaw: 70, pitch: 6, fov: 24 });
     }),
   },
@@ -202,8 +202,8 @@ export const STAGINGS: Staging[] = [
         g = reachTo(rig, g, 'R', local(rig, g, 'leftLowerArm', [-0.02, -0.03, 0.12]));
         return g;
       };
-      let a = person('Anna', body('Female'), 0, 0.15, 0, { ...RELAXED_ARMS, leftUpperLeg: [0, 0, 6], rightUpperLeg: [-2, 0, -4] });
-      let b = backToBack(person('Ben', body('Heroic'), 0, 0, 0, RELAXED_ARMS), a, 0.32);
+      let a = person('Anna', body('Woman'), 0, 0.15, 0, { ...RELAXED_ARMS, leftUpperLeg: [0, 0, 6], rightUpperLeg: [-2, 0, -4] });
+      let b = backToBack(person('Ben', body('Big man'), 0, 0, 0, RELAXED_ARMS), a, 0.32);
       a = folded(a);
       b = folded(b);
       a = lookTo(rig, a, new THREE.Vector3(1.5, 1.6, 5));
@@ -221,8 +221,8 @@ export const STAGINGS: Staging[] = [
         leftUpperLeg: [-26, 0, 8], leftLowerLeg: [26, 0, 0], leftFoot: [-6, 0, 0],
         rightUpperLeg: [16, 0, -12], rightLowerLeg: [24, 0, 0], rightFoot: [6, 0, 0],
       };
-      let a = person('Ben', body('Athletic'), -0.62, 0, 0, RELAXED_ARMS);
-      let b = person('Kai', body('Male'), 0.62, 0, 0, RELAXED_ARMS);
+      let a = person('Ben', body('Tall man'), -0.62, 0, 0, RELAXED_ARMS);
+      let b = person('Kai', body('Man'), 0.62, 0, 0, RELAXED_ARMS);
       [a, b] = faceEachOther(a, b);
       const guard = (f: Figure) => {
         let g = pose(f, stance);
@@ -241,11 +241,11 @@ export const STAGINGS: Staging[] = [
     name: 'Group photo',
     people: 3,
     build: () => withRig((rig) => {
-      let mid = person('Mia', body('Female'), 0, 0, 0, RELAXED_ARMS);
-      let left = besides(person('Ben', body('Male'), 0, 0, 0, {
+      let mid = person('Mia', body('Woman'), 0, 0, 0, RELAXED_ARMS);
+      let left = besides(person('Ben', body('Man'), 0, 0, 0, {
         leftUpperArm: [0, 0, 8], leftLowerArm: [-12, 0, 0], rightUpperArm: [6, 20, -40], rightLowerArm: [-100, 0, 0], leftUpperLeg: [-2, 0, 5],
       }), mid, 'R', 0.47);
-      let right = besides(person('Ava', body('Slender'), 0, 0, 0, {
+      let right = besides(person('Ava', body('Tall woman'), 0, 0, 0, {
         rightUpperArm: [0, 0, -8], rightLowerArm: [-12, 0, 0], leftUpperArm: [-10, 0, 150], leftLowerArm: [-60, 0, 0], rightUpperLeg: [-3, 0, -6], rightLowerLeg: [8, 0, 0],
       }), mid, 'L', 0.45);
       left = withFacing(left, 10);

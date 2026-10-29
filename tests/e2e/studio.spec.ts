@@ -474,7 +474,7 @@ test('figures, props, body and hand presets', async ({ page }) => {
   // The chair is selected: pick the new figure again, then its body.
   await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
   await page.getByRole('button', { name: 'Body & colour' }).click();
-  await page.getByRole('button', { name: 'Male', exact: true }).click();
+  await page.getByRole('button', { name: 'Man', exact: true }).click();
   s = (await state(page)).scene;
   expect(s.figures[1].body.sex).toBe(0);
   expect(s.figures[0].body.sex).toBe(1);
@@ -722,12 +722,13 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
 test('body presets change the body', async ({ page }) => {
   await page.getByRole('button', { name: 'Body & colour' }).click();
   const types = page.getByRole('group', { name: 'Body type' });
-  await types.getByRole('button', { name: 'Male', exact: true }).click();
-  expect((await state(page)).scene.figures[0].body).toMatchObject({ sex: 0, height: 1.8 });
+  await types.getByRole('button', { name: 'Man', exact: true }).click();
+  expect((await state(page)).scene.figures[0].body).toEqual({ sex: 0, height: 1.8 });
   await types.getByRole('button', { name: 'Child', exact: true }).click();
   expect((await state(page)).scene.figures[0].body.height).toBe(1.25);
-  // One control per setting: no separate male / female switch.
-  await expect(page.getByRole('radiogroup', { name: 'Sex' })).toHaveCount(0);
+  // A man or a woman (Y Bot or X Bot), and a height: nothing else to set.
+  await page.getByRole('radiogroup', { name: 'Man or woman' }).getByRole('radio', { name: 'Woman' }).click();
+  expect((await state(page)).scene.figures[0].body).toEqual({ sex: 1, height: 1.25 });
 });
 
 type Fig = { id: string; position: number[]; bones: Bones };

@@ -7,7 +7,7 @@ import {
 import {
   arrange, offsetPerformance, setIdleLife, holdOn, letGo, lookAtFigure, reachFor, renameFigure, setDistance, setFigureColor, setFigureModel, setGaze, setGrounded, setHand, setJoint, setPlacement, setPosture,
 } from '@/lib/actions';
-import { BODY_FIELDS, BODY_PRESETS } from '@/lib/body';
+import { BODY_PRESETS, HEIGHT } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
@@ -366,7 +366,6 @@ export function BodyPanel({ t }: { t: Target }) {
   const figure = t.figure!;
   const body = figure.body;
   const setBody = (patch: Partial<typeof body>, key = '') => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...f.body, ...patch } }), key);
-  const heightField = BODY_FIELDS.find((f) => f.key === 'height')!;
   const models = modelsOf(t);
   const drawnAs = figure.model && models.some((m) => m.id === figure.model);
   return (
@@ -396,15 +395,7 @@ export function BodyPanel({ t }: { t: Target }) {
         ))}
       </div>
       {drawnAs ? (
-        <Slider
-          label="Height"
-          min={heightField.min}
-          max={heightField.max}
-          step={heightField.step}
-          value={body.height}
-          display={heightField.format(body.height)}
-          onChange={(height) => setBody({ height }, 'body:height')}
-        />
+        <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
       ) : (
         <>
           <div className="preset-grid" role="group" aria-label="Body type">
@@ -425,18 +416,14 @@ export function BodyPanel({ t }: { t: Target }) {
             })}
           </div>
           <div className="stack">
-            {BODY_FIELDS.map((f) => (
-              <Slider
-                key={f.key}
-                label={f.label}
-                min={f.min}
-                max={f.max}
-                step={f.step}
-                value={body[f.key]}
-                display={f.format(body[f.key])}
-                onChange={(v) => setBody({ [f.key]: v }, `body:${f.key}`)}
-              />
-            ))}
+            <Segmented<'man' | 'woman'>
+              label="Man or woman"
+              value={body.sex >= 0.5 ? 'woman' : 'man'}
+              onChange={(v) => setBody({ sex: v === 'woman' ? 1 : 0 })}
+              options={[{ value: 'man', label: 'Man', icon: Mars }, { value: 'woman', label: 'Woman', icon: Venus }]}
+              full
+            />
+            <Slider label="Height" min={HEIGHT.min} max={HEIGHT.max} step={HEIGHT.step} value={body.height} display={HEIGHT.format(body.height)} onChange={(height) => setBody({ height }, 'body:height')} />
           </div>
         </>
       )}

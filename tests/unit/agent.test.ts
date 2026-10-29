@@ -57,7 +57,7 @@ describe('assistant tools', () => {
     expect(angle(store.figure!.bones, 'leftLowerLeg')).toEqual([0, 0, 0]);
     expect(angle(store.figure!.bones, 'rightUpperArm')).toEqual([-90, 0, -10]);
 
-    run(store, 'add_figure', { kind: 'figure', name: 'Ben', body: 'Male', posture: null, x: 1.5, z: null });
+    run(store, 'add_figure', { kind: 'figure', name: 'Ben', body: 'Man', posture: null, x: 1.5, z: null });
     run(store, 'relate', { figure: 'Ben', other: id, action: 'face_each_other', distance: null });
     const after = JSON.parse(run(store, 'get_scene'));
     const ben = after.figures.find((f: { name: string }) => f.name === 'Ben');

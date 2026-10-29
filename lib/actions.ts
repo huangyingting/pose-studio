@@ -145,7 +145,7 @@ export function addFigure(store: Store, at = besideFigures(store, 0.8), yaw = 0)
   addFigures(store, [yaw ? withFacing(fig, yaw) : fig]);
 }
 
-/** A capsule stand-in for blocking: placed like a figure, in a posture, not posed joint by joint. */
+/** A stand-in for blocking: placed like a figure, in a posture, not posed joint by joint. */
 export function addStandIn(store: Store, at = besideFigures(store, 0.8), yaw = 0) {
   const f = withPosture(newFigure({ name: nextName('Stand-in', store.scene.figures.map((x) => x.name)), position: at }), 'stand');
   addFigures(store, [yaw ? withFacing(f, yaw) : f]);

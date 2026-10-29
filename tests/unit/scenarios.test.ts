@@ -335,8 +335,8 @@ describe('scenes from the use case', () => {
     const { store, a } = fresh();
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
-    store.updateFigure(a, (f) => ({ ...f, body: body('Female') }));
-    store.updateFigure(b, (f) => ({ ...f, body: body('Heroic') }));
+    store.updateFigure(a, (f) => ({ ...f, body: body('Woman') }));
+    store.updateFigure(b, (f) => ({ ...f, body: body('Big man') }));
     expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
     expectClean(store.scene);
   }, 60_000);

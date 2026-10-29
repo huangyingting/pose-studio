@@ -16,7 +16,7 @@ describe('constraints: contacts held on the actual bodies', () => {
     addFigure(store, [0.6, 0, 0]);
     const b = store.getState().activeFigure!;
     arrange(store, a, b, 'faceEachOther');
-    setDistance(store, a, b, 0.55);
+    setDistance(store, a, b, 0.45);
     startAnimation(store, 3);
     store.setTime(0);
     expect(holdOn(store, a, 'R', b, 'leftUpperArm')).toBe(true);
@@ -54,8 +54,8 @@ describe('constraints: contacts held on the actual bodies', () => {
     const { store, a } = fresh();
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
-    store.updateFigure(a, (f) => ({ ...f, body: body('Female') }));
-    store.updateFigure(b, (f) => ({ ...f, body: body('Heroic') }));
+    store.updateFigure(a, (f) => ({ ...f, body: body('Woman') }));
+    store.updateFigure(b, (f) => ({ ...f, body: body('Big man') }));
     expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
     expect(checkMotion(store.scene).map((i) => i.message)).toEqual([]);
     // Mid-hold, his hand is where the waltz has it on her back (within a couple of centimetres of the clip, scaled).

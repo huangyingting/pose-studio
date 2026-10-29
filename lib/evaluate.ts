@@ -4,14 +4,14 @@ import { clipById, clipsVersion } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
-import { scaleOf, torsoScale } from './mannequin';
+import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
 import { PropTimeline, animated, inHand, placeInWorld, propOn, ribbonTrail } from './propmotion';
 import { Rig } from './relations';
 import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
-import { TRUNK, detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
+import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
 import { HZ, physicsReady } from './physics';
 import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
 
@@ -176,10 +176,10 @@ class Evaluator {
   }
 
   /** Where one of a figure's bones is at t (before holds), with a point in its frame. */
-  private onBody(id: string, bone: JointName, at: Vec3, t: number, scale: Vec3 = [1, 1, 1]): THREE.Vector3 | null {
+  private onBody(id: string, bone: JointName, at: Vec3, t: number, scale = 1): THREE.Vector3 | null {
     const f = this.figures.get(id);
     if (!f) return null;
-    return this.rig.model({ ...f, ...this.free(f, t) }).joints[bone].localToWorld(new THREE.Vector3(...at).multiply(new THREE.Vector3(...scale)));
+    return this.rig.model({ ...f, ...this.free(f, t) }).joints[bone].localToWorld(new THREE.Vector3(...at).multiplyScalar(scale));
   }
 
   /**
@@ -257,13 +257,8 @@ class Evaluator {
         const body = this.figures.get(partner ?? '')?.body;
         if (!partner || !body) return;
         // Where on the partner's body the clip has the hand now, on the partner as it is (however big).
-        // (A leg's bones are as long as its leg length makes them; the torso as wide and deep as its
-        // build makes it, as tall as its scale; the rest, as the body's scale.)
-        const was = clip.parts[c.on.part].body ?? body;
-        const k = scaleOf(body) / scaleOf(was);
-        const across = torsoScale(body) / torsoScale(was);
-        const size: Vec3 = TRUNK.includes(c.on.bone) ? [across, k, across] : /Leg|Foot/.test(c.on.bone) ? [k, k * (body.legs / was.legs), k] : [k, k, k];
-        const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, size);
+        const k = scaleOf(body) / scaleOf(clip.parts[c.on.part].body ?? body);
+        const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, k);
         if (spot) out.push({ bone, at: spot, weight, relative: true });
       });
     }

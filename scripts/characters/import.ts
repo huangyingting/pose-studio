@@ -14,23 +14,22 @@
  * other built-ins are: in metres (Mixamo's FBX are in centimetres: a root scaled to a hundredth over
  * its scene; Remy's twice as big), its bones named as our skeleton's (as the app found them). It
  * prints each one's entry for lib/characters.ts (`mixamo(…)`): the bones it lacks (fingers' ends, some fingers),
- * and the body the mannequin under it takes (its proportions; the height at which the mannequin's
+ * and the body the mannequin under it takes (its sex; the height at which the mannequin's
  * hips are the character's: it is drawn at its own size).
  */
 import { writeFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { chromium } from 'playwright';
-import { newFigure } from '../../lib/doc';
 import { legsOf } from '../../lib/locomotion';
-import { Fitted, characterProportions, fitBody, mapBones } from '../../lib/model';
+import { Fitted, mapBones } from '../../lib/model';
 import { BONES, type BodyParams } from '../../lib/types';
 
 const APP = process.env.APP ?? 'http://localhost:3399/';
 // (Remy's file is drawn at twice a man's size.)
 const UNITS: Record<string, number> = { remy: 0.005 };
-// Who is a woman (and her bust); the rest are men.
-const WOMEN: Record<string, [number, number]> = { elizabeth: [1, 0.4], 'erika-archer': [1, 0.4] };
+// Who is a woman; the rest are men.
+const WOMEN = new Set(['elizabeth', 'erika-archer']);
 // Named by their roles, not as Mixamo names them (their files' names stay their ids).
 const ROLES: Record<string, string> = {
   adam: 'Jogger', brute: 'Barbarian', elizabeth: 'Casual woman', 'erika-archer': 'Archer', joe: 'Businessman',
@@ -90,24 +89,19 @@ async function made(id: string, glb: Buffer, fbx: boolean) {
     gltf.nodes[node].name = bone;
   }
   const out = writeGlb(gltf, rest);
-  // Its body: its proportions, at the height that puts its hips where the mannequin's are.
+  // Its body: its sex, at the height that puts the mannequin's hips where it has its own.
   const root = (await load(out)).scene;
   const ours = mapBones(root);
   const hips = new Fitted(root, ours).hipHeight;
-  const proportions = characterProportions(root, ours)!;
-  const [sex, bust] = WOMEN[id] ?? [0, 0];
-  let body: BodyParams = { ...newFigure().body, sex, bust };
-  for (let round = 0; round < 3; round++) {
-    body = fitBody({ ...newFigure(), body }, proportions);
-    let lo = 0.8, hi = 2.4;
-    for (let i = 0; i < 30; i++) {
-      const mid = (lo + hi) / 2;
-      const legs = legsOf({ ...body, height: mid });
-      if (legs.rootY - legs.ankleY < hips) lo = mid;
-      else hi = mid;
-    }
-    body = { ...body, height: Math.round(lo * 100) / 100 };
+  const body: BodyParams = { sex: WOMEN.has(id) ? 1 : 0, height: 0 };
+  let lo = 0.8, hi = 2.6;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    const legs = legsOf({ ...body, height: mid });
+    if (legs.rootY - legs.ankleY < hips) lo = mid;
+    else hi = mid;
   }
+  body.height = Math.round(lo * 100) / 100;
   const lacks = BONES.filter((b) => !(b in ours));
   return { out, lacks, body };
 }

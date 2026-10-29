@@ -59,17 +59,22 @@ describe('posing against another figure', () => {
     rig.dispose();
   });
 
-  it('puts a hip on the side of the pelvis, whatever its build (not inside it)', () => {
+  it('puts a hip on the side of the pelvis, man or woman, short or tall (not inside it)', () => {
     const rig = new Rig();
-    for (const body of [{ sex: 1, build: 1 }, { sex: 0, build: 0.75 }, { sex: 1, build: 0 }]) {
-      const f = { ...at(0, 0), body: { ...at(0, 0).body, ...body } };
+    for (const body of [{ sex: 1, height: 1.6 }, { sex: 0, height: 1.95 }, { sex: 1, height: 1.8 }]) {
+      const f = { ...at(0, 0), body };
       const m = rig.model(f);
       const hips = m.joints.hips.worldToLocal(contactPoint(m, f, 'leftUpperLeg'));
-      const k = f.body.height / 1.8;
-      const pelvis = m.parts.bodies.find((b) => b.userData.joint === 'hips')!.geometry as THREE.BufferGeometry;
-      const pos = pelvis.attributes.position;
+      // The pelvis's side at the contact's height (its points as posed, in the hips' frame).
       let side = 0;
-      for (let i = 0; i < pos.count; i++) if (Math.abs(pos.getY(i) - 0.01 * k) < 0.01) side = Math.max(side, pos.getX(i));
+      const p = new THREE.Vector3();
+      for (const b of m.parts.bodies.filter((x) => x.userData.joint === 'hips')) {
+        const pos = (b.geometry as THREE.BufferGeometry).attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          m.joints.hips.worldToLocal(b.getVertexPosition(i, p).applyMatrix4(b.matrixWorld));
+          if (Math.abs(p.y - hips.y) < 0.01 && Math.abs(p.z - hips.z) < 0.06) side = Math.max(side, p.x);
+        }
+      }
       expect(hips.x).toBeGreaterThan(side);
       expect(hips.x).toBeLessThan(side + 0.03);
     }

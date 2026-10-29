@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { sided } from './joints';
-import { IK_CHAINS, Mannequin, scaleOf, setWorldQuaternion, torsoHalfWidth, worldPos } from './mannequin';
+import { IK_CHAINS, Mannequin, hipHalfWidth, scaleOf, setWorldQuaternion, worldPos } from './mannequin';
 import { angle, facingOf, turnBones } from './pose';
 import type { Figure, JointName, Side, Vec3 } from './types';
 
@@ -111,7 +111,7 @@ const SPARE_PER_BODY = 4;
 const SPARE = 16;
 let spares = 0;
 const calculating = new Ink();
-const bodyKey = (f: Figure) => `${JSON.stringify(f.body)}${f.proxy ? ':stand-in' : ''}`;
+const bodyKey = (f: Figure) => `${f.body.sex >= 0.5 ? 'female' : 'male'}:${f.body.height}`;
 
 /** Figures' mannequins, posed as asked, to work things out with. */
 export class Rig {
@@ -125,7 +125,7 @@ export class Rig {
       const key = bodyKey(f);
       const kept = spare.get(key)?.pop();
       if (kept) spares--;
-      const m = kept ?? new Mannequin(calculating, f.body, f.id, false, true);
+      const m = kept ?? new Mannequin(calculating, f.body, f.id, true);
       m.retag(f.id);
       held = { m, key };
       this.models.set(f.id, held);
@@ -195,7 +195,7 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
     case 'waist': return at('spine', [0, 0.08 * k, 0.12 * k]);
     case 'leftUpperLeg': case 'rightUpperLeg': {
       // (Its side, just out from the torso there.)
-      const x = torsoHalfWidth(f.body, 0.01 * k) + 0.01 * k;
+      const x = hipHalfWidth(f.body) + 0.01 * k;
       return at('hips', [c === 'leftUpperLeg' ? x : -x, 0.01 * k, 0]);
     }
     case 'leftLowerLeg': case 'rightLowerLeg': {
@@ -330,7 +330,7 @@ export interface Capsule { p: THREE.Vector3; q: THREE.Vector3; r: number; bone: 
 /** A posed figure's bones as capsules. */
 export function capsules(rig: Rig, f: Figure): Capsule[] {
   const m = rig.model(f);
-  // (Sized for a 1.7 m figure of the mannequin's first proportions: scaled as its parts are.)
+  // (Sized for a 1.7 m figure: scaled as its parts are.)
   const s = scaleOf(f.body) * (1.8 / 1.7);
   const w = (k: JointName) => m.joints[k].getWorldPosition(new THREE.Vector3());
   return BONES.map((b) => {
@@ -339,6 +339,6 @@ export function capsules(rig: Rig, f: Figure): Capsule[] {
     const end = w(b.b);
     const p = a.clone().lerp(end, b.from ?? 0);
     const q = a.clone().lerp(end, b.to ?? 1);
-    return { p, q, r: b.r * s * (0.85 + f.body.build * 0.3), bone: b.a };
+    return { p, q, r: b.r * s * 0.95, bone: b.a };
   });
 }

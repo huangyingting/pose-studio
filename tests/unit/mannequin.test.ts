@@ -120,7 +120,7 @@ describe('Mannequin', () => {
   it('rebuilds only when the body changes', () => {
     const m = make();
     expect(m.setBody(DEFAULT_BODY)).toBe(false);
-    expect(m.setBody({ ...DEFAULT_BODY, build: 0.9 })).toBe(true);
+    expect(m.setBody({ ...DEFAULT_BODY, height: 1.8 })).toBe(true);
   });
 
   it('curls fingers into a fist', () => {
@@ -141,34 +141,17 @@ describe('Mannequin', () => {
 
 describe('sex characteristics', () => {
   const width = (m: Mannequin, a: 'leftUpperArm' | 'leftUpperLeg') => m.joints[a].getWorldPosition(new THREE.Vector3()).x * 2;
-  it('gives male figures broader shoulders than hips, and female figures the reverse ratio', () => {
-    const male = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 0, bust: 0 });
-    const female = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 1 });
+  it('draws a man as Y Bot and a woman as X Bot: his shoulders broader for his hips, her hips wider for her height', () => {
+    const male = new Mannequin(new Ink(), { sex: 0, height: 1.7 });
+    const female = new Mannequin(new Ink(), { sex: 1, height: 1.7 });
     const ratio = (m: Mannequin) => width(m, 'leftUpperArm') / width(m, 'leftUpperLeg');
-    expect(ratio(male)).toBeGreaterThan(ratio(female) * 1.4);
-    // An hourglass: her waist narrower than her hips and chest, by more than his.
-    const across = (m: Mannequin, joint: JointName, y: number) => {
-      const body = m.parts.bodies.find((b) => b.userData.joint === joint)!;
-      const pos = (body.geometry as THREE.BufferGeometry).attributes.position;
-      let w = 0;
-      // (Its pieces are made in the hips' frame: heights from the hips joint.)
-      const k = DEFAULT_BODY.height / 1.8;
-      for (let i = 0; i < pos.count; i++) if (Math.abs(pos.getY(i) - y * k) < 0.01) w = Math.max(w, Math.abs(pos.getX(i)));
-      return w;
+    expect(ratio(male)).toBeGreaterThan(ratio(female) * 1.05);
+    const hips = (m: Mannequin) => {
+      const box = new THREE.Box3();
+      m.parts.bodies.filter((b) => b.userData.joint === 'hips').forEach((b) => box.expandByObject(b, true));
+      return box.max.x - box.min.x;
     };
-    const shape = (m: Mannequin) => ({ hips: across(m, 'hips', -0.05), waist: across(m, 'spine', 0.17), chest: across(m, 'chest', 0.42) });
-    const [him, her] = [shape(male), shape(female)];
-    expect(her.waist / her.hips).toBeLessThan(him.waist / him.hips - 0.1);
-    expect(her.hips).toBeGreaterThan(her.chest);
-    expect(him.chest).toBeGreaterThan(him.hips);
-    // Breasts shaped into her chest: it reaches further forward with a bust than without.
-    const flat = new Mannequin(new Ink(), { ...DEFAULT_BODY, sex: 1, bust: 0 });
-    const front = (m: Mannequin) => {
-      const body = m.parts.bodies.find((b) => b.userData.joint === 'chest')!;
-      (body.geometry as THREE.BufferGeometry).computeBoundingBox();
-      return (body.geometry as THREE.BufferGeometry).boundingBox!.max.z;
-    };
-    expect(front(female)).toBeGreaterThan(front(flat) + 0.01);
-    for (const m of [male, female, flat]) m.dispose();
+    expect(hips(female)).toBeGreaterThan(hips(male));
+    for (const m of [male, female]) m.dispose();
   });
 });
