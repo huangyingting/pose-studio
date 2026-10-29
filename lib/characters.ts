@@ -10,7 +10,7 @@ import { BONES as SKELETON, type BodyParams, type ModelInfo } from './types';
 
 const PREFIX = 'character:';
 /** The files' version: raised when one is remade, so that a browser does not keep the old one. */
-const FILES = 2;
+const FILES = 3;
 
 // A VRM avatar, a MakeHuman, Mixamo or Sketchfab character made one of ours (scripts/vrm-character.py,
 // scripts/characters/import.ts): its bones named as our skeleton's (some without a finger's end).
@@ -24,8 +24,8 @@ const WHOLE_HANDS = oursWithout(...SKELETON.filter((b) => /Thumb|Index|Middle|Ri
 const sketchfab = (id: string, name: string, body: BodyParams, author: string): ModelInfo => ({ id: `${PREFIX}${id}`, name, format: 'glb', bones: WHOLE_HANDS, body, credit: `by ${author} · CC BY 4.0` });
 
 /**
- * The built-in characters: a man, a woman and a child made with MakeHuman (East Asian, ideal
- * proportions, faces found beautiful in East Asia, in fitted clothes: scripts/characters/makehuman.py),
+ * The built-in characters: a man, a woman, a boy and a girl made with MakeHuman (Chinese, slender,
+ * ideal proportions, faces found beautiful in China, in fitted clothes: scripts/characters/makehuman.py),
  * CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
@@ -34,9 +34,11 @@ const sketchfab = (id: string, name: string, body: BodyParams, author: string): 
  * motion check use.
  */
 export const BUILT_IN_CHARACTERS: ModelInfo[] = [
-  makehuman('woman', 'Woman', { sex: 1, height: 1.51 }),
-  makehuman('man', 'Man', { sex: 0, height: 1.88 }),
-  makehuman('child', 'Child', { sex: 0, height: 1.34 }),
+  makehuman('woman', 'Woman', { sex: 1, height: 1.71 }),
+  makehuman('man', 'Man', { sex: 0, height: 1.95 }),
+  // (The boy's file and id are the child's: scenes know him by that.)
+  makehuman('child', 'Boy', { sex: 0, height: 1.24 }),
+  makehuman('girl', 'Girl', { sex: 1, height: 1.12 }),
   {
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.49 },
     credit: 'by Ueda · personal use · credit required',
