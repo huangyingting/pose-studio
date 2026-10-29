@@ -556,17 +556,18 @@ function GizmoWarmup() {
 type Trail = { id: string; rig: boolean; times: number[]; points: THREE.Vector3[] };
 
 /**
- * The cameras' trails (where each is every tenth of a second), worked out once a drag rests and a
+ * The cameras' trails (where each is every tenth of a second; a rig's only while it is selected), worked out once a drag rests and a
  * little at a time between frames (a camera on someone poses them at each sample: a long block of
  * work at once would hold up the drop). The trails before stay shown until the new ones are done;
  * each keeps to its own camera.
  */
-function useTrails(scene: Scene): Trail[] {
+function useTrails(scene: Scene, rig: string | null): Trail[] {
   const [trails, setTrails] = useState<Trail[]>([]);
   const { cameras, animation } = scene;
   useEffect(() => {
     const aspect = frameAspect();
-    const jobs = cameras.map((c) => ({ cam: c, trail: { id: c.id, rig: c.kind === 'rig', times: trailTimes(scene, c), points: [] as THREE.Vector3[] } }));
+    // (A rig's only while it is selected: each of its points poses whom it films, again after every edit.)
+    const jobs = cameras.filter((c) => c.kind !== 'rig' || c.id === rig).map((c) => ({ cam: c, trail: { id: c.id, rig: c.kind === 'rig', times: trailTimes(scene, c), points: [] as THREE.Vector3[] } }));
     let job = 0;
     let timer = 0;
     const work = () => {
@@ -583,7 +584,7 @@ function useTrails(scene: Scene): Trail[] {
     return () => window.clearTimeout(timer);
     // (The cameras and the motion, not the figures as the playhead poses them.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameras, animation]);
+  }, [cameras, animation, rig]);
   return trails;
 }
 
@@ -1084,7 +1085,9 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   // The paths and cameras only depend on the cameras, the shots and the motion, not on the playhead.
   const cameras = scene.cameras;
   // (Worked out again when the cameras or the animation change, not as the playhead moves the figures.)
-  const trails = useTrails(useSettled(scene));
+  // (A rig's trail while it, or a shot it films, is selected.)
+  const shown = selection?.kind === 'camera' ? selection.camera : selection?.kind === 'shot' ? a?.shots.find((x) => x.id === selection.shot)?.camera ?? null : null;
+  const trails = useTrails(useSettled(scene), shown);
   const markers = useMemo(() => cameras.flatMap((c) => (c.kind === 'path' ? c.points : []).map((p) => {
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect());

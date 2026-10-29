@@ -866,8 +866,8 @@ export function cameraPath(scene: Scene, start: number, end: number, aspect: num
 }
 
 /**
- * The times a camera's path is drawn through (where it is then, for its trail): ten a second over
- * its points' time and the time of the shots it films.
+ * The times a camera's path is drawn through (where it is then, for its trail): ten a second (a
+ * rig's four) over its points' time and the time of the shots it films.
  */
 export function trailTimes(scene: Scene, cam: Camera): number[] {
   const a = scene.animation;
@@ -877,6 +877,7 @@ export function trailTimes(scene: Scene, cam: Camera): number[] {
   if (!ends.length) return [];
   const from = Math.max(0, Math.min(...ends));
   const to = Math.min(a.duration, Math.max(...ends));
-  const n = Math.max(2, Math.ceil((to - from) * 10));
+  // (Ten a second; a rig's four: each poses whom it films, and its turn is eased between samples half a second apart.)
+  const n = Math.max(2, Math.ceil((to - from) * (cam.kind === 'rig' ? 4 : 10)));
   return Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 }
