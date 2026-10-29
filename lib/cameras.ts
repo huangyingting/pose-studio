@@ -654,7 +654,7 @@ export function angleOf(view: CameraView): { yaw: number; pitch: number } {
 /* ---------- camera moves ---------- */
 
 /** Groups of the camera moves: where the camera goes. */
-export const CAMERA_GROUPS = ['Fixed', 'Pan & tilt', 'Towards & away', 'Around & up', 'Following'] as const;
+export const CAMERA_GROUPS = ['Fixed', 'Pan & tilt', 'Towards & away', 'Around & up', 'Following', 'Classic shots'] as const;
 
 /** What a move works from: the camera, the time it films over, and the angle and lens to start from. */
 export interface MoveContext {
@@ -767,10 +767,47 @@ export const CAMERA_MOVES: CameraMove[] = [
     apply: (c) => ({ kind: 'rig', rig: { body: 'orbit', yaw: -90, pitch: 6, spin: Math.round(180 / Math.max(0.5, c.end - c.start)), size: 'ms', lens: 40, smooth: 0.5 } }),
   },
   {
-    id: 'vertigo', group: 'Towards & away', name: 'Dolly zoom', description: 'The “Vertigo” effect: the lens widens while the figures keep their size',
+    id: 'vertigo', group: 'Classic shots', name: 'Hitchcock zoom', description: 'Vertigo’s dolly zoom: the camera pulls back as the lens zooms in, the figure keeps its size while the world behind it closes in',
     apply: (c) => {
       const at = (t: number, lens: number) => framePoint(c.scene, path(c, 'subject'), t, 'fs', { yaw: c.base.yaw, pitch: c.base.pitch, lens });
+      return fixed([at(c.start, 22), at(c.end, 90)], 'subject');
+    },
+  },
+  {
+    id: 'jaws', group: 'Classic shots', name: 'Jaws dolly zoom', description: 'The other way, as in Jaws: the camera pushes in as the lens widens, the world behind the figure stretches away',
+    apply: (c) => {
+      const at = (t: number, lens: number) => framePoint(c.scene, path(c, 'subject'), t, 'ms', { yaw: c.base.yaw, pitch: c.base.pitch, lens });
       return fixed([at(c.start, 85), at(c.end, 20)], 'subject');
+    },
+  },
+  {
+    id: 'bullet-time', group: 'Classic shots', name: 'Bullet time', description: 'The Matrix: a fast half-circle round the subject, as if time stood still',
+    apply: (c) => ({ kind: 'rig', rig: { body: 'orbit', yaw: -90, pitch: 4, spin: Math.round(180 / Math.max(0.4, c.end - c.start)), size: 'fs', lens: 35, smooth: 0 } }),
+  },
+  {
+    id: 'snorricam', group: 'Classic shots', name: 'Snorricam', description: 'Requiem for a Dream: the camera strapped to the actor, the face fixed in frame while the world swings round it',
+    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 0, pitch: 0, turn: true, size: 'mcu', lens: 24, smooth: 0 } }),
+  },
+  {
+    id: 'one-point', group: 'Classic shots', name: 'One-point push', description: 'Kubrick’s symmetry: straight on, a wide lens, a slow push down the middle',
+    apply: (c) => fixed([fitPoint(c, path(c), c.start, 0, 2, 70, 0.8), fitPoint(c, path(c), c.end, 0, 2, 70, 1.5, 0.2)]),
+  },
+  {
+    id: 'overhead-follow', group: 'Classic shots', name: 'Overhead tracking', description: 'Straight down from above, following the subject (Scorsese, Wes Anderson)',
+    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 0, pitch: 85, size: 'ws', lens: 35, smooth: 0.6 } }),
+  },
+  {
+    id: 'spielberg', group: 'Classic shots', name: 'Spielberg push-in', description: 'A slow push to a close-up on the face as the character realises something',
+    apply: (c) => {
+      const at = (t: number, size: ShotSize) => framePoint(c.scene, path(c, 'subject'), t, size, { yaw: c.base.yaw, pitch: 2, lens: 50 });
+      return fixed([at(c.start, 'mws'), at(c.end, 'cu')], 'subject');
+    },
+  },
+  {
+    id: 'barrel-roll', group: 'Classic shots', name: 'Barrel roll', description: 'The camera turns over on its axis as it pushes in: disorientation, a world upside down',
+    apply: (c) => {
+      const d = c.end - c.start;
+      return fixed([0, 1, 2, 3].map((i) => ({ ...fitPoint(c, path(c), c.start + (d * i) / 3, c.base.yaw, c.base.pitch, c.base.fov, 1 + i * 0.2, 0.1), roll: i * 120 })));
     },
   },
   {
