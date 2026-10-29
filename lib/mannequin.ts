@@ -77,7 +77,8 @@ const mix = (m: number, f: number, female: number) => m + (f - m) * female;
  *           glutes and upper thighs, slender neck and limbs, rounder head with a narrower chin
  */
 function proportions(b: BodyParams) {
-  const k = b.height / 1.8;
+  // (Its parts' sizes below are for a figure STATURE times as tall: scaled to its height.)
+  const k = (b.height / 1.8) * STATURE;
   const female = b.sex;
   const male = 1 - b.sex;
   const mix = (m: number, f: number) => m + (f - m) * female;
@@ -94,7 +95,7 @@ function proportions(b: BodyParams) {
     neckR: mix(0.05, 0.038) * (0.9 + 0.25 * b.build) * k,
     /** The torso's section at a height from the hips joint (its build widens and deepens it). */
     section: (y: number): Section => ({ w: w(y), front: front(y), back: back(y) }),
-    shoulderX: mix(0.206, 0.158) * (0.92 + 0.16 * b.build) * k,
+    shoulderX: mix(0.196, 0.158) * (0.92 + 0.16 * b.build) * k,
     hipX: mix(0.08, 0.102) * torso,
     /** Breast size (female). */
     bust: female * b.bust,
@@ -116,17 +117,25 @@ function proportions(b: BodyParams) {
  * waist, narrowest (narrower on a woman); the bottom of the rib cage; the chest, deepest at the
  * nipples, widest under the arms; the shoulders' slope to the neck.
  */
-const TORSO_Y = [-0.135, -0.1, -0.05, 0, 0.06, 0.12, 0.17, 0.23, 0.3, 0.38, 0.44, 0.49, 0.53];
+/**
+ * An artist's proportions (8 heads tall, the crotch at half the height, long legs), the parts'
+ * sizes below are for a figure 1.8 / STATURE m tall: scaled so a figure is as tall as its height.
+ */
+const STATURE = 0.932;
+/** The legs' and arms' segments (units of a 1.8 m figure, legs × the body's leg length). */
+const THIGH = 0.47, SHIN = 0.47, UPPER_ARM = 0.33, FOREARM = 0.29;
+
+const TORSO_Y = [-0.115, -0.085, -0.04, 0, 0.06, 0.12, 0.17, 0.23, 0.3, 0.38, 0.44, 0.49, 0.53];
 const TORSO = {
   male: {
-    w: [0.055, 0.125, 0.156, 0.155, 0.146, 0.134, 0.128, 0.145, 0.168, 0.184, 0.186, 0.16, 0.072],
+    w: [0.055, 0.125, 0.156, 0.155, 0.146, 0.134, 0.128, 0.142, 0.158, 0.168, 0.17, 0.152, 0.072],
     front: [0.04, 0.074, 0.084, 0.088, 0.092, 0.092, 0.088, 0.098, 0.114, 0.122, 0.11, 0.082, 0.045],
-    back: [0.055, 0.104, 0.116, 0.1, 0.082, 0.072, 0.068, 0.078, 0.094, 0.104, 0.106, 0.09, 0.05],
+    back: [0.06, 0.106, 0.116, 0.104, 0.088, 0.076, 0.07, 0.078, 0.094, 0.104, 0.106, 0.09, 0.05],
   },
   female: {
     w: [0.06, 0.14, 0.178, 0.178, 0.155, 0.128, 0.114, 0.124, 0.138, 0.145, 0.145, 0.128, 0.06],
     front: [0.042, 0.076, 0.082, 0.086, 0.088, 0.086, 0.08, 0.086, 0.094, 0.098, 0.094, 0.074, 0.04],
-    back: [0.055, 0.108, 0.12, 0.108, 0.088, 0.072, 0.066, 0.074, 0.084, 0.09, 0.09, 0.08, 0.042],
+    back: [0.066, 0.122, 0.134, 0.122, 0.1, 0.08, 0.07, 0.074, 0.084, 0.09, 0.09, 0.08, 0.042],
   },
 };
 /** The seams: where the pelvis ends and the abdomen begins (the spine joint), and the chest (its joint). */
@@ -369,19 +378,19 @@ export class Mannequin {
     // (Each piece's ends rounded into the next, hidden until the joint between them bends.)
     const cap = 0.035 * k;
     const pelvis = torsoPiece(at, bottom, waistY, [0.02 * k, cap], step);
-    // Glutes: two round masses, fullest low (rounder and fuller on female figures), the cleft
-    // between them, and the fold under them.
+    // Glutes: two round masses, high and full (rounder and fuller on female figures), the cleft
+    // between them, and the fold under each.
     for (const s of [1, -1]) {
-      bulge(pelvis, [s * 0.066 * P.torso, -0.07 * k, -at(-0.07 * k).back], [0.072 * P.torso, 0.07 * k, 0.07 * P.torso], 0.016 * P.hips * P.torso);
+      bulge(pelvis, [s * 0.064 * P.torso, -0.045 * k, -at(-0.045 * k).back], [0.07 * P.torso, 0.07 * k, 0.075 * P.torso], 0.016 * P.hips * P.torso);
     }
-    bulge(pelvis, [0, -0.06 * k, -at(-0.06 * k).back], [0.012 * P.torso, 0.07 * k, 0.04 * P.torso], -0.006 * P.torso);
+    bulge(pelvis, [0, -0.045 * k, -at(-0.045 * k).back], [0.012 * P.torso, 0.065 * k, 0.045 * P.torso], -0.008 * P.torso);
     // Under them, each rounds off on its own: the lower edge rises where they meet.
     const pp = pelvis.attributes.position;
     for (let i = 0; i < pp.count; i++) {
       const [x, y, z] = [pp.getX(i), pp.getY(i), pp.getZ(i)];
-      if (z >= 0 || y > -0.07 * k) continue;
-      const low = THREE.MathUtils.smoothstep(-y, 0.07 * k, 0.14 * k);
-      pp.setY(i, y + 0.035 * k * low * Math.exp(-((x / (0.032 * P.torso)) ** 2)) * Math.min(1, -z / (0.05 * P.torso)));
+      if (z >= 0 || y > -0.055 * k) continue;
+      const low = THREE.MathUtils.smoothstep(-y, 0.055 * k, 0.115 * k);
+      pp.setY(i, y + 0.03 * k * low * Math.exp(-((x / (0.03 * P.torso)) ** 2)) * Math.min(1, -z / (0.05 * P.torso)));
     }
     // (Its back line stops above the cleft between the glutes.)
     const skin = (g: THREE.BufferGeometry) => torsoSkin(g, [waistY, chestY], 0.045 * k);
@@ -456,15 +465,15 @@ export class Mannequin {
 
       const shoulder = joint(n('UpperArm'), chest, P.shoulderX * s, 0.235 * k);
       part(n('UpperArm'), ball((0.054 + 0.01 * mus) * R)); // deltoid
-      const upper = limb(0.27 * k, 0.047 * R, 0.036 * R, (0.004 + 0.007 * mus) * R, 0.35);
+      const upper = limb((UPPER_ARM - 0.01) * k, 0.047 * R, 0.036 * R, (0.004 + 0.007 * mus) * R, 0.35);
       part(n('UpperArm'), upper.geometry, undefined, [upper.ring(0.5)]);
 
-      const elbow = joint(n('LowerArm'), shoulder, 0, -0.28 * k);
+      const elbow = joint(n('LowerArm'), shoulder, 0, -UPPER_ARM * k);
       part(n('LowerArm'), ball(0.042 * R));
-      const fore = limb(0.23 * k, 0.038 * R, 0.026 * R, (0.005 + 0.006 * mus) * R, 0.22);
+      const fore = limb((FOREARM - 0.015) * k, 0.038 * R, 0.026 * R, (0.005 + 0.006 * mus) * R, 0.22);
       part(n('LowerArm'), fore.geometry, undefined, [fore.ring(0.5)]);
 
-      const wrist = joint(n('Hand'), elbow, 0, -0.245 * k);
+      const wrist = joint(n('Hand'), elbow, 0, -FOREARM * k);
       part(n('Hand'), ball(0.029 * R));
       this.hands[side] = this.standIn ? { segments: [], side: s } : this.buildHand(wrist, n('Hand'), s, k * P.extremity);
 
@@ -472,15 +481,15 @@ export class Mannequin {
       part(n('UpperLeg'), ball(0.08 * R * (1 + 0.16 * P.female)));
       // Fuller upper thighs on female figures, more taper on male ones.
       // (As full at the top as the hips round it: fuller on a woman, whose limbs are slenderer.)
-      const thigh = limb(0.4 * P.legs, 0.085 * R * (0.92 + 0.12 * P.hips) * (1 + 0.16 * P.female), 0.05 * R, (0.006 + 0.008 * P.hips) * R, 0.28);
+      const thigh = limb((THIGH - 0.03) * P.legs, 0.085 * R * (0.92 + 0.12 * P.hips) * (1 + 0.16 * P.female), 0.05 * R, (0.006 + 0.008 * P.hips) * R, 0.28);
       part(n('UpperLeg'), thigh.geometry, undefined, [thigh.ring(0.45)]);
 
-      const knee = joint(n('LowerLeg'), hip, 0, -0.43 * P.legs);
+      const knee = joint(n('LowerLeg'), hip, 0, -THIGH * P.legs);
       part(n('LowerLeg'), ball(0.057 * R));
-      const shin = limb(0.37 * P.legs, 0.05 * R, 0.031 * R, (0.01 + 0.007 * mus) * R, 0.3); // calf
+      const shin = limb((SHIN - 0.03) * P.legs, 0.05 * R, 0.031 * R, (0.01 + 0.007 * mus) * R, 0.3); // calf
       part(n('LowerLeg'), shin.geometry, undefined, [shin.ring(0.4)]);
 
-      joint(n('Foot'), knee, 0, -0.4 * P.legs);
+      joint(n('Foot'), knee, 0, -SHIN * P.legs);
       part(n('Foot'), ball(0.036 * R));
       const fk = k * P.extremity;
       part(n('Foot'), ellipsoid(0.045 * R, 0.035 * fk, 0.115 * fk), [0, -0.05 * k, 0.055 * fk]);
@@ -509,10 +518,10 @@ export class Mannequin {
     add('hips', torso, [0, -0.12 * k, 0]);
     add('head', egg(head.rx, head.ry, head.rz, head.taper), [0, 0.1 * P.head, 0.01 * P.head], [meridian(head.ry, head.rz, head.taper)]);
     for (const side of ['L', 'R'] as const) {
-      add(sided('UpperArm', side), limb(0.28 * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
-      add(sided('LowerArm', side), limb(0.34 * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
-      add(sided('UpperLeg', side), limb(0.43 * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
-      add(sided('LowerLeg', side), limb(0.4 * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
+      add(sided('UpperArm', side), limb(UPPER_ARM * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
+      add(sided('LowerArm', side), limb((FOREARM + 0.095) * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
+      add(sided('UpperLeg', side), limb(THIGH * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
+      add(sided('LowerLeg', side), limb(SHIN * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
       // Round joints keep bent limbs smooth where the capsules meet.
       add(sided('LowerArm', side), new THREE.SphereGeometry(0.044 * R, 20, 14));
       add(sided('LowerLeg', side), new THREE.SphereGeometry(0.058 * R, 20, 14));
@@ -541,9 +550,7 @@ export class Mannequin {
     const [x, y, z] = forms.earAt;
     this.parts.add(this.joints.head, mirrored(forms.ear), tag, at([-x, y, z]));
     // (The hair is not picked: a click on it reaches what is under it, a hand on the head or the head.)
-    const hair = [this.parts.add(this.joints.head, forms.hair, tag, pos)];
-    if (forms.bun) hair.push(this.parts.add(this.joints.head, forms.bun, tag, at(forms.bunAt)));
-    for (const m of hair) m.raycast = () => {};
+    this.parts.add(this.joints.head, forms.hair, tag, pos).raycast = () => {};
   }
 
   /** Show or hide the face details. */
