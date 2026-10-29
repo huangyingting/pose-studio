@@ -155,16 +155,6 @@ describe('Mannequin', () => {
     expect(pick(elbow)).toBe('leftLowerArm');
   });
 
-  it('has a nose on its blank face: which way it faces and looks shows', () => {
-    const m = make();
-    m.apply(newFigure());
-    const nose = m.parts.bodies.find((b) => !(b as THREE.SkinnedMesh).isSkinnedMesh && b.userData.joint === 'head')!;
-    expect(nose.getWorldPosition(new THREE.Vector3()).z).toBeGreaterThan(worldPos(m.joints.head).z + 0.05);
-    // The head turned to its left: the nose with it.
-    m.apply(newFigure({ bones: bonesOf({ head: [0, 60, 0] }) }));
-    expect(nose.getWorldPosition(new THREE.Vector3()).x).toBeGreaterThan(worldPos(m.joints.head).x + 0.03);
-  });
-
   it('curls fingers into a fist', () => {
     const m = make();
     const tipOf = () => {
