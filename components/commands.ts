@@ -1,7 +1,7 @@
 import {
   Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
-  Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Move3d, MoveHorizontal, MoveUpRight,
-  PanelRightClose, Pause, Pencil, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
+  Crosshair, Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Move3d, MoveHorizontal, MoveUpRight,
+  PanelRightClose, Pause, Pencil, PenLine, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
@@ -519,14 +519,14 @@ export const COMMANDS: Command[] = [
 
   // The view.
   ...VIEW_PRESETS.map((v): Command => ({ id: `view.${v.key}`, title: v.label, keys: [v.key], run: (c) => { c.store.lookThrough(null); App().frameView(v); } })),
-  { id: 'view.frameAll', title: 'Frame all', icon: Focus, run: () => App().frameAll() },
+  { id: 'view.frameAll', title: 'Frame all', icon: Maximize, run: () => App().frameAll() },
   {
     id: 'view.frame', title: (c) => (['figure', 'joint', 'prop', 'light', 'many'].includes(c.store.getState().selection?.kind ?? '') ? 'Frame the selection' : 'Frame all'), help: 'Frame the selection (everything when nothing is selected)',
     icon: Focus, keys: ['f'], run: () => App().frameSelected(),
   },
   {
     // Only the selection on the canvas (the scene, the shot camera and exports are not affected).
-    id: 'view.isolate', title: 'Only the selection', icon: Focus, keys: ['/'],
+    id: 'view.isolate', title: 'Only the selection', icon: Crosshair, keys: ['/'],
     when: (c) => !!App().isolated() || !!(c.prop || (c.figure && !c.action)), checked: () => !!App().isolated(),
     run: (c) => App().setIsolated(App().isolated() ? null : c.prop ?? c.figure ?? null),
   },
@@ -541,12 +541,12 @@ export const COMMANDS: Command[] = [
       ];
     },
   },
-  { id: 'view.handles', title: 'Handles', help: 'Show the handles: a joint’s card, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
-  { id: 'view.grid', title: 'Grid', help: 'The floor grid', checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
+  { id: 'view.handles', title: 'Handles', icon: Move3d, help: 'Show the handles: a joint’s card, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
+  { id: 'view.grid', title: 'Grid', help: 'The floor grid', icon: Grid3x3, checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
   { id: 'view.onion', title: 'Onion skin', help: 'Onion skin: the keys before and after, faint', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
-  { id: 'view.guides', title: 'Guides', help: 'Framing guides: thirds and safe areas', icon: Grid3x3, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
+  { id: 'view.guides', title: 'Guides', help: 'Framing guides: thirds and safe areas', icon: Frame, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
   {
-    id: 'view.line', title: 'Line weight', when: (c) => !!styleDef(filmOf(c.store.getState().library).style).outline,
+    id: 'view.line', title: 'Line weight', icon: PenLine, when: (c) => !!styleDef(filmOf(c.store.getState().library).style).outline,
     items: (c) => [{ label: 'Thin', px: 1 }, { label: 'Medium', px: 1.6 }, { label: 'Bold', px: 2.4 }].map((w) => ({
       title: w.label, checked: Math.abs(c.store.getState().settings.editorLine - w.px) < 0.05, run: () => c.store.setSettings({ editorLine: w.px }),
     })),
@@ -676,7 +676,7 @@ export const COMMANDS: Command[] = [
     run: (c) => c.store.select({ kind: 'joint', figure: c.figure!, joint: childOf(c.joint!)! }),
   },
   {
-    id: 'joint.otherSide', title: 'The same joint on the other side', icon: ArrowLeftRight, keys: ['arrowleft', 'arrowright'],
+    id: 'joint.otherSide', title: 'Other side', help: 'The same joint on the other side', icon: ArrowLeftRight, keys: ['arrowleft', 'arrowright'],
     when: (c) => !!c.joint && mirrorJointName(c.joint) !== c.joint,
     run: (c) => c.store.select({ kind: 'joint', figure: c.figure!, joint: mirrorJointName(c.joint!) }),
   },
@@ -993,18 +993,18 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'travel.facing', title: 'Keep facing (side steps, backing up)', icon: ArrowLeftRight,
+    id: 'travel.facing', title: 'Keep facing', help: 'Keep facing: side steps, backing up', icon: ArrowLeftRight,
     when: (c) => { const k = travelHow(c)?.kind; return k === 'walk' || k === 'run'; }, checked: (c) => !!travelHow(c)?.keep.strafe,
     run: (c) => { const h = travelHow(c)!; setTravelOf(c, h.kind, { strafe: !h.keep.strafe }); },
   },
   {
-    id: 'travel.height', title: (c) => `Height · ${jumpNow(c).toFixed(2)} m`, when: (c) => travelHow(c)?.kind === 'jump',
+    id: 'travel.height', title: (c) => `Height · ${jumpNow(c).toFixed(2)} m`, icon: ArrowUpFromDot, when: (c) => travelHow(c)?.kind === 'jump',
     items: (c) => ([['Low (0.3 m)', 0.3], ['Medium (0.5 m)', 0.5], ['High (0.8 m)', 0.8], ['Very high (1.2 m)', 1.2]] as const).map(([title, h]) => ({
       title, checked: Math.abs(jumpNow(c) - h) < 0.06, run: () => setJumpHeight(c.store, c.figure!, travelHow(c)!.t, h),
     })),
   },
   {
-    id: 'travel.turns', title: 'In the air', when: (c) => travelHow(c)?.kind === 'jump',
+    id: 'travel.turns', title: 'In the air', icon: RotateCw, when: (c) => travelHow(c)?.kind === 'jump',
     items: (c) => [
       ...([['No turn', 0], ['Half turn', 0.5], ['Full turn', 1], ['Two turns', 2]] as const).map(([title, spin]) => ({ title, icon: RotateCw, checked: (travelHow(c)!.keep.spin ?? 0) === spin, run: () => setTravelOf(c, 'jump', { spin }) })),
       ...([['No flip', 0], ['Front flip', 1], ['Back flip', -1]] as const).map(([title, flip]) => ({ title, icon: RefreshCw, checked: (travelHow(c)!.keep.flip ?? 0) === flip, run: () => setTravelOf(c, 'jump', { flip }) })),
