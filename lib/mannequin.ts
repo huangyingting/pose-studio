@@ -148,6 +148,10 @@ const PARENT: Record<Exclude<JointName, 'hips'>, JointName> = {
   rightUpperLeg: 'hips', rightLowerLeg: 'rightUpperLeg', rightFoot: 'rightLowerLeg',
 };
 
+/** The nose: how far up the head (from its joint to its top), and its half-sizes (m, across, up, out). */
+const NOSE_UP = 0.3;
+const NOSE: Vec3 = [0.015, 0.022, 0.024];
+
 /** The joint a part of the bot belongs to (a finger's segment: its hand's). */
 const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle|Ring|Little)/.test(target) ? (`${target.startsWith('left') ? 'left' : 'right'}Hand` as JointName) : (target as JointName));
 
@@ -370,6 +374,27 @@ export class Mannequin {
     }
     this.object.updateMatrixWorld(true);
     this.parts.bindSkins(skeleton, parts);
+    this.addNose(bot, k);
+  }
+
+  /**
+   * A small nose on the bot's blank face (where it is foremost, two fifths up the head): which way
+   * a figure faces and looks shows, in line art too.
+   */
+  private addNose(bot: Bot, k: number) {
+    const head = BOT_TARGETS.indexOf('head');
+    const [y0, y1] = [bot.joints.head[1], bot.joints.headTop[1]];
+    const at = y0 + (y1 - y0) * NOSE_UP;
+    let front = -Infinity;
+    for (let v = 0; v < bot.positions.length / 3; v++) {
+      if (bot.skinIndex[v * 4] !== head || Math.abs(bot.positions[v * 3]) > 0.02 || Math.abs(bot.positions[v * 3 + 1] - at) > 0.015) continue;
+      front = Math.max(front, bot.positions[v * 3 + 2]);
+    }
+    if (!Number.isFinite(front)) return;
+    const geo = new THREE.SphereGeometry(1, 12, 8);
+    geo.scale(NOSE[0] * k, NOSE[1] * k, NOSE[2] * k);
+    const pos = new THREE.Vector3(0, at * k, (front - NOSE[2] * 0.1) * k).sub(this.joints.head.getWorldPosition(new THREE.Vector3()));
+    this.parts.add(this.joints.head, geo, { joint: 'head', figure: this.id }, pos.toArray() as Vec3);
   }
 
   setHand(side: Side, hand: Hand) {
