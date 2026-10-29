@@ -19,7 +19,7 @@ import type { Action, BodyParams, Prop, PropKind, Scene, Travel, Vec3 } from './
  * block as the kick lands, a fall as the punch does.
  */
 
-interface Entry { id: string; name: string; duration: number; people: number; loop?: boolean; starts?: { at: [number, number]; facing: number }[]; impact?: number }
+interface Entry { id: string; name: string; duration: number; loop?: boolean; impact?: number }
 const motions = INDEX as Entry[];
 
 /** One of the Library's motions, by its file's name. */
@@ -89,25 +89,6 @@ class Stage {
     return this.play(who, slug, Math.max(0, at + (motion(strike).impact ?? 0.5) - lead));
   }
 
-  /**
-   * A motion of two from the start: the lead where it stands, the other put where the motion has
-   * them (turned and placed as the lead is). As long as `seconds` (going round). The time it ends.
-   */
-  together(lead: string, other: string, slug: string, seconds: number): number {
-    const m = motion(slug);
-    const [s0, s1] = m.starts!;
-    const f = this.scene.figures.find((x) => x.id === this.id(lead))!;
-    const by = facing(f) - s0.facing;
-    const r = (by * Math.PI) / 180;
-    const [dx, dz] = [s1.at[0] - s0.at[0], s1.at[1] - s0.at[1]];
-    const at: [number, number] = [f.position[0] + dx * Math.cos(r) + dz * Math.sin(r), f.position[2] - dx * Math.sin(r) + dz * Math.cos(r)];
-    this.scene = {
-      ...this.scene,
-      figures: this.scene.figures.map((x) => (x.id === this.id(other) ? withFacing({ ...x, position: [at[0], 0, at[1]] }, s1.facing + by) : x)),
-    };
-    return this.add({ id: uid('act'), start: 0, duration: seconds, blendIn: 0.25, roles: [{ figure: this.id(lead) }, { figure: this.id(other) }], source: { kind: 'clip', clip: m.id } });
-  }
-
   /** `who` walks or runs from t (or when what it does then ends) to a spot. The time it gets there. */
   go(who: string, to: [number, number], t: number, mode: Travel = 'walk'): number {
     const done = addTravel(this.scene, this.id(who), t, to, mode)!;
@@ -163,17 +144,19 @@ export function wuxiaDuel(): Scene {
   return s.done();
 }
 
-/** A stand-off: a man holds a hostage; a cop walks in and takes aim; someone nearby cowers. */
+/** A stand-off: a man takes aim from behind his hostage; a cop walks in and takes aim; someone nearby cowers. */
 export function standOff(): Scene {
   const cop: [number, number] = [-2.6, 7.5], passer: [number, number] = [2.8, 3.4];
   const s = new Stage('Stand-off', [
     { name: 'Vince', body: 'Big man', at: [0, 0], facing: 0 },
-    { name: 'Ana', body: 'Tall woman', at: [0, 0.5], facing: 0 },
+    { name: 'Ana', body: 'Tall woman', at: [0, 0.75], facing: 0 },
     { name: 'Officer Diaz', body: 'Man', at: cop, facing: toward(cop, [0, 0]) },
     { name: 'Passer-by', body: 'Woman', at: passer, facing: toward(passer, [0, 0]) },
   ], 'night');
   const end = 12;
-  s.together('Vince', 'Ana', 'hostage', end);
+  // (Each their own: he takes aim, she cowers in front of him.)
+  s.play('Vince', 'aim-pistol', 0, { seconds: end });
+  s.play('Ana', 'scared', 0, { seconds: end });
   // The officer stops 3.6 m short of them, on the way straight at them: aiming at them.
   const d = Math.hypot(cop[0], cop[1]);
   const there = s.go('Officer Diaz', [(cop[0] / d) * 3.6, (cop[1] / d) * 3.6], 0.8, 'walk');

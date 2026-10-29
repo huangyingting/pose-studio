@@ -59,7 +59,7 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
     store.setTime(0);
-    expect(applyMotion(store, a, 'kick')).toBe(true);
+    expect(applyMotion(store, a, 'fall')).toBe(true);
     const box = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
     setClipOptions(store, box.id, { speed: 2, mirror: true });
     const fast = store.scene.animation!.actions.find((x) => x.id === box.id)!;

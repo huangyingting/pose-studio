@@ -51,17 +51,6 @@ remy.glb, swat.glb
   only their colour textures (fitted within 1024 px), each vertex once, in metres; their bones
   renamed as the app's skeleton's. Their meshes, skeletons and painting are as they came.
 
-swat-operator.glb ("Tactical officer")
-
-  "S.W.A.T. Operator" by SpatialNeglect (jeandiz)
-  https://sketchfab.com/3d-models/swat-operator-9e82fabf26194896b5ad4a364d864eab
-  License: Creative Commons Attribution 4.0 (CC BY 4.0) https://creativecommons.org/licenses/by/4.0/
-
-  Changes (scripts/characters/rig.py, then scripts/characters/import.ts): the rifle taken out;
-  the pieces joined and their seams welded; rigged with the app's skeleton (no fingers) and
-  weighted to it; the arms straightened from holding the rifle and raised level (a T-pose); only
-  the colour textures kept (fitted within 1024 px, JPEG).
-
 male-base.glb ("Life model")
 
   "Male body base mesh (highpoly)" by Mandrake (mandrake_3d)

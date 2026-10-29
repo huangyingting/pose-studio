@@ -55,7 +55,7 @@ const sketchfab = (id: string, name: string, body: BodyParams, author: string): 
  * heavier man and an older woman (MakeHuman, shaped with MPFB), all CC0; Aoi, an anime avatar in
  * her own toon look (Ueda's VRM, credited as her licence asks); ten of Mixamo's characters
  * (natural proportions, and a barbarian), named by their roles, in their own colours (Adobe's);
- * two of Sketchfab's (CC BY), rigged here. Each with the body the mannequin under it takes (its
+ * one of Sketchfab's (CC BY), rigged here. Each with the body the mannequin under it takes (its
  * sex, and the height that puts the mannequin's hips at the character's), which contacts and the
  * motion check use.
  */
@@ -80,8 +80,7 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
   mixamo('pete', 'Construction worker', { sex: 0, height: 1.69 }, oursWithout('leftThumbDistal', 'rightThumbDistal')),
   mixamo('remy', 'Student', { sex: 0, height: 1.86 }),
   mixamo('swat', 'SWAT officer', { sex: 0, height: 1.7 }),
-  // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a tactical officer without his rifle, and a life model.
-  sketchfab('swat-operator', 'Tactical officer', { sex: 0, height: 1.76 }, 'SpatialNeglect'),
+  // Sketchfab's, CC BY (scripts/characters/rig.py, then import.ts): a life model.
   sketchfab('male-base', 'Life model', { sex: 0, height: 1.81 }, 'Mandrake'),
 ];
 

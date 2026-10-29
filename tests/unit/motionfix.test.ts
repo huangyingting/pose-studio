@@ -60,30 +60,12 @@ describe('motion capture made ready (lib/motionfix.ts)', () => {
 });
 
 describe("the Library's motion files", () => {
-  it('leave out the mirrored ones, loop the cycles and idles, and put the halves of two people together', () => {
+  it('leave out the mirrored ones and loop the cycles and idles', () => {
     const ids = index.map((m) => m.id);
     for (const gone of ['library:walk-right', 'library:strafe-right', 'library:turn-90-right', 'library:shaking-hands-1']) expect(ids).not.toContain(gone);
     const by = (name: string) => index.find((m) => m.name === name)!;
     for (const name of ['Walk', 'Walk forward', 'Run forward', 'Idle', 'Salsa dancing']) expect(by(name).loop, name).toBe(true);
     for (const name of ['Turn 90°', 'Walking turn 180', 'Standing dodge left']) expect(by(name).loop, name).toBeUndefined();
-    expect(by('Handshake').people).toBe(2);
-  });
-
-  it('play a motion of two people on a figure and the one nearest it, face to face', () => {
-    const shake = motion('handshake');
-    putClips([shake]);
-    const store = new Store(new MemoryStorage());
-    const a = store.figure!.id;
-    addFigure(store);
-    const b = store.scene.figures.find((f) => f.id !== a)!.id;
-    startAnimation(store, 5);
-    expect(applyMotion(store, a, shake.id)).toBe(true);
-    for (const id of [a, b]) expect(actionsOf(store.scene.animation!, id).some((x) => x.source.kind === 'clip' && x.source.clip === shake.id), id).toBe(true);
-    const [pa, pb] = [figurePoseAt(store.scene, a, 2)!, figurePoseAt(store.scene, b, 2)!];
-    // Apart as people stand to shake hands, each turned to the other.
-    const gap = Math.hypot(pa.position[0] - pb.position[0], pa.position[2] - pb.position[2]);
-    expect(gap).toBeGreaterThan(0.5);
-    expect(gap).toBeLessThan(1.6);
   });
 
 });

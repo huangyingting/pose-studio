@@ -225,30 +225,6 @@
   "group": "Sport & gymnastics"
  },
  {
-  "id": "library:handshake",
-  "name": "Handshake",
-  "duration": 4.367,
-  "people": 2,
-  "group": "Together",
-  "loop": true,
-  "starts": [
-   {
-    "at": [
-     0,
-     0
-    ],
-    "facing": 0
-   },
-   {
-    "at": [
-     -0.275,
-     1.275
-    ],
-    "facing": 159
-   }
-  ]
- },
- {
   "id": "library:happy-idle",
   "name": "Happy idle",
   "duration": 2.933,
@@ -288,30 +264,6 @@
   "group": "Fighting",
   "loop": true,
   "impact": 1.05
- },
- {
-  "id": "library:hostage",
-  "name": "Hostage",
-  "duration": 5,
-  "people": 2,
-  "group": "Together",
-  "loop": true,
-  "starts": [
-   {
-    "at": [
-     0,
-     0
-    ],
-    "facing": 0
-   },
-   {
-    "at": [
-     0.075,
-     0.5
-    ],
-    "facing": 48
-   }
-  ]
  },
  {
   "id": "library:idle",
@@ -604,29 +556,6 @@
   "people": 1,
   "group": "Fighting",
   "loop": true
- },
- {
-  "id": "library:shoulder-throw",
-  "name": "Shoulder throw",
-  "duration": 6.667,
-  "people": 2,
-  "group": "Together",
-  "starts": [
-   {
-    "at": [
-     0,
-     0
-    ],
-    "facing": -90
-   },
-   {
-    "at": [
-     -4.125,
-     -0.3
-    ],
-    "facing": 39
-   }
-  ]
  },
  {
   "id": "library:shrugging",

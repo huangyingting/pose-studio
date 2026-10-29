@@ -157,7 +157,7 @@ describe('assistant tools', () => {
     expect(run(store, 'edit_shot', { time: 0, name: null, caption: 'They meet', camera: null, blend: null })).toMatch(/^Shot 1: 0\.00–3\.00 s, filmed by Master, cut in\.$/);
     expect(store.scene.animation!.shots![0].caption).toBe('They meet');
     expect(runTool(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Nobody' }).ok).toBe(false);
-    expect(run(store, 'new_scene', { template: 'shoot-bout', name: null })).toMatch(/^Opened "The bout", filmed in \d+ shots/);
+    expect(run(store, 'new_scene', { template: 'shoot-interview', name: null })).toMatch(/^Opened "Interview", filmed in \d+ shots/);
   });
 
   it('opens templates and explains bad input', () => {

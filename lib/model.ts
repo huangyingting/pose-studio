@@ -266,12 +266,13 @@ export class Fitted {
         out[`${side}${f}${seg}` as Bone] = toQuat(spread.multiply(curl));
       }));
       if (hand.thumb) {
-        // (Most of the turn at its root, the rest at its joints; out from the palm as the hand spreads.)
+        // (Aimed there from its root; its joints bend on the same way, round the fingers; out from
+        // the palm as the hand spreads.)
         const { axis, angle } = hand.thumb;
         const c = h.curl[0];
-        out[`${side}ThumbMetacarpal` as Bone] = about(axis, angle * (0.5 * c - 0.3 * h.spread));
-        out[`${side}ThumbProximal` as Bone] = about(axis, angle * 0.3 * c);
-        out[`${side}ThumbDistal` as Bone] = about(axis, angle * 0.2 * c);
+        out[`${side}ThumbMetacarpal` as Bone] = about(axis, angle * c - 0.3 * h.spread);
+        out[`${side}ThumbProximal` as Bone] = about(axis, 0.35 * c);
+        out[`${side}ThumbDistal` as Bone] = about(axis, 0.45 * c);
       }
     }
     return out;
