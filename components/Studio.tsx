@@ -15,7 +15,7 @@ import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
 import { styleDef } from '@/lib/styles';
-import { lightName, lightingOf } from '@/lib/lighting';
+import { lightingOf } from '@/lib/lighting';
 import type { Scene, Vec3, View } from '@/lib/types';
 import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
@@ -370,7 +370,7 @@ function App() {
       store.select({ kind: 'light', light: hit.light });
       const lighting = lightingOf(store.scene);
       const l = lighting.lights.find((x) => x.id === hit.light);
-      openContextMenu(e, menu('light', { store, light: hit.light }), l ? lightName(lighting, l) : 'Light');
+      openContextMenu(e, menu('light', { store, light: hit.light }), l ? l.name : 'Light');
       return;
     }
     // Several selected: a right-click on one of them is the menu of them all.

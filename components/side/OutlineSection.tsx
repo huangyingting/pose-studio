@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Castle, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound, X } from 'lucide-react';
+import { Camera, Castle, Clapperboard, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, UserRound, X } from 'lucide-react';
 import {
-  addCamera, addFigure, addLight, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
+  addCamera, addFigure, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
-import { MAX_LIGHTS, lightName, lightText, lightingOf } from '@/lib/lighting';
+import { MAX_LIGHTS, lightText, lightingOf } from '@/lib/lighting';
 import { shotSpans } from '@/lib/shots';
 import { setById } from '@/lib/sets';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
@@ -18,6 +18,7 @@ import { placingFigure, placingProp } from '../placing';
 import { startRename, useRenaming } from '../rename';
 import { useProjectSettings, useScene, useStore, useStudio } from '../store-context';
 import { Hint, IconButton, Menu } from '../ui';
+import { KIND_ICONS } from '../inspector/light';
 import type { SectionProps } from './sections';
 
 /**
@@ -211,17 +212,16 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
         <div className="outline-group">
           <div className="outline-head">
             <h3>Lights <span className="count">{lighting.lights.length}</span></h3>
-            <IconButton
-              icon={Plus}
-              label={lighting.lights.length < MAX_LIGHTS ? 'Add a light' : `Add a light (${MAX_LIGHTS} at most)`}
-              disabled={lighting.lights.length >= MAX_LIGHTS}
-              onClick={() => { addLight(store); }}
-              size={15}
-            />
+            {lighting.lights.length < MAX_LIGHTS ? (
+              <Menu label="Add a light" className="ibtn" align="end" tip="Add a sun, a lamp or a window" items={() => command('light.add').items!({ store }).map((x) => ({ label: x.title, onSelect: x.run }))}>
+                <Plus size={15} strokeWidth={1.75} aria-hidden />
+              </Menu>
+            ) : <IconButton icon={Plus} label={`Add a light (${MAX_LIGHTS} at most)`} disabled onClick={() => {}} size={15} />}
           </div>
           <ul className="layers" aria-label="Lights">
             {lighting.lights.map((l) => {
-              const name = lightName(lighting, l);
+              const name = l.name;
+              const Icon = KIND_ICONS[l.kind];
               const c = { store, light: l.id };
               return (
                 <li key={l.id} className={selection?.kind === 'light' && selection.light === l.id ? 'on' : undefined}>
@@ -234,7 +234,7 @@ export default function OutlineSection({ onPhoto }: SectionProps) {
                     onClick={() => { store.select({ kind: 'light', light: l.id }); App().frameSelection?.(); }}
                     onContextMenu={(e) => { store.select({ kind: 'light', light: l.id }); openContextMenu(e, menu('light', c), name); }}
                   >
-                    <SunMedium size={15} strokeWidth={1.75} aria-hidden />
+                    <Icon size={15} strokeWidth={1.75} aria-hidden />
                     <span className="layer-name">{name}</span>
                     <i className="light-dot" style={{ background: l.color }} aria-hidden />
                   </button>

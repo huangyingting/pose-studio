@@ -11,7 +11,8 @@ import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
 import { saveClips, saveImage } from './assetstore';
 import { projectSettingsOf } from './project';
-import { LIGHTING_PRESETS, MAX_LIGHTS, clampLight, fromPreset, keyLight, lightingOf, newLight } from './lighting';
+import { MAX_LIGHTS, clampLight, fromPreset, keyLight, lightingOf, newLight, placeLight, type Place } from './lighting';
+import { setLights } from './sets';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -33,7 +34,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Reference, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -97,32 +98,69 @@ export function renameScene(store: Store, name: string) {
   store.updateScene((s) => ({ ...s, name }), 'rename');
 }
 
-/** Play the open scene in a set (lib/sets.ts), or in none. */
+/**
+ * Play the open scene in a set (lib/sets.ts), or in none. The set's own lights (its lamps, its
+ * windows) come with it, in place of the last set's.
+ */
 export function setSceneSet(store: Store, id: string | null) {
-  store.updateScene((s) => {
-    const { set: _, ...rest } = s;
-    void _;
-    return id ? { ...rest, set: id } : rest;
+  const before = lightingOf(store.scene);
+  const own = id ? setLights(id) : [];
+  const kept = before.lights.filter((l) => !l.practical);
+  const lights = [...kept, ...own].slice(0, MAX_LIGHTS);
+  store.group(() => {
+    store.updateScene((s) => {
+      const { set: _, ...rest } = s;
+      void _;
+      return id ? { ...rest, set: id } : rest;
+    });
+    if (lights.length && (own.length || kept.length !== before.lights.length)) setLighting(store, { ...before, lights });
   });
 }
 
-/** Light the open scene: all its lights at once (a scheme). The light selected, gone, gives way to the key light. */
-export function setLighting(store: Store, lighting: Lighting, key = '') {
-  store.updateScene((s) => ({ ...s, lighting }), key);
-  const sel = store.getState().selection;
-  if (sel?.kind === 'light' && !lighting.lights.some((l) => l.id === sel.light)) store.select({ kind: 'light', light: keyLight(lighting)!.id });
+/** Where the open scene's people are: their middle on the floor, at chest height (what lights are placed round). */
+export function subjectOf(scene: Scene): Vec3 {
+  const fs = scene.figures.filter((f) => !f.hidden);
+  if (!fs.length) return [0, 1.3, 0];
+  const r = (v: number) => Math.round(v * 100) / 100;
+  return [r(fs.reduce((t, f) => t + f.position[0], 0) / fs.length), 1.3, r(fs.reduce((t, f) => t + f.position[2], 0) / fs.length)];
 }
 
-/** Light the open scene with a lighting scheme (lib/lighting.ts LIGHTING_PRESETS). */
+/**
+ * Light the open scene: all its lights at once. Changed by hand, it is no longer its scheme. The
+ * light selected, gone, gives way to the key light.
+ */
+export function setLighting(store: Store, lighting: Lighting, key = '') {
+  const { scheme: _, ...mine } = lighting;
+  void _;
+  store.updateScene((s) => ({ ...s, lighting: mine }), key);
+  const sel = store.getState().selection;
+  if (sel?.kind === 'light' && !mine.lights.some((l) => l.id === sel.light)) {
+    const k = keyLight(mine);
+    store.select(k ? { kind: 'light', light: k.id } : null);
+  }
+}
+
+/** Light the open scene with a lighting scheme (lib/lighting.ts LIGHTING_PRESETS), round its people; the set's own lights kept. */
 export function applyLightingPreset(store: Store, id: string) {
-  const p = LIGHTING_PRESETS.find((x) => x.id === id);
-  if (p) setLighting(store, fromPreset(p.lighting));
+  const p = fromPreset(id, subjectOf(store.scene));
+  if (!p) return;
+  const own = lightingOf(store.scene).lights.filter((l) => l.practical);
+  store.updateScene((s) => ({ ...s, lighting: { ...p, lights: [...p.lights, ...own].slice(0, MAX_LIGHTS) } }));
+  const sel = store.getState().selection;
+  if (sel?.kind === 'light' && !lightingOf(store.scene).lights.some((l) => l.id === sel.light)) store.select({ kind: 'light', light: keyLight(lightingOf(store.scene))!.id });
 }
 
 /** Change one of the scene's lights. */
 export function editLight(store: Store, id: string, patch: Partial<Omit<Light, 'id'>>, key = '') {
   const l = lightingOf(store.scene);
   setLighting(store, { ...l, lights: l.lights.map((x) => (x.id === id ? clampLight({ ...x, ...patch }) : x)) }, key);
+}
+
+/** Put one of the scene's lights where a key light, a fill or a rim goes (named so), round the people. */
+export function placeSceneLight(store: Store, id: string, place: Place) {
+  const l = lightingOf(store.scene);
+  const light = l.lights.find((x) => x.id === id);
+  if (light) setLighting(store, { ...l, lights: l.lights.map((x) => (x.id === id ? placeLight(l, x, place, subjectOf(store.scene)) : x)) });
 }
 
 /** Change the scene's ambient light. */
@@ -132,17 +170,20 @@ export function editAmbient(store: Store, patch: Partial<Ambient>, key = '') {
 }
 
 /**
- * Add a light to the scene (up to MAX_LIGHTS), selected: the role not taken yet (a fill, then a
- * rim), from the side it lights from. Its id, or null (as many as there can be).
+ * Add a light to the scene (up to MAX_LIGHTS), selected: a sun, a lamp or a window near the
+ * people, or a lamp put where a fill or a rim goes. Its id, or null (as many as there can be).
  */
-export function addLight(store: Store): string | null {
+export function addLight(store: Store, what: LightKind | Place = 'lamp'): string | null {
   const l = lightingOf(store.scene);
   if (l.lights.length >= MAX_LIGHTS) return null;
-  const taken = new Set(l.lights.map((x) => x.role));
-  const role = (['key', 'fill', 'rim'] as const).find((r) => !taken.has(r)) ?? 'custom';
-  const key = keyLight(l);
-  const from = { key: { azimuth: 40, elevation: 45 }, fill: { azimuth: -(key?.azimuth ?? 40) * 1.3, elevation: 20, intensity: 0.4 }, rim: { azimuth: 160, elevation: 40, intensity: 0.9 }, custom: { azimuth: -120, elevation: 35, intensity: 0.6 } }[role];
-  const light = clampLight(newLight(role, from));
+  const at = subjectOf(store.scene);
+  const kind: LightKind = what === 'sun' || what === 'window' ? what : 'lamp';
+  let light = clampLight(newLight(kind, {
+    azimuth: -50, elevation: 35, shadows: !l.lights.some((x) => x.kind === 'sun' && x.shadows),
+    position: kind === 'window' ? [at[0] - 2.6, 1.6, at[2] - 0.6] : [at[0] + 1.2, 2.2, at[2] + 1.4],
+    intensity: kind === 'lamp' ? 0.8 : 1,
+  }));
+  if (what === 'key' || what === 'fill' || what === 'rim') light = placeLight(l, light, what, at);
   setLighting(store, { ...l, lights: [...l.lights, light] });
   store.select({ kind: 'light', light: light.id });
   return light.id;

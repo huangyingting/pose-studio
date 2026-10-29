@@ -46,9 +46,29 @@ const VERT = /* glsl */ `
   }
 `;
 
+export const EXTRA_GLSL = /* glsl */ `
+  uniform vec3 extraDirs[4];
+  uniform vec3 extraColors[4];
+  uniform int extraCount;
+  // The other lights (a fill, a rim, a lamp): what each adds on the side it lights, and, one from
+  // behind the figure (towards the camera), along its edge as a rim does.
+  vec3 extraLight(vec3 n, vec3 v, float tight) {
+    vec3 sum = vec3(0.0);
+    for (int i = 0; i < 4; i++) {
+      if (i >= extraCount) break;
+      float d = max(dot(n, extraDirs[i]), 0.0);
+      float back = clamp(-dot(extraDirs[i], v) * 1.5, 0.0, 1.0);
+      float edge = pow(clamp(1.0 - max(dot(n, v), 0.0), 0.0, 1.0), tight) * smoothstep(-0.2, 0.3, dot(n, extraDirs[i]));
+      sum += extraColors[i] * (d * (1.0 - back) * 0.45 + edge * back * 1.4);
+    }
+    return sum;
+  }
+`;
+
 const COMMON = /* glsl */ `
   uniform vec3 lightDir;
   uniform vec3 lightColor;
+  ${EXTRA_GLSL}
   uniform vec2 resolution;
   uniform vec3 base;
   uniform vec3 shade;
@@ -90,7 +110,10 @@ const INK_FRAG = /* glsl */ `
     // Granulation: the ink settles into the paper's fibres.
     ink *= 0.7 + 0.6 * fibre;
     vec3 paper = base * (0.965 + 0.05 * fibre);
-    gl_FragColor = vec4(mix(paper, shade, clamp(ink, 0.0, 0.9)) * lightColor, 1.0);
+    // (Where the other lights fall, the ink thins.)
+    vec3 more = extraLight(n, v, 3.0);
+    ink *= 1.0 - clamp(dot(more, vec3(0.333)) * 0.8, 0.0, 0.7);
+    gl_FragColor = vec4(mix(paper, shade, clamp(ink, 0.0, 0.9)) * lightColor + more * 0.25, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -105,7 +128,8 @@ const SKETCH_FRAG = /* glsl */ `
   }
   void main() {
     vec3 n = normalize(vNormal);
-    float light = clamp(dot(n, lightDir), 0.0, 1.0) * 0.75 + 0.25;
+    vec3 more = extraLight(n, normalize(cameraPosition - vWorld), 3.0);
+    float light = clamp(clamp(dot(n, lightDir), 0.0, 1.0) * 0.75 + 0.25 + dot(more, vec3(0.333)) * 0.6, 0.0, 1.0);
     float spacing = max(3.0, resolution.y / 150.0);
     // A little wobble so the strokes look hand-drawn.
     vec2 p = gl_FragCoord.xy / spacing + (fbm3(vWorld * 18.0) - 0.5) * 0.8;
@@ -114,7 +138,7 @@ const SKETCH_FRAG = /* glsl */ `
     h = max(h, hatch(p * 1.07, -0.785, 0.1) * (1.0 - smoothstep(0.42, 0.52, light)));
     h = max(h, hatch(p * 0.93, 0.0, 0.12) * (1.0 - smoothstep(0.26, 0.34, light)));
     float paper = 0.96 + 0.04 * fbm3(vWorld * 40.0);
-    gl_FragColor = vec4(mix(base * paper, shade, h * 0.8) * lightColor, 1.0);
+    gl_FragColor = vec4(mix(base * paper, shade, h * 0.8) * lightColor + more * 0.15, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -132,6 +156,7 @@ const ANIME_FRAG = /* glsl */ `
     col = mix(col, vec3(1.0), spec * 0.55);
     float rim = smoothstep(0.66, 0.7, 1.0 - max(dot(n, v), 0.0)) * lit;
     col = mix(col, vec3(1.0), rim * 0.35);
+    col += extraLight(n, v, 4.0) * mix(base, vec3(1.0), 0.5);
     gl_FragColor = vec4(col * lightColor, 1.0);
     #include <colorspace_fragment>
   }
@@ -164,6 +189,9 @@ const FRAGMENTS: Record<ShaderStyle, string> = { ink: INK_FRAG, sketch: SKETCH_F
 export interface SharedUniforms {
   lightDir: { value: THREE.Vector3 };
   lightColor: { value: THREE.Color };
+  extraDirs: { value: THREE.Vector3[] };
+  extraColors: { value: THREE.Color[] };
+  extraCount: { value: number };
   resolution: { value: THREE.Vector2 };
 }
 
@@ -172,6 +200,9 @@ export function styleMaterial(style: ShaderStyle, shared: SharedUniforms, base: 
     uniforms: {
       lightDir: shared.lightDir,
       lightColor: shared.lightColor,
+      extraDirs: shared.extraDirs,
+      extraColors: shared.extraColors,
+      extraCount: shared.extraCount,
       resolution: shared.resolution,
       base: { value: new THREE.Color(base) },
       shade: { value: new THREE.Color(shade) },

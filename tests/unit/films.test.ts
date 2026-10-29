@@ -8,7 +8,7 @@ import {
 import { actionsOf, sceneAt, propWorldAt } from '@/lib/evaluate';
 import { importMotion } from '@/lib/importmotion';
 import { importModel } from '@/lib/model';
-import { LIGHTING_PRESETS, lightingOf, sameLighting } from '@/lib/lighting';
+import { lightingOf } from '@/lib/lighting';
 import { highJump } from '@/lib/motions';
 import { describeSpan } from '@/lib/prompt';
 import { checkMotion } from '@/lib/qa';
@@ -54,7 +54,7 @@ function shoot(store: Store, cuts: number[], moves: string[], subjects: (string 
 function expectFilm(store: Store, lightId: string, people: number) {
   const scene = store.scene;
   expectClean(scene);
-  expect(sameLighting(lightingOf(scene), LIGHTING_PRESETS.find((p) => p.id === lightId)!.lighting)).toBe(true);
+  expect(lightingOf(scene).scheme).toBe(lightId);
   const a = scene.animation!;
   const spans = shotSpans(a);
   expect(spans.length).toBeGreaterThan(1);

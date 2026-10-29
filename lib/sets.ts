@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { InkedParts, type Ink } from './ink';
-import type { Style, Vec3 } from './types';
+import { clampLight, newLight } from './lighting';
+import { uid } from './uid';
+import type { Light, LightKind, Style, Vec3 } from './types';
 
 /*
  * Sets: grey boxes of places a scene is played in (a living room, a city street, a Chinese
@@ -30,7 +32,14 @@ export interface SetDef {
   place: string;
   description: string;
   build(): Piece[];
+  /** Its own lights (its lamps, its windows: practicals), which come with it into a scene. */
+  lights?: (Partial<Omit<Light, 'id' | 'kind'>> & { kind: LightKind; name: string })[];
 }
+
+/** A lamp of the set: warm, reaching a few metres. */
+const bulb = (name: string, position: Vec3, o: Partial<Light> = {}) => ({ kind: 'lamp' as const, name, position, kelvin: 2700, intensity: 0.7, range: 6, ...o });
+/** A window of the set: daylight from it, towards the people. */
+const pane = (name: string, position: Vec3, o: Partial<Light> = {}) => ({ kind: 'window' as const, name, position, kelvin: 7000, intensity: 1, range: 10, ...o });
 
 /* ---------- building blocks ---------- */
 
@@ -123,6 +132,7 @@ export const SETS: SetDef[] = [
     group: 'Indoor',
     place: 'Home, today',
     description: 'A modern living room: a sofa and armchair round a coffee table, a TV unit, a bookshelf, a floor lamp, a window and a door.',
+    lights: [bulb('Floor lamp', [2, 1.75, -3.9]), pane('Window', [0, 1.55, -4.3])],
     build: () => [
       floor(9, 7, -1),
       ...wall(-4.5, 4.5, -4.5, 2.8, 0.2, [[-1.4, 1.4, 0.8, 2.3]]),
@@ -144,6 +154,7 @@ export const SETS: SetDef[] = [
     group: 'Indoor',
     place: 'Open-plan office, today',
     description: 'An open-plan office: rows of desks with monitors and chairs between low partitions, a glass wall of windows, a meeting table and a water cooler.',
+    lights: [pane('Windows', [-1, 1.7, -6.3], { kelvin: 6500, intensity: 1.1 })],
     build: () => {
       const desk = (x: number, z: number): Piece[] => [...table(1.4, 0.7, 0.74, x, z), B(0.55, 0.34, 0.03, x, 0.86, z - 0.2), B(0.06, 0.12, 0.06, x, 0.74, z - 0.2), ...chair(x, z + 0.6, 180)];
       return [
@@ -164,6 +175,7 @@ export const SETS: SetDef[] = [
     group: 'Indoor',
     place: 'Coffee shop, today',
     description: 'A small café: a counter with stools and shelves behind it, round tables with chairs, pendant lamps and a big shop window.',
+    lights: [bulb('Pendant lamp', [-3.6, 1.9, -2.6], { intensity: 0.5, range: 4 }), bulb('Pendant lamp 2', [1.6, 1.9, -1.6], { intensity: 0.5, range: 4 }), pane('Shop window', [-5.8, 1.6, -1.5], { kelvin: 6500 })],
     build: () => [
       floor(12, 9, -1.5),
       ...wall(-6, 6, -6, 3.2),
@@ -182,6 +194,7 @@ export const SETS: SetDef[] = [
     group: 'Outdoor',
     place: 'Downtown, today',
     description: 'A city street: a pavement in front of shops and tall blocks, street lamps, a bench and a bin, a road with a zebra crossing and parked cars.',
+    lights: [bulb('Street lamp', [-4.5, 4.4, 1.6], { color: '#ffd09e', kelvin: undefined, spot: 80, aim: { point: [-4.5, 0, 0.6] }, intensity: 0.9, range: 12 })],
     build: () => {
       const car = (x: number, z: number): Piece[] => [B(4.2, 0.75, 1.8, x, 0.3, z), B(2.3, 0.6, 1.6, x - 0.2, 1.05, z), ...[-1.4, 1.4].flatMap((a) => [-0.85, 0.85].map((b) => ({ shape: ['cyl', 0.32, 0.32, 0.22, 16] as Shape, at: [x + a, 0.32, z + b] as Vec3, rot: [90, 0, 0] as Vec3 })))];
       const block = (x: number, w: number, h: number): Piece[] => [B(w, h, 8, x, 0, -7), B(w - 0.6, 2.6, 0.1, x, 0.4, -2.96), B(w + 0.2, 0.3, 0.6, x, 3.4, -2.7)];
@@ -204,6 +217,7 @@ export const SETS: SetDef[] = [
     group: 'Outdoor',
     place: 'City park, today',
     description: 'A park: a path through grass, trees and bushes, benches, a round fountain and lamp posts.',
+    lights: [bulb('Lamp post', [-8, 4.4, 0], { color: '#ffd09e', kelvin: undefined, intensity: 0.6, range: 10 })],
     build: () => [
       floor(40, 34, -4),
       B(40, 0.02, 3, 0, 0, 1.2),
@@ -220,6 +234,7 @@ export const SETS: SetDef[] = [
     group: 'Outdoor',
     place: 'Siheyuan, old Beijing',
     description: 'A siheyuan courtyard: a main hall on a raised plinth with columns and a tiled roof, side halls, grey walls with a round moon gate, a stone table with drum stools, a tree and lanterns.',
+    lights: [bulb('Lantern', [-3, 3.4, -7.2], { kelvin: 1900, intensity: 0.5, range: 5 }), bulb('Lantern 2', [3, 3.4, -7.2], { kelvin: 1900, intensity: 0.5, range: 5 })],
     build: () => [
       floor(24, 24, -3),
       ...place(hall(9, 5, 3.2), 0, 0, -10),
@@ -239,6 +254,7 @@ export const SETS: SetDef[] = [
     group: 'Indoor',
     place: 'Imperial China',
     description: 'A throne hall of the Forbidden City: two rows of tall red-lacquer columns, a stepped dais with the throne and a folding screen behind it, bronze incense burners, a long open floor.',
+    lights: [bulb('Candles', [-3, 2.2, -11], { kelvin: 2000, intensity: 0.6, range: 7 }), bulb('Candles 2', [3, 2.2, -11], { kelvin: 2000, intensity: 0.6, range: 7 })],
     build: () => [
       floor(22, 26, -6),
       ...wall(-11, 11, -18, 8, 0.6), ...sideWall(-18, 6, -11, 8, 0.6), ...sideWall(-18, 6, 11, 8, 0.6),
@@ -256,6 +272,7 @@ export const SETS: SetDef[] = [
     group: 'Outdoor',
     place: 'Market town, Ming–Qing China',
     description: 'An old market street: two-storey wooden shopfronts with tiled eaves on both sides, hanging lanterns and shop signs, a stone-paved road and a carved memorial archway at its end.',
+    lights: [bulb('Lantern', [-3.1, 2.6, -1.6], { kelvin: 1900, intensity: 0.5, range: 5 }), bulb('Lantern 2', [3.1, 2.6, -6.6], { kelvin: 1900, intensity: 0.5, range: 5 })],
     build: () => {
       const shop = (z: number, side: number): Piece[] => place([
         B(5, 6, 4, 0, 0, 0), B(0.2, 3, 3.6, -side * 2.6, 0, 0), B(0.9, 0.12, 4.2, -side * 2.8, 3, 0, [0, 0, side * 18]),
@@ -300,6 +317,7 @@ export const SETS: SetDef[] = [
     group: 'Indoor',
     place: 'Medieval Europe',
     description: 'The great hall of a medieval castle: thick stone walls with arched windows, a long feasting table with benches, a throne on a dais, a big fireplace, banners and a ring chandelier.',
+    lights: [bulb('Fireplace', [6.6, 0.8, -7], { kelvin: 1900, intensity: 1, range: 8 }), bulb('Chandelier', [0, 5.2, -7], { kelvin: 2000, intensity: 0.8, range: 10 }), pane('Window', [-7.4, 5, -7], { kelvin: 7500, intensity: 0.8 })],
     build: () => [
       floor(16, 24, -6),
       ...wall(-8, 8, -18, 9, 1, [[-1.2, 1.2, 4, 7.5]]), { shape: ['ring', 1.2, 0.25, 180], at: [0, 7.5, -18] },
@@ -314,6 +332,9 @@ export const SETS: SetDef[] = [
     ],
   },
 ];
+
+/** A set's own lights for a scene (new ids each time). */
+export const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).map((l) => clampLight({ ...newLight(l.kind, l), id: uid('light'), practical: true }));
 
 /** A set by its id. */
 export const setById = (id: string | undefined) => SETS.find((s) => s.id === id);

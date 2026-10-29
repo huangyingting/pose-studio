@@ -1887,7 +1887,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   // The Dusk scheme, kept with the scene: a low warm key light and a cool fill.
   await page.getByRole('group', { name: 'Lighting schemes' }).getByRole('button', { name: 'Dusk' }).click();
   s = await live(page);
-  expect(s.scene.lighting!.lights.map((l) => l.role)).toEqual(['key', 'fill']);
+  expect(s.scene.lighting!.lights.map((l) => [l.kind, l.name])).toEqual([['sun', 'Key light'], ['lamp', 'Fill light']]);
   expect(s.scene.lighting!.lights[0].kelvin).toBeLessThanOrEqual(3000);
   await expect(lights.getByRole('button', { name: 'Fill light', exact: true })).toBeVisible();
   // The key light lit from the left, from the view (its menu).
@@ -1899,13 +1899,16 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   s = await live(page);
   expect(Math.abs(s.scene.lighting!.lights[0].azimuth - 90)).toBeLessThan(5);
   await expect(page.getByText(/^From the left, /)).toBeVisible();
-  // A rim light added (selected), a street lamp's colour: Alt-click a figure from the front lights it from the front.
+  // A rim light added (a lamp put behind the people, selected), a street lamp's colour: Alt-click
+  // a figure from the front moves it round to the front of them.
   // (Added from the inspector's list of the scene's lights: the new one selected there.)
   await page.locator('.light-list').getByRole('button', { name: 'Add a light' }).click();
+  await page.getByRole('menuitem', { name: 'Rim light' }).click();
   await expect(page.getByRole('list', { name: 'Scene lights' }).getByRole('button', { name: /^Rim light/, pressed: true })).toBeVisible();
   await page.getByRole('radiogroup', { name: 'Light colour' }).getByRole('radio', { name: 'Street lamp' }).click();
   s = await live(page);
-  expect(s.scene.lighting!.lights[2]).toMatchObject({ role: 'rim', color: '#ffd09e', shadows: false });
+  expect(s.scene.lighting!.lights[2]).toMatchObject({ kind: 'lamp', name: 'Rim light', color: '#ffd09e', shadows: false });
+  expect(s.scene.lighting!.lights[2].position[2]).toBeLessThan(0);
   await page.keyboard.press('1');
   await page.waitForTimeout(400);
   const chest = await project(page, 'chest');
@@ -1913,7 +1916,8 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.mouse.click(chest.x, chest.y);
   await page.keyboard.up('Alt');
   s = await live(page);
-  expect(Math.abs(s.scene.lighting!.lights[2].azimuth)).toBeLessThan(15);
+  expect(s.scene.lighting!.lights[2].position[2]).toBeGreaterThan(0.5);
+  expect(Math.abs(s.scene.lighting!.lights[2].position[0])).toBeLessThan(1);
   expect(Math.abs(s.scene.lighting!.lights[0].azimuth - 90)).toBeLessThan(5);
 });
 

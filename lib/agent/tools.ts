@@ -2,11 +2,11 @@ import { BUILT_IN_CHARACTERS } from '../characters';
 import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
-  holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setLighting, applyLightingPreset, editLight, setGaze, setTravel, throwProp, travelTo,
+  holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, subjectOf, setGaze, setTravel, throwProp, travelTo,
   carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
-import { LIGHTING_PRESETS, MAX_LIGHTS, clampLight, kelvinColor, lightName, lightText, lightingName, lightingOf, newLight } from '../lighting';
+import { LIGHTING_PRESETS, MAX_LIGHTS, kelvinColor, keyLight, lightFrom, lightText, lightingName, lightingOf, towards, type Place } from '../lighting';
 import { newFigure, newProp, newScene, withPosture } from '../doc';
 import { projectSettingsOf } from '../project';
 import { HAND_PRESETS, cloneHand } from '../hands';
@@ -24,7 +24,7 @@ import { CAMERA_MOVES, SHOT_SIZES, liveCamera, type Placement, type ShotSize } f
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, shootsOf, templatesOf } from '../templates';
-import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightRole, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
+import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -412,34 +412,40 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'set_lighting',
-    description: `Light the open scene (saved with it, used by its exports; shows in the lit styles): a lighting scheme (${LIGHTING_PRESETS.map((p) => p.id).join(', ')}) and/or one of its lights changed (the key light unless another role is given; one with that role added if there is none): direction (degrees around, 0 = from the front), height (degrees up), brightness (1 normal) and colour temperature (kelvin, 1800 candle … 6500 white … 10000 blue sky).`,
+    description: `Light the open scene (saved with it, used by its exports; shows in the lit styles): a lighting scheme (${LIGHTING_PRESETS.map((p) => p.id).join(', ')}), and/or one light added or changed. A light is a sun (a direction; the only one with shadows), a lamp (a place in the scene, reaching so far; a spot aimed at the people) or a window. \`light\` names the one to change (as listed, e.g. "Key light", "Fill light"), or with \`add\` the kind to add (sun, lamp, window) or a lamp put as a fill or a rim (fill, rim). Then direction (degrees round, 0 = from the front) and height (degrees up) for a sun or where a lamp sits round the people, brightness (1 normal) and colour temperature (kelvin, 1800 candle … 6500 white … 10000 blue sky).`,
     schema: obj({
       preset: opt(str('Lighting scheme', LIGHTING_PRESETS.map((p) => p.id))),
-      role: opt(str('Which light to change', ['key', 'fill', 'rim'])),
-      direction: opt(num('Degrees around the scene, 0 = from the front')),
+      add: opt(str('Add a light', ['sun', 'lamp', 'window', 'fill', 'rim'])),
+      light: opt(str('The light to change, by its name')),
+      direction: opt(num('Degrees round the people, 0 = from the front')),
       height: opt(num('Degrees above the floor')),
       brightness: opt(num('1 is normal')),
       kelvin: opt(num('Colour temperature, 1800 … 10000')),
     }),
     run: (store, i) => {
       if (typeof i.preset === 'string') applyLightingPreset(store, i.preset);
+      let id: string | null = null;
+      if (typeof i.add === 'string') {
+        id = addLight(store, i.add as LightKind | Place);
+        if (!id) throw new Error(`The scene has ${MAX_LIGHTS} lights already: none can be added`);
+      } else if (typeof i.light === 'string') {
+        const want = i.light.toLowerCase();
+        id = lightingOf(store.scene).lights.find((l) => l.name.toLowerCase() === want || l.id === i.light)?.id ?? null;
+        if (!id) throw new Error(`No light called ${i.light}: ${lightingOf(store.scene).lights.map((l) => l.name).join(', ')}`);
+      } else id = keyLight(lightingOf(store.scene))?.id ?? null;
       const n = (v: unknown) => (typeof v === 'number' ? v : undefined);
-      const patch = {
-        ...(n(i.direction) !== undefined ? { azimuth: n(i.direction) } : {}),
-        ...(n(i.height) !== undefined ? { elevation: n(i.height) } : {}),
-        ...(n(i.brightness) !== undefined ? { intensity: n(i.brightness) } : {}),
-        ...(n(i.kelvin) !== undefined ? { kelvin: n(i.kelvin), color: kelvinColor(n(i.kelvin)!) } : {}),
-      };
-      const role = typeof i.role === 'string' ? i.role : 'key';
-      if (Object.keys(patch).length) {
-        const lit = () => lightingOf(store.scene).lights.find((l) => l.role === role);
-        if (!lit()) setLighting(store, { ...lightingOf(store.scene), lights: [...lightingOf(store.scene).lights, clampLight(newLight(role as LightRole))].slice(0, MAX_LIGHTS) });
-        const l = lit();
-        if (!l) throw new Error(`The scene has ${MAX_LIGHTS} lights already: none can be added`);
-        editLight(store, l.id, patch);
+      const l = lightingOf(store.scene).lights.find((x) => x.id === id);
+      if (l) {
+        let next = { ...l };
+        if (n(i.direction) !== undefined || n(i.height) !== undefined) {
+          next = lightFrom(next, towards(n(i.direction) ?? next.azimuth, n(i.height) ?? next.elevation), subjectOf(store.scene));
+        }
+        if (n(i.brightness) !== undefined) next.intensity = n(i.brightness)!;
+        if (n(i.kelvin) !== undefined) Object.assign(next, { kelvin: n(i.kelvin), color: kelvinColor(n(i.kelvin)!) });
+        editLight(store, l.id, next);
       }
       const now = lightingOf(store.scene);
-      return `Lighting: ${lightingName(now)}; ${now.lights.map((l) => `${lightName(now, l)} ${lightText(l).toLowerCase()}, brightness ${r2(l.intensity)}${l.kelvin ? `, ${l.kelvin} K` : `, ${l.color}`}`).join('; ')}.`;
+      return `Lighting: ${lightingName(now)}; ${now.lights.map((x) => `${x.name} (${x.kind}) ${lightText(x).toLowerCase()}, brightness ${r2(x.intensity)}${x.kelvin ? `, ${x.kelvin} K` : `, ${x.color}`}`).join('; ')}.`;
     },
   },
   {

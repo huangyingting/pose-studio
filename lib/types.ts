@@ -547,22 +547,40 @@ export type Style = (typeof STYLES)[number];
 export type GizmoMode = 'translate' | 'scale';
 
 /** What a light is for: the main one, softening its shadows, outlining from behind, or another. */
-export const LIGHT_ROLES = ['key', 'fill', 'rim', 'custom'] as const;
-export type LightRole = (typeof LIGHT_ROLES)[number];
+/**
+ * What a light is: the sun (parallel rays from a direction: the one that casts shadows), a lamp (a
+ * point in the scene, all round or a spot aimed at someone or something, reaching so far), or a
+ * window (a soft light from a pane in the scene, towards the people).
+ */
+export const LIGHT_KINDS = ['sun', 'lamp', 'window'] as const;
+export type LightKind = (typeof LIGHT_KINDS)[number];
 
-/** A light of the scene (the lit styles show it). azimuth 0 = from the front, elevation 90 = from above. */
+/** A light of the scene (the lit styles show it). */
 export interface Light {
   id: string;
-  role: LightRole;
+  kind: LightKind;
+  /** Its name ("Key light", "Fill light", "Desk lamp"): what it is for, or where it is. */
+  name: string;
+  /** The sun's direction: azimuth 0 = from the front, elevation 90 = from above. */
   azimuth: number;
   elevation: number;
+  /** A lamp's or a window's place in the scene (m; y its height). */
+  position: Vec3;
+  /** A lamp made a spot: its cone (degrees across); none: it lights all round. */
+  spot?: number;
+  /** What a spot (or a window) points at: a figure, or a point; none: straight down (a spot), at the people (a window). */
+  aim?: { figure: string } | { point: Vec3 };
+  /** How far a lamp reaches (m). */
+  range: number;
   /** Brightness (1: normal). */
   intensity: number;
   /** Its colour (#rrggbb), and the colour temperature it was picked by (K), if it was. */
   color: string;
   kelvin?: number;
-  /** Casts shadows (only the key light can). */
+  /** The sun's shadows. */
   shadows: boolean;
+  /** One of the set's own (a lamp in it, its window): it goes with the set. */
+  practical?: true;
 }
 
 /** The light from all around: a brightness, the sky's colour above and the ground's below. */
@@ -572,8 +590,9 @@ export interface Ambient {
   ground: string;
 }
 
-/** A scene's lights (one to MAX_LIGHTS) and its ambient light. */
+/** A scene's lights (up to MAX_LIGHTS) and its ambient light; the scheme it was set from, until it is changed. */
 export interface Lighting {
   lights: Light[];
   ambient: Ambient;
+  scheme?: string;
 }

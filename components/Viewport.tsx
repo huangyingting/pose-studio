@@ -12,7 +12,7 @@ import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
 import { paperTexture } from '@/lib/shaders';
-import { LightRig, keyLight, lampAt, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
+import { LightRig, handleAt, keyLight, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
@@ -163,7 +163,7 @@ export default function Viewport({
       // (The light selected, or the key light.)
       const lighting = lightingOf(scene);
       const l = (selection?.kind === 'light' && lighting.lights.find((x) => x.id === selection.light)) || keyLight(lighting)!;
-      editLight(store, l.id, lightFrom(l, e.camera.position.clone().sub(e.point)));
+      editLight(store, l.id, lightFrom(l, e.camera.position.clone().sub(e.point), e.point.toArray() as Vec3));
       return;
     }
     // (A see-through prop, in front of the figure being edited, lets the click through.)
@@ -626,7 +626,7 @@ function Lights({ sv, style, scene }: { sv: SceneView; style: Style; scene: Scen
   useFrame(() => {
     if (!stale.current) return;
     stale.current = false;
-    sv.ink.setLight(rig.update(lightingOf(scene), style, sv.bounds(), sv.setBounds()), rig.tint);
+    sv.ink.setLight(rig.update(lightingOf(scene), style, sv.bounds(), sv.setBounds(), sv.aimAt), rig.tint, rig.extras);
   });
   return <primitive object={rig.object} />;
 }
@@ -893,7 +893,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   const lightingRef = useRef(lighting);
   useEffect(() => { lightingRef.current = lighting; }, [lighting]);
   /** Where a light's lamp is (null: no such light). */
-  const lampOf = useCallback((id: string) => { const l = lightingRef.current.lights.find((x) => x.id === id); return l ? lampAt(lightDome(sv.bounds(), sv.setBounds()), l) : null; }, [sv]);
+  const lampOf = useCallback((id: string) => { const l = lightingRef.current.lights.find((x) => x.id === id); return l ? handleAt(lightDome(sv.bounds(), sv.setBounds()), l) : null; }, [sv]);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const figures = useRef(docs);
   useEffect(() => { figures.current = docs; }, [docs]);

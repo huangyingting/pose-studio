@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, kelvinColor, lightingOf, sameLighting } from '@/lib/lighting';
+import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, kelvinColor, lightingOf } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
 import { newAnimation } from '@/lib/animation';
 import { parseProjectSettings } from '@/lib/project';
@@ -11,7 +11,7 @@ import { poseScene, referencePoses } from '@/lib/poses';
 const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { DEFAULT_EXPORT, exportCells, parseExportOptions, sheetSize } from '@/lib/render';
 import { Store } from '@/lib/store';
-import { addLight, applyLightingPreset, deleteLight, editLight } from '@/lib/actions';
+import { addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setSceneSet } from '@/lib/actions';
 
 /** Deterministic PRNG for shuffles. */
 function seeded(seed: number) {
@@ -120,11 +120,15 @@ describe('gesture practice', () => {
 });
 
 describe('lighting settings', () => {
-  it('clamps stored light values: only a key light casts shadows', () => {
-    expect(clampLight({ id: 'a', role: 'key', azimuth: 500, elevation: -20, intensity: 9, color: 'red', kelvin: 99999 }))
-      .toEqual({ id: 'a', role: 'key', azimuth: 180, elevation: 5, intensity: 2, color: kelvinColor(10000), kelvin: 10000, shadows: true });
-    expect(clampLight({ id: 'b', role: 'fill', color: '#3D7BFF', shadows: true })).toMatchObject({ role: 'fill', color: '#3d7bff', shadows: false });
-    expect(clampLight({ id: 'c', role: 'spot' as never }).role).toBe('custom');
+  it('clamps stored light values: a sun, a lamp or a window; only the sun casts shadows', () => {
+    expect(clampLight({ id: 'a', kind: 'sun', name: 'Key light', azimuth: 500, elevation: -20, intensity: 9, color: 'red', kelvin: 99999 }))
+      .toMatchObject({ id: 'a', kind: 'sun', name: 'Key light', azimuth: 180, elevation: 5, intensity: 3, color: kelvinColor(10000), kelvin: 10000, shadows: true });
+    expect(clampLight({ id: 'b', kind: 'lamp', color: '#3D7BFF', shadows: true, spot: 500, range: -2, position: [1, -4, 2] }))
+      .toMatchObject({ kind: 'lamp', name: 'Lamp', color: '#3d7bff', shadows: false, spot: 120, range: 1, position: [1, 0, 2] });
+    expect(clampLight({ id: 'c', kind: 'spot' as never }).kind).toBe('sun');
+    // (A window is not a spot; a sun aims at nothing.)
+    expect(clampLight({ id: 'd', kind: 'window', spot: 40, aim: { figure: 'f' } })).not.toHaveProperty('spot');
+    expect(clampLight({ id: 'e', kind: 'sun', aim: { figure: 'f' } })).not.toHaveProperty('aim');
   });
 
   it('colour temperatures: daylight white, candle warm, sky blue', () => {
@@ -154,40 +158,71 @@ describe('lighting settings', () => {
 });
 
 describe('scene lighting', () => {
-  it('belongs to the scene: saved with it, made sound when loaded (lights with ids, up to four), studio light by default', () => {
+  it('belongs to the scene: saved with it, made sound when loaded (lights with ids, up to six), studio light by default', () => {
     const lights = [
-      { id: 'k', role: 'key', azimuth: 999, elevation: 1, intensity: 9, color: '#ffaa00' },
-      { id: 'k', role: 'fill' },
+      { id: 'k', kind: 'sun', azimuth: 999, elevation: 1, intensity: 9, color: '#ffaa00' },
+      { id: 'k', kind: 'lamp' },
       'not a light',
-      ...['a', 'b', 'c', 'd'].map((id) => ({ id, role: 'custom' })),
+      ...['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id, kind: 'lamp' })),
     ];
-    const scene = parseScene({ ...newScene('Dusk'), lighting: { lights, ambient: { intensity: -1, sky: '#102030', ground: 'mud' } } });
-    expect(scene.lighting!.lights.map((l) => l.id)).toEqual(['k', 'a', 'b', 'c']);
-    expect(scene.lighting!.lights[0]).toMatchObject({ azimuth: 180, elevation: 5, intensity: 2, color: '#ffaa00', shadows: true });
+    const scene = parseScene({ ...newScene('Dusk'), lighting: { lights, ambient: { intensity: -1, sky: '#102030', ground: 'mud' }, scheme: 'dusk' } });
+    expect(scene.lighting!.lights.map((l) => l.id)).toEqual(['k', 'a', 'b', 'c', 'd', 'e']);
+    expect(scene.lighting!.lights[0]).toMatchObject({ azimuth: 180, elevation: 5, intensity: 3, color: '#ffaa00', shadows: true });
     expect(scene.lighting!.ambient).toEqual({ intensity: 0, sky: '#102030', ground: '#ffffff' });
+    expect(scene.lighting!.scheme).toBe('dusk');
     expect(parseScene({ ...newScene('None'), lighting: { lights: [] } }).lighting).toBeUndefined();
     expect(parseScene(newScene('Plain')).lighting).toBeUndefined();
     expect(LIGHTING_PRESETS[0].lighting).toEqual(DEFAULT_LIGHTING);
   });
 
-  it('lights are added (fill, then rim: up to four), changed and deleted (not the last), a scheme sets them all', () => {
+  it('lights are added (a sun, a lamp, a window, a fill or a rim), put where a key, fill or rim goes, changed and deleted (not the last); a scheme sets them round the people', () => {
     const storage = new Map<string, string>();
     const store = new Store({ getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k), clear: () => storage.clear(), key: () => null, length: 0 } as Storage);
-    const fill = addLight(store)!;
-    expect(lightingOf(store.scene).lights.map((l) => l.role)).toEqual(['key', 'fill']);
+    const fill = addLight(store, 'fill')!;
+    let l = lightingOf(store.scene);
+    expect(l.lights.map((x) => [x.kind, x.name])).toEqual([['sun', 'Key light'], ['lamp', 'Fill light']]);
     expect(store.getState().selection).toEqual({ kind: 'light', light: fill });
-    addLight(store);
-    addLight(store);
-    expect(lightingOf(store.scene).lights.map((l) => l.role)).toEqual(['key', 'fill', 'rim', 'custom']);
-    expect(addLight(store)).toBeNull();
+    // The fill on the other side from the key light (front-left: its x +), lower, dimmer.
+    const f = l.lights[1];
+    expect(f.position[0]).toBeLessThan(0);
+    expect(f.intensity).toBeLessThan(l.lights[0].intensity);
+    const rim = addLight(store, 'rim')!;
+    const r = lightingOf(store.scene).lights.find((x) => x.id === rim)!;
+    expect(r.position[2]).toBeLessThan(0);
+    expect(r.spot).toBeGreaterThan(0);
+    addLight(store, 'window');
+    addLight(store, 'sun');
+    addLight(store, 'lamp');
+    expect(addLight(store, 'lamp')).toBeNull();
+    placeSceneLight(store, rim, 'fill');
+    expect(lightingOf(store.scene).lights.find((x) => x.id === rim)).toMatchObject({ name: 'Fill light' });
     editLight(store, fill, { intensity: 0.3, shadows: true });
     expect(lightingOf(store.scene).lights[1]).toMatchObject({ intensity: 0.3, shadows: false });
     expect(deleteLight(store, fill)).toBe(true);
+    // A scheme, round where the people are.
+    store.updateFigure(store.scene.figures[0].id, (x) => ({ ...x, position: [3, 0, -2] }));
     applyLightingPreset(store, 'three-point');
-    expect(sameLighting(lightingOf(store.scene), LIGHTING_PRESETS.find((p) => p.id === 'three-point')!.lighting)).toBe(true);
+    l = lightingOf(store.scene);
+    expect(l.scheme).toBe('three-point');
+    expect(l.lights.find((x) => x.name === 'Fill light')!.position[0]).toBeCloseTo(3 - 2.3, 5);
+    editLight(store, l.lights[0].id, { intensity: 0.5 });
+    expect(lightingOf(store.scene).scheme).toBeUndefined();
     const only = lightingOf(store.scene).lights;
-    for (const l of only.slice(1)) deleteLight(store, l.id);
+    for (const x of only.slice(1)) deleteLight(store, x.id);
     expect(deleteLight(store, only[0].id)).toBe(false);
+  });
+
+  it('a set brings its own lamps and windows, and takes them away again', () => {
+    const storage = new Map<string, string>();
+    const store = new Store({ getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k), clear: () => storage.clear(), key: () => null, length: 0 } as Storage);
+    setSceneSet(store, 'living-room');
+    let lights = lightingOf(store.scene).lights;
+    expect(lights.filter((x) => x.practical).map((x) => [x.kind, x.name])).toEqual([['lamp', 'Floor lamp'], ['window', 'Window']]);
+    setSceneSet(store, 'castle-hall');
+    lights = lightingOf(store.scene).lights;
+    expect(lights.filter((x) => x.practical).map((x) => x.name)).toEqual(['Fireplace', 'Chandelier', 'Window']);
+    setSceneSet(store, null);
+    expect(lightingOf(store.scene).lights.map((x) => x.name)).toEqual(['Key light']);
   });
 });
 

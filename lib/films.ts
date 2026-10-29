@@ -4,7 +4,8 @@ import { BODY_PRESETS, DEFAULT_BODY } from './body';
 import { newAnimation, propKeyOf } from './animation';
 import { newFigure, newProp, newScene } from './doc';
 import { held } from './hold';
-import { LIGHTING_PRESETS, fromPreset } from './lighting';
+import { MAX_LIGHTS, fromPreset } from './lighting';
+import { setLights } from './sets';
 import { putPropKey } from './propmotion';
 import { REACT_LEAD } from './strike';
 import { withFacing } from './relations';
@@ -44,7 +45,8 @@ class Stage {
     const figures = cast.map((c) => withFacing(newFigure({ name: c.name, body: body(c.body), position: [c.at[0], 0, c.at[1]] }), c.facing));
     cast.forEach((c, i) => this.ids.set(c.name, figures[i].id));
     const scene = newScene(name, figures);
-    this.scene = { ...scene, lighting: fromPreset(LIGHTING_PRESETS.find((l) => l.id === light)!.lighting), ...(set ? { set } : {}), animation: { ...newAnimation(scene, 1), loop: false } };
+    const lighting = fromPreset(light)!;
+    this.scene = { ...scene, lighting: { ...lighting, lights: [...lighting.lights, ...(set ? setLights(set) : [])].slice(0, MAX_LIGHTS) }, ...(set ? { set } : {}), animation: { ...newAnimation(scene, 1), loop: false } };
   }
 
   id(name: string) {

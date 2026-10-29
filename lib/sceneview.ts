@@ -4,7 +4,7 @@ import { Mannequin } from './mannequin';
 import { ModelRig, modelInfo, modelTemplate } from './model';
 import { PropObject } from './props';
 import { groundOf } from './surfaces';
-import type { JointName, Scene, Selection, Style } from './types';
+import type { JointName, Scene, Selection, Style, Vec3 } from './types';
 import { SetObject } from './sets';
 
 /** What the pointer would move: (some joints of) a figure, a prop, or a held prop and the arm holding it. */
@@ -236,6 +236,11 @@ export class SceneView {
     this.forEachPoint((p) => box.expandByPoint(p), figuresOnly);
     return box;
   }
+
+  /** Where a light aims (lib/lighting.ts AimAt): a figure's chest, or a point. */
+  aimAt = (aim: { figure: string } | { point: Vec3 }) => ('figure' in aim
+    ? this.figures.get(aim.figure)?.joints.chest.getWorldPosition(new THREE.Vector3()) ?? null
+    : new THREE.Vector3(...aim.point));
 
   /** The set's bounds (empty without one): the lights stand above and outside it. */
   setBounds() {

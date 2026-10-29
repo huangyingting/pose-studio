@@ -158,6 +158,10 @@ export class Ink {
     lightDir: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
     /** The key light's colour and brightness (painterly shaders: white, as they are). */
     lightColor: { value: new THREE.Color(1, 1, 1) },
+    /** The other lights (painterly shaders): towards each, and its colour times its strength; how many. */
+    extraDirs: { value: Array.from({ length: 4 }, () => new THREE.Vector3(0, 1, 0)) },
+    extraColors: { value: Array.from({ length: 4 }, () => new THREE.Color(0, 0, 0)) },
+    extraCount: { value: 0 },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
   /** The outline of a whole object linked to the pointer elsewhere (its row in the outline): the accent, thicker. */
@@ -204,9 +208,15 @@ export class Ink {
   }
 
   /** The key light for the painterly styles: the direction towards it, and its colour (LightRig's tint). */
-  setLight(dir: THREE.Vector3, color: THREE.Color) {
+  setLight(dir: THREE.Vector3, color: THREE.Color, extras: { dir: THREE.Vector3; color: THREE.Color }[] = []) {
     this.uniforms.lightDir.value.copy(dir).normalize();
     this.uniforms.lightColor.value.copy(color);
+    const n = Math.min(4, extras.length);
+    for (let i = 0; i < n; i++) {
+      this.uniforms.extraDirs.value[i].copy(extras[i].dir).normalize();
+      this.uniforms.extraColors.value[i].copy(extras[i].color);
+    }
+    this.uniforms.extraCount.value = n;
   }
 
   /** Outline colour and brush jitter for a style. */
