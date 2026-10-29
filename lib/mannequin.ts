@@ -527,7 +527,7 @@ export class Mannequin {
    * surface, finished with a few quiet lines (upper eyelids, the line between the lips and
    * under the nose). A plain construction head stands in when face features are off.
    */
-  /** The head (lib/head.ts): its form, its face (shown with face features) or a plain one, ears, hair. */
+  /** The head (lib/head.ts): its form, its face (shown with face features) or a plain one, ears. */
   private buildHead(h: number, female: number) {
     const pos: Vec3 = [0, 0.1 * h, 0.01 * h];
     const at = (p: Vec3): Vec3 => [pos[0] + p[0], pos[1] + p[1], pos[2] + p[2]];
@@ -540,10 +540,6 @@ export class Mannequin {
     this.parts.add(this.joints.head, forms.ear, tag, at(forms.earAt));
     const [x, y, z] = forms.earAt;
     this.parts.add(this.joints.head, mirrored(forms.ear), tag, at([-x, y, z]));
-    // (The hair is not picked: a click on it reaches what is under it, a hand on the head or the head.)
-    const hair = [this.parts.add(this.joints.head, forms.hair, tag, pos)];
-    if (forms.bun) hair.push(this.parts.add(this.joints.head, forms.bun, tag, at(forms.bunAt)));
-    for (const m of hair) m.raycast = () => {};
   }
 
   /** Show or hide the face details. */

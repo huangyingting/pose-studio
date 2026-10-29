@@ -7,8 +7,7 @@ import type { Vec3 } from './types';
  * than the face, its back rounded and tucked in above the neck; the face narrowing past the
  * cheekbones to the jaw and chin (a squarer jaw on a man); the face's forms sculpted into it (brow,
  * eye sockets, nose, lips, chin, cheekbones); ears, between the brow and the base of the nose,
- * behind the jaw; and hair as one sculpted mass (short on a man; on a woman, a side-swept fringe
- * and a low bun). In units of the head's size `h` (a 1.8 m figure's is 1), the eyes at y = 0, the
+ * behind the jaw. In units of the head's size `h` (a 1.8 m figure's is 1), the eyes at y = 0, the
  * face towards +z.
  */
 
@@ -134,58 +133,6 @@ function earGeometry(h: number) {
   return smoothNormals(geo).rotateX(-0.22).rotateY(-0.32);
 }
 
-/** How far up the hair starts all round (unit-sphere height, by the angle round from the face). */
-function hairline(angle: number, female: number) {
-  const a = Math.abs(angle);
-  // (A woman's fringe comes lower across her forehead from her right.)
-  const front = 0.5 - 0.04 * female - female * 0.2 * Math.exp(-(((angle + 0.35) / 0.4) ** 2));
-  // From the forehead to the temples, over the ears, down behind them to the nape.
-  return a < 0.9 ? front - 0.22 * smooth(0, 0.9, a)
-    : a < 1.75 ? 0.28 - 0.26 * smooth(0.9, 1.75, a)
-      : 0.02 - (0.6 + 0.08 * female) * smooth(1.75, 2.7, a);
-}
-
-/**
- * The hair: from its hairline (all round) up over the crown, out from the head by its thickness:
- * at its edge a little (the hairline shows), thicker over the crown, fuller on a woman, her
- * fringe swept to one side (her right).
- */
-function hairGeometry(female: number, h: number) {
-  const columns = 96;
-  const rows = 36;
-  const pos: number[] = [];
-  for (let r = 0; r <= rows; r++) {
-    for (let c = 0; c < columns; c++) {
-      const angle = (c / columns) * Math.PI * 2 - Math.PI;
-      const start = hairline(angle, female);
-      const v = r / rows;
-      const y = start + (1 - start) * (1 - (1 - v) ** 1.5);
-      const round = Math.sqrt(Math.max(0, 1 - y * y));
-      const d = new THREE.Vector3(Math.sin(angle) * round, y, Math.cos(angle) * round);
-      let t = 0.0025 + (0.005 + 0.01 * Math.max(0, y) + 0.006 * female) * smooth(0, 0.3, v);
-      // A man's lifts a little over his forehead; a woman's fringe is fuller where it sweeps across.
-      t += (1 - female) * 0.006 * Math.exp(-((d.x / 0.45) ** 2) - (((d.y - 0.72) / 0.2) ** 2)) * Math.max(0, d.z);
-      t += female * 0.009 * Math.exp(-(((d.x + 0.3) / 0.4) ** 2) - (((d.y - 0.55) / 0.25) ** 2)) * Math.max(0, d.z);
-      const p = headPoint(d, female);
-      const n = p.clone().sub(new THREE.Vector3(0, 0.004, -0.008)).normalize();
-      p.addScaledVector(n, t).multiplyScalar(h);
-      pos.push(p.x, p.y, p.z);
-    }
-  }
-  const index: number[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < columns; c++) {
-      const a = r * columns + c, b = r * columns + ((c + 1) % columns), d = a + columns, e = b + columns;
-      index.push(a, b, d, b, e, d);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setIndex(index);
-  // (Its top row all one point, the crown: one normal there.)
-  return smoothNormals(geo);
-}
-
 export interface HeadForms {
   /** The head without its face (while faces are off). */
   plain: THREE.BufferGeometry;
@@ -195,10 +142,6 @@ export interface HeadForms {
   /** The left ear and where it goes (the right: its mirror). */
   ear: THREE.BufferGeometry;
   earAt: Vec3;
-  hair: THREE.BufferGeometry;
-  /** A woman's bun, and where it goes. */
-  bun: THREE.BufferGeometry | null;
-  bunAt: Vec3;
 }
 
 // The last few heads made (a body's other settings change more often than its head and sex).
@@ -214,7 +157,7 @@ export function headForms(h: number, female: number): HeadForms {
     if (made.size > 6) made.delete(made.keys().next().value!);
   }
   const f = forms;
-  return { ...f, plain: f.plain.clone(), face: f.face.clone(), lines: f.lines.map((l) => l.clone()), ear: f.ear.clone(), hair: f.hair.clone(), bun: f.bun?.clone() ?? null };
+  return { ...f, plain: f.plain.clone(), face: f.face.clone(), lines: f.lines.map((l) => l.clone()), ear: f.ear.clone() };
 }
 
 function makeHead(h: number, female: number): HeadForms {
@@ -259,11 +202,8 @@ function makeHead(h: number, female: number): HeadForms {
   // The ear: against the side of the head between the brow and the base of the nose, behind the jaw.
   const earY = -0.026;
   const side = solveSurface(female, [earY, -0.012], [1, 2], [Math.PI / 2, Math.asin(earY / 0.11)]).p.x * h;
-  const bun = female > 0.5 ? smoothNormals(new THREE.SphereGeometry(1, 28, 20).scale(0.034 * h, 0.03 * h, 0.028 * h)) : null;
   return {
     plain, face, lines,
     ear: earGeometry(h), earAt: [side + 0.004 * h, earY * h, -0.012 * h],
-    hair: hairGeometry(female, h),
-    bun, bunAt: [0, -0.042 * h, -0.098 * h],
   };
 }
