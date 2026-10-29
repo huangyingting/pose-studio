@@ -505,18 +505,20 @@ export class Mannequin {
     const R = P.limbR;
     const add = (j: JointName, geo: THREE.BufferGeometry, pos?: Vec3, rings: THREE.BufferGeometry[] = []) =>
       this.parts.add(this.joints[j], geo, { joint: j, figure: this.id }, pos, rings);
-    const up = (len: number, r1: number, r2: number) => limb(len, r1, r2, 0, 0.35, 24).geometry.rotateZ(Math.PI);
+    // (Capsules: coarser than the mannequin's parts, a stand-in is the lighter of the two.)
+    const capsule = (len: number, r1: number, r2: number) => limb(len, r1, r2, 0, 0.35, 16, 8, 5).geometry;
+    const up = (len: number, r1: number, r2: number) => capsule(len, r1, r2).rotateZ(Math.PI);
     const torso = up(0.6 * k, 0.15 * P.torso, mix(0.17, 0.14, P.female) * P.torso).scale(1, 1, 0.68);
     add('hips', torso, [0, -0.12 * k, 0]);
     add('head', egg(head.rx, head.ry, head.rz, head.taper), [0, 0.1 * P.head, 0.01 * P.head], [meridian(head.ry, head.rz, head.taper)]);
     for (const side of ['L', 'R'] as const) {
-      add(sided('UpperArm', side), limb(0.28 * k, 0.05 * R, 0.038 * R, 0, 0.35, 24).geometry);
-      add(sided('LowerArm', side), limb(0.34 * k, 0.038 * R, 0.032 * R, 0, 0.35, 24).geometry);
-      add(sided('UpperLeg', side), limb(0.43 * P.legs, 0.08 * R, 0.05 * R, 0, 0.35, 24).geometry);
-      add(sided('LowerLeg', side), limb(0.4 * P.legs, 0.05 * R, 0.04 * R, 0, 0.35, 24).geometry);
+      add(sided('UpperArm', side), capsule(0.28 * k, 0.05 * R, 0.038 * R));
+      add(sided('LowerArm', side), capsule(0.34 * k, 0.038 * R, 0.032 * R));
+      add(sided('UpperLeg', side), capsule(0.43 * P.legs, 0.08 * R, 0.05 * R));
+      add(sided('LowerLeg', side), capsule(0.4 * P.legs, 0.05 * R, 0.04 * R));
       // Round joints keep bent limbs smooth where the capsules meet.
-      add(sided('LowerArm', side), new THREE.SphereGeometry(0.044 * R, 20, 14));
-      add(sided('LowerLeg', side), new THREE.SphereGeometry(0.058 * R, 20, 14));
+      add(sided('LowerArm', side), new THREE.SphereGeometry(0.044 * R, 16, 10));
+      add(sided('LowerLeg', side), new THREE.SphereGeometry(0.058 * R, 16, 10));
       const fk = k * P.extremity;
       add(sided('Foot', side), ellipsoid(0.045 * R, 0.035 * fk, 0.11 * fk), [0, -0.04 * k, 0.05 * fk]);
     }
