@@ -3,7 +3,7 @@ import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, setSceneLight, setGaze, setTravel, throwProp, travelTo,
-  carryProblem, editFilm, motionProblem, nearestPartners, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, editFilm, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { DEFAULT_LIGHT, LIGHT_PRESETS, clampLight } from '../lighting';
@@ -565,20 +565,16 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. One person: ${MOTIONS.filter((m) => m.people === 1).map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. Several people (the figure leads, the others take their places around it, walking there if there is time: the partner given, or the nearest figures): ${MOTIONS.filter((m) => m.people > 1).map((m) => `${m.id} = ${m.name}`).join(', ')}.`,
-    schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion'), partner: opt(str('For a two-person motion: the other figure (id or name); default the nearest')) }),
+    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way: ${MOTIONS.map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. A motion is one person's: for people together, give each their own (and place them with arrange or set_distance).`,
+    schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
       const q = String(i.motion).trim().toLowerCase();
       const mine = store.getState().library.clips ?? [];
       const motion = MOTIONS.find((m) => m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
       if (!motion) throw new Error(`No motion "${i.motion}"`);
-      const partners = i.partner ? [findFigure(store, i.partner).id] : undefined;
       const from = store.scene.animation ? store.getState().time : 0;
-      const cast = [f.id, ...(partners ?? nearestPartners(store, f.id, (MOTIONS.find((m) => m.id === motion.id)?.people ?? 1) - 1))];
-      const why = motionProblem(store, motion.id, cast);
-      if (why) throw new Error(why);
-      if (!applyMotion(store, f.id, motion.id, partners)) throw new Error(`${motion.name} needs another figure in the scene`);
+      if (!applyMotion(store, f.id, motion.id)) throw new Error(`${motion.name} is for several people: give each their own motion`);
       const a = store.scene.animation!;
       return `${f.name}: ${motion.name} from ${r2(from)} s (animation ${a.duration} s).`;
     },
@@ -613,7 +609,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'move_mark',
-    description: 'Move where an action leaves a figure (its mark: the end of a walk, run or jump, or of a motion) to a floor point. A motion of several people moves them all, as a formation; a motion stretches up to ±25% and turns up to ±30° to get there (further, and the answer says so: then walk the rest with move_to).',
+    description: 'Move where an action leaves a figure (its mark: the end of a walk, run or jump, or of a motion) to a floor point. A motion stretches up to ±25% and turns up to ±30° to get there (further, and the answer says so: then walk the rest with move_to).',
     schema: obj({ action: str('Action id'), figure: FIGURE, x: num('Floor X (metres)'), z: num('Floor Z (metres)') }),
     run: (store, i) => {
       const act = store.scene.animation?.actions.find((x) => x.id === i.action);
@@ -627,11 +623,11 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'upper_body',
-    description: `Play a one-person motion from the waist up over what a figure does at the playhead (waving while walking): ${MOTIONS.filter((m) => m.people === 1 && !m.travel).map((m) => m.id).join(', ')}. A motion that loops lasts as long as what is under it.`,
+    description: `Play a motion from the waist up over what a figure does at the playhead (waving while walking): ${MOTIONS.filter((m) => !m.travel).map((m) => m.id).join(', ')}. A motion that loops lasts as long as what is under it.`,
     schema: obj({ figure: FIGURE, motion: str('Motion id') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
-      if (!applyUpperBody(store, f.id, String(i.motion))) throw new Error(`${i.motion} is not a one-person motion for the upper body`);
+      if (!applyUpperBody(store, f.id, String(i.motion))) throw new Error(`${i.motion} is not a motion for the upper body`);
       return `${f.name}: ${i.motion} from the waist up from ${r2(store.getState().time)} s.`;
     },
   },
@@ -791,6 +787,6 @@ Joint angles are degrees, Euler X/Y/Z:
 - leftLowerArm/R: X− bends (to −150). leftLowerLeg/R: X+ bends (to 160). leftFoot/R: X+ points the toes. wrists: X flex, Z sideways.
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
-Animation is made of actions on each person's track: a walk, run or jump to a mark (move_to), a motion from the library (apply_motion; several people's motions put the others in place), poses keyed by hand (set_time, then set_joints), an upper-body motion over another (upper_body), a prop thrown, passed, shot or dribbled (throw_prop), contacts held over time (hold). get_scene lists the actions with their ids; edit_action moves, retimes, blends, speeds up or removes one, move_mark changes where it ends. Changing one action moves only what that person does after it.
+Animation is made of actions on each person's track: a walk, run or jump to a mark (move_to), a motion from the library (apply_motion: one person's; people together each get their own), poses keyed by hand (set_time, then set_joints), an upper-body motion over another (upper_body), a prop thrown, passed, shot or dribbled (throw_prop), contacts held over time (hold). get_scene lists the actions with their ids; edit_action moves, retimes, blends, speeds up or removes one, move_mark changes where it ends. Changing one action moves only what that person does after it.
 Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures from mark to mark with move_to, apply_pose or apply_motion for actions on the spot, then refine), then shoot (film_coverage for the whole scene, or cut_shot and camera_move shot by shot; then check_motion).
 Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. To put a figure beside, in front of or facing another, use relate rather than working out coordinates. For animation: chain actions at the playhead, fix timing with edit_action, add a camera_move, and run check_motion. Keep replies short: say what you did.`;

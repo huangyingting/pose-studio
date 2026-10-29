@@ -91,11 +91,9 @@ describe('keyframe pack pieces', () => {
   });
 
   it('describes casts naturally', async () => {
-    const { MOTIONS } = await import('@/lib/motions');
-    const boxing = MOTIONS.find((m) => m.id === 'boxing')!.build();
-    expect(describeShot(boxing)).toMatch(/two mannequin figures \(two men\)/i);
-    const waltz = MOTIONS.find((m) => m.id === 'waltz-turn')!.build();
-    expect(describeShot(waltz)).toMatch(/\(a man and a woman\)/);
+    const { buildStaging } = await import('@/lib/stagings');
+    expect(describeShot(buildStaging('sparring')!)).toMatch(/two mannequin figures \(two men\)/i);
+    expect(describeShot(buildStaging('waltz')!)).toMatch(/\(a man and a woman\)/);
   });
 
   it('moves one camera point (dragged on the canvas) as one undo step', () => {

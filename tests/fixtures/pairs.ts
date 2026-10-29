@@ -1,5 +1,5 @@
 import { expect } from 'vitest';
-import { addFigure, addProp, applyMotion, applyUpperBody, carryProblem, holdHandle, holdProp, lieOn, motionProblem, moveProp, setAnimationOptions, setGrounded, setJoint, travelTo } from '@/lib/actions';
+import { addFigure, addProp, applyUpperBody, carryProblem, holdHandle, holdProp, lieOn, moveProp, setAnimationOptions, setGrounded, setJoint, travelTo } from '@/lib/actions';
 import { BODY_PRESETS } from '@/lib/body';
 import { checkMotion } from '@/lib/qa';
 import { withFacing } from '@/lib/relations';
@@ -7,8 +7,8 @@ import type { BodyParams } from '@/lib/types';
 import { fresh } from './scenes';
 
 /*
- * Motions of several people on every pairing of body presets, done as a user does them; each
- * clean (no slides, overlaps, pops, missed contacts or joints past their range), or declined
+ * Things several people do together on every pairing of body presets, done as a user does them;
+ * each clean (no slides, overlaps, pops, missed contacts or joints past their range), or declined
  * with a reason when the builds cannot do it together.
  */
 
@@ -24,37 +24,6 @@ function two(lead: BodyParams, partner: BodyParams, at: [number, number, number]
   const b = store.getState().activeFigure!;
   store.updateFigure(b, (f) => ({ ...f, body: { ...partner } }));
   return { store, a, b };
-}
-
-/** A motion of two, on the spot (`runIn`: after both walk in from apart, as in a film). */
-export function expectPair(motion: string, [pa, pb]: (typeof PAIRS)[number], runIn = false) {
-  const what = `${motion}${runIn ? ' (run in)' : ''}: ${pa.name} + ${pb.name}`;
-  const { store, a, b } = two(pa.body, pb.body, runIn ? [3, 0, 2] : [1, 0, 0]);
-  store.setTime(0);
-  if (runIn) {
-    const walk = travelTo(store, a, [0, 2.5], 'walk')!;
-    store.setTime(0);
-    travelTo(store, b, [2.5, 3], 'walk');
-    store.setTime(walk.to);
-  }
-  const why = motionProblem(store, motion, [a, b]);
-  expect(applyMotion(store, a, motion, [b]), what).toBe(!why);
-  if (!why) expect(problems(store.scene), what).toEqual([]);
-  return why;
-}
-
-/** Four in a group dance, the builds round the presets from `k`. */
-export function expectGroup(k: number) {
-  const { store, a } = fresh();
-  const ids = [a];
-  for (let i = 1; i < 4; i++) {
-    addFigure(store, [i, 0, 0]);
-    ids.push(store.getState().activeFigure!);
-  }
-  ids.forEach((id, i) => store.updateFigure(id, (f) => ({ ...f, body: { ...BODY_PRESETS[(k + i) % BODY_PRESETS.length].body } })));
-  store.setTime(0);
-  expect(applyMotion(store, a, 'group-dance', ids.slice(1))).toBe(true);
-  expect(problems(store.scene), `group dance from ${BODY_PRESETS[k].name}`).toEqual([]);
 }
 
 /** A stretcher carried off by two, one lying on it (in the first preset's build). */

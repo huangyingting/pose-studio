@@ -150,6 +150,41 @@ const PARENT: Record<Exclude<JointName, 'hips'>, JointName> = {
 const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle|Ring|Little)/.test(target) ? (`${target.startsWith('left') ? 'left' : 'right'}Hand` as JointName) : (target as JointName));
 
 
+/** A bone and its outermost points (at rest): where they are is where the bone takes them. */
+interface Sample { bone: THREE.Bone; inverse: THREE.Matrix4; points: Float32Array }
+
+/** The directions a bone's outermost points are found in (from the middle of a cube to the points on its surface, five to a side). */
+const STEPS = [-2, -1, 0, 1, 2];
+const DIRECTIONS = STEPS.flatMap((x) => STEPS.flatMap((y) => STEPS.map((z) => new THREE.Vector3(x, y, z))))
+  .filter((d) => Math.max(Math.abs(d.x), Math.abs(d.y), Math.abs(d.z)) === 2)
+  .map((d) => d.normalize());
+
+/**
+ * Each bone's outermost points (of those it moves most), in 98 directions: as it is posed, the
+ * figure is bound by them (its lowest point, how far it reaches) to a few millimetres, without
+ * working out every vertex.
+ */
+function outline(bot: Bot, k: number, bones: THREE.Bone[], inverses: THREE.Matrix4[]): Sample[] {
+  const n = bot.positions.length / 3;
+  const best = bones.map(() => DIRECTIONS.map(() => ({ v: -1, d: -Infinity })));
+  const p = new THREE.Vector3();
+  for (let v = 0; v < n; v++) {
+    const b = bot.skinIndex[v * 4];
+    p.fromArray(bot.positions, v * 3);
+    DIRECTIONS.forEach((dir, i) => {
+      const d = p.dot(dir);
+      if (d > best[b][i].d) best[b][i] = { v, d };
+    });
+  }
+  return bones.flatMap((bone, b) => {
+    const ids = [...new Set(best[b].map((x) => x.v).filter((v) => v >= 0))];
+    if (!ids.length) return [];
+    const points = new Float32Array(ids.length * 3);
+    ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = bot.positions[v * 3 + c] * k; });
+    return [{ bone, inverse: inverses[b], points }];
+  });
+}
+
 /** The mannequin: Mixamo's X Bot or Y Bot on the app's skeleton, drawn in the app's styles. */
 export class Mannequin {
   readonly object = new THREE.Group();
@@ -160,6 +195,8 @@ export class Mannequin {
   grounded = true;
 
   private hands = {} as Record<Side, FingerRig>;
+  /** What bounds it, cheaply: a few of each bone's points (outline). */
+  private samples: Sample[] = [];
   private faces = true;
   private bodyKey = '';
   private style: Style = 'line';
@@ -247,6 +284,9 @@ export class Mannequin {
     });
     const skeleton = new THREE.Skeleton(bones);
 
+    this.samples = outline(bot, k, bones, skeleton.boneInverses);
+    // (One only worked out with is never drawn: its bones and the points that bound it are enough.)
+    if (this.bare) return;
     // Its body cut by the joint each triangle mostly follows (each part picked and lit on its own),
     // the joint bands apart from the surface (and in a hand, each finger) for the lines between them.
     const tris = bot.index.length / 3;
@@ -315,10 +355,11 @@ export class Mannequin {
     rig.segments.forEach((segs, fi) => {
       const c = hand.curl[fi];
       if (fi === 0) {
-        // Thumb: curls across the palm towards the little finger.
-        segs[0].rotation.set(0.55 * c - 0.3 * hand.spread, 0, -s * (0.55 * c + 0.25 * hand.spread));
-        segs[1].rotation.set(0.15 * c, 0, -s * 0.7 * c);
-        segs[2].rotation.set(0.1 * c, 0, -s * 0.8 * c);
+        // Thumb: at rest it points forward and down by the palm (which faces the body); it folds
+        // in across the palm (about the vertical), out from it as the hand spreads.
+        segs[0].rotation.set(0, -s * (0.5 * c - 0.3 * hand.spread), 0);
+        segs[1].rotation.set(0, -s * 0.6 * c, 0);
+        segs[2].rotation.set(0, -s * 0.7 * c, 0);
         return;
       }
       segs.forEach((g, si) => g.rotation.set(si === 0 ? SPREAD[fi - 1] * hand.spread : 0, 0, -s * CURL_ANGLES[si] * c));
@@ -362,7 +403,9 @@ export class Mannequin {
   /** The height of the figure's lowest point (below 0: it goes through the floor). */
   lowest() {
     this.object.updateMatrixWorld(true);
-    return this.parts.lowest();
+    let min = Infinity;
+    this.forEachPoint((p) => { min = Math.min(min, p.y); });
+    return min;
   }
 
   /** Raise the figure if any part is below the floor (it never goes through it). */
@@ -400,7 +443,7 @@ export class Mannequin {
     const root = this.joints.hips;
     root.position.y = 1;
     this.object.updateMatrixWorld(true);
-    root.position.y -= this.parts.lowest();
+    root.position.y -= this.lowest();
     if (this.surface) {
       // Standing on a box or a step: up onto the highest top under either foot.
       const on = Math.max(...(['leftFoot', 'rightFoot'] as const).map((j) => {
@@ -412,8 +455,14 @@ export class Mannequin {
     this.object.updateMatrixWorld(true);
   }
 
+  /** The points that bound it (each bone's outermost ones, where its bone has them now). */
   forEachPoint(cb: (p: THREE.Vector3) => void) {
-    this.parts.forEachPoint(cb);
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    for (const { bone, inverse, points } of this.samples) {
+      m.multiplyMatrices(bone.matrixWorld, inverse);
+      for (let i = 0; i < points.length; i += 3) cb(p.set(points[i], points[i + 1], points[i + 2]).applyMatrix4(m));
+    }
   }
 
   /**

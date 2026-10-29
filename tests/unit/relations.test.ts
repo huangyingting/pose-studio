@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { newFigure } from '@/lib/doc';
-import { worldPos } from '@/lib/mannequin';
+import { Ink } from '@/lib/ink';
+import { Mannequin, worldPos } from '@/lib/mannequin';
 import {
   Rig, atDistance, backToBack, besides, contactPoint, distance, faceEachOther, facing, forward, headPoint, inFrontOf, lookAt, reach,
   turnTowards, withFacing,
@@ -65,18 +66,22 @@ describe('posing against another figure', () => {
       const f = { ...at(0, 0), body };
       const m = rig.model(f);
       const hips = m.joints.hips.worldToLocal(contactPoint(m, f, 'leftUpperLeg'));
-      // The pelvis's side at the contact's height (its points as posed, in the hips' frame).
+      // The pelvis's side at the contact's height (its points as posed, in the hips' frame; a drawn
+      // mannequin's: one only worked out with has no parts).
+      const drawn = new Mannequin(new Ink(), body);
+      drawn.apply(f);
       let side = 0;
       const p = new THREE.Vector3();
-      for (const b of m.parts.bodies.filter((x) => x.userData.joint === 'hips')) {
+      for (const b of drawn.parts.bodies.filter((x) => x.userData.joint === 'hips')) {
         const pos = (b.geometry as THREE.BufferGeometry).attributes.position;
         for (let i = 0; i < pos.count; i++) {
-          m.joints.hips.worldToLocal(b.getVertexPosition(i, p).applyMatrix4(b.matrixWorld));
+          drawn.joints.hips.worldToLocal(b.getVertexPosition(i, p).applyMatrix4(b.matrixWorld));
           if (Math.abs(p.y - hips.y) < 0.01 && Math.abs(p.z - hips.z) < 0.06) side = Math.max(side, p.x);
         }
       }
       expect(hips.x).toBeGreaterThan(side);
       expect(hips.x).toBeLessThan(side + 0.03);
+      drawn.dispose();
     }
     rig.dispose();
   });

@@ -6,10 +6,11 @@ import { BUILT_IN_CHARACTERS, characterFile, isBuiltInCharacter } from './charac
 import { legsOf } from './locomotion';
 import { Rig } from './relations';
 import { setWorldQuaternion } from './mannequin';
-import { fingerBones, PARENT, worldTurns } from './skeleton';
+import { FINGER_CURL, FINGER_NAMES as FINGERS4, FINGER_SPREAD, SEGMENTS, fingerBones, PARENT, worldTurns } from './skeleton';
+import { toQuat, type Bones } from './pose';
 import { LINES_LAYER, idMaterialOf, type Ink } from './ink';
 import { styleDef } from './styles';
-import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type ModelInfo, type Style } from './types';
+import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type Hand, type ModelInfo, type Style } from './types';
 import { uid } from './uid';
 import { readVrm, type VrmInfo } from './vrm';
 import { ownLooks, paintedLook, toonMaterial, type ToonLook } from './toon';
@@ -168,6 +169,8 @@ export class Fitted {
   readonly hipHeight: number;
   /** Bones in the rig's order (parents first). */
   private order: Bone[];
+  /** Each hand's axes in the T-pose (fingerTurns): what its fingers curl about, its palm's way, its thumb's fold. */
+  private hands = new Map<'left' | 'right', { curl: THREE.Vector3; palm: THREE.Vector3; thumb: { axis: THREE.Vector3; angle: number } | null }>();
 
   /** `frame`: one stood up already (another person in the same file keeps their place in it). */
   constructor(readonly root: THREE.Object3D, map: BoneMap, frame?: THREE.Group) {
@@ -208,6 +211,70 @@ export class Fitted {
       if (s) swing.set(b, s);
       if (o) this.rest.set(b, (s ?? new THREE.Quaternion()).clone().multiply(o.getWorldQuaternion(new THREE.Quaternion())));
     }
+    // Each hand as the T-pose has it: which way its palm faces (fingers curl towards it), and the
+    // way its thumb folds into a fist: a model's own.
+    for (const side of ['left', 'right'] as const) {
+      const turn = swing.get(`${side}Hand`) ?? new THREE.Quaternion();
+      const T = (b: Bone) => at(b)?.applyQuaternion(turn) ?? null;
+      const [index, little] = [T(`${side}IndexProximal`), T(`${side}LittleProximal`) ?? T(`${side}RingProximal`)];
+      if (!index || !little) continue;
+      const out = new THREE.Vector3(side === 'left' ? 1 : -1, 0, 0);
+      const across = index.clone().sub(little).normalize();
+      const palm = (side === 'left' ? out.clone().cross(across) : across.clone().cross(out)).normalize();
+      // (The thumb, in a fist, lies across the curled index and middle fingers' middle segments:
+      // turned from where it points to there.)
+      const curl = out.clone().cross(palm).normalize();
+      const fisted = (f: 'Index' | 'Middle') => {
+        const [p0, p1, p2] = (['Proximal', 'Intermediate', 'Distal'] as const).map((seg) => T(`${side}${f}${seg}`));
+        if (!p0 || !p1 || !p2) return null;
+        const turn = (p: THREE.Vector3, about: THREE.Vector3, angle: number) => p.clone().sub(about).applyAxisAngle(curl, angle).add(about);
+        const q1 = turn(p1, p0, FINGER_CURL[0]);
+        const q2 = turn(turn(p2, p0, FINGER_CURL[0]), q1, FINGER_CURL[1]);
+        return q1.add(q2).multiplyScalar(0.5);
+      };
+      const [i1, m1] = [fisted('Index'), fisted('Middle')];
+      const base = T(`${side}ThumbMetacarpal`) ?? T(`${side}ThumbProximal`);
+      const tip = T(`${side}ThumbDistal`) ?? T(`${side}ThumbProximal`);
+      let thumb: { axis: THREE.Vector3; angle: number } | null = null;
+      if (base && tip && i1 && tip.distanceTo(base) > 1e-6) {
+        const over = (m1 ? i1.clone().add(m1).multiplyScalar(0.5) : i1).addScaledVector(palm, 0.25 * index.distanceTo(little));
+        const q = new THREE.Quaternion().setFromUnitVectors(tip.clone().sub(base).normalize(), over.sub(base).normalize());
+        const axis = new THREE.Vector3(q.x, q.y, q.z);
+        if (axis.lengthSq() > 1e-12) thumb = { axis: axis.normalize(), angle: 2 * Math.acos(Math.min(1, q.w)) };
+      }
+      this.hands.set(side, { curl, palm, thumb });
+    }
+  }
+
+  /**
+   * The finger bones' turns (local, as the skeleton has them) for hands as the presets have them:
+   * each finger curled towards this model's palm, spread about it, the thumb folded its own way (a
+   * hand it cannot tell: as a T-pose's usually is, palm down).
+   */
+  fingerTurns(hands: Record<Side, Hand>): Bones {
+    const out = fingerBones(hands);
+    const about = (axis: THREE.Vector3, angle: number) => toQuat(new THREE.Quaternion().setFromAxisAngle(axis, angle));
+    for (const s of ['L', 'R'] as const) {
+      const side = s === 'L' ? 'left' : 'right';
+      const hand = this.hands.get(side);
+      if (!hand) continue;
+      const h = hands[s];
+      const k = s === 'L' ? -1 : 1;
+      FINGERS4.forEach((f, i) => SEGMENTS.forEach((seg, n) => {
+        const curl = new THREE.Quaternion().setFromAxisAngle(hand.curl, FINGER_CURL[n] * h.curl[i + 1]);
+        const spread = n === 0 ? new THREE.Quaternion().setFromAxisAngle(hand.palm, k * FINGER_SPREAD[i] * h.spread) : new THREE.Quaternion();
+        out[`${side}${f}${seg}` as Bone] = toQuat(spread.multiply(curl));
+      }));
+      if (hand.thumb) {
+        // (Most of the turn at its root, the rest at its joints; out from the palm as the hand spreads.)
+        const { axis, angle } = hand.thumb;
+        const c = h.curl[0];
+        out[`${side}ThumbMetacarpal` as Bone] = about(axis, angle * (0.5 * c - 0.3 * h.spread));
+        out[`${side}ThumbProximal` as Bone] = about(axis, angle * 0.3 * c);
+        out[`${side}ThumbDistal` as Bone] = about(axis, angle * 0.2 * c);
+      }
+    }
+    return out;
   }
 
   /** Put the rig's bones where the skeleton has them: each bone's turn in the world (in the frame's space). */
@@ -325,7 +392,7 @@ export class ModelRig {
   /** Pose it as the figure is; `hips`: where the mannequin's hips are (it rests on what it stands on). */
   apply(fig: Figure, hips: THREE.Vector3) {
     this.scaleTo(fig.body);
-    const bones = Object.keys(fig.bones).some((b) => /Proximal$/.test(b)) ? fig.bones : { ...fingerBones(fig.hands), ...fig.bones };
+    const bones = Object.keys(fig.bones).some((b) => /Proximal$/.test(b)) ? fig.bones : { ...this.fitted.fingerTurns(fig.hands), ...fig.bones };
     this.object.position.set(0, 0, 0);
     this.object.updateMatrixWorld(true);
     this.fitted.pose(worldTurns(bones));

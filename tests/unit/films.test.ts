@@ -78,10 +78,8 @@ function boxing(ben: string, kai: string) {
   name(store, b, 'Kai');
   store.updateFigure(b, (f) => ({ ...f, body: body(kai) }));
   arrange(store, a, b, 'faceEachOther');
-  // Ben leads the exchange; Kai is put opposite him.
-  store.setTime(0);
-  expect(applyMotion(store, a, 'boxing', [b])).toBe(true);
-  const later = store.scene.animation!.duration;
+  // Ben throws, Kai blocks: each their own motion.
+  const later = 0;
   store.setTime(later);
   applyMotion(store, a, 'jab-cross');
   store.setTime(later);
@@ -310,10 +308,11 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
       dancers.push(store.getState().activeFigure!);
     }
     seenFrom(store, { yaw: 20, pitch: 12, fov: 55 });
-    store.setTime(0);
-    expect(applyMotion(store, dancers[0], 'group-dance', dancers.slice(1))).toBe(true);
-    store.setTime(2);
-    expect(applyMotion(store, dancers[0], 'group-dance', dancers.slice(1))).toBe(true);
+    // (Each their own dance, together.)
+    for (const d of dancers) {
+      store.setTime(0);
+      expect(applyMotion(store, d, 'dance')).toBe(true);
+    }
     setAnimationOptions(store, { loop: false });
 
     // The medic takes the stretcher's front handle, the aide the back; the hurt one lies on it, and off they go.
@@ -387,7 +386,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     expectFilm(store, 'side', 2);
   }, 300_000);
 
-  it('wrestling: they walk in, clinch, and one takes the other down', () => {
+  it('a fight: they walk in, one kicks, the other goes down', () => {
     const { store, a } = fresh();
     name(store, a, 'Ben');
     addFigure(store, [3, 0, 2]);
@@ -398,8 +397,10 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     store.setTime(0);
     travelTo(store, b, [2.5, 3], 'walk');
     store.setTime(walk.to);
-    // Kai walks over to face Ben for the clinch.
-    expect(applyMotion(store, a, 'takedown', [b])).toBe(true);
+    // Ben kicks, Kai goes down: each their own motion.
+    expect(applyMotion(store, a, 'kick')).toBe(true);
+    store.setTime(walk.to);
+    expect(applyMotion(store, b, 'fall')).toBe(true);
     light(store, 'studio');
     shoot(store, [walk.to], ['static', 'orbit90']);
     expectFilm(store, 'studio', 2);
@@ -475,17 +476,8 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     sv.dispose();
   }, 300_000);
 
-  it('contacts hold on any bodies: the boxing exchange between builds big and small, a waltz between grown-ups', () => {
+  it('an exchange of blows between builds big and small is clean', () => {
     for (const [x, y] of [['Child', 'Big man'], ['Big man', 'Child'], ['Tall woman', 'Tall man'], ['Man', 'Woman']]) expectClean(boxing(x, y).store.scene);
-    for (const [x, y] of [['Tall woman', 'Big man'], ['Tall man', 'Tall woman'], ['Man', 'Woman']]) {
-      const { store, a } = fresh();
-      addFigure(store, [1, 0, 0]);
-      const b = store.getState().activeFigure!;
-      store.updateFigure(a, (f) => ({ ...f, body: body(x) }));
-      store.updateFigure(b, (f) => ({ ...f, body: body(y) }));
-      expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
-      expectClean(store.scene);
-    }
   }, 1_200_000);
 
   it('physics, not special code: a pass blocked by someone in its way is reported; a shot off the rim rolls away', () => {

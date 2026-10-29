@@ -35,7 +35,7 @@ describe('library sync merge', () => {
 
   it('keeps shoot presets from both sides, except one deleted since they agreed', () => {
     const talk = { id: 'p1', name: 'Talk', template: 'conversation', coverage: 'dialogue' };
-    const dance = { id: 'p2', name: 'Dance', template: 'waltz-turn', coverage: 'follow' };
+    const dance = { id: 'p2', name: 'Dance', template: 'waltz', coverage: 'follow' };
     const merged = mergeLibraries({ ...lib([a, b, c]), shoots: [talk] }, { ...lib([a, b, c]), shoots: [dance] }, base);
     expect(merged.shoots?.map((p) => p.name)).toEqual(['Talk', 'Dance']);
     const agreed = syncBase({ ...lib([a, b, c]), shoots: [talk, dance] });

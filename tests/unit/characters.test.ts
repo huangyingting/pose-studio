@@ -50,7 +50,7 @@ describe('built-in characters', () => {
     }
   }, 60_000);
 
-  it('are drawn by id (a scene keeps it), the mannequin under them fitted, and dance together cleanly', () => {
+  it('are drawn by id (a scene keeps it), the mannequin under them fitted, and each dances cleanly', () => {
     const { store, a } = fresh();
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
@@ -66,7 +66,9 @@ describe('built-in characters', () => {
     expect(fa.body).toEqual(man.body);
     expect(BUILT_IN_CHARACTERS.find((c) => c.name === 'Child')!.body!.height).toBeLessThan(1.4);
     store.setTime(0);
-    expect(applyMotion(store, a, 'waltz-turn', [b])).toBe(true);
+    expect(applyMotion(store, a, 'dance')).toBe(true);
+    store.setTime(0);
+    expect(applyMotion(store, b, 'dance')).toBe(true);
     expect(checkMotion(store.scene).filter((i) => i.kind !== 'camera' && i.kind !== 'hidden').map((i) => i.message)).toEqual([]);
   }, 300_000);
 });

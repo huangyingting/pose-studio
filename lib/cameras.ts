@@ -332,7 +332,7 @@ let rig: Rig | null = null;
 // Each figure is measured once per animation (or still cast) and time.
 const boxes = new WeakMap<object, Map<string, { box: THREE.Box3; facing: number; head: { x: number; y: number; z: number }; stature: number }>>();
 
-/** A figure's extent at t (every few vertices of its solid parts are plenty), and which way it faces. */
+/** A figure's extent at t (the points that bound it), and which way it faces. */
 function extent(scene: Scene, id: string, t: number) {
   const owner: object = scene.animation ?? scene.figures;
   let cache = boxes.get(owner);
@@ -343,14 +343,7 @@ function extent(scene: Scene, id: string, t: number) {
     rig ??= new Rig();
     const f = figurePoseAt(scene, id, t);
     const box = new THREE.Box3();
-    const p = new THREE.Vector3();
-    for (const mesh of f ? rig.model(f).parts.bodies : []) {
-      if (!mesh.visible) continue;
-      const pos = mesh.geometry.attributes.position;
-      // (A skinned part as posed.)
-      const skinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh;
-      for (let i = 0; i < pos.count; i += 4) box.expandByPoint((skinned ? mesh.getVertexPosition(i, p) : p.fromBufferAttribute(pos, i)).applyMatrix4(mesh.matrixWorld));
-    }
+    if (f) rig.model(f).forEachPoint((p) => box.expandByPoint(p));
     const head = f ? rig.model(f).joints.head.getWorldPosition(new THREE.Vector3()) : box.getCenter(new THREE.Vector3());
     e = { box, facing: f ? facingOf(f.bones) : 0, head: { x: head.x, y: head.y, z: head.z }, stature: f?.body.height ?? 1.7 };
     if (cache.size > 20000) cache.clear();

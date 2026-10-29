@@ -1572,14 +1572,7 @@ export function deleteMotion(store: Store, id: string) {
   });
 }
 
-/** The figures nearest to one (posable ones, shown), nearest first: partners for a motion of several people. */
-/** Why these figures (the lead first) cannot do a motion of several people together, if they cannot. */
-export function motionProblem(store: Store, motionId: string, cast: string[]): string | null {
-  const motion = MOTIONS.find((m) => m.id === motionId);
-  const figures = cast.map((id) => store.scene.figures.find((f) => f.id === id)!);
-  return motion?.fit && figures.every(Boolean) ? motion.fit(figures) : null;
-}
-
+/** The figures nearest to one (posable ones, shown), nearest first: the cast of a template around it. */
 export function nearestPartners(store: Store, figureId: string, count: number) {
   const f = store.scene.figures.find((x) => x.id === figureId);
   if (!f) return [];
@@ -1591,14 +1584,14 @@ export function nearestPartners(store: Store, figureId: string, count: number) {
 }
 
 /**
- * Play a one-person motion from the waist up over what a figure is doing at the playhead (waving
- * while walking): an upper-body action. False if it cannot (a motion of several people, or a walk).
+ * Play a motion from the waist up over what a figure is doing at the playhead (waving while
+ * walking): an upper-body action. False if it cannot (a walk).
  */
 export function applyUpperBody(store: Store, figureId: string, motionId: string) {
   const mine = store.getState().library.clips?.some((c) => c.id === motionId);
   // (A motion from the Library, or one of those prop menus put on, as carrying.)
   const motion = [...MOTIONS, ...HANDLING].find((m) => m.id === motionId);
-  if (!mine && (!motion || motion.people > 1 || motion.travel)) return false;
+  if (!mine && (!motion || motion.travel)) return false;
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const animation = addUpper(store.scene, figureId, mine ? motionId : BUILT_IN + motionId, store.getState().time);
   if (!animation) return false;
@@ -1614,19 +1607,15 @@ export function deleteCorrection(store: Store, figureId: string, t: number) {
 
 /**
  * Give a figure a motion from the library (built in, or one of mine), starting at the playhead
- * (the scene is animated if it is not yet). A motion of several people goes on this figure (the
- * lead: the first part) and `partners` (by default the nearest figures), who take their places
- * around it, walking there first if there is time. Returns false if it cannot (too few figures).
+ * (the scene is animated if it is not yet). A motion is one person's (several people's are made
+ * by giving each their own). Returns false if it cannot.
  */
-export function applyMotion(store: Store, figureId: string, motionId: string, partners?: string[]) {
+export function applyMotion(store: Store, figureId: string, motionId: string) {
   const start = store.scene.animation ? store.getState().time : 0;
   // (An imported clip: one of my motions, or the local motion library's, at hand.)
   if (store.getState().library.clips?.some((c) => c.id === motionId) || hasClip(motionId)) {
-    // (Of several people: the nearest take the others' parts.)
-    const people = clipById(motionId)?.parts.length ?? 1;
-    const cast = [figureId, ...(people > 1 ? partners ?? nearestPartners(store, figureId, people - 1) : [])];
-    if (cast.length < people) return false;
-    store.updateScene((s) => insertClip(s, cast, motionId, start));
+    if ((clipById(motionId)?.parts.length ?? 1) > 1) return false;
+    store.updateScene((s) => insertClip(s, [figureId], motionId, start));
     store.setTime(start);
     return true;
   }
@@ -1641,9 +1630,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string, pa
     travelTo(store, figureId, [f.position[0] + fx * d, f.position[2] + fz * d], motion.travel.kind);
     return true;
   }
-  const cast = [figureId, ...(motion.people > 1 ? partners ?? nearestPartners(store, figureId, motion.people - 1) : [])];
-  if (cast.length < motion.people || motionProblem(store, motionId, cast)) return false;
-  store.updateScene((s) => insertClip(s, cast, BUILT_IN + motion.id, start));
+  store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;
 }

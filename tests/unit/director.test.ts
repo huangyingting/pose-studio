@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { moveShotCut, setDirector, startAnimation, stepJoint, travelTo, unpinShot } from '@/lib/actions';
-import { figurePoseAt } from '@/lib/evaluate';
-import { keyTimesOf } from '@/lib/track';
+import { moveShotCut, setDirector, startAnimation, travelTo, unpinShot } from '@/lib/actions';
 import { Store } from '@/lib/store';
 
 class MemoryStorage implements Storage {
@@ -93,27 +91,6 @@ describe('the director, by hand', () => {
 });
 
 describe('a film of a chosen length', () => {
-  it('keeps a looping template motion going to the end', async () => {
-    const { startFilm } = await import('@/lib/actions');
-    const store = new Store(new MemoryStorage());
-    expect(startFilm(store, { template: 'group-dance' }, 60)).toBe(true);
-    const a = store.scene.animation!;
-    const scene0 = store.scene;
-    expect(a.duration).toBe(60);
-    // Its keys gone round to the end: keys like any others, so a pose at 30 s is keyed there.
-    const keyed = a.actions.filter((x) => x.source.kind === 'keys' && !x.layer);
-    expect(keyed.length).toBeGreaterThan(0);
-    for (const x of keyed) expect(x.start + x.duration).toBeCloseTo(60, 3);
-    const id = keyed[0].roles[0].figure;
-    expect(keyTimesOf(a, id).length).toBeGreaterThan(20);
-    store.setTime(30.5);
-    stepJoint(store, id, 'leftUpperArm', 0, 5);
-    expect(keyTimesOf(store.scene.animation!, id)).toContain(30.5);
-    const posed = store.scene.figures.find((f) => f.id === id)!.bones.leftUpperArm!;
-    expect(posed).not.toEqual(figurePoseAt(scene0, id, 30.5)!.bones.leftUpperArm);
-    expect(figurePoseAt(store.scene, id, 30.5)!.bones.leftUpperArm).toEqual(posed);
-  });
-
   it('plays the film through its cuts, and gives the free view back when it stops', async () => {
     const { Clock, startPlayback } = await import('@/components/clock');
     const { startFilm } = await import('@/lib/actions');

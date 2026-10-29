@@ -84,12 +84,6 @@ describe('library assets applied to the scene', () => {
     store.setTime(store.scene.animation!.duration);
     expect(applyMotion(store, other, 'jump')).toBe(true);
     expect(store.scene.animation!.duration).toBeGreaterThan(motionScene('wave').animation!.duration);
-    // Several people: on this figure and the other (the nearest), not on one alone.
-    expect(applyMotion(store, id, 'waltz-turn')).toBe(true);
-    const together = actionsOf(store.scene.animation!, other).find((x) => x.source.kind === 'clip' && x.source.clip === BUILT_IN + 'waltz-turn');
-    expect(together?.roles.map((r) => r.figure)).toEqual([id, other]);
-    const solo = new Store(new MemoryStorage());
-    expect(applyMotion(solo, solo.figure!.id, 'waltz-turn')).toBe(false);
     // A set-up with its own props opens as a scene instead.
     expect(applyMotion(store, id, 'high-jump')).toBe(false);
   });

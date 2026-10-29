@@ -81,7 +81,7 @@ function withRig<T>(fn: (rig: Rig) => T): T {
 }
 
 /** Closed waltz hold for a lead `a` and follower `b` facing each other (also used by the waltz turn). */
-export function waltzHold(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
+function waltzHold(rig: Rig, a: Figure, b: Figure): [Figure, Figure] {
   // Lead's right hand on the follower's left shoulder blade.
   const blade = contactPoint(rig.model(b), b, 'back');
   const [blx, blz] = leftward(b);

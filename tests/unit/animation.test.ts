@@ -149,8 +149,9 @@ describe('animation templates', () => {
     for (const m of MOTIONS) {
       const s = m.build();
       const a = s.animation!;
-      expect(s.figures, m.id).toHaveLength(m.people);
-      expect(a.actions.length, m.id).toBeGreaterThan(m.people - 1);
+      // (One person's: several people together each get their own.)
+      expect(s.figures, m.id).toHaveLength(1);
+      expect(a.actions.length, m.id).toBeGreaterThan(0);
       // Only what the people do: one plain camera seeing them, no coverage, no set.
       expect(s.cameras, m.id).toHaveLength(1);
       expect(a.shots, m.id).toHaveLength(1);

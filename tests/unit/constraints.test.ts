@@ -1,12 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addFigure, applyMotion, arrange, holdOn, letGo, setDistance, startAnimation, travelTo } from '@/lib/actions';
-import { clipById, BUILT_IN } from '@/lib/assets';
+import { addFigure, arrange, holdOn, letGo, setDistance, startAnimation, travelTo } from '@/lib/actions';
 import { duplicateScene, parseScene } from '@/lib/doc';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
-import { checkMotion } from '@/lib/qa';
 import { Rig, contactPoint } from '@/lib/relations';
-import { body, fresh } from '../fixtures/scenes';
+import { fresh } from '../fixtures/scenes';
 
 const palm = (rig: Rig, f: Parameters<Rig['model']>[0], hand: 'leftHand' | 'rightHand') => rig.model(f).joints[hand].getWorldPosition(new THREE.Vector3());
 
@@ -46,28 +44,4 @@ describe('constraints: contacts held on the actual bodies', () => {
     const copy = duplicateScene(store.scene);
     expect(copy.animation!.constraints![0].figure).toBe(copy.figures[0].id);
   }, 60_000);
-
-  it('finds the holds of a motion of two people, and keeps them on other builds', () => {
-    const waltz = clipById(`${BUILT_IN}waltz-turn`)!;
-    const grips = waltz.contacts.filter((c) => c.on);
-    expect(grips.length).toBeGreaterThanOrEqual(2);
-    const { store, a } = fresh();
-    addFigure(store, [1, 0, 0]);
-    const b = store.getState().activeFigure!;
-    store.updateFigure(a, (f) => ({ ...f, body: body('Woman') }));
-    store.updateFigure(b, (f) => ({ ...f, body: body('Big man') }));
-    expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
-    expect(checkMotion(store.scene).map((i) => i.message)).toEqual([]);
-    // Mid-hold, his hand is where the waltz has it on her back (within a couple of centimetres of the clip, scaled).
-    const g = grips.find((c) => c.part === 0)!;
-    const t = (g.start + g.end) / 2;
-    const rig = new Rig();
-    const s = sceneAt(store.scene, t);
-    const him = s.figures.find((f) => f.id === b)!;
-    const her = s.figures.find((f) => f.id === a)!;
-    const hand = palm(rig, him, g.bone as 'rightHand');
-    const back = rig.model(her).joints.chest.getWorldPosition(new THREE.Vector3());
-    expect(hand.distanceTo(back)).toBeLessThan(0.3);
-    rig.dispose();
-  }, 300_000);
 });

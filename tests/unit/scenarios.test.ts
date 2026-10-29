@@ -5,16 +5,15 @@ import {
   travelTo,
 } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
-import { actionsOf, figurePoseAt, sceneAt, propWorldAt } from '@/lib/evaluate';
+import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { readMotionFile, retargetMotion } from '@/lib/importmotion';
 import { LIGHT_PRESETS } from '@/lib/lighting';
 import { handPosition, rimOf } from '@/lib/propmotion';
 import { highJump } from '@/lib/motions';
-import { withFacing } from '@/lib/relations';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { CMU, bvh } from '../fixtures/bvh';
-import { audit, body, expectClean, figureAt, fresh, motionScene, seenFrom } from '../fixtures/scenes';
+import { audit, expectClean, figureAt, fresh, seenFrom } from '../fixtures/scenes';
 
 /*
  * Whole scenes made the way a user makes them (the same actions as the menus), for the use case of
@@ -248,14 +247,6 @@ describe('scenes from the use case', () => {
     expect(audit(low.store.scene).issues.some((m) => /goes through a prop/.test(m))).toBe(true);
   }, 60_000);
 
-  it('wrestling: a clinch and a takedown, then a boxing exchange in the next scene', () => {
-    const { store } = fresh();
-    addScene(store, motionScene('takedown'));
-    expectClean(store.scene);
-    addScene(store, motionScene('boxing'));
-    expectClean(store.scene);
-  }, 60_000);
-
   it('rhythmic gymnastics: a split leap, the hoop tossed up and caught, a cartwheel', () => {
     const { store, a } = fresh();
     addProp(store, 'ring');
@@ -297,48 +288,6 @@ describe('scenes from the use case', () => {
     expect(still.at(-1)![1]).toBeLessThan(0.01);
     const turning = sceneAt(store.scene, 1.1).props[0].trail!;
     expect(Math.max(...turning.map((p) => p[1]))).toBeGreaterThan(0.5);
-  }, 60_000);
-
-  it('two-person motions go on figures already in the scene: the selected one leads, the other takes its place', () => {
-    const { store, a } = fresh();
-    addFigure(store, [2.5, 0, 1]);
-    const b = store.getState().activeFigure!;
-    // The lead faces somewhere else; the partner is across the room.
-    store.updateFigure(a, (f) => withFacing(f, 60));
-    expect(applyMotion(store, a, 'takedown')).toBe(true);
-    expectClean(store.scene);
-    const first = (id: string) => figurePoseAt(store.scene, id, 0)!;
-    // The lead starts where it stood; the partner opposite it, as in the motion (0.72 m apart).
-    expect(first(a).position).toEqual(store.scene.figures[0].position);
-    const pa = first(a).position;
-    const pb = first(b).position;
-    expect(Math.hypot(pb[0] - pa[0], pb[2] - pa[2])).toBeCloseTo(0.72, 1);
-    expect(sceneAt(store.scene, 0).figures.find((f) => f.id === b)!.position).not.toEqual([2.5, 0, 1]);
-  }, 60_000);
-
-  it('a partner keyed elsewhere walks over to its place, then they box', () => {
-    const { store, a } = fresh();
-    addFigure(store, [1.5, 0, 5.5]);
-    const b = store.getState().activeFigure!;
-    // B steps aside early on, near where A is going; A walks a long way; when A gets there, they box.
-    travelTo(store, b, [2, 6], 'walk');
-    store.setTime(0);
-    const walk = travelTo(store, a, [0, 6], 'walk')!;
-    expect(applyMotion(store, a, 'boxing', [b])).toBe(true);
-    const over = actionsOf(store.scene.animation!, b).find((x) => x.source.kind === 'travel' && Math.abs(x.start + x.duration - walk.to) < 1e-6)!;
-    // B steps over facing A (a long turn at the end of a walk would twist its legs).
-    expect(over.source).toMatchObject({ mode: 'walk', strafe: true });
-    expectClean(store.scene);
-  }, 60_000);
-
-  it('a waltz on two figures of different builds', () => {
-    const { store, a } = fresh();
-    addFigure(store, [1, 0, 0]);
-    const b = store.getState().activeFigure!;
-    store.updateFigure(a, (f) => ({ ...f, body: body('Woman') }));
-    store.updateFigure(b, (f) => ({ ...f, body: body('Big man') }));
-    expect(applyMotion(store, b, 'waltz-turn', [a])).toBe(true);
-    expectClean(store.scene);
   }, 60_000);
 
   it('a figure walking behind a wall is reported hidden from the shot camera', () => {

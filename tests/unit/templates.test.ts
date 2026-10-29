@@ -22,9 +22,6 @@ describe('scene templates: what is filmed, without how', () => {
       expect(s.coverage, t.id).toBeUndefined();
       if (s.animation) expect(s.animation.shots.map((x) => x.camera), t.id).toEqual([s.cameras[0].id]);
     }
-    // Several people's motions as made, key by key, on both.
-    const waltz = SCENE_TEMPLATES.find((t) => t.id === 'waltz-turn')!.build();
-    expect(waltz.figures.map((f) => actionsOf(waltz.animation!, f.id).some((x) => x.source.kind === 'keys'))).toEqual([true, true]);
     expect(checkMotion(SCENE_TEMPLATES.find((t) => t.id === 'high-jump')!.build()).filter((i) => i.kind !== 'camera')).toEqual([]);
   }, 60_000);
 
@@ -80,7 +77,7 @@ describe('scene templates: what is filmed, without how', () => {
     store.setTime(0);
     const walk = travelTo(store, a, [0, 2], 'walk')!;
     store.setTime(walk.to);
-    const cast = placeTemplate(store, 'waltz-turn')!;
+    const cast = placeTemplate(store, 'film-wuxia')!;
     expect(cast).toEqual([a, b]);
     const anim = store.scene.animation!;
     // Each figure keyed from the playhead, after what it did before (the walk).
@@ -89,7 +86,7 @@ describe('scene templates: what is filmed, without how', () => {
     expect(Math.min(...keyed.flat().map((x) => x.start))).toBeCloseTo(walk.to, 3);
     expect(actionsOf(anim, a).some((x) => x.source.kind === 'travel')).toBe(true);
     expect(anim.duration).toBeGreaterThan(walk.to + 2);
-    // The lead starts the waltz where its walk ended, facing the way it walked.
+    // The lead starts the duel where its walk ended, facing the way it walked.
     expect(apart(figurePoseAt(store.scene, a, walk.to + 0.05)!.position, [0, 0, 2])).toBeLessThan(0.3);
     expect(facingOf(figurePoseAt(store.scene, a, walk.to)!.bones)).toBeCloseTo(0, -1);
   });

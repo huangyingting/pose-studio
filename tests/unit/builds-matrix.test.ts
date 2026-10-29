@@ -17,9 +17,9 @@ class MemoryStorage implements Storage {
   setItem(k: string, v: string) { this.m.set(k, v); }
 }
 
-describe('one-person motions on figures of every build (feet locked, travel scaled)', () => {
+describe('motions on figures of every build (feet locked, travel scaled)', () => {
   it.each(BODY_PRESETS.map((p) => [p.name, p] as const))('stay clean on %s', (_, preset) => {
-    for (const m of MOTIONS.filter((x) => x.people === 1)) {
+    for (const m of MOTIONS) {
       const store = new Store(new MemoryStorage());
       const id = store.figure!.id;
       store.updateScene((s) => ({ ...s, figures: s.figures.map((f) => ({ ...f, body: { ...preset.body } })) }));

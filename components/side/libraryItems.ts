@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { Clapperboard, Film, Layers, LayoutTemplate, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
 import {
-  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate, motionProblem, nearestPartners,
+  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate,
   newShoot, placeTemplate, sceneFromTemplate, setFigureModel,
 } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
@@ -142,72 +142,42 @@ function motionLength(id: string) {
 
 function motions(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
-  const nameOf = (id: string) => store.scene.figures.find((f) => f.id === id)?.name ?? '';
   const give = (id: string, name: string) => { if (figure && applyMotion(store, figure.id, id)) { ui.notifyUndo(`${figure.name}: ${name}`); ui.onPick?.(); } };
   const built = MOTIONS.filter((m) => MOTION_GROUPS.includes(m.group)).map((m): LibraryItem => {
-    const solo = m.people === 1;
-    // One person's motion goes on the selected figure, several people's on it and the nearest.
-    const partners = !solo && figure ? nearestPartners(store, figure.id, m.people - 1) : [];
-    const together = !solo && figure && partners.length === m.people - 1;
     return {
       key: `motion:${m.id}`,
       tab: 'motions',
       part: 'Motions',
       group: m.group,
       name: m.name,
-      icon: solo ? Film : UsersRound,
-      meta: solo ? `${motionLength(m.id).toFixed(1)} s` : `${m.people} people`,
-      note: solo
-        ? (figure ? `Click to give it to ${figure.name}` : undefined)
-        : together
-          ? `Click to put it on ${figure.name} (leading) and ${partners.map(nameOf).join(', ')}, at the playhead`
-          : `For ${m.people} people: select a figure with ${m.people - 1 === 1 ? 'another' : `${m.people - 1} others`} in the scene (or start from the ${m.name} template)`,
-      disabled: solo ? !figure : !together,
-      run: () => {
-        if (solo) return give(m.id, m.name);
-        if (!together) return;
-        const why = motionProblem(store, m.id, [figure.id, ...partners]);
-        if (why) return ui.notify(why);
-        if (!applyMotion(store, figure.id, m.id, partners)) return;
-        ui.notifyUndo(`${[figure.name, ...partners.map(nameOf)].join(' and ')}: ${m.name}`);
-        ui.onPick?.();
-      },
+      icon: Film,
+      meta: `${motionLength(m.id).toFixed(1)} s`,
+      note: figure ? `Click to give it to ${figure.name}` : undefined,
+      disabled: !figure,
+      run: () => give(m.id, m.name),
       drop: {
         figure: (id) => {
           const f = posableById(store, id);
-          if (!f) return;
-          const cast = solo ? [] : nearestPartners(store, f.id, m.people - 1);
-          const why = solo ? null : cast.length < m.people - 1 ? `${m.name} needs ${m.people} people` : motionProblem(store, m.id, [f.id, ...cast]);
-          if (why) return ui.notify(why);
-          if (applyMotion(store, f.id, m.id, solo ? undefined : cast)) ui.notifyUndo(`${[f.name, ...cast.map(nameOf)].join(' and ')}: ${m.name}`);
+          if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`);
         },
         length: m.travel ? undefined : motionLength(m.id),
       },
       preview: () => motionPreview(m.id, m.build, style(store)),
-      ghost: solo && !m.travel && figure ? () => motionGhost(store, figure.id, BUILT_IN + m.id) : undefined,
+      ghost: !m.travel && figure ? () => motionGhost(store, figure.id, BUILT_IN + m.id) : undefined,
       // From the waist up, over what the figure is doing (waving while walking).
-      actions: solo && !m.travel && figure ? [{
+      actions: !m.travel && figure ? [{
         icon: Layers,
         label: `${m.name}: upper body only, over what ${figure.name} is doing`,
         run: () => { if (applyUpperBody(store, figure.id, m.id)) { ui.notifyUndo(`${figure.name}: ${m.name} (upper body)`); ui.onPick?.(); } },
       }] : undefined,
     };
   });
-  /**
-   * An imported clip's item (the Library's motion files, my motions): one of several people goes on
-   * the figure and the nearest others, as the built-in ones; `load` brings it to hand first.
-   */
-  const clipItem = (m: { id: string; name: string; duration: number; people: number; group: string }, load: () => Promise<boolean>): LibraryItem => {
-    const solo = m.people <= 1;
-    const partners = !solo && figure ? nearestPartners(store, figure.id, m.people - 1) : [];
-    const together = !solo && figure && partners.length === m.people - 1;
+  /** An imported clip's item (the Library's motion files, my motions): `load` brings it to hand first. */
+  const clipItem = (m: { id: string; name: string; duration: number; group: string }, load: () => Promise<boolean>): LibraryItem => {
     const giveTo = (id: string) => void load().then((ok) => {
       const f = posableById(store, id);
       if (!ok) return ui.notify(`Could not load ${m.name}`);
-      if (!f) return;
-      const cast = solo ? [] : nearestPartners(store, f.id, m.people - 1);
-      if (cast.length < m.people - 1) return ui.notify(`${m.name} needs ${m.people} people`);
-      if (applyMotion(store, f.id, m.id, cast)) ui.notifyUndo(`${[f.name, ...cast.map(nameOf)].join(' and ')}: ${m.name}`);
+      if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`);
     });
     return {
       key: `motion:${m.id}`,
@@ -215,27 +185,24 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       part: 'Motions',
       group: m.group,
       name: m.name,
-      icon: solo ? Film : UsersRound,
-      meta: solo ? `${m.duration.toFixed(1)} s` : `${m.people} people`,
-      note: solo
-        ? (figure ? `Click to give it to ${figure.name}` : undefined)
-        : together
-          ? `Click to put it on ${figure.name} (leading) and ${partners.map(nameOf).join(', ')}, at the playhead`
-          : `For ${m.people} people: select a figure with ${m.people - 1 === 1 ? 'another' : `${m.people - 1} others`} in the scene`,
-      disabled: solo ? !figure : !together,
-      run: () => { if (figure && (solo || together)) { giveTo(figure.id); ui.onPick?.(); } },
+      icon: Film,
+      meta: `${m.duration.toFixed(1)} s`,
+      note: figure ? `Click to give it to ${figure.name}` : undefined,
+      disabled: !figure,
+      run: () => { if (figure) { giveTo(figure.id); ui.onPick?.(); } },
       drop: { figure: giveTo, length: m.duration },
       preview: () => {
         void load();
         return { ...motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style(store)), ready: () => hasClip(m.id) };
       },
-      ghost: solo && figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void load(), null)) : undefined,
+      ghost: figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void load(), null)) : undefined,
     };
   };
   // The Library's motion files: each fetched the first time it is used or shown.
   const files = libraryMotions().map((m) => clipItem(m, () => fetchLibraryClip(m.id)));
-  const mine = (store.getState().library.clips ?? []).map((m): LibraryItem => ({
-    ...clipItem({ ...m, people: m.people.length, group: 'My motions' }, () => Promise.resolve(hasClip(m.id))),
+  // (One person's each: an imported clip of several people is not offered.)
+  const mine = (store.getState().library.clips ?? []).filter((m) => m.people.length <= 1).map((m): LibraryItem => ({
+    ...clipItem({ ...m, group: 'My motions' }, () => Promise.resolve(hasClip(m.id))),
     actions: [{ icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
   }));
   return [...built, ...files, ...mine];

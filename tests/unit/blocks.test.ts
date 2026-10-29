@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, applyMotion, arrange, fitWarp, moveAction, moveMark, recastRole, retime, setBlend, setClipOptions, travelTo,
+  addFigure, applyMotion, fitWarp, moveAction, moveMark, recastRole, retime, setBlend, setClipOptions, travelTo,
 } from '@/lib/actions';
 import { actionsOf, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
 import { newAnimation } from '@/lib/animation';
@@ -54,42 +54,22 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     expect(actionLabel(slow[1])).toBe('Run');
   }, 60_000);
 
-  it('a motion plays faster or slower, mirrored; a role goes to someone else', () => {
+  it('a motion plays faster or slower, mirrored; it goes to someone else', () => {
     const { store, a } = fresh();
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
-    addFigure(store, [-1.5, 0, 0]);
-    const c = store.getState().activeFigure!;
-    arrange(store, a, b, 'faceEachOther');
     store.setTime(0);
-    expect(applyMotion(store, a, 'takedown', [b])).toBe(true);
+    expect(applyMotion(store, a, 'kick')).toBe(true);
     const box = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
     setClipOptions(store, box.id, { speed: 2, mirror: true });
     const fast = store.scene.animation!.actions.find((x) => x.id === box.id)!;
     expect(fast.duration).toBeCloseTo(box.duration / 2, 1);
     expect(fast.source).toMatchObject({ mirror: true });
     expect((fast.source as { speed: number }).speed).toBeCloseTo(2, 1);
-    // Swapped: b leads; then c takes b's part, and b is out of it.
+    // B does it instead: A is out of it.
     recastRole(store, box.id, 0, b);
-    expect(store.scene.animation!.actions.find((x) => x.id === box.id)!.roles.map((r) => r.figure)).toEqual([b, a]);
-    recastRole(store, box.id, 0, c);
-    expect(store.scene.animation!.actions.find((x) => x.id === box.id)!.roles.map((r) => r.figure)).toEqual([c, a]);
-    expect(actionsOf(store.scene.animation!, b).some((x) => x.id === box.id)).toBe(false);
-  }, 60_000);
-
-  it('dragging one mark of a motion of two moves both, as a formation', () => {
-    const { store, a } = fresh();
-    addFigure(store, [1, 0, 0]);
-    const b = store.getState().activeFigure!;
-    store.setTime(0);
-    expect(applyMotion(store, a, 'waltz-turn', [b])).toBe(true);
-    const act = actionsOf(store.scene.animation!, a).find((x) => x.roles.length === 2)!;
-    const [ma, mb] = [marksOf(store.scene, act, a)!.end, marksOf(store.scene, act, b)!.end];
-    moveMark(store, a, act.start + act.duration, [ma.at[0] + 0.1, ma.at[1] + 0.05]);
-    const moved = store.scene.animation!.actions.find((x) => x.id === act.id)!;
-    expect(moved.roles[0].end!.at[0]).toBeCloseTo(ma.at[0] + 0.1, 3);
-    expect(moved.roles[1].end!.at[0]).toBeCloseTo(mb.at[0] + 0.1, 3);
-    expect(moved.roles[1].end!.at[1]).toBeCloseTo(mb.at[1] + 0.05, 3);
+    expect(store.scene.animation!.actions.find((x) => x.id === box.id)!.roles.map((r) => r.figure)).toEqual([b]);
+    expect(actionsOf(store.scene.animation!, a).some((x) => x.id === box.id)).toBe(false);
   }, 60_000);
 
   it('a mark further than a motion can stretch shows, and is moved back or walked to', () => {
@@ -126,7 +106,7 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     // chain once each, the duet once (not once for each of them).
     let a: Animation = { ...base, actions: [
       travel('a', 'A', 0, 2), travel('b', 'B', 2, 2), travel('c', 'C', 4, 2),
-      { id: 'duet', start: 10, duration: 2, roles: [{ figure: 'A' }, { figure: 'C' }], source: { kind: 'clip', clip: 'motion:waltz-turn' } },
+      { id: 'duet', start: 10, duration: 2, roles: [{ figure: 'A' }, { figure: 'C' }], source: { kind: 'clip', clip: 'motion:dance' } },
     ] };
     expect(starts(retimeAction(a, 'a', 3))).toEqual({ a: 0, b: 3, c: 5, duet: 11 });
 

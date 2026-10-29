@@ -6,7 +6,7 @@ import { Ink } from '@/lib/ink';
 import { IK_CHAINS, Mannequin, POLE_CHAINS, worldPos } from '@/lib/mannequin';
 import { builtInPoses, poseScene } from '@/lib/poses';
 import { angle, anglesOf, bonesOf, fromQuat } from '@/lib/pose';
-import { JOINTS, type JointName } from '@/lib/types';
+import { JOINTS } from '@/lib/types';
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => builtInPoses().map((p) => poseScene(p));
