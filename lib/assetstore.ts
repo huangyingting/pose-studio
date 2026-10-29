@@ -17,29 +17,30 @@ const THUMBS = 'thumbs';
 let db: Promise<IDBDatabase> | null = null;
 const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), images: new Map<string, Blob>(), thumbs: new Map<string, string>() };
 
-/** Whether this tab let a newer build's tab have the database: kept in memory from then on (this visit). */
-let yielded = false;
+/** Whether a newer build (in another tab) has the database: this tab can no longer keep or read anything in it. */
+let outdated = false;
+const OUTDATED = 'Pose Studio was updated in another tab: reload this one to keep saving';
 
 function open(): Promise<IDBDatabase> | null {
-  if (typeof indexedDB === 'undefined' || yielded) return null;
+  if (typeof indexedDB === 'undefined') return null;
+  if (outdated) return Promise.reject(new Error(OUTDATED));
   db ??= new Promise((resolve, reject) => {
     const req = indexedDB.open(DB, 4);
     req.onupgradeneeded = () => {
       for (const name of [CLIPS, MODELS, IMAGES, THUMBS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
     };
     req.onsuccess = () => {
-      // (Another tab of a newer build needing a newer version: this one lets it.)
+      // (Another tab of a newer build needing a newer version: this one lets it, and says so when next asked.)
       req.result.onversionchange = () => {
         req.result.close();
-        yielded = true;
-        db = null;
+        outdated = true;
       };
       resolve(req.result);
     };
-    // (Not opened: tried again next time.)
     req.onerror = () => {
-      db = null;
-      reject(req.error);
+      // (Already a newer version: opened by a newer build.)
+      if (req.error?.name === 'VersionError') outdated = true;
+      reject(outdated ? new Error(OUTDATED) : req.error);
     };
   });
   return db;
