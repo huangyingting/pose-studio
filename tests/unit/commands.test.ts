@@ -84,11 +84,11 @@ describe('commands: one list for keys, menus, toolbars and the palette', () => {
 });
 
 describe('the Library: categories as data, one search', () => {
-  it('finds items in every category by name, and puts a template in at a spot on the floor', () => {
+  it('finds items in every category by name; a template goes in at a spot on the floor', () => {
     const store = new Store(new MemoryStorage());
     const ui = { notify: () => {}, notifyUndo: () => {} };
     const found = searchLibrary(store, ui, 'walk');
-    expect(new Set(found.map((it) => it.tab))).toEqual(new Set(['templates', 'motions']));
+    expect(new Set(found.map((it) => it.tab))).toEqual(new Set(['motions']));
     expect(searchLibrary(store, ui, 'walk', 'motions').every((it) => it.tab === 'motions')).toBe(true);
     // Every category's items say where they are listed.
     for (const c of LIBRARY_CATEGORIES) for (const it of c.items(store, ui)) expect(it.tab).toBe(c.id);

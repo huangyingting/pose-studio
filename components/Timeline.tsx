@@ -733,7 +733,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 <div
                   key={f.id}
                   className={`tl-row${multi && f.id === active?.id ? ' active' : ''}${keying === f.id && !f.proxy ? ' autokey' : ''}`}
-                  aria-label={multi ? `${f.name} keyframes` : 'Pose keyframes'}
+                  aria-label={multi ? `${f.name} keys` : 'Pose keys'}
                   onPointerDown={boxKeys(f.id)}
                   // A pose or a motion from the Library: onto this figure, at the time it is dropped at.
                   onDragOver={(e) => {
@@ -901,7 +901,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       type="button"
                       className={`tl-key${near(t) ? ' on' : ''}${tight[n] ? ' dense' : ''}${ease && ease !== 'smooth' ? ` ${ease}` : ''}${keyPick?.figure === f.id && keyPick.times.some((x) => Math.abs(x - t) < 0.5 / a.fps) ? ' picked' : ''}`}
                       style={{ left: pct(t) }}
-                      aria-label={`${multi ? `${f.name} key` : 'Keyframe'} at ${t.toFixed(2)} s`}
+                      aria-label={`${multi ? `${f.name} key` : 'Key'} at ${t.toFixed(2)} s`}
                       data-tip={`${ease === 'step' ? 'Held until the next key. ' : ease === 'linear' ? 'Goes on at an even speed. ' : ''}Drag to retime; Shift-drag to move the keys after it too; Shift-click to pick several (then drag them together)\nRight-click for more`}
                       onPointerDown={dragKey(t, f.id)}
                       onContextMenu={(e) => {
@@ -921,8 +921,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               const tight = dense(times);
               return (
                 <div key={p.id} className="tl-row" aria-label={`${p.name} keys`}>
-                  {propBars(scene, p.id).map((b) => (
-                    <span key={b.t0} className={`tl-travel ${b.kind}`} style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }} title={b.label}>
+                  {propBars(scene, p.id).map((b, i) => (
+                    <span key={`${i}:${b.t0}`} className={`tl-travel ${b.kind}`} style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }} title={b.label}>
                       <span style={inSight(b.t0, b.t1)}>{b.label}</span>
                     </span>
                   ))}

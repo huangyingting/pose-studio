@@ -1,18 +1,13 @@
 'use client';
 
 import { useRef, useState, type ReactNode } from 'react';
-import { BookmarkPlus, Clapperboard, Layers, Upload } from 'lucide-react';
-import { addModel, saveMotion, savePose, saveShoot, setFigureModel } from '@/lib/actions';
-import { COVERAGES } from '@/lib/coverage';
+import { BookmarkPlus, Upload } from 'lucide-react';
+import { addModel, saveMotion, savePose, setFigureModel } from '@/lib/actions';
 import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { characterThumb } from '@/lib/previews';
 import { shotSpans, spanAt } from '@/lib/shots';
-import { templatesOf } from '@/lib/templates';
-import type { ShootPreset } from '@/lib/types';
 import { useScene, useStore, useStudio } from '../store-context';
-import { saveAsTemplate } from '../commands';
 import BoneMapDialog from '../BoneMapDialog';
-import { Field, Hint, Modal, NumberField, Select } from '../ui';
 import type { LibraryUi } from './libraryItems';
 
 /*
@@ -166,28 +161,6 @@ export function CharactersBar({ notify, notifyUndo }: BarProps) {
   );
 }
 
-export function TemplatesBar({ notifyUndo }: BarProps) {
-  const store = useStore();
-  const scene = useScene();
-  const active = useStudio((s) => s.activeFigure);
-  const figure = scene.figures.find((f) => f.id === active);
-  const [making, setMaking] = useState(false);
-  return (
-    <>
-      <Target>Opens as a new scene{figure && <>; <Layers size={11} aria-label="Put into this scene" /> puts it around <strong>{figure.name}</strong></>}</Target>
-      <div className="library-row">
-        <button type="button" className="btn subtle library-import" onClick={() => saveAsTemplate(store, { notifyUndo })} data-tip="Its cast, set, actions and light, without cameras or cuts">
-          <BookmarkPlus size={14} aria-hidden /> Save scene as template…
-        </button>
-        <button type="button" className="btn subtle library-import" onClick={() => setMaking(true)} data-tip="A template filmed with a coverage, opened in one go">
-          <Clapperboard size={14} aria-hidden /> New shoot preset…
-        </button>
-      </div>
-      {making && <ShootDialog onClose={() => setMaking(false)} onMade={(p) => notifyUndo(`Made the shoot preset ${p.name}`)} />}
-    </>
-  );
-}
-
 export function CameraBar() {
   const scene = useScene();
   const selection = useStudio((s) => s.selection);
@@ -199,53 +172,3 @@ export function CameraBar() {
 }
 
 /** Make a shoot preset: a name, a template, a coverage that fits its cast and (a still template) a length. */
-function ShootDialog({ onClose, onMade }: { onClose(): void; onMade(p: ShootPreset): void }) {
-  const store = useStore();
-  const library = useStudio((s) => s.library);
-  const all = templatesOf(library);
-  const [name, setName] = useState('');
-  const [template, setTemplate] = useState(all[0].id);
-  const chosen = all.some((x) => x.id === template) ? template : all[0].id;
-  const t = all.find((x) => x.id === chosen)!;
-  const fitting = COVERAGES.filter((c) => c.roles.length <= t.people);
-  const [coverage, setCoverage] = useState(fitting[0]?.id ?? '');
-  const how = fitting.find((c) => c.id === coverage) ?? fitting[0];
-  // A template that does not move is filmed for a length of its own (worked out as one is picked).
-  const isStill = (id: string) => !all.find((x) => x.id === id)?.build().animation;
-  const [still, setStill] = useState(() => isStill(chosen));
-  const [length, setLength] = useState(6);
-  const make = () => {
-    if (!how) return;
-    const p = saveShoot(store, { name: name || `${t.name}, ${how.name.toLowerCase()}`, template: t.id, coverage: how.id, ...(still ? { duration: length } : {}) });
-    onMade(p);
-    onClose();
-  };
-  return (
-    <Modal
-      title="New shoot preset"
-      icon={Clapperboard}
-      onClose={onClose}
-      footer={<button type="button" className="btn primary" disabled={!how} onClick={make}>Make preset</button>}
-    >
-      <div className="form">
-        <label className="field">
-          <span>Name</span>
-          <input type="text" value={name} placeholder={how ? `${t.name}, ${how.name.toLowerCase()}` : t.name} aria-label="Preset name" onChange={(e) => setName(e.target.value)} data-autofocus />
-        </label>
-        <Field label="Template">
-          <Select<string> label="Template" value={t.id} onChange={(id) => { setTemplate(id); setStill(isStill(id)); }} options={all.map((x) => ({ value: x.id, label: `${x.name}${x.group === 'Mine' ? ' (mine)' : ''}`, hint: x.people === 1 ? '1 person' : `${x.people} people` }))} />
-        </Field>
-        <Field label="Coverage">
-          {fitting.length
-            ? <Select<string> label="Coverage" value={how.id} onChange={setCoverage} options={fitting.map((c) => ({ value: c.id, label: c.name }))} />
-            : <Hint>None films one person alone yet</Hint>}
-        </Field>
-        {still && (
-          <Field label="Length">
-            <NumberField prefix="s" label="Length (seconds)" value={length} step={1} min={1} max={60} digits={0} onChange={setLength} />
-          </Field>
-        )}
-      </div>
-    </Modal>
-  );
-}

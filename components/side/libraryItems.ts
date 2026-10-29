@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
-import { Clapperboard, Film, Layers, LayoutTemplate, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
+import { Clapperboard, Film, Layers, PersonStanding, Trash2, UserRound, Video, type LucideIcon } from 'lucide-react';
 import {
-  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, deleteShoot, deleteTemplate,
-  newShoot, placeTemplate, sceneFromTemplate, setFigureModel,
+  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, 
+  setFigureModel,
 } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
@@ -18,15 +18,12 @@ import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
 import {
-  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, templatePreview, templateThumb, type PreviewJob,
+  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, type PreviewJob,
 } from '@/lib/previews';
 import { shotSpans, spanAt } from '@/lib/shots';
 import type { LibraryTab, Store } from '@/lib/store';
-import { SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf, templatesOf } from '@/lib/templates';
-import { CameraBar, CharactersBar, MotionsBar, PosesBar, TemplatesBar, type BarProps } from './LibraryBars';
+import { CameraBar, CharactersBar, MotionsBar, PosesBar, type BarProps } from './LibraryBars';
 import type { DropTarget } from '../dragdrop';
-import { placeOrAdd } from '../commands';
-import { placingTemplate } from '../placing';
 
 /*
  * The library's items, category by category, as data: what each is called, where it is listed,
@@ -239,62 +236,6 @@ function characters(store: Store, ui: LibraryUi): LibraryItem[] {
   ];
 }
 
-function templates(store: Store, ui: LibraryUi): LibraryItem[] {
-  const library = store.getState().library;
-  const figure = store.scene.figures.find((f) => f.id === store.getState().activeFigure);
-  const all = templatesOf(library);
-  const shoots = shootsOf(library).map((p): LibraryItem => {
-    const t = all.find((x) => x.id === p.template)!;
-    const how = COVERAGES.find((c) => c.id === p.coverage)!;
-    const mine = !SHOOT_PRESETS.includes(p);
-    return {
-      key: `shoot:${p.id}`,
-      tab: 'templates',
-      part: 'Shoot presets',
-      group: mine ? 'My presets' : 'Ready to shoot',
-      name: p.name,
-      icon: Clapperboard,
-      meta: how.name,
-      note: `${t.name}, filmed as ${how.name.toLowerCase()}: opens as a new scene, cameras and cuts made`,
-      run: () => { if (newShoot(store, p.id)) { ui.notifyUndo(`${p.name}: ${t.name}, filmed as ${how.name.toLowerCase()}`); ui.onPick?.(); } },
-      preview: () => templatePreview(t.id, t.build, style(store)),
-      thumb: templateThumb(t.id, t.build),
-      actions: mine ? [{ icon: Trash2, label: `Delete the shoot preset ${p.name}`, run: () => { deleteShoot(store, p.id); ui.notifyUndo(`Deleted the shoot preset ${p.name}`); } }] : undefined,
-    };
-  });
-  const scenes = [...TEMPLATE_GROUPS, 'Mine' as const].flatMap((g) => all.filter((t) => t.group === g)).map((t): LibraryItem => ({
-    key: `template:${t.id}`,
-    tab: 'templates',
-    part: 'Scene templates',
-    group: t.group === 'Mine' ? 'My templates' : t.group,
-    name: t.name,
-    icon: t.people > 1 ? UsersRound : PersonStanding,
-    meta: t.people === 1 ? '1 person' : `${t.people} people`,
-    note: 'Click to open it as a new scene',
-    run: () => { sceneFromTemplate(store, t.id); ui.onPick?.(); },
-    drop: {
-      figure: (id) => { if (placeTemplate(store, t.id, id)) ui.notifyUndo(`${t.name} put into ${store.scene.name}`); },
-      floor: (at) => { if (placeTemplate(store, t.id, null, at)) ui.notifyUndo(`${t.name} put into ${store.scene.name}`); },
-    },
-    preview: () => templatePreview(t.id, t.build, style(store)),
-    thumb: templateThumb(t.id, t.build),
-    actions: [
-      {
-        icon: Layers,
-        label: figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`,
-        // Placed with the pointer: onto a figure (its first role) or the floor.
-        run: () => placeOrAdd(placingTemplate(store, t.id), () => { if (placeTemplate(store, t.id)) ui.notifyUndo(`${t.name} put into ${store.scene.name}`); }),
-      },
-      ...(t.group === 'Mine' ? [{
-        icon: Trash2,
-        label: `Delete the template ${t.name}`,
-        run: () => { const gone = deleteTemplate(store, t.id); ui.notifyUndo(`Deleted the template ${t.name}${gone.length ? ` and the shoot presets filming it (${gone.join(', ')})` : ''}`); },
-      }] : []),
-    ],
-  }));
-  return [...shoots, ...scenes];
-}
-
 function camera(store: Store, ui: LibraryUi): LibraryItem[] {
   const scene = store.scene;
   const { selection, time, activeFigure } = store.getState();
@@ -310,7 +251,7 @@ function camera(store: Store, ui: LibraryUi): LibraryItem[] {
       key: `coverage:${c.id}`,
       tab: 'camera',
       part: 'Coverage',
-      group: 'Coverage of the whole animation',
+      group: 'Whole scene',
       name: c.name,
       icon: Clapperboard,
       meta: scene.coverage?.id === c.id ? 'again' : who,
@@ -355,7 +296,6 @@ function camera(store: Store, ui: LibraryUi): LibraryItem[] {
 
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   // A cast, a set and what they do (and shoot presets: one filmed with a coverage).
-  { id: 'templates', label: 'Templates', icon: LayoutTemplate, items: templates, Bar: TemplatesBar },
   // Who a figure is drawn as.
   { id: 'characters', label: 'Characters', icon: UserRound, grid: true, items: characters, Bar: CharactersBar },
   { id: 'poses', label: 'Poses', icon: PersonStanding, grid: true, items: poses, Bar: PosesBar },

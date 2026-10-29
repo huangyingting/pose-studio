@@ -155,11 +155,17 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
-/** A new scene from a scene template in the library. */
+/** The New scene dialog (Scenes → New → From a template…). */
+async function newSceneDialog(page: Page) {
+  await openScenes(page);
+  await page.getByRole('button', { name: 'New scene' }).click();
+  await page.getByRole('menuitem', { name: 'From a template…' }).click();
+  return page.getByRole('dialog', { name: 'New scene' });
+}
+
+/** A new scene from a scene template, as made. */
 async function templateScene(page: Page, template: string) {
-  await openSection(page, 'Library');
-  await libraryShows(page, 'Templates');
-  await page.getByRole('region', { name: 'Scene templates' }).getByRole('button', { name: new RegExp(`^${template}`) }).click();
+  await (await newSceneDialog(page)).getByRole('button', { name: new RegExp(`^${template}`) }).first().click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -718,11 +724,8 @@ type Fig = { id: string; position: number[]; bones: Bones };
 const figs = async (page: Page) => (await state(page)).scene.figures as unknown as Fig[];
 
 test('multi-person set-ups and relation tools', async ({ page }) => {
-  await openScenes(page);
-  await page.getByRole('button', { name: 'New scene' }).click();
-  // The New menu leads to the templates in the library.
-  await page.getByRole('menuitem', { name: 'From a template…' }).click();
-  await page.getByRole('region', { name: 'Scene templates' }).getByRole('button', { name: /^Handshake/ }).click();
+  // The New menu leads to the templates.
+  await (await newSceneDialog(page)).getByRole('region', { name: 'Standing together' }).getByRole('button', { name: /^Handshake/ }).click();
   expect((await state(page)).scene.name).toBe('Handshake');
   await openSection(page, 'Scene');
   let [a, b] = await figs(page);
@@ -751,39 +754,29 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await page.getByRole('button', { name: 'Look at' }).click();
   expect(anglesOf((await figs(page))[0].bones).head).toBeTruthy();
 
-  // Saved as a template of my own, it goes into another scene around the figure selected there.
-  await openSection(page, 'Library');
-  await libraryShows(page, 'Templates');
+  // Saved as a template of my own (the scene's menu), it goes into another scene around the figure selected there.
+  await openScenes(page);
   page.once('dialog', (d) => d.accept('Close talk'));
-  await page.getByRole('button', { name: 'Save scene as template…' }).click();
-  const templates = page.getByRole('region', { name: 'Scene templates' });
-  await expect(templates.getByRole('list', { name: 'My templates' }).getByRole('button', { name: /^Close talk/ })).toBeVisible();
-  await templates.getByRole('button', { name: /^Group photo/ }).click();
+  await page.getByRole('button', { name: 'Scene actions' }).click();
+  await page.getByRole('menuitem', { name: 'Save as template…' }).click();
+  await closeScenes(page);
+  let dialog = await newSceneDialog(page);
+  await expect(dialog.getByRole('region', { name: 'My templates' }).getByRole('button', { name: /^Close talk/ })).toBeVisible();
+  await dialog.getByRole('button', { name: /^Group photo/ }).click();
   expect((await state(page)).scene.name).toBe('Group photo');
   const people = (await state(page)).scene.figures.length;
   await openSection(page, 'Scene');
   await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
-  await openSection(page, 'Library');
-  await templates.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
+  dialog = await newSceneDialog(page);
+  await dialog.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
   // Its first role on the figure selected, the second on the one nearest it: nobody new.
-  expect((await state(page)).scene.figures).toHaveLength(people);
+  await expect.poll(async () => (await state(page)).scene.figures.length).toBe(people);
 
   // A shoot preset: a template opened and filmed with a coverage in one go.
-  await page.getByRole('region', { name: 'Shoot presets' }).getByRole('button', { name: /^Interview/ }).click();
+  await (await newSceneDialog(page)).getByRole('region', { name: 'Ready to shoot' }).getByRole('button', { name: /^Interview/ }).click();
   const shoot = (await live(page)).scene;
   expect(shoot.name).toBe('Interview');
   expect(shoot.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
-  // A preset of my own: a template and a coverage that fits it, opened the same way.
-  await page.getByRole('button', { name: 'New shoot preset…' }).click();
-  const dialog = page.getByRole('dialog', { name: 'New shoot preset' });
-  await dialog.getByRole('textbox', { name: 'Preset name' }).fill('Small talk');
-  await choose(page, 'Template', /^Handshake/);
-  await choose(page, 'Coverage', 'Conversation');
-  await dialog.getByRole('button', { name: 'Make preset' }).click();
-  await page.getByRole('region', { name: 'Shoot presets' }).getByRole('button', { name: /^Small talk/ }).click();
-  const small = (await live(page)).scene;
-  expect(small.name).toBe('Small talk');
-  expect(small.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
 });
 
 test('placement fields move and turn the figure', async ({ page }) => {
@@ -824,7 +817,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await expect.poll(editorView).toBe(free);
 
   // Step to a frame between keys and add a key there.
-  await page.getByRole('button', { name: 'Previous keyframe' }).click();
+  await page.getByRole('button', { name: 'Previous key' }).click();
   await page.keyboard.press('.');
   await page.keyboard.press('.');
   await page.keyboard.press('k');
@@ -1020,14 +1013,14 @@ test('keyframes pose to pose: a key held until the next, a pose held for a time,
 
   // The first key held until the next: a square on the timeline.
   // (Its right half: the key at 0 sits half outside the lanes.)
-  await page.getByRole('button', { name: 'Keyframe at 0.00 s' }).click({ button: 'right', position: { x: 9, y: 5 } });
+  await page.getByRole('button', { name: 'Key at 0.00 s' }).click({ button: 'right', position: { x: 9, y: 5 } });
   await page.getByRole('menuitemradio', { name: /held until the next/ }).click();
   s = await live(page);
   expect((keysClip(s).source as { clip: { parts: { eases?: string[] }[] } }).clip.parts[0].eases?.[0]).toBe('step');
-  await expect(page.getByRole('button', { name: 'Keyframe at 0.00 s' })).toHaveClass(/\bstep\b/);
+  await expect(page.getByRole('button', { name: 'Key at 0.00 s' })).toHaveClass(/\bstep\b/);
 
   // Hold the second pose for a second: a copy of it a second on.
-  await page.getByRole('button', { name: 'Keyframe at 1.00 s' }).click({ button: 'right' });
+  await page.getByRole('button', { name: 'Key at 1.00 s' }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: /^1 s/ }).click();
   s = await live(page);
   expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1, 2]);
@@ -1052,12 +1045,12 @@ test('keys picked together with Shift-click move together; a correction is a ban
   }
   let s = await live(page);
   expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1, 2]);
-  await page.getByRole('button', { name: 'Keyframe at 1.00 s' }).click({ modifiers: ['Shift'] });
-  await page.getByRole('button', { name: 'Keyframe at 2.00 s' }).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Key at 1.00 s' }).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Key at 2.00 s' }).click({ modifiers: ['Shift'] });
   await expect(page.locator('.tl-key.picked')).toHaveCount(2);
   // Dragged by one of them, half a second on: both go.
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
-  const key = (await page.getByRole('button', { name: 'Keyframe at 1.00 s' }).boundingBox())!;
+  const key = (await page.getByRole('button', { name: 'Key at 1.00 s' }).boundingBox())!;
   const dx = (lanes.width * 0.5) / shownTime(s.scene.animation!.duration);
   await page.mouse.move(key.x + key.width / 2, key.y + key.height / 2);
   await page.mouse.down();
@@ -1177,7 +1170,7 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   // Gliding the same 3 m instead of walking: the feet slide.
   const keys = await live(page).then((x) => moments(x.scene.animation!, x.active));
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
-  const row = (await page.locator('[aria-label="Pose keyframes"]').boundingBox())!;
+  const row = (await page.locator('[aria-label="Pose keys"]').boundingBox())!;
   const duration = (await anim(page)).animation!.duration;
   await page.mouse.click(lanes.x + (lanes.width * (keys[0] + keys[1])) / 2 / shownTime(duration), row.y + row.height / 2, { button: 'right' });
   await page.getByRole('menuitemradio', { name: 'Glide (as keyed)' }).click();
@@ -1265,7 +1258,7 @@ test('each figure has its own key track', async ({ page }) => {
   await expect(key(second)).toBeVisible();
   // Delete the first's key at 1 s: the second's stays.
   await key(first).click();
-  await page.getByRole('button', { name: `Delete keyframe (${first.name})` }).click();
+  await page.getByRole('button', { name: `Delete key (${first.name})` }).click();
   await expect(key(first)).toHaveCount(0);
   await expect(key(second)).toBeVisible();
 });
@@ -1543,8 +1536,9 @@ test('relations by pointing: a hand let go on someone holds on there; who to loo
   const chest = await at(first.id, 'chest');
   const hand = Math.abs(l.x - chest.x) < Math.abs(r.x - chest.x) ? l : r;
   await drag(page, hand, chest);
+  // (The hold is made as the drag is let go: on a slow machine, a moment later.)
+  await expect.poll(async () => (await live(page)).scene.animation?.constraints?.[0]).toMatchObject({ figure: second.id, target: { figure: first.id } });
   let s = await live(page);
-  expect(s.scene.animation!.constraints?.[0]).toMatchObject({ figure: second.id, target: { figure: first.id } });
   // Eyes on: what is clicked on the canvas.
   const head = await at(second.id, 'head');
   await page.mouse.click(head.x, head.y + 4, { button: 'right' });
@@ -1724,7 +1718,7 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   expect(track.map((x) => (x.source.kind === 'travel' ? x.source.mode : null))).toEqual([null, 'walk', 'run']);
 
   // Right-click the walk on the timeline: jump there instead, with a full turn.
-  const box = (await page.locator('[aria-label="Pose keyframes"]').boundingBox())!;
+  const box = (await page.locator('[aria-label="Pose keys"]').boundingBox())!;
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const x = lanes.x + (lanes.width * (track[1].start + track[1].duration / 2)) / shownTime(s.scene.animation!.duration);
   await page.mouse.click(x, box.y + box.height / 2, { button: 'right' });
@@ -2014,7 +2008,7 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
 
   // Shift-drag a key: it and the keys after it move together; the earlier ones stay.
   const before = await keys();
-  const key = page.getByRole('button', { name: new RegExp(`^Keyframe at ${before[2].toFixed(2)} s`) });
+  const key = page.getByRole('button', { name: new RegExp(`^Key at ${before[2].toFixed(2)} s`) });
   const box = (await key.boundingBox())!;
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const duration = (await anim(page)).animation!.duration;
@@ -2054,7 +2048,7 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
 test('a wave over a walk, from the waist up; posing over a motion corrects it', async ({ page }) => {
   await floorMenu(page, [0, 0, -3], 'Walk here');
   // Back to the middle of the walk.
-  await page.getByRole('button', { name: 'Previous keyframe' }).click();
+  await page.getByRole('button', { name: 'Previous key' }).click();
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
   await expect(page.getByRole('status').filter({ hasText: /^Posing here corrects Figure's walk$/ })).toBeVisible();
   await openSection(page, 'Library');

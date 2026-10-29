@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, Clapperboard, Ellipsis, FilePlus2, Search, UsersRound } from 'lucide-react';
+import { ChevronDown, Ellipsis, FilePlus2, LayoutTemplate, Search } from 'lucide-react';
 import { addScene, moveScene } from '@/lib/actions';
 import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
@@ -112,9 +112,8 @@ function SceneGrid({ onPick }: { onPick(): void }) {
             align="end"
             tip="New scene"
             items={[
-              { label: 'New film…', icon: Clapperboard, onSelect: () => { App().dialog('start'); onPick(); } },
               { label: 'Blank scene', icon: FilePlus2, onSelect: () => { addScene(store); onPick(); } },
-              { label: 'From a template…', icon: UsersRound, onSelect: () => { store.setSettings({ side: 'library', libraryTab: 'templates' }); onPick(); } },
+              { label: 'From a template…', icon: LayoutTemplate, onSelect: () => { App().dialog('start'); onPick(); } },
             ]}
           >
             <FilePlus2 size={14} strokeWidth={1.75} aria-hidden /> New

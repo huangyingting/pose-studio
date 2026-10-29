@@ -1,6 +1,6 @@
 import {
   Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
-  Crosshair, Eye, EyeOff, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Move3d, MoveHorizontal, MoveUpRight,
+  Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, Settings2,
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
@@ -485,7 +485,7 @@ export const COMMANDS: Command[] = [
   { id: 'app.undo', title: 'Undo', icon: Undo2, keys: ['mod+z'], enabled: (c) => c.store.getState().canUndo, run: (c) => c.store.undo() },
   { id: 'app.redo', title: 'Redo', icon: Redo2, keys: ['mod+shift+z', 'mod+y'], enabled: (c) => c.store.getState().canRedo, run: (c) => c.store.redo() },
   { id: 'app.save', title: 'Save', help: 'Save the project to a file', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
-  { id: 'app.newFilm', title: 'New film…', help: 'Start a film: what to film and how long', icon: Clapperboard, run: () => App().dialog('start') },
+  { id: 'app.newFilm', title: 'New scene…', help: 'A new scene: empty or from a template', icon: FilePlus2, run: () => App().dialog('start') },
   { id: 'app.exportVideo', title: 'Export video', icon: Film, when: animated, run: () => App().dialog('export-video') },
   { id: 'app.import', title: 'Add scenes…', help: 'Add the scenes of a project file to this one', icon: FileUp, run: () => App().openFile('append') },
   { id: 'app.open', title: 'Open…', help: 'Open a project in place of this one', icon: FolderOpen, run: () => App().openFile('replace') },
@@ -1095,11 +1095,11 @@ export const COMMANDS: Command[] = [
   { id: 'timeline.back', title: 'Back a frame', keys: [','], when: animated, run: (c) => stepTo(c, (now) => now - 1 / sceneOf(c).animation!.fps) },
   { id: 'timeline.forward', title: 'On a frame', keys: ['.'], when: animated, run: (c) => stepTo(c, (now) => now + 1 / sceneOf(c).animation!.fps) },
   {
-    id: 'timeline.prevKey', title: 'Previous keyframe', icon: StepBack, when: animated,
+    id: 'timeline.prevKey', title: 'Previous key', icon: StepBack, when: animated,
     enabled: (c) => stops(c).some((t) => t < c.store.getState().time - 1e-3), run: (c) => stepTo(c, (now) => [...stops(c)].reverse().find((x) => x < now - 1e-3)),
   },
   {
-    id: 'timeline.nextKey', title: 'Next keyframe', icon: StepForward, when: animated,
+    id: 'timeline.nextKey', title: 'Next key', icon: StepForward, when: animated,
     enabled: (c) => stops(c).some((t) => t > c.store.getState().time + 1e-3), run: (c) => stepTo(c, (now) => stops(c).find((x) => x > now + 1e-3)),
   },
   {
@@ -1215,7 +1215,7 @@ function jumpNow(c: Ctx) {
 }
 function keyName(c: Ctx) {
   const f = activeFigure(c);
-  return `keyframe${sceneOf(c).figures.length > 1 && f ? ` (${f.name})` : ''}`;
+  return `key${sceneOf(c).figures.length > 1 && f ? ` (${f.name})` : ''}`;
 }
 function onCameraPoint(c: Ctx) {
   const cam = rowCamera(c);
