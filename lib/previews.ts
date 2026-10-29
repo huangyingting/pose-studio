@@ -166,7 +166,7 @@ async function drain() {
     // Kept from an earlier visit (this build's); or drawn now, and kept.
     const kept = await loadThumb(key);
     const url = kept ?? job.make();
-    if (!kept) void saveThumb(key, url);
+    if (!kept) void saveThumb(key, url).catch(() => {});
     thumbs.set(key, url);
     job.done.forEach((fn) => fn(url));
   } catch (err) {

@@ -24,7 +24,14 @@ function open(): Promise<IDBDatabase> | null {
     req.onupgradeneeded = () => {
       for (const name of [CLIPS, MODELS, IMAGES, THUMBS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      // (Another tab of a newer build needing a newer version: this one lets it.)
+      req.result.onversionchange = () => {
+        req.result.close();
+        db = null;
+      };
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
   });
   return db;
@@ -101,28 +108,38 @@ export async function loadImage(id: string): Promise<Blob | null> {
  * The library's thumbnails, kept between visits for this build of the app (a build's templates
  * and poses can look different from the last one's: drawn again then, once).
  */
-const BUILD = process.env.NEXT_PUBLIC_BUILD ?? 'dev';
+const BUILD = process.env.NEXT_PUBLIC_BUILD ?? '';
 let pruned = false;
 
-/** A kept thumbnail (an image URL), or null. */
+/**
+ * A kept thumbnail (an image URL), or null: none kept, or none to wait for (not kept while
+ * developing; the browser's storage refused, or slow to open: drawn instead).
+ */
 export async function loadThumb(key: string): Promise<string | null> {
+  if (!BUILD) return null;
   const got = run<{ id: string; url: string } | undefined>(THUMBS, 'readonly', (s) => s.get(`${BUILD}|${key}`));
-  return got ? (await got)?.url ?? null : memory.thumbs.get(key) ?? null;
+  if (!got) return memory.thumbs.get(key) ?? null;
+  const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+  return Promise.race([got.then((x) => x?.url ?? null, () => null), late]);
 }
 
-/** Keep a thumbnail (the first time in a visit, those of other builds let go). */
+/** Keep a thumbnail (the first time in a visit, those of other builds let go); nothing if it cannot be. */
 export async function saveThumb(key: string, url: string) {
+  if (!BUILD) return;
   const d = open();
   if (!d) {
     memory.thumbs.set(key, url);
     return;
   }
-  const db = await d;
-  const store = db.transaction(THUMBS, 'readwrite').objectStore(THUMBS);
-  if (!pruned) {
-    pruned = true;
-    const all = store.getAllKeys();
-    all.onsuccess = () => { for (const k of all.result) if (!String(k).startsWith(`${BUILD}|`)) store.delete(k); };
+  try {
+    const store = (await d).transaction(THUMBS, 'readwrite').objectStore(THUMBS);
+    if (!pruned) {
+      pruned = true;
+      const all = store.getAllKeys();
+      all.onsuccess = () => { for (const k of all.result) if (!String(k).startsWith(`${BUILD}|`)) store.delete(k); };
+    }
+    store.put({ id: `${BUILD}|${key}`, url });
+  } catch {
+    // (Not kept: drawn again next visit.)
   }
-  store.put({ id: `${BUILD}|${key}`, url });
 }
