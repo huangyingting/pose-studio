@@ -40,8 +40,8 @@ export default function BodyMap({ selected, onSelect }: { selected: JointName | 
   return (
     <svg className="bodymap" viewBox="0 0 120 202" role="group" aria-label="Body parts">
       {/* The figure's own sides, as seen from the front. */}
-      <text x="6" y="36" className="bodymap-side"><title>The figure's right</title>R</text>
-      <text x="107" y="36" className="bodymap-side"><title>The figure's left</title>L</text>
+      <text x="6" y="36" className="bodymap-side"><title>{"The figure's right"}</title>R</text>
+      <text x="107" y="36" className="bodymap-side"><title>{"The figure's left"}</title>L</text>
       {PARTS.map(([j, s]) => (
         <g
           key={j}

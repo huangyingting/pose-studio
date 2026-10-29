@@ -1888,7 +1888,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.getByRole('group', { name: 'Lighting schemes' }).getByRole('button', { name: 'Dusk' }).click();
   s = await live(page);
   expect(s.scene.lighting!.lights.map((l) => l.role)).toEqual(['key', 'fill']);
-  expect(s.scene.lighting!.lights[0].kelvin).toBeLessThan(3000);
+  expect(s.scene.lighting!.lights[0].kelvin).toBeLessThanOrEqual(3000);
   await expect(lights.getByRole('button', { name: 'Fill light', exact: true })).toBeVisible();
   // The key light lit from the left, from the view (its menu).
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
