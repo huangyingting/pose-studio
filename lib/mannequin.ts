@@ -412,9 +412,9 @@ export class Mannequin {
       });
       const lift = 0.0025 * nk * k;
       ridge(neckGeo, pts, 0.012 * k, lift);
-      return contour(pts.map((p, i) => {
+      return contour(pts.map((p) => {
         const n = new THREE.Vector3(p.x / neckSection(p.y).w ** 2, 0, (p.z - lean(p.y)) / neckSection(p.y).front ** 2).normalize();
-        return p.clone().addScaledVector(n, (i > 0 && i < 12 ? lift : 0) + 0.0015);
+        return p.clone().addScaledVector(n, lift + 0.0015);
       }));
     });
     neckGeo.computeVertexNormals();
