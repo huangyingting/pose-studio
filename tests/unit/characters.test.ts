@@ -35,7 +35,7 @@ function withoutTextures(file: Buffer): ArrayBuffer {
 describe('built-in characters', () => {
   it('ship small, and their skeletons are found without help, as listed', async () => {
     for (const c of BUILT_IN_CHARACTERS) {
-      const path = `public${characterFile(c.id)}`;
+      const path = `public${characterFile(c.id).split("?")[0]}`;
       // (Drawn in our styles only: small. One in its own look, its textures (Aoi, in Toon): larger, fetched when first drawn.)
       const file = readFileSync(path);
       const textured = !!JSON.parse(file.subarray(20, 20 + file.readUInt32LE(12)).toString()).images?.length;
