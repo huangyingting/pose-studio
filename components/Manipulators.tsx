@@ -97,16 +97,21 @@ const tagged = (o: THREE.Object3D | null) => {
   return o;
 };
 
+/** The parts a hand or foot rests on (a palm on a hip, on a knee, on the head). */
+const RESTED_ON = new Set<JointName>(['hips', 'spine', 'chest', 'head', 'leftUpperLeg', 'rightUpperLeg']);
+
 /**
  * The part a press or click under the pointer takes (`usable`: not one to reach past, a
- * see-through prop): the nearest; but a hand or foot of the same figure just behind it (resting
- * on the body, up to 8 cm in, as a palm on a hip is), that, as it is what one reaches for there.
+ * see-through prop): the nearest; but a hand or foot of the same figure just behind it, resting on
+ * the body (up to 8 cm in, as a palm on a hip is), that, as it is what one reaches for there.
  */
 export function partUnder(intersections: THREE.Intersection[], usable: (o: THREE.Object3D) => boolean) {
   const hits = intersections.map((i) => ({ o: tagged(i.object), d: i.distance })).filter((h) => h.o && usable(h.o));
   const first = hits[0];
   if (!first) return null;
-  const end = hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && ENDS[h.o!.userData.joint as JointName]);
+  // (Only on what a hand or foot rests on: not a forearm or shin in front of the other one.)
+  const restsOn = RESTED_ON.has(first.o!.userData.joint as JointName);
+  const end = restsOn && hits.find((h) => h.d - first.d < 0.08 && h.o!.userData.figure === first.o!.userData.figure && ENDS[h.o!.userData.joint as JointName]);
   return (end ?? first).o!;
 }
 
