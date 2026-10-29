@@ -20,6 +20,8 @@ export interface Staging {
   id: string;
   name: string;
   people: number;
+  /** What they do, in words. */
+  description: string;
   build(): Scene;
 }
 
@@ -107,6 +109,7 @@ export const STAGINGS: Staging[] = [
     id: 'conversation',
     name: 'Conversation',
     people: 2,
+    description: 'Two people stand facing each other a little apart, talking: one gestures with an open hand at waist height, the other listens with a hand on the hip, weight on one leg. They look at each other.',
     build: () => withRig((rig) => {
       let a = person('Anna', body('Woman'), -0.55, 0, 0, {
         leftUpperLeg: [0, 0, 5], rightUpperLeg: [-4, 0, -7], rightLowerLeg: [10, 0, 0],
@@ -127,6 +130,7 @@ export const STAGINGS: Staging[] = [
     id: 'handshake',
     name: 'Handshake',
     people: 2,
+    description: "Two people face each other an arm's length apart and shake right hands at waist height; their other arms hang relaxed. They look at each other.",
     build: () => withRig((rig) => {
       let a = person('Ben', body('Man'), -0.34, 0, 0, RELAXED_ARMS);
       let b = person('Anna', body('Woman'), 0.34, 0, 0, RELAXED_ARMS);
@@ -144,6 +148,7 @@ export const STAGINGS: Staging[] = [
     id: 'shoulder',
     name: 'Hand on shoulder',
     people: 2,
+    description: "Two people stand side by side facing the same way; the one on the right rests a hand on the other's near shoulder. The other has a hand on the hip.",
     build: () => withRig((rig) => {
       const b = person('Ben', body('Tall man'), 0.3, 0, -8, {
         leftUpperArm: [6, -25, 38], leftLowerArm: [-100, 0, 0], rightUpperArm: [0, 0, -10], rightLowerArm: [-15, 0, 0], leftUpperLeg: [0, 0, 6], rightUpperLeg: [-3, 0, -3],
@@ -159,6 +164,7 @@ export const STAGINGS: Staging[] = [
     id: 'walking',
     name: 'Walking hand in hand',
     people: 2,
+    description: 'Two people walk side by side mid-stride, holding hands between them; one looks at the other.',
     build: () => withRig((rig) => {
       const stride = (lead: Side): Angles => {
         const [f, r]: [Side, Side] = lead === 'L' ? ['L', 'R'] : ['R', 'L'];
@@ -186,6 +192,7 @@ export const STAGINGS: Staging[] = [
     id: 'waltz',
     name: 'Waltz hold',
     people: 2,
+    description: "A closed waltz hold: facing each other close, the lead's right hand on the partner's left shoulder blade, the partner's left hand on the lead's right shoulder, their other hands joined out to the side at eye level. Both look over the other's right shoulder.",
     build: () => withRig((rig) => {
       const a = person('Ben', body('Man'), 0.04, -0.2, 0, { ...RELAXED_ARMS, spine: [-3, 0, 0], chest: [-4, 0, 0] });
       const b = person('Anna', body('Tall woman'), -0.04, 0.2, 180, { ...RELAXED_ARMS, spine: [-6, 0, 0], chest: [-8, 0, 0], neck: [-6, 0, 0] });
@@ -196,6 +203,7 @@ export const STAGINGS: Staging[] = [
     id: 'backtoback',
     name: 'Back to back',
     people: 2,
+    description: 'Two people stand back to back, almost touching, arms folded, looking off to different sides.',
     build: () => withRig((rig) => {
       const folded = (f: Figure) => {
         let g = reachTo(rig, f, 'L', local(rig, f, 'rightLowerArm', [0.02, 0.02, 0.1]));
@@ -215,6 +223,7 @@ export const STAGINGS: Staging[] = [
     id: 'sparring',
     name: 'Sparring',
     people: 2,
+    description: 'Two boxers face each other in fighting stance, lead foot forward, knees bent, fists up guarding the face, eyes on each other.',
     build: () => withRig((rig) => {
       const stance: Angles = {
         hips: [6, 25, 0], spine: [6, -12, 0], chest: [4, -10, 0],
@@ -240,6 +249,7 @@ export const STAGINGS: Staging[] = [
     id: 'group',
     name: 'Group photo',
     people: 3,
+    description: "Three people stand in a row for a photo, arms round each other's shoulders; the one on the right waves.",
     build: () => withRig((rig) => {
       let mid = person('Mia', body('Woman'), 0, 0, 0, RELAXED_ARMS);
       let left = besides(person('Ben', body('Man'), 0, 0, 0, {
@@ -255,6 +265,243 @@ export const STAGINGS: Staging[] = [
       mid = reachTo(rig, mid, 'L', local(rig, right, 'rightUpperArm', [0.05, 0.05, -0.04]));
       mid = reachTo(rig, mid, 'R', local(rig, left, 'leftUpperArm', [-0.05, 0.05, -0.04]));
       return scene('Group photo', [left, mid, right], { yaw: 0, pitch: 5, fov: 26 });
+    }),
+  },
+  {
+    id: 'hug',
+    name: 'Hug',
+    people: 2,
+    description: "Two people hug, chest to chest: one's arms go round the other's shoulders, the other's round the waist. Heads turn aside, each looking past the other's shoulder.",
+    build: () => withRig((rig) => {
+      let a = person('Anna', body('Woman'), -0.19, 0, 0, RELAXED_ARMS);
+      let b = person('Ben', body('Man'), 0.19, 0, 0, RELAXED_ARMS);
+      [a, b] = faceEachOther(a, b);
+      a = reachTo(rig, a, 'L', local(rig, b, 'chest', [-0.1, 0.12, -0.13]));
+      a = reachTo(rig, a, 'R', local(rig, b, 'chest', [0.1, 0.12, -0.13]));
+      b = reachTo(rig, b, 'L', local(rig, a, 'spine', [-0.12, 0, -0.1]));
+      b = reachTo(rig, b, 'R', local(rig, a, 'spine', [0.12, 0, -0.1]));
+      a = withHands(a, hand('Flat'));
+      b = withHands(b, hand('Flat'));
+      a = lookTo(rig, a, local(rig, a, 'head', [0.6, -0.1, 1]));
+      b = lookTo(rig, b, local(rig, b, 'head', [0.6, -0.2, 1]));
+      return scene('Hug', [a, b], { yaw: 60, pitch: 6, fov: 24 });
+    }),
+  },
+  {
+    id: 'highfive',
+    name: 'High five',
+    people: 2,
+    description: 'Two people face each other a step apart and slap raised right palms together above head height, their left arms down; they look at the hands.',
+    build: () => withRig((rig) => {
+      let a = person('Kai', body('Man'), -0.4, 0, 0, { ...RELAXED_ARMS, leftUpperLeg: [-6, 0, 5], leftLowerLeg: [8, 0, 0] });
+      let b = person('Mia', body('Woman'), 0.4, 0, 0, { ...RELAXED_ARMS, rightUpperLeg: [-6, 0, -5], rightLowerLeg: [8, 0, 0] });
+      [a, b] = faceEachOther(a, b);
+      const meet = new THREE.Vector3(0, 1.72, 0);
+      a = reachTo(rig, a, 'R', meet.clone().add(new THREE.Vector3(-0.02, 0, 0)));
+      b = reachTo(rig, b, 'R', meet.clone().add(new THREE.Vector3(0.02, 0, 0)));
+      a = withHands(a, hand('Relaxed'), hand('Open'));
+      b = withHands(b, hand('Relaxed'), hand('Open'));
+      a = lookTo(rig, a, meet);
+      b = lookTo(rig, b, meet);
+      return scene('High five', [a, b], { yaw: 15, pitch: 4, fov: 26 });
+    }),
+  },
+  {
+    id: 'fistbump',
+    name: 'Fist bump',
+    people: 2,
+    description: 'Two people face each other a step apart and touch right fists at chest height, elbows bent; they look at each other.',
+    build: () => withRig((rig) => {
+      let a = person('Kai', body('Man'), -0.42, 0, 0, RELAXED_ARMS);
+      let b = person('Leo', body('Tall man'), 0.42, 0, 0, RELAXED_ARMS);
+      [a, b] = faceEachOther(a, b);
+      const meet = new THREE.Vector3(0, 1.15, 0);
+      a = reachTo(rig, a, 'R', meet.clone().add(new THREE.Vector3(-0.05, 0, 0)));
+      b = reachTo(rig, b, 'R', meet.clone().add(new THREE.Vector3(0.05, 0, 0)));
+      a = withHands(a, hand('Relaxed'), hand('Fist'));
+      b = withHands(b, hand('Relaxed'), hand('Fist'));
+      [a, b] = lookAtEachOther(rig, a, b);
+      return scene('Fist bump', [a, b], { yaw: 15, pitch: 4, fov: 24 });
+    }),
+  },
+  {
+    id: 'bothhands',
+    name: 'Holding both hands',
+    people: 2,
+    description: 'Two people stand facing each other close, holding both hands low between them, arms relaxed; they look into each other\'s eyes.',
+    build: () => withRig((rig) => {
+      let a = person('Anna', body('Woman'), -0.3, 0, 0, RELAXED_ARMS);
+      let b = person('Ben', body('Man'), 0.3, 0, 0, RELAXED_ARMS);
+      [a, b] = faceEachOther(a, b);
+      const [lx, lz] = leftward(a);
+      const at = (s: number) => new THREE.Vector3(lx * 0.17 * s, 0.92, lz * 0.17 * s);
+      a = reachTo(rig, a, 'L', at(1));
+      a = reachTo(rig, a, 'R', at(-1));
+      b = reachTo(rig, b, 'R', at(1));
+      b = reachTo(rig, b, 'L', at(-1));
+      a = withHands(a, hand('Grip'));
+      b = withHands(b, hand('Grip'));
+      [a, b] = lookAtEachOther(rig, a, b);
+      return scene('Holding both hands', [a, b], { yaw: 20, pitch: 5, fov: 24 });
+    }),
+  },
+  {
+    id: 'arminarm',
+    name: 'Arm in arm',
+    people: 2,
+    description: "Two people stand side by side facing the same way, arm in arm: one bends the near arm with the elbow out, the other's hand rests on that forearm. Both look ahead.",
+    build: () => withRig((rig) => {
+      const b = person('Ben', body('Man'), 0.28, 0, 0, {
+        rightUpperArm: [6, 25, -30], rightLowerArm: [-95, 0, 0], leftUpperArm: [0, 0, 8], leftLowerArm: [-12, 0, 0], leftUpperLeg: [-3, 0, 4],
+      });
+      let a = besides(person('Anna', body('Woman'), 0, 0, 0, RELAXED_ARMS), b, 'R', 0.46);
+      a = pose(a, { leftUpperLeg: [-4, 0, 3], leftLowerLeg: [8, 0, 0] });
+      a = reachTo(rig, a, 'L', contactPoint(rig.model(b), b, 'rightHand').add(new THREE.Vector3(0, 0.03, 0)));
+      a = withHands(a, hand('Relaxed'));
+      return scene('Arm in arm', [a, b], { yaw: 0, pitch: 5, fov: 22 });
+    }),
+  },
+  {
+    id: 'proposal',
+    name: 'Proposal',
+    people: 2,
+    description: 'One person kneels on the right knee, left foot forward, holding up a ring box in the left hand and the partner\'s hand in the right. The partner stands in front, one hand to the mouth, looking down at them.',
+    build: () => withRig((rig) => {
+      let b = person('Ben', body('Man'), 0.4, 0, 0, {
+        ...RELAXED_ARMS, spine: [-4, 0, 0],
+        leftUpperLeg: [-88, 0, 6], leftLowerLeg: [88, 0, 0], leftFoot: [0, 0, 0], rightUpperLeg: [8, 0, -4], rightLowerLeg: [95, 0, 0], rightFoot: [70, 0, 0],
+      });
+      let a = person('Anna', body('Woman'), -0.4, 0, 0, { ...RELAXED_ARMS, rightUpperLeg: [-4, 0, -4], rightLowerLeg: [10, 0, 0] });
+      [a, b] = faceEachOther(a, b);
+      const held = new THREE.Vector3(-0.05, 0.98, -0.08);
+      b = reachTo(rig, b, 'R', held.clone().add(new THREE.Vector3(0.03, 0, 0)));
+      a = reachTo(rig, a, 'L', held.clone().add(new THREE.Vector3(-0.03, 0.01, 0)));
+      b = reachTo(rig, b, 'L', local(rig, b, 'chest', [0.05, -0.05, 0.32]));
+      a = reachTo(rig, a, 'R', local(rig, a, 'head', [-0.01, -0.08, 0.1]));
+      a = withHands(a, hand('Grip'), hand('Relaxed'));
+      b = withHands(b, hand('Grip'), hand('Grip'));
+      [a, b] = lookAtEachOther(rig, a, b);
+      return scene('Proposal', [a, b], { yaw: 30, pitch: 6, fov: 26 });
+    }),
+  },
+  {
+    id: 'helpup',
+    name: 'Helping up',
+    people: 2,
+    description: 'One person sits on the floor, knees bent, leaning back on the left hand and reaching up with the right. The other stands in front, leaning forward over bent knees, gripping that hand to pull them up.',
+    build: () => withRig((rig) => {
+      let a = person('Mia', body('Woman'), -0.45, 0, 0, {
+        hips: [-15, 0, 0], spine: [10, 0, 0],
+        leftUpperLeg: [-100, 0, 14], leftLowerLeg: [105, 0, 0], rightUpperLeg: [-95, 0, -10], rightLowerLeg: [90, 0, 0],
+        leftUpperArm: [30, 0, 25], leftLowerArm: [-5, 0, 0],
+      });
+      let b = person('Ben', body('Man'), 0.45, 0, 0, {
+        ...RELAXED_ARMS, hips: [25, 0, 0], spine: [10, 0, 0],
+        leftUpperLeg: [-40, 0, 6], leftLowerLeg: [45, 0, 0], leftFoot: [-10, 0, 0], rightUpperLeg: [-10, 0, -6], rightLowerLeg: [25, 0, 0],
+      });
+      [a, b] = faceEachOther(a, b);
+      const grip = new THREE.Vector3(-0.02, 0.85, 0);
+      a = reachTo(rig, a, 'R', grip.clone().add(new THREE.Vector3(-0.03, 0, 0)));
+      b = reachTo(rig, b, 'R', grip.clone().add(new THREE.Vector3(0.03, 0, 0)));
+      a = withHands(a, hand('Open'), hand('Grip'));
+      b = withHands(b, hand('Relaxed'), hand('Grip'));
+      [a, b] = lookAtEachOther(rig, a, b);
+      return scene('Helping up', [a, b], { yaw: 70, pitch: 8, fov: 26 });
+    }),
+  },
+  {
+    id: 'comfort',
+    name: 'Comforting',
+    people: 2,
+    description: 'One person sits on the floor hugging the knees, head bowed. The other crouches close beside, a hand on their back, looking at them.',
+    build: () => withRig((rig) => {
+      let a = person('Mia', body('Woman'), 0, 0, 0, {
+        hips: [-14, 0, 0], spine: [20, 0, 0], chest: [12, 0, 0], neck: [15, 0, 0], head: [20, 0, 0],
+        leftUpperLeg: [-108, 0, 6], leftLowerLeg: [120, 0, 0], rightUpperLeg: [-108, 0, -6], rightLowerLeg: [120, 0, 0],
+      });
+      a = reachTo(rig, a, 'L', contactPoint(rig.model(a), a, 'rightLowerLeg').add(new THREE.Vector3(0, -0.05, 0.04)));
+      a = reachTo(rig, a, 'R', contactPoint(rig.model(a), a, 'leftLowerLeg').add(new THREE.Vector3(0, -0.08, 0.04)));
+      let b = besides(person('Ben', body('Man'), 0, 0, 0, {
+        ...RELAXED_ARMS, hips: [20, 0, 0], spine: [8, 0, 0],
+        leftUpperLeg: [-115, 0, 25], leftLowerLeg: [145, 0, 0], leftFoot: [-25, 0, 0], rightUpperLeg: [-100, 0, -20], rightLowerLeg: [135, 0, 0], rightFoot: [-20, 0, 0],
+      }), a, 'R', 0.5);
+      b = withFacing(b, facing(b) - 35);
+      b = reachTo(rig, b, 'L', contactPoint(rig.model(a), a, 'back'));
+      b = withHands(b, hand('Flat'), hand('Relaxed'));
+      a = withHands(a, hand('Grip'));
+      b = lookTo(rig, b, headPoint(rig.model(a), a));
+      return scene('Comforting', [a, b], { yaw: 25, pitch: 10, fov: 26 });
+    }),
+  },
+  {
+    id: 'whisper',
+    name: 'Whisper',
+    people: 2,
+    description: "Two people stand side by side; one leans in to the other's ear, a hand cupped beside the mouth. The other tilts the head to listen, eyes to the side.",
+    build: () => withRig((rig) => {
+      const b = person('Ben', body('Man'), 0.2, 0, 0, { ...RELAXED_ARMS, neck: [0, 0, -6], head: [0, 10, -6] });
+      let a = besides(person('Anna', body('Woman'), 0, 0, 0, { ...RELAXED_ARMS, hips: [0, 0, -4], spine: [0, 0, -6], chest: [0, 0, -4] }), b, 'R', 0.36);
+      a = lookTo(rig, a, headPoint(rig.model(b), b));
+      a = reachTo(rig, a, 'L', local(rig, a, 'head', [0.08, -0.05, 0.1]));
+      a = withHands(a, hand('Open'), hand('Relaxed'));
+      return scene('Whisper', [a, b], { yaw: 10, pitch: 5, fov: 22 });
+    }),
+  },
+  {
+    id: 'pointout',
+    name: 'Pointing out',
+    people: 2,
+    description: 'Two people stand side by side; one points far ahead and up with a straight right arm, the other leans in and looks along the arm to where it points.',
+    build: () => withRig((rig) => {
+      let a = person('Kai', body('Man'), -0.25, 0, 0, RELAXED_ARMS);
+      let b = besides(person('Mia', body('Woman'), 0, 0, 0, { ...RELAXED_ARMS, hips: [0, 0, 4], spine: [0, 0, 4] }), a, 'R', 0.45);
+      const far = new THREE.Vector3(-2.5, 2.6, 6);
+      a = reachTo(rig, a, 'R', local(rig, a, 'rightUpperArm', [-0.25, 0.25, 0.55]));
+      a = withHands(a, hand('Relaxed'), hand('Point'));
+      a = lookTo(rig, a, far);
+      b = lookTo(rig, b, far);
+      return scene('Pointing out', [a, b], { yaw: 160, pitch: 6, fov: 26 });
+    }),
+  },
+  {
+    id: 'selfie',
+    name: 'Selfie',
+    people: 2,
+    description: "Two people stand close side by side; one holds a phone up and out in front with the right arm, the other's arm is round their shoulders. Both look up at the phone.",
+    build: () => withRig((rig) => {
+      let a = person('Mia', body('Woman'), 0.22, 0, 0, RELAXED_ARMS);
+      let b = besides(person('Kai', body('Man'), 0, 0, 0, RELAXED_ARMS), a, 'L', 0.44);
+      const phone = local(rig, a, 'head', [0.22, 0.18, 0.5]);
+      a = reachTo(rig, a, 'R', phone);
+      a = withHands(a, hand('Relaxed'), hand('Grip'));
+      b = reachTo(rig, b, 'R', local(rig, a, 'rightUpperArm', [0.04, 0.03, -0.05]));
+      b = withHands(b, hand('Relaxed'), hand('Flat'));
+      a = lookTo(rig, a, phone);
+      b = lookTo(rig, b, phone);
+      return scene('Selfie', [a, b], { yaw: 0, pitch: 8, fov: 24 });
+    }),
+  },
+  {
+    id: 'sittogether',
+    name: 'Sitting together',
+    people: 2,
+    description: 'Two people sit side by side on the floor, knees up and arms resting on them, shoulders close, heads turned towards each other.',
+    build: () => withRig((rig) => {
+      const sit: Angles = {
+        hips: [-12, 0, 0], spine: [8, 0, 0],
+        leftUpperLeg: [-110, 0, 10], leftLowerLeg: [115, 0, 0], rightUpperLeg: [-110, 0, -10], rightLowerLeg: [115, 0, 0],
+      };
+      let a = person('Mia', body('Woman'), -0.24, 0, 0, sit);
+      let b = person('Kai', body('Man'), 0.26, 0, 0, sit);
+      const onKnees = (f: Figure) => {
+        let g = reachTo(rig, f, 'L', contactPoint(rig.model(f), f, 'leftLowerLeg').add(new THREE.Vector3(0, 0.02, 0.06)));
+        g = reachTo(rig, g, 'R', contactPoint(rig.model(g), g, 'rightLowerLeg').add(new THREE.Vector3(0, 0.02, 0.06)));
+        return withHands(g, hand('Relaxed'));
+      };
+      a = onKnees(a);
+      b = onKnees(b);
+      [a, b] = lookAtEachOther(rig, a, b);
+      return scene('Sitting together', [a, b], { yaw: 15, pitch: 8, fov: 26 });
     }),
   },
 ];

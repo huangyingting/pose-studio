@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
-import { Clapperboard, Film, Layers, PersonStanding, Trash2, UserRound, Video, type LucideIcon } from 'lucide-react';
+import { Clapperboard, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
 import {
-  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose, 
-  setFigureModel,
+  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose,
+  placeTemplate, setFigureModel,
 } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
@@ -18,8 +18,9 @@ import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
 import {
-  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, type PreviewJob,
+  cameraPreview, characterPreview, characterThumb, motionPreview, posePreview, poseThumb, templatePreview, templateThumb, type PreviewJob,
 } from '@/lib/previews';
+import { STAGINGS } from '@/lib/stagings';
 import { shotSpans, spanAt } from '@/lib/shots';
 import type { LibraryTab, Store } from '@/lib/store';
 import { CameraBar, CharactersBar, MotionsBar, PosesBar, type BarProps } from './LibraryBars';
@@ -114,7 +115,7 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
   const mine = store.getState().library.poses ?? [];
   const built = POSE_GROUPS.flatMap((g) => builtInPoses().filter((p) => p.group === g)).map((p) => ({ p, group: p.group as string, mine: false }));
-  return [...built, ...mine.map((p) => ({ p, group: 'My poses', mine: true }))].map(({ p, group, mine: own }): LibraryItem => ({
+  const one = [...built, ...mine.map((p) => ({ p, group: 'My poses', mine: true }))].map(({ p, group, mine: own }): LibraryItem => ({
     key: `pose:${p.id}`,
     tab: 'poses',
     part: 'Poses',
@@ -131,6 +132,22 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
     thumb: poseThumb(p),
     actions: own ? [{ icon: Trash2, label: `Delete my pose ${p.name}`, run: () => { deletePose(store, p.id); ui.notifyUndo(`Deleted “${p.name}”`); } }] : undefined,
   }));
+  // Two people posed together (lib/stagings.ts): the selected figure and the one nearest it take it, figures added for the rest.
+  const two = STAGINGS.filter((t) => t.people === 2).map((t): LibraryItem => ({
+    key: `pose:pair:${t.id}`,
+    tab: 'poses',
+    part: 'Poses',
+    group: 'Two people',
+    name: t.name,
+    about: t.description,
+    icon: UsersRound,
+    note: figure ? `Click to put it on ${figure.name} and the one nearest` : 'Click to add two figures in it',
+    run: () => { if (placeTemplate(store, t.id, figure?.id ?? null)) { ui.notifyUndo(t.name); ui.onPick?.(); } },
+    preview: () => templatePreview(t.id, t.build, style(store)),
+    thumb: templateThumb(t.id, t.build),
+  }));
+  const at = one.findIndex((it) => it.group === 'My poses');
+  return at < 0 ? [...one, ...two] : [...one.slice(0, at), ...two, ...one.slice(at)];
 }
 
 // A motion's length (building one solves IK, so do it once per motion).

@@ -87,9 +87,11 @@ describe('the Library: categories as data, one search', () => {
   it('finds items in every category by name; a template goes in at a spot on the floor', () => {
     const store = new Store(new MemoryStorage());
     const ui = { notify: () => {}, notifyUndo: () => {} };
-    const found = searchLibrary(store, ui, 'walk');
+    const found = searchLibrary(store, ui, 'ahead');
     expect(new Set(found.map((it) => it.tab))).toEqual(new Set(['motions']));
-    expect(searchLibrary(store, ui, 'walk', 'motions').every((it) => it.tab === 'motions')).toBe(true);
+    // Two people's poses with the poses: the selected figure and a new one take it.
+    expect(searchLibrary(store, ui, 'hug').map((it) => [it.tab, it.group])).toContainEqual(['poses', 'Two people']);
+    expect(searchLibrary(store, ui, 'ahead', 'motions').every((it) => it.tab === 'motions')).toBe(true);
     // Every category's items say where they are listed.
     for (const c of LIBRARY_CATEGORIES) for (const it of c.items(store, ui)) expect(it.tab).toBe(c.id);
 
