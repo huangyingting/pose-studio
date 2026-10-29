@@ -187,13 +187,14 @@ export const SETS: SetDef[] = [
       const block = (x: number, w: number, h: number): Piece[] => [B(w, h, 8, x, 0, -7), B(w - 0.6, 2.6, 0.1, x, 0.4, -2.96), B(w + 0.2, 0.3, 0.6, x, 3.4, -2.7)];
       return [
         floor(40, 30, -2),
-        B(40, 0.15, 5, 0, 0, -0.5),
+        // (The pavement flush with the road: people stand on the stage's floor.)
+        B(40, 0.02, 5, 0, 0, -0.5),
         ...block(-14, 7, 14), ...block(-6.5, 8, 9), ...block(1.5, 8, 18), ...block(9.5, 8, 7), ...block(17, 7, 12),
         ...[-10, -4.5, 6, 12].flatMap((x) => lamp(x, 1.6)),
-        ...bench(-3, -1.8), B(0.5, 0.9, 0.5, 2.5, 0.15, -1.8),
+        ...bench(-3, -1.8), B(0.5, 0.9, 0.5, 2.5, 0, -1.8),
         ...Array.from({ length: 7 }, (_, i) => B(0.5, 0.01, 4, -1.5 + i * 0.9 - 2.7 + 2.7, 0, 5.5)),
         ...car(-9, 3.4), ...car(7, 3.4),
-        C(0.08, 3.2, 4.6, 0.15, 2.4), B(0.3, 0.9, 0.3, 4.6, 3.35, 2.4),
+        C(0.08, 3.2, 4.6, 0, 2.4), B(0.3, 0.9, 0.3, 4.6, 3.2, 2.4),
       ];
     },
   },
@@ -352,6 +353,12 @@ export class SetObject {
 
   setStyle(style: Style) {
     this.parts.refresh(style, () => false);
+  }
+
+  private box: THREE.Box3 | null = null;
+  /** What it takes up (it never moves). */
+  bounds() {
+    return (this.box ??= new THREE.Box3().setFromObject(this.object)).clone();
   }
 
   /** Every corner of it (a thumbnail of the set frames it all). */

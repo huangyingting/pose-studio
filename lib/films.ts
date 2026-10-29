@@ -40,11 +40,11 @@ class Stage {
   scene: Scene;
   private ids = new Map<string, string>();
 
-  constructor(name: string, cast: { name: string; body: string; at: [number, number]; facing: number }[], light: string) {
+  constructor(name: string, cast: { name: string; body: string; at: [number, number]; facing: number }[], light: string, set?: string) {
     const figures = cast.map((c) => withFacing(newFigure({ name: c.name, body: body(c.body), position: [c.at[0], 0, c.at[1]] }), c.facing));
     cast.forEach((c, i) => this.ids.set(c.name, figures[i].id));
     const scene = newScene(name, figures);
-    this.scene = { ...scene, lighting: fromPreset(LIGHTING_PRESETS.find((l) => l.id === light)!.lighting), animation: { ...newAnimation(scene, 1), loop: false } };
+    this.scene = { ...scene, lighting: fromPreset(LIGHTING_PRESETS.find((l) => l.id === light)!.lighting), ...(set ? { set } : {}), animation: { ...newAnimation(scene, 1), loop: false } };
   }
 
   id(name: string) {
@@ -119,7 +119,7 @@ export function wuxiaDuel(): Scene {
   const s = new Stage('Wuxia duel', [
     { name: 'Lin', body: 'Tall man', at: [-2.6, 0], facing: 90 },
     { name: 'Mei', body: 'Tall woman', at: [2.6, 0], facing: -90 },
-  ], 'dusk');
+  ], 'dusk', 'old-street');
   s.play('Lin', 'fight-idle', 0, { seconds: 2.2 });
   s.play('Mei', 'fight-idle', 0, { seconds: 2.6 });
   // The rush: Lin runs in, Mei steps up to meet her.
@@ -153,7 +153,7 @@ export function standOff(): Scene {
     { name: 'Ana', body: 'Tall woman', at: [0, 0.75], facing: 0 },
     { name: 'Officer Diaz', body: 'Man', at: cop, facing: toward(cop, [0, 0]) },
     { name: 'Passer-by', body: 'Woman', at: passer, facing: toward(passer, [0, 0]) },
-  ], 'night');
+  ], 'night', 'street');
   const end = 12;
   // (Each their own: he takes aim, she cries in front of him.)
   s.play('Vince', 'aim-pistol', 0, { seconds: end });
@@ -172,7 +172,7 @@ export function streetBasketball(): Scene {
     { name: 'Jay', body: 'Tall man', at: [0, 0], facing: 0 },
     { name: 'Rico', body: 'Man', at: [0.3, 5], facing: 180 },
     { name: 'Fan', body: 'Woman', at: [3.2, 2.5], facing: -90 },
-  ], 'noon');
+  ], 'noon', 'park');
   const hoop = s.prop('hoop', [0, 0, 7.5], { turn: 180 });
   const ball = s.prop('sphere', [0.5, 0, 0.5], { scale: [0.24, 0.24, 0.24], name: 'Ball' });
   s.hold(ball, 'Jay');
@@ -197,7 +197,7 @@ export function houseParty(): Scene {
     { name: 'Dee', body: 'Tall woman', at: at.dee, facing: toward(at.dee, [0, 0]) },
     { name: 'Sam', body: 'Tall man', at: at.sam, facing: toward(at.sam, at.kim) },
     { name: 'Kim', body: 'Woman', at: at.kim, facing: toward(at.kim, at.sam) },
-  ], 'dusk');
+  ], 'dusk', 'living-room');
   const end = 14;
   s.play('Rosa', 'salsa-dancing', 0, { seconds: end });
   s.play('Leo', 'salsa-dancing', 0, { seconds: end, mirror: true });

@@ -626,7 +626,7 @@ function Lights({ sv, style, scene }: { sv: SceneView; style: Style; scene: Scen
   useFrame(() => {
     if (!stale.current) return;
     stale.current = false;
-    sv.ink.setLight(rig.update(lightingOf(scene), style, sv.bounds()), rig.tint);
+    sv.ink.setLight(rig.update(lightingOf(scene), style, sv.bounds(), sv.setBounds()), rig.tint);
   });
   return <primitive object={rig.object} />;
 }
@@ -893,7 +893,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   const lightingRef = useRef(lighting);
   useEffect(() => { lightingRef.current = lighting; }, [lighting]);
   /** Where a light's lamp is (null: no such light). */
-  const lampOf = useCallback((id: string) => { const l = lightingRef.current.lights.find((x) => x.id === id); return l ? lampAt(lightDome(sv.bounds()), l) : null; }, [sv]);
+  const lampOf = useCallback((id: string) => { const l = lightingRef.current.lights.find((x) => x.id === id); return l ? lampAt(lightDome(sv.bounds(), sv.setBounds()), l) : null; }, [sv]);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const figures = useRef(docs);
   useEffect(() => { figures.current = docs; }, [docs]);

@@ -156,11 +156,15 @@ export function lightFrom(light: Light, dir: { x: number; y: number; z: number }
   return clampLight({ ...light, azimuth: r(Math.atan2(dir.x, dir.z)), elevation: r(Math.asin(dir.y / len)) });
 }
 
-/** The dome the editor draws the lights' lamps on: on the floor under the middle of the scene, a little wider than it. */
-export function lightDome(focus: THREE.Box3) {
+/**
+ * The dome the editor draws the lights' lamps on: on the floor under the middle of the scene, a
+ * little wider than it, and in a set, above its walls and roofs (as a studio's lights hang).
+ */
+export function lightDome(focus: THREE.Box3, set?: THREE.Box3) {
   const c = focus.isEmpty() ? new THREE.Vector3() : focus.getCenter(new THREE.Vector3());
   const size = focus.isEmpty() ? 2 : focus.getSize(new THREE.Vector3()).length();
-  return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(2.6, size * 0.8) };
+  const above = set && !set.isEmpty() ? set.max.y * 1.15 + 0.5 : 0;
+  return { base: new THREE.Vector3(c.x, 0, c.z), radius: Math.max(2.6, size * 0.8, above) };
 }
 
 /** Where a light's lamp is on its dome (azimuth 0: the front, +Z; up to the zenith). */
@@ -230,9 +234,11 @@ export class LightRig {
    * Aim the lights at `focus` (the scene bounds), each from its direction. Returns the
    * world-space direction towards the key light, for the painterly shaders (and sets `tint`).
    */
-  update(lighting: Lighting, style: Style, focus: THREE.Box3) {
+  update(lighting: Lighting, style: Style, focus: THREE.Box3, set?: THREE.Box3) {
     const center = focus.isEmpty() ? new THREE.Vector3(0, 1, 0) : focus.getCenter(new THREE.Vector3());
     const radius = focus.isEmpty() ? 2 : Math.max(1, focus.getSize(new THREE.Vector3()).length() / 2);
+    // (From outside a set, so that its walls, roofs and trees shade the people as they would.)
+    const far = Math.max(radius * 4, set && !set.isEmpty() ? set.getSize(new THREE.Vector3()).length() : 0);
     const towards = (l: Light) => {
       const az = THREE.MathUtils.degToRad(l.azimuth);
       const el = THREE.MathUtils.degToRad(l.elevation);
@@ -245,7 +251,7 @@ export class LightRig {
       lamp.visible = !!l;
       lamp.castShadow = false;
       if (!l) return;
-      lamp.position.copy(center).addScaledVector(towards(l), radius * 4);
+      lamp.position.copy(center).addScaledVector(towards(l), far);
       lamp.target.position.copy(center);
       lamp.target.updateMatrixWorld();
       lamp.color.set(l.color);
@@ -257,7 +263,7 @@ export class LightRig {
       cam.left = cam.bottom = -reach;
       cam.right = cam.top = reach;
       cam.near = 0.1;
-      cam.far = radius * 10;
+      cam.far = far + radius * 6;
       cam.updateProjectionMatrix();
       lamp.castShadow = shadowed = true;
     });

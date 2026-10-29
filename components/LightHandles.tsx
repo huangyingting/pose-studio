@@ -24,7 +24,7 @@ let drags = 0;
 export default function LightHandles({ store, scene, sv, selected, lit }: { store: Store; scene: Scene; sv: SceneView; selected: string | null; lit: boolean }) {
   // (Worked out again as the scene changes.)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const dome = useMemo(() => lightDome(sv.bounds()), [sv, scene]);
+  const dome = useMemo(() => lightDome(sv.bounds(), sv.setBounds()), [sv, scene]);
   const lighting = lightingOf(scene);
   return lighting.lights.map((l) => <Lamp key={l.id} store={store} light={l} name={lightName(lighting, l)} dome={dome} selected={selected === l.id} lit={lit} />);
 }

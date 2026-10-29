@@ -265,7 +265,7 @@ export class SceneRenderer {
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
     // Each scene is lit by its own lights.
-    this.view.ink.setLight(this.lights.update(lightingOf(doc), style, this.view.bounds()), this.lights.tint);
+    this.view.ink.setLight(this.lights.update(lightingOf(doc), style, this.view.bounds(), this.view.setBounds()), this.lights.tint);
   }
 
   /** Draw the frame: the styled picture, or a depth / normal pass for AI image and video tools. */

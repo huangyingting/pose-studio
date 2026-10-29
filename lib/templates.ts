@@ -11,8 +11,8 @@ import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset, Vec
 
 /*
  * Scene templates: what is filmed, without how it is filmed. A template is a cast (its roles:
- * people as they start), a set (props, around a stage origin), what they do (actions) and the
- * light; no cameras and no cuts, so any template can be filmed with any coverage
+ * people as they start), a set (its props, around a stage origin, and the place it is played in:
+ * lib/sets.ts), what they do (actions) and the light; no cameras and no cuts, so any template can be filmed with any coverage
  * (lib/coverage.ts). Built in: films staged beat by beat (each person's motions orchestrated),
  * people standing together, and set-ups with their props; the user's own are saved from any
  * scene. A template opens as a new scene, or
@@ -146,6 +146,11 @@ export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: n
       ...(holds?.length || base.constraints?.length ? { constraints: [...(base.constraints ?? []), ...(holds ?? [])] } : {}),
     };
   }
-  const next: Scene = { ...scene, figures, props, ...(placed.lighting && !scene.figures.length ? { lighting: placed.lighting } : {}) };
+  // (Its light into a scene with nobody in it yet, its set into one without a set.)
+  const next: Scene = {
+    ...scene, figures, props,
+    ...(placed.lighting && !scene.figures.length ? { lighting: placed.lighting } : {}),
+    ...(placed.set && !scene.set ? { set: placed.set } : {}),
+  };
   return animation ? { ...next, animation: normalize(animation, figures) } : next;
 }

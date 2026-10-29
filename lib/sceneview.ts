@@ -237,6 +237,11 @@ export class SceneView {
     return box;
   }
 
+  /** The set's bounds (empty without one): the lights stand above and outside it. */
+  setBounds() {
+    return this.set ? this.set.bounds() : new THREE.Box3();
+  }
+
   dispose() {
     for (const m of this.figures.values()) m.dispose();
     for (const r of this.models.values()) r.dispose();
