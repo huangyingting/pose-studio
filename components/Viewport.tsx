@@ -1134,6 +1134,9 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [cameras, three]);
   const lastDot = useRef(NaN);
+  // (After an edit, the cameras placed again one a frame: a click straight after is not held up.)
+  const pending = useRef<number[]>([]);
+  const placedAt = useRef(NaN);
   useEffect(() => { lastDot.current = NaN; }, [trails]);
   // Every camera where it is at the playhead (a path camera's points have their own glyphs).
   const nowGlyphs = useRef<(THREE.Object3D | null)[]>([]);
@@ -1152,18 +1155,29 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
     // The playhead's camera position (placed again only when the time changes).
     if (!dot.current) return;
     const t = clock.playing ? clock.time : time;
+    const place = (i: number) => {
+      const g = nowGlyphs.current[i];
+      const c = cameras[i];
+      if (!g || !c) return;
+      placeCamera(three, viewOf(scene, c, a ? t : 0), frameAspect());
+      g.position.copy(three.position);
+      g.quaternion.copy(three.quaternion);
+      onPoint.current[i] = c.kind === 'path' && c.points.some((p) => Math.abs(p.t - t) < 0.5 / fps);
+    };
     if (t !== lastDot.current) {
       lastDot.current = t;
       dot.current.position.copy(cameraAt(scene, t).position);
-      cameras.forEach((c, i) => {
-        const g = nowGlyphs.current[i];
-        if (!g) return;
-        placeCamera(three, viewOf(scene, c, a ? t : 0), frameAspect());
-        g.position.copy(three.position);
-        g.quaternion.copy(three.quaternion);
-        onPoint.current[i] = c.kind === 'path' && c.points.some((p) => Math.abs(p.t - t) < 0.5 / fps);
-      });
+      // The same time as before (an edit): one a frame; another time (scrubbing, playing): all now.
+      if (t === placedAt.current) pending.current = cameras.map((_, i) => i);
+      else {
+        pending.current = [];
+        cameras.forEach((_, i) => place(i));
+      }
+      placedAt.current = t;
+    } else if (pending.current.length) {
+      place(pending.current.shift()!);
     }
+    if (pending.current.length) state.invalidate();
     scale(dot.current);
     // (The camera whose outline row the pointer rests on, larger.)
     nowGlyphs.current.forEach((g, i) => { if (g) { scale(g, cameras[i]?.id === store.getState().linked ? 0.17 : 0.12); g.visible &&= !onPoint.current[i]; } });
