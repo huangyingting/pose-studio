@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, applyCameraMove, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, applyCameraMove, editRig, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
 import { newScene, parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
@@ -10,6 +10,7 @@ import { facingOf } from '@/lib/pose';
 import { DEFAULT_EXPORT, exportCells, videoSize } from '@/lib/render';
 import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, samplePath, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
+import { setBlocks } from '@/lib/sets';
 import type { CameraPoint, PathCamera, RigCamera, Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
@@ -298,6 +299,32 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     // Kept as saved.
     const copy = parseScene(JSON.parse(JSON.stringify(store.scene)));
     expect(copy.cameras).toEqual(store.scene.cameras);
+  });
+});
+
+describe('a move\'s wait and hold, walls and the floor (#16)', () => {
+  it('holds its framing for its wait, moves, then holds where it ended', () => {
+    const { store } = fresh();
+    startAnimation(store, 4);
+    const id = liveCamera(store.scene, 0).id;
+    setCameraMove(store, id, { kind: 'arc', by: 90, pace: 'even', wait: 1, hold: 1 });
+    const yaw = (t: number) => angleOf(cameraAt(store.scene, t)).yaw;
+    expect(yaw(0.9)).toBeCloseTo(yaw(0), 3);
+    expect(Math.abs(((yaw(2) - yaw(0) + 540) % 360) - 180)).toBeCloseTo(45, 0);
+    expect(yaw(3.95)).toBeCloseTo(yaw(3.1), 3);
+  });
+  it('never leaves a wall between itself and its subject, nor goes under the floor', () => {
+    const { store } = fresh();
+    store.updateScene((sc) => ({ ...sc, set: 'living-room' }));
+    const id = liveCamera(store.scene, 0).id;
+    // An extreme wide shot from far: the room's walls would stand between.
+    editRig(store, id, { size: 'ews', pitch: 2 });
+    const v = cameraAt(store.scene, 0);
+    expect(setBlocks('living-room', v.target, v.position)).toBeNull();
+    // A crane down past the floor: it stays above it.
+    startAnimation(store, 2);
+    setCameraMove(store, id, { kind: 'crane', by: -80 });
+    expect(cameraAt(store.scene, 1.99).position.y).toBeGreaterThanOrEqual(0.15);
   });
 });
 

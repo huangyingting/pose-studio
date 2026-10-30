@@ -360,6 +360,55 @@ function geometryOf(shape: Shape): THREE.BufferGeometry {
  * A set as drawn: its pieces in the style's prop look, outlined, under nothing that picks (a
  * click goes through to the floor), not part of what the camera frames.
  */
+// Each set's solid parts as boxes (a pillar as the box round it; not its floors), once worked out.
+const solids = new Map<string, { at: THREE.Vector3; half: THREE.Vector3; turn: THREE.Quaternion }[]>();
+
+/**
+ * How far from `from` towards `to` a set's first solid part is (a wall, a roof, a pillar; not its
+ * floor), or null if nothing of it is in between (#16: a camera stops at a wall).
+ */
+export function setBlocks(id: string | undefined, from: THREE.Vector3, to: THREE.Vector3): number | null {
+  if (!id) return null;
+  let boxes = solids.get(id);
+  if (!boxes) {
+    boxes = [];
+    for (const p of setById(id)?.build() ?? []) {
+      const [kind] = p.shape;
+      const size = kind === 'box' ? [p.shape[1], p.shape[2], p.shape[3]] as number[] : kind === 'cyl' ? [2 * Math.max(p.shape[1], p.shape[2]), p.shape[3], 2 * Math.max(p.shape[1], p.shape[2])] : null;
+      if (!size) continue;
+      const half = new THREE.Vector3(size[0] / 2, size[1] / 2, size[2] / 2);
+      // (A floor: what lies on the ground, flat.)
+      if (p.at[1] + half.y <= 0.05) continue;
+      const turn = p.rot ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ')) : new THREE.Quaternion();
+      boxes.push({ at: new THREE.Vector3(...p.at), half, turn });
+    }
+    solids.set(id, boxes);
+  }
+  const dir = to.clone().sub(from);
+  const length = dir.length();
+  if (length < 1e-6) return null;
+  dir.divideScalar(length);
+  let nearest: number | null = null;
+  for (const b of boxes) {
+    // In the box's own axes: where the ray enters and leaves each pair of its faces.
+    const back = b.turn.clone().invert();
+    const o = from.clone().sub(b.at).applyQuaternion(back);
+    const d = dir.clone().applyQuaternion(back);
+    let [enter, leave] = [-Infinity, Infinity];
+    for (const k of ['x', 'y', 'z'] as const) {
+      if (Math.abs(d[k]) < 1e-9) {
+        if (Math.abs(o[k]) > b.half[k]) { enter = Infinity; break; }
+        continue;
+      }
+      const [a, c] = [(-b.half[k] - o[k]) / d[k], (b.half[k] - o[k]) / d[k]];
+      enter = Math.max(enter, Math.min(a, c));
+      leave = Math.min(leave, Math.max(a, c));
+    }
+    if (enter <= leave && enter > 0 && enter < length && (nearest === null || enter < nearest)) nearest = enter;
+  }
+  return nearest;
+}
+
 export class SetObject {
   readonly object = new THREE.Group();
   readonly parts: InkedParts;

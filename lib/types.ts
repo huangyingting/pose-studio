@@ -433,6 +433,9 @@ export interface CameraMove {
   to?: string;
   /** How it goes: easing in and out (smooth), at an even pace, or holding, then fast (snap: a whip pan, a crash zoom). */
   pace?: 'smooth' | 'even' | 'snap';
+  /** Seconds it holds its framing first (into the run), and holds where it ended last. */
+  wait?: number;
+  hold?: number;
 }
 
 /** A point of a camera's path. */

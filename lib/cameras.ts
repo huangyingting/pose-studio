@@ -5,6 +5,7 @@ import { Rig } from './relations';
 import { facingOf } from './pose';
 import { viewDirection } from './render';
 import { defaultCamera } from './doc';
+import { setBlocks } from './sets';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
 import { projectSettings } from './project';
 import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, RigCamera, Scene, ShotSize, Vec3, View } from './types';
@@ -198,6 +199,10 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
     let view = views.get(key);
     if (!view) {
       const v = rigView(scene, cam, cam.rig, t, aspect);
+      // (Never in a wall nor under the floor: in front of a wall between it and what it looks at, #16.)
+      const wall = setBlocks(scene.set, v.target, v.position);
+      if (wall !== null) v.position.copy(v.target).addScaledVector(v.position.clone().sub(v.target).normalize(), Math.max(0.3, wall - 0.15));
+      v.position.y = Math.max(0.15, v.position.y);
       view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: v.roll });
       if (views.size > 2000) views.clear();
       views.set(key, view);
@@ -457,10 +462,15 @@ export function moveRun(scene: Scene, cam: Camera, t: number): { start: number; 
  * another camera plays the move again), the last run between its runs; before its first, not yet;
  * filming none, over the whole animation; at its pace. A still scene does not move.
  */
-export function moveProgress(scene: Scene, cam: Camera, t: number, pace: CameraMove['pace']): number {
+export function moveProgress(scene: Scene, cam: Camera, t: number, m: Pick<CameraMove, 'pace' | 'wait' | 'hold'>): number {
   const span = moveRun(scene, cam, t);
   if (!span) return 0;
-  const x = THREE.MathUtils.clamp((t - span.start) / Math.max(1e-6, span.end - span.start), 0, 1);
+  const pace = m.pace;
+  // (Its wait and hold within the run, leaving the move a tenth of it at least.)
+  const length = span.end - span.start;
+  const wait = Math.min(m.wait ?? 0, length * 0.9);
+  const hold = Math.min(m.hold ?? 0, Math.max(0, length * 0.9 - wait));
+  const x = THREE.MathUtils.clamp((t - span.start - wait) / Math.max(1e-6, length - wait - hold), 0, 1);
   if (pace === 'even') return x;
   if (pace === 'snap') return THREE.MathUtils.smoothstep(x, 0.55, 0.75);
   return THREE.MathUtils.smoothstep(x, 0, 1);
@@ -593,7 +603,7 @@ function moved(
   turnedBy: (time: number, place: Placement | undefined, rough?: boolean, o?: { size?: ShotSize | SizeBlend; pitch?: number; lens?: number }) => (extra: number) => { position: THREE.Vector3; look: THREE.Vector3 },
 ) {
   const m = r.move;
-  const u = m ? moveProgress(scene, cam, t, m.pace) : 0;
+  const u = m ? moveProgress(scene, cam, t, m) : 0;
   const roll = (r.roll ?? 0) + (m?.kind === 'roll' ? u * (m.by ?? 0) : 0);
   if (!m || u <= 0) {
     const shot = turnedBy(t, place)(swing);

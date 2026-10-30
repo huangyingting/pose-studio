@@ -327,6 +327,13 @@ function MoveSettings({ t, cam }: { t: Target; cam: RigCamera }) {
           options={[{ value: 'smooth', label: 'Smooth', title: 'Eases in and out' }, { value: 'even', label: 'Even', title: 'At an even pace' }, { value: 'snap', label: 'Snap', title: 'Holds, then fast (a whip pan, a crash zoom)' }]}
         />
       </PropertyRow>
+      <div className="field">
+        <span>Wait, hold<Info text="Seconds it holds its framing before it moves, and where it ended after (within the shots it films)." label="About wait and hold" /></span>
+        <div className="lens-row">
+          <NumberField prefix="⇤" label="Wait before" value={m.wait ?? 0} step={0.1} min={0} max={60} digits={1} onChange={(v) => edit({ wait: v || undefined }, `move-wait:${cam.id}`)} />
+          <NumberField prefix="⇥" label="Hold after" value={m.hold ?? 0} step={0.1} min={0} max={60} digits={1} onChange={(v) => edit({ hold: v || undefined }, `move-hold:${cam.id}`)} />
+        </div>
+      </div>
       <MoveEnds t={t} cam={cam} />
     </>
   );

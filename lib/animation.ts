@@ -193,6 +193,8 @@ function moveOf(v: unknown): CameraMove | undefined {
     ...(typeof m.by === 'number' && Number.isFinite(m.by) ? { by: num(m.by, 0, -1080, 1080) } : {}),
     ...(typeof m.to === 'string' && m.to ? { to: m.to.slice(0, 40) } : {}),
     ...(m.pace === 'even' || m.pace === 'snap' ? { pace: m.pace } : {}),
+    ...(typeof m.wait === 'number' && m.wait > 0 ? { wait: num(m.wait, 0, 0, 60) } : {}),
+    ...(typeof m.hold === 'number' && m.hold > 0 ? { hold: num(m.hold, 0, 0, 60) } : {}),
   };
 }
 
