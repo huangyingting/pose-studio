@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { NOISE_GLSL, styleMaterial } from './shaders';
 import { styleDef } from './styles';
 import { flatLook, toonMaterial } from './toon';
+import type { ExtraLight } from './lighting';
 import type { Style, Vec3 } from './types';
 
 /**
@@ -197,6 +198,9 @@ export class Ink {
     /** The other lights (painterly shaders): towards each, and its colour times its strength; how many. */
     extraDirs: { value: Array.from({ length: 4 }, () => new THREE.Vector3(0, 1, 0)) },
     extraColors: { value: Array.from({ length: 4 }, () => new THREE.Color(0, 0, 0)) },
+    /** A lamp's or a window's place and reach (w 0: a direction); a spot's axis and the cosine of its half cone (w −2: none). */
+    extraPlaces: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
+    extraSpots: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, -1, 0, -2)) },
     extraCount: { value: 0 },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
@@ -254,13 +258,19 @@ export class Ink {
   }
 
   /** The key light for the painterly styles: the direction towards it, and its colour (LightRig's tint). */
-  setLight(dir: THREE.Vector3, color: THREE.Color, extras: { dir: THREE.Vector3; color: THREE.Color }[] = []) {
+  setLight(dir: THREE.Vector3, color: THREE.Color, extras: ExtraLight[] = []) {
     this.uniforms.lightDir.value.copy(dir).normalize();
     this.uniforms.lightColor.value.copy(color);
     const n = Math.min(4, extras.length);
+    const u = this.uniforms;
     for (let i = 0; i < n; i++) {
-      this.uniforms.extraDirs.value[i].copy(extras[i].dir).normalize();
-      this.uniforms.extraColors.value[i].copy(extras[i].color);
+      const x = extras[i];
+      u.extraDirs.value[i].copy(x.dir).normalize();
+      u.extraColors.value[i].copy(x.color);
+      if (x.at) u.extraPlaces.value[i].set(x.at.x, x.at.y, x.at.z, x.range ?? 8);
+      else u.extraPlaces.value[i].set(0, 0, 0, 0);
+      if (x.spot) u.extraSpots.value[i].set(x.spot.axis.x, x.spot.axis.y, x.spot.axis.z, x.spot.cos);
+      else u.extraSpots.value[i].set(0, -1, 0, -2);
     }
     this.uniforms.extraCount.value = n;
   }

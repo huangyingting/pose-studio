@@ -131,7 +131,7 @@ const FRAG = /* glsl */ `
     vec3 col = mix(shaded, base.rgb, lit);
     col += rim * pow(clamp(1.0 - max(dot(n, v), 0.0) + rimLift, 0.0, 1.0), max(rimPower, 1e-3));
     // The other lights: a fill's colour on its side, a light from behind as a rim along the edge.
-    col += extraLight(n, v, 4.0) * mix(base.rgb, vec3(1.0), 0.5);
+    col += extraLight(n, v, 4.0, vWorld) * mix(base.rgb, vec3(1.0), 0.5);
     vec3 glow = emissive;
     if (useEmissiveMap) glow *= texture2D(emissiveMap, placed(emissiveMapTransform)).rgb;
     gl_FragColor = vec4(col * lightColor + glow, alphaMode == 2 ? base.a : 1.0);
@@ -140,7 +140,7 @@ const FRAG = /* glsl */ `
 `;
 
 /** The material for a look, lit by the key light (`lightDir`: towards it, and `lightColor`) and the others (`extra…`); shared. */
-export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraCount }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraCount'>): THREE.ShaderMaterial {
+export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount'>): THREE.ShaderMaterial {
   const placing = (t: THREE.Texture | null) => {
     t?.updateMatrix();
     return { value: t ? t.matrix : new THREE.Matrix3() };
@@ -151,6 +151,8 @@ export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, 
       lightColor,
       extraDirs,
       extraColors,
+      extraPlaces,
+      extraSpots,
       extraCount,
       color: { value: look.color },
       opacity: { value: look.opacity },

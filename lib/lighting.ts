@@ -444,8 +444,12 @@ export function lightText(light: Light) {
 /** The point a light aims at now (its figure's chest, its point), or null. */
 export type AimAt = (aim: NonNullable<Light['aim']>) => THREE.Vector3 | null;
 
-/** One of the other lights for the painterly styles: the direction towards it from the people, and its colour times its strength. */
-export interface ExtraLight { dir: THREE.Vector3; color: THREE.Color }
+/**
+ * One of the other lights for the painterly styles: the direction towards it from the people, and
+ * its colour times its strength; a lamp or a window where it is and how far it reaches (lit from
+ * there at each point, #17), a spot its axis and the cosine of its half cone.
+ */
+export interface ExtraLight { dir: THREE.Vector3; color: THREE.Color; at?: THREE.Vector3; range?: number; spot?: { axis: THREE.Vector3; cos: number } }
 export const MAX_EXTRA = 4;
 
 /**
@@ -530,9 +534,21 @@ export class LightRig {
       if (l.kind === 'sun') return l.relative === 'shot' && camAz !== null ? towards(camAz + away * Math.abs(l.azimuth), l.elevation) : towards(l.azimuth, l.elevation);
       return placeOf(l).sub(l.kind === 'lamp' && !l.spot ? center : target(l)).normalize();
     };
+    // The painterly styles' other lights: the suns (a fill, a rim), then the lamps and windows
+    // nearest the people for how far they reach (a lantern far off lights none of them).
+    const reach = (l: Light) => (l.kind === 'sun' ? -1 : Math.max(0, placeOf(l).distanceTo(center) - radius) / l.range);
+    for (const l of lighting.lights.filter((x) => x !== key && reach(x) < 1).sort((a, b) => reach(a) - reach(b)).slice(0, MAX_EXTRA)) {
+      const color = new THREE.Color(l.color).multiplyScalar(Math.min(1.5, l.intensity));
+      if (l.kind === 'sun') { this.extras.push({ dir: lightDir(l), color }); continue; }
+      const at = placeOf(l);
+      const aimed = l.kind === 'window' || !!l.spot;
+      this.extras.push({
+        dir: lightDir(l), color, at, range: l.range,
+        ...(aimed ? { spot: { axis: target(l).sub(at).normalize(), cos: Math.cos(THREE.MathUtils.degToRad(l.kind === 'window' ? 75 : l.spot! / 2)) } } : {}),
+      });
+    }
     for (const l of lighting.lights) {
       const color = new THREE.Color(l.color);
-      if (l !== key && this.extras.length < MAX_EXTRA) this.extras.push({ dir: lightDir(l), color: color.clone().multiplyScalar(Math.min(1.5, l.intensity)) });
       if (l.kind === 'sun' || (l.kind === 'window' && !clay)) {
         const sun = this.suns[suns++];
         sun.visible = true;

@@ -49,17 +49,32 @@ const VERT = /* glsl */ `
 export const EXTRA_GLSL = /* glsl */ `
   uniform vec3 extraDirs[4];
   uniform vec3 extraColors[4];
+  // (A lamp's or a window's place and reach (none: a direction); a spot's axis and the cosine of its half cone (none: below -1).)
+  uniform vec4 extraPlaces[4];
+  uniform vec4 extraSpots[4];
   uniform int extraCount;
   // The other lights (a fill, a rim, a lamp): what each adds on the side it lights, and, one from
-  // behind the figure (towards the camera), along its edge as a rim does.
-  vec3 extraLight(vec3 n, vec3 v, float tight) {
+  // behind the figure (towards the camera), along its edge as a rim does. A lamp or a window from
+  // where it is to this point (p), fading out as far as it reaches (#17: a lantern lights whoever
+  // passes it), a spot only inside its cone.
+  vec3 extraLight(vec3 n, vec3 v, float tight, vec3 p) {
     vec3 sum = vec3(0.0);
     for (int i = 0; i < 4; i++) {
       if (i >= extraCount) break;
-      float d = max(dot(n, extraDirs[i]), 0.0);
-      float back = clamp(-dot(extraDirs[i], v) * 1.5, 0.0, 1.0);
-      float edge = pow(clamp(1.0 - max(dot(n, v), 0.0), 0.0, 1.0), tight) * smoothstep(-0.2, 0.3, dot(n, extraDirs[i]));
-      sum += extraColors[i] * (d * (1.0 - back) * 0.45 + edge * back * 1.4);
+      vec3 l = extraDirs[i];
+      float fall = 1.0;
+      if (extraPlaces[i].w > 0.0) {
+        vec3 to = extraPlaces[i].xyz - p;
+        float far = length(to);
+        l = to / max(far, 1e-4);
+        float k = clamp(1.0 - far / extraPlaces[i].w, 0.0, 1.0);
+        fall = k * k * 3.0;
+        if (extraSpots[i].w > -1.5) fall *= smoothstep(extraSpots[i].w, extraSpots[i].w + 0.08, dot(-l, extraSpots[i].xyz));
+      }
+      float d = max(dot(n, l), 0.0);
+      float back = clamp(-dot(l, v) * 1.5, 0.0, 1.0);
+      float edge = pow(clamp(1.0 - max(dot(n, v), 0.0), 0.0, 1.0), tight) * smoothstep(-0.2, 0.3, dot(n, l));
+      sum += extraColors[i] * fall * (d * (1.0 - back) * 0.45 + edge * back * 1.4);
     }
     return sum;
   }
@@ -111,7 +126,7 @@ const INK_FRAG = /* glsl */ `
     ink *= 0.7 + 0.6 * fibre;
     vec3 paper = base * (0.965 + 0.05 * fibre);
     // (Where the other lights fall, the ink thins.)
-    vec3 more = extraLight(n, v, 3.0);
+    vec3 more = extraLight(n, v, 3.0, vWorld);
     ink *= 1.0 - clamp(dot(more, vec3(0.333)) * 0.8, 0.0, 0.7);
     gl_FragColor = vec4(mix(paper, shade, clamp(ink, 0.0, 0.9)) * lightColor + more * 0.25, 1.0);
     #include <colorspace_fragment>
@@ -128,7 +143,7 @@ const SKETCH_FRAG = /* glsl */ `
   }
   void main() {
     vec3 n = normalize(vNormal);
-    vec3 more = extraLight(n, normalize(cameraPosition - vWorld), 3.0);
+    vec3 more = extraLight(n, normalize(cameraPosition - vWorld), 3.0, vWorld);
     float light = clamp(clamp(dot(n, lightDir), 0.0, 1.0) * 0.75 + 0.25 + dot(more, vec3(0.333)) * 0.6, 0.0, 1.0);
     float spacing = max(3.0, resolution.y / 150.0);
     // A little wobble so the strokes look hand-drawn.
@@ -174,6 +189,8 @@ export interface SharedUniforms {
   lightColor: { value: THREE.Color };
   extraDirs: { value: THREE.Vector3[] };
   extraColors: { value: THREE.Color[] };
+  extraPlaces: { value: THREE.Vector4[] };
+  extraSpots: { value: THREE.Vector4[] };
   extraCount: { value: number };
   resolution: { value: THREE.Vector2 };
 }
@@ -191,6 +208,8 @@ export function styleMaterial(style: ShaderStyle, shared: SharedUniforms, base: 
       lightColor: shared.lightColor,
       extraDirs: shared.extraDirs,
       extraColors: shared.extraColors,
+      extraPlaces: shared.extraPlaces,
+      extraSpots: shared.extraSpots,
       extraCount: shared.extraCount,
       resolution: shared.resolution,
       base: { value: new THREE.Color(base) },
