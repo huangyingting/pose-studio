@@ -150,7 +150,7 @@ function SceneGrid({ onPick }: { onPick(): void }) {
               onKeyDown={(e) => onThumbKey(e, pos, i)}
               onContextMenu={(e) => openContextMenu(e, menu('scene', { store, scene: i }), s.name)}
               aria-current={i === index}
-              title={`${s.name} — Alt+arrow keys to reorder`}
+              data-tip={`${s.name} — Alt+arrow keys to reorder`}
             >
               {thumbs[s.id] ? (
                 // Thumbnails are generated data: URLs, so next/image optimisation does not apply.

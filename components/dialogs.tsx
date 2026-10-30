@@ -22,7 +22,7 @@ import { sharedRenderer } from '@/lib/thumbnails';
 import { type BodyParams, type Figure, type Style } from '@/lib/types';
 import { useProjectSettings, useScene, useStore, useStudio } from './store-context';
 import { COMMANDS, GESTURES, SELECTION_KEYS, keyLabel, titleOf } from './commands';
-import { Field, Hint, Modal, Segmented, Select, Slider, Toggle, type Notify } from './ui';
+import { Field, Hint, Modal, NumberInput, Segmented, Select, Slider, Toggle, type Notify } from './ui';
 
 /* ---------------- Export ---------------- */
 
@@ -188,17 +188,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
     }
   };
 
-  const num = (key: 'columns' | 'cellWidth' | 'cellHeight', min: number, max: number) => (
-    <input
-      type="number"
-      min={min}
-      max={max}
-      value={o[key]}
-      onChange={(e) => {
-        const v = Math.round(Number(e.target.value));
-        if (Number.isFinite(v)) set({ [key]: Math.min(max, Math.max(min, v)) });
-      }}
-    />
+  const num = (key: 'columns' | 'cellWidth' | 'cellHeight', min: number, max: number, label: string) => (
+    <NumberInput label={label} value={o[key]} min={min} max={max} digits={0} onChange={(v) => set({ [key]: v })} />
   );
 
   // What to export: one choice, in groups; one not possible now says why.
@@ -362,7 +353,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
             animated && <Toggle label="Greybox clips" hint="A clay-shaded video of each shot's motion and camera, as a reference for the model" checked={o.greybox} onChange={(greybox) => set({ greybox })} />
           ) : scope === 'board' ? (
             <>
-              <label className="field"><span>Columns</span>{num('columns', 1, 12)}</label>
+              <label className="field"><span>Columns</span>{num('columns', 1, 12, 'Columns')}</label>
               <Toggle label="Captions" checked={o.labels} onChange={(labels) => set({ labels })} />
               <Hint>{story.length} panels</Hint>
             </>
@@ -388,9 +379,9 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
           ) : (
             <>
               {/* One scene is one cell: its size is the picture's. */}
-              {scope !== 'current' && <label className="field"><span>Columns</span>{num('columns', 1, 12)}</label>}
-              <label className="field"><span>{scope === 'current' ? 'Width' : 'Cell width'}</span>{num('cellWidth', 100, 4000)}</label>
-              <label className="field"><span>{scope === 'current' ? 'Height' : 'Cell height'}</span>{num('cellHeight', 100, 4000)}</label>
+              {scope !== 'current' && <label className="field"><span>Columns</span>{num('columns', 1, 12, 'Columns')}</label>}
+              <label className="field"><span>{scope === 'current' ? 'Width' : 'Cell width'}</span>{num('cellWidth', 100, 4000, scope === 'current' ? 'Width' : 'Cell width')}</label>
+              <label className="field"><span>{scope === 'current' ? 'Height' : 'Cell height'}</span>{num('cellHeight', 100, 4000, scope === 'current' ? 'Height' : 'Cell height')}</label>
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
               <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
               <div className="stack">

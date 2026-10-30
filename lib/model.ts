@@ -533,16 +533,16 @@ export class ModelRig {
     return (this.cuts[i] ??= cutoutMaterial(cut.map, cut.color));
   }
 
-  /** Whether its face is inked: in the styles drawn with lines (not Clay's value study, nor 3D; Anime in the character's own look). */
+  /** Whether its face is inked: in the styles drawn with lines (not Clay's value study, nor 3D; Anime and Pixel in the character's own look). */
   private inked() {
-    return this.style !== 'anime' && !!styleDef(this.style).outline;
+    return !styleDef(this.style).toon && !!styleDef(this.style).outline;
   }
 
-  /** A mesh's own look's material: toon-shaded in Anime, as a 3D tool draws it in 3D (made once). */
+  /** A mesh's own look's material: toon-shaded in Anime and Pixel, as a 3D tool draws it in 3D (made once). */
   private own(i: number): THREE.Material | undefined {
     const look = this.looks[i];
     if (!look || this.ink.ghost) return undefined;
-    if (this.style === 'anime') return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms));
+    if (styleDef(this.style).toon) return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms));
     if (this.style === 'render') return (this.renders[i] ??= standardOf(look));
     return undefined;
   }
@@ -553,7 +553,7 @@ export class ModelRig {
     const outlined = !!styleDef(this.style).outline;
     this.hulls.forEach((h, i) => {
       // (In its own look: its own outline, or none; none where it is cut out or see-through.)
-      const own = this.style === 'anime' && this.own(i) ? this.looks[i]! : null;
+      const own = styleDef(this.style).toon && this.own(i) ? this.looks[i]! : null;
       const look = own?.outline;
       const cutout = own && own.alpha !== 'opaque' && own.map ? { map: own.map, cutoff: own.alpha === 'mask' ? own.cutoff : 0.5 }
         : this.cutOf(i) ? { map: this.cut[i]!.map, cutoff: CUTOFF } : undefined;

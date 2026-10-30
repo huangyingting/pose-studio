@@ -14,6 +14,7 @@ import { moments } from '@/lib/track';
 import { paperTexture } from '@/lib/shaders';
 import { LightRig, handleAt, keyLight, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
+import { PixelPass } from '@/lib/pixel';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { awake, setDrawer, wake } from './frames';
@@ -977,9 +978,15 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
   return null;
 }
 
-/** Takes over R3F's render loop to add the interior line-art pass. */
+/**
+ * Takes over R3F's render loop to add the interior line-art pass; in Pixel, what is drawn (the
+ * scene and its lights) goes through the pixel pass and what is drawn over it (handles, gizmos,
+ * tags) stays sharp on top.
+ */
 function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
   const pass = useMemo(() => new LineArtPass(), []);
+  const pixels = useMemo(() => new PixelPass(), []);
+  useEffect(() => () => pixels.dispose(), [pixels]);
   useEffect(() => pass.setStyle(style), [pass, style]);
   const size = useThree((s) => s.size);
   useEffect(() => {
@@ -990,8 +997,30 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     // (Its outlines and lines are on a layer of their own: seen too.)
     camera.layers.enable(LINES_LAYER);
     pass.prepare(gl, sv, camera, lineWidth * 0.8);
+    const pixel = styleDef(style).pixel;
+    if (!pixel) {
+      gl.render(scene, camera);
+      pass.overlay(gl);
+      return;
+    }
+    const drawn = scene.children.filter((o) => o.userData.drawn && o.visible);
+    const over = scene.children.filter((o) => !o.userData.drawn && o.visible);
+    for (const o of over) o.visible = false;
+    pixels.begin(gl, pixel);
     gl.render(scene, camera);
     pass.overlay(gl);
+    pixels.end(gl);
+    for (const o of over) o.visible = true;
+    for (const o of drawn) o.visible = false;
+    const background = scene.background;
+    scene.background = null;
+    const autoClear = gl.autoClear;
+    gl.autoClear = false;
+    gl.clearDepth();
+    gl.render(scene, camera);
+    gl.autoClear = autoClear;
+    scene.background = background;
+    for (const o of drawn) o.visible = true;
   }, 1);
   return null;
 }

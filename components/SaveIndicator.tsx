@@ -15,7 +15,7 @@ export default function SaveIndicator({ status, cloud }: { status: SaveStatus; c
     : cloud.status === 'error' ? ['Sync failed', 'Saved in this browser; syncing to your account failed and is tried again on your next change', CloudAlert]
     : ['Syncing…', 'Saved in this browser; syncing to your account', RefreshCw];
   return (
-    <span className={`save-status ${status === 'saved' && cloud && cloud.status !== 'synced' ? cloud.status : status}`} title={tip}>
+    <span className={`save-status ${status === 'saved' && cloud && cloud.status !== 'synced' ? cloud.status : status}`} data-tip={tip}>
       <Icon size={14} aria-hidden />
       <span className="hide-sm">{text}</span>
     </span>

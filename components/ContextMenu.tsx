@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { MenuItems, type MenuItem } from './ui';
+import { MenuItems, placePopup, type MenuItem } from './ui';
 
 /*
  * Right-click menus. Anything can open one at the pointer with `openContextMenu`; one host in
@@ -38,10 +38,9 @@ export function ContextMenuHost() {
   useEffect(() => {
     if (!menu) return;
     const el = ref.current;
-    // Keep it on screen (its own size: the opening animation scales it).
+    // On screen, by the pointer: below it, or above if there is more room there; as tall as the room (it scrolls).
     if (el) {
-      el.style.left = `${Math.max(4, Math.min(menu.x, window.innerWidth - el.offsetWidth - 4))}px`;
-      el.style.top = `${Math.max(4, Math.min(menu.y, window.innerHeight - el.offsetHeight - 4))}px`;
+      placePopup(el, new DOMRect(menu.x, menu.y, 0, 0), 'bottom', 'start', 2);
       el.querySelector<HTMLElement>('[role^=menuitem]:not(:disabled)')?.focus();
     }
     const onDown = (e: PointerEvent) => { if (!el?.contains(e.target as Node)) closeContextMenu(); };

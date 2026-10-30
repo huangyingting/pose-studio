@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 /** The slow ones: two-person motions on every pair of builds, one-person motions on every build, the coverages on every build, whole films and scenarios. */
-const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 'tests/unit/coverage-matrix.test.ts', 'tests/unit/films.test.ts', 'tests/unit/scenarios.test.ts'];
+const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 'tests/unit/coverage-matrix.test.ts', 'tests/unit/films.test.ts', 'tests/unit/stagedfilms.test.ts', 'tests/unit/scenarios.test.ts'];
 
 export default defineConfig({
   resolve: {

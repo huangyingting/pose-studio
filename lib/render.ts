@@ -5,6 +5,7 @@ import { wrapDeg } from './joints';
 import { LightRig, lightingOf } from './lighting';
 import { LINES_LAYER } from './ink';
 import { LineArtPass } from './lineart';
+import { PixelPass } from './pixel';
 import { paperTexture } from './shaders';
 import { SceneView } from './sceneview';
 import { styleDef } from './styles';
@@ -221,6 +222,8 @@ export class SceneRenderer {
   private view = new SceneView();
   private lights = new LightRig();
   private lines = new LineArtPass();
+  private pixels = new PixelPass();
+  private style: Style = 'line';
   private depth = new THREE.ShaderMaterial({
     uniforms: { near: { value: 1 }, far: { value: 10 } },
     vertexShader: 'varying float vDepth; void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vDepth = -mv.z; gl_Position = projectionMatrix * mv; }',
@@ -262,6 +265,7 @@ export class SceneRenderer {
     this.view.sync(doc);
     this.view.setStyle(style);
     this.lines.setStyle(style);
+    this.style = style;
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
     // Each scene is lit by its own lights (a fill or a rim for the shot's camera, when it is filmed through one).
@@ -275,8 +279,12 @@ export class SceneRenderer {
     const pass = opts.pass ?? 'beauty';
     if (pass === 'beauty') {
       this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
+      // (In Pixel, so many of the picture's pixels each: as on the canvas, at the export's size.)
+      const pixel = styleDef(this.style).pixel;
+      if (pixel) this.pixels.begin(this.renderer, Math.max(2, Math.round((pixel * this.renderer.domElement.height) / 800)));
       this.renderer.render(this.scene, this.camera);
       this.lines.overlay(this.renderer);
+      if (pixel) this.pixels.end(this.renderer);
       return this.renderer.domElement;
     }
     // Plain shapes only: no outlines, contour lines, floor or lights.

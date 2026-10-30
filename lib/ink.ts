@@ -358,7 +358,8 @@ export class Ink {
           prop: shader('ink', '#e8e1d0', '#1d1b18'),
           propSel: shader('ink', '#dde4f2', '#1d1b18'),
         };
-      case 'anime': {
+      case 'anime':
+      case 'pixel': {
         const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms);
         return {
           body: toon(body('#fdf4ef'), '#dcc0cc'),

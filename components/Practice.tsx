@@ -213,16 +213,16 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
         {paused && <div className="practice-paused">Paused</div>}
       </div>
       <footer>
-        <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous pose" title="Previous  ←">
+        <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous pose" data-tip="Previous  ←">
           <SkipBack size={18} aria-hidden />
         </button>
-        <button type="button" onClick={() => setPaused((p) => !p)} className="play" aria-label={paused ? 'Resume' : 'Pause'} title="Pause / resume  Space">
+        <button type="button" onClick={() => setPaused((p) => !p)} className="play" aria-label={paused ? 'Resume' : 'Pause'} data-tip="Pause / resume  Space">
           {paused ? <Play size={18} aria-hidden /> : <Pause size={18} aria-hidden />}
         </button>
-        <button type="button" onClick={() => go(index + 1)} aria-label={index === slides.length - 1 ? 'Finish' : 'Next pose'} title="Next  →">
+        <button type="button" onClick={() => go(index + 1)} aria-label={index === slides.length - 1 ? 'Finish' : 'Next pose'} data-tip="Next  →">
           <SkipForward size={18} aria-hidden />
         </button>
-        <button type="button" onClick={onExit} aria-label="Stop" title="Stop  Esc">
+        <button type="button" onClick={onExit} aria-label="Stop" data-tip="Stop  Esc">
           <X size={18} aria-hidden /> <span>Stop</span>
         </button>
       </footer>

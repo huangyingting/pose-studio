@@ -471,6 +471,8 @@ export class LightRig {
   readonly extras: ExtraLight[] = [];
 
   constructor() {
+    // (Lit with what is drawn: in Pixel, the part of the canvas made of pixels.)
+    this.object.userData.drawn = true;
     for (let i = 0; i < MAX_LIGHTS; i++) {
       const sun = new THREE.DirectionalLight(0xffffff, 0);
       const s = sun.shadow;

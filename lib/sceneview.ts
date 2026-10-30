@@ -16,7 +16,8 @@ export type Hover = { figure?: string; joints?: JointName[]; prop?: string } | n
  */
 export class SceneView {
   readonly ink: Ink;
-  readonly root = new THREE.Group();
+  /** (What is drawn: in Pixel, the part of the canvas made of pixels.) */
+  readonly root = (() => { const g = new THREE.Group(); g.userData.drawn = true; return g; })();
   readonly figures = new Map<string, Mannequin>();
   readonly props = new Map<string, PropObject>();
   /** Figures drawn as imported characters (the mannequin stays, unseen, to pick and pose them by). */

@@ -14,7 +14,7 @@ import { newFigure, parseClip } from '../lib/doc';
 import { DEFAULT_BODY } from '../lib/body';
 import { legsOf } from '../lib/locomotion';
 import { refineClip } from '../lib/motionfix';
-import { strikeTime } from '../lib/strike';
+import { clipCourse, strikeTime } from '../lib/strike';
 import { facingOf } from '../lib/pose';
 import { Rig } from '../lib/relations';
 import type { MOTION_GROUPS } from '../lib/motions';
@@ -78,7 +78,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Pointing': ['Point at someone', 'Talking & gestures'],
   'Waving': ['Wave, both arms', 'Talking & gestures'],
   'Salute': ['Salute', 'Talking & gestures'],
-  'Clapping': ['Clap', 'Talking & gestures'],
+  'Clapping': ['Clap, sitting', 'Sitting & lying'],
   'Shrugging': ['Shrug', 'Talking & gestures'],
   'Dismissing Gesture': ['Wave it away', 'Talking & gestures'],
   'Standing Thumbs Up': ['Thumbs up', 'Talking & gestures'],
@@ -93,7 +93,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Surprised': ['Surprised', 'Feelings'],
   'Disappointed': ['Disappointed', 'Feelings'],
   'Defeat Idle': ['Defeated', 'Feelings'],
-  'Victory': ['Cheer, victory', 'Feelings'],
+  'Victory': ['Cheer, sitting', 'Sitting & lying'],
   'Thinking': ['Think', 'Feelings'],
   'Carrying': ['Hold a box', 'Using things'],
   'Lifting Object': ['Lift a heavy box', 'Using things'],
@@ -107,7 +107,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Drinking': ['Drink', 'Using things'],
   'Sitting Drinking': ['Drink, sitting', 'Using things'],
   'Talking On Phone': ['Talk on the phone', 'Using things'],
-  'Aim Pistol': ['Aim a pistol', 'Weapons'],
+  'Aim Pistol': ['Aim a pistol, sitting', 'Weapons'],
   'Shooting': ['Fire a pistol', 'Weapons'],
   'Sword And Shield Idle': ['Sword and shield, ready', 'Weapons'],
   'Sword And Shield Attack': ['Sword and shield, strike', 'Weapons'],
@@ -209,7 +209,7 @@ for (const f of files) {
 }
 
 /** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
-const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) ? strikeTime(clip) : undefined);
+const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) && !/^receive/i.test(clip.name) ? strikeTime(clip) : undefined);
 
 // (Whether it loops and when it strikes by the file's name: what it is.)
 const out: { file: string; clip: Clip; group: MotionGroup; loop: boolean; impact?: number }[] = [];
@@ -222,7 +222,7 @@ for (const clip of clips.values()) {
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; move: [number, number]; turn: number; reach?: [number, number, number] }[] = [];
 
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;
@@ -233,6 +233,8 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
     id, name: ready.name, duration: ready.duration, people: ready.parts.length, group,
     ...(loop ? { loop: true as const } : {}),
     ...(impact !== undefined ? { impact } : {}),
+    // (Where it takes its person, and where a strike lands: lib/strike.ts clipCourse.)
+    ...clipCourse(ready, impact),
   });
 }
 await writeFile(join(to, 'index.json'), JSON.stringify(index, null, 1) + '\n');

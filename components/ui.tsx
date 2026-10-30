@@ -42,8 +42,8 @@ export function Modal({ title, icon: Icon, onClose, children, footer, wide }: {
       if (document.activeElement === el) break;
     }
     const onKey = (e: KeyboardEvent) => {
-      // Escape closes an open drop-down first.
-      if (e.key === 'Escape' && document.activeElement?.getAttribute('aria-expanded') !== 'true') {
+      // Escape closes an open drop-down or menu first (a menu's items are drawn outside the dialog).
+      if (e.key === 'Escape' && document.activeElement?.getAttribute('aria-expanded') !== 'true' && !document.activeElement?.closest('[role="menu"], [role="listbox"]')) {
         e.stopPropagation();
         close.current();
       }
@@ -121,7 +121,30 @@ export type MenuItem =
   | { group: string }
   | '-';
 
-/** Button that opens a list of actions. Closes on selection, outside click or Escape. */
+/**
+ * Where a pop-up list goes on the screen, by the screen and not by what holds its button: next to
+ * `anchor` on its `side` (the other side if that has more room and this not enough), lined up with
+ * its start or end, kept inside the window; as tall as the room it has (it scrolls, ▲ ▼ showing
+ * there is more).
+ */
+export function placePopup(el: HTMLElement, anchor: DOMRect, side: 'top' | 'bottom', align: 'start' | 'end', gap = 6) {
+  const margin = 8;
+  el.style.maxHeight = '';
+  const natural = el.scrollHeight;
+  const below = window.innerHeight - anchor.bottom - gap - margin;
+  const above = anchor.top - gap - margin;
+  const down = side === 'bottom' ? natural <= below || below >= above : !(natural <= above || above >= below);
+  const room = Math.max(120, down ? below : above);
+  el.style.maxHeight = `${Math.min(room, 560)}px`;
+  const height = Math.min(natural, room, 560);
+  el.style.top = `${down ? anchor.bottom + gap : anchor.top - gap - height}px`;
+  const width = el.offsetWidth;
+  const left = align === 'start' ? anchor.left : anchor.right - width;
+  el.style.left = `${Math.max(margin, Math.min(left, window.innerWidth - width - margin))}px`;
+  el.dataset.side = down ? 'bottom' : 'top';
+}
+
+/** Button that opens a list of actions. Closes on selection, outside click, Escape, or the window resized or scrolled. */
 export function Menu({ label, items, children, className = 'btn ghost', side = 'bottom', align = 'start', tip }: {
   label: string;
   /** Its items, or how to make them (when it opens: a menu built from the state is not built until wanted). */
@@ -137,18 +160,31 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
+  useLayoutEffect(() => {
+    const el = list.current;
+    const button = root.current?.querySelector('button');
+    if (open && el && button) placePopup(el, button.getBoundingClientRect(), side, align);
+  }, [open, side, align]);
+
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    const inside = (t: EventTarget | null) => root.current?.contains(t as Node) || list.current?.contains(t as Node);
+    const onDown = (e: PointerEvent) => { if (!inside(e.target)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); root.current?.querySelector<HTMLElement>('button')?.focus(); }
     };
-    document.addEventListener('pointerdown', onDown);
+    const onScroll = (e: Event) => { if (!list.current?.contains(e.target as Node)) setOpen(false); };
+    const onResize = () => setOpen(false);
+    document.addEventListener('pointerdown', onDown, true);
     window.addEventListener('keydown', onKey, true);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     list.current?.querySelector<HTMLElement>('[role^=menuitem]:not(:disabled)')?.focus();
     return () => {
-      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
     };
   }, [open]);
 
@@ -174,10 +210,11 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
       >
         {children ?? label}
       </button>
-      {open && (
-        <div className={`menu-list ${side} ${align}`} role="menu" aria-label={label} ref={list} onKeyDown={onListKey}>
+      {open && createPortal(
+        <div className="menu-list" role="menu" aria-label={label} ref={list} onKeyDown={onListKey}>
           <MenuItems items={typeof items === 'function' ? items() : items} onDone={() => setOpen(false)} />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -251,6 +288,7 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
             <span className="menu-icon" aria-hidden>{it.icon && <it.icon size={15} strokeWidth={1.75} />}</span>
             <span className="menu-label">{it.label}</span>
             {it.shortcut && <kbd>{it.shortcut}</kbd>}
+            {it.checked && <Check className="menu-check" size={14} strokeWidth={2.25} aria-hidden />}
           </button>
         ),
       )}
@@ -423,6 +461,59 @@ export function PanelEdge({ label, side, width, onWidth }: { label: string; side
 /* ---------------- Inputs ---------------- */
 
 /**
+ * A number typed in: free to edit as text (cleared, retyped) while it has the focus, the number
+ * taken when it is left or Enter is pressed, kept within its range (Escape: as it was); the up and
+ * down arrows step it (Shift: ten steps).
+ */
+export function NumberInput({ value, onChange, min = -Infinity, max = Infinity, step = 1, digits = 2, label, className, autoFocus, onDone }: {
+  value: number;
+  onChange(v: number): void;
+  min?: number;
+  max?: number;
+  step?: number;
+  digits?: number;
+  label: string;
+  className?: string;
+  autoFocus?: boolean;
+  /** Left (taken or not). */
+  onDone?(): void;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  const commit = () => {
+    if (text !== null) {
+      const v = Number(text.replace(',', '.'));
+      if (text.trim() !== '' && Number.isFinite(v)) onChange(clamp(round(v)));
+    }
+    setText(null);
+  };
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className={className}
+      aria-label={label}
+      autoFocus={autoFocus}
+      value={text ?? String(round(value))}
+      onFocus={(e) => { setText(String(round(value))); e.target.select(); }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => { commit(); onDone?.(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        else if (e.key === 'Escape') { e.stopPropagation(); setText(null); requestAnimationFrame(() => (e.target as HTMLInputElement).blur()); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const v = clamp(round((text !== null && Number.isFinite(Number(text)) ? Number(text) : value) + (e.key === 'ArrowUp' ? step : -step) * (e.shiftKey ? 10 : 1)));
+          onChange(v);
+          setText(String(v));
+        }
+      }}
+    />
+  );
+}
+
+/**
  * Labelled range slider. With `typeable`, clicking the value turns it into a number field for
  * precise entry (Enter or blur applies, Esc cancels); values are in the slider's own units.
  */
@@ -442,31 +533,20 @@ export function Slider({ label, value, min, max, step = 1, display, onChange, ty
   typeable?: boolean;
 }) {
   const id = useId();
-  const [text, setText] = useState<string | null>(null);
-  const commit = () => {
-    if (text === null) return;
-    const v = Number(text);
-    if (text.trim() !== '' && Number.isFinite(v)) onChange(Math.min(max, Math.max(min, v)));
-    setText(null);
-  };
+  const [typing, setTyping] = useState(false);
   let valueEl: ReactNode;
-  if (text !== null) {
+  if (typing) {
     valueEl = (
-      <input
-        type="number"
+      <NumberInput
         className="slider-value"
         autoFocus
-        aria-label={`${label} value`}
-        value={text}
+        label={`${label} value`}
+        value={Math.round(value * 10) / 10}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-          else if (e.key === 'Escape') { e.stopPropagation(); setText(null); }
-        }}
+        onChange={onChange}
+        onDone={() => setTyping(false)}
       />
     );
   } else if (typeable) {
@@ -474,9 +554,9 @@ export function Slider({ label, value, min, max, step = 1, display, onChange, ty
       <button
         type="button"
         className="slider-value"
-        title="Click to type a value"
+        data-tip="Click to type a value"
         aria-label={`${label}: ${display ?? value}. Click to type a value`}
-        onClick={() => setText(String(Math.round(value * 10) / 10))}
+        onClick={() => setTyping(true)}
       >
         {display ?? value}
       </button>
@@ -559,8 +639,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, i
           aria-label={iconOnly ? o.label : undefined}
           aria-disabled={o.disabled || undefined}
           className={`${o.value === value ? 'on' : ''}${o.disabled ? ' off' : ''}`}
-          title={iconOnly ? undefined : o.title}
-          data-tip={iconOnly ? (o.title ?? o.label) : undefined}
+          data-tip={o.title ?? (iconOnly ? o.label : undefined)}
           data-tip-side="top"
           onClick={() => { if (!o.disabled) onChange(o.value); }}
         >
@@ -620,11 +699,7 @@ export function Select<T extends string>({ value, options, onChange, label }: {
     if (!open || !el || !button.current) return;
     const b = button.current.getBoundingClientRect();
     el.style.minWidth = `${b.width}px`;
-    const below = window.innerHeight - b.bottom - 8;
-    const up = el.offsetHeight > below && b.top > below;
-    el.style.maxHeight = `${Math.min(320, (up ? b.top : below) - 8)}px`;
-    el.style.left = `${Math.max(4, Math.min(b.left, window.innerWidth - el.offsetWidth - 4))}px`;
-    el.style.top = `${up ? b.top - el.offsetHeight - 4 : b.bottom + 4}px`;
+    placePopup(el, b, 'bottom', 'start', 4);
     el.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [open]);
 
@@ -728,7 +803,6 @@ export function NumberField({ prefix, label, value, onChange, step = 1, min = -I
   max?: number;
   digits?: number;
 }) {
-  const [text, setText] = useState<string | null>(null);
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
   const scrub = (e: ReactPointerEvent<HTMLSpanElement>) => {
@@ -746,35 +820,11 @@ export function NumberField({ prefix, label, value, onChange, step = 1, min = -I
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
   };
-  const commit = () => {
-    if (text === null) return;
-    const v = Number(text);
-    if (text.trim() !== '' && Number.isFinite(v)) onChange(clamp(v));
-    setText(null);
-  };
   return (
     <div className="numfield">
       {/* (X, Y and Z in the axes' colours, as on the gizmo and the view widget.) */}
       <span className={`numfield-prefix${/^[XYZ]$/.test(prefix) ? ` axis-${prefix.toLowerCase()}` : ''}`} onPointerDown={scrub} aria-hidden>{prefix}</span>
-      <input
-        type="text"
-        inputMode="decimal"
-        aria-label={label}
-        value={text ?? String(round(value))}
-        onFocus={(e) => { setText(String(round(value))); e.target.select(); }}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); // (Leaving the field commits it, once.)
-          else if (e.key === 'Escape') { e.stopPropagation(); setText(null); (e.target as HTMLInputElement).blur(); }
-          else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            const v = clamp(round(value + (e.key === 'ArrowUp' ? step : -step) * (e.shiftKey ? 10 : 1)));
-            onChange(v);
-            setText(String(v));
-          }
-        }}
-      />
+      <NumberInput label={label} value={value} min={min} max={max} step={step} digits={digits} onChange={onChange} />
     </div>
   );
 }

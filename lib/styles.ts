@@ -20,6 +20,10 @@ export interface StyleDef {
   interior: { color: string; alpha: number; dry?: number } | null;
   /** Drawn on rice paper: a paper texture behind (and on) everything. */
   paper?: true;
+  /** Toon-shaded, each character in its own colours and textures (as Anime). */
+  toon?: true;
+  /** Drawn in big pixels: so many screen pixels each, in a few colours (lib/pixel.ts). */
+  pixel?: number;
   /** The key light casts shadows onto the floor. */
   shadows: boolean;
   /** The light direction controls affect this style. */
@@ -66,6 +70,20 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     outline: { color: '#2b2228', scale: 1, jitter: 0 },
     // (Outlines only: lines between parts would box a VRM's see-through cards, its lashes and hair.)
     interior: null,
+    toon: true,
+    shadows: true,
+    lit: true,
+  },
+  pixel: {
+    id: 'pixel',
+    label: 'Pixel',
+    description: 'Pixel art: big square pixels in a few colours, toon-shaded with a dark outline, as in a retro game',
+    background: '#dfe8f1',
+    // (Its outline about a pixel wide, whatever the pixels' size.)
+    outline: { color: '#1d1a26', scale: 2.2, jitter: 0 },
+    interior: null,
+    toon: true,
+    pixel: 4,
     shadows: true,
     lit: true,
   },

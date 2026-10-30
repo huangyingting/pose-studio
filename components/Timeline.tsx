@@ -533,7 +533,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
 
   return (
     <div className={`timeline${folded ? ' folded' : ''}`} role="region" aria-label="Timeline" ref={root}>
-      {!folded && <div className="tl-resize" onPointerDown={resize} onDoubleClick={() => store.setSettings({ timelineHeight: 0 })} title="Drag to make the timeline taller or shorter (double-click: fit)" aria-hidden />}
+      {!folded && <div className="tl-resize" onPointerDown={resize} onDoubleClick={() => store.setSettings({ timelineHeight: 0 })} data-tip="Drag to make the timeline taller or shorter (double-click: fit)" aria-hidden />}
       <div className="tl-bar">
         <div className="tl-transport">
           <CommandButton id="timeline.prevKey" ctx={c} tipSide="top" className="tl-step" disabled={prevKey === undefined} />
@@ -654,7 +654,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               </span>
             )}
             {moving.map((p) => (
-              <button key={p.id} type="button" className="tl-figure tl-prop" onClick={() => store.select({ kind: 'prop', prop: p.id })} title={`${p.name}: carried, thrown and dropped over time`}>
+              <button key={p.id} type="button" className="tl-figure tl-prop" onClick={() => store.select({ kind: 'prop', prop: p.id })} data-tip={`${p.name}: carried, thrown and dropped over time`}>
                 {p.name}
               </button>
             ))}
@@ -663,7 +663,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               className={`tl-figure tl-camera${picked ? ' on' : ''}`}
               onClick={() => store.select({ kind: 'camera', camera: rowCam.id })}
               onContextMenu={(e) => openContextMenu(e, menu('camera', { store, camera: rowCam.id }), rowCam.name)}
-              title={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
+              data-tip={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
             >
               <Camera size={11} aria-hidden /> {rowCam.name}
             </button>}
@@ -684,7 +684,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   type="button"
                   className="tl-issue"
                   style={{ left: pct(i.start), width: `max(4px, ${(i.end - i.start) / span * 100}%)` }}
-                  title={i.message}
+                  data-tip={i.message}
                   aria-label={`${ISSUE_LABELS[i.kind]} at ${i.start.toFixed(2)} s: ${i.message}`}
                   onPointerDown={(e) => { e.stopPropagation(); goTo(i); }}
                 />
@@ -714,10 +714,10 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         <i
                           className={`tl-blend${sp.shot.blend ? '' : ' none'}`}
                           style={sp.shot.blend ? { width: `${Math.min(100, (sp.shot.blend / (sp.end - sp.start)) * 100)}%` } : undefined}
-                          title={`Blend in from the shot before${sp.shot.blend ? ` over ${sp.shot.blend.toFixed(2)} s` : ''}: drag right for longer`}
+                          data-tip={`Blend in from the shot before${sp.shot.blend ? ` over ${sp.shot.blend.toFixed(2)} s` : ''}: drag right for longer`}
                           onPointerDown={dragCut(sp, 'blend')}
                         />
-                        <i className="tl-cut" title="Drag to move the cut" onPointerDown={dragCut(sp, 'cut')} />
+                        <i className="tl-cut" data-tip="Drag to move the cut" onPointerDown={dragCut(sp, 'cut')} />
                       </>
                     )}
                     {/* Taken over by hand: the director keeps it as it is. */}
@@ -812,7 +812,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                           <span
                             className={`tl-ramp ${kind}${x.blendIn ? '' : ' none'}`}
                             style={{ left: pct(x.start - (x.blendIn ?? 0)), width: `${((x.blendIn ?? 0) / span) * 100}%` }}
-                            title={`Blend into ${label}${x.blendIn ? ` over ${x.blendIn.toFixed(2)} s` : ''}: drag left for longer`}
+                            data-tip={`Blend into ${label}${x.blendIn ? ` over ${x.blendIn.toFixed(2)} s` : ''}: drag left for longer`}
                             onPointerDown={dragAction(x, f.id, 'blend')}
                           />
                         )}
@@ -846,7 +846,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                     <span className="tl-drop" style={{ left: pct(dropAt.t), width: dropAt.length ? `${(dropAt.length / span) * 100}%` : undefined }} aria-hidden />
                   )}
                   {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
-                    <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} title={ev.title} aria-hidden />
+                    <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} data-tip={ev.title} aria-hidden />
                   ))}
                   {/* The gaps where it has idle life as the film plays (breathing, a look round). */}
                   {!f.proxy && !f.still && idleGaps(a, f.id).map(([t0, t1]) => (
@@ -873,7 +873,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       className={`tl-key fix${near(t) ? ' on' : ''}`}
                       style={{ left: pct(t) }}
                       aria-label={`${multi ? `${f.name} correction` : 'Correction'} at ${t.toFixed(2)} s`}
-                      title="A correction made over a motion or a walk: click to go to it"
+                      data-tip="A correction made over a motion or a walk: click to go to it"
                       onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); seek(t); store.setActiveFigure(f.id); }}
                       onContextMenu={(e) => {
                         e.stopPropagation();
@@ -912,7 +912,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               return (
                 <div key={p.id} className="tl-row" aria-label={`${p.name} keys`}>
                   {propBars(scene, p.id).map((b, i) => (
-                    <span key={`${i}:${b.t0}`} className={`tl-travel ${b.kind}`} style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }} title={b.label}>
+                    <span key={`${i}:${b.t0}`} className={`tl-travel ${b.kind}`} style={{ left: pct(b.t0), width: `${((b.t1 - b.t0) / span) * 100}%` }} data-tip={b.label}>
                       <span style={inSight(b.t0, b.t1)}>{b.label}</span>
                     </span>
                   ))}
@@ -939,7 +939,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
             })}
             {cameraRow && <div className="tl-row camera" aria-label={`${rowCam.name} track`}>
               {spans.filter((sp) => sp.shot.camera !== rowCam.id).map((sp) => (
-                <span key={sp.shot.id} className="tl-dim" style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }} title={`${sp.shot.name} is filmed by another camera`} aria-hidden />
+                <span key={sp.shot.id} className="tl-dim" style={{ left: pct(sp.start), width: `${((sp.end - sp.start) / span) * 100}%` }} data-tip={`${sp.shot.name} is filmed by another camera`} aria-hidden />
               ))}
               {camTimes.map((t) => (
                 <button
@@ -948,7 +948,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   className={`tl-key cam${near(t) ? ' on' : ''}`}
                   style={{ left: pct(t) }}
                   aria-label={`${rowCam.name} point at ${t.toFixed(2)} s`}
-                  title={`A point of ${rowCam.name}’s path: drag to retime it`}
+                  data-tip={`A point of ${rowCam.name}’s path: drag to retime it`}
                   onPointerDown={dragPoint(t)}
                   onContextMenu={(e) => {
                     seek(t);
@@ -972,7 +972,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               <div
                 className={`tl-playhead${keying ? ' autokey' : ''}`}
                 style={{ left: pct(time) }}
-                title={keying ? `Auto-key: posing ${name(keying)} keys it here` : undefined}
+                data-tip={keying ? `Auto-key: posing ${name(keying)} keys it here` : undefined}
                 aria-hidden
               />
             )}

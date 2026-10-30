@@ -1,10 +1,15 @@
 [
  {
   "id": "library:aim-pistol",
-  "name": "Aim a pistol",
+  "name": "Aim a pistol, sitting",
   "duration": 5.433,
   "people": 1,
-  "group": "Weapons"
+  "group": "Weapons",
+  "move": [
+   0.005,
+   -0.01
+  ],
+  "turn": -3
  },
  {
   "id": "library:angry",
@@ -12,7 +17,12 @@
   "duration": 19.167,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:standing-arguing",
@@ -20,35 +30,60 @@
   "duration": 20.8,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:backflip",
   "name": "Backflip",
   "duration": 4.1,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   0.012,
+   -0.617
+  ],
+  "turn": 0
  },
  {
   "id": "library:baseball-pitching",
   "name": "Baseball pitch",
   "duration": 3.933,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:baseball-hit",
   "name": "Baseball swing",
   "duration": 2.9,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   -1.274,
+   0.169
+  ],
+  "turn": -13
  },
  {
   "id": "library:standing-block",
   "name": "Block",
   "duration": 2,
   "people": 1,
-  "group": "Fighting"
+  "group": "Fighting",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:bored",
@@ -56,44 +91,74 @@
   "duration": 10.667,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:capoeira",
   "name": "Capoeira",
   "duration": 4.8,
   "people": 1,
-  "group": "Fighting"
+  "group": "Fighting",
+  "move": [
+   0.716,
+   -0.331
+  ],
+  "turn": 0
  },
  {
   "id": "library:football-catch",
   "name": "Catch a football",
   "duration": 4.167,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.467,
+   -1.41
+  ],
+  "turn": -134
  },
  {
   "id": "library:victory",
-  "name": "Cheer, victory",
+  "name": "Cheer, sitting",
   "duration": 6.1,
   "people": 1,
-  "group": "Feelings",
-  "loop": true
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:clapping",
-  "name": "Clap",
+  "name": "Clap, sitting",
   "duration": 1.167,
   "people": 1,
-  "group": "Talking & gestures",
-  "loop": true
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:climbing-ladder",
   "name": "Climb a ladder",
   "duration": 0.767,
   "people": 1,
-  "group": "Moving"
+  "group": "Moving",
+  "move": [
+   0.002,
+   -0.043
+  ],
+  "turn": 0
  },
  {
   "id": "library:crouch-idle",
@@ -101,7 +166,12 @@
   "duration": 1.667,
   "people": 1,
   "group": "Sitting & lying",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:crying",
@@ -109,14 +179,24 @@
   "duration": 6.267,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:dancing",
   "name": "Dance",
   "duration": 12.367,
   "people": 1,
-  "group": "Dance"
+  "group": "Dance",
+  "move": [
+   -0.009,
+   2.145
+  ],
+  "turn": 0
  },
  {
   "id": "library:defeat-idle",
@@ -124,7 +204,12 @@
   "duration": 1.633,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:disappointed",
@@ -132,14 +217,24 @@
   "duration": 4.2,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:standing-dodge-left",
   "name": "Dodge",
   "duration": 0.967,
   "people": 1,
-  "group": "Fighting"
+  "group": "Fighting",
+  "move": [
+   1.775,
+   0.007
+  ],
+  "turn": 0
  },
  {
   "id": "library:drinking",
@@ -147,14 +242,24 @@
   "duration": 8.867,
   "people": 1,
   "group": "Using things",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:sitting-drinking",
   "name": "Drink, sitting",
   "duration": 15.2,
   "people": 1,
-  "group": "Using things"
+  "group": "Using things",
+  "move": [
+   -0.332,
+   2.726
+  ],
+  "turn": 166
  },
  {
   "id": "library:fight-idle",
@@ -162,7 +267,12 @@
   "duration": 7.467,
   "people": 1,
   "group": "Fighting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:shooting",
@@ -170,35 +280,60 @@
   "duration": 1.167,
   "people": 1,
   "group": "Weapons",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:front-flip",
   "name": "Front flip",
   "duration": 1.667,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.022,
+   6.193
+  ],
+  "turn": 15
  },
  {
   "id": "library:sit-to-stand",
   "name": "Get up from a chair",
   "duration": 2.267,
   "people": 1,
-  "group": "Sitting & lying"
+  "group": "Sitting & lying",
+  "move": [
+   0.001,
+   0.47
+  ],
+  "turn": 4
  },
  {
   "id": "library:crouch-to-stand",
   "name": "Get up from one knee",
   "duration": 2.933,
   "people": 1,
-  "group": "Sitting & lying"
+  "group": "Sitting & lying",
+  "move": [
+   0.179,
+   0.265
+  ],
+  "turn": -26
  },
  {
   "id": "library:golf-drive",
   "name": "Golf drive",
   "duration": 5.3,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   0.132,
+   0.146
+  ],
+  "turn": 85
  },
  {
   "id": "library:blocking",
@@ -206,7 +341,12 @@
   "duration": 1.333,
   "people": 1,
   "group": "Fighting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:happy-idle",
@@ -214,7 +354,12 @@
   "duration": 2.933,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:hip-hop-dancing",
@@ -222,7 +367,12 @@
   "duration": 11.967,
   "people": 1,
   "group": "Dance",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:punching-bag",
@@ -231,21 +381,41 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 1.83
+  "impact": 1.83,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   0.045,
+   1.212,
+   0.614
+  ]
  },
  {
   "id": "library:falling-back-death",
   "name": "Hit, fall back",
   "duration": 2.6,
   "people": 1,
-  "group": "Fighting"
+  "group": "Fighting",
+  "move": [
+   -0.246,
+   -0.899
+  ],
+  "turn": 133
  },
  {
   "id": "library:death-from-the-front",
   "name": "Hit, fall forward",
   "duration": 3.433,
   "people": 1,
-  "group": "Fighting"
+  "group": "Fighting",
+  "move": [
+   0.25,
+   0.961
+  ],
+  "turn": -24
  },
  {
   "id": "library:hit-reaction",
@@ -253,7 +423,12 @@
   "duration": 2.3,
   "people": 1,
   "group": "Fighting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:carrying",
@@ -261,7 +436,12 @@
   "duration": 10,
   "people": 1,
   "group": "Using things",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:hook-punch",
@@ -270,7 +450,17 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 1.01
+  "impact": 1.14,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   -0.284,
+   1.216,
+   0.757
+  ]
  },
  {
   "id": "library:jab-cross",
@@ -279,14 +469,29 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 0.5
+  "impact": 0.44,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   0.11,
+   1.175,
+   0.946
+  ]
  },
  {
   "id": "library:jazz-dancing",
   "name": "Jazz",
   "duration": 2.267,
   "people": 1,
-  "group": "Dance"
+  "group": "Dance",
+  "move": [
+   -0.005,
+   1.376
+  ],
+  "turn": 0
  },
  {
   "id": "library:jog-forward",
@@ -294,7 +499,12 @@
   "duration": 0.833,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.008,
+   2.045
+  ],
+  "turn": 0
  },
  {
   "id": "library:jump",
@@ -302,7 +512,12 @@
   "duration": 1.667,
   "people": 1,
   "group": "Sport & acrobatics",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:standing-jump",
@@ -310,14 +525,24 @@
   "duration": 2.367,
   "people": 1,
   "group": "Sport & acrobatics",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:jump-over",
   "name": "Jump over",
   "duration": 2.267,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.037,
+   8.527
+  ],
+  "turn": 8
  },
  {
   "id": "library:jumping-jacks",
@@ -325,7 +550,12 @@
   "duration": 1.067,
   "people": 1,
   "group": "Sport & acrobatics",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:kneeling-idle",
@@ -333,14 +563,24 @@
   "duration": 4.267,
   "people": 1,
   "group": "Sitting & lying",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:landing",
   "name": "Land from a jump",
   "duration": 2.1,
   "people": 1,
-  "group": "Sport & acrobatics"
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.086,
+   -0.093
+  ],
+  "turn": 7
  },
  {
   "id": "library:laughing",
@@ -348,7 +588,12 @@
   "duration": 9.767,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:leaning-on-a-wall",
@@ -356,14 +601,24 @@
   "duration": 1.933,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:lying-down",
   "name": "Lie down",
   "duration": 5.733,
   "people": 1,
-  "group": "Sitting & lying"
+  "group": "Sitting & lying",
+  "move": [
+   0.016,
+   -0.402
+  ],
+  "turn": 27
  },
  {
   "id": "library:laying-idle",
@@ -371,7 +626,12 @@
   "duration": 12.5,
   "people": 1,
   "group": "Sitting & lying",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:lifting-object",
@@ -379,7 +639,12 @@
   "duration": 11.5,
   "people": 1,
   "group": "Using things",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:look-around",
@@ -387,7 +652,12 @@
   "duration": 6.333,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:head-nod-yes",
@@ -395,14 +665,24 @@
   "duration": 2.6,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:opening-door-inwards",
   "name": "Open a door",
   "duration": 6.367,
   "people": 1,
-  "group": "Using things"
+  "group": "Using things",
+  "move": [
+   -0.007,
+   1.665
+  ],
+  "turn": 0
  },
  {
   "id": "library:soccer-penalty-kick",
@@ -410,14 +690,29 @@
   "duration": 1.5,
   "people": 1,
   "group": "Sport & acrobatics",
-  "impact": 0.85
+  "impact": 0.84,
+  "move": [
+   0.343,
+   2.954
+  ],
+  "turn": 57,
+  "reach": [
+   0.415,
+   0.342,
+   2.767
+  ]
  },
  {
   "id": "library:pick-up-item",
   "name": "Pick something up",
   "duration": 1.2,
   "people": 1,
-  "group": "Using things"
+  "group": "Using things",
+  "move": [
+   -0.021,
+   5.063
+  ],
+  "turn": 0
  },
  {
   "id": "library:pointing",
@@ -425,7 +720,12 @@
   "duration": 3.433,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:praying",
@@ -433,7 +733,12 @@
   "duration": 3.233,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:button-pushing",
@@ -441,7 +746,12 @@
   "duration": 3.233,
   "people": 1,
   "group": "Using things",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:pulling-lever",
@@ -449,14 +759,24 @@
   "duration": 6.267,
   "people": 1,
   "group": "Using things",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:pull-heavy-object",
   "name": "Pull something heavy",
   "duration": 1.1,
   "people": 1,
-  "group": "Using things"
+  "group": "Using things",
+  "move": [
+   0.001,
+   -0.267
+  ],
+  "turn": 0
  },
  {
   "id": "library:receive-punch-to-the-face",
@@ -465,14 +785,23 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 0.67
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:push",
   "name": "Push something heavy",
   "duration": 8,
   "people": 1,
-  "group": "Using things"
+  "group": "Using things",
+  "move": [
+   -0.012,
+   3.034
+  ],
+  "turn": 0
  },
  {
   "id": "library:roundhouse-kick",
@@ -481,7 +810,17 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 1.08
+  "impact": 1.08,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   -0.206,
+   1.216,
+   1.482
+  ]
  },
  {
   "id": "library:rumba-dancing",
@@ -489,7 +828,12 @@
   "duration": 2.367,
   "people": 1,
   "group": "Dance",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:run-forward",
@@ -497,7 +841,12 @@
   "duration": 0.9,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.013,
+   3.089
+  ],
+  "turn": 0
  },
  {
   "id": "library:run-backward",
@@ -505,7 +854,12 @@
   "duration": 0.633,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   0.007,
+   -1.905
+  ],
+  "turn": 0
  },
  {
   "id": "library:sad-idle",
@@ -513,7 +867,12 @@
   "duration": 2.8,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:salsa-dancing",
@@ -521,7 +880,12 @@
   "duration": 11.967,
   "people": 1,
   "group": "Dance",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:salute",
@@ -529,7 +893,12 @@
   "duration": 2.833,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:scared",
@@ -537,7 +906,12 @@
   "duration": 10.067,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:shake-fist",
@@ -545,7 +919,12 @@
   "duration": 2.433,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:shaking-head-no",
@@ -553,7 +932,12 @@
   "duration": 1.8,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:shrugging",
@@ -561,21 +945,36 @@
   "duration": 2,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:stand-to-sit",
   "name": "Sit down on a chair",
   "duration": 2.233,
   "people": 1,
-  "group": "Sitting & lying"
+  "group": "Sitting & lying",
+  "move": [
+   0,
+   -0.476
+  ],
+  "turn": 3
  },
  {
   "id": "library:sit-to-type",
   "name": "Sit down to type",
   "duration": 1.2,
   "people": 1,
-  "group": "Sitting & lying"
+  "group": "Sitting & lying",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 1
  },
  {
   "id": "library:sitting-idle",
@@ -583,7 +982,12 @@
   "duration": 6.4,
   "people": 1,
   "group": "Sitting & lying",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:jumping-rope",
@@ -591,7 +995,12 @@
   "duration": 2.567,
   "people": 1,
   "group": "Sport & acrobatics",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:crouch-walk-forward",
@@ -599,7 +1008,12 @@
   "duration": 1.133,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.008,
+   1.905
+  ],
+  "turn": 0
  },
  {
   "id": "library:sprint",
@@ -607,14 +1021,24 @@
   "duration": 0.533,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.013,
+   3.124
+  ],
+  "turn": 0
  },
  {
   "id": "library:stand-up",
   "name": "Stand up, slow",
   "duration": 4.833,
   "people": 1,
-  "group": "Sitting & lying"
+  "group": "Sitting & lying",
+  "move": [
+   -0.032,
+   0.408
+  ],
+  "turn": -2
  },
  {
   "id": "library:breathing-idle",
@@ -622,7 +1046,12 @@
   "duration": 9.933,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:idle",
@@ -630,7 +1059,12 @@
   "duration": 3.267,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:standing-idle",
@@ -638,7 +1072,12 @@
   "duration": 1.867,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:strafe-left",
@@ -646,7 +1085,12 @@
   "duration": 1.033,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   1.365,
+   0.006
+  ],
+  "turn": 0
  },
  {
   "id": "library:surprised",
@@ -654,7 +1098,12 @@
   "duration": 4,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:swing-dancing",
@@ -662,7 +1111,12 @@
   "duration": 20.9,
   "people": 1,
   "group": "Dance",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:sword-and-shield-idle",
@@ -670,21 +1124,36 @@
   "duration": 7.533,
   "people": 1,
   "group": "Weapons",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:sword-and-shield-attack",
   "name": "Sword and shield, strike",
   "duration": 1.733,
   "people": 1,
-  "group": "Weapons"
+  "group": "Weapons",
+  "move": [
+   -0.007,
+   2.298
+  ],
+  "turn": -37
  },
  {
   "id": "library:talking-on-phone",
   "name": "Talk on the phone",
   "duration": 30,
   "people": 1,
-  "group": "Using things"
+  "group": "Using things",
+  "move": [
+   0.002,
+   0.018
+  ],
+  "turn": 18
  },
  {
   "id": "library:talking",
@@ -692,14 +1161,24 @@
   "duration": 3.933,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:sitting-talking",
   "name": "Talk, sitting",
   "duration": 30,
   "people": 1,
-  "group": "Talking & gestures"
+  "group": "Talking & gestures",
+  "move": [
+   -0.001,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:thinking",
@@ -707,7 +1186,12 @@
   "duration": 4.233,
   "people": 1,
   "group": "Feelings",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:throw-object",
@@ -715,7 +1199,12 @@
   "duration": 4.867,
   "people": 1,
   "group": "Using things",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:standing-thumbs-up",
@@ -723,21 +1212,36 @@
   "duration": 4.167,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:turn-90-left",
   "name": "Turn 90°",
   "duration": 1,
   "people": 1,
-  "group": "Moving"
+  "group": "Moving",
+  "move": [
+   0,
+   0.001
+  ],
+  "turn": 90
  },
  {
   "id": "library:walking-turn-180",
   "name": "Turn around, walking",
   "duration": 1,
   "people": 1,
-  "group": "Moving"
+  "group": "Moving",
+  "move": [
+   -0.033,
+   -0.087
+  ],
+  "turn": -180
  },
  {
   "id": "library:uppercut",
@@ -746,7 +1250,17 @@
   "people": 1,
   "group": "Fighting",
   "loop": true,
-  "impact": 0.47
+  "impact": 0.47,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   0.128,
+   1.219,
+   0.651
+  ]
  },
  {
   "id": "library:walk",
@@ -754,7 +1268,12 @@
   "duration": 1,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.006,
+   1.594
+  ],
+  "turn": 0
  },
  {
   "id": "library:walk-backward",
@@ -762,14 +1281,24 @@
   "duration": 1.1,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   0.007,
+   -1.652
+  ],
+  "turn": 0
  },
  {
   "id": "library:descending-stairs",
   "name": "Walk down stairs",
   "duration": 0.4,
   "people": 1,
-  "group": "Moving"
+  "group": "Moving",
+  "move": [
+   -0.002,
+   0.44
+  ],
+  "turn": 0
  },
  {
   "id": "library:walk-left",
@@ -777,14 +1306,24 @@
   "duration": 1,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   1.839,
+   0.007
+  ],
+  "turn": 0
  },
  {
   "id": "library:ascending-stairs",
   "name": "Walk up stairs",
   "duration": 1.367,
   "people": 1,
-  "group": "Moving"
+  "group": "Moving",
+  "move": [
+   -0.002,
+   0.513
+  ],
+  "turn": 0
  },
  {
   "id": "library:walk-forward",
@@ -792,7 +1331,12 @@
   "duration": 1,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.007,
+   1.838
+  ],
+  "turn": 0
  },
  {
   "id": "library:happy-walk",
@@ -800,7 +1344,12 @@
   "duration": 1.1,
   "people": 1,
   "group": "Moving",
-  "loop": true
+  "loop": true,
+  "move": [
+   -0.007,
+   1.741
+  ],
+  "turn": 0
  },
  {
   "id": "library:dismissing-gesture",
@@ -808,7 +1357,12 @@
   "duration": 3.267,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:waving",
@@ -816,7 +1370,12 @@
   "duration": 3.167,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:yawn",
@@ -824,6 +1383,11 @@
   "duration": 8.333,
   "people": 1,
   "group": "Standing & waiting",
-  "loop": true
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  }
 ]

@@ -144,7 +144,7 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
                   </div>
                 </div>
                 <div className="panel-meta">
-                  <span className="panel-name" title={panelLabel(x)}>{x.scene.name}{x.span ? ` · ${x.span.shot.name}` : ''}</span>
+                  <span className="panel-name" data-tip={panelLabel(x)}>{x.scene.name}{x.span ? ` · ${x.span.shot.name}` : ''}</span>
                   {x.span ? <span className="muted">{x.length.toFixed(1)} s</span> : (
                     <div className="panel-hold">
                       <NumberField prefix="⏱" label={`${x.scene.name}: seconds on screen`} value={x.scene.hold ?? DEFAULT_HOLD} step={0.1} min={0.2} max={60} digits={1} onChange={(hold) => setHold(store, x.scene.id, hold)} />

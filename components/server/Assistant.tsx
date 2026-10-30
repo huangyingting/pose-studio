@@ -123,7 +123,7 @@ export default function Assistant() {
         <Sparkles size={14} aria-hidden />
         <span>Assistant</span>
         <span className="spacer" />
-        {status && <span className="assistant-usage" title="Assistant requests today">{status.used} / {status.limit}</span>}
+        {status && <span className="assistant-usage" data-tip="Assistant requests today">{status.used} / {status.limit}</span>}
         <IconButton icon={Plus} label="New chat" onClick={() => session.reset()} size={14} disabled={!session.items.length} />
       </div>
       <div className="assistant-log" aria-live="polite">
@@ -138,7 +138,7 @@ export default function Assistant() {
         {session.items.map((it, i) => {
           if (it.kind === 'tool') {
             return (
-              <div key={i} className={`assistant-tool${it.ok ? '' : ' failed'}`} title={it.result}>
+              <div key={i} className={`assistant-tool${it.ok ? '' : ' failed'}`} data-tip={it.result}>
                 {it.ok ? <Wrench size={12} aria-hidden /> : <TriangleAlert size={12} aria-hidden />}
                 <code>{it.name}</code>
                 <span>{it.result.startsWith('{') ? 'read the scene' : it.result.split('\n')[0]}</span>

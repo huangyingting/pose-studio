@@ -9,6 +9,7 @@ import { FILMS } from '@/lib/films';
 import { checkMotion } from '@/lib/qa';
 import { spanAt } from '@/lib/shots';
 import * as THREE from 'three';
+import { Rig } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { SHOOT_PRESETS } from '@/lib/templates';
 import type { Scene } from '@/lib/types';
@@ -42,6 +43,45 @@ describe('films: templates staged as a director would', () => {
       expect(SHOOT_PRESETS.some((p) => p.template === f.id && p.coverage === f.coverage), f.name).toBe(true);
     }
   }, 300_000);
+
+  it('lasts a minute or more each, every blow landing on the one it is aimed at, and nobody sitting on nothing', () => {
+    const index = JSON.parse(readFileSync('public/motions/index.json', 'utf8')) as { id: string; impact?: number }[];
+    const HIT = ['receive-punch-to-the-face', 'hit-reaction', 'falling-back-death', 'death-from-the-front', 'standing-block', 'blocking'].map((x) => `library:${x}`);
+    const SIT = ['stand-to-sit', 'sitting-idle', 'sitting-talking', 'sit-to-type'].map((x) => `library:${x}`);
+    const rig = new Rig();
+    for (const f of FILMS) {
+      const scene = f.build();
+      const a = scene.animation!;
+      expect(a.duration, f.name).toBeGreaterThanOrEqual(60);
+      load(scene);
+      for (const x of a.actions) {
+        const src = x.source;
+        if (src.kind !== 'clip' || x.layer) continue;
+        const impact = index.find((e) => e.id === src.clip)?.impact;
+        if (impact === undefined) continue;
+        const lands = x.start + impact;
+        // (Struck, or blocked: whoever reacts as it lands.)
+        const struck = a.actions.find((y) => y.source.kind === 'clip' && HIT.includes(y.source.clip) && y.roles[0].figure !== x.roles[0].figure && y.start <= lands && lands < y.start + 0.6);
+        if (!struck) continue;
+        const m = rig.model(figurePoseAt(scene, x.roles[0].figure, lands)!);
+        const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
+        const blow = (['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const).map((j) => m.joints[j].getWorldPosition(new THREE.Vector3()))
+          .reduce((p, q) => (Math.hypot(q.x - hips.x, q.z - hips.z) > Math.hypot(p.x - hips.x, p.z - hips.z) ? q : p));
+        const them = rig.model(figurePoseAt(scene, struck.roles[0].figure, lands)!);
+        const near = Math.min(...(['head', 'neck', 'chest', 'spine', 'hips', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'] as const).map((j) => them.joints[j].getWorldPosition(new THREE.Vector3()).distanceTo(blow)));
+        expect(near, `${f.name}: ${src.clip} at ${lands.toFixed(2)} s`).toBeLessThan(0.35);
+      }
+      // Sitting: on a chair of the scene's, or (in the living room) the sofa.
+      for (const x of a.actions) {
+        if (x.source.kind !== 'clip' || !SIT.includes(x.source.clip)) continue;
+        const at = x.roles[0].end!.at;
+        const chair = scene.props.some((p) => p.kind === 'chair' && Math.hypot(p.position[0] - at[0], p.position[2] - at[1]) < 0.3);
+        const sofa = scene.set === 'living-room' && Math.abs(at[1] + 3.42) < 0.1 && Math.abs(at[0]) < 1.1;
+        expect(chair || sofa, `${f.name}: ${x.source.clip} at ${x.start.toFixed(1)} s`).toBe(true);
+      }
+    }
+    rig.dispose();
+  }, 600_000);
 
   it('times a reaction to the strike: the block is up as the kick lands', () => {
     const scene = FILMS.find((f) => f.id === 'film-wuxia')!.build();
