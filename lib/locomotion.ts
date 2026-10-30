@@ -662,6 +662,8 @@ export function plantFeet(rig: Rig, pose: Figure, ref: Figure | ReturnType<typeo
   // A grounded figure settles on its new lowest point: solve again until the feet stay.
   for (let i = 0; i < 3; i++) {
     let m = rig.model(f);
+    // (Settled: the feet where they are wanted, as they stand now.)
+    if (i > 0 && want.every((w) => m.joints[w.side === 'L' ? 'leftFoot' : 'rightFoot'].getWorldPosition(new THREE.Vector3()).distanceTo(w.p) < 5e-4)) break;
     const bones = { ...f.bones };
     for (const w of want) {
       const hip = m.joints[sided('UpperLeg', w.side)];

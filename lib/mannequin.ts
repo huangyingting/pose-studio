@@ -154,7 +154,8 @@ const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle
 
 
 /** A bone and its outermost points (at rest): where they are is where the bone takes them. */
-interface Sample { bone: THREE.Bone; inverse: THREE.Matrix4; points: Float32Array; part: JointName }
+/** A bone's outermost points, and a sphere round them (to pass over the bone where they cannot matter). */
+interface Sample { bone: THREE.Bone; inverse: THREE.Matrix4; points: Float32Array; part: JointName; sphere: THREE.Sphere }
 
 /** The directions a bone's outermost points are found in (from the middle of a cube to the points on its surface, five to a side). */
 const STEPS = [-2, -1, 0, 1, 2];
@@ -174,7 +175,8 @@ function outline(bot: Bot, P: Float32Array, bones: THREE.Bone[], inverses: THREE
     if (!ids.length) return [];
     const points = new Float32Array(ids.length * 3);
     ids.forEach((v, i) => { for (let c = 0; c < 3; c++) points[i * 3 + c] = P[v * 3 + c]; });
-    return [{ bone, inverse: inverses[b], points, part: partOf(BOT_TARGETS[b]) }];
+    const sphere = new THREE.Box3().setFromBufferAttribute(new THREE.BufferAttribute(points, 3)).getBoundingSphere(new THREE.Sphere());
+    return [{ bone, inverse: inverses[b], points, part: partOf(BOT_TARGETS[b]), sphere }];
   });
 }
 
@@ -468,8 +470,21 @@ export class Mannequin {
   /** The height of the figure's lowest point (below 0: it goes through the floor). */
   lowest() {
     this.object.updateMatrixWorld(true);
+    // (The bones by how low their sphere reaches: past the lowest point found, the rest cannot
+    // go lower. Only heights worked out.)
+    const c = new THREE.Vector3();
+    const bones = this.samples.map((x) => {
+      const m = new THREE.Matrix4().multiplyMatrices(x.bone.matrixWorld, x.inverse);
+      return { points: x.points, e: m.elements, bottom: c.copy(x.sphere.center).applyMatrix4(m).y - x.sphere.radius * m.getMaxScaleOnAxis() };
+    }).sort((a, b) => a.bottom - b.bottom);
     let min = Infinity;
-    this.forEachPoint((p) => { min = Math.min(min, p.y); });
+    for (const { points, e, bottom } of bones) {
+      if (bottom >= min) break;
+      for (let i = 0; i < points.length; i += 3) {
+        const y = e[1] * points[i] + e[5] * points[i + 1] + e[9] * points[i + 2] + e[13];
+        if (y < min) min = y;
+      }
+    }
     return min;
   }
 
