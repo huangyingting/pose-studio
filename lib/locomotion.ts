@@ -227,7 +227,77 @@ export function locomote(chain: Chain, body: BodyParams, t: number, pose: AngleP
   // At the marks it starts and ends at, the figure is as posed there (standing on the floor).
   if (Math.abs(t - chain.t0) < 1e-6 || Math.abs(t - chain.t1) < 1e-6) return pose;
   const legs = legsOf(body);
-  return chain.kind === 'jump' ? jump(chain, legs, t, pose, ground, body) : gait(chain, legs, t, pose, ground, body);
+  if (chain.kind === 'jump') return jump(chain, legs, t, pose, ground, body);
+  return pivots(chain) ? pivot(chain, legs, t, pose, ground, body) : gait(chain, legs, t, pose, ground, body);
+}
+
+/** How far a travel turns from its start to its end (degrees, + to the left). */
+const turnOf = (c: Chain) => wrapDeg(c.yaws[c.yaws.length - 1] - c.yaws[0]);
+/** Whether a walk or run is a turn where it stands: (nearly) nowhere to go, another way to face. */
+const pivots = (c: Chain) => {
+  const [a, b] = [c.path[0], c.path[c.path.length - 1]];
+  return Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.05 && Math.abs(turnOf(c)) > 5;
+};
+/** The most a foot is turned round in one step of a turn on the spot (degrees). */
+const PIVOT_STEP = 50;
+
+/** How long a turn on the spot takes: a step for each (up to) 50° and the other foot after (s). */
+export function turnTime(degrees: number) {
+  return Math.max(0.6, (Math.ceil(Math.abs(degrees) / PIVOT_STEP) + 1) * 0.3);
+}
+
+/**
+ * A turn on the spot: small steps round, foot after foot (the one on the side it turns to first),
+ * each set down turned a little further about where the body stands, the last two where the end
+ * key has its feet. Planted feet stay put; the body turns smoothly over it all.
+ */
+function pivot(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, body: BodyParams): AnglePose {
+  const dur = c.t1 - c.t0;
+  const u = clamp((t - c.t0) / dur, 0, 1);
+  const by = turnOf(c);
+  const [x, z] = [lerp(c.start.position[0], c.end.position[0], smooth(u)), lerp(c.start.position[2], c.end.position[2], smooth(u))];
+  const yaw = lerpAngle(c.yaws[0], c.yaws[c.yaws.length - 1], smooth(u));
+  const onGround = (key: AnglePose, side: 'L' | 'R'): [number, number, number] => {
+    const k = keyedFeet(body, key)[side];
+    return key.grounded ? [k[0], k[1] + ground(key.position[0], key.position[2]), k[2]] : k;
+  };
+  // Where a foot stands turned `share` of the way: its start place turned about the body's.
+  const turned = (side: 'L' | 'R', share: number): [number, number, number] => {
+    if (share >= 1) return onGround(c.end, side);
+    const f = onGround(c.start, side);
+    const [ox, oz] = [f[0] - c.start.position[0], f[2] - c.start.position[2]];
+    const r = by * share * D2R;
+    const [cx, cz] = [lerp(c.start.position[0], c.end.position[0], share), lerp(c.start.position[2], c.end.position[2], share)];
+    return [cx + ox * Math.cos(r) + oz * Math.sin(r), f[1], cz - ox * Math.sin(r) + oz * Math.cos(r)];
+  };
+  // Steps: n of them, alternate feet, the lead foot first; each foot's last one lands where the end key has it.
+  const n = Math.ceil(Math.abs(by) / PIVOT_STEP) + 1;
+  const lead: 'L' | 'R' = by > 0 ? 'L' : 'R';
+  const sideOf = (j: number): 'L' | 'R' => ((j % 2 === 0) === (lead === 'L') ? 'L' : 'R');
+  const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
+  for (const side of ['L', 'R'] as const) {
+    const mine = [...Array(n).keys()].filter((j) => sideOf(j) === side);
+    const lastOf = mine[mine.length - 1];
+    const share = (j: number) => (j === lastOf ? 1 : (j + 1) / n);
+    // (Each step takes its share of the time, swinging over most of it.)
+    const now = mine.find((j) => u > j / n && u < (j + 1) / n);
+    const done = mine.filter((j) => u >= (j + 1) / n);
+    const from = done.length ? turned(side, share(done[done.length - 1])) : onGround(c.start, side);
+    if (now === undefined) {
+      feet[side] = { world: from, swing: 0 };
+      continue;
+    }
+    const q = clamp((u * n - now - 0.1) / 0.8, 0, 1);
+    const to = turned(side, share(now));
+    const k = smoother(q);
+    const up = 0.05 * (legs.thigh + legs.shin) * bump(q);
+    feet[side] = { world: [lerp(from[0], to[0], k), lerp(from[1], to[1], k) + up, lerp(from[2], to[2], k)], swing: bump(q) };
+  }
+  const floor = Math.min(feet.L.world[1], feet.R.world[1]) - legs.ankleY;
+  const y = pose.grounded ? floor + legs.rootY : pose.position[1];
+  return compose(pose, legs, {
+    position: [x, y, z], yaw, pitch: pose.joints.hips?.[0] ?? 0, roll: pose.joints.hips?.[2] ?? 0, feet, swing: 0, raise: 0, elbows: 0,
+  });
 }
 
 /** Where a foot goes: on the floor (`world`, level when planted, hanging as it swings), or in the air relative to its hip in the body's frame (`body`, toes pointed). */
@@ -280,12 +350,14 @@ function compose(pose: AnglePose, legs: Legs, g: Generated): AnglePose {
       // the shin, toes down a little.
       const tiptoe = heel > 0 ? Math.asin(clamp(heel / legs.foot, 0, 1)) * R2D : 0;
       const ankle = 'world' in foot ? lerp(ik.ankle[0] + tiptoe, 12, foot.swing) : foot.point;
-      joints[sided('Foot', side)] = [r1(clamp(ankle, -40, 60)), 0, r1('world' in foot ? ik.ankle[2] * (1 - foot.swing) : 0)];
+      // (Rolled to stay flat on the floor no further than an ankle rolls.)
+      joints[sided('Foot', side)] = [r1(clamp(ankle, -40, 60)), 0, r1('world' in foot ? clamp(ik.ankle[2] * (1 - foot.swing), -35, 35) : 0)];
     }
     const sh = joints[sided('UpperArm', side)] ?? [0, 0, 0];
     joints[sided('UpperArm', side)] = [r1(sh[0] + s * g.swing + g.raise), sh[1], sh[2]];
     const el = joints[sided('LowerArm', side)] ?? [0, 0, 0];
-    joints[sided('LowerArm', side)] = [r1(el[0] + g.elbows), el[1], el[2]];
+    // (Bent for running as far as an elbow goes, from however bent it was keyed.)
+    joints[sided('LowerArm', side)] = [r1(Math.max(-150, Math.min(el[0], el[0] + g.elbows))), el[1], el[2]];
   }
   const clean = Object.fromEntries(Object.entries(joints).filter(([, v]) => v.some((x) => x !== 0))) as Angles;
   return { ...pose, joints: clean, position: g.position.map((v) => Math.round(v * 1000) / 1000) as Vec3, grounded: false };

@@ -560,11 +560,46 @@ function firstFilmed(scene: Scene, cam: Camera) {
  * direction from it towards another figure, then (turning) or at the camera's first shot.
  */
 function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth = r.smooth ?? 0): number {
+  // (Turning with its subject, eased: no faster than a camera operator swings round, however fast they turn.)
+  if (r.turn && smooth > 0 && !cam.point) return turnedHeading(scene, cam, r, t, smooth);
+  return heading(scene, cam, r, t, body, smooth);
+}
+
+function heading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth: number): number {
   const subject = cameraSubject(scene, cam);
   const at = r.turn ? t : firstFilmed(scene, cam);
   const from = at === t ? body : framedBody(scene, cam, at, smooth);
   const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, [r.toward], at, smooth) : null;
   return other ? Math.atan2(other.x - from.x, other.z - from.z) * R2D : from.facing;
+}
+
+/** How fast a camera turning with its subject swings round at most (degrees a second; #18). */
+const TURN_RATE = 75;
+const HEAD_STEP = 0.1;
+const headings = new WeakMap<object, Map<string, number[]>>();
+
+/**
+ * A turning rig's heading at t: its subject's (eased over the rig's smoothing), followed from the
+ * start of the scene no faster than TURN_RATE; worked out every tenth of a second, once for how the
+ * figures move, so it is the same however t is reached.
+ */
+function turnedHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, smooth: number): number {
+  const owner = movesOf(scene);
+  let all = headings.get(owner);
+  if (!all) headings.set(owner, (all = new Map()));
+  const key = `${cam.id}:${cam.subject}:${JSON.stringify(r)}:${smooth}`;
+  let hs = all.get(key);
+  if (!hs) all.set(key, (hs = []));
+  const k = Math.max(0, t) / HEAD_STEP;
+  const n = Math.ceil(k);
+  const most = TURN_RATE * HEAD_STEP;
+  for (let i = hs.length; i <= n; i++) {
+    const at = i * HEAD_STEP;
+    const raw = heading(scene, cam, r, at, framedBody(scene, cam, at, smooth), smooth);
+    hs.push(i === 0 ? raw : hs[i - 1] + Math.max(-most, Math.min(most, wrapDeg(raw - hs[i - 1]))));
+  }
+  const i = Math.floor(k);
+  return wrapDeg(hs[i] + ((hs[i + 1] ?? hs[i]) - hs[i]) * (k - i));
 }
 
 /** Where a rig camera is at t, worked out from its subject's body. */

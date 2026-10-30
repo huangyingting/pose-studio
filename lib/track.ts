@@ -2,7 +2,7 @@ import { keyPose, keyTimes, keysClip, partKeys, placeClip, setPartKey, startFaci
 import { clipById } from './assets';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
-import { JUMP_PREP, jumpHeight, legsOf, travelTime } from './locomotion';
+import { JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
 import { wrapDeg } from './joints';
@@ -355,7 +355,7 @@ export function removeCorrectionAt(a: Animation, figure: string, t: number): Ani
  * actions moved on by the time it takes. (Inside a clip or another travel, it sets off when that
  * ends.) Walking and running face the way they go unless `strafe`; a jump keeps the facing.
  */
-export function addTravel(scene: Scene, figure: string, t: number, to: [number, number], mode: Travel, opts: { strafe?: boolean; height?: number } = {}): { animation: Animation; from: number; to: number } | null {
+export function addTravel(scene: Scene, figure: string, t: number, to: [number, number], mode: Travel, opts: { strafe?: boolean; height?: number; facing?: number } = {}): { animation: Animation; from: number; to: number } | null {
   let a = scene.animation!;
   const f = scene.figures.find((x) => x.id === figure);
   if (!f) return null;
@@ -369,8 +369,11 @@ export function addTravel(scene: Scene, figure: string, t: number, to: [number, 
   const heading = Math.atan2(to[0] - here.position[0], to[1] - here.position[2]) * (180 / Math.PI);
   const facing = facingOf(here.bones);
   const sideways = opts.strafe && d > 0.05 ? Math.abs(Math.sin((heading - facing) * (Math.PI / 180))) : 0;
-  const t1 = Math.round((t0 + travelTime(mode, d, f.body, opts.height, sideways)) * a.fps) / a.fps;
-  const yaw = mode === 'jump' || opts.strafe || d < 0.05 ? facing : heading;
+  // (Nowhere to go, another way to face: a turn on the spot, stepping round.)
+  const turning = d < 0.05 && opts.facing !== undefined && mode !== 'jump';
+  const time = turning ? turnTime(wrapDeg(opts.facing! - facing)) : travelTime(mode, d, f.body, opts.height, sideways);
+  const t1 = Math.round((t0 + time) * a.fps) / a.fps;
+  const yaw = opts.facing ?? (mode === 'jump' || opts.strafe || d < 0.05 ? facing : heading);
   a = ripple(a, figure, t0 + 0.5 / a.fps, t1 - t0);
   // What it did from then on (a walk starting then) comes after it.
   a = { ...a, actions: a.actions.map((x) => (!x.layer && !isKeys(x) && x.roles.some((r) => r.figure === figure) && Math.abs(x.start - t0) < EPS ? { ...x, start: t1 } : x)) };
@@ -380,6 +383,28 @@ export function addTravel(scene: Scene, figure: string, t: number, to: [number, 
     source: { kind: 'travel', mode, ...(opts.strafe ? { strafe: true } : {}) },
   };
   return { animation: longer(sorted({ ...a, actions: [...a.actions, travel] }), t1), from: t0, to: t1 };
+}
+
+/** The most a walk or run turns as it arrives to face what comes next (degrees): further, its last steps would cross the legs. */
+export const ARRIVE_TURN = 90;
+
+/**
+ * The animation with the walk or run a figure arrives by at t (going somewhere, not stepping aside)
+ * ending facing this way instead, its last steps taking it round; null if there is none or the turn
+ * is more than a quarter.
+ */
+export function turnArriving(scene: Scene, figure: string, t: number, facing: number): Animation | null {
+  const a = scene.animation;
+  const into = a && travelInto(a, figure, t);
+  const end = into?.roles.find((r) => r.figure === figure)?.end;
+  if (!a || !into || !end || into.source.kind !== 'travel' || into.source.mode === 'jump' || into.source.strafe) return null;
+  if (Math.abs(wrapDeg(facing - end.facing)) > ARRIVE_TURN) return null;
+  // (From the mark it set off from: the one before it ends on, else as evaluated.)
+  const before = actionsOf(a, figure).filter((x) => x !== into && x.start + x.duration <= into.start + 1e-6).at(-1)?.roles.find((r) => r.figure === figure)?.end;
+  const from = before?.at ?? marksOf(scene, into, figure)?.start.at;
+  if (!from || Math.hypot(end.at[0] - from[0], end.at[1] - from[1]) < 0.5) return null;
+  const turned = { ...end, facing: Math.round(wrapDeg(facing) * 10) / 10 || 0 };
+  return { ...a, actions: a.actions.map((x) => (x.id === into.id ? { ...x, roles: x.roles.map((r) => (r.figure === figure ? { ...r, end: turned } : r)) } : x)) };
 }
 
 /** The travel arriving at time t (it ends then), or null. */
@@ -483,11 +508,16 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
   return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
 }
 
-/** What an action is called on the timeline and in the inspector: the motion's name, or how the figure gets there. */
-export function actionLabel(act: Action): string {
+/**
+ * What an action is called on the timeline and in the inspector: the motion's name, or how the
+ * figure gets there (in its scene: a walk that goes nowhere but round is a turn).
+ */
+export function actionLabel(act: Action, scene?: Scene): string {
   const src = act.source;
   if (src.kind === 'keys') return act.layer === 'correction' ? 'Correction' : 'Posed';
   if (src.kind === 'clip') return `${clipById(src.clip)?.name ?? 'Motion'}${src.repeat ? ` ×${src.repeat}` : ''}`;
+  const marks = scene && src.mode !== 'jump' ? marksOf(scene, act, act.roles[0].figure) : null;
+  if (marks && Math.hypot(marks.end.at[0] - marks.start.at[0], marks.end.at[1] - marks.start.at[1]) < 0.05 && Math.abs(wrapDeg(marks.end.facing - marks.start.facing)) > 5) return 'Turn';
   let label = src.mode === 'walk' ? 'Walk' : src.mode === 'run' ? 'Run' : 'Jump';
   if (src.mode === 'jump') {
     label += ` ${jumpHeight(Math.max(0, act.duration - 2 * JUMP_PREP)).toFixed(1)} m`;

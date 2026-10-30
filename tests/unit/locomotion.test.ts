@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { motionScene } from '../fixtures/scenes';
-import { addProp, moveProp, setTravel, travelTo } from '@/lib/actions';
+import { addProp, moveProp, setTravel, travelTo, turnTo } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt } from '@/lib/evaluate';
 import { legsOf } from '@/lib/locomotion';
@@ -11,6 +11,7 @@ import { Store } from '@/lib/store';
 import type { Scene } from '@/lib/types';
 import { angle, facingOf } from '../../lib/pose';
 import { actionsOf } from '@/lib/evaluate';
+import { actionLabel } from '@/lib/track';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -93,6 +94,46 @@ describe('walking, running and jumping from mark to mark', () => {
     expect(s.at(-1)!.root.x).toBeCloseTo(-1.5, 1);
     expect(plantedDrift(s, legsOf(side.store.scene.figures[0].body).ankleY)).toBeLessThan(0.012);
     expect(checkMotion(side.store.scene).filter((i) => i.kind === 'slide')).toEqual([]);
+  });
+
+  it('turns on the spot by stepping round: foot after foot, none sliding, ending facing the way asked', () => {
+    for (const by of [60, -150]) {
+      const { store, id } = fresh();
+      expect(turnTo(store, id, by)).toBe(true);
+      const scene = store.scene;
+      const a = scene.animation!;
+      const frames = track(scene, id);
+      const legs = legsOf(scene.figures[0].body);
+      expect(Math.abs(frames.at(-1)!.yaw - by)).toBeLessThan(1);
+      const turn = a.actions.find((x) => x.source.kind === 'travel')!;
+      expect(turn.duration).toBeLessThan(by > 0 ? 1.2 : 1.6);
+      expect(actionLabel(turn, scene)).toBe('Turn');
+      // Stays where it stood, the feet lifted in turn and set down where they then stay.
+      expect(Math.hypot(frames.at(-1)!.root.x, frames.at(-1)!.root.z)).toBeLessThan(0.02);
+      expect(plantedDrift(frames, legs.ankleY)).toBeLessThan(0.01);
+      expect(Math.max(...frames.map((f) => Math.max(f.L.y, f.R.y)))).toBeGreaterThan(legs.ankleY + 0.02);
+      expect(checkMotion(scene).map((i) => i.message), `${by}°`).toEqual([]);
+    }
+    // Already facing it: nothing to do.
+    const { store, id } = fresh();
+    expect(turnTo(store, id, 2)).toBe(false);
+  });
+
+  it('turns as it arrives when told to face somewhere just after a walk; a short walk back steps back', () => {
+    const { store, id } = fresh();
+    travelTo(store, id, [0, 3], 'walk');
+    const actions = store.scene.animation!.actions.length;
+    // (A quarter turn to the left: the walk's last steps take it round, no turn added.)
+    expect(turnTo(store, id, [5, 3])).toBe(true);
+    expect(store.scene.animation!.actions).toHaveLength(actions);
+    const a = store.scene.animation!;
+    expect(Math.abs(facingOf(sceneAt(store.scene, a.duration).figures[0].bones) - 90)).toBeLessThan(1);
+    expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
+    // A metre back: still facing the way it did, stepping back.
+    travelTo(store, id, [-1, 3], 'walk');
+    const back = store.scene.animation!.actions.find((x) => x.source.kind === 'travel' && x.start >= store.getState().time - 3 && x.roles[0].end?.at[0] === -1)!;
+    expect(back.source).toMatchObject({ strafe: true });
+    expect(Math.abs(facingOf(sceneAt(store.scene, store.getState().time).figures[0].bones) - 90)).toBeLessThan(1);
   });
 
   it('runs faster than it walks, without sliding', () => {

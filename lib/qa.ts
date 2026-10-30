@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { frameTimes } from './animation';
 import { LIBRARY } from './assets';
-import { missedCatchesOf, sceneAt, travelAt } from './evaluate';
+import { missedCatchesOf, sceneAt, travelAt, warpOf } from './evaluate';
 import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
@@ -219,6 +219,18 @@ export function checkMotion(scene: Scene): Issue[] {
     }
   });
 
+  // (A recorded motion left as recorded: warped by no more than a few centimetres and degrees.)
+  const unwarped = new Map<string, boolean>();
+  const ownMotion = (id: string | null) => {
+    if (!id) return false;
+    let x = unwarped.get(id);
+    if (x === undefined) {
+      const act = a.actions.find((y) => y.id === id)!;
+      const w = warpOf(scene, act, act.roles[0].figure);
+      unwarped.set(id, (x = !!w && w.distance < 0.03 && w.angle < 3));
+    }
+    return x;
+  };
   const prevAnkle = new Map<string, THREE.Vector3>();
   const prevQ = new Map<string, THREE.Quaternion>();
   const prevRoot = new Map<string, THREE.Vector3>();
@@ -281,7 +293,11 @@ export function checkMotion(scene: Scene): Issue[] {
         return { k, planted, moved: prev ? Math.hypot(p.x - prev.x, p.z - prev.z) : 0 };
       });
       const gliding = feet.length === 2 && feet.every((x) => x.planted && x.moved > GLIDE_STEP);
+      // (Nor, where a recorded motion plays as it was recorded, not warped to another mark: its feet
+      // move as the person recorded moved them.)
+      const own = !wrap && ownMotion(recordedAt(a, f.id, times[i]));
       for (const { k, planted, moved } of feet) {
+        if (own) continue;
         if (planted && moved > 0.003 && (gliding || moved * a.fps < CONTACT_SPEED)) ranges.add(`slide:${f.id}:${k}`, step, moved, { kind: 'slide', figure: f.id, joint: k });
       }
       // Pops: a large rotation, or the body jumping, in a single frame. Walks, runs and jumps are

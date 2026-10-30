@@ -1,6 +1,8 @@
 import { withBase } from '../paths';
 import type { Store } from '../store';
 import { runTool } from './tools';
+import { STRIKES } from '../actions';
+import { fetchLibraryClips } from '../librarymotions';
 
 /*
  * One assistant turn (server edition): the conversation goes to /api/ai, which calls the model
@@ -50,6 +52,8 @@ export async function assistantTurn(previous: string | null, text: string, store
     }
     const calls = output.filter((item) => item.type === 'function_call');
     if (!calls.length) return last;
+    // (A strike plays the Library's motions: brought to hand first.)
+    if (calls.some((c) => c.name === 'strike')) await fetchLibraryClips(STRIKES.flatMap((x) => [x.id, x.reaction]));
     input = calls.map((call) => {
       let args: unknown = {};
       try {

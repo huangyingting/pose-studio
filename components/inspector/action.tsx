@@ -1,10 +1,10 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel } from '@/lib/actions';
+import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById } from '@/lib/assets';
-import { overWarp } from '@/lib/evaluate';
+import { overWarp, warpOf } from '@/lib/evaluate';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { actionLabel } from '@/lib/track';
 import type { Action, Travel } from '@/lib/types';
@@ -22,7 +22,7 @@ export function ActionHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
   const act = t.action!;
   const src = act.source;
   const Icon = src.kind === 'travel' ? Footprints : src.kind === 'keys' ? Diamond : act.layer === 'upper' ? Layers : act.roles.length > 1 ? Users : Film;
-  const label = actionLabel(act);
+  const label = actionLabel(act, t.scene);
   return (
     <div className="panel-title">
       {chrome.before}
@@ -93,6 +93,14 @@ const speedOf = (act: Action) => {
   const clip = clipById(act.source.clip);
   return act.source.speed ?? (clip && !clip.loop ? (clip.duration * (act.source.repeat ?? 1)) / act.duration : 1);
 };
+/** How far its mark pulls a motion from where it ends by itself, if noticeably (#18). */
+const pull = (t: Target) => {
+  const act = t.action!;
+  const w = !act.layer && act.roles.find((r) => r.figure === t.actionFigure)?.end ? warpOf(t.scene, act, t.actionFigure!) : null;
+  if (!w || (w.distance < 0.05 && w.angle < 5)) return null;
+  const parts = [w.distance >= 0.05 ? `${w.distance.toFixed(2)} m` : '', w.angle >= 5 ? `${Math.round(w.angle)}°` : ''].filter(Boolean).join(' and ');
+  return `Its mark pulls it ${parts} from where it ends by itself`;
+};
 const tooFar = (t: Target) => !t.action!.layer && overWarp(t.scene, t.action!, t.actionFigure!);
 export const motionSummary = (t: Target) => {
   const act = t.action!;
@@ -113,6 +121,12 @@ export function MotionPanel({ t }: { t: Target }) {
         <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(t.store, act.id, { speed: v }, `act:${act.id}:speed`)} />
       </label>
       <Toggle label="Mirrored" hint="Left for right" checked={!!src.mirror} onChange={(mirror) => setClipOptions(t.store, act.id, { mirror })} />
+      {!tooFar(t) && pull(t) && (
+        <div className="warp-note">
+          <p>{pull(t)}</p>
+          <button type="button" className="btn subtle" onClick={() => clearMark(t.store, act.id, t.actionFigure!)}>Let it end there</button>
+        </div>
+      )}
       {tooFar(t) && (
         <div className="warp-warn">
           <p><TriangleAlert size={12} aria-hidden /> Its mark is further than the motion can stretch (±25%, ±30°).</p>

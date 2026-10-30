@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -452,6 +452,19 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       if (!found.length) notify('Motion check: no problems found');
     }, 30);
   };
+  // (A fix taken: checked again straight after, the card staying open on what is left.)
+  const fix = (run: () => void) => {
+    run();
+    setChecking(true);
+    setTimeout(() => {
+      const scene = store.scene;
+      const found = scene.animation ? checkMotion(scene) : [];
+      setQa(scene.animation ? { animation: scene.animation, issues: found } : null);
+      setChecking(false);
+      setQaOpen(found.length > 0);
+      if (!found.length) notify('Motion check: no problems left');
+    }, 30);
+  };
   const goTo = (i: Issue) => {
     seek(i.start);
     if (i.joint) store.select({ kind: 'joint', figure: i.figure, joint: i.joint });
@@ -803,7 +816,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                     );
                   })()}
                   {[...actionsOf(a, f.id), ...actionsOf(a, f.id, 'upper')].filter((x) => x.duration > 1e-6).map((x) => {
-                    const label = actionLabel(x);
+                    const label = actionLabel(x, scene);
                     const kind = x.layer === 'upper' ? 'upper' : x.source.kind === 'travel' ? x.source.mode : x.source.kind;
                     const group = x.roles.length > 1;
                     return (
@@ -986,7 +999,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           )}
         </div>
       )}
-      {issues && issues.length > 0 && qaOpen && <MotionIssues issues={issues} goTo={goTo} onClose={() => setQaOpen(false)} />}
+      {issues && issues.length > 0 && qaOpen && <MotionIssues issues={issues} goTo={goTo} fixOf={(i) => issueFix(store, i)} onFix={fix} onClose={() => setQaOpen(false)} />}
     </div>
   );
 }
@@ -1013,7 +1026,7 @@ function ScrollBar({ start, size, onScroll }: { start: number; size: number; onS
 }
 
 /** What the motion check found, with a hint each; click one to go to it. */
-function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issue): void; onClose(): void }) {
+function MotionIssues({ issues, goTo, fixOf, onFix, onClose }: { issues: Issue[]; goTo(i: Issue): void; fixOf(i: Issue): { label: string; run(): void } | null; onFix(run: () => void): void; onClose(): void }) {
   return (
     <div className="qa-card" role="dialog" aria-label="Motion check" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="shot-editor-head">
@@ -1021,16 +1034,20 @@ function MotionIssues({ issues, goTo, onClose }: { issues: Issue[]; goTo(i: Issu
         <IconButton icon={X} label="Close" onClick={onClose} size={14} />
       </div>
       <ul>
-        {issues.map((i, n) => (
-          <li key={n}>
-            <button type="button" onClick={() => goTo(i)}>
-              <span className={`qa-kind ${i.kind}`}>{ISSUE_LABELS[i.kind]}</span>
-              <em>{i.start.toFixed(2)}{i.end > i.start ? `–${i.end.toFixed(2)}` : ''} s</em>
-              <span className="qa-msg">{i.message}</span>
-              {issues.findIndex((x) => x.kind === i.kind) === n && <span className="qa-hint">{i.hint}</span>}
-            </button>
-          </li>
-        ))}
+        {issues.map((i, n) => {
+          const fix = fixOf(i);
+          return (
+            <li key={n}>
+              <button type="button" onClick={() => goTo(i)}>
+                <span className={`qa-kind ${i.kind}`}>{ISSUE_LABELS[i.kind]}</span>
+                <em>{i.start.toFixed(2)}{i.end > i.start ? `–${i.end.toFixed(2)}` : ''} s</em>
+                <span className="qa-msg">{i.message}</span>
+                {!fix && issues.findIndex((x) => x.kind === i.kind) === n && <span className="qa-hint">{i.hint}</span>}
+              </button>
+              {fix && <button type="button" className="btn subtle qa-fix" onClick={() => onFix(fix.run)}>{fix.label}</button>}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

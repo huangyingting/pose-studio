@@ -6,7 +6,8 @@ import { newFigure, newProp, newScene } from './doc';
 import { arrivalAt } from './evaluate';
 import { held } from './hold';
 import { fromPreset } from './lighting';
-import { legsOf, travelTime } from './locomotion';
+import { legsOf, travelTime, turnTime } from './locomotion';
+import { turnArriving } from './track';
 import { lightingForSet } from './sets';
 import { putPropKey } from './propmotion';
 import { REACT_LEAD } from './strike';
@@ -170,6 +171,16 @@ class Stage {
     // (Turning to face something straight after walking there: the walk turns as it arrives, its
     // last steps taking them round; turning on the spot as they stand would slide their feet.)
     if (o.face !== undefined && !o.at) this.arriveFacing(who, t, this.yaw(this.where(who).at, o.face));
+    // (Else, with the time for it, stepping round to face it first, as people turn: not sliding round on the spot.)
+    if (o.face !== undefined && !o.at && o.seconds !== undefined) {
+      const here = this.where(who);
+      const want = this.yaw(here.at, o.face);
+      const by = wrap(want - here.facing);
+      if (Math.abs(by) > 30 && o.seconds - frame(turnTime(by)) >= 0.5) {
+        const t2 = this.turn(who, want, t);
+        return this.play(who, slug, t2, { ...o, seconds: o.seconds - (t2 - t) });
+      }
+    }
     const from = this.where(who);
     const seconds = frame(o.seconds ?? m.duration);
     let end: Mark;
@@ -191,19 +202,23 @@ class Stage {
     });
   }
 
-  /** The walk or run of someone's arriving at t (not stepping aside) ends facing this way, if it is not near it already. */
+  /** `who` turns to face this way from t, stepping round where they stand. When they have. */
+  turn(who: string, facing: number, t: number): number {
+    t = frame(t);
+    this.wait(who, t);
+    const here = this.where(who);
+    const end = { at: here.at, facing: Math.round(wrap(facing) * 10) / 10 || 0 };
+    const t1 = t + frame(turnTime(wrap(facing - here.facing)));
+    this.moved(who, t, t1, here.at, [], end);
+    return this.add({ id: uid('act'), start: t, duration: t1 - t, roles: [{ figure: this.id(who), end }], source: { kind: 'travel', mode: 'walk' } });
+  }
+
+  /** The walk or run of someone's arriving at t ends facing this way (if it can: lib/track.ts). */
   private arriveFacing(who: string, t: number, facing: number) {
-    const a = this.scene.animation!;
-    const id = this.id(who);
-    const last = a.actions.filter((x) => x.roles[0].figure === id).reduce<Action | null>((p, q) => (!p || q.start + q.duration > p.start + p.duration ? q : p), null);
-    if (!last || last.source.kind !== 'travel' || last.source.strafe || Math.abs(last.start + last.duration - t) > 1e-3) return;
-    const end = last.roles[0].end!;
-    // (Not a turn right round: the last steps would cross the legs.)
-    const by = Math.abs(wrap(facing - end.facing));
-    if (by < 30 || by > 90) return;
-    const turned = { ...end, facing: Math.round(wrap(facing) * 10) / 10 || 0 };
-    this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x === last ? { ...x, roles: [{ ...x.roles[0], end: turned }] } : x)) } };
-    this.marks.set(who, turned);
+    const a = turnArriving(this.scene, this.id(who), t, facing);
+    if (!a) return;
+    this.scene = { ...this.scene, animation: a };
+    this.marks.set(who, { ...this.where(who), facing: Math.round(wrap(facing) * 10) / 10 || 0 });
   }
 
   /**

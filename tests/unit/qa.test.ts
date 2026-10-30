@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { motionScene } from '../fixtures/scenes';
+import { MemoryStorage, motionScene } from '../fixtures/scenes';
 import { putClips } from '@/lib/assets';
 import { newFigure, newProp, newScene, parseClip } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
 import { checkMotion, segmentDistance } from '@/lib/qa';
+import { applyMotion, issueFix } from '@/lib/actions';
+import { Store } from '@/lib/store';
 import { buildStaging } from '@/lib/stagings';
 import type { Figure, Scene } from '@/lib/types';
 import { keysAction } from '@/lib/track';
@@ -37,6 +39,27 @@ describe('motion QA', () => {
     const play = { id: 'a1', start: 0, duration: clip.duration, blendIn: 0.25, roles: [{ figure: f.id }], source: { kind: 'clip' as const, clip: clip.id } };
     const s: Scene = { ...scene, animation: { duration: clip.duration, fps: 24, loop: false, actions: [play], shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] } };
     expect(kinds(s).filter((k) => k === 'pop' || k === 'limit')).toEqual([]);
+  });
+
+  it('offers to step round instead of a motion turned as it plays, its feet sliding; and fixes it', () => {
+    const idle = parseClip(JSON.parse(readFileSync('public/motions/idle.json', 'utf8')))!;
+    putClips([idle]);
+    const store = new Store(new MemoryStorage());
+    const id = store.figure!.id;
+    expect(applyMotion(store, id, idle.id)).toBe(true);
+    // Turned a half turn round over it (as an end mark facing the other way does).
+    store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.source.kind === 'clip' ? { ...x, roles: [{ figure: id, end: { at: [0, 0] as [number, number], facing: 120 } }] } : x)) } }));
+    const slide = checkMotion(store.scene).find((i) => i.kind === 'slide')!;
+    expect(slide).toBeTruthy();
+    const fix = issueFix(store, slide)!;
+    expect(fix.label).toBe('Step round instead');
+    fix.run();
+    expect(checkMotion(store.scene).filter((i) => i.kind === 'slide')).toEqual([]);
+    // (Stepped round to face that way first; the motion then as it goes by itself.)
+    const [turn, play] = store.scene.animation!.actions.filter((x) => x.source.kind !== 'keys');
+    expect(turn.source.kind).toBe('travel');
+    expect(turn.roles[0].end!.facing).toBe(120);
+    expect(Math.abs(play.roles[0].end!.facing - 120)).toBeLessThan(5);
   });
 
   it('finds a ball flying through someone, but not one let go of or caught at a hand', () => {

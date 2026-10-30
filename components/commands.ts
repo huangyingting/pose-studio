@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
-  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp,
+  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
@@ -14,7 +14,8 @@ import {
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
-import { actionsOf } from '@/lib/evaluate';
+import { actionsOf, sceneAt } from '@/lib/evaluate';
+import { fetchLibraryClip } from '@/lib/librarymotions';
 import { FRAME_LABELS, projectSettingsOf } from '@/lib/project';
 import { HOLDABLE } from '@/lib/hold';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
@@ -26,7 +27,7 @@ import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById } from '@/lib/assets';
-import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, LIGHT_ROLES, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
+import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, LIGHT_ROLES, PROP_KINDS, PROP_LABELS, STYLES, type Figure, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
@@ -266,6 +267,18 @@ const goTo = (c: Ctx, kind: Travel, opts: { strafe?: boolean } = {}) => {
   const go = (at: Vec3) => travelTo(c.store, f.id, [Math.round(at[0] * 100) / 100, Math.round(at[2] * 100) / 100], kind, opts);
   if (c.floor) go(c.floor);
   else App().pickFloor?.(`Click the floor where ${f.name} should ${opts.strafe ? 'step' : kind} · Esc to cancel`, go);
+};
+
+/** The other person nearest the figure at the playhead (whom it would strike). */
+const nearestOther = (c: Ctx) => {
+  const f = c.figure ? figureOf(c) : activeFigure(c);
+  if (!f) return null;
+  const s = sceneAt(c.store.scene, c.store.getState().time);
+  const me = s.figures.find((x) => x.id === f.id);
+  const others = s.figures.filter((x) => x.id !== f.id && !x.proxy && !x.hidden);
+  if (!me || !others.length) return null;
+  const d = (x: Figure) => Math.hypot(x.position[0] - me.position[0], x.position[2] - me.position[2]);
+  return others.reduce((p, q) => (d(q) < d(p) ? q : p));
 };
 
 /* ---------------- the commands ---------------- */
@@ -735,6 +748,33 @@ export const COMMANDS: Command[] = [
   {
     id: 'figure.standUp', title: 'Gets up', help: 'Stands up from where it sits, at the playhead', icon: ArrowUpFromDot,
     when: (c) => !!c.figure && sittingAt(sceneOf(c), c.figure, c.store.getState().time), run: (c) => { standUp(c.store, c.figure!); },
+  },
+  {
+    // (#18: stepping in to where the blow reaches the nearest other person, turned so it lands, and they react as it does.)
+    id: 'figure.strike', title: (c) => `Strike ${nearestOther(c)?.name ?? ''}`, icon: Zap, when: (c) => movable(c) && !!nearestOther(c),
+    items: (c) => STRIKES.map((x) => ({
+      title: x.name,
+      icon: Zap,
+      run: () => {
+        const f = c.figure ? figureOf(c) : activeFigure(c);
+        const them = nearestOther(c);
+        if (!f || !them) return;
+        void Promise.all([fetchLibraryClip(x.id), fetchLibraryClip(x.reaction)]).then((ok) => {
+          if (!ok.every(Boolean) || strikeFigure(c.store, f.id, them.id, x.id) === null) App().notify('Could not load the strike: try again when online');
+        });
+      },
+    })),
+  },
+  {
+    // (Stepping round where it stands, #18.)
+    id: 'figure.turn', title: (c) => (c.floor ? 'Turn to face here' : 'Turn to face…'), icon: RotateCw, when: (c) => movable(c),
+    run: (c) => {
+      const f = c.figure ? figureOf(c) : activeFigure(c);
+      if (!f) return;
+      const turn = (at: Vec3) => { if (!turnTo(c.store, f.id, [at[0], at[2]])) App().notify(`${f.name} already faces that way`); };
+      if (c.floor) turn(c.floor);
+      else App().pickFloor?.(`Click the floor where ${f.name} should face · Esc to cancel`, turn);
+    },
   },
   { id: 'figure.walk', title: (c) => (c.floor ? 'Walk here' : 'Walk to…'), icon: Footprints, when: (c) => movable(c), run: (c) => goTo(c, 'walk') },
   { id: 'figure.run', title: (c) => (c.floor ? 'Run here' : 'Run to…'), icon: Wind, when: (c) => movable(c), run: (c) => goTo(c, 'run') },
@@ -1382,8 +1422,8 @@ export const MENUS = {
   ],
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
-    { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', 'figure.standUp',
-    'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
+    { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', 'figure.standUp',
+    'figure.strike', 'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
   joint: ['hand.letGo', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
@@ -1403,7 +1443,7 @@ export const MENUS = {
   lighting: ['light.preset', 'light.add'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
-    { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', '-',
+    { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', '-',
     'floor.figure', 'floor.standIn', 'floor.prop', 'light.add', '-', 'view.frameAll',
   ],
   timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],

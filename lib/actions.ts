@@ -13,11 +13,11 @@ import { saveClips } from './assetstore';
 import { projectSettingsOf } from './project';
 import { MAX_LIGHTS, clampLight, forShotOr, fromPreset, keyLight, lightingOf, lookOf, newLight, placeLight, skyAt, withLook, type Look, type Place } from './lighting';
 import { lightingForSet } from './sets';
-import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
+import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, naturalEnd, propStretchesOf, warpOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -29,9 +29,10 @@ import {
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
 import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
-import { angle, bonesOf, withAngles } from './pose';
+import { angle, bonesOf, facingOf, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, unpinShot as unpin, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
+import type { Issue } from './qa';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
@@ -924,12 +925,133 @@ export function startAnimation(store: Store, duration = 2) {
  */
 export function travelTo(store: Store, figureId: string, to: [number, number], kind: Travel, opts: { strafe?: boolean; height?: number } = {}) {
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  // (A walk a short way back: stepping back, still facing the way it does, not turning round and back.)
+  const here = figurePoseAt(store.scene, figureId, store.getState().time);
+  if (here && kind === 'walk' && !opts.strafe) {
+    const d = Math.hypot(to[0] - here.position[0], to[1] - here.position[2]);
+    const heading = (Math.atan2(to[0] - here.position[0], to[1] - here.position[2]) * 180) / Math.PI;
+    if (d > 0.05 && d <= BACK_STEP && Math.abs(wrapDeg(heading - facingOf(here.bones))) > 120) opts = { ...opts, strafe: true };
+  }
   const done = addTravel(store.scene, figureId, store.getState().time, to, kind, opts);
   if (!done) return null;
   store.updateScene((s) => ({ ...s, animation: done.animation }));
   store.setTime(done.to);
   store.select({ kind: 'figure', figure: figureId });
   return { from: done.from, to: done.to };
+}
+
+/** The Library's strikes one figure can throw at another, and how the one struck takes each (#18). */
+export const STRIKES: { id: string; name: string; reaction: string }[] = [
+  { id: 'library:jab-cross', reaction: 'library:receive-punch-to-the-face' },
+  { id: 'library:hook-punch', reaction: 'library:receive-punch-to-the-face' },
+  { id: 'library:uppercut', reaction: 'library:receive-punch-to-the-face' },
+  { id: 'library:roundhouse-kick', reaction: 'library:hit-reaction' },
+].map((x) => ({ ...x, name: (LIBRARY_INDEX as unknown as { id: string; name: string }[]).find((m) => m.id === x.id)!.name }));
+/** How far in front of someone's middle a blow lands on them (their chest, their face; m). */
+const SURFACE = 0.14;
+
+/**
+ * `who` strikes `target` with one of the Library's strikes from the playhead, as the films stage
+ * theirs: stepping (or running) in to where the blow reaches, turned so it lands on them, and the
+ * one struck reacting as it lands. Its clips must be at hand (fetchLibraryClips). When the blow
+ * lands (the playhead goes there), or null.
+ */
+export function strikeFigure(store: Store, who: string, target: string, strike: string): number | null {
+  const how = STRIKES.find((x) => x.id === strike);
+  const m = (LIBRARY_INDEX as unknown as { id: string; impact?: number; reach?: [number, number, number] }[]).find((x) => x.id === strike);
+  if (!how || !m?.reach || m.impact === undefined || who === target || !hasClip(strike) || !hasClip(how.reaction)) return null;
+  return store.group(() => {
+    if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+    const t0 = store.getState().time;
+    const me = figurePoseAt(store.scene, who, t0);
+    const them = figurePoseAt(store.scene, target, t0);
+    if (!me || !them) return null;
+    const legs = legsOf(me.body).rootY;
+    const [rx, rz] = [m.reach![0] * legs, m.reach![2] * legs];
+    const [mx, mz, tx, tz] = [me.position[0], me.position[2], them.position[0], them.position[2]];
+    const d0 = Math.hypot(mx - tx, mz - tz);
+    const back: [number, number] = d0 > 1e-3 ? [(mx - tx) / d0, (mz - tz) / d0] : [Math.sin((facingOf(them.bones) * Math.PI) / 180), Math.cos((facingOf(them.bones) * Math.PI) / 180)];
+    // Where the blow lands on them, and where it is thrown from: as far back from that as it reaches.
+    const hit: [number, number] = [tx + back[0] * SURFACE, tz + back[1] * SURFACE];
+    const far = Math.hypot(rx, rz);
+    const at: [number, number] = [Math.round((hit[0] + back[0] * far) * 100) / 100, Math.round((hit[1] + back[1] * far) * 100) / 100];
+    const facing = (Math.atan2(hit[0] - at[0], hit[1] - at[1]) - Math.atan2(rx, rz)) * (180 / Math.PI);
+    const d = Math.hypot(at[0] - mx, at[1] - mz);
+    if (d > 0.1) travelTo(store, who, at, d > 3 ? 'run' : 'walk');
+    turnTo(store, who, facing);
+    const start = store.getState().time;
+    if (!applyMotion(store, who, strike)) return null;
+    const lands = start + m.impact!;
+    store.setTime(Math.max(0, snapTime(store.scene.animation!, lands - REACT_LEAD)));
+    applyMotion(store, target, how.reaction);
+    store.setTime(snapTime(store.scene.animation!, lands));
+    store.select({ kind: 'figure', figure: who });
+    return lands;
+  });
+}
+
+/**
+ * The fix the motion check offers for an issue (#18), if there is one: a foot sliding as a motion
+ * is turned to face another way steps round first instead; a pop where an action starts eases
+ * into it for longer.
+ */
+export function issueFix(store: Store, issue: Issue): { label: string; run(): void } | null {
+  const a = store.scene.animation;
+  if (!a) return null;
+  const mine = actionsOf(a, issue.figure);
+  if (issue.kind === 'slide') {
+    const act = mine.find((x) => x.source.kind === 'clip' && x.start <= issue.start + 1e-6 && issue.start < x.start + x.duration);
+    const w = act && warpOf(store.scene, act, issue.figure);
+    if (!act || !w || w.angle < 10) return null;
+    return {
+      label: 'Step round instead',
+      run: () => store.group(() => {
+        const want = act.roles.find((r) => r.figure === issue.figure)!.end!.facing;
+        // (Turned first, stepping round; then the motion as it goes by itself from there.)
+        store.setTime(act.start);
+        turnTo(store, issue.figure, want);
+        const moved = store.scene.animation!.actions.find((x) => x.id === act.id)!;
+        const natural = naturalEnd(store.scene, moved, issue.figure);
+        if (natural) {
+          store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.id !== act.id ? x : { ...x, roles: x.roles.map((r) => (r.figure === issue.figure && r.end ? { ...r, end: { ...r.end, facing: natural.facing } } : r)) })) } }));
+        }
+      }),
+    };
+  }
+  if (issue.kind === 'pop') {
+    const act = mine.find((x) => !x.layer && x.source.kind === 'clip' && Math.abs(x.start - issue.start) < 0.4 && (x.blendIn ?? 0) < 0.5);
+    if (!act) return null;
+    return { label: 'Ease into it', run: () => setBlend(store, act.id, 0.5) };
+  }
+  return null;
+}
+
+/** How far back a walk steps back, still facing the way it does (m). */
+const BACK_STEP = 1.5;
+
+/**
+ * Turn a figure from the playhead to face a floor point (or a facing, degrees), stepping round where
+ * it stands. The playhead goes to where it has turned. Whether it turned (already facing it: no).
+ */
+export function turnTo(store: Store, figureId: string, toward: [number, number] | number) {
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  const here = figurePoseAt(store.scene, figureId, store.getState().time);
+  if (!here) return false;
+  const facing = typeof toward === 'number' ? toward : (Math.atan2(toward[0] - here.position[0], toward[1] - here.position[2]) * 180) / Math.PI;
+  if (Math.abs(wrapDeg(facing - facingOf(here.bones))) < 5) return false;
+  // (Just arrived by walking or running there: the walk turns as it arrives instead, its last steps taking it round.)
+  const arriving = turnArriving(store.scene, figureId, snapTime(store.scene.animation!, store.getState().time), facing);
+  if (arriving) {
+    store.updateScene((s) => ({ ...s, animation: arriving }));
+    store.select({ kind: 'figure', figure: figureId });
+    return true;
+  }
+  const done = addTravel(store.scene, figureId, store.getState().time, [here.position[0], here.position[2]], 'walk', { facing: Math.round(wrapDeg(facing) * 10) / 10 || 0 });
+  if (!done) return false;
+  store.updateScene((s) => ({ ...s, animation: done.animation }));
+  store.setTime(done.to);
+  store.select({ kind: 'figure', figure: figureId });
+  return true;
 }
 
 /**
@@ -1029,7 +1151,28 @@ export function reactTo(store: Store, id: string, strikeId: string): number | nu
 
 /** Retime an action to last `duration` (see track.retimeAction). */
 export function retime(store: Store, id: string, duration: number, key = '') {
-  store.updateScene((s) => (s.animation ? { ...s, animation: retimeAction(s.animation, id, duration) } : s), key);
+  store.updateScene((s) => {
+    if (!s.animation) return s;
+    const was = s.animation.actions.find((x) => x.id === id);
+    const next: Scene = { ...s, animation: retimeAction(s.animation, id, duration) };
+    const now = next.animation!.actions.find((x) => x.id === id);
+    // (A motion played longer or shorter by itself ends elsewhere: a mark set for it moves as far,
+    // so it is pulled no more than it was, not held where it was, its steps sliding.)
+    if (!was || !now || was.source.kind !== 'clip' || !was.roles.some((r) => r.end)) return next;
+    const roles = now.roles.map((r) => {
+      if (!r.end) return r;
+      const [a0, a1] = [naturalEnd(s, was, r.figure), naturalEnd(next, now, r.figure)];
+      if (!a0 || !a1) return r;
+      const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+      return { ...r, end: { at: [r3(r.end.at[0] + a1.at[0] - a0.at[0]), r3(r.end.at[1] + a1.at[1] - a0.at[1])] as [number, number], facing: Math.round(wrapDeg(r.end.facing + a1.facing - a0.facing) * 10) / 10 || 0 } };
+    });
+    return { ...next, animation: { ...next.animation!, actions: next.animation!.actions.map((x) => (x.id === id ? { ...x, roles } : x)) } };
+  }, key);
+}
+
+/** Let a motion end where it takes the figure by itself: its mark goes (#18). */
+export function clearMark(store: Store, id: string, figureId: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => (x.id !== id ? x : { ...x, roles: x.roles.map((r) => (r.figure === figureId ? { figure: r.figure } : r)) })) } } : s));
 }
 
 /** How long an action blends in from what was before it (s). */

@@ -1,7 +1,7 @@
 import { BUILT_IN_CHARACTERS } from '../characters';
 import { modelInfo } from '../model';
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, turnTo, strikeFigure, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
   carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
@@ -10,7 +10,7 @@ import { LIGHTING_PRESETS, MAX_LIGHTS, kelvinColor, keyLight, lightFrom, lightTe
 import { newFigure, newProp, newScene, withPosture } from '../doc';
 import { projectSettingsOf } from '../project';
 import { HAND_PRESETS, cloneHand } from '../hands';
-import { actionsOf, marksOf, missedCatchesOf, overWarp } from '../evaluate';
+import { actionsOf, figurePoseAt, marksOf, missedCatchesOf, overWarp } from '../evaluate';
 import { actionLabel } from '../track';
 import { clampRotation } from '../joints';
 import { MOTIONS } from '../motions';
@@ -209,6 +209,46 @@ export const TOOLS: AgentTool[] = [
       if (!span) throw new Error(`No figure "${i.figure}"`);
       if (how === 'jump' && (i.spin || i.flip)) setTravel(store, f.id, span.to, 'jump', { spin: Number(i.spin) || 0, flip: Number(i.flip) || 0 });
       return `${f.name} ${how === 'walk' ? 'walks' : how === 'run' ? 'runs' : 'jumps'} to (${r2(Number(i.x))}, ${r2(Number(i.z))}) from ${r2(span.from)} s to ${r2(span.to)} s.`;
+    },
+  },
+  {
+    name: 'turn_to',
+    description: 'Turn a figure from the playhead to face another figure, a prop, or a floor point, stepping round where it stands (no sliding); the playhead goes to where it has turned.',
+    schema: obj({
+      figure: FIGURE,
+      toward: opt(str('The figure or prop to face (by name)')),
+      x: opt(num('Or a floor X to face (metres)')),
+      z: opt(num('Floor Z (metres)')),
+    }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      let at: [number, number];
+      if (i.toward) {
+        const t = store.getState().time;
+        const other = store.scene.figures.find((x) => x.name.toLowerCase() === String(i.toward).toLowerCase());
+        const where = other ? figurePoseAt(store.scene, other.id, t)?.position : propNow(store, findProp(store, i.toward).id)?.position;
+        if (!where) throw new Error(`No "${i.toward}" to face`);
+        at = [where[0], where[2]];
+      } else at = [Number(i.x), Number(i.z)];
+      if (!turnTo(store, f.id, at)) return `${f.name} already faces that way.`;
+      return `${f.name} turns to face ${i.toward ?? `(${r2(at[0])}, ${r2(at[1])})`}; the playhead is at ${r2(store.getState().time)} s.`;
+    },
+  },
+  {
+    name: 'strike',
+    description: 'One figure strikes another from the playhead, as a fight is staged: it steps (or runs) in to where the blow reaches, turned so that it lands, and the one struck reacts as it lands. The playhead goes to the moment it lands; chain strikes and answers from there.',
+    schema: obj({
+      figure: FIGURE,
+      target: str('The figure struck (by name)'),
+      blow: str('The strike', ['jab_cross', 'hook_punch', 'uppercut', 'roundhouse_kick']),
+    }),
+    run: (store, i) => {
+      const f = findFigure(store, i.figure);
+      const them = findFigure(store, i.target);
+      const id = `library:${String(i.blow).replace('_', '-')}`;
+      const lands = strikeFigure(store, f.id, them.id, id);
+      if (lands === null) throw new Error(`${f.name} cannot strike ${them.name} with ${i.blow} (not at hand, or the same person)`);
+      return `${f.name}'s ${String(i.blow).replace('_', ' ')} lands on ${them.name} at ${r2(lands)} s; they react.`;
     },
   },
   {

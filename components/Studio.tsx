@@ -13,6 +13,7 @@ import { Store } from '@/lib/store';
 import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
+import { actionLabel } from '@/lib/track';
 import { actionsOf } from '@/lib/evaluate';
 import { styleDef } from '@/lib/styles';
 import { lightingOf } from '@/lib/lighting';
@@ -628,7 +629,7 @@ function correction(scene: Scene, figureId: string | null, time: number) {
   const over = (['upper', undefined] as const).flatMap((layer) => actionsOf(a, f.id, layer)).find((x) => x.source.kind !== 'keys' && x.start < time - 1e-6 && time < x.start + x.duration - 1e-6);
   if (!over) return null;
   const src = over.source;
-  const what = src.kind === 'travel' ? `${f.name}'s ${src.mode}` : `${f.name}'s ${clipById(src.kind === 'clip' ? src.clip : '')?.name ?? 'motion'}${over.layer === 'upper' ? ' (upper body)' : ''}`;
+  const what = src.kind === 'travel' ? `${f.name}'s ${actionLabel(over, scene).toLowerCase()}` : `${f.name}'s ${clipById(src.kind === 'clip' ? src.clip : '')?.name ?? 'motion'}${over.layer === 'upper' ? ' (upper body)' : ''}`;
   return `Posing here corrects ${what}`;
 }
 

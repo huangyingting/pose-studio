@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   addFigure, applyMotion, fitWarp, moveAction, moveMark, recastRole, retime, setBlend, setClipOptions, travelTo,
-  offsetPerformance, reactTo,
+  offsetPerformance, reactTo, STRIKES, strikeFigure, clearMark,
 } from '@/lib/actions';
-import { actionsOf, marksOf, overWarp, sceneAt } from '@/lib/evaluate';
+import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
+import { Rig } from '@/lib/relations';
+import { parseClip } from '@/lib/doc';
+import { actionsOf, marksOf, overWarp, sceneAt, warpOf } from '@/lib/evaluate';
 import { newAnimation } from '@/lib/animation';
-import { clipById } from '@/lib/assets';
+import { clipById, putClips } from '@/lib/assets';
 import { REACT_LEAD, strikeTime } from '@/lib/strike';
 import { newScene } from '@/lib/doc';
 import { actionLabel, retimeAction, rippleInStep } from '@/lib/track';
@@ -93,6 +97,51 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     offsetPerformance(store, [b], { dx: 0, dz: 1.75 });
     expect(reactTo(store, clip(b).id, strike.id)!).toBeGreaterThan(1);
   }, 60_000);
+
+  it('a strike steps in to where the blow reaches, turned so it lands, the one struck reacting as it does', () => {
+    for (const x of STRIKES) {
+      putClips([x.id, x.reaction].map((id) => parseClip(JSON.parse(readFileSync(`public/motions/${id.slice(8)}.json`, 'utf8')))!));
+      const { store, a } = fresh();
+      addFigure(store, [2.5, 0, 2]);
+      const b = store.getState().activeFigure!;
+      store.setTime(0);
+      const lands = strikeFigure(store, a, b, x.id)!;
+      expect(lands, x.id).toBeGreaterThan(0.5);
+      // At the moment it lands: the hand or foot furthest out is at their head or chest.
+      const rig = new Rig();
+      const now = sceneAt(store.scene, lands).figures;
+      const me = rig.model(now.find((f) => f.id === a)!);
+      const blow = (['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const).map((j) => me.joints[j].getWorldPosition(new THREE.Vector3()));
+      const hips = me.joints.hips.getWorldPosition(new THREE.Vector3());
+      const out = (q: THREE.Vector3) => Math.hypot(q.x - hips.x, q.z - hips.z);
+      const tip = blow.reduce((p, q) => (out(q) > out(p) ? q : p));
+      const them = rig.model(now.find((f) => f.id === b)!);
+      const near = Math.min(...(['head', 'chest'] as const).map((j) => them.joints[j].getWorldPosition(new THREE.Vector3()).distanceTo(tip)));
+      expect(near, x.id).toBeLessThan(0.35);
+      // They react, starting just before it lands.
+      const react = actionsOf(store.scene.animation!, b).find((y) => y.source.kind === 'clip' && y.source.clip === x.reaction)!;
+      expect(react.start, x.id).toBeCloseTo(lands - REACT_LEAD, 1);
+      rig.dispose();
+    }
+  }, 60_000);
+
+  it('a motion played longer keeps its mark as far from where it ends by itself; a mark can go', () => {
+    const clip = parseClip(JSON.parse(readFileSync('public/motions/look-around.json', 'utf8')))!;
+    putClips([clip]);
+    const { store, a } = fresh();
+    store.setTime(0);
+    expect(applyMotion(store, a, clip.id)).toBe(true);
+    const act = () => actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    const end = act().start + act().duration;
+    const m = marksOf(store.scene, act(), a)!.end;
+    moveMark(store, a, end, [m.at[0] + 0.3, m.at[1]]);
+    const before = warpOf(store.scene, act(), a)!;
+    expect(before.distance).toBeCloseTo(0.3, 2);
+    retime(store, act().id, act().duration * 0.6);
+    expect(warpOf(store.scene, act(), a)!.distance).toBeCloseTo(0.3, 2);
+    clearMark(store, act().id, a);
+    expect(act().roles[0].end).toBeUndefined();
+  });
 
   it('a mark further than a motion can stretch shows, and is moved back or walked to', () => {
     const { store, a } = fresh();

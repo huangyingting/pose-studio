@@ -851,6 +851,22 @@ export function warpLimit(scene: Scene, act: Action, id: string): Mark | null {
   return { ...end, at: [r3(s[0] + dir[0] * len), r3(s[1] + dir[1] * len)] };
 }
 
+/** Where a clip action would leave a figure by itself, unwarped; null: not a clip. */
+export function naturalEnd(scene: Scene, act: Action, id: string): Mark | null {
+  const f = scene.figures.find((x) => x.id === id);
+  if (!f || act.source.kind !== 'clip' || !scene.animation) return null;
+  return evaluator(scene).natural(f, act);
+}
+
+/** How far a clip action is warped for a figure, from where the clip by itself would leave them to its end mark (m, degrees); null: not a warped clip. */
+export function warpOf(scene: Scene, act: Action, id: string): { distance: number; angle: number } | null {
+  const f = scene.figures.find((x) => x.id === id);
+  const end = act.roles.find((r) => r.figure === id)?.end;
+  if (!f || !end || act.source.kind !== 'clip' || !scene.animation) return null;
+  const natural = evaluator(scene).natural(f, act);
+  return { distance: Math.hypot(end.at[0] - natural.at[0], end.at[1] - natural.at[1]), angle: Math.abs(wrapDeg(end.facing - natural.facing)) };
+}
+
 /** Whether a clip's end mark for a figure is further than it can be warped to. */
 export function overWarp(scene: Scene, act: Action, id: string): boolean {
   const limit = warpLimit(scene, act, id);

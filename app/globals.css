@@ -1120,6 +1120,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   cursor: pointer;
 }
 .qa-card li button:hover { background: var(--hover); }
+.qa-card li .qa-fix { display: inline-flex; width: auto; margin: 0 0 6px 8px; padding: 0 10px; height: var(--control-s); border-radius: var(--radius-s); background: var(--panel-2); color: var(--accent); font-weight: 500; }
+.qa-card li .qa-fix:hover { background: var(--hover); }
 .qa-kind { font-weight: 600; color: var(--warn); }
 .qa-kind.overlap, .qa-kind.floor { color: var(--danger); }
 .qa-card em { justify-self: end; font-size: var(--fs-s); font-weight: 500; font-style: normal; color: var(--text-3); }
@@ -1290,6 +1292,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .panel-title .title-input { flex: 1; min-width: 0; margin-left: -8px; font-weight: 600; text-overflow: ellipsis; }
 .panel-title .title-input:not(:focus) { background: transparent; }
 .panel-title .title-static { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warp-note { display: grid; gap: 6px; justify-items: start; color: var(--text-2); }
+.warp-note p { margin: 0; }
 .warp-warn { padding: 8px 10px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger-text); font-size: var(--fs-m); }
 .warp-warn p { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 6px; }
 .warp-warn .row { display: flex; gap: 6px; }
