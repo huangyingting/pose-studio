@@ -378,9 +378,11 @@ export function wuxiaDuel(): Scene {
   // The salute: fist in palm, then the stance.
   s.play('Lin', 'praying', 0.5);
   s.play('Mei', 'praying', 0.8);
-  s.play('Lin', 'breathing-idle', s.until('Lin'), { seconds: 2.5, face: 'Mei' });
-  // The rush: Lin runs in, his kick blocked.
-  let x = s.strike('Lin', 'roundhouse-kick', 6, 'Mei');
+  s.play('Lin', 'breathing-idle', s.until('Lin'), { seconds: 1.5, face: 'Mei' });
+  // They close in slowly, then Lin's kick, blocked.
+  s.go('Lin', [0, 1.8], s.until('Lin'));
+  s.go('Mei', [0, -1.6], s.until('Mei') + 0.3);
+  let x = s.strike('Lin', 'roundhouse-kick', Math.max(s.until('Lin'), s.until('Mei')) + 0.6, 'Mei');
   s.react('Mei', 'standing-block', x.lands, 0.45);
   // Her hook, his guard up.
   x = s.strike('Mei', 'hook-punch', s.until('Mei') + 0.3, 'Lin');
@@ -419,11 +421,12 @@ export function wuxiaDuel(): Scene {
   x = s.strike('Lin', 'roundhouse-kick', s.until('Lin') + 0.5, 'Mei');
   s.react('Mei', 'falling-back-death', x.lands, 0.2);
   s.idle('Mei', 'laying-idle');
-  // He bows to her, and walks away up the street.
+  // He bows to her, and turns away.
   s.play('Lin', 'breathing-idle', s.until('Lin'), { seconds: 2, face: 'Mei' });
   s.play('Lin', 'praying', s.until('Lin'));
   const away = s.where('Lin').at;
-  s.go('Lin', [away[0] + 1.2, away[1] + 9], s.until('Lin') + 0.5);
+  s.go('Lin', [away[0] + 0.8, away[1] + 2.5], s.until('Lin') + 0.5);
+  s.play('Lin', 'sad-idle', s.until('Lin'), { seconds: 3 });
   return s.done(1);
 }
 
@@ -573,13 +576,13 @@ export function streetBasketball(): Scene {
   s.play('Fan', 'waving', Math.max(s.until('Fan'), t));
   s.play('Fan', 'happy-idle', s.until('Fan'), { seconds: 4, face: 'Jay' });
   s.play('Rico', 'defeat-idle', t + 0.5, { seconds: 5 });
-  s.go('Jay', [3.8, 3.6], s.until('Jay') + 0.5);
-  s.go('Kofi', [4.4, 2.6], s.until('Kofi') + 0.2);
+  s.go('Jay', [3.5, 4.3], s.until('Jay') + 0.5);
+  s.go('Kofi', [4.4, 2.3], s.until('Kofi') + 0.2);
   s.play('Jay', 'laughing', s.until('Jay'), { seconds: 5, face: 'Fan' });
   s.play('Kofi', 'talking', s.until('Kofi'), { seconds: 5, face: 'Fan' });
   s.play('Fan', 'laughing', Math.max(s.until('Fan'), s.until('Kofi') - 5), { seconds: 5, face: 'Kofi' });
   // Rico comes over: good game, a thumbs up, and they talk it over.
-  s.go('Rico', [3.2, 2.0], s.until('Rico') + 0.5);
+  s.go('Rico', [2.5, 2.6], s.until('Rico') + 0.5);
   s.play('Rico', 'standing-thumbs-up', s.until('Rico'), { face: 'Jay' });
   s.play('Jay', 'head-nod-yes', Math.max(s.until('Jay'), s.until('Rico') - 2), { face: 'Rico' });
   s.play('Rico', 'talking', s.until('Rico'), { seconds: 6, face: 'Kofi' });
@@ -651,7 +654,7 @@ export function officeDeadline(): Scene {
   ], 'studio', 'office');
   // The whiteboard, and three chairs facing it.
   s.prop('wall', [0, 0, 3.1], { scale: [2.4, 1.9, 1], name: 'Whiteboard' });
-  const seats = ([[-1.4, 0.7], [0, 0.5], [1.4, 0.7]] as Spot[]).map((at) => s.chair(at, 0));
+  const seats = ([[-1.8, 0.8], [0, 0.5], [1.8, 0.8]] as Spot[]).map((at) => s.chair(at, 0));
   // Maya on the phone at her desk, Grace thinking by hers, Tom in through the side door to the water cooler.
   s.play('Maya', 'talking-on-phone', 0.2, { seconds: 16, face: 180 });
   s.play('Grace', 'thinking', 0.4, { seconds: 12.7, face: 150 });
@@ -672,7 +675,7 @@ export function officeDeadline(): Scene {
   s.go('Tom', [6.2, -1.2], Math.max(s.until('Tom'), meet - 2));
   s.sit('Tom', seats[2], 0, s.until('Tom'), 'sitting-idle');
   // He stands at the board and talks it through.
-  s.go('Mr Hale', [1.9, 2.3], meet + 0.3);
+  s.go('Mr Hale', [2.4, 2.5], meet + 0.3);
   s.idle('Mr Hale', 'idle', [0, 0.6]);
   const brief = Math.max(s.until('Tom'), s.until('Mr Hale')) + 0.3;
   s.play('Mr Hale', 'talking', brief, { seconds: 8, face: [0, 0.6] });

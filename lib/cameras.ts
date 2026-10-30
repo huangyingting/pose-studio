@@ -610,14 +610,22 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     const keepOut = solve(time, place, at, them).extra;
     // (Where they stand, from what they do: their holds and idle life do not move them.)
     const others = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => (basePoseAt(scene, f.id, time) ?? f).position);
-    if (!others.length) return keepOut;
+    // (A wall of the set close behind what it films, where it would have to come right in: no good
+    // either; a side it can stand back on is.)
+    const walled = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => {
+      if (!scene.set) return false;
+      const wall = setBlocks(scene.set, shot.look, shot.position);
+      return wall !== null && wall < 0.5 * shot.position.distanceTo(shot.look);
+    };
+    if (!others.length && !walled(at(keepOut))) return keepOut;
+    // One way round only (no swinging back across), further than for people if a wall is in the way.
     const tries = [0, 20, 40, 60, 90].map((x) => keepOut + away * x);
-    const unblocked = tries.filter((x) => !blocked(at(x), others));
+    const unblocked = tries.filter((x) => !blocked(at(x), others) && !walled(at(x)));
     // (Nothing keeps out of everyone's way and the other out of a single: as the single keeps the
     // other out as best it can, unless that is in someone's way; else as far from them as it gets.)
     return unblocked.find(out)
       ?? (other && (unblocked.includes(keepOut) || !unblocked.length) ? keepOut : unblocked[0])
-      ?? tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x));
+      ?? (others.length ? tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x)) : keepOut);
   };
   const reach = Math.round(SWING_EASE / 2 / SWING_STEP);
   const held = (i: number) => {
@@ -738,7 +746,7 @@ function wallKeep(scene: Scene, cam: RigCamera, t: number, aspect: number): numb
 // SWING_STEP seconds, worked out as it is needed (per how the figures move, camera and rig).
 const swings = new WeakMap<object, Map<string, Map<number, number>>>();
 const SWING_STEP = 0.5;
-const SWING_EASE = 1;
+const SWING_EASE = 1.5;
 
 /**
  * Whether a camera stands in someone's reach (where they stand, `people`: an arm swung would cross
