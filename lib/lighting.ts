@@ -314,7 +314,7 @@ export class LightRig {
       const s = sun.shadow;
       s.mapSize.set(2048, 2048);
       s.bias = -0.0004;
-      s.normalBias = 0.015;
+      s.normalBias = 0.025;
       s.radius = 3;
       const spot = new THREE.SpotLight(0xffffff, 0, 8, Math.PI / 4, 0.45, 2);
       this.suns.push(sun);

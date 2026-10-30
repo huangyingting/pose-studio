@@ -368,6 +368,9 @@ export class SetObject {
     for (const p of setById(id)?.build() ?? []) {
       const mesh = this.parts.add(this.object, geometryOf(p.shape), { set: id }, p.at);
       if (p.rot) mesh.rotation.set(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ');
+      // (A floor casts no shadow, only takes them: nothing is under it, and a broad surface that
+      // shades itself shows stripes of shadow that crawl as the view turns.)
+      if (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) mesh.castShadow = false;
     }
     this.object.traverse((o) => { o.raycast = () => {}; });
   }
