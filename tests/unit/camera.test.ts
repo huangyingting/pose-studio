@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, applyCameraMove, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, setCameraBody, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, applyCameraMove, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
 import { newScene, parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
@@ -72,7 +72,7 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     const { store } = fresh();
     startAnimation(store, 2);
     // A path camera (a rig keeps its shot size whatever the lens).
-    setCameraBody(store, store.scene.cameras[0].id, 'path');
+    editAsPath(store, store.scene.cameras[0].id);
     frameShot(store, 'fs', { lens: 35 });
     const before = cameraAt(store.scene, 0);
     setLens(store, 70, 'size');
@@ -132,7 +132,7 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
   it('reports the camera going through someone', () => {
     const { store, a } = fresh();
     startAnimation(store, 2);
-    setCameraBody(store, store.scene.cameras[0].id, 'path');
+    editAsPath(store, store.scene.cameras[0].id);
     // A camera point inside the figure's chest, looking out.
     const chest = new THREE.Vector3(...store.scene.figures[0].position).setY(1.25);
     setCameraPoint(store, chest, chest.clone().add(new THREE.Vector3(0, 0, 3)), 40);
@@ -161,7 +161,12 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     store.setTime(1.5);
     frameShot(store, 'ws', { lens: 24 });
     expect(store.scene.cameras.map((c) => c.name)).toEqual([one.name, 'Wide']);
-    expect(cameraAt(store.scene, 0.5).position.distanceTo(before[0])).toBeLessThan(1e-6);
+    // (The first camera's move now plays over its shorter run: it starts where it did and arcs
+    // its whole 90° by the cut.)
+    const startAt = cameraAt(store.scene, 0).position;
+    expect(startAt.distanceTo(viewOf(store.scene, one, 0).position)).toBeLessThan(1e-6);
+    const yaw = (t: number) => angleOf(viewOf(store.scene, one, t)).yaw;
+    expect(Math.abs(((yaw(1 - 1e-3) - yaw(0) + 540) % 360) - 180)).toBeGreaterThan(70);
     const wide = store.scene.cameras[1];
     expect(cameraAt(store.scene, 1.5).position.distanceTo(viewOf(store.scene, wide, 1.5).position)).toBeLessThan(1e-6);
     // Blending in over half a second: from where the first camera would be, to the second, smoothly.
@@ -195,7 +200,8 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     applyCameraMove(store, 'tracking');
     const cam = () => liveCamera(store.scene, 0);
     expect(cam()).toMatchObject({ kind: 'rig' });
-    expect((cam() as RigCamera).rig).toMatchObject({ body: 'follow', size: 'mws' });
+    expect((cam() as RigCamera).rig).toMatchObject({ size: 'mws' });
+    expect((cam() as RigCamera).rig.move).toBeUndefined();
     editCamera(store, cam().id, { subject: a });
     frameShot(store, 'ms');
     const held = (t: number) => {
@@ -245,25 +251,53 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     expect(copy).toEqual(store.scene);
   });
 
-  it('circles its subject at its speed, and turns into a path or back again from where it is', () => {
+  it('arcs round its subject over its shot (a move kept as one), and turns into a path or back again from where it is', () => {
     const { store } = fresh();
     startAnimation(store, 4);
     store.setTime(0);
     applyCameraMove(store, 'circle');
     const cam = liveCamera(store.scene, 0) as RigCamera;
-    expect(cam.rig).toMatchObject({ body: 'orbit', spin: 45 });
+    expect(cam.rig.move).toEqual({ kind: 'arc', by: 180, pace: 'even' });
     const around = (t: number) => angleOf(cameraAt(store.scene, t)).yaw;
+    // Even pace: half way round by the middle of the shot.
     expect(((around(2) - around(0) + 540) % 360) - 180).toBeCloseTo(90, 0);
+    // A smaller arc: the same move, by less.
+    setCameraMove(store, cam.id, { kind: 'arc', by: 60, pace: 'even' });
+    expect(((around(4) - around(0) + 540) % 360) - 180).toBeCloseTo(60, 0);
     // As a path: the camera goes where it went.
     const before = [0.5, 1.7, 3.2].map((t) => cameraAt(store.scene, t).position);
-    setCameraBody(store, cam.id, 'path');
+    editAsPath(store, cam.id);
     expect(liveCamera(store.scene, 0).kind).toBe('path');
     [0.5, 1.7, 3.2].forEach((t, i) => expect(cameraAt(store.scene, t).position.distanceTo(before[i])).toBeLessThan(0.15));
-    // Following again, from where it is at the playhead.
+    // A framing again (holding), from where it is at the playhead.
     store.setTime(1.7);
     const at = cameraAt(store.scene, 1.7);
-    setCameraBody(store, cam.id, 'follow');
+    setCameraMove(store, cam.id, null);
     expect(cameraAt(store.scene, 1.7).position.distanceTo(at.position)).toBeLessThan(0.3);
+  });
+
+  it('pushes in to its end size over the shot, zooms keeping its place, dolly-zooms keeping the size', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(0);
+    const cam = liveCamera(store.scene, 0) as RigCamera;
+    editCamera(store, cam.id, { subject: a });
+    const live = () => liveCamera(store.scene, 0);
+    const size = (t: number) => sizeOf(store.scene, live(), t, cameraAt(store.scene, t));
+    setCameraMove(store, cam.id, { kind: 'push', size: 'cu' });
+    expect(size(0)).toBe(cam.rig.size);
+    expect(size(2 - 1e-3)).toBe('cu');
+    // A zoom: the camera stays, the lens gets longer.
+    setCameraMove(store, cam.id, { kind: 'zoom', by: 100 });
+    expect(cameraAt(store.scene, 2 - 1e-3).position.distanceTo(cameraAt(store.scene, 0).position)).toBeLessThan(0.01);
+    expect(cameraAt(store.scene, 2 - 1e-3).lens).toBeGreaterThan(95);
+    // A dolly zoom: the lens changes and the camera moves, the subject keeps its size.
+    setCameraMove(store, cam.id, { kind: 'dolly', by: 100 });
+    expect(cameraAt(store.scene, 2 - 1e-3).position.distanceTo(cameraAt(store.scene, 0).position)).toBeGreaterThan(1);
+    expect(size(2 - 1e-3)).toBe(size(0));
+    // Kept as saved.
+    const copy = parseScene(JSON.parse(JSON.stringify(store.scene)));
+    expect(copy.cameras).toEqual(store.scene.cameras);
   });
 });
 
@@ -305,11 +339,13 @@ describe('one camera model: stills and shots film through the scene\'s cameras',
     const scene = parseScene({
       ...newScene(),
       cameras: [
-        { id: 'r', kind: 'rig', rig: { body: 'orbit', yaw: 30, pitch: 5, size: 'ms', lens: 35 }, points: [{ t: 0, position: [1, 1, 1], look: [0, 1, 0], lens: 50 }], anchor: 'world' },
-        { id: 'p', kind: 'path', anchor: 'world', aim: 'point', points: [{ t: 0, position: [1, 1, 1], look: [0, 1, 0], lens: 50 }], rig: { body: 'follow' } },
+        { id: 'r', kind: 'rig', rig: { yaw: 30, pitch: 5, size: 'ms', lens: 35, move: { kind: 'swirl', by: 3 } }, points: [{ t: 0, position: [1, 1, 1], look: [0, 1, 0], lens: 50 }], anchor: 'world' },
+        { id: 'p', kind: 'path', anchor: 'world', aim: 'point', points: [{ t: 0, position: [1, 1, 1], look: [0, 1, 0], lens: 50 }], rig: { yaw: 0 } },
       ],
     });
     expect(Object.keys(scene.cameras[0]).sort()).toEqual(['id', 'kind', 'name', 'rig']);
+    // (A move it does not know is left out.)
+    expect((scene.cameras[0] as RigCamera).rig.move).toBeUndefined();
     expect(Object.keys(scene.cameras[1]).sort()).toEqual(['aim', 'anchor', 'id', 'kind', 'name', 'points']);
   });
 });
@@ -326,10 +362,11 @@ describe('camera moves on one camera', () => {
     const first = store.scene.cameras[0];
     applyCameraMove(store, 'orbit90', second);
     const cam = store.scene.cameras.find((c) => c.id === second)!;
-    expect(cam).toMatchObject({ kind: 'path' });
-    // Its points over the second shot only; the shots and the first camera as they were.
-    const points = (cam as PathCamera).points.map((p) => p.t);
-    expect(Math.min(...points)).toBeGreaterThanOrEqual(1 - 1e-9);
+    // A framing with its move (#16), kept as one; it moves over the second shot only.
+    expect(cam).toMatchObject({ kind: 'rig', rig: { move: { kind: 'arc', by: 90 } } });
+    const span = shotSpans(store.scene.animation!)[1];
+    const yaw = (t: number) => angleOf(viewOf(store.scene, cam, t)).yaw;
+    expect(Math.abs(((yaw(span.end - 1e-3) - yaw(span.start) + 540) % 360) - 180)).toBeGreaterThan(60);
     expect(store.scene.animation!.shots).toEqual(shots);
     expect(store.scene.cameras[0]).toEqual(first);
   });

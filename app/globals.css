@@ -172,6 +172,15 @@ button { font: inherit; color: inherit; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
 .btn.danger { color: var(--danger); }
 .btn:disabled, .ibtn:disabled { opacity: 0.35; cursor: default; }
+/* A camera's move (#16): the moves to pick from, a grid of small tiles; its start and end, two pictures. */
+.move-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
+.move-grid button { display: grid; justify-items: center; gap: 3px; padding: 6px 2px 5px; border: 0; border-radius: var(--radius-s); background: var(--well); color: var(--text-2); font: inherit; font-size: 11px; line-height: 1.15; text-align: center; cursor: pointer; }
+.move-grid button:hover { color: var(--text); background: var(--hover); }
+.move-grid button.on { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.move-ends { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.move-end { display: grid; gap: 3px; padding: 0; border: 0; background: none; color: var(--text-3); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.move-end canvas { width: 100%; height: auto; border-radius: var(--radius-s); background: var(--well); box-shadow: inset 0 0 0 1px var(--border); }
+.move-end:hover canvas { box-shadow: inset 0 0 0 1px var(--accent); }
 /* A path camera's points: another, at the playhead. */
 .camera-point-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 6px; }
 .ibtn { width: 30px; height: 30px; padding: 0; border-radius: var(--radius-s); color: var(--text-2); flex: none; }

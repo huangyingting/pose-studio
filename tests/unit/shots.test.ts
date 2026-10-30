@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { applyCameraMove, cutShot, deleteCamera, duplicateSelection, editShot, moveCameraPoint, moveShotCut, removeShotCut, startAnimation } from '@/lib/actions';
+import { applyCameraMove, cutShot, deleteCamera, duplicateSelection, editAsPath, editShot, moveCameraPoint, moveShotCut, removeShotCut, startAnimation } from '@/lib/actions';
 import { cameraAt, liveCamera } from '@/lib/cameras';
 import type { PathCamera, Scene } from '@/lib/types';
 import { parseScene } from '@/lib/doc';
@@ -37,10 +37,13 @@ describe('shots and cuts', () => {
     // Both sides of the cut film as before it: the earlier shot ends where the path was, the new one starts from there.
     const at = (s: Scene, t: number) => cameraAt(s, t).position;
     expect(at(store.scene, 1.99).distanceTo(at(store.scene, 2.01))).toBeLessThan(0.1);
-    // A move on shot 2 leaves shot 1 alone.
+    // A move on shot 2 (its own camera): shot 1 starts as it did, its camera's arc now over shot 1
+    // alone (#16: a move plays over the run of shots its camera films).
     const before = store.scene;
     applyCameraMove(store, 'push');
-    expect(at(store.scene, 1).distanceTo(at(before, 1))).toBeLessThan(1e-6);
+    expect(at(store.scene, 0).distanceTo(at(before, 0))).toBeLessThan(1e-6);
+    expect(shotSpans(store.scene.animation!).map((s) => s.shot.camera)).toHaveLength(2);
+    expect(new Set(shotSpans(store.scene.animation!).map((s) => s.shot.camera)).size).toBe(2);
     const far = (s: Scene, t: number) => cameraAt(s, t).position.distanceTo(cameraAt(s, t).target);
     expect(far(store.scene, 3.99)).toBeLessThan(far(store.scene, 2) * 0.7);
   });
@@ -93,6 +96,8 @@ describe('keyframe pack pieces', () => {
     const store = animatedStore();
     applyCameraMove(store, 'orbit90');
     const cam = liveCamera(store.scene, 0)!.id;
+    // (A custom path, its points to drag.)
+    editAsPath(store, cam);
     const points = () => (store.scene.cameras.find((c) => c.id === cam) as PathCamera).points;
     const [first, last] = [points()[0], points()[points().length - 1]];
     moveCameraPoint(store, cam, last.t, new THREE.Vector3(3, 2, 4), 'drag');

@@ -387,19 +387,21 @@ export type Placement = 'center' | 'left' | 'right';
 /**
  * A camera that works out where it is every frame from its subject's body, so its shot holds
  * when the blocking or a body changes: it keeps an angle and a shot size on the subject,
- * following it (moving with it, and turning with it too if `turn`) or circling it. Angles are
+ * following it (moving with it, and turning with it too if `turn`), and moves from there over a
+ * shot as its `move` says (an arc round it, a push in, a crane up…). Angles are
  * the subject's own (from its front, + from its left; or from the direction towards another
  * figure, the line of action), so a camera set-up works in any scene.
  */
 export interface CameraRig {
-  body: 'follow' | 'orbit';
   /** Degrees around the subject from its front (+ from its left), and above it. */
   yaw: number;
   pitch: number;
-  /** Following: the angle turns as the subject turns (else it is kept from how the subject faced at the camera's first shot). */
+  /** The angle turns as the subject turns (else it is kept from how the subject faced at the camera's first shot). */
   turn?: boolean;
-  /** Orbiting: degrees a second around the subject (+ round to its left). */
-  spin?: number;
+  /** Turned about the line of sight (degrees, + clockwise as seen through it: a Dutch angle). */
+  roll?: number;
+  /** How it moves over each shot it films, from this framing (none: it holds it). */
+  move?: CameraMove;
   /** Angles from the direction towards this figure, rather than from the subject's facing. */
   toward?: string;
   /** Keep this figure out of the frame (a clean single): the camera comes round further, away from it, as far as that takes. */
@@ -410,6 +412,25 @@ export interface CameraRig {
   lens: number;
   /** Seconds the subject's motion is smoothed over (a window centred on each moment). */
   smooth?: number;
+}
+
+/**
+ * How a camera moves over a shot, from its framing at the shot's start (#16): kept as what it does
+ * (an arc of 90°, a push to a close-up), worked out every frame, so it holds when the blocking or
+ * the cut changes.
+ */
+export const MOVE_KINDS = ['push', 'arc', 'crane', 'truck', 'pan', 'tilt', 'zoom', 'dolly', 'roll'] as const;
+export type MoveKind = (typeof MOVE_KINDS)[number];
+export interface CameraMove {
+  kind: MoveKind;
+  /** The size it ends at (a push or pull; any move may also end closer or wider). */
+  size?: ShotSize;
+  /** How far: degrees (arc, crane, pan, tilt, roll), metres sideways (truck), the lens it ends at (zoom, dolly; mm). */
+  by?: number;
+  /** A pan: the figure it ends on (rather than a number of degrees). */
+  to?: string;
+  /** How it goes: easing in and out (smooth), at an even pace, or holding, then fast (snap: a whip pan, a crash zoom). */
+  pace?: 'smooth' | 'even' | 'snap';
 }
 
 /** A point of a camera's path. */

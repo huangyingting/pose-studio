@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { Camera as CameraIcon, Eye, Plus, Trash2 } from 'lucide-react';
-import { addCameraPoint, deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens } from '@/lib/actions';
-import { LENSES, SHOT_SIZES, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeftRight, ArrowRightToLine, ArrowUpDown, ArrowUpFromLine, Camera as CameraIcon, Eye, Focus, MoveHorizontal, Plus, RotateCcw, RotateCw, Spline, Square, Trash2, ZoomIn, type LucideIcon } from 'lucide-react';
+import { addCameraPoint, deleteCameraPoint, editAsPath, editCamera, editRig, frameShot, setCameraMove, setLens } from '@/lib/actions';
+import { LENSES, MOVE_NAMES, SHOT_SIZES, frameAspect, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
+import { sceneAt } from '@/lib/evaluate';
+import { sharedRenderer } from '@/lib/thumbnails';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
-import type { Camera, CameraRig, PathCamera, Placement, RigCamera, ShotSize } from '@/lib/types';
+import type { Camera, CameraMove, CameraRig, MoveKind, PathCamera, Placement, RigCamera, ShotSize, Style } from '@/lib/types';
 import { menu } from '../commands';
-import { useStudio } from '../store-context';
-import { Hint, IconButton, Info, NameHeader, NumberField, PropertyRow, Segmented, Select, Toggle, type HeaderChrome } from '../ui';
+import { useProjectSettings, useStudio } from '../store-context';
+import { Hint, IconButton, Info, NameHeader, NumberField, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /* A camera's header and sections: see sections.ts for which show when. */
@@ -124,6 +126,41 @@ export function FramingPanel({ t }: { t: Target }) {
       ) : (
         <Hint>Move the playhead into a shot it films to frame it</Hint>
       )}
+      {rig && cam.kind === 'rig' && <RigAngle t={t} cam={cam} rig={rig} />}
+    </>
+  );
+}
+
+/** A framing's angle on its subject, what it is measured from, how it follows, its Dutch angle. */
+function RigAngle({ t, cam, rig }: { t: Target; cam: RigCamera; rig: CameraRig }) {
+  const edit = (patch: Partial<CameraRig>, key?: string) => editRig(t.store, cam.id, patch, key);
+  const others = t.scene.figures.filter((f) => !f.hidden && f.id !== cam.subject);
+  return (
+    <>
+      <div className="field">
+        <span>Angle<Info text="Around the subject from its front (+ from its left), and from above." label="About angle" /></span>
+        <div className="lens-row">
+          <NumberField prefix="°" label="Angle around" value={rig.yaw} step={5} min={-180} max={180} digits={0} onChange={(v) => edit({ yaw: v }, `rig-yaw:${cam.id}`)} />
+          <NumberField prefix="↑" label="Angle above" value={rig.pitch} step={2} min={-60} max={80} digits={0} onChange={(v) => edit({ pitch: v }, `rig-pitch:${cam.id}`)} />
+        </div>
+      </div>
+      {cam.subject && others.length > 0 && (
+        <PropertyRow label="From">
+          <Select<string>
+            label="Angle measured from"
+            value={rig.toward ?? ''}
+            onChange={(v) => edit({ toward: v || undefined })}
+            options={[{ value: '', label: 'Its facing' }, ...others.map((f) => ({ value: f.id, label: `Towards ${f.name}` }))]}
+          />
+        </PropertyRow>
+      )}
+      <Toggle label="Turns with it" hint="Turns as the subject turns. Off: keeps the angle the subject faced at the camera's first shot" checked={!!rig.turn} onChange={(on) => edit({ turn: on })} />
+      <PropertyRow label="Smoothing" info="Seconds the subject's motion is smoothed over: a steadier frame">
+        <NumberField prefix="s" label="Smoothing" value={rig.smooth ?? 0} step={0.1} min={0} max={5} digits={1} onChange={(v) => edit({ smooth: v }, `rig-smooth:${cam.id}`)} />
+      </PropertyRow>
+      <PropertyRow label="Dutch" info="Tilted about the line of sight: unease, tension">
+        <NumberField prefix="°" label="Dutch angle" value={rig.roll ?? 0} step={5} min={-90} max={90} digits={0} onChange={(v) => edit({ roll: v }, `rig-roll:${cam.id}`)} />
+      </PropertyRow>
     </>
   );
 }
@@ -155,69 +192,169 @@ export function LensPanel({ t }: { t: Target }) {
   );
 }
 
-export const movesSummary = (t: Target) => { const cam = t.camera!; return cam.kind === 'rig' ? (cam.rig.body === 'orbit' ? 'Circles' : 'Follows') : 'Along a path'; };
+export const movesSummary = (t: Target) => { const cam = t.camera!; return cam.kind === 'path' ? 'Custom path' : cam.rig.move ? MOVE_NAMES[cam.rig.move.kind] : 'Holds'; };
 export const movesInfo = (t: Target) => (t.camera!.kind === 'rig'
-  ? "It works out where it is every frame from its subject's body, so the shot holds when the blocking or a body changes."
+  ? 'It moves over each shot it films, from its framing at the shot\'s start, as it frames its subject every frame: the move holds when the blocking or the cut changes.'
   : 'On the canvas, drag a camera to move it (Shift: up and down) and its look point; double-click its path to add a point. Looking through it, frame the view and set a camera point from the timeline.');
 
-/** How it moves: along a path, or placing itself every frame from its subject (following or circling it). */
+/** The moves to pick from (#16): none, the kinds, or a custom path. */
+const MOVES: { id: 'none' | MoveKind | 'path'; label: string; icon: LucideIcon; tip: string }[] = [
+  { id: 'none', label: 'None', icon: Square, tip: 'Holds its framing' },
+  { id: 'push', label: 'Push', icon: ArrowRightToLine, tip: 'Closer (or wider) over the shot' },
+  { id: 'arc', label: 'Arc', icon: RotateCw, tip: 'Round its subject' },
+  { id: 'crane', label: 'Crane', icon: ArrowUpFromLine, tip: 'Up (or down)' },
+  { id: 'truck', label: 'Truck', icon: MoveHorizontal, tip: 'Sideways' },
+  { id: 'pan', label: 'Pan', icon: ArrowLeftRight, tip: 'Turns to another figure, or by degrees' },
+  { id: 'tilt', label: 'Tilt', icon: ArrowUpDown, tip: 'Tilts up (or down)' },
+  { id: 'zoom', label: 'Zoom', icon: ZoomIn, tip: 'The lens changes; the camera stays' },
+  { id: 'dolly', label: 'Dolly zoom', icon: Focus, tip: 'The lens changes, the subject keeps its size: the world behind it stretches' },
+  { id: 'roll', label: 'Roll', icon: RotateCcw, tip: 'Turns about the line of sight' },
+  { id: 'path', label: 'Path', icon: Spline, tip: 'A custom path of points, edited one by one (from a move: one way)' },
+];
+
+/** A move of a kind, as it starts out (how far, where to). */
+function startMove(kind: MoveKind, rig: CameraRig | null): CameraMove {
+  const lens = rig?.lens ?? 50;
+  const closer = (size: ShotSize) => SHOT_SIZES[Math.min(SHOT_SIZES.length - 1, SHOT_SIZES.findIndex((x) => x.id === size) + 2)].id;
+  switch (kind) {
+    case 'push': return { kind, size: closer(rig?.size ?? 'fs') };
+    case 'arc': return { kind, by: 90 };
+    case 'crane': return { kind, by: 40 };
+    case 'truck': return { kind, by: 1.5 };
+    case 'pan': return { kind, by: 45 };
+    case 'tilt': return { kind, by: 25 };
+    case 'zoom': return { kind, by: Math.min(200, Math.round(lens * 2)) };
+    case 'dolly': return { kind, by: lens >= 50 ? 24 : 85 };
+    case 'roll': return { kind, by: 30 };
+  }
+}
+
+/** How it moves over each shot it films (#16): a move from its framing, or a custom path. */
 export function MovesPanel({ t }: { t: Target }) {
   const cam = t.camera!;
   const set = (patch: Parameters<typeof editCamera>[2]) => editCamera(t.store, cam.id, patch);
+  const now = cam.kind === 'path' ? 'path' : cam.rig.move?.kind ?? 'none';
+  const pick = (id: (typeof MOVES)[number]['id']) => {
+    if (id === now) return;
+    if (id === 'path') editAsPath(t.store, cam.id);
+    else setCameraMove(t.store, cam.id, id === 'none' ? null : startMove(id, cam.kind === 'rig' ? cam.rig : null));
+  };
   return (
     <>
-      <div className="field">
-        <span>How</span>
-        <Segmented<'path' | 'follow' | 'orbit'>
-          label="Camera moves"
-          full
-          value={cam.kind === 'rig' ? cam.rig.body : 'path'}
-          onChange={(body) => setCameraBody(t.store, cam.id, body)}
-          options={[{ value: 'path', label: 'Path', title: 'Along a path of points' }, { value: 'follow', label: 'Follow', title: 'Follows its subject' }, { value: 'orbit', label: 'Circle', title: 'Circles its subject' }]}
-        />
+      <div className="move-grid" role="radiogroup" aria-label="Camera move">
+        {MOVES.map((m) => (
+          <button key={m.id} type="button" role="radio" aria-checked={m.id === now} className={m.id === now ? 'on' : ''} data-tip={m.tip} onClick={() => pick(m.id)}>
+            <m.icon size={15} strokeWidth={1.75} aria-hidden />
+            <span>{m.label}</span>
+          </button>
+        ))}
       </div>
-      {cam.kind === 'rig' ? <RigSettings t={t} cam={cam} rig={cam.rig} set={set} /> : <PathSettings t={t} cam={cam} set={set} />}
+      {cam.kind === 'rig' ? <MoveSettings t={t} cam={cam} /> : <PathSettings t={t} cam={cam} set={set} />}
+      <Slider label="Hand-held" value={cam.shake ?? 0} min={0} max={1} step={0.05} display={(cam.shake ?? 0) > 0 ? `${Math.round((cam.shake ?? 0) * 100)}%` : 'Off'} onChange={(v) => set({ shake: v })} />
     </>
   );
 }
 
-/** How a camera that places itself from its subject does it: its angle, how it turns, its smoothing. */
-function RigSettings({ t, cam, rig, set }: { t: Target; cam: RigCamera; rig: CameraRig; set(patch: Parameters<typeof editCamera>[2]): void }) {
-  const edit = (patch: Parameters<typeof editRig>[2], key?: string) => editRig(t.store, cam.id, patch, key);
-  const others = t.scene.figures.filter((f) => !f.hidden && f.id !== cam.subject);
+/** A rig's move: how far and to what, its pace, and where it starts and ends (pictures of the shot). */
+function MoveSettings({ t, cam }: { t: Target; cam: RigCamera }) {
+  const m = cam.rig.move;
+  if (!t.scene.animation) return <Hint>A move plays over a shot: animate the scene to film one</Hint>;
+  if (!m) return null;
+  const edit = (patch: Partial<CameraMove>, key?: string) => setCameraMove(t.store, cam.id, { ...m, ...patch }, key);
+  const deg = (label: string) => (
+    <PropertyRow label={label}>
+      <NumberField prefix="°" label={`${MOVE_NAMES[m.kind]} by`} value={m.by ?? 0} step={5} min={-720} max={720} digits={0} onChange={(v) => edit({ by: v }, `move-by:${cam.id}`)} />
+    </PropertyRow>
+  );
+  const lensTo = (
+    <PropertyRow label="Ends at">
+      <Select<string>
+        label="The lens it ends at"
+        value={String(m.by ?? cam.rig.lens)}
+        onChange={(v) => edit({ by: Number(v) })}
+        options={[...LENSES.map((mm) => ({ value: String(mm), label: `${mm} mm` })), ...(LENSES.includes(m.by ?? cam.rig.lens) ? [] : [{ value: String(m.by ?? cam.rig.lens), label: `${m.by ?? cam.rig.lens} mm` }])]}
+      />
+    </PropertyRow>
+  );
+  const people = t.scene.figures.filter((f) => !f.hidden && f.id !== cam.subject);
   return (
     <>
-      <div className="field">
-        <span>Angle<Info text="Around the subject from its front (+ from its left), and from above." label="About angle" /></span>
-        <div className="lens-row">
-          <NumberField prefix="°" label="Angle around" value={rig.yaw} step={5} min={-180} max={180} digits={0} onChange={(v) => edit({ yaw: v }, `rig-yaw:${cam.id}`)} />
-          <NumberField prefix="↑" label="Angle above" value={rig.pitch} step={2} min={-60} max={80} digits={0} onChange={(v) => edit({ pitch: v }, `rig-pitch:${cam.id}`)} />
-        </div>
-      </div>
-      {cam.subject && others.length > 0 && (
-        <PropertyRow label="From">
-          <Select<string>
-            label="Angle measured from"
-            value={rig.toward ?? ''}
-            onChange={(v) => edit({ toward: v || undefined })}
-            options={[{ value: '', label: 'Its facing' }, ...others.map((f) => ({ value: f.id, label: `The line towards ${f.name}` }))]}
-          />
+      {m.kind === 'arc' && deg('Round by')}
+      {m.kind === 'crane' && deg('Up by')}
+      {m.kind === 'tilt' && deg('Up by')}
+      {m.kind === 'roll' && deg('Roll by')}
+      {m.kind === 'truck' && (
+        <PropertyRow label="Sideways">
+          <NumberField prefix="m" label="Truck by" value={m.by ?? 0} step={0.25} min={-20} max={20} digits={2} onChange={(v) => edit({ by: v }, `move-by:${cam.id}`)} />
         </PropertyRow>
       )}
-      {rig.body === 'follow'
-        ? <Toggle label="Turns with it" hint="Turns as the subject turns. Off: keeps the angle the subject faced at the camera's first shot" checked={!!rig.turn} onChange={(on) => edit({ turn: on })} />
-        : (
-          <div className="field">
-            <span>Speed</span>
-            <NumberField prefix="°/s" label="Circling speed" value={rig.spin ?? 0} step={5} min={-360} max={360} digits={0} onChange={(v) => edit({ spin: v }, `rig-spin:${cam.id}`)} />
-          </div>
-        )}
-      <div className="field">
-        <span>Smoothing</span>
-        <NumberField prefix="s" label="Smoothing" value={rig.smooth ?? 0} step={0.1} min={0} max={5} digits={1} onChange={(v) => edit({ smooth: v }, `rig-smooth:${cam.id}`)} />
-      </div>
-      <Toggle label="Hand-held" hint="A slight shake" checked={(cam.shake ?? 0) > 0} onChange={(on) => set({ shake: on ? 0.5 : 0 })} />
+      {m.kind === 'pan' && (
+        <>
+          <PropertyRow label="To">
+            <Select<string>
+              label="Pan to"
+              value={m.to ?? ''}
+              onChange={(v) => edit({ to: v || undefined })}
+              options={[{ value: '', label: 'By degrees' }, ...people.map((f) => ({ value: f.id, label: f.name }))]}
+            />
+          </PropertyRow>
+          {!m.to && deg('By')}
+        </>
+      )}
+      {(m.kind === 'zoom' || m.kind === 'dolly') && lensTo}
+      <PropertyRow label={m.kind === 'push' ? 'Ends at' : 'Size at end'}>
+        <Select<string>
+          label="The size it ends at"
+          value={m.size ?? ''}
+          onChange={(v) => edit({ size: (v || undefined) as ShotSize | undefined })}
+          options={[...(m.kind === 'push' ? [] : [{ value: '', label: 'The same' }]), ...SHOT_SIZES.map((x) => ({ value: x.id, label: `${x.short} · ${x.name}` }))]}
+        />
+      </PropertyRow>
+      <PropertyRow label="Pace">
+        <Segmented<'smooth' | 'even' | 'snap'>
+          label="Pace"
+          full
+          value={m.pace ?? 'smooth'}
+          onChange={(pace) => edit({ pace: pace === 'smooth' ? undefined : pace })}
+          options={[{ value: 'smooth', label: 'Smooth', title: 'Eases in and out' }, { value: 'even', label: 'Even', title: 'At an even pace' }, { value: 'snap', label: 'Snap', title: 'Holds, then fast (a whip pan, a crash zoom)' }]}
+        />
+      </PropertyRow>
+      <MoveEnds t={t} cam={cam} />
     </>
+  );
+}
+
+/** The shot at the playhead (or the first it films) as it starts and ends: two small pictures; a click looks through it then. */
+function MoveEnds({ t, cam }: { t: Target; cam: RigCamera }) {
+  const time = useStudio((s) => s.time);
+  const style = useProjectSettings().style;
+  const films = filmsOf(t);
+  const span = films.find((s) => time >= s.start && time < s.end) ?? films[0];
+  if (!span) return <Hint>It films no shot yet: pick it for a shot to see its move</Hint>;
+  const end = Math.max(span.start, span.end - 1 / (t.scene.animation?.fps ?? 24));
+  return (
+    <div className="move-ends">
+      <ShotStill t={t} cam={cam} at={span.start} label="Start" style={style} />
+      <ShotStill t={t} cam={cam} at={end} label="End" style={style} />
+    </div>
+  );
+}
+
+function ShotStill({ t, cam, at, label, style }: { t: Target; cam: RigCamera; at: number; label: string; style: Style }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const aspect = frameAspect();
+  const [w, h] = [120, Math.round(120 / aspect)];
+  useEffect(() => {
+    const ctx = canvas.current?.getContext('2d');
+    if (!ctx) return;
+    const id = requestAnimationFrame(() => ctx.drawImage(sharedRenderer().renderShot(sceneAt(t.scene, at, true), w, h, 1, { camera: viewOf(t.scene, cam, at, aspect), style }), 0, 0, w, h));
+    return () => cancelAnimationFrame(id);
+  }, [t.scene, cam, at, w, h, aspect, style]);
+  return (
+    <button type="button" className="move-end" data-tip={`Look through it at ${at.toFixed(2)} s`} onClick={() => { t.store.setTime(at); t.store.lookThrough({ camera: cam.id }); }}>
+      <canvas ref={canvas} width={w} height={h} aria-hidden />
+      <span>{label} · {at.toFixed(1)} s</span>
+    </button>
   );
 }
 

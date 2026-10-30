@@ -856,7 +856,8 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
   const filmed = await anim(page);
-  expect(filmed.cameras.find((c) => c.id === filmed.animation!.shots[0].camera)).toMatchObject({ kind: 'path', points: Array(9).fill(expect.anything()) });
+  // (A framing with its move, kept as one: a 360° arc, not points.)
+  expect(filmed.cameras.find((c) => c.id === filmed.animation!.shots[0].camera)).toMatchObject({ kind: 'rig', rig: { move: { kind: 'arc', by: 360 } } });
 
   // Exported as an animated glTF: the figure's animation (its joints and hips) and the shot camera's.
   await page.keyboard.press('Control+e');
@@ -880,7 +881,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   };
   await openShotCamera(page);
   await unfold(page, 'Moves');
-  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Path' }).click();
+  await inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio', { name: 'Path' }).click();
   // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
   await choose(page, 'Shot size', /^MS ·/);
   let s = await shot();
@@ -917,11 +918,14 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
   await unfold(page, 'Shots');
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
-  // Following its subject instead: the shot size is a rule, kept every frame.
+  // A framing again (no move: it holds it, following its subject): the shot size is a rule, kept every frame.
   await unfold(page, 'Moves');
-  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Follow' }).click();
+  await inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio', { name: 'None' }).click();
   await choose(page, 'Shot size', /^MCU ·/);
-  expect(await shot()).toMatchObject({ kind: 'rig', rig: { body: 'follow', size: 'mcu' } });
+  expect(await shot()).toMatchObject({ kind: 'rig', rig: { size: 'mcu' } });
+  // An arc round it over the shot, by 90° to start with.
+  await inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio', { name: 'Arc' }).click();
+  expect(await shot()).toMatchObject({ kind: 'rig', rig: { move: { kind: 'arc', by: 90 } } });
 });
 
 test('cuts move on the timeline; a camera on a path has a row, one on a rule none; looked through', async ({ page }) => {

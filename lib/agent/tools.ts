@@ -1,7 +1,7 @@
 import { BUILT_IN_CHARACTERS } from '../characters';
 import { modelInfo } from '../model';
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, setCameraBody, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, subjectOf, setGaze, setTravel, throwProp, travelTo,
   carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
@@ -20,11 +20,11 @@ import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { anglesOf, withAngles, type Angles } from '../pose';
-import { CAMERA_MOVES, SHOT_SIZES, liveCamera, type Placement, type ShotSize } from '../cameras';
+import { CAMERA_MOVES, SHOT_SIZES, liveCamera, rigRule, type Placement, type ShotSize } from '../cameras';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, shootsOf, templatesOf } from '../templates';
-import { FIGURE_COLORS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
+import { FIGURE_COLORS, JOINTS, MOVE_KINDS, type MoveKind, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -355,7 +355,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'edit_camera',
-    description: `A camera of the scene: by name, or the one filming at a time (a still scene: its first). Whom it films (a figure, or null for everyone). Its shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}), where the subject sits (centre, left or right third) and lens (mm, full frame: 14 wide … 50 normal … 200 telephoto). How it moves: path (through keyed points; size and lens then key a point at the time, which must be in a shot it films), follow (keeps its angle and size on the subject every frame, turning with it if turn) or orbit (circles the subject); for follow and orbit, the angle (degrees from the subject's front, + from its left) and height (degrees above); for a path, anchor (world or subject: riding along) and aim (subject, point or path). Hand-held shake (0–1). It changes every shot it films. Null leaves a setting as it is.`,
+    description: `A camera of the scene: by name, or the one filming at a time (a still scene: its first). Whom it films (a figure, or null for everyone). Its shot size (${SHOT_SIZES.map((x) => `${x.id} = ${x.name}`).join(', ')}), where the subject sits (centre, left or right third) and lens (mm, full frame: 14 wide … 50 normal … 200 telephoto). A camera frames its subject every frame (its angle: degrees from the subject's front, + from its left; its height: degrees above; turning with it if turn) and moves over each shot it films: move none (holds the framing), push (to move_size), arc (move_amount degrees round), crane (degrees up, − down), truck (metres sideways), pan (to move_to, a figure, or move_amount degrees), tilt (degrees up), zoom or dolly (the lens it ends at, mm; a dolly keeps the size: a dolly zoom), roll (degrees); any move may also end at move_size; pace smooth, even or snap (holds, then fast). Or path: a custom path of keyed points (one way; size and lens then key a point at the time, which must be in a shot it films; anchor world or subject, aim subject, point or path). Hand-held shake (0–1). It changes every shot it films. Null leaves a setting as it is.`,
     schema: obj({
       camera: opt(str('The camera\'s name (null: the one filming at time)')),
       time: num('A time (s): which camera, if none is named; and where a path camera is keyed (a still scene: 0)'),
@@ -364,10 +364,14 @@ export const TOOLS: AgentTool[] = [
       size: opt(str('Shot size', SHOT_SIZES.map((x) => x.id))),
       place: opt(str('Where the subject sits in the frame', ['center', 'left', 'right'])),
       lens: opt(num('Focal length (mm)')),
-      moves: opt(str('How it moves', ['path', 'follow', 'orbit'])),
-      angle: opt(num('Follow/orbit: degrees around from the subject\'s front, + from its left')),
-      height: opt(num('Follow/orbit: degrees above the subject')),
-      turn: opt(bool('Follow: turn as the subject turns')),
+      move: opt(str('How it moves over a shot', ['none', ...MOVE_KINDS, 'path'])),
+      move_amount: opt(num('The move: degrees (arc, crane, pan, tilt, roll), metres (truck), the end lens in mm (zoom, dolly)')),
+      move_size: opt(str('The size the move ends at', SHOT_SIZES.map((x) => x.id))),
+      move_to: opt(FIGURE),
+      pace: opt(str('How the move goes', ['smooth', 'even', 'snap'])),
+      angle: opt(num('Degrees around from the subject\'s front, + from its left')),
+      height: opt(num('Degrees above the subject')),
+      turn: opt(bool('Turn as the subject turns')),
       anchor: opt(str('Path: where it is', ['world', 'subject'])),
       aim: opt(str('Path: what it looks at', ['subject', 'point', 'path'])),
       shake: opt(num('Hand-held shake, 0–1')),
@@ -381,7 +385,17 @@ export const TOOLS: AgentTool[] = [
       const id = named?.id ?? liveCamera(store.scene, t).id;
       const cam = () => store.scene.cameras.find((c) => c.id === id)!;
       if (i.subject || i.everyone) editCamera(store, id, { subject: i.everyone ? '' : findFigure(store, i.subject).id });
-      if (i.moves) setCameraBody(store, id, i.moves as 'path' | 'follow' | 'orbit');
+      if (i.move === 'path') editAsPath(store, id);
+      else if (i.move === 'none') setCameraMove(store, id, null);
+      else if (i.move) {
+        setCameraMove(store, id, {
+          kind: i.move as MoveKind,
+          ...(typeof i.move_amount === 'number' ? { by: i.move_amount } : {}),
+          ...(i.move_size ? { size: i.move_size as ShotSize } : {}),
+          ...(i.move_to ? { to: findFigure(store, i.move_to).id } : {}),
+          ...(i.pace === 'even' || i.pace === 'snap' ? { pace: i.pace } : {}),
+        });
+      }
       if (i.anchor || i.aim || typeof i.shake === 'number') {
         editCamera(store, id, { ...(i.anchor ? { anchor: i.anchor as PathCamera['anchor'] } : {}), ...(i.aim ? { aim: i.aim as PathCamera['aim'] } : {}), ...(typeof i.shake === 'number' ? { shake: Math.min(1, Math.max(0, i.shake)) } : {}) });
       }
@@ -396,7 +410,7 @@ export const TOOLS: AgentTool[] = [
           });
         }
       } else {
-        if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean') throw new Error('Angles are for a camera that follows or circles its subject (moves: follow or orbit)');
+        if (typeof i.angle === 'number' || typeof i.height === 'number' || typeof i.turn === 'boolean') throw new Error('Angles are for a camera that frames its subject (move: none or a move, not path)');
         if (i.size || lens) {
           if (liveCamera(store.scene, t)?.id !== id) throw new Error(`${cam().name} does not film at ${r2(t)} s: give a time in a shot it films`);
           if (i.size) frameShot(store, i.size as ShotSize, { lens, place });
@@ -405,7 +419,7 @@ export const TOOLS: AgentTool[] = [
       }
       const now = cam();
       const how = now.kind === 'rig'
-        ? `${now.rig.body === 'follow' ? 'follows' : 'circles'} ${store.scene.figures.find((f) => f.id === now.subject)?.name ?? 'everyone'} at ${SHOT_SIZES.find((x) => x.id === now.rig.size)?.name.toLowerCase()}, ${now.rig.lens}mm`
+        ? rigRule(store.scene, now)
         : `a path of ${now.points.length} point${now.points.length === 1 ? '' : 's'}`;
       return `${now.name}: ${how}.`;
     },

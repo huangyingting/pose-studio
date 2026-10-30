@@ -59,14 +59,14 @@ export function withPosture(f: Figure, posture: Posture): Figure {
  * kept in frame as they move.
  */
 export function defaultCamera(name = 'Camera 1'): Camera {
-  return { id: uid('cam'), name, kind: 'rig', rig: { body: 'follow', yaw: 0, pitch: 4, size: 'fs', lens: 50 } };
+  return { id: uid('cam'), name, kind: 'rig', rig: { yaw: 0, pitch: 4, size: 'fs', lens: 50 } };
 }
 
 /** A first camera seeing a scene from an angle (as a still is drawn from): everyone in a full shot. */
 export function cameraFrom(view: View, name = 'Camera 1'): Camera {
   // The lens with that field of view on a 16:9 full-frame sensor (20.25 mm high).
   const lens = Math.round(10.125 / Math.tan((Math.min(170, Math.max(1, view.fov)) * Math.PI) / 360));
-  return { ...defaultCamera(name), kind: 'rig', rig: { body: 'follow', yaw: wrapDeg(view.yaw), pitch: view.pitch, size: 'fs', lens } };
+  return { ...defaultCamera(name), kind: 'rig', rig: { yaw: wrapDeg(view.yaw), pitch: view.pitch, size: 'fs', lens } };
 }
 
 export function newScene(name = 'New scene', figures: Figure[] = [newFigure()]): Scene {

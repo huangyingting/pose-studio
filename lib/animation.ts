@@ -1,7 +1,7 @@
 import { keysClip, placeClip } from './clip';
 import { wrapDeg } from './joints';
 import { uid } from './uid';
-import type { Action, Animation, Camera, CameraRig, Figure, Mark, Prop, PropKey, PropTarget, Scene, Shot, ShotSize, Vec3 } from './types';
+import { MOVE_KINDS, type Action, type Animation, type Camera, type CameraMove, type CameraRig, type Figure, type Mark, type MoveKind, type Prop, type PropKey, type PropTarget, type Scene, type Shot, type ShotSize, type Vec3 } from './types';
 
 export type { Animation };
 
@@ -182,15 +182,29 @@ const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max
 const num = (x: unknown, fallback: number, min: number, max: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : fallback);
 const objects = (v: unknown, max: number) => (Array.isArray(v) ? v.slice(0, max) : []).filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null);
 
+/** A camera's move as it may be (#16): a kind it knows, its numbers in their ranges; else none. */
+function moveOf(v: unknown): CameraMove | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const m = v as Record<string, unknown>;
+  if (!MOVE_KINDS.includes(m.kind as MoveKind)) return undefined;
+  return {
+    kind: m.kind as MoveKind,
+    ...(SIZES.includes(m.size as ShotSize) ? { size: m.size as ShotSize } : {}),
+    ...(typeof m.by === 'number' && Number.isFinite(m.by) ? { by: num(m.by, 0, -1080, 1080) } : {}),
+    ...(typeof m.to === 'string' && m.to ? { to: m.to.slice(0, 40) } : {}),
+    ...(m.pace === 'even' || m.pace === 'snap' ? { pace: m.pace } : {}),
+  };
+}
+
 /** A scene's cameras, from storage or a file (a path camera needs a point; one that is not well made is left out). */
 export function parseCameras(raw: unknown): Camera[] {
   const vec = (x: unknown): Vec3 => (Array.isArray(x) ? [0, 1, 2].map((i) => num(x[i], 0, -1000, 1000)) : [0, 0, 0]) as Vec3;
   const rigOf = (r: Record<string, unknown>): CameraRig => ({
-    body: r.body === 'orbit' ? 'orbit' : 'follow',
     yaw: wrapDeg(num(r.yaw, 0, -1e4, 1e4)),
     pitch: num(r.pitch, 0, -89, 89),
     ...(r.turn === true ? { turn: true } : {}),
-    ...(typeof r.spin === 'number' && r.spin ? { spin: num(r.spin, 0, -360, 360) } : {}),
+    ...(typeof r.roll === 'number' && r.roll ? { roll: num(r.roll, 0, -180, 180) } : {}),
+    ...(moveOf(r.move) ? { move: moveOf(r.move)! } : {}),
     ...(typeof r.toward === 'string' && r.toward ? { toward: r.toward.slice(0, 40) } : {}),
     ...(typeof r.clear === 'string' && r.clear ? { clear: r.clear.slice(0, 40) } : {}),
     size: SIZES.includes(r.size as ShotSize) ? r.size as ShotSize : 'fs',

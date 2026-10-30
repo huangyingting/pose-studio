@@ -6,7 +6,7 @@ import { sceneAt } from './evaluate';
 import { newFigure, newScene } from './doc';
 import { bodyFor, modelTemplate } from './model';
 import { builtInPoses, poseScene } from './poses';
-import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type CameraMove } from './cameras';
+import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type MovePreset } from './cameras';
 import { newShot } from './shots';
 import { sharedRenderer } from './thumbnails';
 import type { Lighting, PoseAsset, Scene, Style, View } from './types';
@@ -154,7 +154,7 @@ const sceneIds = new WeakMap<Scene, number>();
 let nextScene = 0;
 
 /** A camera move filming the open scene (a still scene for a few seconds). */
-export function cameraPreview(move: CameraMove, scene: Scene, style: Style): PreviewJob {
+export function cameraPreview(move: MovePreset, scene: Scene, style: Style): PreviewJob {
   if (!sceneIds.has(scene)) sceneIds.set(scene, nextScene++);
   return filmed(`camera:${style}:${move.id}:${sceneIds.get(scene)}`, () => {
     const anim = scene.animation ?? { ...newAnimation(scene, 3), loop: false };

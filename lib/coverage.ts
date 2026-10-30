@@ -52,11 +52,11 @@ export const COVERAGES: Coverage[] = [
     description: 'A master two-shot, over-the-shoulder shots and singles, all on one side of the line between them',
     roles: ['A', 'B'],
     cameras: [
-      { key: 'master', name: 'Master', subject: 'A', also: 'B', rig: { body: 'follow', yaw: 90, pitch: 5, toward: 'B', size: 'fs', lens: 35, smooth: 1 } },
-      { key: 'ots-a', name: '{A} over {B}’s shoulder', subject: 'A', rig: { body: 'follow', yaw: 18, pitch: 3, toward: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.8 } },
-      { key: 'ots-b', name: '{B} over {A}’s shoulder', subject: 'B', rig: { body: 'follow', yaw: -18, pitch: 3, toward: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.8 } },
-      { key: 'single-a', name: '{A} single', subject: 'A', rig: { body: 'follow', yaw: 30, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 85, smooth: 0.8 } },
-      { key: 'single-b', name: '{B} single', subject: 'B', rig: { body: 'follow', yaw: -30, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 85, smooth: 0.8 } },
+      { key: 'master', name: 'Master', subject: 'A', also: 'B', rig: { yaw: 90, pitch: 5, toward: 'B', size: 'fs', lens: 35, smooth: 1 } },
+      { key: 'ots-a', name: '{A} over {B}’s shoulder', subject: 'A', rig: { yaw: 18, pitch: 3, toward: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.8 } },
+      { key: 'ots-b', name: '{B} over {A}’s shoulder', subject: 'B', rig: { yaw: -18, pitch: 3, toward: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.8 } },
+      { key: 'single-a', name: '{A} single', subject: 'A', rig: { yaw: 30, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 85, smooth: 0.8 } },
+      { key: 'single-b', name: '{B} single', subject: 'B', rig: { yaw: -30, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 85, smooth: 0.8 } },
     ],
     cuts: [
       { on: 'start', camera: 'master' },
@@ -71,10 +71,10 @@ export const COVERAGES: Coverage[] = [
     description: 'A wide shot, a tracking camera when they set off, a close one for what they do on the spot',
     roles: ['A'],
     cameras: [
-      { key: 'wide', name: 'Wide on {A}', subject: 'A', rig: { body: 'follow', yaw: 35, pitch: 8, size: 'ws', lens: 28, smooth: 1.2 } },
-      { key: 'tracking', name: 'Tracking {A}', subject: 'A', rig: { body: 'follow', yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 1 } },
-      { key: 'behind', name: 'Behind {A}', subject: 'A', rig: { body: 'follow', yaw: 160, pitch: 10, turn: true, size: 'fs', lens: 35, smooth: 1 } },
-      { key: 'close', name: 'Close on {A}', subject: 'A', rig: { body: 'follow', yaw: 25, pitch: 2, turn: true, size: 'mcu', place: 'right', lens: 85, smooth: 1 } },
+      { key: 'wide', name: 'Wide on {A}', subject: 'A', rig: { yaw: 35, pitch: 8, size: 'ws', lens: 28, smooth: 1.2 } },
+      { key: 'tracking', name: 'Tracking {A}', subject: 'A', rig: { yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 1 } },
+      { key: 'behind', name: 'Behind {A}', subject: 'A', rig: { yaw: 160, pitch: 10, turn: true, size: 'fs', lens: 35, smooth: 1 } },
+      { key: 'close', name: 'Close on {A}', subject: 'A', rig: { yaw: 25, pitch: 2, turn: true, size: 'mcu', place: 'right', lens: 85, smooth: 1 } },
     ],
     cuts: [
       { on: 'start', camera: 'wide' },
@@ -89,10 +89,10 @@ export const COVERAGES: Coverage[] = [
     description: 'A wide shot of both, cutting to the one who gets the ball as it is let go, tracking a run',
     roles: ['A', 'B'],
     cameras: [
-      { key: 'wide', name: 'Wide', subject: 'A', also: 'B', rig: { body: 'follow', yaw: 90, pitch: 12, toward: 'B', size: 'ws', lens: 28, smooth: 1 } },
-      { key: 'single-a', name: '{A}', subject: 'A', rig: { body: 'follow', yaw: 25, pitch: 3, toward: 'B', clear: 'B', size: 'ms', place: 'right', lens: 70, smooth: 0.6 } },
-      { key: 'single-b', name: '{B}', subject: 'B', rig: { body: 'follow', yaw: -25, pitch: 3, toward: 'A', clear: 'A', size: 'ms', place: 'left', lens: 70, smooth: 0.6 } },
-      { key: 'track-a', name: 'Tracking {A}', subject: 'A', rig: { body: 'follow', yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 0.8 } },
+      { key: 'wide', name: 'Wide', subject: 'A', also: 'B', rig: { yaw: 90, pitch: 12, toward: 'B', size: 'ws', lens: 28, smooth: 1 } },
+      { key: 'single-a', name: '{A}', subject: 'A', rig: { yaw: 25, pitch: 3, toward: 'B', clear: 'B', size: 'ms', place: 'right', lens: 70, smooth: 0.6 } },
+      { key: 'single-b', name: '{B}', subject: 'B', rig: { yaw: -25, pitch: 3, toward: 'A', clear: 'A', size: 'ms', place: 'left', lens: 70, smooth: 0.6 } },
+      { key: 'track-a', name: 'Tracking {A}', subject: 'A', rig: { yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 0.8 } },
     ],
     cuts: [
       { on: 'start', camera: 'wide' },
@@ -108,11 +108,11 @@ export const COVERAGES: Coverage[] = [
     description: 'A wide shot of both, a low angle on each fighter and close ones, a little hand-held, cutting to whoever strikes',
     roles: ['A', 'B'],
     cameras: [
-      { key: 'wide', name: 'Wide on the fight', subject: 'A', also: 'B', shake: 0.15, rig: { body: 'follow', yaw: 90, pitch: 4, toward: 'B', size: 'fs', lens: 28, smooth: 0.7 } },
-      { key: 'low-a', name: 'Low on {A}', subject: 'A', shake: 0.2, rig: { body: 'follow', yaw: 40, pitch: -12, toward: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.5 } },
-      { key: 'low-b', name: 'Low on {B}', subject: 'B', shake: 0.2, rig: { body: 'follow', yaw: -40, pitch: -12, toward: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.5 } },
-      { key: 'close-a', name: '{A} close', subject: 'A', shake: 0.25, rig: { body: 'follow', yaw: 25, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 70, smooth: 0.5 } },
-      { key: 'close-b', name: '{B} close', subject: 'B', shake: 0.25, rig: { body: 'follow', yaw: -25, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 70, smooth: 0.5 } },
+      { key: 'wide', name: 'Wide on the fight', subject: 'A', also: 'B', shake: 0.15, rig: { yaw: 90, pitch: 4, toward: 'B', size: 'fs', lens: 28, smooth: 0.7 } },
+      { key: 'low-a', name: 'Low on {A}', subject: 'A', shake: 0.2, rig: { yaw: 40, pitch: -12, toward: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.5 } },
+      { key: 'low-b', name: 'Low on {B}', subject: 'B', shake: 0.2, rig: { yaw: -40, pitch: -12, toward: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.5 } },
+      { key: 'close-a', name: '{A} close', subject: 'A', shake: 0.25, rig: { yaw: 25, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 70, smooth: 0.5 } },
+      { key: 'close-b', name: '{B} close', subject: 'B', shake: 0.25, rig: { yaw: -25, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 70, smooth: 0.5 } },
     ],
     cuts: [
       { on: 'start', camera: 'wide' },
@@ -128,7 +128,7 @@ export const COVERAGES: Coverage[] = [
     description: 'A single camera that goes with them, turning as they turn: no cuts',
     roles: ['A'],
     cameras: [
-      { key: 'take', name: 'One take on {A}', subject: 'A', rig: { body: 'follow', yaw: 50, pitch: 5, turn: true, size: 'mws', lens: 35, smooth: 1.5 } },
+      { key: 'take', name: 'One take on {A}', subject: 'A', rig: { yaw: 50, pitch: 5, turn: true, size: 'mws', lens: 35, smooth: 1.5 } },
     ],
     cuts: [{ on: 'start', camera: 'take' }],
   },
@@ -138,9 +138,9 @@ export const COVERAGES: Coverage[] = [
     description: 'Hand-held cameras and longer shots: a wide one, a close one, one from behind, cutting when they set off',
     roles: ['A'],
     cameras: [
-      { key: 'wide', name: 'Hand-held wide on {A}', subject: 'A', shake: 0.35, rig: { body: 'follow', yaw: 40, pitch: 6, size: 'ws', lens: 28, smooth: 1.4 } },
-      { key: 'close', name: 'Hand-held close on {A}', subject: 'A', shake: 0.5, rig: { body: 'follow', yaw: 20, pitch: 2, turn: true, size: 'mcu', place: 'right', lens: 70, smooth: 1.2 } },
-      { key: 'behind', name: 'Hand-held behind {A}', subject: 'A', shake: 0.45, rig: { body: 'follow', yaw: 150, pitch: 8, turn: true, size: 'mws', lens: 35, smooth: 1.2 } },
+      { key: 'wide', name: 'Hand-held wide on {A}', subject: 'A', shake: 0.35, rig: { yaw: 40, pitch: 6, size: 'ws', lens: 28, smooth: 1.4 } },
+      { key: 'close', name: 'Hand-held close on {A}', subject: 'A', shake: 0.5, rig: { yaw: 20, pitch: 2, turn: true, size: 'mcu', place: 'right', lens: 70, smooth: 1.2 } },
+      { key: 'behind', name: 'Hand-held behind {A}', subject: 'A', shake: 0.45, rig: { yaw: 150, pitch: 8, turn: true, size: 'mws', lens: 35, smooth: 1.2 } },
     ],
     cuts: [
       { on: 'start', camera: 'wide' },

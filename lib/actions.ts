@@ -34,7 +34,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Camera, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Camera, CameraMove, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1054,7 +1054,7 @@ export function setCameraPoint(store: Store, position: THREE.Vector3, look: THRE
     const cam = (camera && cameraById(s, camera)) || liveCamera(s, t);
     if (cam.kind === 'rig') {
       const view = { position, target: look, fov, lens: fovLens(fov, frameAspect()), roll: 0 };
-      return withCamera(s, { ...cam, rig: rigFrom(s, cam, view, t, cam.rig.body, { size: cam.rig.size, lens: Math.round(view.lens) }) });
+      return withCamera(s, { ...cam, rig: rigFrom(s, cam, view, t, { size: cam.rig.size, lens: Math.round(view.lens) }) });
     }
     return withCamera(s, setPointAt(cam, fps, t, capturePoint(s, cam, t, position, look, fov)));
   }, key);
@@ -1189,19 +1189,29 @@ export function editCamera(store: Store, id: string, patch: { name?: string; sub
 }
 
 /**
- * How a camera moves: along a path, or placing itself every frame from its subject, following it
- * or circling it (from where it is at the playhead). A rig turned into a path leaves points where
- * it went over the shots it films, every half second (a still scene: one).
+ * How a camera moves over each shot it films (#16), from its framing: none (it holds it), or a
+ * move. A custom path becomes a camera framing its subject as it does at the playhead.
  */
-export function setCameraBody(store: Store, id: string, body: 'path' | CameraRig['body']) {
+export function setCameraMove(store: Store, id: string, move: CameraMove | null, key = `camera:${id}`) {
   const { t } = here(store);
   store.updateScene((s) => {
     const cam = cameraById(s, id);
-    if (!cam || (body === 'path' ? cam.kind === 'path' : cam.kind === 'rig' && cam.rig.body === body)) return s;
-    if (body !== 'path') {
-      const keep = cam.kind === 'rig' ? { size: cam.rig.size, lens: cam.rig.lens, smooth: cam.rig.smooth } : {};
-      return withCamera(s, reform(cam, { kind: 'rig', rig: rigFrom(s, cam, viewOf(s, cam, t), t, body, keep), ...(cam.shake ? { shake: cam.shake } : {}) }));
-    }
+    if (!cam) return s;
+    const rig: CameraRig = { ...(cam.kind === 'rig' ? cam.rig : rigFrom(s, cam, viewOf(s, cam, t), t)) };
+    if (move) rig.move = move;
+    else delete rig.move;
+    return withCamera(s, reform(cam, { kind: 'rig', rig, ...(cam.shake ? { shake: cam.shake } : {}) }));
+  }, key);
+}
+
+/**
+ * A camera as a custom path, to edit point by point (#16, one way): points where it goes over the
+ * shots it films, every half second (a still scene: one).
+ */
+export function editAsPath(store: Store, id: string) {
+  store.updateScene((s) => {
+    const cam = cameraById(s, id);
+    if (!cam || cam.kind === 'path') return s;
     const a = s.animation;
     const times = new Set<number>([0]);
     if (a) {
@@ -1222,7 +1232,7 @@ export function setCameraBody(store: Store, id: string, body: 'path' | CameraRig
 }
 
 /** A rig's shot size, where the subject sits, its lens, its angle, how it turns, its smoothing, what its angle is measured from. */
-export function editRig(store: Store, id: string, patch: Partial<Omit<CameraRig, 'body'>>, key = `rig:${id}`) {
+export function editRig(store: Store, id: string, patch: Partial<CameraRig>, key = `rig:${id}`) {
   store.updateScene((s) => {
     const cam = cameraById(s, id);
     if (cam?.kind !== 'rig') return s;
@@ -1232,7 +1242,7 @@ export function editRig(store: Store, id: string, patch: Partial<Omit<CameraRig,
     if (patch.smooth !== undefined) rig.smooth = Math.min(10, Math.max(0, patch.smooth));
     if (patch.lens !== undefined) rig.lens = Math.min(1200, Math.max(4, patch.lens));
     if (rig.place === 'center') delete rig.place;
-    for (const k of ['turn', 'spin', 'toward', 'clear', 'smooth'] as const) if (!rig[k]) delete rig[k];
+    for (const k of ['turn', 'roll', 'move', 'toward', 'clear', 'smooth'] as const) if (!rig[k]) delete rig[k];
     return withCamera(s, { ...cam, rig });
   }, key);
 }

@@ -2,7 +2,7 @@
 
 import { ChevronRight, Copy, Video } from 'lucide-react';
 import { addCamera, editShot, ownCamera } from '@/lib/actions';
-import { SHOT_SIZES, cameraById, sizeOf, viewOf } from '@/lib/cameras';
+import { MOVE_NAMES, SHOT_SIZES, cameraById, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import type { Camera, Scene } from '@/lib/types';
 import { menu } from '../commands';
@@ -55,12 +55,12 @@ const NEW = '+new';
 const cameraOf = (t: Target) => cameraById(t.scene, t.span!.shot.camera) ?? t.scene.cameras[0];
 export const filmedBySummary = (t: Target) => cameraOf(t).name;
 
-/** A camera in a few words as it films a shot from t: "Anna single · MCU · 85 mm · Follows". */
+/** A camera in a few words as it films a shot from t: "Anna single · MCU · 85 mm · Arc". */
 function cameraSummary(scene: Scene, cam: Camera, t: number) {
   const view = cam.kind === 'rig' ? null : viewOf(scene, cam, t);
   const size = cam.kind === 'rig' ? cam.rig.size : sizeOf(scene, cam, t, view!);
   const lens = Math.round(cam.kind === 'rig' ? cam.rig.lens : view!.lens);
-  const moves = cam.kind === 'rig' ? (cam.rig.body === 'orbit' ? 'Circles' : 'Follows') : cam.points.length > 1 ? 'Moves' : 'Still';
+  const moves = cam.kind === 'rig' ? (cam.rig.move ? MOVE_NAMES[cam.rig.move.kind] : 'Holds') : cam.points.length > 1 ? 'Path' : 'Still';
   return [cam.name, SHOT_SIZES.find((x) => x.id === size)?.short, `${lens} mm`, moves].filter(Boolean).join(' · ');
 }
 

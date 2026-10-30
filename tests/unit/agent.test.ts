@@ -97,7 +97,7 @@ describe('assistant tools', () => {
     run(store, 'set_joints', { figure: fig, joints: [{ joint: 'leftUpperArm', x: -120, y: 0, z: 10 }] });
     expect(keyTimesOf(store.scene.animation!, fig)).toEqual([0, 1]);
     run(store, 'camera_move', { move: 'orbit90' });
-    expect(liveCamera(store.scene, 0)).toMatchObject({ kind: 'path', points: [{}, {}, expect.anything()] });
+    expect(liveCamera(store.scene, 0)).toMatchObject({ kind: 'rig', rig: { move: { kind: 'arc', by: 90 } } });
     expect(run(store, 'check_motion')).toBe('No problems found.');
     expect(run(store, 'describe_shot')).toMatch(/arcs/);
 
@@ -153,7 +153,7 @@ describe('assistant tools', () => {
     expect(run(store, 'film_coverage', { coverage: 'dialogue', a: b.name, b: a.name })).toMatch(new RegExp(`^Conversation \\(A: ${b.name}, B: ${a.name}\\): 0 s Master, 3 s ${b.name} single`));
     expect(runTool(store, 'film_coverage', { coverage: 'sports', a: a.name, b: a.name }).ok).toBe(false);
     // A shot and a camera, each edited on its own.
-    expect(run(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Master', size: 'ws', lens: 28 })).toMatch(/^Master: follows .* at wide, 28mm\.$/);
+    expect(run(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, move: null, move_amount: null, move_size: null, move_to: null, pace: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Master', size: 'ws', lens: 28 })).toMatch(/^Master: holds on .*, WS, 28 mm\.$/);
     expect(run(store, 'edit_shot', { time: 0, name: null, caption: 'They meet', camera: null, blend: null })).toMatch(/^Shot 1: 0\.00–3\.00 s, filmed by Master, cut in\.$/);
     expect(store.scene.animation!.shots![0].caption).toBe('They meet');
     expect(runTool(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Nobody' }).ok).toBe(false);

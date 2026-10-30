@@ -1,17 +1,14 @@
 import * as THREE from 'three';
-import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { frameTimes } from './animation';
 import { hermite } from './clip';
-import { basePoseAt, figurePoseAt, movesOf, sceneAt } from './evaluate';
+import { basePoseAt, figurePoseAt, movesOf } from './evaluate';
 import { wrapDeg } from './joints';
 import { Rig } from './relations';
 import { facingOf } from './pose';
-import { fitCamera, viewDirection } from './render';
-import { SceneView } from './sceneview';
+import { viewDirection } from './render';
 import { defaultCamera } from './doc';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
 import { projectSettings } from './project';
-import type { Camera, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, RigCamera, Scene, ShotSize, Vec3, View } from './types';
+import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, RigCamera, Scene, ShotSize, Vec3, View } from './types';
 
 /*
  * The cameras: how a "director" films the figures. A scene has cameras, at least one, each an
@@ -53,58 +50,6 @@ export function fovLens(fov: number, aspect = SHOT_ASPECT) {
   return sensorHeight(aspect) / 2 / Math.tan((THREE.MathUtils.clamp(fov, 1, 170) * D2R) / 2);
 }
 
-/* ---------- what is in frame ---------- */
-
-export interface Framing {
-  /** The figures over the stretch of time, so the frame stays steady. */
-  points: THREE.Vector3[];
-}
-
-/**
- * Only the convex hull matters for framing (the extremes of any perspective view lie on it), and
- * it is a few hundred points instead of tens of thousands: placing a shot gets much cheaper.
- */
-function hull(points: THREE.Vector3[]) {
-  if (points.length < 50) return points;
-  try {
-    const h = new ConvexHull().setFromPoints(points);
-    const out = new Set<THREE.Vector3>();
-    for (const face of h.faces) {
-      let e = face.edge;
-      do {
-        out.add(e.head().point);
-        e = e.next;
-      } while (e !== face.edge);
-    }
-    return out.size >= 4 ? [...out].map((v) => v.clone()) : points;
-  } catch {
-    return points;
-  }
-}
-
-/**
- * What a shot frames: everyone, sampled over the animation (or just the pose); or one figure
- * (`only`) over a stretch of time.
- */
-export function framingFor(scene: Scene, samples = 12, only?: { figure: string; from: number; to: number }): Framing {
-  const view = new SceneView();
-  const points: THREE.Vector3[] = [];
-  const times = !scene.animation ? [0] : only
-    ? Array.from({ length: samples }, (_, i) => only.from + ((only.to - only.from) * i) / Math.max(1, samples - 1))
-    : frameTimes(scene.animation, samples);
-  for (const t of times) {
-    view.sync(sceneAt(scene, t));
-    let i = 0;
-    // Every 9th vertex is plenty for framing.
-    const subject = only ? view.figures.get(only.figure) : undefined;
-    if (subject) subject.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); });
-    else view.forEachPoint((p) => { if (i++ % 9 === 0) points.push(p.clone()); }, true);
-  }
-  view.dispose();
-  if (!points.length) points.push(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.8, 0));
-  return { points: hull(points) };
-}
-
 /** The figure a camera films, if it has one and the figure is there. */
 export function cameraSubject(scene: Scene, cam: Camera): string | undefined {
   return cam.subject && scene.figures.some((f) => f.id === cam.subject && !f.hidden) ? cam.subject : undefined;
@@ -131,30 +76,6 @@ export function liveCamera(scene: Scene, t: number): Camera {
 export function subjectAt(scene: Scene, t: number): string | undefined {
   return cameraSubject(scene, liveCamera(scene, t));
 }
-
-// Framings are worked out once per animation (or still cast), subject and stretch of time.
-const framings = new WeakMap<object, Map<string, Framing>>();
-
-/** The framing of a stretch of a scene: a figure over a stretch of time, or everyone over the animation. */
-function framingOf(scene: Scene, only?: { figure: string; from: number; to: number }): Framing {
-  const owner: object = scene.animation ?? scene.figures;
-  let cache = framings.get(owner);
-  if (!cache) framings.set(owner, (cache = new Map()));
-  const key = only ? `${only.from}:${only.to}:${only.figure}` : 'all';
-  let f = cache.get(key);
-  if (!f) {
-    // While a scene is being edited (a new animation every moment of a drag), the framing of a
-    // moment ago does: it is worked out again once the edits pause.
-    const id = `${scene.id}:${key}`;
-    const now = Date.now();
-    f = recent?.id === id && now - recent.at < 300 ? recent.framing : framingFor(scene, only ? 8 : 12, only);
-    if (recent?.id !== id || recent.framing !== f) recent = { id, framing: f, at: now };
-    cache.set(key, f);
-  }
-  return f;
-}
-
-let recent: { id: string; framing: Framing; at: number } | null = null;
 
 /** Where a camera's subject is at t, on the floor under its hips (several, or everyone: the middle of them). */
 export function subjectPlace(scene: Scene, cam: Camera, t: number): THREE.Vector3 {
@@ -237,7 +158,7 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
     let view = views.get(key);
     if (!view) {
       const v = rigView(scene, cam, cam.rig, t, aspect);
-      view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: 0 });
+      view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: v.roll });
       if (views.size > 2000) views.clear();
       views.set(key, view);
     }
@@ -321,11 +242,17 @@ export const SHOT_SIZES = [
 ] as const;
 export type { Placement, ShotSize };
 
-/** A rig camera's rule in a few words, e.g. "follows Ben, MCU, 85 mm". */
+/** What each kind of move is called (#16). */
+export const MOVE_NAMES: Record<CameraMove['kind'], string> = {
+  push: 'Push', arc: 'Arc', crane: 'Crane', truck: 'Truck', pan: 'Pan', tilt: 'Tilt', zoom: 'Zoom', dolly: 'Dolly zoom', roll: 'Roll',
+};
+
+/** A rig camera's rule in a few words, e.g. "arc on Ben, MCU, 85 mm". */
 export function rigRule(scene: Scene, cam: RigCamera): string {
   const who = cameraFigures(scene, cam)?.map((id) => scene.figures.find((f) => f.id === id)!.name).join(' and ') ?? 'everyone';
   const size = SHOT_SIZES.find((x) => x.id === cam.rig.size)!.short;
-  return `${cam.rig.body === 'orbit' ? 'circles' : 'follows'} ${who}, ${size}, ${Math.round(cam.rig.lens)} mm`;
+  const move = cam.rig.move ? MOVE_NAMES[cam.rig.move.kind].toLowerCase() : 'holds';
+  return `${move} on ${who}, ${size}, ${Math.round(cam.rig.lens)} mm`;
 }
 
 /** How much of the body each shot size holds: from and to, as shares of the body's height down from the top of the head. */
@@ -426,11 +353,16 @@ function smoothBody(scene: Scene, ids: string[] | undefined, t: number, window: 
 }
 
 /** Where a camera looks from and at to hold a body at a shot size from an angle (world yaw, pitch) through a lens. */
-function compose(body: Body, size: ShotSize, yaw: number, pitch: number, lens: number, place: Placement | undefined, aspect: number) {
-  const [a, b] = SPAN[size];
+function compose(body: Body, size: ShotSize | SizeBlend, yaw: number, pitch: number, lens: number, place: Placement | undefined, aspect: number) {
+  // (Between two sizes, a part of the way: a push in, a pull out.)
+  const [from, to, u] = typeof size === 'string' ? [size, size, 0] : [size.from, size.to, size.u];
+  const mix = (x: number, y: number) => x + (y - x) * u;
+  const a = mix(SPAN[from][0], SPAN[to][0]);
+  const b = mix(SPAN[from][1], SPAN[to][1]);
   // A close shot is measured from the head and the standing height, a wide one from the whole
   // body as it is (standing, the two agree; lying, the close-up still holds the head).
-  const near = ({ ews: 0, ws: 0, fs: 0, mws: 0.25, ms: 0.5, mcu: 1, cu: 1, ecu: 1 } as Record<ShotSize, number>)[size];
+  const NEAR = { ews: 0, ws: 0, fs: 0, mws: 0.25, ms: 0.5, mcu: 1, cu: 1, ecu: 1 } as Record<ShotSize, number>;
+  const near = mix(NEAR[from], NEAR[to]);
   const crown = body.head.y + 0.13 * body.stature;
   const head = body.top + (crown - body.top) * near;
   const height = body.height + (body.stature - body.height) * near;
@@ -456,7 +388,35 @@ function compose(body: Body, size: ShotSize, yaw: number, pitch: number, lens: n
   return { position: look.clone().addScaledVector(dir, dist), look };
 }
 
+/** A shot size a part of the way to another (a move's push or pull). */
+type SizeBlend = { from: ShotSize; to: ShotSize; u: number };
+
 /* ---------- cameras placing themselves (rigs) ---------- */
+
+/**
+ * How far a camera's move has gone at t (0–1): over the run of shots it films then (shots one
+ * after another with it are one run: a cut in it changes nothing; the cut coming back to it after
+ * another camera plays the move again), the last run between its runs; before its first, not yet;
+ * filming none, over the whole animation; at its pace. A still scene does not move.
+ */
+export function moveProgress(scene: Scene, cam: Camera, t: number, pace: CameraMove['pace']): number {
+  const a = scene.animation;
+  if (!a) return 0;
+  const first = scene.cameras[0]?.id;
+  const spans: { start: number; end: number }[] = [];
+  for (const s of shotSpans(a)) {
+    if ((s.shot.camera ?? first) !== cam.id) continue;
+    const last = spans.at(-1);
+    if (last && Math.abs(last.end - s.start) < 1e-6) last.end = s.end;
+    else spans.push({ start: s.start, end: s.end });
+  }
+  const span = spans.find((s) => t >= s.start && t < s.end) ?? spans.filter((s) => s.start <= t).at(-1) ?? (spans.length ? null : { start: 0, end: a.duration });
+  if (!span) return 0;
+  const x = THREE.MathUtils.clamp((t - span.start) / Math.max(1e-6, span.end - span.start), 0, 1);
+  if (pace === 'even') return x;
+  if (pace === 'snap') return THREE.MathUtils.smoothstep(x, 0.55, 0.75);
+  return THREE.MathUtils.smoothstep(x, 0, 1);
+}
 
 /** When a camera's angle is measured from: the start of the first shot it films (else the start). */
 function firstFilmed(scene: Scene, cam: Camera) {
@@ -470,7 +430,7 @@ function firstFilmed(scene: Scene, cam: Camera) {
  */
 function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth = r.smooth ?? 0): number {
   const subject = cameraSubject(scene, cam);
-  const at = r.body === 'follow' && r.turn ? t : firstFilmed(scene, cam);
+  const at = r.turn ? t : firstFilmed(scene, cam);
   const from = at === t ? body : smoothBody(scene, cameraFigures(scene, cam), at, smooth);
   const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, [r.toward], at, smooth) : null;
   return other ? Math.atan2(other.x - from.x, other.z - from.z) * R2D : from.facing;
@@ -488,12 +448,11 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
    * Where it films from at a time, turned `extra` degrees round its subject from its rig's own
    * angle (`rough`: from where they are then, not eased over its smoothing: to choose how far round).
    */
-  const turnedBy = (time: number, place: Placement | undefined, rough = false) => {
+  const turnedBy = (time: number, place: Placement | undefined, rough = false, o: { size?: ShotSize | SizeBlend; pitch?: number; lens?: number } = {}) => {
     const smooth = rough ? 0 : r.smooth ?? 0;
     const body = smoothBody(scene, subject, time, smooth);
-    const spin = r.body === 'orbit' ? (r.spin ?? 0) * (time - firstFilmed(scene, cam)) : 0;
-    const yaw = rigHeading(scene, cam, r, time, body, smooth) + r.yaw + spin;
-    return (extra: number) => compose(body, r.size, yaw + extra, r.pitch, r.lens, place, aspect);
+    const yaw = rigHeading(scene, cam, r, time, body, smooth) + r.yaw;
+    return (extra: number) => compose(body, o.size ?? r.size, yaw + extra, o.pitch ?? r.pitch, o.lens ?? r.lens, place, aspect);
   };
   const solve = (time: number, place: Placement | undefined, at = turnedBy(time, place), them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null) => {
     if (!them || !seen(at(0), them, r.lens, aspect)) return { shot: at(0), clear: true, extra: 0 };
@@ -572,8 +531,54 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
   const k = Math.max(0, t / SWING_STEP);
   const i = Math.floor(k);
   const swing = eased(i) + (eased(i + 1) - eased(i)) * (k - i);
-  const shot = turnedBy(t, place)(swing);
-  return { position: shot.position, target: shot.look, lens: r.lens };
+  return moved(scene, cam, r, t, aspect, place, swing, turnedBy);
+}
+
+/**
+ * A rig's shot at t, moved as far through its move as the shot has gone (#16): round its subject
+ * (arc), up or down (crane), closer or wider (a push or pull; any move may end at another size),
+ * the lens changed keeping the size (dolly) or not (zoom), sideways (truck), turned away (pan,
+ * tilt: to another figure, or by degrees) or about the line of sight (roll).
+ */
+function moved(
+  scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: number, place: Placement | undefined, swing: number,
+  turnedBy: (time: number, place: Placement | undefined, rough?: boolean, o?: { size?: ShotSize | SizeBlend; pitch?: number; lens?: number }) => (extra: number) => { position: THREE.Vector3; look: THREE.Vector3 },
+) {
+  const m = r.move;
+  const u = m ? moveProgress(scene, cam, t, m.pace) : 0;
+  const roll = (r.roll ?? 0) + (m?.kind === 'roll' ? u * (m.by ?? 0) : 0);
+  if (!m || u <= 0) {
+    const shot = turnedBy(t, place)(swing);
+    return { position: shot.position, target: shot.look, lens: r.lens, roll };
+  }
+  const by = m.by ?? 0;
+  const size = m.size && m.size !== r.size ? { from: r.size, to: m.size, u } : r.size;
+  const lensTo = m.kind === 'zoom' || m.kind === 'dolly' ? Math.min(400, Math.max(8, by || r.lens)) : r.lens;
+  const lens = r.lens + (lensTo - r.lens) * u;
+  const shot = turnedBy(t, place, false, {
+    size,
+    pitch: m.kind === 'crane' ? THREE.MathUtils.clamp(r.pitch + u * by, -80, 88) : r.pitch,
+    // (A dolly keeps the size as the lens changes: the camera goes nearer or farther; a zoom stays put.)
+    lens: m.kind === 'dolly' ? lens : r.lens,
+  })(swing + (m.kind === 'arc' ? u * by : 0));
+  const position = shot.position.clone();
+  let target = shot.look.clone();
+  const dir = target.clone().sub(position);
+  const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+  if (m.kind === 'truck') {
+    position.addScaledVector(right, u * by);
+    target.addScaledVector(right, u * by);
+  } else if (m.kind === 'pan' && m.to && scene.figures.some((f) => f.id === m.to && !f.hidden)) {
+    // To another figure: where a shot of them from here would look.
+    const them = smoothBody(scene, [m.to], t, r.smooth ?? 0);
+    const there = compose(them, typeof size === 'string' ? size : size.to, angleOf({ position, target, fov: 0, lens, roll: 0 }).yaw, r.pitch, r.lens, undefined, aspect).look;
+    target = target.lerp(there, u);
+  } else if (m.kind === 'pan') {
+    target = position.clone().add(dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), -u * by * D2R));
+  } else if (m.kind === 'tilt') {
+    target = position.clone().add(dir.applyAxisAngle(right, u * by * D2R));
+  }
+  return { position, target, lens: m.kind === 'zoom' || m.kind === 'dolly' ? lens : r.lens, roll };
 }
 
 /** How far a camera is from the nearest of some people (where they stand). */
@@ -617,13 +622,12 @@ function seen(shot: { position: THREE.Vector3; look: THREE.Vector3 }, body: Body
 }
 
 /** The rig that films as a camera view does at t (its angle from the subject, its size and lens). */
-export function rigFrom(scene: Scene, cam: Camera, view: CameraView, t: number, body: CameraRig['body'], o: Partial<CameraRig> = {}): CameraRig {
-  const r: CameraRig = { body, yaw: 0, pitch: 0, size: 'fs', lens: Math.round(view.lens), smooth: 0.5, ...(body === 'orbit' ? { spin: 20 } : {}), ...(cam.kind === 'rig' ? cam.rig : {}), ...o };
+export function rigFrom(scene: Scene, cam: Camera, view: CameraView, t: number, o: Partial<CameraRig> = {}): CameraRig {
+  const r: CameraRig = { yaw: 0, pitch: 0, size: 'fs', lens: Math.round(view.lens), smooth: 0.5, ...(cam.kind === 'rig' ? cam.rig : {}), ...o };
   const b = smoothBody(scene, cameraFigures(scene, cam), t, r.smooth ?? 0);
   const { yaw, pitch } = angleOf(view);
-  const spin = r.body === 'orbit' ? (r.spin ?? 0) * (t - firstFilmed(scene, cam)) : 0;
   const round = (v: number) => Math.round(v * 10) / 10;
-  return { ...r, yaw: round(wrapDeg(yaw - rigHeading(scene, cam, r, t, b) - spin)), pitch: round(pitch), size: o.size ?? sizeOf(scene, cam, t, view) };
+  return { ...r, yaw: round(wrapDeg(yaw - rigHeading(scene, cam, r, t, b))), pitch: round(pitch), size: o.size ?? sizeOf(scene, cam, t, view) };
 }
 
 /**
@@ -687,7 +691,7 @@ export interface MoveContext {
 /** What a camera is, apart from who it is: a path (where, looking at what, its points) or a rig; and its shake. */
 export type CameraForm = (Pick<PathCamera, 'kind' | 'anchor' | 'aim' | 'points' | 'ease'> | Pick<RigCamera, 'kind' | 'rig'>) & { shake?: number };
 
-export interface CameraMove {
+export interface MovePreset {
   id: string;
   name: string;
   group: (typeof CAMERA_GROUPS)[number];
@@ -705,222 +709,62 @@ const who = (cam: Camera) => {
 /** A camera of another form (its shake as the form has it). */
 export const reform = (cam: Camera, form: CameraForm): Camera => ({ ...who(cam), ...form } as Camera);
 
-/** Everyone the camera frames over the move's time in view from an angle, `zoom` times closer: a point. */
-function fitPoint(c: MoveContext, cam: PathCamera, t: number, yaw: number, pitch: number, fov: number, zoom = 1, rise = 0): CameraPoint {
-  const aspect = frameAspect();
-  const three = new THREE.PerspectiveCamera(fov, aspect);
-  const subject = cameraSubject(c.scene, c.camera);
-  const f = framingOf(c.scene, subject ? { figure: subject, from: c.start, to: c.end } : undefined);
-  const view = { yaw, pitch, fov };
-  const target = fitCamera(three, { forEachPoint: (cb) => f.points.forEach(cb) }, view, 0.1);
-  const dist = target.distance / zoom;
-  // A closer view looks a little higher (at the upper body).
-  target.y += rise;
-  return pointIn(c.scene, cam, t, target.clone().addScaledVector(viewDirection(view), dist), target, fovLens(fov, aspect));
+/**
+ * A framing for a move (#16): its subject from the angle it is filmed from now (`turn` degrees
+ * further round; a pitch, if given, its own), as the move asks: its size, lens, its move.
+ */
+function framed(c: MoveContext, o: Partial<CameraRig> & { size: ShotSize }, turn = 0): CameraForm {
+  const look = new THREE.Vector3(0, 1, 0);
+  const view: CameraView = { position: look.clone().addScaledVector(viewDirection(c.base), 3), target: look, fov: c.base.fov, lens: fovLens(c.base.fov), roll: 0 };
+  const from = rigFrom(c.scene, c.camera, view, c.start, { size: o.size });
+  const rig: CameraRig = { yaw: wrapDeg(from.yaw + turn), pitch: from.pitch, lens: 50, smooth: 0.5, ...o };
+  return { kind: 'rig', rig };
 }
 
-/** The move's camera as a path (fixed in the world, looking at points or at its subject). */
-const path = (c: MoveContext, aim: PathCamera['aim'] = 'point'): PathCamera => ({ ...who(c.camera), kind: 'path', anchor: 'world', aim, points: [] });
-const fixed = (points: CameraPoint[], aim: PathCamera['aim'] = 'point'): CameraForm => ({ kind: 'path', anchor: 'world', aim, points });
+/** A framing at its own angle on the subject (degrees from its front; a following shot), as the move asks. */
+const rigged = (rig: CameraRig): CameraForm => ({ kind: 'rig', rig });
 
-/** A point of a fixed camera (in the world) at another time: moved by `move` and its look by `look` (across, up, along the view, in metres), its lens times `zoom`. */
-function shifted(p: CameraPoint, t: number, o: { move?: Vec3; look?: Vec3; zoom?: number } = {}): CameraPoint {
-  const pos = new THREE.Vector3(...p.position), at = new THREE.Vector3(...p.look);
-  const along = at.clone().sub(pos).setY(0).normalize();
-  const across = new THREE.Vector3(-along.z, 0, along.x);
-  const by = ([x, y, z]: Vec3) => across.clone().multiplyScalar(x).add(new THREE.Vector3(0, y, 0)).addScaledVector(along, z);
-  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
-  const move = by(o.move ?? [0, 0, 0]);
-  return {
-    ...p, t: Math.round(t * 1000) / 1000,
-    position: pos.add(move).toArray().map(r3) as Vec3,
-    look: at.add(move).add(by(o.look ?? [0, 0, 0])).toArray().map(r3) as Vec3,
-    lens: Math.round(p.lens * (o.zoom ?? 1) * 10) / 10,
-  };
-}
+/** Another figure than the camera's subject, to pan to (none: the move turns by degrees). */
+const another = (c: MoveContext) => c.scene.figures.find((f) => !f.hidden && f.id !== cameraSubject(c.scene, c.camera))?.id;
 
-/** Ready-made camera moves, each over a shot's time. */
-export const CAMERA_MOVES: CameraMove[] = [
-  {
-    id: 'static', group: 'Fixed', name: 'Locked-off wide', description: 'A fixed camera that shows everything',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov)]),
-  },
-  {
-    id: 'push', group: 'Towards & away', name: 'Push in', description: 'Slowly dolly towards the figures',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov), fitPoint(c, path(c), c.end, c.base.yaw, c.base.pitch, c.base.fov, 1.8, 0.3)]),
-  },
-  {
-    id: 'pull', group: 'Towards & away', name: 'Pull out', description: 'Start close and reveal the whole scene',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.9, 0.35), fitPoint(c, path(c), c.end, c.base.yaw, c.base.pitch, c.base.fov)]),
-  },
-  {
-    id: 'orbit90', group: 'Around & up', name: 'Arc 90°', description: 'Circle a quarter of the way around',
-    apply: (c) => fixed([-45, 0, 45].map((d, i) => fitPoint(c, path(c), c.start + ((c.end - c.start) * i) / 2, c.base.yaw + d, c.base.pitch + 4, c.base.fov, 1.1))),
-  },
-  {
-    id: 'orbit360', group: 'Around & up', name: 'Orbit 360°', description: 'A full turntable around the figures',
-    apply: (c) => fixed(Array.from({ length: 9 }, (_, i) => fitPoint(c, path(c), c.start + ((c.end - c.start) * i) / 8, c.base.yaw + 45 * i, c.base.pitch + 6, c.base.fov))),
-  },
-  {
-    id: 'crane', group: 'Around & up', name: 'Crane up', description: 'Rise from eye level to a high angle',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, -2, c.base.fov, 1.15), fitPoint(c, path(c), c.end, c.base.yaw + 15, 48, c.base.fov, 0.95)]),
-  },
-  {
-    id: 'hero', group: 'Fixed', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw - 15, -14, 38, 1.25, 0.15), fitPoint(c, path(c), c.end, c.base.yaw + 10, -8, 34, 1.4, 0.2)]),
-  },
-  {
-    id: 'tracking', group: 'Following', name: 'Tracking from the left', description: 'Move alongside from the left, keeping a medium wide shot',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 } }),
-  },
-  {
-    id: 'follow', group: 'Following', name: 'Follow behind', description: 'Behind the subject, turning as it turns',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 180, pitch: 10, turn: true, size: 'fs', lens: 35, smooth: 0.8 } }),
-  },
-  {
-    id: 'lead', group: 'Following', name: 'Leading shot', description: 'Ahead of the subject, looking back at it as it comes',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 10, pitch: 2, turn: true, size: 'ms', lens: 50, smooth: 0.8 } }),
-  },
-  {
-    id: 'circle', group: 'Around & up', name: 'Circle the subject', description: 'Half way around the subject, holding a medium shot',
-    apply: (c) => ({ kind: 'rig', rig: { body: 'orbit', yaw: -90, pitch: 6, spin: Math.round(180 / Math.max(0.5, c.end - c.start)), size: 'ms', lens: 40, smooth: 0.5 } }),
-  },
-  {
-    id: 'vertigo', group: 'Classic shots', name: 'Hitchcock zoom', description: 'Vertigo’s dolly zoom: the camera pulls back as the lens zooms in, the figure keeps its size while the world behind it closes in',
-    apply: (c) => {
-      const at = (t: number, lens: number) => framePoint(c.scene, path(c, 'subject'), t, 'fs', { yaw: c.base.yaw, pitch: c.base.pitch, lens });
-      return fixed([at(c.start, 22), at(c.end, 90)], 'subject');
-    },
-  },
-  {
-    id: 'jaws', group: 'Classic shots', name: 'Jaws dolly zoom', description: 'The other way, as in Jaws: the camera pushes in as the lens widens, the world behind the figure stretches away',
-    apply: (c) => {
-      const at = (t: number, lens: number) => framePoint(c.scene, path(c, 'subject'), t, 'ms', { yaw: c.base.yaw, pitch: c.base.pitch, lens });
-      return fixed([at(c.start, 85), at(c.end, 20)], 'subject');
-    },
-  },
-  {
-    id: 'bullet-time', group: 'Classic shots', name: 'Bullet time', description: 'The Matrix: a fast half-circle round the subject, as if time stood still',
-    apply: (c) => ({ kind: 'rig', rig: { body: 'orbit', yaw: -90, pitch: 4, spin: Math.round(180 / Math.max(0.4, c.end - c.start)), size: 'fs', lens: 35, smooth: 0 } }),
-  },
-  {
-    id: 'snorricam', group: 'Classic shots', name: 'Snorricam', description: 'Requiem for a Dream: the camera strapped to the actor, the face fixed in frame while the world swings round it',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 0, pitch: 0, turn: true, size: 'mcu', lens: 24, smooth: 0 } }),
-  },
-  {
-    id: 'one-point', group: 'Classic shots', name: 'One-point push', description: 'Kubrick’s symmetry: straight on, a wide lens, a slow push down the middle',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, 0, 2, 70, 0.8), fitPoint(c, path(c), c.end, 0, 2, 70, 1.5, 0.2)]),
-  },
-  {
-    id: 'overhead-follow', group: 'Classic shots', name: 'Overhead tracking', description: 'Straight down from above, following the subject (Scorsese, Wes Anderson)',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 0, pitch: 85, size: 'ws', lens: 35, smooth: 0.6 } }),
-  },
-  {
-    id: 'spielberg', group: 'Classic shots', name: 'Spielberg push-in', description: 'A slow push to a close-up on the face as the character realises something',
-    apply: (c) => {
-      const at = (t: number, size: ShotSize) => framePoint(c.scene, path(c, 'subject'), t, size, { yaw: c.base.yaw, pitch: 2, lens: 50 });
-      return fixed([at(c.start, 'mws'), at(c.end, 'cu')], 'subject');
-    },
-  },
-  {
-    id: 'barrel-roll', group: 'Classic shots', name: 'Barrel roll', description: 'The camera turns over on its axis as it pushes in: disorientation, a world upside down',
-    apply: (c) => {
-      const d = c.end - c.start;
-      return fixed([0, 1, 2, 3].map((i) => ({ ...fitPoint(c, path(c), c.start + (d * i) / 3, c.base.yaw, c.base.pitch, c.base.fov, 1 + i * 0.2, 0.1), roll: i * 120 })));
-    },
-  },
-  {
-    id: 'high', group: 'Fixed', name: 'High angle', description: 'Look down on the figures from above: they seem smaller, weaker',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, 38, c.base.fov, 1.1)]),
-  },
-  {
-    id: 'overhead', group: 'Fixed', name: "Bird's-eye", description: 'Straight down from overhead, like a map',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, 86, c.base.fov)]),
-  },
-  {
-    id: 'worm', group: 'Fixed', name: "Worm's-eye", description: 'From the floor looking up, with a wide lens',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, -30, 62, 1.2, 0.1)]),
-  },
-  {
-    id: 'dutch', group: 'Fixed', name: 'Dutch angle', description: 'The camera tilted sideways: unease, tension',
-    apply: (c) => fixed([{ ...fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.2, 0.1), roll: 18 }]),
-  },
-  {
-    id: 'closeup', group: 'Fixed', name: 'Close-up', description: 'A fixed close-up of the subject on a long lens',
-    apply: (c) => fixed([framePoint(c.scene, path(c, 'subject'), c.start, 'cu', { yaw: c.base.yaw, pitch: 2, lens: 85 })], 'subject'),
-  },
-  {
-    id: 'profile', group: 'Fixed', name: 'Profile', description: 'Side-on to the subject, a medium shot',
-    apply: (c) => fixed([framePoint(c.scene, path(c, 'subject'), c.start, 'ms', { yaw: c.base.yaw + 90, pitch: 0, lens: 50 })], 'subject'),
-  },
-  {
-    id: 'pan', group: 'Pan & tilt', name: 'Pan', description: 'The camera stays and turns from left to right across the scene',
-    apply: (c) => {
-      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.7, 0.2);
-      return fixed([shifted(p, c.start, { look: [-0.9, 0, 0] }), shifted(p, c.end, { look: [0.9, 0, 0] })]);
-    },
-  },
-  {
-    id: 'tilt', group: 'Pan & tilt', name: 'Tilt up', description: 'The camera stays and tilts from the feet up to the faces',
-    apply: (c) => {
-      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 2.2, 0.35);
-      return fixed([shifted(p, c.start, { look: [0, -1.1, 0] }), shifted(p, c.end, { look: [0, 0.15, 0] })]);
-    },
-  },
-  {
-    id: 'whip', group: 'Pan & tilt', name: 'Whip pan', description: 'Holds, then swings round fast to the other side',
-    apply: (c) => {
-      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.7, 0.2);
-      const d = c.end - c.start;
-      return fixed([shifted(p, c.start, { look: [-1, 0, 0] }), shifted(p, c.start + d * 0.6, { look: [-1, 0, 0] }), shifted(p, c.start + d * 0.7, { look: [1, 0, 0] }), shifted(p, c.end, { look: [1, 0, 0] })]);
-    },
-  },
-  {
-    id: 'truck', group: 'Towards & away', name: 'Truck', description: 'The camera slides sideways past the figures, looking straight on',
-    apply: (c) => {
-      const p = fitPoint(c, path(c), c.start, c.base.yaw, c.base.pitch, c.base.fov, 1.4, 0.2);
-      return fixed([shifted(p, c.start, { move: [-1, 0, 0] }), shifted(p, c.end, { move: [1, 0, 0] })]);
-    },
-  },
-  {
-    id: 'zoom', group: 'Towards & away', name: 'Slow zoom', description: 'The camera stays; the lens slowly zooms in',
-    apply: (c) => {
-      const p = framePoint(c.scene, path(c, 'subject'), c.start, 'ws', { yaw: c.base.yaw, pitch: c.base.pitch, lens: 35 });
-      return fixed([p, { ...p, t: c.end, lens: 70 }], 'subject');
-    },
-  },
-  {
-    id: 'crashzoom', group: 'Towards & away', name: 'Crash zoom', description: 'Holds wide, then zooms in fast on the subject',
-    apply: (c) => {
-      const p = framePoint(c.scene, path(c, 'subject'), c.start, 'ws', { yaw: c.base.yaw, pitch: c.base.pitch, lens: 28 });
-      const d = c.end - c.start;
-      const at = (f: number, lens: number) => ({ ...p, t: Math.round((c.start + d * f) * 1000) / 1000, lens });
-      return fixed([p, at(0.55, 28), at(0.7, 110), at(1, 110)], 'subject');
-    },
-  },
-  {
-    id: 'cranedown', group: 'Around & up', name: 'Crane down', description: 'Come down from high above to eye level',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw - 15, 55, c.base.fov, 0.85), fitPoint(c, path(c), c.end, c.base.yaw, 2, c.base.fov, 1.2, 0.2)]),
-  },
-  {
-    id: 'aerial', group: 'Around & up', name: 'Aerial reveal', description: 'A drone shot: from close and low, up and away to see the whole place',
-    apply: (c) => fixed([fitPoint(c, path(c), c.start, c.base.yaw, 8, c.base.fov, 1.6, 0.2), fitPoint(c, path(c), c.end, c.base.yaw + 35, 50, c.base.fov, 0.45)]),
-  },
-  {
-    id: 'steadicam', group: 'Following', name: 'Steadicam', description: 'Close behind the subject\'s shoulder, gliding smoothly as it goes',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: 155, pitch: 6, turn: true, size: 'ms', lens: 28, smooth: 0.9 } }),
-  },
-  {
-    id: 'sidetrack', group: 'Following', name: 'Tracking from the right', description: 'Move alongside from the right, keeping a medium wide shot',
-    apply: () => ({ kind: 'rig', rig: { body: 'follow', yaw: -90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 } }),
-  },
-  {
-    id: 'handheld', group: 'Following', name: 'Hand-held', description: 'A close, slightly shaky documentary feel',
-    apply: (c) => {
-      const at = (t: number, yaw: number, size: ShotSize) => framePoint(c.scene, path(c, 'subject'), t, size, { yaw, pitch: c.base.pitch + 2, lens: 40 });
-      return { ...fixed([at(c.start, c.base.yaw + 10, 'mws'), at(c.end, c.base.yaw - 5, 'ms')], 'subject'), shake: 0.6 };
-    },
-  },
+/** Ready-made camera moves: a framing and a move (#16), each over a shot's time. */
+export const CAMERA_MOVES: MovePreset[] = [
+  { id: 'static', group: 'Fixed', name: 'Locked-off wide', description: 'A fixed camera that shows everything', apply: (c) => framed(c, { size: 'ws' }) },
+  { id: 'push', group: 'Towards & away', name: 'Push in', description: 'Slowly dolly towards the figures', apply: (c) => framed(c, { size: 'fs', move: { kind: 'push', size: 'mcu' } }) },
+  { id: 'pull', group: 'Towards & away', name: 'Pull out', description: 'Start close and reveal the whole scene', apply: (c) => framed(c, { size: 'mcu', move: { kind: 'push', size: 'ws' } }) },
+  { id: 'orbit90', group: 'Around & up', name: 'Arc 90°', description: 'Circle a quarter of the way around', apply: (c) => framed(c, { size: 'mws', pitch: c.base.pitch + 4, move: { kind: 'arc', by: 90 } }, -45) },
+  { id: 'orbit360', group: 'Around & up', name: 'Orbit 360°', description: 'A full turntable around the figures', apply: (c) => framed(c, { size: 'fs', pitch: c.base.pitch + 6, move: { kind: 'arc', by: 360, pace: 'even' } }) },
+  { id: 'crane', group: 'Around & up', name: 'Crane up', description: 'Rise from eye level to a high angle', apply: (c) => framed(c, { size: 'fs', pitch: -2, move: { kind: 'crane', by: 50 } }) },
+  { id: 'hero', group: 'Fixed', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens', apply: (c) => framed(c, { size: 'mws', pitch: -14, lens: 35, move: { kind: 'push', size: 'ms' } }, -15) },
+  { id: 'tracking', group: 'Following', name: 'Tracking from the left', description: 'Move alongside from the left, keeping a medium wide shot', apply: () => rigged({ yaw: 90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 }) },
+  { id: 'follow', group: 'Following', name: 'Follow behind', description: 'Behind the subject, turning as it turns', apply: () => rigged({ yaw: 180, pitch: 10, turn: true, size: 'fs', lens: 35, smooth: 0.8 }) },
+  { id: 'lead', group: 'Following', name: 'Leading shot', description: 'Ahead of the subject, looking back at it as it comes', apply: () => rigged({ yaw: 10, pitch: 2, turn: true, size: 'ms', lens: 50, smooth: 0.8 }) },
+  { id: 'circle', group: 'Around & up', name: 'Circle the subject', description: 'Half way around the subject, holding a medium shot', apply: () => rigged({ yaw: -90, pitch: 6, size: 'ms', lens: 40, smooth: 0.5, move: { kind: 'arc', by: 180, pace: 'even' } }) },
+  { id: 'vertigo', group: 'Classic shots', name: 'Hitchcock zoom', description: 'Vertigo’s dolly zoom: the camera pulls back as the lens zooms in, the figure keeps its size while the world behind it closes in', apply: (c) => framed(c, { size: 'fs', lens: 22, move: { kind: 'dolly', by: 90 } }) },
+  { id: 'jaws', group: 'Classic shots', name: 'Jaws dolly zoom', description: 'The other way, as in Jaws: the camera pushes in as the lens widens, the world behind the figure stretches away', apply: (c) => framed(c, { size: 'ms', lens: 85, move: { kind: 'dolly', by: 20 } }) },
+  { id: 'bullet-time', group: 'Classic shots', name: 'Bullet time', description: 'The Matrix: a fast half-circle round the subject, as if time stood still', apply: () => rigged({ yaw: -90, pitch: 4, size: 'fs', lens: 35, smooth: 0, move: { kind: 'arc', by: 180, pace: 'even' } }) },
+  { id: 'snorricam', group: 'Classic shots', name: 'Snorricam', description: 'Requiem for a Dream: the camera strapped to the actor, the face fixed in frame while the world swings round it', apply: () => rigged({ yaw: 0, pitch: 0, turn: true, size: 'mcu', lens: 24, smooth: 0 }) },
+  { id: 'one-point', group: 'Classic shots', name: 'One-point push', description: 'Kubrick’s symmetry: straight on, a wide lens, a slow push down the middle', apply: () => rigged({ yaw: 0, pitch: 2, size: 'ws', lens: 18, smooth: 0.5, move: { kind: 'push', size: 'fs', pace: 'even' } }) },
+  { id: 'overhead-follow', group: 'Classic shots', name: 'Overhead tracking', description: 'Straight down from above, following the subject (Scorsese, Wes Anderson)', apply: () => rigged({ yaw: 0, pitch: 85, size: 'ws', lens: 35, smooth: 0.6 }) },
+  { id: 'spielberg', group: 'Classic shots', name: 'Spielberg push-in', description: 'A slow push to a close-up on the face as the character realises something', apply: (c) => framed(c, { size: 'mws', pitch: 2, lens: 50, move: { kind: 'push', size: 'cu' } }) },
+  { id: 'barrel-roll', group: 'Classic shots', name: 'Barrel roll', description: 'The camera turns over on its axis as it pushes in: disorientation, a world upside down', apply: (c) => framed(c, { size: 'fs', move: { kind: 'roll', by: 360, size: 'ms' } }) },
+  { id: 'high', group: 'Fixed', name: 'High angle', description: 'Look down on the figures from above: they seem smaller, weaker', apply: (c) => framed(c, { size: 'fs', pitch: 38 }) },
+  { id: 'overhead', group: 'Fixed', name: "Bird's-eye", description: 'Straight down from overhead, like a map', apply: (c) => framed(c, { size: 'ws', pitch: 86 }) },
+  { id: 'worm', group: 'Fixed', name: "Worm's-eye", description: 'From the floor looking up, with a wide lens', apply: (c) => framed(c, { size: 'fs', pitch: -30, lens: 18 }) },
+  { id: 'dutch', group: 'Fixed', name: 'Dutch angle', description: 'The camera tilted sideways: unease, tension', apply: (c) => framed(c, { size: 'mws', roll: 18 }) },
+  { id: 'closeup', group: 'Fixed', name: 'Close-up', description: 'A fixed close-up of the subject on a long lens', apply: (c) => framed(c, { size: 'cu', pitch: 2, lens: 85 }) },
+  { id: 'profile', group: 'Fixed', name: 'Profile', description: 'Side-on to the subject, a medium shot', apply: (c) => framed(c, { size: 'ms', pitch: 0, lens: 50 }, 90) },
+  { id: 'pan', group: 'Pan & tilt', name: 'Pan', description: 'The camera stays and turns, from its subject to another (or across the scene)', apply: (c) => framed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c) } : { kind: 'pan', by: 40 } }) },
+  { id: 'tilt', group: 'Pan & tilt', name: 'Tilt up', description: 'The camera stays and tilts up from the feet to the face', apply: (c) => framed(c, { size: 'ms', pitch: 0, move: { kind: 'tilt', by: 20 } }) },
+  { id: 'whip', group: 'Pan & tilt', name: 'Whip pan', description: 'Holds, then swings round fast to the other side', apply: (c) => framed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c), pace: 'snap' } : { kind: 'pan', by: 90, pace: 'snap' } }) },
+  { id: 'truck', group: 'Towards & away', name: 'Truck', description: 'The camera slides sideways past the figures, looking straight on', apply: (c) => framed(c, { size: 'mws', move: { kind: 'truck', by: 2, pace: 'even' } }) },
+  { id: 'zoom', group: 'Towards & away', name: 'Slow zoom', description: 'The camera stays; the lens slowly zooms in', apply: (c) => framed(c, { size: 'ws', lens: 35, move: { kind: 'zoom', by: 70 } }) },
+  { id: 'crashzoom', group: 'Towards & away', name: 'Crash zoom', description: 'Holds wide, then zooms in fast on the subject', apply: (c) => framed(c, { size: 'ws', lens: 28, move: { kind: 'zoom', by: 110, pace: 'snap' } }) },
+  { id: 'cranedown', group: 'Around & up', name: 'Crane down', description: 'Come down from high above to eye level', apply: (c) => framed(c, { size: 'fs', pitch: 55, move: { kind: 'crane', by: -53 } }, -15) },
+  { id: 'aerial', group: 'Around & up', name: 'Aerial reveal', description: 'A drone shot: from close and low, up and away to see the whole place', apply: (c) => framed(c, { size: 'ms', pitch: 8, move: { kind: 'crane', by: 42, size: 'ews' } }) },
+  { id: 'steadicam', group: 'Following', name: 'Steadicam', description: 'Close behind the subject\'s shoulder, gliding smoothly as it goes', apply: () => rigged({ yaw: 155, pitch: 6, turn: true, size: 'ms', lens: 28, smooth: 0.9 }) },
+  { id: 'sidetrack', group: 'Following', name: 'Tracking from the right', description: 'Move alongside from the right, keeping a medium wide shot', apply: () => rigged({ yaw: -90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 }) },
+  { id: 'handheld', group: 'Following', name: 'Hand-held', description: 'A close, slightly shaky documentary feel', apply: (c) => ({ ...framed(c, { size: 'mws', lens: 40, move: { kind: 'push', size: 'ms' } }, 10), shake: 0.6 }) },
 ];
 
 /**

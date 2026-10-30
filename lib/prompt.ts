@@ -1,4 +1,4 @@
-import type { Scene } from './types';
+import type { MoveKind, Scene } from './types';
 import { angleOf, cameraAt, cameraById, sizeOf, type CameraView, type ShotSize } from './cameras';
 import { newShot, shotSpans, type ShotSpan } from './shots';
 
@@ -6,6 +6,11 @@ import { newShot, shotSpans, type ShotSpan } from './shots';
  * A plain-language description of a shot (framing, angle, lens, camera move, cast, action),
  * ready to paste into an AI video tool alongside a rendered clip or first frame.
  */
+
+/** A camera move in a prompt's words (#16). */
+const MOVE_WORDS: Record<MoveKind, string> = {
+  push: 'push in', arc: 'arc shot around the subject', crane: 'crane shot', truck: 'trucking shot', pan: 'pan', tilt: 'tilt', zoom: 'zoom', dolly: 'dolly zoom', roll: 'rolling camera',
+};
 
 const FRAMING: Record<ShotSize, string> = {
   ews: 'extreme wide shot', ws: 'wide shot, full body', fs: 'full shot', mws: 'medium-wide shot',
@@ -61,7 +66,8 @@ function movement(scene: Scene, span: ShotSpan) {
     if (rise > 20) moves.push('crane up');
     else if (rise < -20) moves.push('crane down');
   }
-  if (scene.animation && cam.kind === 'rig' && cam.rig.body === 'follow' && cam.subject) moves.push(cam.rig.turn && Math.abs(cam.rig.yaw) > 135 ? 'following shot from behind the subject' : 'tracking shot that follows the subject');
+  if (scene.animation && cam.kind === 'rig' && cam.rig.move) moves.push(MOVE_WORDS[cam.rig.move.kind]);
+  if (scene.animation && cam.kind === 'rig' && cam.subject) moves.push(cam.rig.turn && Math.abs(cam.rig.yaw) > 135 ? 'following shot from behind the subject' : 'tracking shot that follows the subject');
   else if (scene.animation && cam.kind === 'path' && cam.anchor === 'subject') moves.push('tracking shot that follows the subject');
   if ((cam.shake ?? 0) > 0) moves.push('hand-held camera');
   return moves.length ? moves.join(', ') : 'static camera';
