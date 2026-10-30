@@ -393,12 +393,12 @@ function step(c: Ctx, k: StepKey) {
 
 /** The keys that move whole performances: Ctrl (Cmd) with the arrows; with Alt, ← → turn them. */
 const WHOLE_KEYS = [
-  { id: 'left', title: 'Move the whole performance left' },
-  { id: 'right', title: 'Move the whole performance right' },
-  { id: 'up', title: 'Move the whole performance away' },
-  { id: 'down', title: 'Move the whole performance nearer' },
-  { id: 'turnLeft', title: 'Turn the whole performance left' },
-  { id: 'turnRight', title: 'Turn the whole performance right' },
+  { id: 'left', title: 'Move it all left' },
+  { id: 'right', title: 'Move it all right' },
+  { id: 'up', title: 'Move it all away' },
+  { id: 'down', title: 'Move it all nearer' },
+  { id: 'turnLeft', title: 'Turn it all left' },
+  { id: 'turnRight', title: 'Turn it all right' },
 ] as const;
 
 /** Whose whole performances the Ctrl keys move: the figure selected, or the figures among several. */
@@ -591,7 +591,7 @@ export const COMMANDS: Command[] = [
     return { id: `whole.${k.id}`, title: k.title, keys: [`mod+${key}`, shift], when: (c) => !!performers(c), run: (c) => wholeStep(c, k.id) };
   }),
   {
-    id: 'figure.wholeTo', title: (c) => (c.floor ? 'Move the whole performance here' : 'Move the whole performance to…'),
+    id: 'figure.wholeTo', title: (c) => (c.floor ? 'Move it all here' : 'Move it all to…'),
     help: 'Move everything the figure does so that it is at a spot at the playhead (no key)', icon: Move3d,
     when: (c) => animated(c) && movable(c),
     run: (c) => {
@@ -655,7 +655,7 @@ export const COMMANDS: Command[] = [
     run: (c) => editLight(c.store, lightOf(c).id, { shadows: !lightOf(c).shadows }),
   },
   {
-    id: 'light.clay', title: 'Show the light: switch to Clay', icon: SunMedium, when: (c) => !!c.light && !styleDef(projectSettingsOf(c.store.getState().library).style).lit,
+    id: 'light.clay', title: 'See the light in Clay', icon: SunMedium, when: (c) => !!c.light && !styleDef(projectSettingsOf(c.store.getState().library).style).lit,
     run: (c) => editProjectSettings(c.store, { style: 'shaded' }),
   },
   {
@@ -1147,7 +1147,7 @@ export const COMMANDS: Command[] = [
     enabled: (c) => keysHere(c).on && keysHere(c).times.length > 1, run: (c) => deleteKeyframe(c.store),
   },
   {
-    id: 'timeline.cut', title: (c) => (c.store.getState().through ? 'Cut here, filmed from this view by a new camera' : 'Cut: start a new shot here'),
+    id: 'timeline.cut', title: (c) => (c.store.getState().through ? 'Cut here, from this view' : 'Cut: start a new shot here'),
     help: 'Start a new shot here (looking through: a new camera from this view)', icon: Scissors, keys: ['c'], when: animated,
     run: (c) => {
       App().stopPlayback();

@@ -1614,7 +1614,7 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   expect(await az()).toBeCloseTo(a0 + 15, 0);
 });
 
-test('a whole performance moves and turns as one, without a key: Ctrl + arrows, the inspector, Move the whole performance here', async ({ page }) => {
+test('a whole performance moves and turns as one, without a key: Ctrl + arrows, the inspector, Move it all here', async ({ page }) => {
   test.setTimeout(240_000);
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);
@@ -1652,7 +1652,7 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
 
   // Right-click the floor: the whole performance there (the figure is there at the playhead).
   await page.keyboard.press('Escape');
-  await floorMenu(page, [-0.6, 0, -1.5], 'Move the whole performance here');
+  await floorMenu(page, [-0.6, 0, -1.5], 'Move it all here');
   s = await live(page);
   expect(end(s)[0]).toBeCloseTo(-0.6, 1);
   expect(end(s)[1]).toBeCloseTo(-1.5, 1);
