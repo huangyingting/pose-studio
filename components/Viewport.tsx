@@ -93,6 +93,18 @@ interface Props {
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
 
 /** The floor is solid: the view can look up from near it, never from under it. */
+/** Whether a set's parts stand between two points (its parts are not picked: their own ray test, not their outlines'). */
+function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3) {
+  const dir = to.clone().sub(from);
+  const ray = new THREE.Raycaster(from, dir.clone().normalize(), 0, Math.max(0, dir.length() - 0.5));
+  const hits: THREE.Intersection[] = [];
+  set.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.layers.mask & 1) THREE.Mesh.prototype.raycast.call(m, ray, hits);
+  });
+  return hits.length > 0;
+}
+
 /**
  * The view's near plane a hundredth of the way to what it looks at (a centimetre at the closest,
  * half a metre at most): close up it keeps room to zoom, from afar the depth it can tell apart is
@@ -1039,7 +1051,18 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       // (A light: the scene and its lamp.)
       const lamp = light ? lampOf(light) : null;
       const source = one ? one : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
-      controls.target.copy(fitCamera(camera, source, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2));
+      const fit = (cam: THREE.PerspectiveCamera, yaw: number) => fitCamera(cam, source, { yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2);
+      // (In a set, from the angle nearest the one asked for whose view of the people no wall or
+      // pillar of the set stands across: the angle a scene is filmed from may look in from outside.)
+      let yaw = view.yaw;
+      if (sv.set) {
+        const trial = (camera as THREE.PerspectiveCamera).clone();
+        for (const turn of [0, 15, -15, 30, -30, 45, -45, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
+          const target = fit(trial, view.yaw + turn);
+          if (!setBetween(sv.set.object, trial.position, target)) { yaw = view.yaw + turn; break; }
+        }
+      }
+      controls.target.copy(fit(camera as THREE.PerspectiveCamera, yaw));
       camera.far = 200;
       camera.updateProjectionMatrix();
       controls.update();

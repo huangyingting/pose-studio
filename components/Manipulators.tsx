@@ -913,7 +913,7 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
         const y = ground(m.x, m.z) + 0.008;
         const color = m.over ? '#e5484d' : on ? '#3b6cff' : '#60616a';
         return (
-          <group key={m.t} position={[m.x, y, m.z]}>
+          <group key={`${n}:${m.t}`} position={[m.x, y, m.z]}>
             <mesh rotation-x={-Math.PI / 2} renderOrder={6}>
               <ringGeometry args={[0.1, 0.135, 32]} />
               <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />

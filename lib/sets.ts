@@ -306,7 +306,8 @@ export const SETS: SetDef[] = [
         B(w - 1.6, 1.4, d - 2.6, 0, 7.7, -15),
         { shape: ['cyl', w / 2 - 0.5, w / 2 - 0.5, 1.2, 3], at: [0, 9.6, -6.4], rot: [-90, 0, 0] },
         ...place(roof(w - 1.6, d - 2.6, 9.1, 15, 0.3, 0.25), 0, 0, -15, 0),
-        B(2, 1, 1.2, 0, 0, 2),
+        // (The altar behind the acting area, before the steps: the front is left open.)
+        B(2, 1, 1.2, 0, 0, -2.6),
         { shape: ['cyl', 0.5, 0.5, 1.4, 16], at: [-5, 0.5, 1], rot: [0, 30, 90] }, C(0.5, 0.8, 5.5, 0, 0, 0.5, 16),
       ];
     },
