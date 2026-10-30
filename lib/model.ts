@@ -313,8 +313,6 @@ export class Fitted {
 
 /* ---------- models: a figure drawn as an imported character ---------- */
 
-/** What a character's eyes, brows and lashes are drawn in where the face is inked. */
-const WHITE = { value: new THREE.Color('#ffffff') };
 
 /**
  * A figure drawn as a model: the character's bones posed from the figure's (fingers from its hand
@@ -334,14 +332,17 @@ export class ModelRig {
   /** The face's features inked from its textures, by mesh (lib/features.ts): for the styles that draw it in one colour. */
   private features: (THREE.Mesh | undefined)[] = [];
   /**
-   * Where the face is inked, what is cut out where its texture is clear (hair and lashes are cards,
-   * an eye has a clear cornea over it), by mesh, and the colour it is drawn in: hair the line's, an
-   * eye, a brow or a lash white (its features inked over it); and the material made of each.
+   * What is cut out where its texture is clear (hair and lashes are cards, an eye has a clear cornea
+   * over it), by mesh, and the colour it is drawn in: hair the line's, an eye, a brow or a lash
+   * the style's own surface colour (its features inked over it); and the material made of each. An eye, a brow or a lash
+   * wherever the face is inked (else a cornea hides the iris); the rest only where it is all drawn
+   * in one colour (line art, minimal: in the shaded styles, in their own material).
    */
-  private cut: ({ map: THREE.Texture; color: { value: THREE.Color } } | undefined)[] = [];
+  private cut: ({ map: THREE.Texture; color: { value: THREE.Color }; face: boolean } | undefined)[] = [];
   private cuts: (THREE.ShaderMaterial | undefined)[] = [];
-  /** Drawn in one colour (line art, minimal): its cut-outs then; in the shaded styles, their own material. */
   private flat = false;
+  /** The style's surface colour, what an eye, a brow or a lash is cut out in. */
+  private surface = { value: new THREE.Color('#ffffff') };
   /** Its scalp (the skin under the hair, coloured as it): lined as the skin it is part of. */
   private scalp: boolean[] = [];
 
@@ -383,16 +384,17 @@ export class ModelRig {
     this.cut = this.meshes.map((mesh, i) => {
       const look = this.looks[i];
       const hair = /hair/i.test(nameOf(mesh));
-      return look?.map && (hair || look.alpha !== 'opaque') ? { map: look.map, color: hair ? ink.uniforms.color : WHITE } : undefined;
+      const face = !hair && /eye|brow|lash/i.test(nameOf(mesh));
+      return look?.map && (hair || look.alpha !== 'opaque') ? { map: look.map, color: hair ? ink.uniforms.color : this.surface, face } : undefined;
     });
     this.scalp = this.meshes.map((mesh) => /scalp/i.test((mesh.material as THREE.Material).name ?? ''));
     // Only the skin's and the face's are inked (a hood, a helmet or a hat over the head is drawn as
-    // the clothes are: its dark cloth would ink solid): what is named so, or a character in one
+    // the clothes are: its dark cloth would ink solid): what is named so (or its material), or a character in one
     // piece; where its eyes and brows are meshes of their own, only they (the skin's texture,
     // shaded round the eyes, the nose and the mouth, would blot).
     const own = this.meshes.some((mesh) => /brow/i.test(nameOf(mesh)));
     const face = (name: string) => (own ? /eye|brow|lash/i : /body|head|face|eye|brow|lash/i).test(name) || this.meshes.length === 1;
-    this.features = this.meshes.map((mesh, i) => (face(mesh.name) ? this.featuresOf(mesh, i) : undefined));
+    this.features = this.meshes.map((mesh, i) => (face(nameOf(mesh)) ? this.featuresOf(mesh, i) : undefined));
   }
 
   /** A mesh's face features, if it has a texture and is of the head. */
@@ -407,7 +409,9 @@ export class ModelRig {
     for (let o: THREE.Object3D | null = mesh.parent; o; o = o.parent) under ||= ofHead.has(o);
     const indices = new Set(skinned.isSkinnedMesh ? skinned.skeleton.bones.flatMap((b, k) => (ofHead.has(b) ? [k] : [])) : []);
     if (!weighHead(mesh.geometry, indices, !skinned.isSkinnedMesh && under)) return undefined;
-    const material = featureMaterial(map, this.ink.uniforms.color, /eyes?\b|eyes?_/i.test(mesh.name) && !/brow|lash/i.test(mesh.name));
+    // (An eye: a mesh, or a part of the face drawn in a material, called so.)
+    const named = `${mesh.name} ${(mesh.material as THREE.Material).name ?? ''}`;
+    const material = featureMaterial(map, this.ink.uniforms.color, /eyes?\b|eyes?_|eyeiris/i.test(named) && !/brow|lash/i.test(named));
     let f: THREE.Mesh;
     if (skinned.isSkinnedMesh) {
       const sk = new THREE.SkinnedMesh(mesh.geometry, material);
@@ -433,16 +437,18 @@ export class ModelRig {
     this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
     this.flat = !!m.skin;
+    const body = m.body as THREE.Material & { color?: THREE.Color; uniforms?: { base?: { value: THREE.Color } } };
+    this.surface.value.copy(body.uniforms?.base?.value ?? body.color ?? new THREE.Color('#ffffff'));
     this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? this.cutOf(i) ?? m.skin ?? m.body; });
     // (Its face from its textures where it is drawn in one colour; in its own look, the look has it.)
     this.features.forEach((f, i) => { if (f) f.visible = !this.own(i) && !this.ink.ghost && style !== 'toon'; });
     this.setLinked(this.linked);
   }
 
-  /** A mesh's cut-out material, where it is drawn in one colour, cut out (made once; only in the styles drawn in one colour). */
+  /** A mesh's cut-out material, where it is drawn in one colour, cut out (made once). */
   private cutOf(i: number): THREE.ShaderMaterial | undefined {
     const cut = this.cut[i];
-    if (!cut || this.ink.ghost || !this.flat) return undefined;
+    if (!cut || this.ink.ghost || !(this.flat || (cut.face && this.style !== 'toon'))) return undefined;
     return (this.cuts[i] ??= cutoutMaterial(cut.map, cut.color));
   }
 

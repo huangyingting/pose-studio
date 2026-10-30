@@ -82,10 +82,10 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
   shaded: {
     id: 'shaded',
     label: 'Clay',
-    description: 'Soft studio lighting with cast shadows, for value studies',
+    description: 'Soft studio lighting with cast shadows, for value studies: form from light and shade alone, no lines',
     background: '#ffffff',
-    outline: { color: '#0b0b0b', scale: 1, jitter: 0 },
-    interior: { color: '#0b0b0b', alpha: 1 },
+    outline: null,
+    interior: null,
     shadows: true,
     lit: true,
   },
