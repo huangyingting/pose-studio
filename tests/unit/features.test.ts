@@ -250,6 +250,13 @@ describe('scene lighting', () => {
     rig.update({ ...lighting, lights: [lighting.lights[0], follow] }, 'shaded', box, undefined, (aim) => ('figure' in aim ? new THREE.Vector3(4, 1.3, -2) : null));
     const lamp = rig.object.children.find((o): o is THREE.PointLight => (o as THREE.PointLight).isPointLight && o.visible)!;
     expect(lamp.position.toArray()).toEqual([4.5, 2, -1.5]);
+    // The painterly styles: a lantern near the people lit from where it is; one beyond its reach left out.
+    const near = clampLight({ id: 'n', kind: 'lamp', role: 'practical', position: [1, 2.5, 0], range: 5 });
+    const far = clampLight({ id: 'f', kind: 'lamp', role: 'practical', position: [20, 2.5, 0], range: 5 });
+    rig.update({ ...lighting, lights: [lighting.lights[0], far, near] }, 'ink', box);
+    expect(rig.extras).toHaveLength(1);
+    expect(rig.extras[0]).toMatchObject({ range: 5 });
+    expect(rig.extras[0].at!.toArray()).toEqual([1, 2.5, 0]);
     rig.dispose();
   });
 
