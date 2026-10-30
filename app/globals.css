@@ -1950,3 +1950,21 @@ body.resizing { cursor: col-resize; user-select: none; }
 .crumbs { display: inline-flex; align-items: center; gap: 2px; flex: 0 1 auto; min-width: 0; color: var(--text-3); overflow: hidden; }
 .crumbs .crumb { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crumbs svg { flex: none; }
+
+/* The scene at a glance (nothing selected): its look and what is in it, each line leading on. */
+.scene-overview { display: grid; gap: 4px; padding: 6px 0 16px; }
+.scene-overview section { display: grid; padding: 8px 8px 10px; }
+.scene-overview section + section { border-top: 1px solid var(--border); }
+.scene-overview h3 { margin: 0 6px 6px; font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.scene-overview h3 span { margin-left: 4px; font-weight: 500; color: var(--text-3); text-transform: none; letter-spacing: 0; }
+.scene-line { display: grid; gap: 4px; }
+.scene-line-main { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 6px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font: inherit; text-align: left; }
+button.scene-line-main { cursor: pointer; }
+button.scene-line-main:hover { background: var(--hover); }
+.scene-line-main > svg:first-child { flex: none; color: var(--text-2); }
+.scene-line-label { flex: none; width: 76px; color: var(--text-2); }
+.scene-line-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.scene-line-go { flex: none; color: var(--text-3); }
+.scene-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 6px 29px; }
+.scene-chip { height: 22px; max-width: 100%; padding: 0 8px; border: 0; border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.scene-chip:hover { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }

@@ -3,6 +3,7 @@
 import { Fragment } from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { Selection } from '@/lib/types';
+import { SceneHeader, SceneOverview } from './inspector/scene';
 import { Header, INSPECTOR_SECTIONS } from './inspector/sections';
 import { targetOf, type InspectorContext, type Target } from './inspector/target';
 import { useScene, useStore, useStudio } from './store-context';
@@ -13,7 +14,8 @@ export type { InspectorContext } from './inspector/target';
 /**
  * The right-hand panel: what is selected, as a design tool's inspector shows it (what is in the
  * scene, and what can go in it, are on the left). One line says where it is, the levels above it
- * clickable: Scene › Figure › Left thigh. Its sections are a list (inspector/sections.ts). It folds
+ * clickable: Scene › Figure › Left thigh. Its sections are a list (inspector/sections.ts). With
+ * nothing selected, the scene at a glance, each line leading to where it is changed. It folds
  * away for more canvas.
  */
 export default function Inspector({ ctx }: { ctx: InspectorContext }) {
@@ -68,7 +70,12 @@ export default function Inspector({ ctx }: { ctx: InspectorContext }) {
               </Section>
             ))}
           </>
-        ) : <p className="panel-empty">Pick something in the scene, or on the canvas, to change it here.</p>}
+        ) : (
+          <>
+            <SceneHeader t={t} chrome={{}} />
+            <SceneOverview t={t} />
+          </>
+        )}
       </div>
     </aside>
   );
