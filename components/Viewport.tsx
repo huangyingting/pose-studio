@@ -161,6 +161,8 @@ export default function Viewport({
   const gizmo = useRef<TransformControlsImpl>(null);
   // What the gizmo holds for a light or a camera (they are drawn elsewhere: it is put where they are).
   const [stand] = useState(() => new THREE.Object3D());
+  // A figure's hips and its gizmo's place as a drag of it began.
+  const hipsFrom = useRef<{ hips: THREE.Vector3; stand: THREE.Vector3 } | null>(null);
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
   // A joint's slider values as a rotate-gizmo drag began (for its readout).
   const jointFrom = useRef<Vec3 | null>(null);
@@ -248,6 +250,8 @@ export default function Viewport({
   // A scene is first shown from where its camera films it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const openAngle = useMemo(() => angleAt(scene, 0), [scene.id]);
+  // A figure picked (a stand-in too): its Move gizmo (also up and down).
+  const gizmoFigure = selection?.kind === 'figure' ? selection.figure : null;
   // The selected light, if a gizmo moves it (a lamp or a window); the selected camera and its point's
   // time, if one does (a path camera at one of its points now, a still camera at its one).
   const gizmoLight = selection?.kind === 'light' ? lightingOf(scene).lights.find((l) => l.id === selection.light && l.kind !== 'sun') ?? null : null;
@@ -262,9 +266,11 @@ export default function Viewport({
   // (What their gizmo holds: put where the light is, or the camera at that point, as they change.)
   useLayoutEffect(() => {
     if (gizmoBusy.current === Infinity) return;
-    if (gizmoLight) stand.position.set(...gizmoLight.position);
+    const hips = gizmoFigure ? sv.figures.get(gizmoFigure)?.joints.hips.getWorldPosition(new THREE.Vector3()) : undefined;
+    if (hips) stand.position.set(hips.x, 0, hips.z);
+    else if (gizmoLight) stand.position.set(...gizmoLight.position);
     else if (gizmoCamera) stand.position.copy(viewOf(scene, scene.cameras.find((c) => c.id === gizmoCamera.id)!, gizmoCamera.t).position);
-  }, [stand, scene, gizmoLight, gizmoCamera]);
+  }, [stand, sv, scene, gizmoFigure, gizmoLight, gizmoCamera]);
   let target: THREE.Object3D | null = null;
   let mode: 'translate' | 'rotate' | 'scale' = 'translate';
   // The gizmo's size in the world (metres: a move arrow's length, a rotate ring's radius).
@@ -273,16 +279,23 @@ export default function Viewport({
   let onGizmoChange = () => {};
   // The readout of a gizmo drag, from where its object was when the drag began.
   let readout: (from: THREE.Vector3) => void = () => {};
-  // A figure picked (a stand-in too): its Move gizmo (also up and down).
-  const gizmoFigure = selection?.kind === 'figure' ? selection.figure : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
     if (m && doc) {
-      target = m.joints.hips;
+      // (On the floor under it, not at its hips: its arrows there would cover the arms and hands a
+      // drag poses. The figure goes as it goes.)
+      target = stand;
       gizmoWorld = 0.45 * (doc.body.height / 1.8);
       showY = !doc.grounded;
-      onGizmoChange = () => store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}`);
+      onGizmoChange = () => {
+        const from = hipsFrom.current;
+        if (!from) return;
+        const to = new THREE.Vector3(stand.position.x, from.hips.y + (doc.grounded ? 0 : stand.position.y - from.stand.y), stand.position.z);
+        m.joints.hips.position.copy(m.joints.hips.parent!.worldToLocal(to));
+        m.object.updateMatrixWorld(true);
+        store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}`);
+      };
       readout = (p) => {
         const r = m.joints.hips.position;
         setReadout(movedText(r.x - p.x, r.z - p.z, r.x, r.z) + nearestText(sv, scene, doc.id, r) + (doc.grounded ? '' : ` · ${metres(r.y)} m high`));
@@ -460,6 +473,8 @@ export default function Viewport({
             onMouseDown={() => {
               gizmoBusy.current = Infinity;
               gizmoFrom.current = target!.position.clone();
+              const m = gizmoFigure ? sv.figures.get(gizmoFigure) : undefined;
+              hipsFrom.current = m ? { hips: m.joints.hips.getWorldPosition(new THREE.Vector3()), stand: stand.position.clone() } : null;
               jointFrom.current = selection?.kind === 'joint' ? angle(figureDoc(selection.figure)!.bones, selection.joint) : null;
             }}
             onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; setReadout(null); }}
@@ -477,6 +492,7 @@ export default function Viewport({
             active={selection?.kind === 'prop' || selection?.kind === 'shot' ? null : activeFigure}
             onPick={(id) => store.select({ kind: 'figure', figure: id })}
             onTurn={(id, read) => { store.select({ kind: 'figure', figure: id }); store.updateFigure(id, (f) => ({ ...f, ...read })); }}
+            gizmoHot={() => !!(gizmo.current as unknown as { axis: string | null } | null)?.axis}
           />
         )}
         {!shotMode && <SeeThrough sv={sv} figureId={selection?.kind === 'joint' || selection?.kind === 'figure' ? selection.figure : activeFigure} />}
@@ -1019,7 +1035,11 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         }
         let o: THREE.Object3D | undefined;
         if (sel.kind === 'prop') o = sv.props.get(sel.prop)?.object;
-        else if (sel.kind === 'camera') rigRef.current?.traverse((x) => { if (!o && x.visible && x.userData.camera === sel.camera && x.userData.point === undefined) o = x; });
+        // (A camera where it is now; at one of its path's points, that point's glyph, drawn there instead.)
+        else if (sel.kind === 'camera') {
+          rigRef.current?.traverse((x) => { if (!o && x.visible && x.userData.camera === sel.camera && x.userData.point === undefined) o = x; });
+          rigRef.current?.traverse((x) => { if (!o && x.visible && x.userData.camera === sel.camera) o = x; });
+        }
         if (!o) return null;
         let shown = true;
         for (let p: THREE.Object3D | null = o; p; p = p.parent) shown &&= p.visible;

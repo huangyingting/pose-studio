@@ -711,13 +711,15 @@ function FloorRing({ radius, color, hit, onDown }: { radius: number; color: stri
  * Rings under the figures, so the layout of a group reads from any angle. The active figure's
  * ring turns it; another's ring picks that figure.
  */
-export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
+export function FigureMarkers({ sv, scene, version, active, onPick, onTurn, gizmoHot }: {
   sv: SceneView;
   scene: Scene;
   version: number;
   active: string | null;
   onPick(id: string): void;
   onTurn(id: string, read: Pick<Figure, 'bones' | 'position'>): void;
+  /** Whether the pointer is on a handle of the move gizmo (on the floor too): a press there is the gizmo's. */
+  gizmoHot(): boolean;
 }) {
   const groups = useRef<Record<string, THREE.Group | null>>({});
   const tmp = useMemo(() => ({ p: new THREE.Vector3(), q: new THREE.Quaternion(), f: new THREE.Vector3() }), []);
@@ -753,7 +755,7 @@ export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
               color={on ? '#3b6cff' : '#a1a1a6'}
               hit={on && !!m}
               onDown={(e) => {
-                if (!m) return;
+                if (!m || gizmoHot()) return;
                 const root = m.joints.hips;
                 turn(e, root.getWorldPosition(new THREE.Vector3()), root.rotation.y * R2D, (yaw) => {
                   root.rotation.y = yaw * D2R;

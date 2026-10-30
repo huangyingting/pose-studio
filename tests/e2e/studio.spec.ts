@@ -53,6 +53,12 @@ async function pickPart(page: Page, at: { x: number; y: number }) {
   if ((await kind()) === 'figure') await page.mouse.click(at.x, at.y);
 }
 
+/** On a picked figure's move gizmo (on the floor under it): its X arrow, out from the middle. */
+async function onXArrow(page: Page, floor: number[]) {
+  const [a, b] = [await projectPoint(page, [floor[0], 0, floor[2]]), await projectPoint(page, [floor[0] + 0.3, 0, floor[2]])];
+  return { x: a.x + (b.x - a.x) * 0.8, y: a.y + (b.y - a.y) * 0.8 };
+}
+
 /** A figure picked on the canvas: nothing selected first (Esc up to nothing), then a click on it. */
 async function pickFigure(page: Page, at: { x: number; y: number }) {
   await page.keyboard.press('Escape');
@@ -354,19 +360,22 @@ test('a picked figure moves by its gizmo, a prop by dragging it; they turn by th
   const before = await figure();
 
   // Pick it (a click), then drag its gizmo's X arrow: the figure moves on the floor, its pose unchanged.
+  // (Seen from ¾, the gizmo on the floor under it shows.)
+  await page.keyboard.press('6');
+  await page.waitForTimeout(400);
   const chest = await project(page, 'chest');
   await pickFigure(page, { x: chest.x, y: chest.y - 20 });
-  // (The arrow goes right from the hips, seen from the front.)
-  const hips = await project(page, 'hips');
-  await drag(page, { x: hips.x + 50, y: hips.y }, { x: hips.x + 150, y: hips.y });
+  const arrow = await onXArrow(page, before.position);
+  await drag(page, arrow, { x: arrow.x + 100, y: arrow.y });
   let f = await figure();
   expect(f.position[0]).toBeGreaterThan(before.position[0] + 0.1);
   expect(f.bones.rightUpperArm).toEqual(before.bones.rightUpperArm);
   expect((await state(page)).selection).toMatchObject({ kind: 'figure' });
 
-  // Drag its floor ring around a quarter turn, with Ctrl: whole 15° steps.
+  // Drag its floor ring around a quarter turn, with Ctrl: whole 15° steps. (On the diagonals, clear
+  // of the gizmo's arrows on the floor.)
   const [x, , z] = f.position;
-  await drag(page, await projectPoint(page, [x, 0, z + 0.3]), await projectPoint(page, [x + 0.3, 0, z]), 'Control');
+  await drag(page, await projectPoint(page, [x - 0.21, 0, z + 0.21]), await projectPoint(page, [x + 0.21, 0, z + 0.21]), 'Control');
   f = await figure();
   expect(facingOf(f.bones) % 15).toBe(0);
   expect(facingOf(f.bones)).not.toBe(facingOf(before.bones));
@@ -409,11 +418,13 @@ test('the axes show on the view widget and in the fields; drags read out how far
   // A second figure moved by its gizmo: how far, where, and how far from the other.
   await addLayer(page, 'Figure');
   await page.waitForTimeout(400);
-  const chest = await project(page, 'chest');
-  // (Picked: its gizmo's X arrow moves it.)
-  await pickFigure(page, { x: chest.x, y: chest.y - 20 });
-  const hips = await project(page, 'hips');
-  await readout({ x: hips.x + 50, y: hips.y }, 80, /^Moved \d\.\d\d m · X −?\d\.\d\d {2}Z −?\d\.\d\d · \d\.\d\d m from Figure$/);
+  // (Picked: its gizmo's X arrow moves it, seen from ¾.)
+  await page.keyboard.press('6');
+  await page.waitForTimeout(400);
+  const torso = await project(page, 'chest');
+  await pickFigure(page, { x: torso.x, y: torso.y - 20 });
+  const floor = ((await state(page)).scene.figures[1] as unknown as { position: number[] }).position;
+  await readout(await onXArrow(page, floor), 80, /^Moved \d\.\d\d m · X −?\d\.\d\d {2}Z −?\d\.\d\d · \d\.\d\d m from Figure$/);
   // A prop's position fields carry the axes' colours.
   await addLayer(page, 'Box');
   await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
