@@ -1168,10 +1168,10 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       let yaw = view.yaw;
       if (sv.set) {
         const trial = (camera as THREE.PerspectiveCamera).clone();
-        for (const turn of [0, 15, -15, 30, -30, 45, -45, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
-          const target = fit(trial, view.yaw + turn);
-          if (!setBetween(sv.set.object, trial.position, target)) { yaw = view.yaw + turn; break; }
-        }
+        // (From its front first, which a set leaves open, the side nearest the angle asked for; else round.)
+        const from = Math.abs(view.yaw) <= 60 ? view.yaw : Math.sign(view.yaw) * 45;
+        const clear = [0, 15, -15, 30, -30, 45, -45, 60, -60, 90, -90, 120, -120, 150, -150, 180].find((turn) => !setBetween(sv.set!.object, trial.position, fit(trial, from + turn)));
+        yaw = from + (clear ?? 0);
       }
       controls.target.copy(fit(camera as THREE.PerspectiveCamera, yaw));
       camera.far = 200;
