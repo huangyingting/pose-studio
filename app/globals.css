@@ -899,11 +899,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-edge { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
 .tl-edge:hover { background: color-mix(in srgb, var(--shade) 12%, transparent); }
 /* An action's buttons (edit, remove, more): while the pointer is over it (always on touch). */
-.tl-acts { position: absolute; top: 50%; right: 8px; display: none; gap: 2px; padding: 2px; border-radius: 6px; background: var(--panel); box-shadow: 0 1px 4px color-mix(in srgb, var(--shade) 18%, transparent); transform: translateY(-50%); }
-.tl-acts button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text-2); cursor: pointer; }
-.tl-acts button:hover { background: var(--panel-2); color: var(--text); }
-.tl-travel.grab:hover .tl-acts, .tl-acts:focus-within { display: flex; }
-@media (hover: none) { .tl-travel.grab .tl-acts { display: flex; } }
 .tl-ramp { position: absolute; top: 5px; bottom: 5px; z-index: 1; clip-path: polygon(0 100%, 100% 0, 100% 100%); background: currentColor; opacity: 0.35; cursor: w-resize; }
 .tl-ramp.none { width: 6px !important; margin-left: -6px; opacity: 0.12; }
 .tl-ramp:hover { opacity: 0.6; }

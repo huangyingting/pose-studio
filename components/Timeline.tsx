@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Pin, Pencil, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteAction, deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -819,8 +819,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         <span
                           className={`tl-travel grab ${kind}${group ? ' group' : ''}${selected === x.id ? ' sel' : ''}`}
                           style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
-                          data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click to edit, drag to move it (and what follows), its right edge to retime it\nRight-click for more`}
+                          data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click or double-click to edit, drag to move it (and what follows), its right edge to retime it; Delete removes it\nRight-click for more`}
                           onPointerDown={dragAction(x, f.id, 'move')}
+                          onDoubleClick={() => { pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}
                           onContextMenu={(e) => {
                             e.stopPropagation();
                             store.setActiveFigure(f.id);
@@ -829,29 +830,6 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         >
                           {group && <Users size={10} aria-hidden />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
-                          {/* What it most often wants, shown while the pointer is over it (always on touch): edit, remove, more. */}
-                          <span className="tl-acts" onPointerDown={(e) => e.stopPropagation()}>
-                            <button type="button" aria-label={`Edit ${label}`} data-tip="Edit" data-tip-side="top" onClick={() => { pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}>
-                              <Pencil size={12} aria-hidden />
-                            </button>
-                            <button type="button" aria-label={`Remove ${label}`} data-tip="Remove" data-tip-side="top" onClick={() => deleteAction(store, x.id)}>
-                              <Trash2 size={12} aria-hidden />
-                            </button>
-                            <button
-                              type="button"
-                              className="tl-more"
-                              aria-label={`More for ${label}`}
-                              data-tip="More"
-                              data-tip-side="top"
-                              onClick={(e) => {
-                                const r = e.currentTarget.getBoundingClientRect();
-                                store.setActiveFigure(f.id);
-                                openContextMenu({ clientX: r.left, clientY: r.bottom }, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
-                              }}
-                            >
-                              <Ellipsis size={12} aria-hidden />
-                            </button>
-                          </span>
                           <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                         </span>
                       </span>
