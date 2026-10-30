@@ -40,6 +40,8 @@ export function onPhysicsReady(f: () => void) {
 
 /** Steps a second. */
 export const HZ = 240;
+/** How long something down on the floor rolls freely before it slows to a stop (s). */
+const ROLL = 1.5;
 export const GRAVITY = 9.81;
 /** How the floor gives a bounce back (a body's bounce on it is the mean of the two). */
 export const FLOOR_BOUNCE = 0.5;
@@ -175,6 +177,8 @@ function simulate(R: Rapier, body: Body, launch: Launch, steps: number, solids: 
       // Down to stay: barely moving up or down for a moment (it may roll on).
       level = Math.abs(v.y) < 0.05 ? level + 1 : 0;
       if (down === undefined && level > HZ / 4) down = launch.t + (i - level) / HZ;
+      // (Rolling on the floor a while: it slows to a stop, as on a court's grip, not on and on.)
+      if (down !== undefined && launch.t + i / HZ - down > ROLL && rb.linearDamping() < 1) rb.setLinearDamping(1.5);
       // Lying still for a moment: the rest of the stretch it stays there.
       still = Math.hypot(v.x, v.y, v.z) < 0.02 ? still + 1 : 0;
       if (still > HZ / 4) {

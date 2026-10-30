@@ -113,6 +113,8 @@ export type FigureAt = (id: string, t: number) => Figure | null;
 
 /** The longest a prop flies free before it is left where it is (s). */
 const FLIGHT = 6;
+/** How long past when it is to be taken hold of again a flight is worked out (s): to be caught a moment late. */
+const TAKEN_BY = 0.5;
 
 /** A hand catches what comes within this of its palm (m). */
 const CATCH_REACH = 0.35;
@@ -120,7 +122,7 @@ const CATCH_REACH = 0.35;
 /** One stretch of a prop's time, from `t` on: in a hand, flying free, or resting somewhere. */
 type Stretch =
   | { t: number; kind: 'held'; figure: string; hand: Side; local: { position: Vec3; rotation: Vec3 } }
-  | { t: number; kind: 'free'; flight: Flight }
+  | { t: number; kind: 'free'; flight: Flight; whole?: () => Flight }
   | { t: number; kind: 'rest'; position: Vec3; rotation: Vec3; glide: boolean };
 
 /** Something that happens to a prop: a key on its own track, or a hand of an action letting go or taking hold. */
@@ -186,9 +188,9 @@ function solidsOf(scene: Scene, except: string): Solid[] {
  * The people's bodies for a free prop to hit (not their hands and forearms, which reach for it),
  * always the same list; `clear`'s are put out of the way (far under the floor).
  */
-function bodiesAt(scene: Scene, freeAt: FigureAt, t: number, clear: string[] = []): Solid[] {
+function bodiesAt(scene: Scene, freeAt: FigureAt, t: number, clear: string[] = [], only?: Set<string>): Solid[] {
   rig ??= new Rig();
-  return scene.figures.filter((f) => !f.hidden && !f.proxy).flatMap((f) => {
+  return scene.figures.filter((f) => !f.hidden && !f.proxy && (!only || only.has(f.id))).flatMap((f) => {
     const now = freeAt(f.id, t) ?? f;
     const away = clear.includes(f.id) ? -100 : 0;
     return capsules(rig!, now).filter((c) => !c.bone.endsWith('LowerArm')).map((c) => ({ capsule: { a: [c.p.x, c.p.y + away, c.p.z] as Vec3, b: [c.q.x, c.q.y + away, c.q.z] as Vec3, r: c.r } }));
@@ -268,13 +270,14 @@ export class PropTimeline {
             const palm = this.palmAt(k.hold.figure, k.hold.hand, k.t);
             if (!at || !palm || palm.distanceTo(at.centre) > CATCH_REACH) {
               this.misses.push({ t: k.t, figure: k.hold.figure });
+              if (now.kind === 'free') this.flyOn(now);
               continue;
             }
             this.catches.push({ t: k.t, figure: k.hold.figure, hand: k.hold.hand, reach: at.centre.clone().sub(palm).toArray() as Vec3 });
           }
           this.stretches.push({ t: k.t, kind: 'held', figure: k.hold.figure, hand: k.hold.hand, local: { position: k.position, rotation: k.rotation } });
         }
-        else if (k.release) this.stretches.push({ t: k.t, kind: 'free', flight: this.flight(shape, k.t, [0, 0, 0], end) });
+        else if (k.release) this.stretches.push({ t: k.t, kind: 'free', flight: this.flight(shape, k.t, [0, 0, 0], Math.max(end, k.t + FLIGHT)) });
         else if (k.t > 1e-6 || !first) this.stretches.push({ t: k.t, kind: 'rest', position: k.position, rotation: k.rotation, glide: now.kind === 'rest' });
         continue;
       }
@@ -286,7 +289,15 @@ export class PropTimeline {
         // Not stopped by the thrower's own body as it leaves, nor the catcher's as it comes in.
         // (A dribble comes back to the one dribbling: their body does not stop it either.)
         const back = next.act.target && 'bounce' in next.act.target ? next.figure : undefined;
-        this.stretches.push({ t: next.t, kind: 'free', flight: this.flight(shape, next.t, aim.velocity, end, next.figure, aim.catch?.figure ?? back) });
+        // (Flown only a little past where it is to be taken hold of again, as it nearly always is;
+        // all the way if it is not: see `whole`.)
+        const fly = (until: number) => this.flight(shape, next.t, aim.velocity, until, next.figure, aim.catch?.figure ?? back);
+        // (Due back in a hand: caught, dribbled back, or picked up by whoever takes it next.)
+        const taken = queue.find((q) => q.kind === 'grab' || (q.kind === 'key' && !!q.key.hold))?.t;
+        const due = aim.catch?.t ?? (back ? aim.arrive : taken);
+        this.stretches.push(due !== undefined
+          ? { t: next.t, kind: 'free', flight: fly(Math.min(Math.max(end, next.t + FLIGHT), due + TAKEN_BY)), whole: () => fly(Math.max(end, next.t + FLIGHT)) }
+          : { t: next.t, kind: 'free', flight: fly(Math.max(end, next.t + FLIGHT)) });
         if (aim.catch) {
           pending.push(aim.catch);
           pending.sort((p, q) => p.t - q.t);
@@ -304,6 +315,7 @@ export class PropTimeline {
       const g = grip(prop, next.hand, catcher.body);
       if (now.kind === 'free' && palm.distanceTo(at.centre) > CATCH_REACH) {
         this.misses.push({ t: next.t, figure: next.figure });
+        this.flyOn(now);
         continue;
       }
       if (next.kind === 'catch') this.catches.push({ t: next.t, figure: next.figure, hand: next.hand, reach: at.centre.clone().sub(palm).toArray() as Vec3 });
@@ -311,12 +323,25 @@ export class PropTimeline {
     }
   }
 
+  /** Not taken hold of where it was to be: flown on all the way. */
+  private flyOn(now: Stretch) {
+    if (now.kind !== 'free' || !now.whole) return;
+    now.flight = now.whole();
+    delete now.whole;
+  }
+
   /** Let go at t with a velocity: its flight from where the hand has it then (through the thrower's body as it leaves, and the catcher's as it comes in). */
   private flight(shape: ReturnType<typeof bodyOf>, t: number, velocity: Vec3, end: number, thrower?: string, catcher?: string): Flight {
     const at = this.placeAt(t, this.stretches[this.stretches.length - 1], this.freeAt)!;
+    // (Only the people it could come near in that time: from where it starts, as far as it could go and more.)
+    const reach = 2 + Math.hypot(...velocity) * Math.min(end - t, 3);
+    const near = new Set(this.scene.figures.filter((f) => {
+      const p = (this.freeAt(f.id, t) ?? f).position;
+      return Math.hypot(p[0] - at.centre.x, p[2] - at.centre.z) < reach;
+    }).map((f) => f.id));
     // Flown until it lies still (or a while), whatever the animation's length (it may run on until then).
-    return fly(shape.body, { t, position: at.centre.toArray() as Vec3, velocity, rotation: at.turn.toArray() as [number, number, number, number] }, Math.max(end, t + FLIGHT), solidsOf(this.scene, this.prop.id),
-      (time) => bodiesAt(this.scene, this.freeAt, time, [...(thrower && time - t < 0.25 ? [thrower] : []), ...(catcher ? [catcher] : [])]));
+    return fly(shape.body, { t, position: at.centre.toArray() as Vec3, velocity, rotation: at.turn.toArray() as [number, number, number, number] }, end, solidsOf(this.scene, this.prop.id),
+      (time) => bodiesAt(this.scene, this.freeAt, time, [...(thrower && time - t < 0.25 ? [thrower] : []), ...(catcher ? [catcher] : [])], near));
   }
 
   /** Where a release sends the prop: the velocity, and the catch it leads to (into a hand, or back into the one dribbling). */
