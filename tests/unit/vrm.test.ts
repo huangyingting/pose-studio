@@ -122,14 +122,15 @@ describe('characters painted with textures (not VRM avatars)', () => {
 });
 
 describe('Aoi, a VRM avatar made one of ours', () => {
-  it('has her bones named as our skeleton’s, her MToon look and her licence kept, and is credited', async () => {
+  it('has her bones named as our skeleton’s, her MToon look, spring bones and licence kept, and is credited', async () => {
     const { readFileSync } = await import('node:fs');
     const { BUILT_IN_CHARACTERS } = await import('@/lib/characters');
     const file = readFileSync('public/characters/aoi.glb');
     const gltf = JSON.parse(file.subarray(20, 20 + file.readUInt32LE(12)).toString());
     for (const [bone, ref] of Object.entries(gltf.extensions.VRMC_vrm.humanoid.humanBones as Record<string, { node: number }>)) expect(gltf.nodes[ref.node].name).toBe(bone);
     expect(gltf.extensionsUsed).toContain('VRMC_materials_mtoon');
-    expect(gltf.extensions.VRMC_springBone).toBeUndefined();
+    // (Her hair, her hood's strings: spring bones, lib/springs.ts.)
+    expect(gltf.extensions.VRMC_springBone.springs.length).toBeGreaterThan(5);
     expect(gltf.extensions.VRMC_vrm.meta.authors).toEqual(['Ueda']);
     const aoi = BUILT_IN_CHARACTERS.find((c) => c.name === 'Aoi')!;
     expect(aoi.credit).toMatch(/^by Ueda/);

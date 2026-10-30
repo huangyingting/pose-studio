@@ -7,8 +7,9 @@ What it makes is a GLB the app draws as it draws its other characters:
   - its bones are named as our skeleton's (the VRM humanoid's names: hips, leftUpperArm…), so the
     character's list (lib/characters.ts) maps them one to one;
   - its textures are fitted within 1024 px (the editor and exports never need more), re-encoded;
-  - its MToon materials, its humanoid and who made it (VRMC_vrm) stay as they are: the Anime style
-    reads them (lib/vrm.ts, lib/toon.ts); its spring bones go (not used yet).
+  - its MToon materials, its humanoid, its expressions and who made it (VRMC_vrm) and its spring
+    bones (VRMC_springBone: hair, a skirt) stay as they are: the app reads them (lib/vrm.ts,
+    lib/toon.ts, lib/springs.ts).
 Only for avatars whose licence lets a changed copy be shared (VRM `modification`:
 allowModificationRedistribution), credited as they ask. Needs Pillow.
 """
@@ -74,14 +75,6 @@ def main():
     # Bones named as our skeleton's.
     for bone, ref in vrm['humanoid']['humanBones'].items():
         gltf['nodes'][ref['node']]['name'] = bone
-
-    # Spring bones: not used yet.
-    gltf['extensions'].pop('VRMC_springBone', None)
-    gltf['extensionsUsed'] = [e for e in gltf.get('extensionsUsed', []) if e != 'VRMC_springBone']
-    for node in gltf['nodes']:
-        node.get('extensions', {}).pop('VRMC_springBone', None)
-        if 'extensions' in node and not node['extensions']:
-            del node['extensions']
 
     # The buffer again, view by view, the images' fitted.
     images = {img['bufferView']: img for img in gltf.get('images', []) if 'bufferView' in img}

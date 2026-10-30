@@ -872,7 +872,7 @@ export function sceneAt(scene: Scene, t: number, live = false): Scene {
   const figures = scene.figures.map((f) => {
     const p = ev.figureAt(f.id, t)!;
     // (A character's face too, from what it does: lib/face.ts.)
-    const posed = { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded, ...(f.model && !f.proxy ? { face: faceAt(scene.animation!, f.id, t) } : {}) };
+    const posed = { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded, ...(f.model && !f.proxy ? { face: faceAt(scene.animation!, f.id, t), t } : {}) };
     return live && !f.proxy && !f.hidden && !f.still ? ev.lived(posed, t, scene) : posed;
   });
   // A ribbon trails where its stick's tip has just been.

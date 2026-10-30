@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BONES, EXPRESSIONS, type Bone, type Expression } from './types';
+import type { SpringSpec } from './springs';
 import { ownLooks, type ToonLook } from './toon';
 
 /*
@@ -92,7 +93,68 @@ export async function readVrm(gltf: GLTF): Promise<VrmInfo | null> {
   ].filter(Boolean);
   const credit = [authors ? `by ${authors}` : '', ...terms].filter(Boolean).join(' · ').slice(0, 160);
   await readExpressions(gltf, v1, v0);
+  const springs = await readSprings(gltf, obj(ext.VRMC_springBone), v0);
+  if (springs) gltf.scene.userData.springs = springs;
   return { bones, credit };
+}
+
+/**
+ * Its spring bones (hair, a skirt: lib/springs.ts), by the names its bones are read with: 1.0's
+ * springs and colliders; 0.x's bone groups (each bone and those under it, a chain) and collider groups.
+ */
+async function readSprings(gltf: GLTF, v1: Json, v0: Json): Promise<SpringSpec | null> {
+  const parser = gltf.parser;
+  const name = async (i: unknown) => (typeof i === 'number' && i >= 0 && parser.json.nodes?.[i] ? ((await parser.getDependency('node', i)) as THREE.Object3D).name : null);
+  const vec = (v: unknown, d: [number, number, number]): [number, number, number] => (Array.isArray(v) && v.length >= 3 ? [num(v[0], d[0]), num(v[1], d[1]), num(v[2], d[2])] : d);
+  const spec: SpringSpec = { springs: [], colliders: [] };
+  if (Object.keys(v1).length) {
+    for (const c of (v1.colliders as unknown[] | undefined) ?? []) {
+      const bone = await name(obj(c).node);
+      const shape = obj(obj(c).shape);
+      const sphere = obj(shape.sphere), capsule = obj(shape.capsule);
+      spec.colliders.push(bone && Object.keys(capsule).length
+        ? { bone, offset: vec(capsule.offset, [0, 0, 0]), tail: vec(capsule.tail, [0, 0, 0]), radius: num(capsule.radius, 0) }
+        : { bone: bone ?? '', offset: vec(sphere.offset, [0, 0, 0]), radius: num(sphere.radius, 0) });
+    }
+    const groups = ((v1.colliderGroups as unknown[] | undefined) ?? []).map((g) => ((obj(g).colliders as unknown[] | undefined) ?? []).filter((i): i is number => typeof i === 'number'));
+    for (const sp of (v1.springs as unknown[] | undefined) ?? []) {
+      const joints = [];
+      for (const j of (obj(sp).joints as unknown[] | undefined) ?? []) {
+        const bone = await name(obj(j).node);
+        if (bone) joints.push({ bone, stiffness: num(obj(j).stiffness, 1), gravityPower: num(obj(j).gravityPower, 0), gravityDir: vec(obj(j).gravityDir, [0, -1, 0]), dragForce: num(obj(j).dragForce, 0.5), hitRadius: num(obj(j).hitRadius, 0) });
+      }
+      const colliders = ((obj(sp).colliderGroups as unknown[] | undefined) ?? []).flatMap((g) => (typeof g === 'number' ? groups[g] ?? [] : []));
+      if (joints.length) spec.springs.push({ joints, colliders });
+    }
+  } else {
+    const sec = obj(v0.secondaryAnimation);
+    const groupStart: number[] = [];
+    for (const g of (sec.colliderGroups as unknown[] | undefined) ?? []) {
+      groupStart.push(spec.colliders.length);
+      const bone = await name(obj(g).node);
+      for (const c of (obj(g).colliders as unknown[] | undefined) ?? []) {
+        const o = obj(obj(c).offset);
+        // (0.x is in Unity's frame: x the other way.)
+        spec.colliders.push({ bone: bone ?? '', offset: [-num(o.x, 0), num(o.y, 0), num(o.z, 0)], radius: num(obj(c).radius, 0) });
+      }
+    }
+    const sizes = ((sec.colliderGroups as unknown[] | undefined) ?? []).map((g) => ((obj(g).colliders as unknown[] | undefined) ?? []).length);
+    for (const g of (sec.boneGroups as unknown[] | undefined) ?? []) {
+      const b = obj(g);
+      const d = obj(b.gravityDir);
+      const colliders = ((b.colliderGroups as unknown[] | undefined) ?? []).flatMap((i) => (typeof i === 'number' && groupStart[i] !== undefined ? Array.from({ length: sizes[i] }, (_, k) => groupStart[i] + k) : []));
+      for (const root of (b.bones as unknown[] | undefined) ?? []) {
+        // A chain: the bone, then its first child, and so on.
+        const joints = [];
+        for (let node = (await parser.getDependency('node', root as number).catch(() => null)) as THREE.Object3D | null; node; node = node.children.find((c) => (c as THREE.Bone).isBone) ?? null) {
+          joints.push({ bone: node.name, stiffness: num(b.stiffiness, 1), gravityPower: num(b.gravityPower, 0), gravityDir: [-num(d.x, 0), num(d.y, -1), num(d.z, 0)] as [number, number, number], dragForce: num(b.dragForce, 0.4), hitRadius: num(b.hitRadius, 0.02) });
+        }
+        if (joints.length) spec.springs.push({ joints, colliders });
+      }
+    }
+  }
+  spec.colliders = spec.colliders.map((c) => (c.bone ? c : { ...c, radius: 0 }));
+  return spec.springs.length ? spec : null;
 }
 
 /**

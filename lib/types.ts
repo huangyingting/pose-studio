@@ -76,6 +76,8 @@ export interface Figure {
   model?: string;
   /** What its face shows at a moment (a character with expressions: lib/face.ts), worked out from what it does; not saved. */
   face?: Face;
+  /** The moment it is posed at, in an animation (for what swings as it moves: lib/springs.ts); not saved. */
+  t?: number;
 }
 
 /** Tints for telling figures apart. */

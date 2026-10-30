@@ -1,3 +1,4 @@
+import { Springs, type SpringSpec } from './springs';
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -357,6 +358,9 @@ export class ModelRig {
 
   constructor(template: THREE.Object3D, readonly info: ModelInfo, private ink: Ink) {
     const copy = cloneSkinned(template);
+    // (Its hair and its skirt's spring bones, if it has them: lib/springs.ts.)
+    const spec = template.userData.springs as SpringSpec | undefined;
+    this.springs = spec ? new Springs(copy, spec) : null;
     // (The copy's meshes in the same order as the model's, whose looks they take.)
     template.traverse((o) => { if ((o as THREE.Mesh).isMesh) this.looks.push(ownLooks.get(o)); });
     // (Its bones as its entry names them, or, where the file has other names (one cached from
@@ -412,6 +416,9 @@ export class ModelRig {
       return { mesh, keys: mesh.userData.faces as Partial<Record<Expression, [number, number][]>>, with: with_ };
     });
   }
+
+  /** Its spring bones: its hair, its skirt, swinging as it moves. */
+  private springs: Springs | null;
 
   /** The meshes with expressions, the shape keys each expression sets on them, and what is drawn with them. */
   private faces: { mesh: THREE.Mesh; keys: Partial<Record<Expression, [number, number][]>>; with: THREE.Mesh[] }[] = [];
@@ -607,6 +614,8 @@ export class ModelRig {
     this.object.updateMatrixWorld(true);
     this.object.position.copy(hips.clone().sub(this.fitted.at('hips')!));
     this.object.updateMatrixWorld(true);
+    // (Its hair and skirt on from where they were, as it moves.)
+    this.springs?.update(fig.t);
   }
 
   private scaleTo(body: BodyParams) {
