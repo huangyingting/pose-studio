@@ -240,9 +240,13 @@ function MenuScroll({ dir }: { dir: 'up' | 'down' }) {
       setMore(on);
     };
     check();
+    // (Again once the list is placed and given its height: that is after this, as it opens.)
+    const sized = new ResizeObserver(check);
+    sized.observe(list);
     list.addEventListener('scroll', check);
     window.addEventListener('resize', check);
     return () => {
+      sized.disconnect();
       list.removeEventListener('scroll', check);
       window.removeEventListener('resize', check);
       cancelAnimationFrame(raf.current);
