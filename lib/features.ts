@@ -47,6 +47,7 @@ export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color 
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
     vertexShader: /* glsl */ `
+      #include <morphtarget_pars_vertex>
       #include <skinning_pars_vertex>
       attribute float ${HEAD};
       uniform mat3 mapTransform;
@@ -56,6 +57,7 @@ export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color 
         vUv = (mapTransform * vec3(uv, 1.0)).xy;
         vHead = ${HEAD};
         #include <begin_vertex>
+        #include <morphtarget_vertex>
         #include <skinbase_vertex>
         #include <skinning_vertex>
         gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
@@ -98,12 +100,14 @@ export function cutoutMaterial(map: THREE.Texture, color: { value: THREE.Color }
   return new THREE.ShaderMaterial({
     uniforms: { map: { value: map }, mapTransform: { value: map.matrix }, color },
     vertexShader: /* glsl */ `
+      #include <morphtarget_pars_vertex>
       #include <skinning_pars_vertex>
       uniform mat3 mapTransform;
       varying vec2 vUv;
       void main() {
         vUv = (mapTransform * vec3(uv, 1.0)).xy;
         #include <begin_vertex>
+        #include <morphtarget_vertex>
         #include <skinbase_vertex>
         #include <skinning_vertex>
         gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);

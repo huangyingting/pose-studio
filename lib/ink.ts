@@ -21,6 +21,7 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
       uniform float thickness;
       uniform float jitter;
       uniform vec2 resolution;
+      #include <morphtarget_pars_vertex>
       #include <skinning_pars_vertex>
       #ifdef CUTOUT
         uniform mat3 mapTransform;
@@ -34,9 +35,11 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
           vUv = (mapTransform * vec3(uv, 1.0)).xy;
         #endif
         #include <beginnormal_vertex>
+        #include <morphnormal_vertex>
         #include <skinbase_vertex>
         #include <skinnormal_vertex>
         #include <begin_vertex>
+        #include <morphtarget_vertex>
         #include <skinning_vertex>
         vPos = position;
         // (A little behind the surface, away from the eye: where it folds inwards (a nostril, the
@@ -110,10 +113,12 @@ export function encodeId(id: number) {
 }
 
 const ID_VERT = /* glsl */ `
+  #include <morphtarget_pars_vertex>
   #include <skinning_pars_vertex>
   void main() {
     #include <skinbase_vertex>
     #include <begin_vertex>
+    #include <morphtarget_vertex>
     #include <skinning_vertex>
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
@@ -122,11 +127,13 @@ const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }'
 const CUT_VERT = /* glsl */ `
   uniform mat3 mapTransform;
   varying vec2 vUv;
+  #include <morphtarget_pars_vertex>
   #include <skinning_pars_vertex>
   void main() {
     vUv = (mapTransform * vec3(uv, 1.0)).xy;
     #include <skinbase_vertex>
     #include <begin_vertex>
+    #include <morphtarget_vertex>
     #include <skinning_vertex>
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
@@ -143,11 +150,13 @@ const CUT_FRAG = /* glsl */ `
 const PIECES_VERT = /* glsl */ `
   attribute float piece;
   varying float vPiece;
+  #include <morphtarget_pars_vertex>
   #include <skinning_pars_vertex>
   void main() {
     vPiece = piece;
     #include <skinbase_vertex>
     #include <begin_vertex>
+    #include <morphtarget_vertex>
     #include <skinning_vertex>
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;

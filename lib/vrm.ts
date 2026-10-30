@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { BONES, type Bone } from './types';
+import { BONES, EXPRESSIONS, type Bone, type Expression } from './types';
 import { ownLooks, type ToonLook } from './toon';
 
 /*
@@ -91,7 +91,58 @@ export async function readVrm(gltf: GLTF): Promise<VrmInfo | null> {
     meta.allowRedistribution === false ? 'not to be shared' : null,
   ].filter(Boolean);
   const credit = [authors ? `by ${authors}` : '', ...terms].filter(Boolean).join(' · ').slice(0, 160);
+  await readExpressions(gltf, v1, v0);
   return { bones, credit };
+}
+
+/**
+ * Its face's expressions (#15: a blink, the mouth's vowels, happy, sad, angry, surprised, relaxed),
+ * each the shape keys it sets: kept on each mesh, by expression (`userData.faces`: shape key and
+ * weight), so that a copy of the model has them (lib/model.ts ModelRig.setFace). 1.0's presets;
+ * 0.x's blend shape groups by their preset names (a/i/u/e/o for the vowels, joy, sorrow, fun).
+ */
+async function readExpressions(gltf: GLTF, v1: Json, v0: Json) {
+  const OLD: Record<string, Expression> = { a: 'aa', i: 'ih', u: 'ou', e: 'ee', o: 'oh', blink: 'blink', joy: 'happy', angry: 'angry', sorrow: 'sad', fun: 'relaxed', surprised: 'surprised' };
+  const binds: [Expression, { node?: number; mesh?: number; index: number; weight: number }[]][] = [];
+  if (Object.keys(v1).length) {
+    for (const [name, def] of Object.entries(obj(obj(v1.expressions).preset))) {
+      if (!(EXPRESSIONS as readonly string[]).includes(name)) continue;
+      const list = ((obj(def).morphTargetBinds as unknown[] | undefined) ?? []).map((b) => ({ node: num(obj(b).node, -1), index: num(obj(b).index, -1), weight: num(obj(b).weight, 1) }));
+      binds.push([name as Expression, list]);
+    }
+  } else {
+    for (const g of (obj(v0.blendShapeMaster).blendShapeGroups as unknown[] | undefined) ?? []) {
+      const name = OLD[String(obj(g).presetName ?? '').toLowerCase()];
+      if (!name) continue;
+      // (0.x: by mesh, its weights out of 100.)
+      const list = ((obj(g).binds as unknown[] | undefined) ?? []).map((b) => ({ mesh: num(obj(b).mesh, -1), index: num(obj(b).index, -1), weight: num(obj(b).weight, 100) / 100 }));
+      binds.push([name, list]);
+    }
+  }
+  if (!binds.length) return;
+  const parser = gltf.parser;
+  // The meshes a node or a glTF mesh is drawn with (a mesh of several primitives: a group of them).
+  const meshesOf = (o: THREE.Object3D) => {
+    const out: THREE.Mesh[] = [];
+    o.traverse((x) => { if ((x as THREE.Mesh).isMesh && (x as THREE.Mesh).morphTargetInfluences) out.push(x as THREE.Mesh); });
+    return out;
+  };
+  const byMesh = new Map<number, THREE.Mesh[]>();
+  gltf.scene.traverse((o) => {
+    const m = parser.associations.get(o)?.meshes;
+    if (m !== undefined) byMesh.set(m, [...(byMesh.get(m) ?? []), ...meshesOf(o)]);
+  });
+  for (const [name, list] of binds) {
+    for (const b of list) {
+      if (b.index < 0) continue;
+      const targets = b.node !== undefined && b.node >= 0 ? meshesOf((await parser.getDependency('node', b.node)) as THREE.Object3D) : byMesh.get(b.mesh ?? -1) ?? [];
+      for (const mesh of targets) {
+        if (b.index >= (mesh.morphTargetInfluences?.length ?? 0)) continue;
+        const faces = (mesh.userData.faces ??= {}) as Partial<Record<Expression, [number, number][]>>;
+        (faces[name] ??= []).push([b.index, b.weight]);
+      }
+    }
+  }
 }
 
 /** A look from VRM 1.0 MToon settings (the material's base colour and texture as glTF has them). */

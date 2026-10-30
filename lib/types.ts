@@ -74,6 +74,8 @@ export interface Figure {
   color?: string;
   /** Drawn as an imported character (a model in the library, by id) instead of the mannequin. */
   model?: string;
+  /** What its face shows at a moment (a character with expressions: lib/face.ts), worked out from what it does; not saved. */
+  face?: Face;
 }
 
 /** Tints for telling figures apart. */
@@ -566,6 +568,12 @@ export type Selection =
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
+/** A character's face (#15): what a VRM avatar's shape keys show (its eyes shut, the mouth's vowels, a feeling). */
+export const EXPRESSIONS = ['blink', 'aa', 'ih', 'ou', 'ee', 'oh', 'happy', 'angry', 'sad', 'relaxed', 'surprised'] as const;
+export type Expression = (typeof EXPRESSIONS)[number];
+/** How far each expression shows, 0–1. */
+export type Face = Partial<Record<Expression, number>>;
+
 export const STYLES = ['line', 'sketch', 'ink', 'anime', 'pixel', 'render', 'shaded', 'minimal'] as const;
 export type Style = (typeof STYLES)[number];
 /** What a selected prop's gizmo does: move it, or (R) scale it. */

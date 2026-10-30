@@ -99,6 +99,7 @@ export class SceneView {
       this.tints.set(f.id, f.color ?? null);
       rig?.setLook(this.style, f.color ?? null);
       rig?.apply(f, m.joints.hips.getWorldPosition(new THREE.Vector3()));
+      rig?.setFace(f.face);
     }
     for (const [id, rig] of this.models) {
       if (figureIds.has(id)) continue;

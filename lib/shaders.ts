@@ -30,14 +30,17 @@ export const NOISE_GLSL = /* glsl */ `
 // (The skinning chunks do nothing for plain meshes; for a skinned one, an imported character,
 // three.js defines USE_SKINNING and they pose the vertices.)
 const VERT = /* glsl */ `
+  #include <morphtarget_pars_vertex>
   #include <skinning_pars_vertex>
   varying vec3 vNormal;
   varying vec3 vWorld;
   void main() {
     #include <beginnormal_vertex>
+    #include <morphnormal_vertex>
     #include <skinbase_vertex>
     #include <skinnormal_vertex>
     #include <begin_vertex>
+    #include <morphtarget_vertex>
     #include <skinning_vertex>
     vec4 world = modelMatrix * vec4(transformed, 1.0);
     vWorld = world.xyz;

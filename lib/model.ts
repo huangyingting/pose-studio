@@ -9,7 +9,7 @@ import { FINGER_CURL, FINGER_NAMES as FINGERS4, FINGER_SPREAD, SEGMENTS, fingerB
 import { toQuat, type Bones } from './pose';
 import { LINES_LAYER, idMaterialOf, type Ink } from './ink';
 import { styleDef } from './styles';
-import { BONES, JOINTS, type Bone, type BodyParams, type Figure, type JointName, type Hand, type ModelInfo, type Style } from './types';
+import { BONES, JOINTS, type Bone, type BodyParams, type Expression, type Face, type Figure, type JointName, type Hand, type ModelInfo, type Style } from './types';
 import { uid } from './uid';
 import { readVrm, type VrmInfo } from './vrm';
 import { ownLooks, paintedLook, toonMaterial, type ToonLook } from './toon';
@@ -405,6 +405,30 @@ export class ModelRig {
     const face = (name: string) => (own ? /eye|brow|lash/i : /body|head|face|eye|brow|lash/i).test(name) || this.meshes.length === 1;
     this.features = this.meshes.map((mesh, i) => (face(nameOf(mesh)) ? this.featuresOf(mesh, i) : undefined));
     this.glazes = this.meshes.flatMap((mesh, i) => (this.cut[i] ? [] : [this.glazeOf(mesh)]));
+    // Its face's shape keys (a VRM avatar's expressions: lib/vrm.ts), and what is drawn with each such mesh (its outline, its tint).
+    this.faces = this.meshes.filter((mesh) => mesh.userData.faces && mesh.morphTargetInfluences).map((mesh) => {
+      const with_: THREE.Mesh[] = [];
+      this.object.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m !== mesh && m.geometry === mesh.geometry && m.morphTargetInfluences) with_.push(m); });
+      return { mesh, keys: mesh.userData.faces as Partial<Record<Expression, [number, number][]>>, with: with_ };
+    });
+  }
+
+  /** The meshes with expressions, the shape keys each expression sets on them, and what is drawn with them. */
+  private faces: { mesh: THREE.Mesh; keys: Partial<Record<Expression, [number, number][]>>; with: THREE.Mesh[] }[] = [];
+
+  /** Show a face (a blink, the mouth talking, a feeling: lib/face.ts), or none: as made. */
+  setFace(face: Face | undefined) {
+    for (const { mesh, keys, with: others } of this.faces) {
+      const inf = mesh.morphTargetInfluences!;
+      for (const list of Object.values(keys)) for (const [i] of list!) inf[i] = 0;
+      if (face) {
+        for (const [name, list] of Object.entries(keys) as [Expression, [number, number][]][]) {
+          const w = face[name];
+          if (w) for (const [i, k] of list) inf[i] = Math.min(1, inf[i] + w * k);
+        }
+      }
+      for (const o of others) o.morphTargetInfluences!.splice(0, inf.length, ...inf);
+    }
   }
 
   /** A mesh's tint (hidden while nothing is tinted). */
@@ -635,6 +659,7 @@ function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector3 }) {
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
     vertexShader: /* glsl */ `
+      #include <morphtarget_pars_vertex>
       #include <skinning_pars_vertex>
       uniform sampler2D mask;
       uniform vec3 whole;
@@ -647,6 +672,7 @@ function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector3 }) {
           vOn = whole;
         #endif
         #include <begin_vertex>
+        #include <morphtarget_vertex>
         #include <skinbase_vertex>
         #include <skinning_vertex>
         gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
