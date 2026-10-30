@@ -281,7 +281,7 @@ function characters(store: Store, ui: LibraryUi): LibraryItem[] {
     on: !!figure && (figure.model ?? null) === id,
     run: () => { if (figure) setFigureModel(store, figure.id, id); },
     drop: { figure: (fid) => { const f = posableById(store, fid); if (f) setFigureModel(store, f.id, id); } },
-    preview: id ? () => characterPreview(id, style(store)) : undefined,
+    preview: () => characterPreview(id, style(store)),
     thumb,
     actions: id && own ? [{ icon: Trash2, label: `Delete my character ${name}`, run: () => { deleteModel(store, id); ui.notifyUndo(`Deleted “${name}”`); } }] : undefined,
   });

@@ -189,6 +189,7 @@ export class SceneView {
   private applySelection() {
     const sel = this.selection;
     for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, (sel?.kind === 'figure' && sel.figure === id) || (sel?.kind === 'many' && sel.figures.includes(id)));
+    for (const [id, r] of this.models) r.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, (sel?.kind === 'figure' && sel.figure === id) || (sel?.kind === 'many' && sel.figures.includes(id)));
     for (const [id, p] of this.props) p.setSelected((sel?.kind === 'prop' && sel.prop === id) || (sel?.kind === 'many' && sel.props.includes(id)));
   }
 
@@ -214,6 +215,7 @@ export class SceneView {
   private applyHover() {
     const h = this.hover;
     for (const [id, m] of this.figures) m.setHover(h?.figure === id ? h.joints ?? 'all' : null);
+    for (const [id, r] of this.models) r.setHover(h?.figure === id ? h.joints ?? 'all' : null);
     for (const [id, p] of this.props) p.setHover(h?.prop === id);
   }
 

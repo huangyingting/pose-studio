@@ -1949,11 +1949,6 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 .start-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .start-name { font-weight: 600; font-size: 13px; }
 .start-meta { font-size: 11px; color: var(--text-3); }
-/* ⟲ ⟳ beside what turns the selection. */
-.turn-steps { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
-.turn-step { position: absolute; display: grid; place-items: center; width: 24px; height: 24px; margin: -12px 0 0 -12px; padding: 0; border: 0; border-radius: 50%; background: var(--panel); color: var(--accent); box-shadow: var(--shadow-float); cursor: pointer; pointer-events: auto; }
-.turn-step:hover { background: var(--accent); color: var(--on-accent); }
-@media (pointer: coarse) { .turn-step { width: 32px; height: 32px; margin: -16px 0 0 -16px; } }
 .drag-readout.axis-x { box-shadow: inset 3px 0 0 var(--axis-x); }
 .drag-readout.axis-y { box-shadow: inset 3px 0 0 var(--axis-y); }
 .drag-readout.axis-z { box-shadow: inset 3px 0 0 var(--axis-z); }
@@ -1973,11 +1968,11 @@ body.resizing { cursor: col-resize; user-select: none; }
 .logo .logo-head { fill: var(--accent); }
 .logo .logo-body { stroke: var(--logo-fg); }
 
-/* What is selected, named on the canvas. */
+/* What is selected, named on the canvas: its words on the scene, a soft glow behind them (as the hint's). */
 .sel-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .sel-label {
-  position: absolute; left: 0; top: 0; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 92%, transparent);
-  box-shadow: var(--shadow-float); color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
+  position: absolute; left: 0; top: 0; padding: 2px 4px; color: var(--text); font-size: 11.5px; font-weight: 600; white-space: nowrap; pointer-events: none;
+  text-shadow: 0 0 3px var(--panel), 0 0 8px var(--panel), 0 0 14px var(--panel);
 }
 
 /* The right-hand panel's header: the levels above (Scene › Figure ›), then the name. */

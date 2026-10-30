@@ -346,6 +346,14 @@ export class ModelRig {
   private surface = { value: new THREE.Color('#ffffff') };
   /** Its scalp (the skin under the hair, coloured as it): lined as the skin it is part of. */
   private scalp: boolean[] = [];
+  /**
+   * A tint over each of its meshes (not hair, an eye or a lash, cut out), as the mannequin's parts
+   * are tinted: the selected joint's, or what a drag would move. By its bones: each bone's joint (a
+   * finger's the hand's), each bone marked selected or under the pointer.
+   */
+  private glazes: Glaze[] = [];
+  private selected: JointName | 'all' | null = null;
+  private hover: ReadonlySet<JointName> | 'all' | null = null;
 
   constructor(template: THREE.Object3D, readonly info: ModelInfo, private ink: Ink) {
     const copy = cloneSkinned(template);
@@ -396,6 +404,76 @@ export class ModelRig {
     const own = this.meshes.some((mesh) => /brow/i.test(nameOf(mesh)));
     const face = (name: string) => (own ? /eye|brow|lash/i : /body|head|face|eye|brow|lash/i).test(name) || this.meshes.length === 1;
     this.features = this.meshes.map((mesh, i) => (face(nameOf(mesh)) ? this.featuresOf(mesh, i) : undefined));
+    this.glazes = this.meshes.flatMap((mesh, i) => (this.cut[i] ? [] : [this.glazeOf(mesh)]));
+  }
+
+  /** A mesh's tint (hidden while nothing is tinted). */
+  private glazeOf(mesh: THREE.Mesh): Glaze {
+    // (Each of the rig's bones as its joint: a bone found, or the one above it; the hips' for those above them.)
+    const joint = new Map<THREE.Object3D, JointName>();
+    for (const [b, o] of this.fitted.bones) {
+      let j: Bone = b;
+      while (!(JOINTS as readonly Bone[]).includes(j)) j = PARENT[j as Exclude<Bone, 'hips'>];
+      joint.set(o, j as JointName);
+    }
+    const jointOf = (o: THREE.Object3D | null) => {
+      for (; o; o = o.parent) if (joint.has(o)) return joint.get(o)!;
+      return 'hips';
+    };
+    const skinned = mesh as THREE.SkinnedMesh;
+    const joints = skinned.isSkinnedMesh ? skinned.skeleton.bones.map(jointOf) : [jointOf(mesh)];
+    const data = new Uint8Array(joints.length * 4);
+    const mask = new THREE.DataTexture(data, joints.length, 1);
+    const whole = { value: new THREE.Vector2() };
+    const material = glazeMaterial(mask, whole);
+    let g: THREE.Mesh;
+    if (skinned.isSkinnedMesh) {
+      const sk = new THREE.SkinnedMesh(mesh.geometry, material);
+      sk.bindMode = skinned.bindMode;
+      sk.bind(skinned.skeleton, skinned.bindMatrix);
+      g = sk;
+    } else {
+      g = new THREE.Mesh(mesh.geometry, material);
+    }
+    g.frustumCulled = false;
+    g.renderOrder = 1;
+    g.layers.set(LINES_LAYER);
+    g.raycast = () => {};
+    g.visible = false;
+    mesh.add(g);
+    return { mesh: g, joints, data, mask, whole, skinned: !!skinned.isSkinnedMesh };
+  }
+
+  /** Tint one joint's parts, or the whole figure (`all`), as selected. */
+  setSelected(joint: JointName | null, all = false) {
+    const next = all ? 'all' : joint;
+    if (next === this.selected) return;
+    this.selected = next;
+    this.glaze();
+  }
+
+  /** Tint the parts a drag would move: these joints' parts, or the whole figure. */
+  setHover(joints: readonly JointName[] | 'all' | null) {
+    const next = joints === 'all' || joints === null ? joints : new Set(joints);
+    const same = next instanceof Set && this.hover instanceof Set ? next.size === this.hover.size && [...next].every((j) => (this.hover as ReadonlySet<JointName>).has(j)) : next === this.hover;
+    if (same) return;
+    this.hover = next;
+    this.glaze();
+  }
+
+  private glaze() {
+    const { selected, hover } = this;
+    const shown = (selected !== null || hover !== null) && !this.ink.ghost;
+    for (const g of this.glazes) {
+      g.mesh.visible = shown;
+      if (!shown) continue;
+      g.joints.forEach((j, k) => {
+        g.data[k * 4] = selected === 'all' || selected === j ? 255 : 0;
+        g.data[k * 4 + 1] = hover === 'all' || !!hover?.has(j) ? 255 : 0;
+      });
+      if (g.skinned) g.mask.needsUpdate = true;
+      else g.whole.value.set(g.data[0] / 255, g.data[1] / 255);
+    }
   }
 
   /** A mesh's face features, if it has a texture and is of the head. */
@@ -533,11 +611,58 @@ export class ModelRig {
     for (const m of [...this.toons, ...this.renders]) m?.dispose();
     for (const f of this.features) (f?.material as THREE.Material | undefined)?.dispose();
     for (const m of this.cuts) m?.dispose();
+    for (const g of this.glazes) { (g.mesh.material as THREE.Material).dispose(); g.mask.dispose(); }
     this.object.clear();
   }
 }
 
 /** A look as a 3D tool draws it (the 3D style): its colour and texture, its see-through parts, lit and shadowed by the scene's lights. */
+/** A mesh's tint and what it is tinted by: each bone's joint and its marks (selected, under the pointer), or the mesh's own (`whole`) where it is not skinned. */
+type Glaze = { mesh: THREE.Mesh; joints: JointName[]; data: Uint8Array; mask: THREE.DataTexture; whole: { value: THREE.Vector2 }; skinned: boolean };
+
+const SELECTED = new THREE.Color('#3b78ff');
+const HOVERED = new THREE.Color('#7ba4ff');
+
+/** The tint over a character's mesh: by how much each vertex goes with the marked bones, selected over under the pointer. */
+function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector2 }) {
+  return new THREE.ShaderMaterial({
+    uniforms: { mask: { value: mask }, whole, selected: { value: SELECTED }, hovered: { value: HOVERED } },
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+    vertexShader: /* glsl */ `
+      #include <skinning_pars_vertex>
+      uniform sampler2D mask;
+      uniform vec2 whole;
+      varying vec2 vOn;
+      vec2 marks(float bone) { return texelFetch(mask, ivec2(int(bone + 0.5), 0), 0).rg; }
+      void main() {
+        #ifdef USE_SKINNING
+          vOn = skinWeight.x * marks(skinIndex.x) + skinWeight.y * marks(skinIndex.y) + skinWeight.z * marks(skinIndex.z) + skinWeight.w * marks(skinIndex.w);
+        #else
+          vOn = whole;
+        #endif
+        #include <begin_vertex>
+        #include <skinbase_vertex>
+        #include <skinning_vertex>
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 selected;
+      uniform vec3 hovered;
+      varying vec2 vOn;
+      void main() {
+        float s = smoothstep(0.2, 0.6, vOn.x) * 0.45;
+        float h = smoothstep(0.2, 0.6, vOn.y) * 0.32;
+        if (max(s, h) < 0.01) discard;
+        gl_FragColor = s >= h ? vec4(selected, s) : vec4(hovered, h);
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
 function standardOf(look: ToonLook) {
   return new THREE.MeshStandardMaterial({
     color: look.color, map: look.map, opacity: look.opacity, transparent: look.alpha === 'blend', alphaTest: look.alpha === 'mask' ? look.cutoff : 0,

@@ -120,8 +120,10 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(Math.abs(rig.object.getObjectByName(info.bones.leftFoot!)!.getWorldPosition(new THREE.Vector3()).y - sv.figures.get(f.id)!.joints.leftFoot.getWorldPosition(new THREE.Vector3()).y)).toBeLessThan(0.05);
     // Drawn in the scene's style as the mannequin is (not in the file's materials), outlined; in
     // the line pass, each of its meshes a part of its own, without its outline.
+    // (Its own meshes: on the scene's layer, not its lines' (its outlines, its face's ink, its tints).)
+    const pass = new THREE.Layers();
     const meshes: THREE.Mesh[] = [];
-    rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material !== sv.ink.outline) meshes.push(o as THREE.Mesh); });
+    rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && o.layers.test(pass)) meshes.push(o as THREE.Mesh); });
     const hulls: THREE.Mesh[] = [];
     rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material === sv.ink.outline) hulls.push(o as THREE.Mesh); });
     expect(meshes.length).toBeGreaterThan(0);
@@ -137,10 +139,16 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     sv.setIdMode(true);
     expect(new Set(meshes.map((m) => m.material)).size).toBe(meshes.length);
     // (Its outlines left out of the pass: on a layer of their own, which it does not draw.)
-    const pass = new THREE.Layers();
     expect(hulls.some((h) => h.layers.test(pass))).toBe(false);
     sv.setIdMode(false);
     expect(meshes.every((m) => m.material === sv.ink.materialsFor('shaded').body)).toBe(true);
+    // A joint selected: its parts tinted over (as the mannequin's are), nothing tinted without one.
+    const tints = () => { const out: THREE.Mesh[] = []; rig.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && !o.layers.test(pass) && (o as THREE.Mesh).material !== sv.ink.outline && o.visible && ((o as THREE.Mesh).material as THREE.ShaderMaterial).uniforms?.mask) out.push(o as THREE.Mesh); }); return out; };
+    expect(tints()).toHaveLength(0);
+    sv.setSelection({ kind: 'joint', figure: f.id, joint: 'leftUpperArm' });
+    expect(tints().length).toBeGreaterThan(0);
+    sv.setSelection(null);
+    expect(tints()).toHaveLength(0);
     sv.dispose();
   });
 

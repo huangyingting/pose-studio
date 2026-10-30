@@ -95,13 +95,13 @@ export function posePreview(p: PoseAsset, style: Style): PreviewJob {
   };
 }
 
-/** A character: a figure drawn as it, standing (its file read first). */
-export function characterPreview(id: string, style: Style): PreviewJob {
-  const scene = newScene('Character', [newFigure({ model: id })]);
+/** A character: a figure drawn as it (the mannequin: null), standing (its file read first). */
+export function characterPreview(id: string | null, style: Style): PreviewJob {
+  const scene = newScene('Character', [newFigure(id ? { model: id } : {})]);
   return {
-    key: `character:${style}:${id}`,
+    key: `character:${style}:${id ?? 'mannequin'}`,
     count: 1,
-    ready: () => !!modelTemplate(id),
+    ready: () => !id || !!modelTemplate(id),
     frame: () => sharedRenderer().render(scene, W, H, LINE, { style, margin: 0.1, angle: { yaw: 20, pitch: 4, fov: 30 } }).toDataURL('image/png'),
   };
 }

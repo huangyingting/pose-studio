@@ -1665,17 +1665,6 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
   expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
 });
 
-test('steps found on the canvas: ⟲ and ⟳ beside the floor ring', async ({ page }) => {
-  // The figure: ⟲ turns it 15° anticlockwise seen from above (to its left).
-  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
-  const facing = async () => facingOf((await figs(page))[0].bones as Bones);
-  const f0 = await facing();
-  await page.getByRole('button', { name: /^Turn 15° anticlockwise/ }).click();
-  expect(await facing()).toBeCloseTo(f0 + 15, 0);
-  await page.getByRole('button', { name: /^Turn 15° clockwise/ }).click();
-  expect(await facing()).toBeCloseTo(f0, 0);
-});
-
 test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {
   const sel = () => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: { kind: string } | null } } } }).__poseStudio.store.getState().selection);
   const scene = await live(page);

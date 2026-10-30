@@ -428,19 +428,6 @@ function wholeText(c: Ctx, ids: string[], moved: string[]) {
   return others.length ? `${who}, with ${others.map(name).join(', ')} (acting together)` : who;
 }
 
-/**
- * Turn what is selected a step, anticlockwise as seen from above (`dir` 1) or clockwise (-1): a
- * figure or prop about itself, a rig camera round its subject, the light round the scene (the
- * canvas's ⟲ ⟳ buttons). Whether the selection turns so.
- */
-export function turnSelection(c: Ctx, dir: 1 | -1) {
-  const at = stepping(c, 'turnLeft') ?? stepping(c, 'left');
-  const k: StepKey | null = at?.kind === 'figure' || at?.kind === 'prop' || at?.kind === 'many' ? (dir > 0 ? 'turnLeft' : 'turnRight')
-    : at?.kind === 'rig' ? (dir > 0 ? 'right' : 'left') : at?.kind === 'light' ? (dir > 0 ? 'left' : 'right') : null;
-  if (k) step(c, k);
-  return !!k;
-}
-
 /** Select the next (1) or previous (-1) thing in the scene: its figures, props, cameras, then the light. */
 function cycleSelection(c: Ctx, dir: 1 | -1) {
   const s = sceneOf(c);
@@ -550,7 +537,7 @@ export const COMMANDS: Command[] = [
       ];
     },
   },
-  { id: 'view.handles', title: 'Handles', icon: Move3d, help: 'Show the handles: a joint’s rotate gizmo, the floor rings, ⟲ ⟳', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
+  { id: 'view.handles', title: 'Handles', icon: Move3d, help: 'Show the handles: a joint’s rotate gizmo, the floor rings', keys: ['h'], checked: (c) => c.store.getState().settings.showHandles, run: (c) => c.store.setSettings({ showHandles: !c.store.getState().settings.showHandles }) },
   { id: 'view.grid', title: 'Grid', help: 'The floor grid', icon: Grid3x3, checked: (c) => c.store.getState().settings.showGrid, run: (c) => c.store.setSettings({ showGrid: !c.store.getState().settings.showGrid }) },
   { id: 'view.onion', title: 'Onion skin', help: 'Onion skin: the keys before and after, faint', icon: Ghost, when: animated, checked: () => App().onion(), run: () => App().setOnion(!App().onion()) },
   { id: 'view.guides', title: 'Guides', help: 'Framing guides: thirds and safe areas', icon: Frame, checked: (c) => c.store.getState().settings.guides, run: (c) => c.store.setSettings({ guides: !c.store.getState().settings.guides }) },
@@ -1407,7 +1394,7 @@ export const GESTURES: [string, string][] = [
   ['Move a camera · up and down · add a point', 'Drag it · Shift drag · double-click its path'],
   ['Rename', 'Double-click'],
   ['Type an exact value', 'Click a slider’s value'],
-  ['Turn 15°', 'Click ⟲ ⟳ beside the floor ring'],
+  ['Turn 15°', 'Alt ← → (Ctrl-drag its floor ring: 15° steps)'],
   ['Pick up a prop', 'Drag a hand onto it'],
   ['How a key goes on · hold its pose for a time', 'Right-click the key'],
   ['Pick several keys · move them together', 'Shift-click them (or Shift-drag a box on the row) · drag one'],
