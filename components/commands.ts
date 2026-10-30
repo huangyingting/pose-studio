@@ -8,7 +8,7 @@ import {
   addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
-  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointStop, editRig, frameShot, setLens,
+  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, PLACES, PLACE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
@@ -26,7 +26,7 @@ import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById } from '@/lib/assets';
-import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
+import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
@@ -922,6 +922,22 @@ export const COMMANDS: Command[] = [
 
   // A camera (`at`: one of its path's points).
   {
+    // (Its own aim: a figure, the spot it looks at now; or as the camera aims.)
+    id: 'camera.pointAim', title: 'Looks at', icon: Crosshair,
+    when: (c) => !!c.camera && c.at !== undefined && cameraById(sceneOf(c), c.camera)?.kind === 'path',
+    items: (c) => {
+      const cam = cameraById(sceneOf(c), c.camera) as PathCamera;
+      const p = cam.points.find((q) => Math.abs(q.t - c.at!) < 1e-3);
+      const own = p?.aim;
+      const here = () => { const v = viewOf(sceneOf(c), cam, c.at!); return { point: v.target.toArray().map((n) => Math.round(n * 1000) / 1000) as Vec3 }; };
+      return [
+        { title: 'As the camera aims', checked: !own, run: () => setCameraPointAim(c.store, cam.id, c.at!, null) },
+        ...sceneOf(c).figures.filter((f) => !f.hidden).map((f) => ({ title: f.name, checked: !!own && 'figure' in own && own.figure === f.id, run: () => setCameraPointAim(c.store, cam.id, c.at!, { figure: f.id }) })),
+        { title: 'The spot it looks at now', checked: !!own && 'point' in own, run: () => setCameraPointAim(c.store, cam.id, c.at!, here()) },
+      ];
+    },
+  },
+  {
     id: 'camera.stop', title: 'Stops here', help: 'The camera eases to a stop at this point and on from it: its path may turn sharply here', icon: CircleStop,
     when: (c) => !!c.camera && c.at !== undefined && cameraById(sceneOf(c), c.camera)?.kind === 'path',
     checked: (c) => { const cam = cameraById(sceneOf(c), c.camera); return cam?.kind === 'path' && !!cam.points.find((p) => Math.abs(p.t - c.at!) < 1e-3)?.stop; },
@@ -1362,7 +1378,7 @@ export const MENUS = {
   ],
   shot: ['rename', 'shot.move', 'shot.camera', 'shot.unpin', '-', 'shot.describe', '-', 'shot.removeCut'],
   camera: [
-    'camera.stop', 'camera.deletePoint', '-', 'rename', 'camera.through', 'camera.fromView', 'camera.pointHere', 'duplicate',
+    'camera.pointAim', 'camera.stop', 'camera.deletePoint', '-', 'rename', 'camera.through', 'camera.fromView', 'camera.pointHere', 'duplicate',
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],

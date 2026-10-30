@@ -27,7 +27,7 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize } from './cameras';
+import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
 import { angle, bonesOf, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, unpinShot as unpin, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
@@ -1119,6 +1119,22 @@ export function setCameraPointStop(store: Store, camera: string, t: number, stop
   });
 }
 
+/** What a path camera's point at t looks at, its own (a figure, a spot), or (null) as the camera aims (#16). */
+export function setCameraPointAim(store: Store, camera: string, t: number, aim: CameraPoint['aim'] | null) {
+  store.updateScene((s) => {
+    const cam = pathCamera(s, camera);
+    if (!cam) return s;
+    const points = cam.points.map((p) => {
+      if (Math.abs(p.t - t) > 1e-3) return p;
+      const q: CameraPoint = { ...p };
+      if (aim) q.aim = aim;
+      else delete q.aim;
+      return q;
+    });
+    return withCamera(s, { ...cam, points });
+  });
+}
+
 /** Remove the point at t of a path camera (by default the one filming then); its last point stays. */
 export function deleteCameraPoint(store: Store, t = store.getState().time, camera?: string) {
   store.updateScene((s) => {
@@ -1197,11 +1213,45 @@ export function editCamera(store: Store, id: string, patch: { name?: string; sub
       if (cam.ease !== 'linear') delete cam.ease;
       if (cam.pace !== 'even') delete cam.pace;
     } else cam = { ...cam, ...who };
+    // (A figure picked: no longer a point.)
+    if (subject !== undefined && cam.point) {
+      cam = cam.kind === 'path' ? restate(s, cam, { point: undefined }) : { ...cam };
+      delete cam.point;
+    }
     cam = { ...cam, ...(also ? { also } : {}), ...(shake !== undefined ? { shake } : {}), name: (name ?? cam.name).trim().slice(0, 60) || cam.name };
     if (!cam.subject) delete cam.subject;
     if (!cam.also?.length || !cam.subject) delete cam.also;
     if (!cam.shake) delete cam.shake;
     return withCamera(s, cam);
+  }, `camera:${id}`);
+}
+
+/**
+ * What a camera films (#16): a figure (its subject), or a point (its aim dropped on empty space,
+ * or clicked through it). A path camera stays where it is at each of its points.
+ */
+export function aimCamera(store: Store, id: string, at: { figure: string } | { point: Vec3 }) {
+  store.updateScene((s) => {
+    const cam = cameraById(s, id);
+    if (!cam) return s;
+    const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+    const patch = 'figure' in at ? { subject: at.figure, point: undefined } : { subject: undefined, point: at.point.map(r3) as Vec3 };
+    let next: Camera;
+    if (cam.kind === 'path') {
+      // (Each of its points where it is, now looking at its new subject's chest, or at the point.)
+      const aimed = restate(s, cam, { ...patch, aim: 'figure' in at ? 'subject' : 'point' });
+      const points = aimed.points.map((p) => {
+        const v = viewOf(s, aimed, p.t);
+        const look = 'figure' in at ? subjectPlace(s, aimed, p.t).setY(1.3) : new THREE.Vector3(...at.point);
+        return { ...pointIn(s, aimed, p.t, v.position, look, p.lens, p.roll), ...(p.stop ? { stop: true as const } : {}), ...(p.aim ? { aim: p.aim } : {}) };
+      });
+      next = { ...aimed, points };
+    } else next = { ...cam, ...patch };
+    next = { ...next };
+    if (!next.point) delete next.point;
+    if (!next.subject) delete next.subject;
+    if (!next.subject) delete next.also;
+    return withCamera(s, next);
   }, `camera:${id}`);
 }
 

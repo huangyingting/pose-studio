@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, applyCameraMove, editRig, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, aimCamera, applyCameraMove, editRig, moveCameraPoint, setCameraPointAim, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
 import { newScene, parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
@@ -338,6 +338,51 @@ describe('a move\'s wait and hold, walls and the floor (#16)', () => {
     startAnimation(store, 2);
     setCameraMove(store, id, { kind: 'crane', by: -80 });
     expect(cameraAt(store.scene, 1.99).position.y).toBeGreaterThanOrEqual(0.15);
+  });
+});
+
+describe('aiming (#16): a figure or a spot; a path point\'s own aim; walls the check reports', () => {
+  it('aims a framing at a spot, and back at a figure', () => {
+    const { store, a } = fresh();
+    const id = liveCamera(store.scene, 0).id;
+    aimCamera(store, id, { point: [2, 1, -1] });
+    expect(liveCamera(store.scene, 0)).toMatchObject({ point: [2, 1, -1] });
+    expect(cameraAt(store.scene, 0).target.distanceTo(new THREE.Vector3(2, 1, -1))).toBeLessThan(0.15);
+    // (Saved with it.)
+    expect(parseScene(JSON.parse(JSON.stringify(store.scene))).cameras[0]).toEqual(liveCamera(store.scene, 0));
+    editCamera(store, id, { subject: a });
+    expect(liveCamera(store.scene, 0).point).toBeUndefined();
+  });
+
+  it('aims a path at a spot from where it is; a point may look at its own figure, the camera turning to it', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    const id = liveCamera(store.scene, 0).id;
+    editAsPath(store, id);
+    const where = cameraAt(store.scene, 1).position;
+    aimCamera(store, id, { point: [3, 1, 0] });
+    expect(cameraAt(store.scene, 1).position.distanceTo(where)).toBeLessThan(0.01);
+    expect(cameraAt(store.scene, 1).target.distanceTo(new THREE.Vector3(3, 1, 0))).toBeLessThan(0.01);
+    // Its last point looks at the figure: by then, the camera does; half way, it is turning.
+    const last = (liveCamera(store.scene, 0) as PathCamera).points.at(-1)!;
+    setCameraPointAim(store, id, last.t, { figure: a });
+    const chest = new THREE.Vector3(...figurePoseAt(store.scene, a, last.t)!.position).setY(0);
+    expect(cameraAt(store.scene, last.t).target.clone().setY(0).distanceTo(chest)).toBeLessThan(0.3);
+    // (Kept when the point is moved.)
+    store.setTime(last.t);
+    moveCameraPoint(store, id, last.t, new THREE.Vector3(1, 1.5, 4));
+    expect((liveCamera(store.scene, 0) as PathCamera).points.at(-1)!.aim).toEqual({ figure: a });
+  });
+
+  it('reports a wall of the set between a path camera and what it films', () => {
+    const { store } = fresh();
+    store.updateScene((sc) => ({ ...sc, set: 'living-room' }));
+    startAnimation(store, 1);
+    const id = liveCamera(store.scene, 0).id;
+    editAsPath(store, id);
+    // A camera point far out beside the room (its side wall between), looking in.
+    setCameraPoint(store, new THREE.Vector3(30, 1.4, 0), new THREE.Vector3(0, 1, 0), 30, '', id);
+    expect(checkMotion(store.scene).some((i) => i.kind === 'camera' && /wall of the set/.test(i.message))).toBe(true);
   });
 });
 

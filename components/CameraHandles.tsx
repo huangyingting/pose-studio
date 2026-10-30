@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
-import { editCamera, editRig, setCameraMove } from '@/lib/actions';
+import { aimCamera, editRig, setCameraMove } from '@/lib/actions';
 import { cameraById, frameAspect, LENSES, MOVE_NAMES, moveRun, placeCamera, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import type { Store } from '@/lib/store';
 import type { CameraMove, RigCamera, Scene, ShotSize, Vec3 } from '@/lib/types';
@@ -101,16 +101,23 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
 
   // The aim marker as it is dragged (where it is now), and the figure under it.
   const [aiming, setAiming] = useState<{ at: THREE.Vector3; figure: string | null } | null>(null);
-  /** The figure under a screen point, if any (its body's parts say whose they are). */
+  /**
+   * What is under a screen point to aim at: a figure (its body's parts say whose they are), or the
+   * spot: on a set's or a prop's part, or over the floor at chest height.
+   */
   const figureAt = (x: number, y: number) => {
     const { camera, gl, scene: world } = get();
     const r = gl.domElement.getBoundingClientRect();
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), camera);
     for (const hit of ray.intersectObjects(world.children, true)) {
-      for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) if (typeof o.userData.figure === 'string') return { figure: o.userData.figure as string, at: hit.point };
+      for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
+        if (typeof o.userData.figure === 'string') return { figure: o.userData.figure as string, at: hit.point };
+        if (o.userData.set !== undefined || typeof o.userData.prop === 'string') return { figure: null, at: hit.point };
+      }
     }
-    return { figure: null, at: ray.ray.at(3, new THREE.Vector3()) };
+    const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    return { figure: null, at: floor ? floor.setY(1) : ray.ray.at(3, new THREE.Vector3()) };
   };
 
   const cones = [...new Set([picked, hovered].filter((x): x is string => !!x))];
@@ -226,8 +233,9 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
     const aim = (e: ThreeEvent<PointerEvent>) => {
       let last: { at: THREE.Vector3; figure: string | null } | null = null;
       follow(e, (ev) => { last = figureAt(ev.clientX, ev.clientY); setAiming(last); }, () => {
-        const figure = (last as { figure: string | null } | null)?.figure;
-        if (figure && figure !== cam.subject) editCamera(store, cam.id, { subject: figure });
+        const got = last as { figure: string | null; at: THREE.Vector3 } | null;
+        if (got?.figure) { if (got.figure !== cam.subject || cam.point) aimCamera(store, cam.id, { figure: got.figure }); }
+        else if (got) aimCamera(store, cam.id, { point: got.at.toArray() as Vec3 });
         setAiming(null);
       });
     };
@@ -259,7 +267,7 @@ export default function CameraHandles({ store, scene, time, picked, hovered }: {
             <meshBasicMaterial color={onFigure ? '#16a34a' : ACCENT} depthTest={false} transparent opacity={0.9} />
           </mesh>
           {/* (Grabbed anywhere within it, not only on its thin ring.) */}
-          <mesh visible={false} userData={{ handle: true }} onPointerDown={aim} {...(aiming ? { raycast: () => {} } : {})} {...over(`Drag onto a figure: ${cam.name} films that one${onFigure ? ` (${onFigure})` : ''}`, 'grab')}>
+          <mesh visible={false} userData={{ handle: true }} onPointerDown={aim} {...(aiming ? { raycast: () => {} } : {})} {...over(`Drag: what ${cam.name} films — a figure${onFigure ? ` (${onFigure})` : ''}, or the spot it is let go on`, 'grab')}>
             <sphereGeometry args={[0.09, 12, 8]} />
           </mesh>
         </group>

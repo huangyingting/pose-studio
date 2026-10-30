@@ -5,6 +5,7 @@ import { ArrowLeftRight, ArrowRightToLine, ArrowUpDown, ArrowUpFromLine, Camera 
 import { addCameraPoint, applyCameraMove, deleteCameraPoint, editAsPath, editCamera, editRig, frameShot, setCameraMove, setLens } from '@/lib/actions';
 import { CAMERA_GROUPS, CAMERA_MOVES, LENSES, MOVE_NAMES, SHOT_SIZES, frameAspect, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { sceneAt } from '@/lib/evaluate';
+import { setBlocks } from '@/lib/sets';
 import { sharedRenderer } from '@/lib/thumbnails';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
@@ -70,7 +71,7 @@ const subjectOf = (t: Target) => {
   const shown = t.scene.figures.filter((f) => !f.hidden);
   return shown.find((f) => f.id === t.camera!.subject);
 };
-export const framingSummary = (t: Target) => [subjectOf(t)?.name ?? 'Everyone', SHOT_SIZES.find((x) => x.id === framingOf(t.store, t.camera!, t.time).size)?.short].filter(Boolean).join(' · ');
+export const framingSummary = (t: Target) => [t.camera!.point ? 'A spot' : subjectOf(t)?.name ?? 'Everyone', SHOT_SIZES.find((x) => x.id === framingOf(t.store, t.camera!, t.time).size)?.short].filter(Boolean).join(' · ');
 export const lensSummary = (t: Target) => { const { lens } = framingOf(t.store, t.camera!, t.time); return lens ? `${lens} mm` : 'Not filming now'; };
 
 /** What it films: its subject (and whom with), its shot size, where the subject sits. */
@@ -90,9 +91,9 @@ export function FramingPanel({ t }: { t: Target }) {
         <span>Subject</span>
         <Select
           label="Camera subject"
-          value={subject ?? 'all'}
-          onChange={(v) => set({ subject: v === 'all' ? '' : v })}
-          options={[{ value: 'all', label: 'Everyone' }, ...shown.map((f) => ({ value: f.id, label: f.name }))]}
+          value={cam.point ? 'point' : subject ?? 'all'}
+          onChange={(v) => { if (v !== 'point') set({ subject: v === 'all' ? '' : v }); }}
+          options={[{ value: 'all', label: 'Everyone' }, ...shown.map((f) => ({ value: f.id, label: f.name })), ...(cam.point ? [{ value: 'point', label: 'A spot (its aim)' }] : [])]}
         />
         {subject && shown.length > 1 && (
           // A two-shot (or more): whom it frames with its subject.
@@ -376,8 +377,13 @@ function ShotStill({ t, cam, at, label, style }: { t: Target; cam: RigCamera; at
 /** Where a camera's path is, what it looks at, how it moves, its points. */
 function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: Parameters<typeof editCamera>[2]): void }) {
   const time = useStudio((s) => s.time);
+  // (A wall of the set between it and what it films, at the playhead: said here, as the motion check does.)
+  const now = t.scene.animation ? time : 0;
+  const view = t.scene.set ? viewOf(t.scene, cam, now) : null;
+  const walled = !!view && setBlocks(t.scene.set, view.target, view.position) !== null;
   return (
     <>
+      {walled && <Hint>A wall of the set is between {cam.name} and what it films here: drag the camera out of it on the canvas, or give it a move instead (a framing comes in front of a wall itself)</Hint>}
       <div className="field">
         <span>Path</span>
         <Segmented<PathCamera['anchor']>

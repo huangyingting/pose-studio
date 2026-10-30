@@ -62,7 +62,7 @@ export default function CameraPip({ camera, clock }: { camera: string; clock: Cl
       type="button"
       className="camera-pip"
       aria-label={`Look through ${cam.name}`}
-      data-tip={`${cam.name}'s picture: click to look through it`}
+      data-tip={`${cam.name}'s picture: click to look through it (then click in the picture to aim it there)`}
       data-tip-side="left"
       onClick={() => command('camera.through').run!({ store, camera })}
     >

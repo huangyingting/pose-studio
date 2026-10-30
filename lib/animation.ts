@@ -1,7 +1,7 @@
 import { keysClip, placeClip } from './clip';
 import { wrapDeg } from './joints';
 import { uid } from './uid';
-import { MOVE_KINDS, type Action, type Animation, type Camera, type CameraMove, type CameraRig, type Figure, type Mark, type MoveKind, type Prop, type PropKey, type PropTarget, type Scene, type Shot, type ShotSize, type Vec3 } from './types';
+import { MOVE_KINDS, type Action, type Animation, type Camera, type CameraMove, type CameraPoint, type CameraRig, type Figure, type Mark, type MoveKind, type Prop, type PropKey, type PropTarget, type Scene, type Shot, type ShotSize, type Vec3 } from './types';
 
 export type { Animation };
 
@@ -198,6 +198,15 @@ function moveOf(v: unknown): CameraMove | undefined {
   };
 }
 
+/** A path point's own aim as it may be: a figure, or a spot. */
+function pointAimOf(v: unknown): CameraPoint['aim'] | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.figure === 'string' && o.figure) return { figure: o.figure.slice(0, 40) };
+  if (Array.isArray(o.point) && o.point.length === 3 && o.point.every((n) => typeof n === 'number' && Number.isFinite(n))) return { point: o.point.map((n) => num(n, 0, -1000, 1000)) as Vec3 };
+  return undefined;
+}
+
 /** A scene's cameras, from storage or a file (a path camera needs a point; one that is not well made is left out). */
 export function parseCameras(raw: unknown): Camera[] {
   const vec = (x: unknown): Vec3 => (Array.isArray(x) ? [0, 1, 2].map((i) => num(x[i], 0, -1000, 1000)) : [0, 0, 0]) as Vec3;
@@ -222,6 +231,7 @@ export function parseCameras(raw: unknown): Camera[] {
     const base = {
       id, name: str(x.name, 80) || `Camera ${i + 1}`,
       ...(typeof x.subject === 'string' && x.subject ? { subject: x.subject.slice(0, 40) } : {}),
+      ...(Array.isArray(x.point) && x.point.length === 3 && x.point.every((n) => typeof n === 'number' && Number.isFinite(n)) ? { point: vec(x.point) } : {}),
       ...(Array.isArray(x.also) && x.also.length ? { also: x.also.filter((f): f is string => typeof f === 'string').slice(0, 8).map((f) => f.slice(0, 40)) } : {}),
       ...(typeof x.made === 'string' && x.made ? { made: x.made.slice(0, 40) } : {}),
       ...(typeof x.shake === 'number' && x.shake > 0 ? { shake: num(x.shake, 0, 0, 1) } : {}),
@@ -232,6 +242,7 @@ export function parseCameras(raw: unknown): Camera[] {
         t: Math.round(num(p.t, 0, 0, MAX_DURATION) * 1000) / 1000, position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
         ...(typeof p.roll === 'number' && Number.isFinite(p.roll) && p.roll ? { roll: num(p.roll, 0, -180, 180) } : {}),
         ...(p.stop === true ? { stop: true as const } : {}),
+        ...(pointAimOf(p.aim) ? { aim: pointAimOf(p.aim)! } : {}),
       }))
       .sort((p, q) => p.t - q.t);
     if (x.kind !== 'path' || !points.length) return [];

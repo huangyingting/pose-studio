@@ -7,7 +7,7 @@ import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
-import { addCameraPoint, editLight, moveCameraLook, moveCameraPoint, setCameraLens, setCameraPoint, toggleSelected } from '@/lib/actions';
+import { addCameraPoint, aimCamera, editLight, moveCameraLook, moveCameraPoint, setCameraLens, setCameraPoint, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
@@ -387,6 +387,16 @@ export default function Viewport({
       onPointerMove={(e) => { if (e.pointerType === 'touch' && Math.hypot(e.clientX - downAt.current[0], e.clientY - downAt.current[1]) > 8) window.clearTimeout(longPress.current); }}
       onPointerCancel={() => window.clearTimeout(longPress.current)}
       onPointerUpCapture={(e) => {
+        // Looking through a camera: a click (not a drag, which frames the view) aims it there, at
+        // the figure under the pointer or the spot (at chest height over the floor) (#16).
+        const [x0, y0] = downAt.current;
+        if (through && !onPick && e.button === 0 && Math.hypot(e.clientX - x0, e.clientY - y0) <= 4 && e.target instanceof HTMLCanvasElement) {
+          const hit = apiRef.current?.pick(e.clientX, e.clientY) ?? {};
+          const cam = through.camera ?? liveCamera(store.scene, store.getState().time).id;
+          if (hit.figure) aimCamera(store, cam, { figure: hit.figure });
+          else if (hit.floor) aimCamera(store, cam, { point: [hit.floor[0], 1, hit.floor[2]] });
+          return;
+        }
         // Picking: a click (dragging still orbits) is the pick. (The release goes on to the view's
         // controls; the click that follows selects nothing.)
         const [x, y] = downAt.current;

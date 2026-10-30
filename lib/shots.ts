@@ -118,7 +118,10 @@ export function removeCamera(scene: Scene, id: string): Scene {
 /** A path camera with a point at time t (replacing one within half a frame). */
 export function setPointAt(cam: PathCamera, fps: number, t: number, point: Omit<CameraPoint, 't'>): PathCamera {
   const u = r3(t);
-  return { ...cam, points: [...cam.points.filter((p) => Math.abs(p.t - u) >= 0.5 / fps), { ...point, t: u }].sort((p, q) => p.t - q.t) };
+  // (A point there before: its stop and its own aim kept, the camera put anew.)
+  const was = cam.points.find((p) => Math.abs(p.t - u) < 0.5 / fps);
+  const kept = { ...(was?.stop ? { stop: true as const } : {}), ...(was?.aim ? { aim: was.aim } : {}) };
+  return { ...cam, points: [...cam.points.filter((p) => Math.abs(p.t - u) >= 0.5 / fps), { ...kept, ...point, t: u }].sort((p, q) => p.t - q.t) };
 }
 
 /** A path camera without its point at time t (not its last one). */

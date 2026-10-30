@@ -79,6 +79,7 @@ export function subjectAt(scene: Scene, t: number): string | undefined {
 
 /** Where a camera's subject is at t, on the floor under its hips (several, or everyone: the middle of them). */
 export function subjectPlace(scene: Scene, cam: Camera, t: number): THREE.Vector3 {
+  if (cam.point) return new THREE.Vector3(cam.point[0], 0, cam.point[2]);
   const ids = cameraFigures(scene, cam) ?? scene.figures.filter((f) => !f.hidden).map((f) => f.id);
   const c = new THREE.Vector3();
   let n = 0;
@@ -221,7 +222,33 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
   if (cam.aim === 'subject') target = new THREE.Vector3(...p.look).add(place!);
   else if (cam.aim === 'point') target = new THREE.Vector3(...p.look).add(cam.anchor === 'subject' ? place! : new THREE.Vector3());
   else target = p.velocity.lengthSq() > 1e-10 ? position.clone().add(p.velocity.clone().normalize()) : new THREE.Vector3(...p.look);
+  // (Points with aims of their own: from what the one before looks at to what the next does.)
+  if (cam.points.some((q) => q.aim)) target = pointsAim(scene, cam, t, target);
   return shaken(cam, t, { position, target, fov: lensFov(p.lens, aspect), lens: p.lens, roll: p.roll ?? 0 });
+}
+
+/** Where a figure's chest is at t, or a spot: what a path point looks at, its own aim. */
+function aimTarget(scene: Scene, aim: NonNullable<CameraPoint['aim']>, t: number): THREE.Vector3 | null {
+  if ('point' in aim) return new THREE.Vector3(...aim.point);
+  if (!scene.figures.some((f) => f.id === aim.figure && !f.hidden)) return null;
+  const b = measure(scene, [aim.figure], t);
+  return new THREE.Vector3(b.head.x, b.head.y - 0.3 * (b.stature / 1.7), b.head.z);
+}
+
+/**
+ * Where a path camera looks at t when its points have aims of their own (#16): between the point
+ * before and the next, from what the one looks at (its own, or the camera's aim, `fallback`) to
+ * what the other does, easing over the way.
+ */
+function pointsAim(scene: Scene, cam: PathCamera, t: number, fallback: THREE.Vector3): THREE.Vector3 {
+  const pts = cam.points;
+  let k = 0;
+  while (k < pts.length - 1 && pts[k + 1].t <= t) k++;
+  const [a, b] = [pts[k], pts[Math.min(pts.length - 1, k + 1)]];
+  const look = (p: CameraPoint) => (p.aim && aimTarget(scene, p.aim, t)) || fallback.clone();
+  if (a === b || !(a.aim || b.aim)) return a.aim ? look(a) : fallback;
+  const u = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp((t - a.t) / Math.max(1e-6, b.t - a.t), 0, 1), 0, 1);
+  return look(a).lerp(look(b), u);
 }
 
 /** A hand-held camera wanders about where it looks. */
@@ -358,8 +385,19 @@ function measure(scene: Scene, ids: string[] | undefined, t: number): Body {
   };
 }
 
-/** A camera's subject's body at t (with those it frames with it; everyone: all of them). */
-const bodyAt = (scene: Scene, cam: Camera, t: number) => measure(scene, cameraFigures(scene, cam), t);
+/** A camera's subject's body at t (with those it frames with it; everyone: all of them; a point: as a body there). */
+const bodyAt = (scene: Scene, cam: Camera, t: number) => (cam.point ? pointBody(cam.point) : measure(scene, cameraFigures(scene, cam), t));
+
+/**
+ * A point a camera films, as a body to frame (#16): someone of a standing height whose middle is
+ * the point at every size (a wide shot's middle, a close-up's head), facing the front.
+ */
+function pointBody([x, y, z]: Vec3): Body {
+  return { x, z, top: y + 0.85, height: 1.7, facing: 0, head: { x, y: y - 0.22, z }, stature: 1.7, half: { x: 0.25, z: 0.25 } };
+}
+
+/** What a camera frames at t, smoothed over `window` seconds: its subject (and those with it), everyone, or its point. */
+const framedBody = (scene: Scene, cam: Camera, t: number, window: number) => (cam.point ? pointBody(cam.point) : smoothBody(scene, cameraFigures(scene, cam), t, window));
 
 /**
  * A figure's body at t smoothed over `window` seconds: the frames around t weighed by how near
@@ -495,7 +533,7 @@ function firstFilmed(scene: Scene, cam: Camera) {
 function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth = r.smooth ?? 0): number {
   const subject = cameraSubject(scene, cam);
   const at = r.turn ? t : firstFilmed(scene, cam);
-  const from = at === t ? body : smoothBody(scene, cameraFigures(scene, cam), at, smooth);
+  const from = at === t ? body : framedBody(scene, cam, at, smooth);
   const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, [r.toward], at, smooth) : null;
   return other ? Math.atan2(other.x - from.x, other.z - from.z) * R2D : from.facing;
 }
@@ -514,7 +552,7 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
    */
   const turnedBy = (time: number, place: Placement | undefined, rough = false, o: { size?: ShotSize | SizeBlend; pitch?: number; lens?: number } = {}) => {
     const smooth = rough ? 0 : r.smooth ?? 0;
-    const body = smoothBody(scene, subject, time, smooth);
+    const body = cam.point ? pointBody(cam.point) : smoothBody(scene, subject, time, smooth);
     const yaw = rigHeading(scene, cam, r, time, body, smooth) + r.yaw;
     return (extra: number) => compose(body, o.size ?? r.size, yaw + extra, o.pitch ?? r.pitch, o.lens ?? r.lens, place, aspect);
   };
@@ -734,7 +772,7 @@ function seen(shot: { position: THREE.Vector3; look: THREE.Vector3 }, body: Body
 /** The rig that films as a camera view does at t (its angle from the subject, its size and lens). */
 export function rigFrom(scene: Scene, cam: Camera, view: CameraView, t: number, o: Partial<CameraRig> = {}): CameraRig {
   const r: CameraRig = { yaw: 0, pitch: 0, size: 'fs', lens: Math.round(view.lens), smooth: 0.5, ...(cam.kind === 'rig' ? cam.rig : {}), ...o };
-  const b = smoothBody(scene, cameraFigures(scene, cam), t, r.smooth ?? 0);
+  const b = framedBody(scene, cam, t, r.smooth ?? 0);
   const { yaw, pitch } = angleOf(view);
   const round = (v: number) => Math.round(v * 10) / 10;
   return { ...r, yaw: round(wrapDeg(yaw - rigHeading(scene, cam, r, t, b))), pitch: round(pitch), size: o.size ?? sizeOf(scene, cam, t, view) };
@@ -882,11 +920,13 @@ export const CAMERA_MOVES: MovePreset[] = [
  * the subject, at a point or along the way; about another subject): the camera stays where it
  * was at each point.
  */
-export function restate(scene: Scene, cam: PathCamera, patch: Partial<Pick<PathCamera, 'anchor' | 'aim' | 'subject'>>): PathCamera {
+export function restate(scene: Scene, cam: PathCamera, patch: Partial<Pick<PathCamera, 'anchor' | 'aim' | 'subject' | 'point'>>): PathCamera {
   const next: PathCamera = { ...cam, ...patch };
+  if (!next.point) delete next.point;
+  if (!next.subject) delete next.subject;
   const points = cam.points.map((p) => {
     const v = viewOf(scene, cam, p.t);
-    return pointIn(scene, next, p.t, v.position, v.target, p.lens, p.roll);
+    return { ...pointIn(scene, next, p.t, v.position, v.target, p.lens, p.roll), ...(p.stop ? { stop: true as const } : {}), ...(p.aim ? { aim: p.aim } : {}) };
   });
   return { ...next, points };
 }

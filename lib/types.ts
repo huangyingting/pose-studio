@@ -351,6 +351,8 @@ interface CameraBase {
   name: string;
   /** The figure it films (none: everyone). */
   subject?: string;
+  /** A point it films instead of a figure (#16: its aim dropped there, or clicked through it). */
+  point?: Vec3;
   /** Figures it frames with its subject (a two-shot). */
   also?: string[];
   /** Made by the scene's coverage, as its camera with this key (lib/coverage.ts). */
@@ -452,6 +454,8 @@ export interface CameraPoint {
   roll?: number;
   /** The camera eases to a stop here (and on from it): its path may turn sharply here, a corner. */
   stop?: true;
+  /** What it looks at here, its own (a figure, or a spot); none: as the camera aims. Between two points, it turns from one to the other. */
+  aim?: { figure: string } | { point: Vec3 };
 }
 
 export interface Library {

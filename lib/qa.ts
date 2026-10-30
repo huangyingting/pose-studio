@@ -9,6 +9,7 @@ import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
 import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
+import { setBlocks } from './sets';
 import { shotSpans } from './shots';
 import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
 
@@ -43,7 +44,7 @@ const HINTS: Record<IssueKind, string> = {
   pop: 'Add an in-between key, or move the keys further apart.',
   hidden: 'Move the camera, the prop, or the figure out from behind it.',
   miss: 'Something got in its way, or the hand cannot reach it then: clear the way, or move the catch.',
-  camera: 'Move the shot\'s camera point out of the way (drag it on the canvas), or its path around it.',
+  camera: 'Move the shot\'s camera point out of the way (drag it on the canvas), or its path around it; or film it with a framing (a move instead of a path), which comes in front of a wall itself.',
 };
 
 /** Thresholds (metres, degrees). */
@@ -435,7 +436,8 @@ function hiddenInShots(scene: Scene): Issue[] {
 
 /**
  * The shot camera passing through a figure (its bones as capsules) or a prop (its solid parts),
- * along its path; ten times a second.
+ * along its path; or (a camera on a path) a wall of the set between it and what it films (a rig
+ * comes in front of one itself); ten times a second.
  */
 function cameraInside(scene: Scene): Issue[] {
   const a = scene.animation;
@@ -448,8 +450,10 @@ function cameraInside(scene: Scene): Issue[] {
     const runs = new Map<string, { start: number; end: number; name: string; figure: string }>();
     for (let t = span.start; t < span.end - 1e-6; t += step) {
       const now = sceneAt(scene, t);
-      const p = cameraAt(scene, t).position;
+      const shot = cameraAt(scene, t);
+      const p = shot.position;
       const inside: { key: string; name: string; figure: string }[] = [];
+      if (scene.set && liveCamera(scene, t).kind === 'path' && setBlocks(scene.set, shot.target, p) !== null) inside.push({ key: 'wall', name: 'wall', figure: '' });
       for (const f of now.figures.filter((x) => !x.hidden)) {
         if (capsules(rig, f).some((c) => new THREE.Line3(c.p, c.q).closestPointToPoint(p, true, new THREE.Vector3()).distanceTo(p) < c.r)) inside.push({ key: f.id, name: f.name, figure: f.id });
       }
@@ -475,6 +479,7 @@ function cameraInside(scene: Scene): Issue[] {
 }
 
 function issueOf(run: { start: number; end: number; name: string; figure: string }, shot: string, fps: number): Issue {
-  return { kind: 'camera', figure: run.figure, start: run.start, end: Math.max(run.end, run.start + 1 / fps), message: `The camera of ${shot} goes through ${run.name}`, hint: HINTS.camera };
+  const message = run.name === 'wall' ? `A wall of the set stands between the camera of ${shot} and what it films` : `The camera of ${shot} goes through ${run.name}`;
+  return { kind: 'camera', figure: run.figure, start: run.start, end: Math.max(run.end, run.start + 1 / fps), message, hint: HINTS.camera };
 }
 
