@@ -409,12 +409,29 @@ export class ModelRig {
     const face = (name: string) => (own ? /eye|brow|lash/i : /body|head|face|eye|brow|lash/i).test(name) || this.meshes.length === 1;
     this.features = this.meshes.map((mesh, i) => (face(nameOf(mesh)) ? this.featuresOf(mesh, i) : undefined));
     this.glazes = this.meshes.flatMap((mesh, i) => (this.cut[i] ? [] : [this.glazeOf(mesh)]));
+    // (Forward, +z, as its head has it at rest.)
+    const rest = this.fitted.bones.get('head');
+    if (rest) {
+      this.object.updateMatrixWorld(true);
+      this.headFront = new THREE.Vector3(0, 0, 1).applyQuaternion(rest.getWorldQuaternion(new THREE.Quaternion()).invert());
+    }
     // Its face's shape keys (a VRM avatar's expressions: lib/vrm.ts), and what is drawn with each such mesh (its outline, its tint).
     this.faces = this.meshes.filter((mesh) => mesh.userData.faces && mesh.morphTargetInfluences).map((mesh) => {
       const with_: THREE.Mesh[] = [];
       this.object.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m !== mesh && m.geometry === mesh.geometry && m.morphTargetInfluences) with_.push(m); });
       return { mesh, keys: mesh.userData.faces as Partial<Record<Expression, [number, number][]>>, with: with_ };
     });
+  }
+
+  /** Where its head faces (world), for its face's shading; and that way in its head's own frame. */
+  private faceFront = new THREE.Vector3(0, 0, 1);
+  private headFront: THREE.Vector3 | null = null;
+
+  /** Whether a mesh is its face's skin (not an eye, a brow, a lash or the mouth). */
+  private faceSkin(i: number) {
+    const mesh = this.meshes[i];
+    const material = (mesh.material as THREE.Material).name ?? '';
+    return /face/i.test(`${mesh.name} ${material}`) && /skin/i.test(material) && !/eye|brow|lash|mouth/i.test(material);
   }
 
   /** Its spring bones: its hair, its skirt, swinging as it moves. */
@@ -573,7 +590,18 @@ export class ModelRig {
   private own(i: number): THREE.Material | undefined {
     const look = this.looks[i];
     if (!look || this.ink.ghost) return undefined;
-    if (styleDef(this.style).toon) return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms));
+    if (styleDef(this.style).toon) {
+      if (!this.toons[i]) {
+        const m = toonMaterial(look, this.ink.uniforms);
+        // (Its face's skin shaded as anime faces are: by where the head faces, a clean shadow across it.)
+        if (this.faceSkin(i)) {
+          m.uniforms.faceSmooth.value = 0.6;
+          m.uniforms.faceFront.value = this.faceFront;
+        }
+        this.toons[i] = m;
+      }
+      return this.toons[i];
+    }
     if (this.style === 'render') return (this.renders[i] ??= standardOf(look));
     return undefined;
   }
@@ -616,6 +644,9 @@ export class ModelRig {
     this.object.updateMatrixWorld(true);
     // (Its hair and skirt on from where they were, as it moves.)
     this.springs?.update(fig.t);
+    // (Where its head faces now, for its face's shading.)
+    const head = this.fitted.bones.get('head');
+    if (head && this.headFront) this.faceFront.copy(this.headFront).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion())).normalize();
   }
 
   private scaleTo(body: BodyParams) {

@@ -114,6 +114,10 @@ const FRAG = /* glsl */ `
   uniform mat3 emissiveMapTransform;
   uniform int alphaMode;
   uniform float cutoff;
+  // (A face: shaded by where the head faces more than by its every curve, as anime faces are: a
+  // clean shadow across it, not blots round the nose and the eyes.)
+  uniform vec3 faceFront;
+  uniform float faceSmooth;
   varying vec3 vNormal;
   varying vec3 vWorld;
   varying vec2 vUv;
@@ -127,6 +131,7 @@ const FRAG = /* glsl */ `
     if (useShadeMap) shaded *= texture2D(shadeMap, placed(shadeMapTransform)).rgb;
     vec3 n = normalize(vNormal);
     if (!gl_FrontFacing) n = -n;
+    if (faceSmooth > 0.0) n = normalize(mix(n, faceFront, faceSmooth));
     vec3 v = normalize(cameraPosition - vWorld);
     // Lit or in shade, by the key light: the edge where the material puts it, as crisp as it says.
     float soft = max(1e-3, 1.0 - toony);
@@ -177,6 +182,8 @@ export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, 
       emissiveMapTransform: placing(look.emissiveMap),
       alphaMode: { value: look.alpha === 'mask' ? 1 : look.alpha === 'blend' ? 2 : 0 },
       cutoff: { value: look.cutoff },
+      faceFront: { value: new THREE.Vector3(0, 0, 1) },
+      faceSmooth: { value: 0 },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
