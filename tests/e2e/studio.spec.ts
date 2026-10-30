@@ -1527,12 +1527,17 @@ test('relations by pointing: a hand let go on someone holds on there; who to loo
   const [first, second] = (await live(page)).scene.figures;
   const at = (figure: string, joint: string) => page.evaluate(([f, j]) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(f, j)!, [figure, joint]);
   // The second's hand nearer the first, dragged onto the first's chest: it holds on there from the playhead.
-  const [l, r] = [await at(second.id, 'leftHand'), await at(second.id, 'rightHand')];
-  const chest = await at(first.id, 'chest');
-  const hand = Math.abs(l.x - chest.x) < Math.abs(r.x - chest.x) ? l : r;
-  await drag(page, hand, chest);
-  // (The hold is made as the drag is let go: on a slow machine, a moment later.)
-  await expect.poll(async () => (await live(page)).scene.animation?.constraints?.[0]).toMatchObject({ figure: second.id, target: { figure: first.id } });
+  // (Where they are on screen once the view has settled; a press that missed the hand, once more.)
+  await page.waitForTimeout(800);
+  const held = () => live(page).then((x) => x.scene.animation?.constraints?.[0]);
+  for (let attempt = 0; attempt < 2 && !(await held()); attempt++) {
+    const [l, r] = [await at(second.id, 'leftHand'), await at(second.id, 'rightHand')];
+    const chest = await at(first.id, 'chest');
+    await drag(page, Math.abs(l.x - chest.x) < Math.abs(r.x - chest.x) ? l : r, chest);
+    // (The hold is made as the drag is let go: on a slow machine, a moment later.)
+    await page.waitForTimeout(1500);
+  }
+  await expect.poll(held).toMatchObject({ figure: second.id, target: { figure: first.id } });
   let s = await live(page);
   // Eyes on: what is clicked on the canvas.
   const head = await at(second.id, 'head');
