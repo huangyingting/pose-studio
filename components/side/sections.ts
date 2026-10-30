@@ -37,7 +37,7 @@ export interface SideSectionDef {
 export const SECTIONS: SideSectionDef[] = [
   // What is in the open scene, in workflow order: cast, set, cameras, lights, shots.
   { id: 'scene', label: 'Scene', icon: ListTree, Panel: OutlineSection },
-  // What can go in it: the library, a category each (characters, poses, motions, sets, lighting and camera moves), applied to the selection.
+  // What can go in it: the library, a category each (characters, poses, motions, sets and lighting; a camera's moves are in its inspector, the director on the timeline), applied to the selection.
   ...LIBRARY_CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon, Panel: LibrarySection })),
   // Describe what you want (server edition only).
   ...(Assistant ? [{ id: 'ai' as const, label: 'AI assistant', icon: Sparkles, Panel: AssistantSection, wide: true }] : []),

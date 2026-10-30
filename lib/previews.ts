@@ -1,13 +1,13 @@
 import { LIBRARY, hasClip } from './assets';
 import { loadThumb, saveThumb } from './assetstore';
 import { fetchLibraryClips } from './librarymotions';
-import { newAnimation } from './animation';
+
 import { sceneAt } from './evaluate';
 import { newFigure, newScene } from './doc';
 import { bodyFor, modelTemplate } from './model';
 import { builtInPoses, poseScene } from './poses';
-import { angleAt, cameraAt, filmWith, newCamera, subjectAt, type MovePreset } from './cameras';
-import { newShot } from './shots';
+import { angleAt, cameraAt, filmWith } from './cameras';
+
 import { sharedRenderer } from './thumbnails';
 import type { Lighting, PoseAsset, Scene, Style, View } from './types';
 
@@ -148,23 +148,6 @@ const setScene = (id: string): Scene => ({ ...newScene('Set', [newFigure()]), se
 /** A motion playing, followed by a camera from its scene's angle. */
 export function motionPreview(id: string, build: () => Scene, style: Style): PreviewJob {
   return filmed(`motion:${style}:${id}`, () => filmWith(build(), 'static', { follow: true }), style);
-}
-
-const sceneIds = new WeakMap<Scene, number>();
-let nextScene = 0;
-
-/** A camera move filming the open scene (a still scene for a few seconds). */
-export function cameraPreview(move: MovePreset, scene: Scene, style: Style): PreviewJob {
-  if (!sceneIds.has(scene)) sceneIds.set(scene, nextScene++);
-  return filmed(`camera:${style}:${move.id}:${sceneIds.get(scene)}`, () => {
-    const anim = scene.animation ?? { ...newAnimation(scene, 3), loop: false };
-    // One shot over the whole animation (on the subject of the camera at its start), filmed by this
-    // move, from the angle it is filmed from now.
-    const subject = subjectAt(scene, 0);
-    const cam = { ...newCamera(scene), id: 'preview', ...(subject ? { subject } : {}) };
-    const base = angleAt(scene, 0);
-    return filmWith({ ...scene, cameras: [cam], animation: { ...anim, shots: [newShot(0, 'Shot 1', cam.id, 'main')] } }, move.id, { base });
-  }, style);
 }
 
 /*

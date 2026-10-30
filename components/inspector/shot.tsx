@@ -114,7 +114,7 @@ export function FilmedByPanel({ t }: { t: Target }) {
           <button type="button" className="btn subtle" onClick={() => ownCamera(store, shot.id)}><Copy size={13} aria-hidden /> Own camera</button>
         </PropertyRow>
       )}
-      <button type="button" className="btn subtle" onClick={() => { store.setTime(span.start); store.setSettings({ side: 'camera' }); }}>
+      <button type="button" className="btn subtle" onClick={() => { store.setTime(span.start); store.select({ kind: 'camera', camera: cam.id }); }}>
         <Video size={14} aria-hidden /> Choose a camera move…
       </button>
     </>

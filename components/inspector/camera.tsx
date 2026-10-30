@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeftRight, ArrowRightToLine, ArrowUpDown, ArrowUpFromLine, Camera as CameraIcon, Eye, Focus, MoveHorizontal, Plus, RotateCcw, RotateCw, Spline, Square, Trash2, ZoomIn, type LucideIcon } from 'lucide-react';
-import { addCameraPoint, deleteCameraPoint, editAsPath, editCamera, editRig, frameShot, setCameraMove, setLens } from '@/lib/actions';
-import { LENSES, MOVE_NAMES, SHOT_SIZES, frameAspect, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
+import { ArrowLeftRight, ArrowRightToLine, ArrowUpDown, ArrowUpFromLine, Camera as CameraIcon, Clapperboard, Eye, Focus, MoveHorizontal, Plus, RotateCcw, RotateCw, Spline, Square, Trash2, ZoomIn, type LucideIcon } from 'lucide-react';
+import { addCameraPoint, applyCameraMove, deleteCameraPoint, editAsPath, editCamera, editRig, frameShot, setCameraMove, setLens } from '@/lib/actions';
+import { CAMERA_GROUPS, CAMERA_MOVES, LENSES, MOVE_NAMES, SHOT_SIZES, frameAspect, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { sceneAt } from '@/lib/evaluate';
 import { sharedRenderer } from '@/lib/thumbnails';
 import { shotSpans } from '@/lib/shots';
@@ -11,7 +11,7 @@ import type { Store } from '@/lib/store';
 import type { Camera, CameraMove, CameraRig, MoveKind, PathCamera, Placement, RigCamera, ShotSize, Style } from '@/lib/types';
 import { menu } from '../commands';
 import { useProjectSettings, useStudio } from '../store-context';
-import { Hint, IconButton, Info, NameHeader, NumberField, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
+import { Hint, IconButton, Info, Menu, NameHeader, NumberField, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /* A camera's header and sections: see sections.ts for which show when. */
@@ -249,6 +249,14 @@ export function MovesPanel({ t }: { t: Target }) {
           </button>
         ))}
       </div>
+      {/* (The classic shots, ready-made: a framing and a move for this camera; a still scene is animated to film one.) */}
+      <Menu
+        label="Ready-made moves"
+        className="btn subtle camera-presets"
+        items={() => CAMERA_GROUPS.flatMap((g) => [{ group: g }, ...CAMERA_MOVES.filter((m) => m.group === g).map((m) => ({ label: m.name, onSelect: () => applyCameraMove(t.store, m.id, cam.id) }))])}
+      >
+        <Clapperboard size={14} aria-hidden /> Ready-made…
+      </Menu>
       {cam.kind === 'rig' ? <MoveSettings t={t} cam={cam} /> : <PathSettings t={t} cam={cam} set={set} />}
       <Slider label="Hand-held" value={cam.shake ?? 0} min={0} max={1} step={0.05} display={(cam.shake ?? 0) > 0 ? `${Math.round((cam.shake ?? 0) * 100)}%` : 'Off'} onChange={(v) => set({ shake: v })} />
     </>

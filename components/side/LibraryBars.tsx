@@ -5,7 +5,7 @@ import { BookmarkPlus, Upload } from 'lucide-react';
 import { addModel, saveMotion, savePose, setFigureModel } from '@/lib/actions';
 import { MissingBones, importModel, type BoneMap } from '@/lib/model';
 import { characterThumb } from '@/lib/previews';
-import { shotSpans, spanAt } from '@/lib/shots';
+
 import { useScene, useStore, useStudio } from '../store-context';
 import BoneMapDialog from '../BoneMapDialog';
 import type { LibraryUi } from './libraryItems';
@@ -159,16 +159,6 @@ export function CharactersBar({ notify, notifyUndo }: BarProps) {
       {imp.dialog}
     </>
   );
-}
-
-export function CameraBar() {
-  const scene = useScene();
-  const selection = useStudio((s) => s.selection);
-  const a = scene.animation;
-  // The shot moves apply to: the selected one, or the one at the playhead.
-  const shot = useStudio((s) => (a ? (s.selection?.kind === 'shot' ? shotSpans(a).find((sp) => sp.shot.id === (s.selection as { shot: string }).shot) : spanAt(a, s.time))?.shot.name : undefined));
-  const cam = selection?.kind === 'camera' ? scene.cameras.find((c) => c.id === selection.camera) : undefined;
-  return <Target>{cam ? <>Moves: on <strong>{cam.name}</strong></> : shot ? <>Moves: on <strong>{shot}</strong></> : 'A move animates this still scene and films it'}</Target>;
 }
 
 /** Make a shoot preset: a name, a template, a coverage that fits its cast and (a still template) a length. */

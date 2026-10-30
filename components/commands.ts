@@ -891,8 +891,9 @@ export const COMMANDS: Command[] = [
 
   // A shot.
   {
+    // (Its camera's inspector: a move, or a ready-made one (#16).)
     id: 'shot.move', title: 'Choose a camera move…', icon: Video, when: (c) => !!spanOf(c),
-    run: (c) => { c.store.setTime(spanOf(c)!.start); c.store.select({ kind: 'shot', shot: c.shot! }); c.store.setSettings({ side: 'camera' }); },
+    run: (c) => { const sp = spanOf(c)!; c.store.setTime(sp.start); c.store.select({ kind: 'camera', camera: sp.shot.camera ?? sceneOf(c).cameras[0].id }); },
   },
   {
     id: 'shot.camera', title: 'Film with', icon: Camera, when: (c) => !!spanOf(c),

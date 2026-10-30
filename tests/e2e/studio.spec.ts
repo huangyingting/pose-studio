@@ -853,8 +853,10 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   // The shot's camera move: from its inspector to the library's camera moves.
   await openSection(page, 'Scene');
   await (await outline(page, 'Shots')).getByRole('button', { name: /Shot 1 / }).click();
+  // (Its camera's inspector, a ready-made move there.)
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
-  await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
+  await page.getByRole('button', { name: 'Ready-made moves' }).click();
+  await page.getByRole('menuitem', { name: 'Orbit 360°' }).click();
   const filmed = await anim(page);
   // (A framing with its move, kept as one: a 360° arc, not points.)
   expect(filmed.cameras.find((c) => c.id === filmed.animation!.shots[0].camera)).toMatchObject({ kind: 'rig', rig: { move: { kind: 'arc', by: 360 } } });

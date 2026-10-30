@@ -1,31 +1,28 @@
 import type { ComponentType } from 'react';
-import { Ban, Castle, Clapperboard, SunMedium, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, type LucideIcon } from 'lucide-react';
-import {
-  applyCameraMove, applyMotion, applyPose, applyUpperBody, coverScene, deleteModel, deleteMotion, deletePose,
-  applyLightingPreset, placeTemplate, setFigureModel, setSceneSet,
-} from '@/lib/actions';
+import { Ban, Castle, SunMedium, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
+import { applyMotion, applyPose, applyUpperBody, deleteModel, deleteMotion, deletePose, applyLightingPreset, placeTemplate, setFigureModel, setSceneSet } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
 import { sceneAt } from '@/lib/evaluate';
 import { insertClip } from '@/lib/track';
 import type { Figure, Scene } from '@/lib/types';
-import { CAMERA_GROUPS, CAMERA_MOVES } from '@/lib/cameras';
+
 import { BUILT_IN_CHARACTERS, characterImage } from '@/lib/characters';
-import { COVERAGES, castCoverage } from '@/lib/coverage';
+
 import { newScene } from '@/lib/doc';
 import { projectSettingsOf } from '@/lib/project';
 import { MOTIONS, MOTION_GROUPS } from '@/lib/motions';
 import { builtInPoses, withPose } from '@/lib/poses';
 import { POSE_GROUPS } from '@/lib/presets';
 import {
-  cameraPreview, characterPreview, characterThumb, lightingPreview, lightingThumb, motionPreview, posePreview, poseThumb, setPreview, setThumb, templatePreview, templateThumb, type PreviewJob,
+  characterPreview, characterThumb, lightingPreview, lightingThumb, motionPreview, posePreview, poseThumb, setPreview, setThumb, templatePreview, templateThumb, type PreviewJob,
 } from '@/lib/previews';
 import { STAGINGS } from '@/lib/stagings';
 import { SETS, SET_GROUPS } from '@/lib/sets';
 import { LIGHTING_PRESETS, lightingName, lightingOf } from '@/lib/lighting';
-import { shotSpans, spanAt } from '@/lib/shots';
+
 import type { LibraryTab, Store } from '@/lib/store';
-import { CameraBar, CharactersBar, MotionsBar, PosesBar, type BarProps } from './LibraryBars';
+import { CharactersBar, MotionsBar, PosesBar, type BarProps } from './LibraryBars';
 import type { DropTarget } from '../dragdrop';
 
 /*
@@ -292,59 +289,6 @@ function characters(store: Store, ui: LibraryUi): LibraryItem[] {
   ];
 }
 
-function camera(store: Store, ui: LibraryUi): LibraryItem[] {
-  const scene = store.scene;
-  const { selection, time, activeFigure } = store.getState();
-  const a = scene.animation;
-  const selected = a && selection?.kind === 'shot' ? shotSpans(a).find((sp) => sp.shot.id === selection.shot) : undefined;
-  const span = selected ?? (a ? spanAt(a, time) : undefined);
-  const cam = selection?.kind === 'camera' ? scene.cameras.find((c) => c.id === selection.camera) : undefined;
-  const name = (id: string | undefined) => scene.figures.find((f) => f.id === id)?.name ?? '?';
-  const coverage = COVERAGES.map((c): LibraryItem => {
-    const cast = scene.coverage?.id === c.id ? scene.coverage.roles : castCoverage(scene, c, activeFigure ?? undefined);
-    const who = cast ? c.roles.map((r) => `${r}: ${name(cast[r])}`).join(', ') : `needs ${c.roles.length} people`;
-    return {
-      key: `coverage:${c.id}`,
-      tab: 'camera',
-      part: 'Coverage',
-      group: 'Whole scene',
-      name: c.name,
-      icon: Clapperboard,
-      meta: scene.coverage?.id === c.id ? 'again' : who,
-      note: `${c.description} (${who})`,
-      disabled: !cast,
-      run: () => {
-        if (coverScene(store, c.id)) ui.onPick?.();
-      },
-    };
-  });
-  const moves = CAMERA_GROUPS.flatMap((g) => CAMERA_MOVES.filter((m) => m.group === g)).map((m): LibraryItem => ({
-    key: `camera:${m.id}`,
-    tab: 'camera',
-    part: 'Camera moves',
-    group: m.group,
-    name: m.name,
-    icon: Video,
-    note: m.description,
-    run: () => {
-      if (!cam && span) store.setTime(span.start);
-      applyCameraMove(store, m.id, cam?.id);
-      ui.onPick?.();
-    },
-    drop: {
-      shot: (id) => {
-        const sp = scene.animation && shotSpans(scene.animation).find((x) => x.shot.id === id);
-        if (!sp) return;
-        store.setTime(sp.start);
-        store.select({ kind: 'shot', shot: id });
-        applyCameraMove(store, m.id);
-      },
-    },
-    preview: () => cameraPreview(m, scene, style(store)),
-  }));
-  return [...coverage, ...moves];
-}
-
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   // A cast, a set and what they do (and shoot presets: one filmed with a coverage).
   // Who a figure is drawn as.
@@ -356,8 +300,6 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   { id: 'sets', label: 'Sets', icon: Castle, grid: true, items: sets },
   // How the scene is lit, at once (each light itself in the outline and the inspector).
   { id: 'lighting', label: 'Lighting', icon: SunMedium, grid: true, items: lighting },
-  // Coverage of the scene, and moves for a shot or a camera.
-  { id: 'camera', label: 'Camera', icon: Video, items: camera, Bar: CameraBar },
 ];
 
 /** The library's items whose names hold `query` (every category's, or one's). */

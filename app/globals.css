@@ -177,6 +177,7 @@ button { font: inherit; color: inherit; }
 .move-grid button { display: grid; justify-items: center; gap: 3px; padding: 6px 2px 5px; border: 0; border-radius: var(--radius-s); background: var(--well); color: var(--text-2); font: inherit; font-size: 11px; line-height: 1.15; text-align: center; cursor: pointer; }
 .move-grid button:hover { color: var(--text); background: var(--hover); }
 .move-grid button.on { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.camera-presets { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-bottom: 8px; }
 .move-ends { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 .move-end { display: grid; gap: 3px; padding: 0; border: 0; background: none; color: var(--text-3); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
 .move-end canvas { width: 100%; height: auto; border-radius: var(--radius-s); background: var(--well); box-shadow: inset 0 0 0 1px var(--border); }
