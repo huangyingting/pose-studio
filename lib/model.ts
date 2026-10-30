@@ -329,7 +329,7 @@ export class ModelRig {
   private toons: (THREE.ShaderMaterial | undefined)[] = [];
   /** Their outline hulls (posed with them). */
   private hulls: THREE.Mesh[] = [];
-  /** The face's features inked from its textures, by mesh (lib/features.ts): for the styles that draw it in one colour. */
+  /** The face's features inked from its textures, by mesh (lib/features.ts): in the styles drawn with lines. */
   private features: (THREE.Mesh | undefined)[] = [];
   /**
    * What is cut out where its texture is clear (hair and lashes are cards, an eye has a clear cornea
@@ -440,16 +440,21 @@ export class ModelRig {
     const body = m.body as THREE.Material & { color?: THREE.Color; uniforms?: { base?: { value: THREE.Color } } };
     this.surface.value.copy(body.uniforms?.base?.value ?? body.color ?? new THREE.Color('#ffffff'));
     this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? this.cutOf(i) ?? m.skin ?? m.body; });
-    // (Its face from its textures where it is drawn in one colour; in its own look, the look has it.)
-    this.features.forEach((f, i) => { if (f) f.visible = !this.own(i) && !this.ink.ghost && style !== 'toon'; });
+    // (Its face from its textures in the styles drawn with lines; in its own look, the look has it.)
+    this.features.forEach((f, i) => { if (f) f.visible = !this.own(i) && !this.ink.ghost && this.inked(); });
     this.setLinked(this.linked);
   }
 
   /** A mesh's cut-out material, where it is drawn in one colour, cut out (made once). */
   private cutOf(i: number): THREE.ShaderMaterial | undefined {
     const cut = this.cut[i];
-    if (!cut || this.ink.ghost || !(this.flat || (cut.face && this.style !== 'toon'))) return undefined;
+    if (!cut || this.ink.ghost || !(this.flat || (cut.face && this.inked()))) return undefined;
     return (this.cuts[i] ??= cutoutMaterial(cut.map, cut.color));
+  }
+
+  /** Whether its face is inked: in the styles drawn with lines (not Clay's value study; Toon in the character's own look). */
+  private inked() {
+    return this.style !== 'toon' && !!styleDef(this.style).outline;
   }
 
   /** A mesh's own look's material, in the Toon style (made once). */
