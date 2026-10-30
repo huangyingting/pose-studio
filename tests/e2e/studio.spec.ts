@@ -416,8 +416,8 @@ test('a selected joint: its rows in the inspector, − and + either side steppin
   expect(await bend()).toBeCloseTo(before - 20, 0);
   await page.getByRole('button', { name: 'Bend +5°' }).click();
   expect(await bend()).toBeCloseTo(before - 15, 0);
-  // What − and + do, under the slider.
-  await expect(page.locator('.joint-ends').first()).toContainText('− bend');
+  // What − does, in its tip.
+  await expect(page.getByRole('button', { name: 'Bend −5°' })).toHaveAttribute('data-tip', /^−5°, bend/);
   // Its value, typed.
   await page.getByRole('button', { name: /^Bend: .*Click to type a value$/ }).click();
   await page.getByRole('spinbutton', { name: 'Bend value' }).fill('-40');
