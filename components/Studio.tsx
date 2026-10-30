@@ -672,7 +672,7 @@ function Pill({ tone, icon: Icon, label, children }: { tone: 'plain' | 'note' | 
 }
 
 /** A gesture or a key, as written in a hint (Drag, Right-click, Alt, ←, H…). */
-const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|Esc|Enter|Space|Page|Up|Down|Arrows|Del|F2|[A-Z]|[←→↑↓]|←→|\/|\+|−)$/;
+const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|Esc|Enter|Space|Page|Up|Down|Arrows|Del|F2|[A-Z]|[←→↑↓]|←→|(Shift|Ctrl|Alt)-(drag|click))$/;
 
 /**
  * A hint's words with its gestures and keys as key caps: in each part (between the · ), what comes
@@ -681,7 +681,8 @@ const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|E
 function Keys({ text }: { text: string }) {
   return text.split(' · ').map((part, i) => {
     const m = /^([^:]{1,28}):(\s.*)$/.exec(part);
-    const keys = m && m[1].split(' ').every((w) => KEYISH.test(w) || w === '' || w === 'or' || w === '/') ? m[1] : null;
+    // (Before the colon, keys: drawn as caps, the words between them, Hold, or, /, as they are.)
+    const keys = m && m[1].split(' ').some((w) => KEYISH.test(w)) ? m[1] : null;
     return (
       <span key={i}>
         {i > 0 && <span className="hint-sep"> · </span>}
