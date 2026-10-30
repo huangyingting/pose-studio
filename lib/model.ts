@@ -340,6 +340,8 @@ export class ModelRig {
    */
   private cut: ({ map: THREE.Texture; color: { value: THREE.Color } } | undefined)[] = [];
   private cuts: (THREE.ShaderMaterial | undefined)[] = [];
+  /** Drawn in one colour (line art, minimal): its cut-outs then; in the shaded styles, their own material. */
+  private flat = false;
   /** Its scalp (the skin under the hair, coloured as it): lined as the skin it is part of. */
   private scalp: boolean[] = [];
 
@@ -427,16 +429,17 @@ export class ModelRig {
   setLook(style: Style, tint: string | null) {
     this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
+    this.flat = !!m.skin;
     this.meshes.forEach((mesh, i) => { mesh.material = this.own(i) ?? this.cutOf(i) ?? m.skin ?? m.body; });
     // (Its face from its textures where it is drawn in one colour; in its own look, the look has it.)
     this.features.forEach((f, i) => { if (f) f.visible = !this.own(i) && !this.ink.ghost && style !== 'toon'; });
     this.setLinked(this.linked);
   }
 
-  /** A mesh's cut-out material, where it is drawn in one colour, cut out (made once). */
+  /** A mesh's cut-out material, where it is drawn in one colour, cut out (made once; only in the styles drawn in one colour). */
   private cutOf(i: number): THREE.ShaderMaterial | undefined {
     const cut = this.cut[i];
-    if (!cut || this.ink.ghost || this.style === 'toon') return undefined;
+    if (!cut || this.ink.ghost || !this.flat) return undefined;
     return (this.cuts[i] ??= cutoutMaterial(cut.map, cut.color));
   }
 

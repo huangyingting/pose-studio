@@ -97,10 +97,9 @@ async function libraryShows(page: Page, what: 'Scene' | 'Characters' | 'Poses' |
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
-/** The scene's outline, or the library (Poses, unless one of its categories is open). */
+/** The scene's outline, or the library at its Poses. */
 async function openSection(page: Page, name: 'Scene' | 'Library') {
-  if (name === 'Scene') await libraryShows(page, 'Scene');
-  else if (!(await page.getByRole('tabpanel').getByRole('searchbox').count())) await libraryShows(page, 'Poses');
+  await libraryShows(page, name === 'Scene' ? 'Scene' : 'Poses');
 }
 
 /** One of the scene outline's lists (Cast, Lights, Cameras, Shots…), the outline opened first. */
@@ -1787,7 +1786,7 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   // The first takes the hit: timed to land with the second's punch.
   await openSection(page, 'Scene');
   await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure\b/ }).first().click();
-  await openSection(page, 'Library');
+  await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Take a hit [\d.]+ s$/ }).click();
   const hit = () => live(page).then((x) => x.scene.animation!.actions.find((a) => a.source.kind === 'clip' && a.roles[0].figure !== second.id)!);
   const before = (await hit()).start;
