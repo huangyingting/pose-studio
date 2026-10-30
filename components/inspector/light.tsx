@@ -91,7 +91,7 @@ export function KindPanel({ t }: { t: Target }) {
         onChange={(kind) => set({ kind })}
       />
       <p className="hint">{KIND_ABOUT[light.kind]}</p>
-      {light.practical && <p className="hint">Part of the set: another set takes it away.</p>}
+      {light.ofSet && <p className="hint">Part of the set: another set takes it away.</p>}
     </>
   );
 }

@@ -105,7 +105,7 @@ export function renameScene(store: Store, name: string) {
 export function setSceneSet(store: Store, id: string | null) {
   const before = lightingOf(store.scene);
   const own = id ? setLights(id) : [];
-  const kept = before.lights.filter((l) => !l.practical);
+  const kept = before.lights.filter((l) => !l.ofSet);
   const lights = [...kept, ...own].slice(0, MAX_LIGHTS);
   store.group(() => {
     store.updateScene((s) => {
@@ -144,7 +144,7 @@ export function setLighting(store: Store, lighting: Lighting, key = '') {
 export function applyLightingPreset(store: Store, id: string) {
   const p = fromPreset(id, subjectOf(store.scene));
   if (!p) return;
-  const own = lightingOf(store.scene).lights.filter((l) => l.practical);
+  const own = lightingOf(store.scene).lights.filter((l) => l.ofSet);
   store.updateScene((s) => ({ ...s, lighting: { ...p, lights: [...p.lights, ...own].slice(0, MAX_LIGHTS) } }));
   const sel = store.getState().selection;
   if (sel?.kind === 'light' && !lightingOf(store.scene).lights.some((l) => l.id === sel.light)) store.select({ kind: 'light', light: keyLight(lightingOf(store.scene))!.id });

@@ -580,6 +580,14 @@ export type GizmoMode = 'translate' | 'scale';
 export const LIGHT_KINDS = ['sun', 'lamp', 'window'] as const;
 export type LightKind = (typeof LIGHT_KINDS)[number];
 
+/**
+ * What a light is for (#17): the key (the one direction that casts shadows, fixed in the scene), a
+ * fill or a rim (no shadows; placed for the shot's camera when `relative`), a practical (a lamp or a
+ * window lighting what is near it: a set's own, or added), a follow light (going with a figure).
+ */
+export const LIGHT_ROLES = ['key', 'fill', 'rim', 'practical', 'follow'] as const;
+export type LightRole = (typeof LIGHT_ROLES)[number];
+
 /** A light of the scene (the lit styles show it). */
 export interface Light {
   id: string;
@@ -604,8 +612,16 @@ export interface Light {
   kelvin?: number;
   /** The sun's shadows. */
   shadows: boolean;
-  /** One of the set's own (a lamp in it, its window): it goes with the set. */
-  practical?: true;
+  /** What it is for (none: a light of its own). */
+  role?: LightRole;
+  /** A fill or a rim placed for the shot's camera: its azimuth from the camera, on the side away from the key. */
+  relative?: 'shot';
+  /** A follow light's figure: its position is from where that figure stands. */
+  follows?: string;
+  /** One of the set's own (a practical that came with it): it goes with the set. */
+  ofSet?: true;
+  /** How soft its light and shadows are, 0–1 (0: hard). */
+  soft?: number;
 }
 
 /** The light from all around: a brightness, the sky's colour above and the ground's below. */
@@ -615,9 +631,17 @@ export interface Ambient {
   ground: string;
 }
 
-/** A scene's lights (up to MAX_LIGHTS) and its ambient light; the scheme it was set from, until it is changed. */
+/** Where a scene is lit (#17): indoors (no sun: its key a studio key, the set casting none of its shadows) or out; the time of day (hours) and the weather the sun and the sky were set from. */
+export interface Environment {
+  indoors?: true;
+  time?: number;
+  weather?: 'overcast';
+}
+
+/** A scene's lights (up to MAX_LIGHTS) and its ambient light; the scheme it was set from, until it is changed; where it is. */
 export interface Lighting {
   lights: Light[];
   ambient: Ambient;
   scheme?: string;
+  environment?: Environment;
 }

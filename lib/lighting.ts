@@ -1,8 +1,7 @@
 import { CUTAWAY_LAYER } from './ink';
 import * as THREE from 'three';
 import { styleDef } from './styles';
-import type { Ambient, Light, LightKind, Lighting, Scene, Style, Vec3 } from './types';
-import { LIGHT_KINDS } from './types';
+import { LIGHT_KINDS, LIGHT_ROLES, type Ambient, type Environment, type Light, type LightKind, type LightRole, type Lighting, type Scene, type Style, type Vec3 } from './types';
 import { uid } from './uid';
 
 /*
@@ -73,14 +72,28 @@ export function newLight(kind: LightKind, l: Partial<Omit<Light, 'id' | 'kind'>>
     color: l.color ?? kelvinColor(kelvin!),
     ...(kelvin !== undefined ? { kelvin } : {}),
     shadows: kind === 'sun' && l.shadows !== false,
-    ...(l.practical ? { practical: true as const } : {}),
+    ...roleOf(l),
+  };
+}
+
+/** A light's role and what goes with it (as it may be): who it follows, whether it came with the set, its softness. */
+function roleOf(l: Partial<Light>): Pick<Light, 'role' | 'relative' | 'follows' | 'ofSet' | 'soft'> {
+  const role = LIGHT_ROLES.includes(l.role as LightRole) ? l.role : undefined;
+  return {
+    ...(role ? { role } : {}),
+    ...(l.relative === 'shot' && (role === 'fill' || role === 'rim') ? { relative: 'shot' as const } : {}),
+    ...(role === 'follow' && typeof l.follows === 'string' && l.follows ? { follows: l.follows.slice(0, 40) } : {}),
+    ...(l.ofSet === true ? { ofSet: true as const } : {}),
+    ...(typeof l.soft === 'number' && l.soft > 0 ? { soft: num(l.soft, 0, 0, 1) } : {}),
   };
 }
 
 const ambient = (intensity = 1, sky = '#ffffff', ground = '#ffffff'): Ambient => ({ intensity, sky, ground });
 
 /** The key light most scenes start with: the sun from the front-left, above. */
-const keySun = (l: Partial<Light> = {}) => newLight('sun', { name: 'Key light', ...l }, 'key');
+const keySun = (l: Partial<Light> = {}) => newLight('sun', { name: 'Key light', role: 'key', ...l }, 'key');
+/** A fill or a rim: a direction placed for the shot's camera (degrees from it, on the side away from the key), no shadows (#17). */
+const forShot = (role: 'fill' | 'rim', l: Partial<Light>) => newLight('sun', { name: role === 'fill' ? 'Fill light' : 'Rim light', role, relative: 'shot', shadows: false, ...l }, role);
 
 /**
  * A scene's lighting without its own: one key light from the front-left, above; the sky white, the
@@ -99,15 +112,15 @@ export const LIGHTING_PRESETS: { id: string; name: string; description: string; 
     id: 'three-point', name: 'Three-point', description: 'The classic portrait lighting: a key from the front-left, a dim fill from the other side, a rim light behind.', lighting: {
       lights: [
         keySun({ azimuth: 40, elevation: 35, intensity: 1.1 }),
-        newLight('lamp', { name: 'Fill light', position: [-2.3, 1.6, 1.9], intensity: 0.45, range: 9 }, 'fill'),
-        newLight('lamp', { name: 'Rim light', position: [0.9, 2.4, -2.3], spot: 45, aim: { point: SUBJECT }, intensity: 1.1, range: 8, kelvin: 7500 }, 'rim'),
+        forShot('fill', { azimuth: 35, elevation: 15, intensity: 0.45 }),
+        forShot('rim', { azimuth: 150, elevation: 35, intensity: 1.1, kelvin: 7500 }),
       ],
       ambient: ambient(0.6),
     },
   },
   {
     id: 'rembrandt', name: 'Rembrandt', description: 'A warm key high to one side and almost no fill: half the face in shadow.', lighting: {
-      lights: [keySun({ azimuth: 50, elevation: 45, intensity: 1.35, kelvin: 3200 }), newLight('lamp', { name: 'Fill light', position: [-2.4, 1.3, 1.6], intensity: 0.18, range: 8, kelvin: 3200 }, 'fill')],
+      lights: [keySun({ azimuth: 50, elevation: 45, intensity: 1.35, kelvin: 3200 }), forShot('fill', { azimuth: 30, elevation: 10, intensity: 0.18, kelvin: 3200 })],
       ambient: ambient(0.45, '#efe8de', '#4d4740'),
     },
   },
@@ -115,7 +128,7 @@ export const LIGHTING_PRESETS: { id: string; name: string; description: string; 
   { id: 'noon', name: 'Noon sun', description: 'The sun almost overhead and a blue sky: short, hard shadows.', lighting: { lights: [keySun({ azimuth: 10, elevation: 82, intensity: 1.45, kelvin: 5500 })], ambient: ambient(1, '#e6eefc', '#d6cdbd') } },
   {
     id: 'dusk', name: 'Dusk', description: 'A low warm sun from the side and cool light from the sky.', lighting: {
-      lights: [keySun({ azimuth: -75, elevation: 10, intensity: 0.95, kelvin: 3000 }), newLight('lamp', { name: 'Fill light', position: [2.6, 2, 1.2], intensity: 0.3, range: 9, kelvin: 9500 }, 'fill')],
+      lights: [keySun({ azimuth: -75, elevation: 10, intensity: 0.95, kelvin: 3000 }), forShot('fill', { azimuth: 40, elevation: 20, intensity: 0.3, kelvin: 9500 })],
       ambient: ambient(0.75, '#b9c2d8', '#7d6a5c'),
     },
   },
@@ -123,8 +136,8 @@ export const LIGHTING_PRESETS: { id: string; name: string; description: string; 
   {
     id: 'streetlight', name: 'Night street', description: 'A warm street lamp above and cool moonlight behind: a city at night.', lighting: {
       lights: [
-        newLight('lamp', { name: 'Street lamp', position: [1.2, 4.6, 0.8], spot: 80, aim: { point: [0, 0, 0] }, intensity: 1.4, range: 12, color: '#ffd09e' }, 'key'),
-        newLight('sun', { name: 'Moonlight', azimuth: -140, elevation: 30, intensity: 0.4, kelvin: 8500, shadows: false }, 'rim'),
+        keySun({ name: 'Moonlight', azimuth: -140, elevation: 30, intensity: 0.4, kelvin: 8500 }),
+        newLight('lamp', { name: 'Street lamp', role: 'practical', position: [1.2, 4.6, 0.8], spot: 80, aim: { point: [0, 0, 0] }, intensity: 1.4, range: 12, color: '#ffd09e' }, 'street-lamp'),
       ],
       ambient: ambient(0.35, '#4b5263', '#2e2a26'),
     },
@@ -134,10 +147,10 @@ export const LIGHTING_PRESETS: { id: string; name: string; description: string; 
 /** A scene's lighting (DEFAULT_LIGHTING without its own). */
 export const lightingOf = (scene: Pick<Scene, 'lighting'>) => scene.lighting ?? DEFAULT_LIGHTING;
 
-/** The main light, the painterly styles' key: the brightest sun, or else the brightest light. */
+/** The main light, the painterly styles' key and the one with shadows: the key (#17); else the brightest sun not placed for the shot, or else the brightest light. */
 export function keyLight(l: Lighting): Light | undefined {
   const by = (ls: Light[]) => ls.reduce<Light | undefined>((a, b) => (!a || b.intensity > a.intensity ? b : a), undefined);
-  return by(l.lights.filter((x) => x.kind === 'sun')) ?? by(l.lights);
+  return l.lights.find((x) => x.role === 'key') ?? by(l.lights.filter((x) => x.kind === 'sun' && !x.relative)) ?? by(l.lights);
 }
 
 /** A scheme's lighting for a scene, its lamps round the people where they are (`at`: their middle on the floor). */
@@ -181,26 +194,45 @@ export function clampLight(l: Partial<Light> & { id: string }): Light {
     color: hex(l.color, kelvinColor(kelvin ?? KELVIN.white)),
     ...(kelvin !== undefined ? { kelvin } : {}),
     shadows: kind === 'sun' && l.shadows !== false,
-    ...(l.practical === true ? { practical: true as const } : {}),
+    ...roleOf(l),
   };
 }
 
 /** A scene's lighting as saved, made sound (null: not lighting). */
 export function parseLighting(v: unknown): Lighting | null {
   if (typeof v !== 'object' || v === null) return null;
-  const o = v as { lights?: unknown; ambient?: Partial<Ambient>; scheme?: unknown };
+  const o = v as { lights?: unknown; ambient?: Partial<Ambient>; scheme?: unknown; environment?: Partial<Environment> };
   const ids = new Set<string>();
   const lights = (Array.isArray(o.lights) ? o.lights : [])
     .filter((l): l is Partial<Light> & { id: string } => typeof l === 'object' && l !== null && typeof l.id === 'string' && l.id.length <= 80 && !ids.has(l.id) && !!ids.add(l.id))
     .slice(0, MAX_LIGHTS)
-    .map(clampLight);
+    .map((l) => clampLight(l.role ? l : { ...l, ...roleSaved(l as Partial<Light> & { practical?: unknown }) }));
+  const e = o.environment ?? {};
   if (!lights.length) return null;
   const a = o.ambient ?? {};
   return {
     lights,
     ambient: { intensity: num(a.intensity, 1, 0, 2), sky: hex(a.sky, '#ffffff'), ground: hex(a.ground, '#ffffff') },
     ...(typeof o.scheme === 'string' && LIGHTING_PRESETS.some((p) => p.id === o.scheme) ? { scheme: o.scheme } : {}),
+    ...(e.indoors === true || typeof e.time === 'number' || e.weather === 'overcast' ? {
+      environment: {
+        ...(e.indoors === true ? { indoors: true as const } : {}),
+        ...(typeof e.time === 'number' && Number.isFinite(e.time) ? { time: num(e.time, 12, 0, 24) } : {}),
+        ...(e.weather === 'overcast' ? { weather: 'overcast' as const } : {}),
+      },
+    } : {}),
   };
+}
+
+/**
+ * A role for a light saved without one (#17): a set's own, a practical; a light named or made as a
+ * key, a fill or a rim, that (the key: a sun; a lamp as a fill or rim keeps its place); else none.
+ */
+function roleSaved(l: Partial<Light> & { practical?: unknown }): Partial<Light> {
+  if (l.practical === true) return { role: 'practical', ofSet: true };
+  const said = `${l.id ?? ''} ${l.name ?? ''}`.toLowerCase();
+  const role = (['key', 'fill', 'rim'] as const).find((r) => new RegExp(`\\b${r}\\b`).test(said));
+  return role ? { role } : {};
 }
 
 /** Degrees round (0 = from the front, + from the figures' left) and up, of a direction. */
@@ -345,7 +377,7 @@ export class LightRig {
    * outside a set; lamps and windows where they are. Returns the world-space direction towards
    * the key light, for the painterly shaders (and sets `tint` and `extras`).
    */
-  update(lighting: Lighting, style: Style, focus: THREE.Box3, set?: THREE.Box3, aimAt: AimAt = () => null) {
+  update(lighting: Lighting, style: Style, focus: THREE.Box3, set?: THREE.Box3, aimAt: AimAt = () => null, shot?: { position: THREE.Vector3; target: THREE.Vector3 }) {
     // (Its middle on a 25 cm grid and its size in half-metre steps: a figure moving a little, as
     // it breathes or is posed, does not move the shadows' pixels, which would shimmer.)
     const middle = focus.isEmpty() ? new THREE.Vector3(0, 1, 0) : focus.getCenter(new THREE.Vector3());
@@ -359,10 +391,23 @@ export class LightRig {
     let shadowed = false;
     for (const x of [...this.suns, ...this.points, ...this.spots]) { x.visible = false; x.castShadow = false; }
     this.extras.length = 0;
+    /** Where a lamp or a window is: its place, or (a follow light) its place from where its figure stands (#17). */
+    const placeOf = (l: Light) => {
+      const p = new THREE.Vector3(...l.position);
+      const who = l.role === 'follow' && l.follows ? aimAt({ figure: l.follows }) : null;
+      return who ? p.add(new THREE.Vector3(who.x, 0, who.z)) : p;
+    };
     /** What a lamp or a window shines at. */
-    const target = (l: Light) => (l.aim && aimAt(l.aim)) ?? (l.kind === 'window' ? center.clone() : new THREE.Vector3(l.position[0], 0, l.position[2]));
+    const target = (l: Light) => (l.aim && aimAt(l.aim)) ?? (l.kind === 'window' || l.role === 'follow' ? center.clone() : new THREE.Vector3(l.position[0], 0, l.position[2]));
+    // (A fill or a rim placed for the shot: degrees from its camera, on the side away from the key.)
+    const camAz = shot ? Math.atan2(shot.position.x - shot.target.x, shot.position.z - shot.target.z) * 180 / Math.PI : null;
+    const keyAz = key ? (key.kind === 'sun' ? key.azimuth : Math.atan2(key.position[0] - center.x, key.position[2] - center.z) * 180 / Math.PI) : 40;
+    const away = camAz === null ? 1 : ((((keyAz - camAz) % 360) + 540) % 360) - 180 > 0 ? -1 : 1;
     /** Towards the light, from what it lights. */
-    const lightDir = (l: Light) => (l.kind === 'sun' ? towards(l.azimuth, l.elevation) : new THREE.Vector3(...l.position).sub(l.kind === 'lamp' && !l.spot ? center : target(l)).normalize());
+    const lightDir = (l: Light) => {
+      if (l.kind === 'sun') return l.relative === 'shot' && camAz !== null ? towards(camAz + away * Math.abs(l.azimuth), l.elevation) : towards(l.azimuth, l.elevation);
+      return placeOf(l).sub(l.kind === 'lamp' && !l.spot ? center : target(l)).normalize();
+    };
     for (const l of lighting.lights) {
       const color = new THREE.Color(l.color);
       if (l !== key && this.extras.length < MAX_EXTRA) this.extras.push({ dir: lightDir(l), color: color.clone().multiplyScalar(Math.min(1.5, l.intensity)) });
@@ -374,7 +419,9 @@ export class LightRig {
         sun.target.updateMatrixWorld();
         sun.color.copy(color);
         sun.intensity = 1.9 * l.intensity * (l.kind === 'window' ? 0.8 : 1);
-        if (l.kind !== 'sun' || !l.shadows || !styleDef(style).shadows || shadowed) continue;
+        // (Only the key casts shadows (#17), as soft as it is.)
+        if (l.kind !== 'sun' || l !== key || !l.shadows || !styleDef(style).shadows || shadowed) continue;
+        sun.shadow.radius = 2 + 10 * (l.soft ?? 0.1);
         const cam = sun.shadow.camera;
         // Shadows on the floor reach further when the light is low.
         const reach = radius * (1.2 + 1 / Math.tan(THREE.MathUtils.degToRad(Math.max(15, l.elevation))));
@@ -386,7 +433,7 @@ export class LightRig {
         sun.castShadow = shadowed = true;
       } else if (l.kind === 'window') {
         // Four lamps across a pane 1.2 m wide and 1.4 m high, facing what it lights.
-        const at = new THREE.Vector3(...l.position);
+        const at = placeOf(l);
         const facing = target(l).sub(at).setY(0).normalize();
         const across = new THREE.Vector3(-facing.z, 0, facing.x);
         for (const [a, b] of [[-0.4, -0.45], [0.4, -0.45], [-0.4, 0.45], [0.4, 0.45]]) {
@@ -400,7 +447,7 @@ export class LightRig {
       } else if (l.spot) {
         const s = this.spots[spots++];
         s.visible = true;
-        s.position.set(...l.position);
+        s.position.copy(placeOf(l));
         s.target.position.copy(target(l));
         s.target.updateMatrixWorld();
         s.angle = THREE.MathUtils.degToRad(l.spot / 2);
@@ -410,7 +457,7 @@ export class LightRig {
       } else {
         const p = this.points[points++];
         p.visible = true;
-        p.position.set(...l.position);
+        p.position.copy(placeOf(l));
         p.color.copy(color);
         p.intensity = 12 * l.intensity;
         p.distance = l.range;

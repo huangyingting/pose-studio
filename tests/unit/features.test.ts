@@ -1,5 +1,6 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, kelvinColor, lightingOf } from '@/lib/lighting';
+import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, LightRig, kelvinColor, keyLight, lightingOf, parseLighting } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
 import { newAnimation } from '@/lib/animation';
 import { parseProjectSettings } from '@/lib/project';
@@ -204,7 +205,10 @@ describe('scene lighting', () => {
     applyLightingPreset(store, 'three-point');
     l = lightingOf(store.scene);
     expect(l.scheme).toBe('three-point');
-    expect(l.lights.find((x) => x.name === 'Fill light')!.position[0]).toBeCloseTo(3 - 2.3, 5);
+    // (Its fill and rim placed for the shot's camera, no shadows; its key the one with them, #17.)
+    expect(l.lights.find((x) => x.name === 'Fill light')).toMatchObject({ kind: 'sun', role: 'fill', relative: 'shot', shadows: false });
+    expect(l.lights.find((x) => x.name === 'Rim light')).toMatchObject({ kind: 'sun', role: 'rim', relative: 'shot', shadows: false });
+    expect(keyLight(l)).toMatchObject({ role: 'key', shadows: true });
     editLight(store, l.lights[0].id, { intensity: 0.5 });
     expect(lightingOf(store.scene).scheme).toBeUndefined();
     const only = lightingOf(store.scene).lights;
@@ -212,15 +216,52 @@ describe('scene lighting', () => {
     expect(deleteLight(store, only[0].id)).toBe(false);
   });
 
+  it('gives lights saved without roles theirs (#17), and keeps where the scene is lit', () => {
+    const l = parseLighting({
+      lights: [
+        { id: 'k', kind: 'sun', name: 'Key light', azimuth: 40, elevation: 45, intensity: 1 },
+        { id: 'f', kind: 'lamp', name: 'Fill light', position: [-2, 1.5, 2], intensity: 0.4 },
+        { id: 'p', kind: 'lamp', name: 'Floor lamp', practical: true, position: [2, 1.6, -1] },
+      ],
+      environment: { indoors: true, time: 19.5, weather: 'overcast', nonsense: 1 },
+    })!;
+    expect(l.lights.map((x) => [x.role, x.ofSet ?? false])).toEqual([['key', false], ['fill', false], ['practical', true]]);
+    expect(l.environment).toEqual({ indoors: true, time: 19.5, weather: 'overcast' });
+    // (A role it does not know: none.)
+    expect(clampLight({ id: 'x', role: 'spotlight' as never }).role).toBeUndefined();
+  });
+
+  it('lights for the shot: a fill on the camera\'s side away from the key, following the camera; shadows from the key alone; a follow light where its figure is', () => {
+    const lighting = { ...LIGHTING_PRESETS.find((p) => p.id === 'three-point')!.lighting };
+    const rig = new LightRig();
+    const box = new THREE.Box3(new THREE.Vector3(-0.3, 0, -0.3), new THREE.Vector3(0.3, 1.8, 0.3));
+    const suns = () => rig.object.children.filter((o): o is THREE.DirectionalLight => (o as THREE.DirectionalLight).isDirectionalLight && o.visible);
+    const azimuth = (o: THREE.DirectionalLight) => Math.atan2(o.position.x - o.target.position.x, o.position.z - o.target.position.z) * 180 / Math.PI;
+    // The camera in front (azimuth 0); the key from the front-left (+40): the fill to the right (−35).
+    rig.update(lighting, 'shaded', box, undefined, () => null, { position: new THREE.Vector3(0, 1.5, 5), target: new THREE.Vector3(0, 1, 0) });
+    const fill = suns().find((o) => Math.abs(o.intensity - 1.9 * 0.45) < 1e-6)!;
+    expect(azimuth(fill)).toBeCloseTo(-35, 0);
+    expect(suns().filter((o) => o.castShadow)).toHaveLength(1);
+    // The camera from the right (azimuth −90): the key is now on its far side, the fill turns with the camera.
+    rig.update(lighting, 'shaded', box, undefined, () => null, { position: new THREE.Vector3(-5, 1.5, 0), target: new THREE.Vector3(0, 1, 0) });
+    expect(azimuth(suns().find((o) => Math.abs(o.intensity - 1.9 * 0.45) < 1e-6)!)).toBeCloseTo(-90 - 35, 0);
+    // A follow light: from where its figure stands.
+    const follow = clampLight({ id: 'fl', kind: 'lamp', role: 'follow', follows: 'a', position: [0.5, 2, 0.5], intensity: 1 });
+    rig.update({ ...lighting, lights: [lighting.lights[0], follow] }, 'shaded', box, undefined, (aim) => ('figure' in aim ? new THREE.Vector3(4, 1.3, -2) : null));
+    const lamp = rig.object.children.find((o): o is THREE.PointLight => (o as THREE.PointLight).isPointLight && o.visible)!;
+    expect(lamp.position.toArray()).toEqual([4.5, 2, -1.5]);
+    rig.dispose();
+  });
+
   it('a set brings its own lamps and windows, and takes them away again', () => {
     const storage = new Map<string, string>();
     const store = new Store({ getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k), clear: () => storage.clear(), key: () => null, length: 0 } as Storage);
     setSceneSet(store, 'living-room');
     let lights = lightingOf(store.scene).lights;
-    expect(lights.filter((x) => x.practical).map((x) => [x.kind, x.name])).toEqual([['lamp', 'Floor lamp'], ['window', 'Window']]);
+    expect(lights.filter((x) => x.ofSet).map((x) => [x.kind, x.name])).toEqual([['lamp', 'Floor lamp'], ['window', 'Window']]);
     setSceneSet(store, 'castle-hall');
     lights = lightingOf(store.scene).lights;
-    expect(lights.filter((x) => x.practical).map((x) => x.name)).toEqual(['Fireplace', 'Chandelier', 'Window']);
+    expect(lights.filter((x) => x.ofSet).map((x) => x.name)).toEqual(['Fireplace', 'Chandelier', 'Window']);
     setSceneSet(store, null);
     expect(lightingOf(store.scene).lights.map((x) => x.name)).toEqual(['Key light']);
   });

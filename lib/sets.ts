@@ -335,7 +335,7 @@ export const SETS: SetDef[] = [
 ];
 
 /** A set's own lights for a scene (new ids each time). */
-export const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).map((l) => clampLight({ ...newLight(l.kind, l), id: uid('light'), practical: true }));
+export const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).map((l) => clampLight({ ...newLight(l.kind, l), id: uid('light'), role: 'practical', ofSet: true }));
 
 /** A set by its id. */
 export const setById = (id: string | undefined) => SETS.find((s) => s.id === id);
@@ -424,7 +424,7 @@ export class SetObject {
       if (p.rot) mesh.rotation.set(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ');
       // (A floor casts no shadow, only takes them: nothing is under it, and a broad surface that
       // shades itself shows stripes of shadow that crawl as the view turns.)
-      if (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) mesh.castShadow = false;
+      if (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) { mesh.castShadow = false; mesh.userData.floor = true; }
     }
     // (A set stands still: its parts placed once, not worked out again every frame.)
     this.object.traverse((o) => { o.raycast = () => {}; o.updateMatrix(); o.matrixAutoUpdate = false; });
@@ -432,6 +432,15 @@ export class SetObject {
 
   setStyle(style: Style) {
     this.parts.refresh(style, () => false);
+  }
+
+  /**
+   * Whether its parts cast the key's shadows (#17): outdoors (the sun: its walls, roofs and trees
+   * shade the people), not indoors (a studio key: its walls would leave the room in the dark). Its
+   * floors cast none either way.
+   */
+  castShadows(on: boolean) {
+    for (const mesh of this.pieces) mesh.castShadow = on && !mesh.userData.floor;
   }
 
   /**

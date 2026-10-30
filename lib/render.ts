@@ -251,7 +251,7 @@ export class SceneRenderer {
   }
 
   /** Size the output and pose the view for a frame (everything but the camera). */
-  private setup(doc: Scene, w: number, h: number, line: number, opts: RenderOptions) {
+  private setup(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { camera?: CameraView }) {
     const style = opts.style ?? 'line';
     // (Only when it changes: resizing clears the drawing buffer and costs more than drawing a frame.)
     const size = this.renderer.getSize(new THREE.Vector2());
@@ -264,8 +264,10 @@ export class SceneRenderer {
     this.lines.setStyle(style);
     this.view.ink.setResolution(w, h);
     this.view.ink.setThickness(line);
-    // Each scene is lit by its own lights.
-    this.view.ink.setLight(this.lights.update(lightingOf(doc), style, this.view.bounds(), this.view.setBounds(), this.view.aimAt), this.lights.tint, this.lights.extras);
+    // Each scene is lit by its own lights (a fill or a rim for the shot's camera, when it is filmed through one).
+    const lighting = lightingOf(doc);
+    this.view.set?.castShadows(!lighting.environment?.indoors);
+    this.view.ink.setLight(this.lights.update(lighting, style, this.view.bounds(), this.view.setBounds(), this.view.aimAt, opts.camera), this.lights.tint, this.lights.extras);
   }
 
   /** Draw the frame: the styled picture, or a depth / normal pass for AI image and video tools. */

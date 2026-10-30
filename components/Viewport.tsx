@@ -446,7 +446,7 @@ export default function Viewport({
       >
         <Backdrop style={look.style} />
         <Waker store={store} clock={clock} sv={sv} />
-        <Lights sv={sv} style={look.style} scene={scene} />
+        <Lights sv={sv} style={look.style} scene={scene} time={time} clock={clock} />
         <DropLine />
         {settings.showGrid && (
           // The floor goes on forever; the grid covers all of it, fading toward the horizon.
@@ -725,17 +725,26 @@ function Backdrop({ style }: { style: Style }) {
   return null;
 }
 
-/** The scene's lights + shadow floor, re-aimed when the scene or its lighting changes. */
-function Lights({ sv, style, scene }: { sv: SceneView; style: Style; scene: Scene }) {
+/**
+ * The scene's lights + shadow floor, re-aimed when the scene or its lighting changes, and (a fill
+ * or a rim placed for the shot, #17) as the shot's camera turns: the cut, its move.
+ */
+function Lights({ sv, style, scene, time, clock }: { sv: SceneView; style: Style; scene: Scene; time: number; clock: Clock }) {
   const rig = useMemo(() => new LightRig(), []);
   const stale = useRef(true);
+  const facing = useRef(NaN);
   useEffect(() => () => rig.dispose(), [rig]);
   useEffect(() => { stale.current = true; }, [scene, scene.lighting, style]);
   // Aim at render time, after the scene has been synced.
   useFrame(() => {
+    const lighting = lightingOf(scene);
+    const shot = lighting.lights.some((l) => l.relative) ? cameraAt(scene, scene.animation ? (clock.playing ? clock.time : time) : 0) : undefined;
+    const az = shot ? Math.round(Math.atan2(shot.position.x - shot.target.x, shot.position.z - shot.target.z) * 90 / Math.PI) : NaN;
+    if (az !== facing.current && !(Number.isNaN(az) && Number.isNaN(facing.current))) { facing.current = az; stale.current = true; }
     if (!stale.current) return;
     stale.current = false;
-    sv.ink.setLight(rig.update(lightingOf(scene), style, sv.bounds(), sv.setBounds(), sv.aimAt), rig.tint, rig.extras);
+    sv.set?.castShadows(!lighting.environment?.indoors);
+    sv.ink.setLight(rig.update(lighting, style, sv.bounds(), sv.setBounds(), sv.aimAt, shot), rig.tint, rig.extras);
   });
   return <primitive object={rig.object} />;
 }
