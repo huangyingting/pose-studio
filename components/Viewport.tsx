@@ -93,6 +93,24 @@ interface Props {
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
 
 /** The floor is solid: the view can look up from near it, never from under it. */
+/**
+ * The view's near plane a hundredth of the way to what it looks at (a centimetre at the closest,
+ * half a metre at most): close up it keeps room to zoom, from afar the depth it can tell apart is
+ * fine enough that a set's floor, the grid and what stands far off do not flicker as it turns.
+ */
+function DepthRange() {
+  const get = useThree((s) => s.get);
+  useFrame(() => {
+    const { camera, controls } = get() as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3 } | null };
+    if (!controls) return;
+    const near = THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) * 0.01, 0.01, 0.5);
+    if (Math.abs(camera.near - near) <= near * 0.15) return;
+    camera.near = near;
+    camera.updateProjectionMatrix();
+  });
+  return null;
+}
+
 function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
   const camera = e?.target.object;
   if (camera && camera.position.y < 0.03) camera.position.setY(0.03);
@@ -418,6 +436,7 @@ export default function Viewport({
           />
         )}
         <OrbitControls makeDefault onChange={keepCameraAboveFloor} />
+        <DepthRange />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         {placing && <PlaceGhost key={placing.hint} placing={placing} apiRef={apiRef} />}
@@ -1021,7 +1040,6 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       const lamp = light ? lampOf(light) : null;
       const source = one ? one : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
       controls.target.copy(fitCamera(camera, source, { yaw: view.yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2));
-      camera.near = 0.01; // fitCamera tightens these for export; keep room for zooming
       camera.far = 200;
       camera.updateProjectionMatrix();
       controls.update();
@@ -1058,7 +1076,6 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       return;
     }
     cam.fov = 35;
-    cam.near = 0.01;
     cam.far = 200;
     cam.up.set(0, 1, 0);
     cam.updateProjectionMatrix();
