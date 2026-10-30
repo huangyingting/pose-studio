@@ -340,8 +340,11 @@ export class LightRig {
    * the key light, for the painterly shaders (and sets `tint` and `extras`).
    */
   update(lighting: Lighting, style: Style, focus: THREE.Box3, set?: THREE.Box3, aimAt: AimAt = () => null) {
-    const center = focus.isEmpty() ? new THREE.Vector3(0, 1, 0) : focus.getCenter(new THREE.Vector3());
-    const radius = focus.isEmpty() ? 2 : Math.max(1, focus.getSize(new THREE.Vector3()).length() / 2);
+    // (Its middle on a 25 cm grid and its size in half-metre steps: a figure moving a little, as
+    // it breathes or is posed, does not move the shadows' pixels, which would shimmer.)
+    const middle = focus.isEmpty() ? new THREE.Vector3(0, 1, 0) : focus.getCenter(new THREE.Vector3());
+    const center = new THREE.Vector3(Math.round(middle.x * 4) / 4, Math.round(middle.y * 4) / 4, Math.round(middle.z * 4) / 4);
+    const radius = focus.isEmpty() ? 2 : Math.ceil(Math.max(1, focus.getSize(new THREE.Vector3()).length() / 2 + 0.25) * 2) / 2;
     // (From outside a set, so that its walls, roofs and trees shade the people as they would.)
     const far = Math.max(radius * 4, set && !set.isEmpty() ? set.getSize(new THREE.Vector3()).length() : 0);
     const clay = style === 'shaded';
