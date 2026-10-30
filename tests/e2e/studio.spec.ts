@@ -880,7 +880,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   };
   await openShotCamera(page);
   await unfold(page, 'Moves');
-  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Along a path' }).click();
+  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Path' }).click();
   // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
   await choose(page, 'Shot size', /^MS ·/);
   let s = await shot();
@@ -919,7 +919,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
   // Following its subject instead: the shot size is a rule, kept every frame.
   await unfold(page, 'Moves');
-  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Follows' }).click();
+  await inspector.getByRole('radiogroup', { name: 'Camera moves' }).getByRole('radio', { name: 'Follow' }).click();
   await choose(page, 'Shot size', /^MCU ·/);
   expect(await shot()).toMatchObject({ kind: 'rig', rig: { body: 'follow', size: 'mcu' } });
 });

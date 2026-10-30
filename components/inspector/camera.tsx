@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera as CameraIcon, Eye, Trash2 } from 'lucide-react';
-import { deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens } from '@/lib/actions';
+import { Camera as CameraIcon, Eye, Plus, Trash2 } from 'lucide-react';
+import { addCameraPoint, deleteCameraPoint, editCamera, editRig, frameShot, setCameraBody, setLens } from '@/lib/actions';
 import { LENSES, SHOT_SIZES, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
@@ -173,7 +173,7 @@ export function MovesPanel({ t }: { t: Target }) {
           full
           value={cam.kind === 'rig' ? cam.rig.body : 'path'}
           onChange={(body) => setCameraBody(t.store, cam.id, body)}
-          options={[{ value: 'path', label: 'Along a path' }, { value: 'follow', label: 'Follows' }, { value: 'orbit', label: 'Circles' }]}
+          options={[{ value: 'path', label: 'Path', title: 'Along a path of points' }, { value: 'follow', label: 'Follow', title: 'Follows its subject' }, { value: 'orbit', label: 'Circle', title: 'Circles its subject' }]}
         />
       </div>
       {cam.kind === 'rig' ? <RigSettings t={t} cam={cam} rig={cam.rig} set={set} /> : <PathSettings t={t} cam={cam} set={set} />}
@@ -233,16 +233,16 @@ function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: 
           full
           value={cam.anchor}
           onChange={(anchor) => set({ anchor })}
-          options={[{ value: 'world', label: 'Fixed in the scene' }, { value: 'subject', label: 'Rides along' }]}
+          options={[{ value: 'world', label: 'Fixed', title: 'Fixed in the scene' }, { value: 'subject', label: 'Rides along', title: 'Rides along with its subject' }]}
         />
       </div>
-      <PropertyRow label="Looks at">
+      <PropertyRow label="Aim">
         <Segmented<PathCamera['aim']>
           label="Looks at"
           full
           value={cam.aim}
           onChange={(aim) => set({ aim })}
-          options={[{ value: 'subject', label: 'Subject' }, { value: 'point', label: 'A point' }, { value: 'path', label: 'Ahead' }]}
+          options={[{ value: 'subject', label: 'Subject' }, { value: 'point', label: 'Point', title: 'A point (its handle on the canvas)' }, { value: 'path', label: 'Ahead', title: 'Ahead along its path' }]}
         />
       </PropertyRow>
       <Toggle label="Even pace" hint="Off: the camera eases in and out through its points" checked={cam.ease === 'linear'} onChange={(on) => set({ ease: on ? 'linear' : 'smooth' })} />
@@ -260,6 +260,18 @@ function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: 
             </li>
           ))}
         </ul>
+      )}
+      {/* (Another point, at the playhead: the camera as it is then; moved there after, on the canvas or through it.) */}
+      {t.scene.animation && (
+        <button
+          type="button"
+          className="btn subtle camera-point-add"
+          disabled={cam.points.some((p) => Math.abs(p.t - time) < 0.5 / t.scene.animation!.fps)}
+          data-tip="The camera as it is now; then move it there (drag it, or look through it)"
+          onClick={() => addCameraPoint(t.store, cam.id, time)}
+        >
+          <Plus size={14} aria-hidden /> A point at {time.toFixed(2)} s
+        </button>
       )}
     </>
   );

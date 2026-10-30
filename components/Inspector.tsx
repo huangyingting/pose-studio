@@ -61,7 +61,7 @@ export default function Inspector({ ctx }: { ctx: InspectorContext }) {
                 key={s.id}
                 id={s.id}
                 title={typeof s.title === 'function' ? s.title(t) : s.title}
-                defaultOpen={s.defaultOpen}
+                defaultOpen={typeof s.defaultOpen === 'function' ? s.defaultOpen(t) : s.defaultOpen}
                 summary={s.summary?.(t)}
                 info={s.info?.(t)}
                 actions={s.Actions && <s.Actions t={t} />}

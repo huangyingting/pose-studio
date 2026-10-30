@@ -172,6 +172,8 @@ button { font: inherit; color: inherit; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
 .btn.danger { color: var(--danger); }
 .btn:disabled, .ibtn:disabled { opacity: 0.35; cursor: default; }
+/* A path camera's points: another, at the playhead. */
+.camera-point-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 6px; }
 .ibtn { width: 30px; height: 30px; padding: 0; border-radius: var(--radius-s); color: var(--text-2); flex: none; }
 .ibtn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 /* Stays marked on while hovered. */
@@ -332,7 +334,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .segmented { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius); background: var(--well); }
 .segmented.full { display: flex; flex-wrap: wrap; }
 /* Choices share the width, and go onto another line rather than being cut off. */
-.segmented.full button { flex: 1 1 auto; white-space: nowrap; }
+.segmented.full button { flex: 1 1 auto; padding: 0 6px; white-space: nowrap; }
 .segmented button {
   display: inline-flex;
   align-items: center;

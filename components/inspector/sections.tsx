@@ -30,7 +30,8 @@ export interface InspectorSection {
   title: string | ((t: Target) => string);
   when(t: Target): boolean;
   Panel: ComponentType<{ t: Target }>;
-  defaultOpen?: boolean;
+  /** (Open until the user folds it; a function: open for some things only.) */
+  defaultOpen?: boolean | ((t: Target) => boolean);
   /** What a folded section's header says about what is inside. */
   summary?(t: Target): string | undefined;
   /** What the section is about, behind an ⓘ. */
@@ -84,7 +85,8 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   { id: 'films', title: 'Shots', when: (t) => !!t.camera, Panel: FilmsPanel, defaultOpen: false, summary: filmsSummary, info: filmsInfo },
   { id: 'framing', title: 'Framing', when: (t) => !!t.camera, Panel: FramingPanel, summary: framingSummary },
   { id: 'lens', title: 'Lens', when: (t) => !!t.camera, Panel: LensPanel, summary: lensSummary },
-  { id: 'moves', title: 'Moves', when: (t) => !!t.camera, Panel: MovesPanel, defaultOpen: false, summary: movesSummary, info: movesInfo },
+  // (A path camera's points are what it is made of: open; a rig's moves are extras.)
+  { id: 'moves', title: 'Moves', when: (t) => !!t.camera, Panel: MovesPanel, defaultOpen: (t) => t.camera?.kind === 'path', summary: movesSummary, info: movesInfo },
 
   // An action on a track: its timing, and the section for its kind.
   {
