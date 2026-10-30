@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import {
-  ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
+  ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, Maximize2, Minimize2, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -262,6 +262,8 @@ function App() {
 
   // A pick mode (Walk to…, Throw to…): the next click on the floor; Esc or picking anything else
   // (another selection, another scene) cancels.
+  // The scene alone, filling the window (the button in its corner, Shift + F).
+  const [stageOnly, setStageOnly] = useState(false);
   const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; take?(hit: CanvasHit): void; ghost?: Placing; selection: typeof selection; scene: string } | null>(null);
   const pick = picked && picked.selection === selection && picked.scene === scene.id ? picked : null;
 
@@ -281,8 +283,9 @@ function App() {
       pickThing: (hint, take) => setPick({ hint, done: () => {}, take, selection: store.getState().selection, scene: store.scene.id }),
       place: (ghost) => setPick({ hint: ghost.hint, done: () => {}, ghost, selection: store.getState().selection, scene: store.scene.id }),
       frameSelection: () => frameSelection(),
+      stageOnly: () => stageOnly, setStageOnly,
     });
-  }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store]);
+  }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store, stageOnly]);
 
   // Whether the keyboard (Tab), not the pointer, last moved the focus; whether the canvas was last clicked.
   const tabbing = useRef(false);
@@ -407,7 +410,7 @@ function App() {
 
   return (
     <div
-      className={`studio${drawer ? ` drawer-${drawer}` : ''}${settings.inspector ? '' : ' inspector-closed'}`}
+      className={`studio${drawer ? ` drawer-${drawer}` : ''}${settings.inspector ? '' : ' inspector-closed'}${stageOnly ? ' stage-only' : ''}`}
       style={settings.widths.inspector ? ({ '--panel-w': `${settings.widths.inspector}px` } as CSSProperties) : undefined}
       onPointerDownCapture={(e) => { if (!(e.target as HTMLElement).closest('.timeline')) stopPlayback(); }}
     >
@@ -536,6 +539,7 @@ function App() {
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} camera={through.camera} project={projectChest} />}
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} />}
+        <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
         <SelectionLabel labelPoint={labelPoint} hidden={!!through || !!pick} />
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
           <div className="stage-hint hide-mobile">
@@ -682,6 +686,17 @@ const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|E
  * A hint's words with its gestures and keys as key caps: in each part (between the · ), what comes
  * before the colon, where it is keys ("Alt ← →: turn"). The words themselves unchanged.
  */
+/** In the canvas's corner: the scene alone, filling the window, or back with its panels. */
+function StageOnlyButton({ on, toggle }: { on: boolean; toggle(): void }) {
+  const label = on ? 'Back to the panels' : 'Scene only';
+  const keys = shortcutOf('view.stageOnly');
+  return (
+    <button type="button" className="stage-pop" aria-label={label} aria-pressed={on} data-tip={keys ? `${label} · ${keys}` : label} onClick={toggle}>
+      {on ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}
+    </button>
+  );
+}
+
 function Keys({ text }: { text: string }) {
   const parts = text.split(' · ');
   return parts.map((part, i) => {

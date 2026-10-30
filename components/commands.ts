@@ -1,6 +1,6 @@
 import {
   Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
-  Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Move3d, MoveHorizontal, MoveUpRight,
+  Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
@@ -88,6 +88,9 @@ export interface App {
   place?(p: Placing): void;
   /** Frame the selection (if it is out of view, say). */
   frameSelection?(): void;
+  /** The scene alone, filling the window (no top bar, no panels). */
+  stageOnly(): boolean;
+  setStageOnly(on: boolean): void;
 }
 
 // Until the studio has set it (menus are built while it first renders): nothing playing, nothing to open.
@@ -95,7 +98,7 @@ const none = () => {};
 let app: App = {
   notify: none, notifyUndo: none, dialog: none, frameAll: none, frameSelected: none, frameView: none, saveFile: none, openFile: none,
   playing: () => false, togglePlay: none, stopPlayback: none, speed: () => 1, setSpeed: none, repeatShot: () => false, setRepeatShot: none,
-  onion: () => false, setOnion: none, isolated: () => null, setIsolated: none, captureShot: () => null,
+  onion: () => false, setOnion: none, isolated: () => null, setIsolated: none, captureShot: () => null, stageOnly: () => false, setStageOnly: none,
 };
 export function setApp(patch: Partial<App>) {
   app = { ...app, ...patch };
@@ -516,6 +519,7 @@ export const COMMANDS: Command[] = [
   // The view.
   ...VIEW_PRESETS.map((v): Command => ({ id: `view.${v.key}`, title: v.label, keys: [v.key], run: (c) => { c.store.lookThrough(null); App().frameView(v); } })),
   { id: 'view.frameAll', title: 'Frame all', icon: Maximize, run: () => App().frameAll() },
+  { id: 'view.stageOnly', title: 'Scene only', help: 'The scene filling the window, without the panels (again: back)', icon: Maximize2, keys: ['shift+f'], checked: () => App().stageOnly(), run: () => App().setStageOnly(!App().stageOnly()) },
   {
     id: 'view.frame', title: (c) => (['figure', 'joint', 'prop', 'light', 'many'].includes(c.store.getState().selection?.kind ?? '') ? 'Frame the selection' : 'Frame all'), help: 'Frame the selection (everything when nothing is selected)',
     icon: Focus, keys: ['f'], run: () => App().frameSelected(),
@@ -1325,7 +1329,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
 export const MENUS = {
   main: ['app.newFilm', '-', 'app.save', 'app.import', 'app.open', '-', 'app.practice', 'app.help', 'app.theme'],
   view: [
-    'view.frameAll', 'view.isolate', 'view.through',
+    'view.frameAll', 'view.isolate', 'view.through', 'view.stageOnly',
     { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',
     // (Joints bend only as far as a body's do: dragging, the gizmo, the keys.)
     { group: 'Posing' }, 'tool.limits',
