@@ -114,7 +114,7 @@ async function viewMenu(page: Page, item: string | RegExp) {
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
 /** Open a section of the left side panel: the scene's outline or one of the library's categories (clicking the open one would fold it away). */
-async function libraryShows(page: Page, what: 'Scene' | 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting' | 'Camera') {
+async function libraryShows(page: Page, what: 'Scene' | 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting') {
   const tab = page.getByRole('tablist', { name: 'Sections' }).getByRole('tab', { name: what, exact: true });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
@@ -1910,10 +1910,9 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.getByRole('group', { name: 'Frames with' }).getByRole('button', { name: `with ${first.name}` }).click();
   s = await live(page);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.also).toEqual([first.id]);
-  // Or filmed with a coverage of the two: a master, over-the-shoulder shots and singles.
-  await openSection(page, 'Library');
-  await libraryShows(page, 'Camera');
-  await page.getByRole('region', { name: 'Coverage' }).getByRole('button', { name: /^Conversation/ }).click();
+  // Or filmed with a coverage of the two (the director's Conversation, on the timeline): a master, over-the-shoulder shots and singles.
+  await page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Director' }).click();
+  await page.getByRole('menuitemradio', { name: 'Conversation' }).or(page.getByRole('menuitem', { name: 'Conversation' })).click();
   s = await live(page);
   expect(s.scene.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);
   expect(s.scene.cameras.find((c) => c.id === s.scene.animation!.shots[0].camera)!.name).toBe('Master');
