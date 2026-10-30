@@ -1027,7 +1027,7 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
 }
 
 /** How far back a walk steps back, still facing the way it does (m). */
-const BACK_STEP = 1.5;
+const BACK_STEP = 1;
 
 /**
  * Turn a figure from the playhead to face a floor point (or a facing, degrees), stepping round where

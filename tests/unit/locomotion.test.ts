@@ -130,8 +130,8 @@ describe('walking, running and jumping from mark to mark', () => {
     expect(Math.abs(facingOf(sceneAt(store.scene, a.duration).figures[0].bones) - 90)).toBeLessThan(1);
     expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
     // A metre back: still facing the way it did, stepping back.
-    travelTo(store, id, [-1, 3], 'walk');
-    const back = store.scene.animation!.actions.find((x) => x.source.kind === 'travel' && x.start >= store.getState().time - 3 && x.roles[0].end?.at[0] === -1)!;
+    travelTo(store, id, [-0.9, 3], 'walk');
+    const back = store.scene.animation!.actions.find((x) => x.source.kind === 'travel' && x.start >= store.getState().time - 3 && x.roles[0].end?.at[0] === -0.9)!;
     expect(back.source).toMatchObject({ strafe: true });
     expect(Math.abs(facingOf(sceneAt(store.scene, store.getState().time).figures[0].bones) - 90)).toBeLessThan(1);
   });

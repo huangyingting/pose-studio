@@ -238,12 +238,16 @@ const pivots = (c: Chain) => {
   const [a, b] = [c.path[0], c.path[c.path.length - 1]];
   return Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.05 && Math.abs(turnOf(c)) > 5;
 };
-/** The most a foot is turned round in one step of a turn on the spot (degrees). */
-const PIVOT_STEP = 50;
+/** How far a turn on the spot goes round with each step (degrees; a foot, stepping every other one, goes twice as far). */
+const PIVOT_STEP = 40;
+/** How long each step of a turn on the spot takes (s). */
+const PIVOT_TIME = 0.27;
+/** How many steps a turn on the spot takes. */
+const pivotSteps = (degrees: number) => Math.ceil(Math.abs(degrees) / PIVOT_STEP) + 1;
 
-/** How long a turn on the spot takes: a step for each (up to) 50° and the other foot after (s). */
+/** How long a turn on the spot takes (s). */
 export function turnTime(degrees: number) {
-  return Math.max(0.6, (Math.ceil(Math.abs(degrees) / PIVOT_STEP) + 1) * 0.3);
+  return Math.max(0.6, pivotSteps(degrees) * PIVOT_TIME);
 }
 
 /**
@@ -261,37 +265,48 @@ function pivot(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground,
     const k = keyedFeet(body, key)[side];
     return key.grounded ? [k[0], k[1] + ground(key.position[0], key.position[2]), k[2]] : k;
   };
-  // Where a foot stands turned `share` of the way: its start place turned about the body's.
-  const turned = (side: 'L' | 'R', share: number): [number, number, number] => {
-    if (share >= 1) return onGround(c.end, side);
-    const f = onGround(c.start, side);
+  // Where a foot stands turned `share` of the way round: its start place turned about where the body
+  // stands, drawn over the turn to where the end key has it (there at the end).
+  const startOf = { L: onGround(c.start, 'L'), R: onGround(c.start, 'R') };
+  const arc = (side: 'L' | 'R', share: number): [number, number, number] => {
+    const f = startOf[side];
     const [ox, oz] = [f[0] - c.start.position[0], f[2] - c.start.position[2]];
     const r = by * share * D2R;
     const [cx, cz] = [lerp(c.start.position[0], c.end.position[0], share), lerp(c.start.position[2], c.end.position[2], share)];
     return [cx + ox * Math.cos(r) + oz * Math.sin(r), f[1], cz - ox * Math.sin(r) + oz * Math.cos(r)];
   };
-  // Steps: n of them, alternate feet, the lead foot first; each foot's last one lands where the end key has it.
-  const n = Math.ceil(Math.abs(by) / PIVOT_STEP) + 1;
+  const endOf = { L: onGround(c.end, 'L'), R: onGround(c.end, 'R') };
+  const off = { L: arc('L', 1).map((v, i) => endOf.L[i] - v), R: arc('R', 1).map((v, i) => endOf.R[i] - v) };
+  // (On the floor where it stood until its last step sets it where the end key has it, raised or not.)
+  const turned = (side: 'L' | 'R', share: number): [number, number, number] => {
+    const [x, , z] = arc(side, share);
+    return [x + off[side][0] * share, share >= 1 ? endOf[side][1] : startOf[side][1], z + off[side][2] * share];
+  };
+  // Steps: n of them, alternate feet, the lead foot (on the side it turns to) first; each goes on
+  // round by an even share, so no foot goes round much more than twice a step; the last of each
+  // foot's lands where the end key has it.
+  const n = pivotSteps(by);
   const lead: 'L' | 'R' = by > 0 ? 'L' : 'R';
   const sideOf = (j: number): 'L' | 'R' => ((j % 2 === 0) === (lead === 'L') ? 'L' : 'R');
+  const share = (j: number) => Math.min(1, (j + 1) / (n - 1));
   const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
   for (const side of ['L', 'R'] as const) {
     const mine = [...Array(n).keys()].filter((j) => sideOf(j) === side);
-    const lastOf = mine[mine.length - 1];
-    const share = (j: number) => (j === lastOf ? 1 : (j + 1) / n);
     // (Each step takes its share of the time, swinging over most of it.)
     const now = mine.find((j) => u > j / n && u < (j + 1) / n);
     const done = mine.filter((j) => u >= (j + 1) / n);
-    const from = done.length ? turned(side, share(done[done.length - 1])) : onGround(c.start, side);
+    const was = done.length ? share(done[done.length - 1]) : 0;
     if (now === undefined) {
-      feet[side] = { world: from, swing: 0 };
+      feet[side] = { world: turned(side, was), swing: 0 };
       continue;
     }
     const q = clamp((u * n - now - 0.1) / 0.8, 0, 1);
-    const to = turned(side, share(now));
     const k = smoother(q);
+    // (Round the body, not across it: the foot follows the turn.)
+    const at = turned(side, lerp(was, share(now), k));
+    const y = lerp(turned(side, was)[1], turned(side, share(now))[1], k);
     const up = 0.05 * (legs.thigh + legs.shin) * bump(q);
-    feet[side] = { world: [lerp(from[0], to[0], k), lerp(from[1], to[1], k) + up, lerp(from[2], to[2], k)], swing: bump(q) };
+    feet[side] = { world: [at[0], y + up, at[2]], swing: bump(q) };
   }
   const floor = Math.min(feet.L.world[1], feet.R.world[1]) - legs.ankleY;
   const y = pose.grounded ? floor + legs.rootY : pose.position[1];
