@@ -584,6 +584,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
           p.begin();
         }
         p.move(pointer.ray(ev.clientX, ev.clientY), ev.clientX - x0, ev.clientY - y0, ev);
+        sv.followMannequins();
       },
       () => {
         window.removeEventListener('keydown', lockKey, true);
@@ -751,6 +752,7 @@ export function FigureMarkers({ sv, scene, version, active, onPick, onTurn }: {
                 turn(e, root.getWorldPosition(new THREE.Vector3()), root.rotation.y * R2D, (yaw) => {
                   root.rotation.y = yaw * D2R;
                   m.object.updateMatrixWorld(true);
+                  sv.followMannequins();
                 }, () => onTurn(f.id, m.read()));
               }}
             />

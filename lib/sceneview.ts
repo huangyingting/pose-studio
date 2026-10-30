@@ -4,7 +4,7 @@ import { Mannequin } from './mannequin';
 import { ModelRig, modelInfo, modelTemplate } from './model';
 import { PropObject } from './props';
 import { groundOf } from './surfaces';
-import type { JointName, Scene, Selection, Style, Vec3 } from './types';
+import type { Figure, JointName, Scene, Selection, Style, Vec3 } from './types';
 import { SetObject } from './sets';
 
 /** What the pointer would move: (some joints of) a figure, a prop, or a held prop and the arm holding it. */
@@ -52,6 +52,7 @@ export class SceneView {
   /** Returns true if any three.js objects were replaced. */
   sync(scene: Scene): boolean {
     let changed = false;
+    this.docs = new Map(scene.figures.map((f) => [f.id, f]));
 
     const shown = scene.figures.filter((f) => !f.hidden);
     const ground = groundOf(scene.props);
@@ -179,6 +180,21 @@ export class SceneView {
     for (const p of this.props.values()) p.setStyle(style);
     this.set?.setStyle(style);
     for (const [id, r] of this.models) r.setLook(style, this.tints.get(id) ?? null);
+  }
+
+  /** The figures as the scene last had them (synced). */
+  private docs = new Map<string, Figure>();
+
+  /**
+   * Each character posed as its mannequin stands now: mid-drag, the mannequin moved and the scene
+   * not yet told (it is, at the drag's end), its character following it.
+   */
+  followMannequins() {
+    for (const [id, rig] of this.models) {
+      const m = this.figures.get(id);
+      const f = this.docs.get(id);
+      if (m && f) rig.apply({ ...f, ...m.read() }, m.joints.hips.getWorldPosition(new THREE.Vector3()));
+    }
   }
 
   setSelection(sel: Selection) {
