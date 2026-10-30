@@ -4,6 +4,15 @@
  * type, one blue accent for selection and primary actions, ink-black brand.
  */
 :root {
+  /*
+   * Layers, bottom to top (z-index): what floats over the stage or a panel (a card, an editor, a
+   * timeline menu) · the drawers' scrim and the drawers on small screens · the drag readout · a
+   * modal and its backdrop, the storyboard · practice (full screen) · popovers and toasts · menus ·
+   * the command palette · a context menu · an open select list · tooltips, over everything.
+   * Values under 20 order things inside one container (the timeline's parts, the stage's overlays).
+   */
+  --z-float: 20; --z-float-menu: 21; --z-scrim: 25; --z-drawer: 30; --z-readout: 40; --z-modal: 50; --z-fullscreen: 55;
+  --z-popover: 60; --z-menu: 70; --z-palette: 80; --z-context: 90; --z-select: 200; --z-tooltip: 300;
   --bg: #f3f3f5;
   --panel: #ffffff;
   --panel-2: #f6f6f8;
@@ -177,7 +186,7 @@ button { font: inherit; color: inherit; }
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 300;
+  z-index: var(--z-tooltip);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -366,7 +375,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .select-button:focus-visible { outline: none; background: var(--raised); box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-ring); }
 .select-list {
   position: fixed;
-  z-index: 200;
+  z-index: var(--z-select);
   margin: 0;
   padding: 4px;
   list-style: none;
@@ -478,7 +487,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .menu { position: relative; display: inline-flex; }
 .menu-list {
   position: absolute;
-  z-index: 70;
+  z-index: var(--z-menu);
   min-width: 220px;
   padding: 5px;
   display: grid;
@@ -753,7 +762,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   user-select: none;
 }
 /* An open menu of the timeline goes over the floating canvas tools (phones). */
-.timeline:has(.menu-list) { z-index: 21; }
+.timeline:has(.menu-list) { z-index: var(--z-float-menu); }
 .tl-bar { display: flex; align-items: center; gap: 2px; padding: 0 8px; min-width: 0; }
 .tl-zoom { display: contents; }
 .timeline.folded { grid-template-rows: 44px; }
@@ -790,7 +799,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-duration { position: relative; width: 74px; margin-left: 4px; flex: none; }
 /* Asked before shortening: scale into the new length, or cut. */
 .tl-ask {
-  position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 30; display: flex; align-items: center; gap: 6px; padding: 8px 10px; white-space: nowrap;
+  position: absolute; bottom: calc(100% + 6px); right: 0; z-index: var(--z-drawer); display: flex; align-items: center; gap: 6px; padding: 8px 10px; white-space: nowrap;
   background: var(--panel); border-radius: 8px; box-shadow: var(--shadow-pop); font-size: 12px;
 }
 /* The toolbar fits the room it has: labels, then the zoom buttons, then the time's details give way
@@ -944,7 +953,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-note { color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* What a figure does next: its picker, opening upwards from the timeline. */
 .action-picker {
-  position: fixed; z-index: 60; display: grid; grid-template-rows: auto minmax(0, 1fr); width: 320px; max-height: 60vh;
+  position: fixed; z-index: var(--z-popover); display: grid; grid-template-rows: auto minmax(0, 1fr); width: 320px; max-height: 60vh;
   border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-pop); animation: pop 0.12s ease-out;
 }
 .action-picker-search { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-3); }
@@ -996,7 +1005,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   left: 50%;
   /* (translate, not transform: the pop it opens with animates transform.) */
   translate: -50% 0;
-  z-index: 20;
+  z-index: var(--z-float);
   width: 320px;
   display: grid;
   gap: 8px;
@@ -1025,7 +1034,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   position: absolute;
   bottom: calc(100% + 8px);
   right: 8px;
-  z-index: 20;
+  z-index: var(--z-float);
   width: min(380px, calc(100% - 16px));
   max-height: 320px;
   display: grid;
@@ -1275,7 +1284,7 @@ button.psec-title svg { color: var(--text-3); }
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -1356,7 +1365,7 @@ button.psec-title svg { color: var(--text-3); }
 .shortcut span { color: var(--text-2); }
 .shortcut kbd { white-space: nowrap; }
 
-.toasts { pointer-events: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: 8px; justify-items: center; max-width: min(440px, calc(100vw - 32px)); }
+.toasts { pointer-events: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: var(--z-popover); display: grid; gap: 8px; justify-items: center; max-width: min(440px, calc(100vw - 32px)); }
 .toast {
   display: flex;
   align-items: center;
@@ -1386,7 +1395,7 @@ button.psec-title svg { color: var(--text-3); }
 .board {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -1496,7 +1505,7 @@ button.psec-title svg { color: var(--text-3); }
 .practice {
   position: fixed;
   inset: 0;
-  z-index: 55;
+  z-index: var(--z-fullscreen);
   display: grid;
   place-items: center;
   background: var(--dark-surface);
@@ -1586,7 +1595,7 @@ button.psec-title svg { color: var(--text-3); }
     position: fixed;
     top: 48px;
     bottom: 0;
-    z-index: 30;
+    z-index: var(--z-drawer);
     width: min(320px, 88vw);
     transition: transform 0.2s ease;
     box-shadow: var(--shadow-pop);
@@ -1595,14 +1604,14 @@ button.psec-title svg { color: var(--text-3); }
   .side-panel { flex: 1; width: auto; }
   .panel { right: 0; transform: translateX(105%); }
   .drawer-library .side, .drawer-inspector .panel { transform: none; }
-  .scrim { position: fixed; inset: 48px 0 0; z-index: 25; background: color-mix(in srgb, var(--shade) 20%, transparent); }
+  .scrim { position: fixed; inset: 48px 0 0; z-index: var(--z-scrim); background: color-mix(in srgb, var(--shade) 20%, transparent); }
   /* No room in the top bar: the canvas tools float at the bottom of the canvas. */
   .toolbar {
     position: fixed;
     left: 50%;
     bottom: 10px;
     transform: translateX(-50%);
-    z-index: 20;
+    z-index: var(--z-float);
     padding: 4px;
     background: var(--panel);
     border-radius: 12px;
@@ -1743,7 +1752,7 @@ button.psec-title svg { color: var(--text-3); }
 /* What a library item does, beside the panel while the pointer rests on it. */
 .lib-preview {
   position: fixed;
-  z-index: 70;
+  z-index: var(--z-menu);
   display: grid;
   gap: 4px;
   padding: 8px;
@@ -1768,7 +1777,7 @@ button.psec-title svg { color: var(--text-3); }
   left: 50%;
   /* (translate, not transform: the pop it opens with animates transform.) */
   translate: -50% 0;
-  z-index: 60;
+  z-index: var(--z-popover);
   width: 420px;
   max-height: min(560px, calc(100dvh - 72px));
   display: flex;
@@ -1800,7 +1809,7 @@ button.psec-title svg { color: var(--text-3); }
 @media (max-width: 860px) {
   .scene-popover { position: fixed; top: 52px; left: 8px; right: 8px; width: auto; translate: none; }
 }
-.context-menu { position: fixed; z-index: 90; min-width: 200px; margin: 0; }
+.context-menu { position: fixed; z-index: var(--z-context); min-width: 200px; margin: 0; }
 
 
 
@@ -1838,7 +1847,7 @@ button.psec-title svg { color: var(--text-3); }
 .info-btn:hover, .info-btn[aria-expanded='true'] { color: var(--text-2); background: var(--hover); }
 .info-wrap { position: relative; display: inline-flex; }
 .psec-actions .info-pop { left: auto; right: -8px; }
-.info-pop { position: absolute; top: calc(100% + 4px); left: -8px; z-index: 30; width: 220px; padding: 7px 9px; border-radius: var(--radius-s); background: var(--ink); color: var(--on-accent); font-size: 11px; font-weight: 400; line-height: 1.45; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-float); }
+.info-pop { position: absolute; top: calc(100% + 4px); left: -8px; z-index: var(--z-drawer); width: 220px; padding: 7px 9px; border-radius: var(--radius-s); background: var(--ink); color: var(--on-accent); font-size: 11px; font-weight: 400; line-height: 1.45; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-float); }
 
 /* A row that stands for something kept elsewhere (a shot's camera): click it to go there. */
 .summary-row {
@@ -1862,7 +1871,7 @@ button.psec-title svg { color: var(--text-3); }
 .shortcuts-head { margin: 16px 0 4px; font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* The command palette: a search box over a list, near the top of the window. */
-.palette-scrim { position: fixed; inset: 0; z-index: 80; display: grid; justify-items: center; align-items: start; padding-top: 12vh; background: color-mix(in srgb, var(--shade) 18%, transparent); }
+.palette-scrim { position: fixed; inset: 0; z-index: var(--z-palette); display: grid; justify-items: center; align-items: start; padding-top: 12vh; background: color-mix(in srgb, var(--shade) 18%, transparent); }
 .palette { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(560px, calc(100vw - 24px)); max-height: 60vh; overflow: hidden; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); }
 .palette-input { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--border); color: var(--text-3); }
 .palette-input input { flex: 1; height: 44px; border: 0; background: none; color: var(--text); font: inherit; font-size: 14px; outline: none; }
@@ -1903,14 +1912,14 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 .view-end:is(button):hover, .view-end.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--c); }
 .view-quarter {
   position: absolute; right: -4px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
-  background: color-mix(in srgb, var(--panel) 82%, transparent); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text-2); font-size: 10px; font-weight: 600; cursor: pointer; z-index: 30;
+  background: color-mix(in srgb, var(--panel) 82%, transparent); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text-2); font-size: 10px; font-weight: 600; cursor: pointer; z-index: var(--z-drawer);
 }
 .view-quarter:hover { color: var(--accent); }
 .view-quarter.on { background: var(--accent); box-shadow: none; color: var(--on-accent); }
 
 /* Beside the pointer while something is dragged: how far it has moved or turned, a joint's value. */
 .drag-readout {
-  position: fixed; top: 0; left: 0; z-index: 40; padding: 3px 8px; border-radius: 6px; background: var(--ink); color: var(--on-accent);
+  position: fixed; top: 0; left: 0; z-index: var(--z-readout); padding: 3px 8px; border-radius: 6px; background: var(--ink); color: var(--on-accent);
   font-size: 11.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
 }
 /* The selected joint's arcs, one per slider: thin to look at, wide to grab. */
