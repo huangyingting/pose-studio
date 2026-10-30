@@ -61,6 +61,8 @@ describe('a new film (#14)', () => {
     expect(store.scene.animation!.duration).toBe(30);
     expect(store.scene.coverage).toMatchObject({ id: 'dialogue', live: true });
     expect(store.scene.figures.length).toBeGreaterThanOrEqual(2);
+    // (Only the director's cameras: the one the scene came with, filming none of it, went.)
+    expect(store.scene.cameras.every((c) => c.made)).toBe(true);
 
     expect(startFilm(store, {}, 15)).toBe(true);
     expect(store.scene.animation!.duration).toBe(15);
