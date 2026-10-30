@@ -382,8 +382,15 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
               {scope !== 'current' && <label className="field"><span>Columns</span>{num('columns', 1, 12, 'Columns')}</label>}
               <label className="field"><span>{scope === 'current' ? 'Width' : 'Cell width'}</span>{num('cellWidth', 100, 4000, scope === 'current' ? 'Width' : 'Cell width')}</label>
               <label className="field"><span>{scope === 'current' ? 'Height' : 'Cell height'}</span>{num('cellHeight', 100, 4000, scope === 'current' ? 'Height' : 'Cell height')}</label>
+              {/* (A still through a camera: as the shot shows it, in the project's frame, unless made another shape.) */}
+              {scope === 'current' && Math.abs(o.cellWidth / o.cellHeight - frameAspect()) > 0.01 && (
+                <Field label="">
+                  <button type="button" className="btn subtle" onClick={() => set({ cellHeight: Math.round(o.cellWidth / frameAspect()) })}>Make it {look.frame}, as the shot</button>
+                </Field>
+              )}
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
-              <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />
+              {/* (Around the figures, in the cells framed to fit them: a camera frames this scene's.) */}
+              {scope !== 'current' && <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />}
               <div className="stack">
                 <Toggle label="Captions" checked={o.labels} onChange={(labels) => set({ labels })} />
                 {scope === 'all' && (
