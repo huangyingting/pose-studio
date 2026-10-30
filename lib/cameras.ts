@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { hermite } from './clip';
 import { basePoseAt, figurePoseAt, movesOf } from './evaluate';
 import { wrapDeg } from './joints';
 import { Rig } from './relations';
@@ -108,39 +107,80 @@ function wobble(t: number, seed: number) {
   return Math.sin(t * 1.7 + seed) * 0.5 + Math.sin(t * 3.3 + seed * 2.1) * 0.3 + Math.sin(t * 7.9 + seed * 0.7) * 0.2;
 }
 
-/** A path's point at time t, and which way it is going. */
-export function samplePath(points: CameraPoint[], t: number, ease: PathCamera['ease'] = 'smooth'): CameraPoint & { velocity: THREE.Vector3 } {
+/**
+ * Where a path camera is at t (#16): through its points, as a smooth curve or along straight lines
+ * (`ease`), coming to a stop at a point that says so (a corner), at the pace its points' times give
+ * or (`pace` even) at an even speed along its whole path.
+ */
+export function samplePath(points: CameraPoint[], t: number, ease: PathCamera['ease'] = 'smooth', pace?: PathCamera['pace']): CameraPoint & { velocity: THREE.Vector3 } {
   const n = points.length;
-  const vec = (v: Vec3) => new THREE.Vector3(...v);
   if (n === 1) return { ...points[0], t, velocity: new THREE.Vector3() };
+  const time = pace === 'even' ? evenTime(points, ease, t) : t;
+  const at = (x: number) => pathAt(points, x, ease);
+  const p = at(time);
+  const span = [points[0].t, points[n - 1].t];
+  const ahead = at(Math.min(span[1], time + 0.02)).position;
+  const behind = at(Math.max(span[0], time - 0.02)).position;
+  return { ...p, t, velocity: new THREE.Vector3(...ahead).sub(new THREE.Vector3(...behind)) };
+}
+
+/** A path's point at time x: each value through the points (a smooth curve, its tangent 0 where it stops; or straight). */
+function pathAt(points: CameraPoint[], x: number, ease: PathCamera['ease']): CameraPoint {
+  const n = points.length;
   const times = points.map((p) => p.t);
-  const time = THREE.MathUtils.clamp(t, times[0], times[n - 1]);
+  const time = THREE.MathUtils.clamp(x, times[0], times[n - 1]);
   let k = 0;
   while (k < n - 2 && times[k + 1] <= time) k++;
-  const i = [Math.max(0, k - 1), k, k + 1, Math.min(n - 1, k + 2)];
-  const [t1, t2] = [times[k], times[k + 1]];
-  const t0 = k > 0 ? times[k - 1] : t1 - (t2 - t1);
-  const t3 = k + 2 < n ? times[k + 2] : t2 + (t2 - t1);
-  const at = (x: number) => {
-    if (ease === 'linear') {
-      const s = t2 - t1 > 1e-9 ? (x - t1) / (t2 - t1) : 0;
-      return (f: (p: CameraPoint) => number) => f(points[k]) + (f(points[k + 1]) - f(points[k])) * s;
+  const [a, b] = [points[k], points[k + 1]];
+  const h = b.t - a.t;
+  const u = h > 1e-9 ? (time - a.t) / h : 0;
+  const before = points[Math.max(0, k - 1)];
+  const after = points[Math.min(n - 1, k + 2)];
+  const t0 = k > 0 ? before.t : a.t - h;
+  const t3 = k + 2 < n ? after.t : b.t + h;
+  const value = (f: (p: CameraPoint) => number) => {
+    const [p0, p1, p2, p3] = [f(before), f(a), f(b), f(after)];
+    if (ease === 'linear') return p1 + (p2 - p1) * u;
+    // (A value held between two points stays put; a stop has no speed there.)
+    if (h <= 1e-9 || Math.abs(p2 - p1) < 1e-9) return p1;
+    const m1 = a.stop || b.t - t0 <= 1e-9 ? 0 : ((p2 - p0) / (b.t - t0)) * h;
+    const m2 = b.stop || t3 - a.t <= 1e-9 ? 0 : ((p3 - p1) / (t3 - a.t)) * h;
+    const [u2, u3] = [u * u, u * u * u];
+    return (2 * u3 - 3 * u2 + 1) * p1 + (u3 - 2 * u2 + u) * m1 + (-2 * u3 + 3 * u2) * p2 + (u3 - u2) * m2;
+  };
+  const vec3 = (g: (p: CameraPoint) => Vec3) => [0, 1, 2].map((c) => value((p) => g(p)[c])) as Vec3;
+  return { t: x, position: vec3((p) => p.position), look: vec3((p) => p.look), lens: Math.max(4, value((p) => p.lens)), roll: value((p) => p.roll ?? 0) };
+}
+
+// How far along a path each time takes it (its length so far), worked out once per path.
+const lengths = new WeakMap<CameraPoint[], Map<string, { times: number[]; along: number[] }>>();
+
+/** The time on a path at which it has gone as far as an even speed over its whole time takes it by t. */
+function evenTime(points: CameraPoint[], ease: PathCamera['ease'], t: number) {
+  let byEase = lengths.get(points);
+  if (!byEase) lengths.set(points, (byEase = new Map()));
+  const [t0, t1] = [points[0].t, points[points.length - 1].t];
+  let table = byEase.get(ease ?? 'smooth');
+  if (!table) {
+    const steps = 200;
+    const times = Array.from({ length: steps + 1 }, (_, i) => t0 + ((t1 - t0) * i) / steps);
+    const along = [0];
+    let last = new THREE.Vector3(...pathAt(points, times[0], ease).position);
+    for (let i = 1; i <= steps; i++) {
+      const next = new THREE.Vector3(...pathAt(points, times[i], ease).position);
+      along.push(along[i - 1] + next.distanceTo(last));
+      last = next;
     }
-    return (f: (p: CameraPoint) => number) => hermite(f(points[i[0]]), f(points[i[1]]), f(points[i[2]]), f(points[i[3]]), t0, t1, t2, t3, x);
-  };
-  const v = at(time);
-  const vec3 = (g: (p: CameraPoint) => Vec3, x = v) => [0, 1, 2].map((c) => x((p) => g(p)[c])) as Vec3;
-  const position = vec3((p) => p.position);
-  const ahead = vec3((p) => p.position, at(Math.min(t2, time + 0.02)));
-  const behind = vec3((p) => p.position, at(Math.max(t1, time - 0.02)));
-  return {
-    t,
-    position,
-    look: vec3((p) => p.look),
-    lens: Math.max(4, v((p) => p.lens)),
-    roll: v((p) => p.roll ?? 0),
-    velocity: vec(ahead).sub(vec(behind)),
-  };
+    byEase.set(ease ?? 'smooth', (table = { times, along }));
+  }
+  const total = table.along[table.along.length - 1];
+  if (total < 1e-6 || t1 - t0 < 1e-9) return t;
+  const want = (THREE.MathUtils.clamp(t, t0, t1) - t0) / (t1 - t0) * total;
+  let i = 1;
+  while (i < table.along.length - 1 && table.along[i] < want) i++;
+  const [l0, l1] = [table.along[i - 1], table.along[i]];
+  const f = l1 - l0 > 1e-9 ? (want - l0) / (l1 - l0) : 0;
+  return table.times[i - 1] + (table.times[i] - table.times[i - 1]) * f;
 }
 
 // A rig camera's view, once worked out (per how the figures move and who is hidden, the camera and the time).
@@ -165,7 +205,7 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
     // (A copy: what is given is the caller's to change.)
     return { ...view, position: view.position.clone(), target: view.target.clone() };
   }
-  const p = samplePath(cam.points, t, cam.ease);
+  const p = samplePath(cam.points, t, cam.ease, cam.pace);
   const place = cam.anchor === 'subject' || cam.aim === 'subject' ? subjectPlace(scene, cam, t) : null;
   const position = new THREE.Vector3(...p.position);
   if (cam.anchor === 'subject') position.add(place!);

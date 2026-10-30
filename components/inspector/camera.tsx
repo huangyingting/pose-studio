@@ -390,7 +390,24 @@ function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: 
           options={[{ value: 'subject', label: 'Subject' }, { value: 'point', label: 'Point', title: 'A point (its handle on the canvas)' }, { value: 'path', label: 'Ahead', title: 'Ahead along its path' }]}
         />
       </PropertyRow>
-      <Toggle label="Even pace" hint="Off: the camera eases in and out through its points" checked={cam.ease === 'linear'} onChange={(on) => set({ ease: on ? 'linear' : 'smooth' })} />
+      <PropertyRow label="Shape">
+        <Segmented<'smooth' | 'linear'>
+          label="Path shape"
+          full
+          value={cam.ease ?? 'smooth'}
+          onChange={(ease) => set({ ease })}
+          options={[{ value: 'smooth', label: 'Curve', title: 'A smooth curve through its points' }, { value: 'linear', label: 'Straight', title: 'Straight lines between its points' }]}
+        />
+      </PropertyRow>
+      <PropertyRow label="Pace">
+        <Segmented<'points' | 'even'>
+          label="Path pace"
+          full
+          value={cam.pace ?? 'points'}
+          onChange={(pace) => set({ pace: pace === 'even' ? 'even' : undefined })}
+          options={[{ value: 'points', label: 'By its points', title: 'As fast as its points\' times say' }, { value: 'even', label: 'Even', title: 'An even speed along its whole path' }]}
+        />
+      </PropertyRow>
       <Toggle label="Hand-held" hint="A slight shake" checked={(cam.shake ?? 0) > 0} onChange={(on) => set({ shake: on ? 0.5 : 0 })} />
       {cam.points.length > 0 && (
         <ul className="side-list camera-points" aria-label="Camera points">
@@ -398,7 +415,7 @@ function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: 
             <li key={p.t}>
               <button type="button" className={Math.abs(p.t - time) < 0.02 ? 'on' : ''} onClick={() => t.store.setTime(p.t)}>
                 <CameraIcon size={13} aria-hidden />
-                <span className="side-list-name">{p.t.toFixed(2)} s</span>
+                <span className="side-list-name">{p.t.toFixed(2)} s{p.stop ? ' · stops' : ''}</span>
                 <em>{Math.round(p.lens)} mm</em>
               </button>
               <IconButton icon={Trash2} label={`Delete the camera point at ${p.t.toFixed(2)} s`} className="row-delete" size={13} onClick={() => deleteCameraPoint(t.store, p.t, cam.id)} />

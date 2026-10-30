@@ -8,9 +8,9 @@ import { Rig } from '@/lib/relations';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { DEFAULT_EXPORT, exportCells, videoSize } from '@/lib/render';
-import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
+import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, samplePath, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
-import type { PathCamera, RigCamera, Scene } from '@/lib/types';
+import type { CameraPoint, PathCamera, RigCamera, Scene } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
 /** Where on screen (−1 … 1, up +) a point is seen by the shot camera at t. */
@@ -298,6 +298,32 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     // Kept as saved.
     const copy = parseScene(JSON.parse(JSON.stringify(store.scene)));
     expect(copy.cameras).toEqual(store.scene.cameras);
+  });
+});
+
+describe('a custom path (#16): stops, straight lines, an even pace', () => {
+  const pts = (stop = false): CameraPoint[] => [
+    { t: 0, position: [0, 1, 0], look: [0, 1, -5], lens: 50 },
+    { t: 1, position: [4, 1, 0], look: [0, 1, -5], lens: 50, ...(stop ? { stop: true as const } : {}) },
+    { t: 3, position: [4, 1, 4], look: [0, 1, -5], lens: 50 },
+  ];
+  const at = (p: CameraPoint[], t: number, ease?: PathCamera['ease'], pace?: PathCamera['pace']) => new THREE.Vector3(...samplePath(p, t, ease, pace).position);
+  it('comes to a stop at a point that says so (a corner), and goes on through one that does not', () => {
+    // Through: still moving at the point; stopping: at rest there.
+    expect(at(pts(), 1.02).distanceTo(at(pts(), 0.98))).toBeGreaterThan(0.02);
+    expect(at(pts(true), 1.02).distanceTo(at(pts(true), 0.98))).toBeLessThan(0.01);
+    // (A corner: it reaches the point from one side and leaves along the other, no overshoot.)
+    expect(at(pts(true), 0.9).z).toBeCloseTo(0, 3);
+    expect(at(pts(true), 1.1).x).toBeCloseTo(4, 2);
+  });
+  it('goes along straight lines, and at an even speed along its length when asked', () => {
+    // Straight: on the line between the points.
+    expect(at(pts(), 0.5, 'linear').toArray()).toEqual([2, 1, 0]);
+    // Even: as far along the whole path at a time as an even speed takes it (4 m then 4 m over 3 s: half way by 1.5 s).
+    const half = at(pts(), 1.5, 'linear', 'even');
+    expect(half.distanceTo(new THREE.Vector3(4, 1, 0))).toBeLessThan(0.05);
+    // By its points: 4 m in the first second, then slower.
+    expect(at(pts(), 1.5, 'linear').z).toBeCloseTo(1, 3);
   });
 });
 

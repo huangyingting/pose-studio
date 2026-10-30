@@ -1,5 +1,5 @@
 import {
-  Activity, Aperture, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
@@ -8,7 +8,7 @@ import {
   addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
-  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, editRig, frameShot, setLens,
+  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, PLACES, PLACE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
@@ -922,6 +922,12 @@ export const COMMANDS: Command[] = [
 
   // A camera (`at`: one of its path's points).
   {
+    id: 'camera.stop', title: 'Stops here', help: 'The camera eases to a stop at this point and on from it: its path may turn sharply here', icon: CircleStop,
+    when: (c) => !!c.camera && c.at !== undefined && cameraById(sceneOf(c), c.camera)?.kind === 'path',
+    checked: (c) => { const cam = cameraById(sceneOf(c), c.camera); return cam?.kind === 'path' && !!cam.points.find((p) => Math.abs(p.t - c.at!) < 1e-3)?.stop; },
+    run: (c) => { const cam = cameraById(sceneOf(c), c.camera); if (cam?.kind === 'path') setCameraPointStop(c.store, c.camera!, c.at!, !cam.points.find((p) => Math.abs(p.t - c.at!) < 1e-3)?.stop); },
+  },
+  {
     id: 'camera.deletePoint', title: (c) => `Delete the point at ${c.at!.toFixed(2)} s`, icon: Trash2, danger: true,
     when: (c) => !!c.camera && c.at !== undefined && cameraById(sceneOf(c), c.camera)?.kind === 'path',
     enabled: (c) => { const cam = cameraById(sceneOf(c), c.camera); return cam?.kind === 'path' && cam.points.length > 1; },
@@ -1356,7 +1362,7 @@ export const MENUS = {
   ],
   shot: ['rename', 'shot.move', 'shot.camera', 'shot.unpin', '-', 'shot.describe', '-', 'shot.removeCut'],
   camera: [
-    'camera.deletePoint', '-', 'rename', 'camera.through', 'camera.fromView', 'camera.pointHere', 'duplicate',
+    'camera.stop', 'camera.deletePoint', '-', 'rename', 'camera.through', 'camera.fromView', 'camera.pointHere', 'duplicate',
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],

@@ -229,12 +229,13 @@ export function parseCameras(raw: unknown): Camera[] {
       .map((p) => ({
         t: Math.round(num(p.t, 0, 0, MAX_DURATION) * 1000) / 1000, position: vec(p.position), look: vec(p.look), lens: num(p.lens, 35, 4, 1200),
         ...(typeof p.roll === 'number' && Number.isFinite(p.roll) && p.roll ? { roll: num(p.roll, 0, -180, 180) } : {}),
+        ...(p.stop === true ? { stop: true as const } : {}),
       }))
       .sort((p, q) => p.t - q.t);
     if (x.kind !== 'path' || !points.length) return [];
     return [{
       ...base, kind: 'path', anchor: x.anchor === 'subject' ? 'subject' : 'world', aim: x.aim === 'point' || x.aim === 'path' ? x.aim : 'subject',
-      points, ...(x.ease === 'linear' ? { ease: 'linear' as const } : {}),
+      points, ...(x.ease === 'linear' ? { ease: 'linear' as const } : {}), ...(x.pace === 'even' ? { pace: 'even' as const } : {}),
     }];
   });
 }

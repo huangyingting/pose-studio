@@ -34,7 +34,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Camera, CameraMove, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1103,6 +1103,22 @@ export function setCameraLens(store: Store, camera: string, t: number, mm: numbe
   }, key);
 }
 
+/** A path camera's point at t: the camera comes to a stop there (its path may turn sharply), or goes on through it (#16). */
+export function setCameraPointStop(store: Store, camera: string, t: number, stop: boolean) {
+  store.updateScene((s) => {
+    const cam = pathCamera(s, camera);
+    if (!cam) return s;
+    const points = cam.points.map((p) => {
+      if (Math.abs(p.t - t) > 1e-3) return p;
+      const q: CameraPoint = { ...p };
+      if (stop) q.stop = true;
+      else delete q.stop;
+      return q;
+    });
+    return withCamera(s, { ...cam, points });
+  });
+}
+
 /** Remove the point at t of a path camera (by default the one filming then); its last point stays. */
 export function deleteCameraPoint(store: Store, t = store.getState().time, camera?: string) {
   store.updateScene((s) => {
@@ -1167,7 +1183,7 @@ export function setLens(store: Store, mm: number, keep: 'size' | 'place' = 'size
  * shakes; for a path camera, where its path is (anchor) and what it looks at (aim) — the path is
  * restated so the camera stays where it was — and how it eases.
  */
-export function editCamera(store: Store, id: string, patch: { name?: string; subject?: string; also?: string[]; anchor?: PathCamera['anchor']; aim?: PathCamera['aim']; ease?: PathCamera['ease']; shake?: number }) {
+export function editCamera(store: Store, id: string, patch: { name?: string; subject?: string; also?: string[]; anchor?: PathCamera['anchor']; aim?: PathCamera['aim']; ease?: PathCamera['ease']; pace?: PathCamera['pace']; shake?: number }) {
   store.updateScene((s) => {
     const old = cameraById(s, id);
     if (!old) return s;
@@ -1177,8 +1193,9 @@ export function editCamera(store: Store, id: string, patch: { name?: string; sub
     if (cam.kind === 'path') {
       const where = { ...who, ...(anchor ? { anchor } : {}), ...(aim ? { aim } : {}) };
       cam = Object.keys(where).length ? restate(s, cam, where) : cam;
-      cam = { ...cam, ...(ease ? { ease } : {}) };
+      cam = { ...cam, ...(ease ? { ease } : {}), ...('pace' in patch ? { pace: patch.pace } : {}) };
       if (cam.ease !== 'linear') delete cam.ease;
+      if (cam.pace !== 'even') delete cam.pace;
     } else cam = { ...cam, ...who };
     cam = { ...cam, ...(also ? { also } : {}), ...(shake !== undefined ? { shake } : {}), name: (name ?? cam.name).trim().slice(0, 60) || cam.name };
     if (!cam.subject) delete cam.subject;

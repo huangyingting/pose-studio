@@ -368,8 +368,10 @@ export interface PathCamera extends CameraBase {
   aim: 'subject' | 'point' | 'path';
   /** The path's points in time order (animation time), at least one. */
   points: CameraPoint[];
-  /** How it goes from point to point: easing through them, or at an even pace. */
+  /** Its path's shape: a smooth curve through its points, or straight lines between them. */
   ease?: 'smooth' | 'linear';
+  /** Its pace: as its points' times say, or at an even speed along its whole path. */
+  pace?: 'even';
 }
 
 /** A camera that places itself every frame from its subject's body (see CameraRig). */
@@ -445,6 +447,8 @@ export interface CameraPoint {
   lens: number;
   /** Turn about the line of sight (degrees, + clockwise as seen through it). */
   roll?: number;
+  /** The camera eases to a stop here (and on from it): its path may turn sharply here, a corner. */
+  stop?: true;
 }
 
 export interface Library {
