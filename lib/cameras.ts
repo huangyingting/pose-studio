@@ -222,11 +222,27 @@ export function samplePath(points: CameraPoint[], t: number, ease: PathCamera['e
   };
 }
 
+// A rig camera's view, once worked out (per how the figures move and who is hidden, the camera and the time).
+const rigViews = new WeakMap<object, WeakMap<Camera, Map<string, CameraView>>>();
+
 /** What a camera sees at time t, whatever is cut to then. */
 export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect()): CameraView {
   if (cam.kind === 'rig') {
-    const v = rigView(scene, cam, cam.rig, t, aspect);
-    return shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: 0 });
+    const owner = movesOf(scene);
+    let byCam = rigViews.get(owner);
+    if (!byCam) rigViews.set(owner, (byCam = new WeakMap()));
+    let views = byCam.get(cam);
+    if (!views) byCam.set(cam, (views = new Map()));
+    const key = `${scene.figures.filter((f) => f.hidden).map((f) => f.id).join()}@${t}:${aspect}`;
+    let view = views.get(key);
+    if (!view) {
+      const v = rigView(scene, cam, cam.rig, t, aspect);
+      view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: 0 });
+      if (views.size > 2000) views.clear();
+      views.set(key, view);
+    }
+    // (A copy: what is given is the caller's to change.)
+    return { ...view, position: view.position.clone(), target: view.target.clone() };
   }
   const p = samplePath(cam.points, t, cam.ease);
   const place = cam.anchor === 'subject' || cam.aim === 'subject' ? subjectPlace(scene, cam, t) : null;

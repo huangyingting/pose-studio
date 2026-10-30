@@ -492,6 +492,29 @@ def scalp(body, hair, eyes, color):
 
 
 
+def symmetric(rig):
+    """
+    Each left bone and its right one mirror each other (their middle): MakeHuman's Mixamo rig puts
+    the right collarbone's root lower than the left's, and posed alike, one shoulder rose higher.
+    Moved in the rest pose, which the skin is bound in: the body stays as it is.
+    """
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode='EDIT')
+    bones = rig.data.edit_bones
+    for left in bones:
+        if 'Left' not in left.name:
+            continue
+        right = bones.get(left.name.replace('Left', 'Right'))
+        if not right:
+            continue
+        for end in ('head', 'tail'):
+            a, b = getattr(left, end).copy(), getattr(right, end).copy()
+            mid = Vector(((a.x - b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2))
+            setattr(left, end, mid)
+            setattr(right, end, Vector((-mid.x, mid.y, mid.z)))
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
 def build(who, out):
     spec = PEOPLE[who]
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -501,6 +524,7 @@ def build(who, out):
     for name, w in spec['targets']:
         TargetService.load_target(body, os.path.join(TARGETS, name + '.target.gz'), weight=w)
     rig = HumanService.add_builtin_rig(body, 'mixamo')
+    symmetric(rig)
     parts = []
     eyes = HumanService.add_mhclo_asset(asset('eyes', 'high-poly'), body, asset_type='Eyes', subdiv_levels=0, material_type='MAKESKIN')
     plain(eyes, (1, 1, 1), os.path.join(DATA, 'eyes', 'materials', 'brown_eye.png'), alpha=True, clear=(0.72, 0.75, 1.0))
