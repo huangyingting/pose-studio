@@ -176,9 +176,6 @@ export default function Viewport({
   }, []);
   const downAt = useRef<[number, number]>([0, 0]);
   const pickedAt = useRef(0);
-  const lastTap = useRef<{ figure?: string; t: number }>({ t: 0 });
-  // (The pointer the last press was made with: a click event does not say in every browser.)
-  const downType = useRef('mouse');
   const longPress = useRef(0);
 
   // Characters' files are read after the first frame: drawn as them once they are.
@@ -225,15 +222,6 @@ export default function Viewport({
     const o = partUnder(e.intersections, (x) => !(x.userData.prop && sv.props.get(x.userData.prop as string)?.parts.faded));
     if (!o) return;
     e.stopPropagation();
-    // A second tap on the same figure soon after (touch has no double-click on the canvas): all of it.
-    const now = performance.now();
-    const touch = downType.current === 'touch';
-    const twice = touch && o.userData.figure && lastTap.current.figure === o.userData.figure && now - lastTap.current.t < 350;
-    lastTap.current = { figure: o.userData.figure as string | undefined, t: twice ? 0 : now };
-    if (twice && !e.nativeEvent.shiftKey) {
-      store.select({ kind: 'figure', figure: o.userData.figure as string, whole: true });
-      return;
-    }
     // Shift-click: add it to what is selected (a figure as a whole), or take it away.
     if (e.nativeEvent.shiftKey) {
       toggleSelected(store, o.userData.prop ? { prop: o.userData.prop as string } : { figure: o.userData.figure as string });
@@ -248,21 +236,9 @@ export default function Viewport({
     else if (!picked || figureDoc(figure)?.proxy) store.select({ kind: 'figure', figure });
     else store.select({ kind: 'joint', figure, joint: o.userData.joint as JointName });
   };
-  /** A double-click on a figure: all of it (it moves when dragged; Y, X or Z with ← → turn and lean it). */
-  const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
-    if (e.delta > 4 || e.nativeEvent.shiftKey || e.nativeEvent.altKey) return;
-    // (The lamp drawn over the body, and a click that picked something, keep their selection.)
-    if (e.intersections.some((i) => i.object.userData.lamp) || performance.now() - pickedAt.current < 600) return;
-    let o: THREE.Object3D | null = e.object;
-    while (o && !o.userData.joint && !o.userData.prop) o = o.parent;
-    if (!o?.userData.figure) return;
-    e.stopPropagation();
-    store.select({ kind: 'figure', figure: o.userData.figure as string, whole: true });
-  };
-
   // The gizmo: a selected joint's rotate gizmo (with the drag handles shown: its rings about its own
   // axes, the ring facing the view and the ball between them to turn it freely, as Blender, Maya
-  // and posing apps have it); a selected prop's, or a figure's picked as a whole (a double-click),
+  // and posing apps have it); a selected prop's, or a picked figure's,
   // moves it (also up and down; R scales a prop). Joints are also posed by dragging the body (Ctrl:
   // 5° steps; Shift-drag twists) and by the inspector's sliders and − +; figures and props turn by
   // their floor ring.
@@ -297,8 +273,8 @@ export default function Viewport({
   let onGizmoChange = () => {};
   // The readout of a gizmo drag, from where its object was when the drag began.
   let readout: (from: THREE.Vector3) => void = () => {};
-  // A figure picked as a whole (a double-click), or a stand-in: its Move gizmo (also up and down).
-  const gizmoFigure = selection?.kind === 'figure' && (selection.whole || figureDoc(selection.figure)?.proxy) ? selection.figure : null;
+  // A figure picked (a stand-in too): its Move gizmo (also up and down).
+  const gizmoFigure = selection?.kind === 'figure' ? selection.figure : null;
   if (gizmoFigure) {
     const m = sv.figures.get(gizmoFigure);
     const doc = figureDoc(gizmoFigure);
@@ -375,7 +351,6 @@ export default function Viewport({
       onPointerLeave={() => { setCanvasPointer(false); setPointerHint(null); }}
       onPointerDown={(e) => {
         downAt.current = [e.clientX, e.clientY];
-        downType.current = e.pointerType;
         // A long press on touch: what is under the finger, selected, and its menu (touch has no right-click).
         window.clearTimeout(longPress.current);
         if (e.pointerType !== 'touch') return;
@@ -459,7 +434,7 @@ export default function Viewport({
             position={[0, 0.0005, 0]}
           />
         )}
-        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} playing={() => clock.playing} onClick={handleClick} onDoubleClick={handleDoubleClick} />
+        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} playing={() => clock.playing} onClick={handleClick} />
         <primitive object={stand} />
         <GizmoWarmup />
         {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * (coarse ? 1.3 : 1)} />}

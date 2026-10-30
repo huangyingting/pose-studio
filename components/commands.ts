@@ -457,7 +457,7 @@ export function stepHint(c: Ctx): string | null {
     case 'figure': return `Arrows: move ${figureOf(c)?.name} · Alt ← →: turn · Y / X / Z + ← →: turn, lean${figureOf(c)?.grounded === false ? ' · Page ↑ ↓: up, down' : ''}${whole}${shift}`;
     case 'prop': return `Arrows: move · Alt ← →: turn · Page ↑ ↓: up, down · R: ${c.store.getState().settings.gizmo === 'scale' ? 'move' : 'scale'}${shift}`;
     case 'many': return `Arrows: move them · Alt ← →: turn them${c.many?.figures.length ? whole : ''}${shift}`;
-    case 'joint': return `X / Y / Z + ← →: Bend / Twist / Side 5° · Arrows: next joint · Double-click: whole figure${shift}`;
+    case 'joint': return `X / Y / Z + ← →: Bend / Twist / Side 5° · Arrows: next joint · Esc: the whole figure${shift}`;
     case 'camera': return `← →: across · ↑ ↓: in, out · Page Up / Down: up, down · Alt ← → ↑ ↓: pan, tilt${shift}`;
     case 'rig': return `← →: its angle 15° · Alt ↑ ↓: its height · Page Up / Down: closer, wider${shift}`;
     case 'light': return `← →: round 15° · Page Up / Down: higher, lower${shift}`;
@@ -504,8 +504,13 @@ export const COMMANDS: Command[] = [
     run: (c) => c.store.setSceneIndex(c.store.getState().sceneIndex + 1),
   },
   {
-    id: 'app.deselect', title: (c) => (c.store.getState().through ? 'Stop looking through' : 'Deselect'), help: 'Deselect (looking through a camera: stop)', icon: X, keys: ['escape'],
-    run: (c) => (c.store.getState().through ? c.store.lookThrough(null) : c.store.select(null)),
+    id: 'app.deselect', title: (c) => (c.store.getState().through ? 'Stop looking through' : c.store.getState().selection?.kind === 'joint' ? 'Up to the figure' : 'Deselect'),
+    help: 'Up a level: a part to its figure, else nothing selected (looking through a camera: stop)', icon: X, keys: ['escape'],
+    run: (c) => {
+      const sel = c.store.getState().selection;
+      if (c.store.getState().through) c.store.lookThrough(null);
+      else c.store.select(sel?.kind === 'joint' ? { kind: 'figure', figure: sel.figure } : null);
+    },
   },
 
   // The canvas's tools.
@@ -1416,7 +1421,7 @@ export const SELECTION_KEYS: [string, string][] = [
   ['A prop (or a figure off the floor): raise · lower', 'Page Up · Page Down'],
   ['A figure: move · turn all it does (no key)', 'Ctrl ← → ↑ ↓ · Ctrl Alt ← →'],
   ['A joint: another joint · Bend, Twist, Side 5°', '← → ↑ ↓ · X, Y or Z with ← →'],
-  ['All of a figure (double-click it): turn · lean forward, sideways 5°', 'Y with ← → · X or Z with ← →'],
+  ['A figure (picked): turn · lean forward, sideways 5°', 'Y with ← → · X or Z with ← →'],
   ['A path camera: across, in and out · up and down · pan, tilt', '← → ↑ ↓ · Page Up / Down · Alt + arrows'],
   ['A rig camera: round its subject · its height · closer, wider', '← → · Alt ↑ ↓ · Page Up / Down'],
   ['The light: round · higher, lower', '← → · Page Up / Down'],

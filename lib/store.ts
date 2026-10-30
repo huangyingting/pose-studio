@@ -466,9 +466,7 @@ export class Store {
   }
 
   select(selection: Selection) {
-    // (The same figure selected again, by its ring, its menu: still picked as a whole if it was.)
     const was = this.state.selection;
-    if (selection?.kind === 'figure' && !selection.whole && was?.kind === 'figure' && was.whole && was.figure === selection.figure) selection = { ...was };
     // (Scaling a prop with R is for that prop: another selection's gizmo moves again.)
     const scaling = this.state.settings.gizmo === 'scale' && !(selection?.kind === 'prop' && was?.kind === 'prop' && selection.prop === was.prop);
     this.set(scaling ? { selection, settings: { ...this.state.settings, gizmo: 'translate' } } : { selection }, false);

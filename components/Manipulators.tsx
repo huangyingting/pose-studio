@@ -255,7 +255,7 @@ const TWIST = 0.5;
  * figure or prop). What a drag would move is tinted under the pointer. Pressing starts nothing
  * until the pointer moves a few pixels, so a click still selects and the gizmo keeps its drags.
  */
-export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, playing, onClick, onDoubleClick }: {
+export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, playing, onClick }: {
   sv: SceneView;
   store: Store;
   scene: Scene;
@@ -267,7 +267,6 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
   /** Whether the film is playing: nothing under the pointer is tinted or hinted at then. */
   playing(): boolean;
   onClick(e: ThreeEvent<MouseEvent>): void;
-  onDoubleClick(e: ThreeEvent<MouseEvent>): void;
 }) {
   const pointer = usePointer();
 
@@ -283,9 +282,10 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
     }
     const figure = o.userData.figure as string;
     const joint = o.userData.joint as JointName;
-    // The whole figure (a stand-in, or picked as a whole by a double-click, or among several): it moves.
+    // The whole figure (a stand-in, or among several): it moves. (One picked moves by its gizmo; a
+    // drag on it poses the part under the pointer, picked or not.)
     const sel = store.getState().selection;
-    if (scene.figures.find((f) => f.id === figure)?.proxy || (sel?.kind === 'figure' && sel.whole && sel.figure === figure) || (sel?.kind === 'many' && sel.figures.includes(figure))) return { kind: 'body', figure };
+    if (scene.figures.find((f) => f.id === figure)?.proxy || (sel?.kind === 'many' && sel.figures.includes(figure))) return { kind: 'body', figure };
     // The hips: the body moves on the legs, the feet planted; the rest turns at its joint.
     if (joint === 'hips') return { kind: 'pelvis', figure };
     return { kind: ENDS[joint] ? 'end' : 'swing', figure, joint };
@@ -383,7 +383,11 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
       const yaw = root.rotation.y;
       return {
         cursor: twist ? 'ew-resize' : 'move',
-        begin: () => store.select({ kind: 'figure', figure: t.figure, whole: true }),
+        begin: () => {
+          // (Among several: they stay picked, and move together.)
+          const sel = store.getState().selection;
+          if (!(sel?.kind === 'many' && sel.figures.includes(t.figure))) store.select({ kind: 'figure', figure: t.figure });
+        },
         move: (ray, dx, _dy, e) => {
           if (twist) {
             root.rotation.y = yaw + dx * TWIST * D2R;
@@ -615,7 +619,8 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
     else {
       const sel = store.getState().selection;
       const picked = (sel?.kind === 'figure' || sel?.kind === 'joint') && sel.figure === t.figure;
-      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked);
+      const proxy = !!scene.figures.find((f) => f.id === t.figure)?.proxy;
+      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked && !proxy);
       setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the gizmo`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
@@ -625,7 +630,6 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
     <primitive
       object={sv.root}
       onClick={onClick}
-      onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerOut={(e: ThreeEvent<PointerEvent>) => {

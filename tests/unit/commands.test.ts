@@ -40,6 +40,17 @@ describe('commands: one list for keys, menus, toolbars and the palette', () => {
     expect(commandForKey(key('B', { shift: true }), selectionCtx(store))?.id).toBe('app.board');
   });
 
+  it('Esc goes up a level: a part to its figure, the figure to nothing', () => {
+    const store = new Store(new MemoryStorage());
+    const figure = store.scene.figures[0].id;
+    store.select({ kind: 'joint', figure, joint: 'leftHand' });
+    const esc = () => commandForKey(key('Escape'), selectionCtx(store))!.run!(selectionCtx(store));
+    esc();
+    expect(store.getState().selection).toEqual({ kind: 'figure', figure });
+    esc();
+    expect(store.getState().selection).toBeNull();
+  });
+
   it('runs the key on what is selected: Del deletes the selected prop, not the figure', () => {
     const store = new Store(new MemoryStorage());
     addProp(store, 'box', [1, 0, 1]);

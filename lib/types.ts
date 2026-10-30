@@ -515,8 +515,8 @@ export interface ProjectSettings {
 export type Selection =
   | { kind: 'joint'; figure: string; joint: JointName }
   /** A whole figure (picked in the outline): delete, duplicate, rename, move it. */
-  /** (`whole`: picked as a whole by a double-click: a drag on it moves it, not a part.) */
-  | { kind: 'figure'; figure: string; whole?: true }
+  /** (Picked: its move gizmo; a click on it then picks the part there.) */
+  | { kind: 'figure'; figure: string }
   | { kind: 'prop'; prop: string }
   /** An action on a figure's track (a walk, a motion, posed keys), picked on the timeline from that figure's row. */
   | { kind: 'action'; action: string; figure: string }

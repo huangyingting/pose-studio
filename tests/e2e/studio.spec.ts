@@ -45,12 +45,20 @@ const project = (page: Page, joint: string) =>
 const projectPoint = (page: Page, p: number[]) =>
   page.evaluate((q) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.projectPoint(q), p);
 
-/** A part of a figure picked on the canvas: a click picks the figure, another (after a pause: not a double-click) the part. */
+/** A part of a figure picked on the canvas: a click picks the figure, another the part (one, if the figure is picked already). */
 async function pickPart(page: Page, at: { x: number; y: number }) {
+  const kind = () => page.evaluate(() => ((window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().selection as { kind?: string } | null)?.kind);
   await page.mouse.click(at.x, at.y);
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'figure' });
-  await page.waitForTimeout(600);
+  await expect.poll(kind).toMatch(/^(figure|joint)$/);
+  if ((await kind()) === 'figure') await page.mouse.click(at.x, at.y);
+}
+
+/** A figure picked on the canvas: nothing selected first (Esc up to nothing), then a click on it. */
+async function pickFigure(page: Page, at: { x: number; y: number }) {
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
   await page.mouse.click(at.x, at.y);
+  await expect.poll(() => page.evaluate(() => ((window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().selection as { kind?: string } | null)?.kind)).toBe('figure');
 }
 
 async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, modifier?: 'Shift' | 'Control') {
@@ -338,18 +346,19 @@ test('dragging the hips down bends the knees and keeps the feet planted', async 
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerLeg')[0]).toBeGreaterThan(30);
 });
 
-test('figures and props move by dragging them and turn by their floor ring', async ({ page }) => {
+test('a picked figure moves by its gizmo, a prop by dragging it; they turn by their floor ring', async ({ page }) => {
   await page.keyboard.press('1');
   await page.waitForTimeout(400);
   type Placed = { position: number[]; rotation: number[]; bones: Bones };
   const figure = async () => (await state(page)).scene.figures[0] as unknown as Placed;
   const before = await figure();
 
-  // Double-click it (all of it), then drag it: the figure moves on the floor, its pose unchanged.
+  // Pick it (a click), then drag its gizmo's X arrow: the figure moves on the floor, its pose unchanged.
   const chest = await project(page, 'chest');
-  await page.mouse.dblclick(chest.x, chest.y - 20);
-  await expect.poll(async () => (await state(page)).selection).toMatchObject({ kind: 'figure' });
-  await drag(page, { x: chest.x, y: chest.y - 20 }, { x: chest.x + 100, y: chest.y - 20 });
+  await pickFigure(page, { x: chest.x, y: chest.y - 20 });
+  // (The arrow goes right from the hips, seen from the front.)
+  const hips = await project(page, 'hips');
+  await drag(page, { x: hips.x + 50, y: hips.y }, { x: hips.x + 150, y: hips.y });
   let f = await figure();
   expect(f.position[0]).toBeGreaterThan(before.position[0] + 0.1);
   expect(f.bones.rightUpperArm).toEqual(before.bones.rightUpperArm);
@@ -397,13 +406,14 @@ test('the axes show on the view widget and in the fields; drags read out how far
   // A forearm swung: its slider's name and value.
   const [elbow, hand] = [await project(page, 'leftLowerArm'), await project(page, 'leftHand')];
   await readout({ x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 }, 60, /^Left forearm · \w+ −?\d+°$/);
-  // A second figure moved by its torso: how far, where, and how far from the other.
+  // A second figure moved by its gizmo: how far, where, and how far from the other.
   await addLayer(page, 'Figure');
   await page.waitForTimeout(400);
   const chest = await project(page, 'chest');
-  // (Picked as a whole with a double-click: a drag then moves it.)
-  await page.mouse.dblclick(chest.x, chest.y - 20);
-  await readout({ x: chest.x, y: chest.y - 20 }, 80, /^Moved \d\.\d\d m · X −?\d\.\d\d {2}Z −?\d\.\d\d · \d\.\d\d m from Figure$/);
+  // (Picked: its gizmo's X arrow moves it.)
+  await pickFigure(page, { x: chest.x, y: chest.y - 20 });
+  const hips = await project(page, 'hips');
+  await readout({ x: hips.x + 50, y: hips.y }, 80, /^Moved \d\.\d\d m · X −?\d\.\d\d {2}Z −?\d\.\d\d · \d\.\d\d m from Figure$/);
   // A prop's position fields carry the axes' colours.
   await addLayer(page, 'Box');
   await expect(page.locator('.numfield-prefix.axis-y').first()).toBeVisible();
