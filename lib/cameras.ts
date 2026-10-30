@@ -199,9 +199,12 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
     let view = views.get(key);
     if (!view) {
       const v = rigView(scene, cam, cam.rig, t, aspect);
-      // (Never in a wall nor under the floor: in front of a wall between it and what it looks at, #16.)
-      const wall = setBlocks(scene.set, v.target, v.position);
-      if (wall !== null) v.position.copy(v.target).addScaledVector(v.position.clone().sub(v.target).normalize(), Math.max(0.3, wall - 0.15));
+      // (Never in a wall nor under the floor: in front of a wall between it and what it looks at, #16,
+      // coming in as the wall comes between, a little before, not at once.)
+      if (scene.set) {
+        const keep = wallKeep(scene, cam, t, aspect);
+        if (keep < 1) v.position.sub(v.target).multiplyScalar(keep).add(v.target);
+      }
       v.position.y = Math.max(0.15, v.position.y);
       view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: v.roll });
       if (views.size > 2000) views.clear();
@@ -645,6 +648,52 @@ function clearance(shot: { position: THREE.Vector3 }, people: Vec3[]) {
 }
 
 // How far a rig camera is swung round its subject to keep out of people's way at each step of
+// How much of its distance a rig camera keeps, in front of a wall: every WALL_STEP seconds, worked
+// out as it is needed (per how the figures move, the camera and the set).
+const walls = new WeakMap<object, WeakMap<Camera, Map<string, Map<number, number>>>>();
+const WALL_STEP = 0.25;
+const WALL_EASE = 2;
+
+/**
+ * The share of its distance from what it looks at a rig camera keeps at t (1: all of it), so no
+ * wall of the set stands between: what each moment near needs, the least of them held, then eased,
+ * so it comes in front of a wall smoothly and a little before it must.
+ */
+function wallKeep(scene: Scene, cam: RigCamera, t: number, aspect: number): number {
+  const owner = movesOf(scene);
+  let byCam = walls.get(owner);
+  if (!byCam) walls.set(owner, (byCam = new WeakMap()));
+  let bySet = byCam.get(cam);
+  if (!bySet) byCam.set(cam, (bySet = new Map()));
+  const key = `${scene.set}:${scene.figures.filter((f) => f.hidden).map((f) => f.id).join()}:${aspect}`;
+  let samples = bySet.get(key);
+  if (!samples) bySet.set(key, (samples = new Map()));
+  const raw = (i: number) => {
+    let x = samples.get(i);
+    if (x === undefined) {
+      const v = rigView(scene, cam, cam.rig, Math.max(0, i * WALL_STEP), aspect);
+      const dist = v.position.distanceTo(v.target);
+      const wall = setBlocks(scene.set, v.target, v.position);
+      samples.set(i, (x = wall === null || dist < 1e-6 ? 1 : Math.min(1, Math.max(0.3, wall - 0.15) / dist)));
+    }
+    return x;
+  };
+  const reach = Math.round(WALL_EASE / 2 / WALL_STEP);
+  const held = (i: number) => {
+    let x = 1;
+    for (let j = i - reach; j <= i + reach; j++) x = Math.min(x, raw(j));
+    return x;
+  };
+  const eased = (i: number) => {
+    let sum = 0;
+    for (let j = i - reach; j <= i + reach; j++) sum += held(j);
+    return sum / (2 * reach + 1);
+  };
+  const k = Math.max(0, t / WALL_STEP);
+  const i = Math.floor(k);
+  return eased(i) + (eased(i + 1) - eased(i)) * (k - i);
+}
+
 // SWING_STEP seconds, worked out as it is needed (per how the figures move, camera and rig).
 const swings = new WeakMap<object, Map<string, Map<number, number>>>();
 const SWING_STEP = 0.5;
