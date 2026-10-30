@@ -68,7 +68,7 @@ export function StandInPanel({ t }: { t: Target }) {
 
 /** The selected part: its sliders, next to a small map to pick another. */
 /** A − or + that steps a joint's slider 5° (Shift 15°), again and again while it is held. */
-function StepButton({ label, by, onStep }: { label: string; by: 1 | -1; onStep(deg: number): void }) {
+function StepButton({ label, by, end, onStep }: { label: string; by: 1 | -1; end: string; onStep(deg: number): void }) {
   const press = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -88,7 +88,7 @@ function StepButton({ label, by, onStep }: { label: string; by: 1 | -1; onStep(d
       type="button"
       className="joint-step"
       aria-label={label}
-      data-tip={`${by < 0 ? '−' : '+'}5° (Shift: 15°; hold for more)`}
+      data-tip={`${by < 0 ? '−' : '+'}5°${end ? `, ${end}` : ''} (Shift: 15°; hold for more)`}
       onPointerDown={press}
       // (From the keyboard: Enter or Space.)
       onClick={(e) => { if (e.detail === 0) onStep(by * STEPS.joint * (e.shiftKey ? 3 : 1)); }}
@@ -100,7 +100,7 @@ function StepButton({ label, by, onStep }: { label: string; by: 1 | -1; onStep(d
 
 /**
  * The selected part: the body map (big, its sides marked L and R: the figure's own, seen from
- * the front), and a row per slider with − and + either side, under it what − and + do.
+ * the front), and a slider per turn with − and + either side of its track (what each does in its tip).
  */
 export function JointPanel({ t }: { t: Target }) {
   const limits = useStudio((s) => s.settings.limits);
@@ -120,9 +120,10 @@ export function JointPanel({ t }: { t: Target }) {
           const [minus, plus] = ends[axis];
           return (
             <div key={axis} className={`joint-row axis-${'xyz'[axis]}`}>
-              <StepButton label={`${name} −5°`} by={-1} onStep={(d) => stepJoint(t.store, figure.id, joint, axis, d)} />
               <Slider
                 label={name}
+                before={<StepButton label={`${name} −5°`} by={-1} end={minus} onStep={(d) => stepJoint(t.store, figure.id, joint, axis, d)} />}
+                after={<StepButton label={`${name} +5°`} by={1} end={plus} onStep={(d) => stepJoint(t.store, figure.id, joint, axis, d)} />}
                 axis={axis}
                 min={min}
                 max={max}
@@ -135,8 +136,6 @@ export function JointPanel({ t }: { t: Target }) {
                   setJoint(t.store, figure.id, joint, next, `slider:${figure.id}:${joint}:${axis}`);
                 }}
               />
-              <StepButton label={`${name} +5°`} by={1} onStep={(d) => stepJoint(t.store, figure.id, joint, axis, d)} />
-              <span className="joint-ends" aria-hidden><span>− {minus}</span><span>{plus} +</span></span>
             </div>
           );
         })}

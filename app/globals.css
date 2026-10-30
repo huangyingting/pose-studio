@@ -268,6 +268,8 @@ input[type='range']:focus-visible { outline: none; }
 input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent-ring), 0 0 0 1px var(--accent); }
 
 .slider { display: grid; gap: 2px; }
+.slider-track { display: flex; align-items: center; gap: 6px; }
+.slider-track input[type='range'] { flex: 1; min-width: 0; }
 .slider-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-2); min-height: 20px; }
 .slider.axis-x { --axis: var(--axis-x); }
 .slider.axis-y { --axis: var(--axis-y); }
@@ -1203,10 +1205,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* A picked part: a small map to pick another, beside its sliders. */
 .joint-edit { display: grid; gap: 12px; }
 .joint-edit .bodymap { max-width: 136px; }
-.joint-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; column-gap: 6px; row-gap: 0; align-items: end; }
-.joint-step { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; touch-action: none; }
+.joint-step { display: grid; place-items: center; flex: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; touch-action: none; }
 .joint-step:hover { background: var(--accent-soft); color: var(--accent); }
-.joint-ends { grid-column: 2; display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-3); }
 .panel-title > svg { color: var(--text-2); }
 .panel-title .title-input { flex: 1; min-width: 0; margin-left: -8px; font-weight: 600; text-overflow: ellipsis; }
 .panel-title .title-input:not(:focus) { background: transparent; }

@@ -426,8 +426,11 @@ export function PanelEdge({ label, side, width, onWidth }: { label: string; side
  * Labelled range slider. With `typeable`, clicking the value turns it into a number field for
  * precise entry (Enter or blur applies, Esc cancels); values are in the slider's own units.
  */
-export function Slider({ label, value, min, max, step = 1, display, onChange, typeable, axis }: {
+export function Slider({ label, value, min, max, step = 1, display, onChange, typeable, axis, before, after }: {
   label: string;
+  /** Beside the track, either side (a joint's − and + steps). */
+  before?: ReactNode;
+  after?: ReactNode;
   /** A joint's slider: marked in its axis's colour (as its arc on the canvas). */
   axis?: number;
   value: number;
@@ -488,16 +491,20 @@ export function Slider({ label, value, min, max, step = 1, display, onChange, ty
         <span id={id}>{label}</span>
         {valueEl}
       </span>
-      <input
-        type="range"
-        aria-labelledby={id}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        style={{ '--fill': `${Math.min(100, Math.max(0, pct))}%` } as React.CSSProperties}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
+      <span className="slider-track">
+        {before}
+        <input
+          type="range"
+          aria-labelledby={id}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          style={{ '--fill': `${Math.min(100, Math.max(0, pct))}%` } as React.CSSProperties}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        {after}
+      </span>
     </div>
   );
 }
