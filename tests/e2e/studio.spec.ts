@@ -97,9 +97,19 @@ async function libraryShows(page: Page, what: 'Characters' | 'Poses' | 'Motions'
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
-/** The scene's outline (always there, on the right) or the library (a category open on the left: Poses if none is). */
+/** The scene's outline (the right panel back up to the scene) or the library (a category open on the left: Poses if none is). */
 async function openSection(page: Page, name: 'Scene' | 'Library') {
   if (name === 'Library' && !(await page.getByRole('tabpanel').count())) await libraryShows(page, 'Poses');
+  if (name === 'Scene') {
+    const crumb = page.getByRole('navigation', { name: 'Up to' }).getByRole('button', { name: 'Scene', exact: true });
+    if (await crumb.count()) await crumb.click();
+  }
+}
+
+/** One of the scene outline's lists (Cast, Lights, Cameras, Shots…), the right panel back up to the scene first. */
+async function outline(page: Page, name: string) {
+  await openSection(page, 'Scene');
+  return page.getByRole('list', { name, exact: true });
 }
 
 /**
@@ -198,7 +208,7 @@ test('a new project is one blank scene; the built-in poses are in the library', 
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByLabel('Scene name')).toHaveValue('Scene 1');
-  await expect(page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure', exact: true })).toBeVisible();
+  await expect((await outline(page, 'Cast')).getByRole('button', { name: 'Figure', exact: true })).toBeVisible();
   // The canvas suggests a next step; one dismissed does not come back for the scene.
   const step = page.getByRole('status', { name: 'Next step' });
   await expect(step).toContainText('Pose Figure');
@@ -226,20 +236,19 @@ test('things have names and right-click menus; Del, Ctrl+D and F2 act on the sel
   await page.mouse.click(canvas.x + canvas.width * 0.85, canvas.y + canvas.height * 0.85, { button: 'right' });
   await page.getByRole('menu', { name: 'Context menu' }).getByRole('menuitem', { name: 'Chair', exact: true }).click();
   await openSection(page, 'Scene');
-  const set = page.getByRole('list', { name: 'Set' });
 
   // F2 renames in place; the inspector's title shows the name.
-  await set.getByRole('button', { name: 'Chair', exact: true }).click();
+  await (await outline(page, 'Set')).getByRole('button', { name: 'Chair', exact: true }).click();
   await page.keyboard.press('F2');
   await page.getByRole('textbox', { name: 'Rename Chair' }).fill('Bar stool');
   await page.keyboard.press('Enter');
-  await expect(set.getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
+  await expect((await outline(page, 'Set')).getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Chair name' })).toHaveValue('Bar stool');
   // Escape cancels a rename.
   await page.keyboard.press('F2');
   await page.getByRole('textbox', { name: 'Rename Bar stool' }).fill('Oops');
   await page.keyboard.press('Escape');
-  await expect(set.getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
+  await expect((await outline(page, 'Set')).getByRole('button', { name: 'Bar stool', exact: true })).toBeVisible();
 
   // Right-click the figure on the canvas: its menu.
   const name = (await state(page)).scene.figures[0].name;
@@ -260,9 +269,9 @@ test('things have names and right-click menus; Del, Ctrl+D and F2 act on the sel
   expect((await state(page)).scene.figures).toHaveLength(2);
 
   // Ctrl+D duplicates the selected prop.
-  await set.getByRole('button', { name: 'Bar stool', exact: true }).click();
+  await (await outline(page, 'Set')).getByRole('button', { name: 'Bar stool', exact: true }).click();
   await page.keyboard.press('Control+d');
-  await expect(set.getByRole('button', { name: 'Bar stool 2', exact: true })).toBeVisible();
+  await expect((await outline(page, 'Set')).getByRole('button', { name: 'Bar stool 2', exact: true })).toBeVisible();
 
   // Right-click a scene in the picker.
   const scenes = await openScenes(page);
@@ -436,7 +445,7 @@ test('Shift-drag twists a part; handheld props go in the hand; the scene exports
   expect(after.bones.neck).toEqual(before.bones.neck);
 
   // A phone goes into the selected figure's hand, which grips it.
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  await (await outline(page, 'Cast')).getByRole('button').first().click();
   await addLayer(page, 'Phone');
   const prop = (await state(page)).scene.props[0] as unknown as { hold?: { hand: string } };
   expect(prop.hold?.hand).toBe('R');
@@ -463,7 +472,7 @@ test('figures, props, body and hands', async ({ page }) => {
   expect(s.props).toHaveLength(1);
 
   // The chair is selected: pick the new figure again, then its body.
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: 'Figure 2', exact: true }).click();
   await page.getByRole('button', { name: 'Body & colour' }).click();
   await page.getByRole('radiogroup', { name: 'Man or woman' }).getByRole('radio', { name: 'Man', exact: true }).click();
   s = (await state(page)).scene;
@@ -473,7 +482,7 @@ test('figures, props, body and hands', async ({ page }) => {
   // Escape selects nothing: the inspector shows the scene; the figure is picked again for its hands.
   await page.keyboard.press('Escape');
   await expect(page.getByRole('textbox', { name: 'Scene name' }).last()).toBeVisible();
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Figure 2', exact: true }).click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: 'Figure 2', exact: true }).click();
   await unfold(page, 'Hands');
   await page.getByRole('button', { name: 'Fist' }).click();
   s = (await state(page)).scene;
@@ -568,7 +577,7 @@ test('mobile layout uses drawers', async ({ page }) => {
   await expect(page.locator('.side')).not.toBeInViewport();
   // The scene's outline is in the inspector's drawer.
   await page.getByRole('button', { name: 'Inspector', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+  await expect((await outline(page, 'Cast'))).toBeVisible();
   await page.locator('.scrim').click({ position: { x: 20, y: 400 } });
   // Scenes switch from the top bar.
   await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
@@ -760,7 +769,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   expect((await state(page)).scene.name).toBe('Group photo');
   const people = (await state(page)).scene.figures.length;
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  await (await outline(page, 'Cast')).getByRole('button').first().click();
   dialog = await newSceneDialog(page);
   await dialog.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
   // Its first role on the figure selected, the second on the one nearest it: nobody new.
@@ -823,7 +832,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   await expect(page.locator('.letterbox')).toBeVisible();
   // The shot's camera move: from its inspector to the library's camera moves.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 1 / }).click();
+  await (await outline(page, 'Shots')).getByRole('button', { name: /Shot 1 / }).click();
   await page.getByRole('button', { name: 'Choose a camera move…' }).click();
   await page.getByRole('region', { name: 'Camera moves' }).getByRole('button', { name: 'Orbit 360°' }).click();
   const filmed = await anim(page);
@@ -884,7 +893,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeGreaterThan(0.1);
   expect(after[1]).toBeCloseTo(before[1], 2);
   // The camera is an object of the scene: listed in the outline, with an inspector of its own.
-  await page.getByRole('list', { name: 'Cameras' }).getByRole('button', { name: /^Camera 1/ }).click();
+  await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).click();
   await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
   await unfold(page, 'Shots');
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
@@ -919,13 +928,12 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   await page.getByRole('menuitem', { name: 'New camera from the view' }).click();
   await expect(timeline.getByRole('button', { name: 'Camera 2', exact: true })).toBeVisible();
   // Selected in the outline, the first camera: it places itself by its rule, nothing to edit on the timeline (no row).
-  const cameras = page.getByRole('list', { name: 'Cameras' });
-  await cameras.getByRole('button', { name: /^Camera 1/ }).click();
+  await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).click();
   await expect(page.locator('.tl-row.camera')).toHaveCount(0);
   // Selected, it shows its picture in the canvas's corner.
   await expect(page.getByRole('button', { name: 'Look through Camera 1' })).toBeVisible();
   // Looked through from its menu: a banner says the view moves it; Ctrl+D copies it.
-  await cameras.getByRole('button', { name: /^Camera 1/ }).click({ button: 'right' });
+  await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).click({ button: 'right' });
   await page.getByRole('menuitemradio', { name: 'Look through it' }).click();
   await expect(page.locator('.letterbox-banner')).toHaveText(/^Moving Camera 1 at \d+\.\d\d s: drag to change it · Esc to stop$/);
   await page.keyboard.press('Control+d');
@@ -961,7 +969,7 @@ test('a still scene can be animated with auto-keys', async ({ page }) => {
 
 test('the timeline grows: the playhead goes past the end and a key there lengthens it; a row\'s + at its end; shortening asks to scale or cut', async ({ page }) => {
   await animate(page);
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
   let s = await live(page);
   const d = s.scene.animation!.duration;
   // A click in the faint stretch past the end puts the playhead there; a key there lengthens the animation.
@@ -997,7 +1005,7 @@ test('the timeline grows: the playhead goes past the end and a key there lengthe
 
 test('keyframes pose to pose: a key held until the next, a pose held for a time, a keyed block repeated and kept as a motion', async ({ page }) => {
   await animate(page);
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
   for (let i = 0; i < 24; i++) await page.keyboard.press('.');
   await page.keyboard.press('k');
   let s = await live(page);
@@ -1031,7 +1039,7 @@ test('keyframes pose to pose: a key held until the next, a pose held for a time,
 
 test('keys picked together with Shift-click move together; a correction is a band of its own', async ({ page }) => {
   await animate(page);
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
   for (let k = 0; k < 2; k++) {
     for (let i = 0; i < 24; i++) await page.keyboard.press('.');
     await page.keyboard.press('k');
@@ -1087,7 +1095,7 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   await expect(page.locator('.tl-shot')).toHaveCount(2);
   // Shots are listed in the Scene outline and edited in the inspector.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Shots' }).getByRole('button', { name: /Shot 2 / }).click();
+  await (await outline(page, 'Shots')).getByRole('button', { name: /Shot 2 / }).click();
   await page.getByRole('textbox', { name: 'Shot caption' }).fill('She waves back');
   // Shortcuts are off while typing.
   await page.getByRole('textbox', { name: 'Shot caption' }).blur();
@@ -1183,7 +1191,7 @@ test('motion check flags foot sliding and jumps to it', async ({ page }) => {
 
 test('stand-ins block a scene in a posture and can become posable figures', async ({ page }) => {
   await addLayer(page, 'Stand-in');
-  await expect(page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: 'Stand-in', exact: true })).toBeVisible();
+  await expect((await outline(page, 'Cast')).getByRole('button', { name: 'Stand-in', exact: true })).toBeVisible();
   await page.getByRole('radio', { name: 'Sit' }).click();
   let s = await state(page);
   const standIn = () => s.scene.figures.find((f) => f.id === s.activeFigure) as unknown as { proxy?: string; bones: Bones };
@@ -1241,11 +1249,10 @@ test('each figure has its own key track', async ({ page }) => {
   const [first, second] = (await live(page)).scene.figures;
   await animate(page);
   // Each keyed at 1 s: the second, then the first.
-  const cast = page.getByRole('list', { name: 'Cast' });
-  await cast.getByRole('button', { name: new RegExp(`^${second.name}\\b`) }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: new RegExp(`^${second.name}\\b`) }).first().click();
   for (let i = 0; i < 24; i++) await page.keyboard.press('.');
   await page.keyboard.press('k');
-  await cast.getByRole('button', { name: new RegExp(`^${first.name}\\b`) }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: new RegExp(`^${first.name}\\b`) }).first().click();
   await page.keyboard.press('k');
   const key = (f: { name: string }) => page.getByRole('button', { name: new RegExp(`^${f.name} key at 1.00 s`) });
   await expect(key(first)).toBeVisible();
@@ -1277,7 +1284,7 @@ test('the side panel shows a library category at a time, folds away and remember
   await expect(page.getByRole('tabpanel').getByRole('searchbox', { name: 'Search motions' })).toBeVisible();
   // The scene's outline is on the right, over the inspector, whichever is open.
   await animate(page);
-  await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
+  await expect((await outline(page, 'Shots'))).toBeVisible();
   // Clicking the open section folds the panel; the canvas gets the room.
   const before = (await page.locator('.stage').boundingBox())!.width;
   await page.getByRole('tab', { name: 'Motions', exact: true }).click();
@@ -1286,7 +1293,7 @@ test('the side panel shows a library category at a time, folds away and remember
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
-  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
+  await expect((await outline(page, 'Cast'))).toBeVisible();
   await libraryShows(page, 'Poses');
   await expect(page.getByRole('region', { name: 'Poses' }).first()).toBeVisible();
 });
@@ -1366,7 +1373,7 @@ test('the command palette finds commands, scenes and Library items; Move to… w
     return palette;
   };
   // A Library item, found by the Library's own search: a pose on the selected figure.
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button').first().click();
+  await (await outline(page, 'Cast')).getByRole('button').first().click();
   await (await find('cobra')).getByRole('option', { name: /^Poses: Cobra/ }).click();
   await expect(page.getByText('Figure: Cobra')).toBeVisible();
   // A command with its key, and a command's choice.
@@ -1404,14 +1411,14 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   await addLayer(page, 'Figure');
   const [first, second] = await figs(page);
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure 2/ }).click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure 2/ }).click();
   await page.keyboard.press('/');
   await expect(page.locator('.bar-hint')).toHaveText(/^Only Figure 2/);
   await page.keyboard.press('/');
   await expect(page.locator('.bar-hint')).not.toHaveText(/^Only/);
 
   // Resting on an outline row links its figure on the canvas.
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure$/ }).hover();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure$/ }).hover();
   await expect.poll(() => state(page).then((x) => (x as unknown as { linked: string | null }).linked)).toBe(first.id);
 
   // A pose dragged from the Library onto the figure that is not selected: it takes it.
@@ -1554,9 +1561,8 @@ test('several things at once: Shift-click adds to the selection; they move toget
   await page.waitForTimeout(400);
   const [first, second] = (await live(page)).scene.figures;
   // Shift-click the other figure in the outline: both selected.
-  const cast = page.getByRole('list', { name: 'Cast' });
-  await cast.getByRole('button', { name: /^Figure$/ }).click();
-  await cast.getByRole('button', { name: /^Figure 2/ }).click({ modifiers: ['Shift'] });
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure$/ }).click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure 2/ }).click({ modifiers: ['Shift'] });
   await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('2 selected');
   // Dragging one moves both.
   const chest = await project(page, 'chest');
@@ -1579,8 +1585,7 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   test.setTimeout(240_000);
   await page.keyboard.press('1');
   await page.waitForTimeout(300);
-  const cast = page.getByRole('list', { name: 'Cast' });
-  await cast.getByRole('button', { name: /^Figure$/ }).click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure$/ }).click();
   // The hint says what the keys do (once the next step it suggests is put off).
   while (await page.getByRole('button', { name: 'Not now' }).isVisible()) await page.getByRole('button', { name: 'Not now' }).click();
   await expect(page.locator('.bar-hint')).toContainText('Arrows: move Figure');
@@ -1612,7 +1617,7 @@ test('steps from the keyboard: arrows move what is selected, Alt turns it, Shift
   await expect(page.locator('.drag-readout')).toHaveText(/^Left forearm · Bend −?\d+°$/);
   // The light: ← moves it round 15°.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Lights' }).getByRole('button', { name: 'Key light', exact: true }).click();
+  await (await outline(page, 'Lights')).getByRole('button', { name: 'Key light', exact: true }).click();
   const az = async () => (await live(page)).scene.lighting?.lights[0].azimuth ?? 40;
   const a0 = await az();
   await page.keyboard.press('ArrowLeft');
@@ -1630,7 +1635,7 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
   const [ex, ez] = end(s);
   await page.keyboard.press('1');
   await page.waitForTimeout(300);
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure animated$/ }).click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure animated$/ }).click();
   // From the front, Ctrl → moves all it does 5 cm along +X, Shift three steps more; no key is added.
   await page.keyboard.press('Control+ArrowRight');
   await page.keyboard.press('Control+Shift+ArrowRight');
@@ -1666,7 +1671,7 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
 
 test('steps found on the canvas: ⟲ and ⟳ beside the floor ring', async ({ page }) => {
   // The figure: ⟲ turns it 15° anticlockwise seen from above (to its left).
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
   const facing = async () => facingOf((await figs(page))[0].bones as Bones);
   const f0 = await facing();
   await page.getByRole('button', { name: /^Turn 15° anticlockwise/ }).click();
@@ -1791,7 +1796,7 @@ test('a motion goes on the selected figure only', async ({ page }) => {
 
   // The first takes the hit: timed to land with the second's punch.
   await openSection(page, 'Scene');
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure\b/ }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure\b/ }).first().click();
   await openSection(page, 'Library');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Take a hit [\d.]+ s$/ }).click();
   const hit = () => live(page).then((x) => x.scene.animation!.actions.find((a) => a.source.kind === 'clip' && a.roles[0].figure !== second.id)!);
@@ -1805,10 +1810,9 @@ test('a motion goes on the selected figure only', async ({ page }) => {
 test('sports gear: dribble and shoot at a basketball hoop, toss a gym hoop, a ribbon; the high jump set-up', async ({ page }) => {
   await addLayer(page, 'Basketball hoop');
   await addLayer(page, 'Ball');
-  const set = page.getByRole('list', { name: 'Set' });
   const propMenu = async (name: string, item: string | RegExp) => {
     // A held prop's row also says whose hand it is in.
-    await set.getByRole('button', { name: new RegExp(`^${name}( In|$)`) }).click({ button: 'right' });
+    await (await outline(page, 'Set')).getByRole('button', { name: new RegExp(`^${name}( In|$)`) }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: item }).click();
   };
   await propMenu('Ball', /right hand$/);
@@ -1883,8 +1887,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
 
   // The key light, selected in the outline: in Line art it says where it shows, and switches to Clay.
   await openSection(page, 'Scene');
-  const lights = page.getByRole('list', { name: 'Lights' });
-  await lights.getByRole('button', { name: 'Key light', exact: true }).click();
+  await (await outline(page, 'Lights')).getByRole('button', { name: 'Key light', exact: true }).click();
   await page.getByRole('button', { name: 'Switch to Clay' }).click();
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Clay');
   // The Dusk scheme (from the Library's Lighting), kept with the scene: a low warm key light and a cool fill.
@@ -1895,12 +1898,12 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   s = await live(page);
   expect(s.scene.lighting!.lights.map((l) => [l.kind, l.name])).toEqual([['sun', 'Key light'], ['lamp', 'Fill light']]);
   expect(s.scene.lighting!.lights[0].kelvin).toBeLessThanOrEqual(3000);
-  await expect(lights.getByRole('button', { name: 'Fill light', exact: true })).toBeVisible();
+  await expect((await outline(page, 'Lights')).getByRole('button', { name: 'Fill light', exact: true })).toBeVisible();
   // The key light lit from the left, from the view (its menu).
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('3');
   await page.waitForTimeout(400);
-  await lights.getByRole('button', { name: 'Key light', exact: true }).click({ button: 'right' });
+  await (await outline(page, 'Lights')).getByRole('button', { name: 'Key light', exact: true }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Light from this view' }).click();
   s = await live(page);
   expect(Math.abs(s.scene.lighting!.lights[0].azimuth - 90)).toBeLessThan(5);
@@ -1910,7 +1913,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   // (Added from the outline's Lights: the new one selected there.)
   await page.getByRole('button', { name: 'Add a light' }).click();
   await page.getByRole('menuitem', { name: 'Rim light' }).click();
-  await expect(lights.locator('li.on')).toContainText('Rim light');
+  await expect((await outline(page, 'Lights')).locator('li.on')).toContainText('Rim light');
   await page.getByRole('radiogroup', { name: 'Light colour' }).getByRole('radio', { name: 'Street lamp' }).click();
   s = await live(page);
   expect(s.scene.lighting!.lights[2]).toMatchObject({ kind: 'lamp', name: 'Rim light', color: '#ffd09e', shadows: false });
@@ -2009,7 +2012,7 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
 test('the timeline zooms, retimes a stretch, plays slower and folds away', async ({ page }) => {
   // Keys every half second.
   await animate(page);
-  await page.getByRole('list', { name: 'Cast' }).getByRole('button', { name: /^Figure/ }).first().click();
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
   for (let k = 0; k < 3; k++) {
     for (let i = 0; i < 12; i++) await page.keyboard.press('.');
     await page.keyboard.press('k');

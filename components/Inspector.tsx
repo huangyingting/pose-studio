@@ -1,75 +1,72 @@
 'use client';
 
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
+import type { Selection } from '@/lib/types';
 import { Header, INSPECTOR_SECTIONS } from './inspector/sections';
-import { targetOf, type InspectorContext } from './inspector/target';
+import { targetOf, type InspectorContext, type Target } from './inspector/target';
 import OutlineSection from './side/OutlineSection';
 import { useScene, useStore, useStudio } from './store-context';
 import { PanelEdge, Section, type HeaderChrome } from './ui';
 
 export type { InspectorContext } from './inspector/target';
 
-/** How short the outline and the inspector under it can be dragged (px). */
-const MIN_HEIGHT = 120;
-
 /**
- * The right-hand panel: the open scene's outline (its cast, set, cameras, lights and shots) over
- * the inspector of what is selected, as a design tool's layers over its properties. The
- * inspector's sections are a list (inspector/sections.ts). Dragging the line between them shares
- * the height; the panel folds away for more canvas (the top bar's button).
+ * The right-hand panel, one level at a time: the scene (its outline: cast, set, cameras, lights,
+ * shots), and below it what is selected: a figure (and below it one of its parts, or an action
+ * on its track), a prop, a camera, a light, a shot or several things. Picking something (in the
+ * outline or on the canvas) goes down to it; the crumbs above it go back up, the selection kept
+ * (to Shift-click more in the outline); nothing selected (Esc, a click on the empty canvas) is the
+ * scene. An item's sections are a list
+ * (inspector/sections.ts). The panel folds away for more canvas (the top bar's button).
  */
 export default function Inspector({ ctx, onPhoto }: { ctx: InspectorContext; onPhoto(): void }) {
   const store = useStore();
   // What the target is made of: the selection, the active figure, the scene, the library.
-  useStudio((s) => s.selection);
+  const selection = useStudio((s) => s.selection);
   useStudio((s) => s.activeFigure);
+  // Gone back up to the scene from this selection (a new one goes down to it).
+  const [upFrom, setUpFrom] = useState<Selection | undefined>(undefined);
   useStudio((s) => s.library);
-  const outlineHeight = useStudio((s) => s.settings.outlineHeight);
   useScene();
   const t = targetOf(store, ctx);
-  const chrome: HeaderChrome = {};
-  const sections = INSPECTOR_SECTIONS.filter((s) => s.when(t));
-  // (Dragged up or down from where it was; a double-click: its own height again.)
-  const drag = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const outline = (e.currentTarget.previousElementSibling as HTMLElement).getBoundingClientRect().height;
-    const panel = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().height;
-    const y0 = e.clientY;
-    const move = (ev: PointerEvent) => store.setSettings({ outlineHeight: Math.round(Math.min(panel - MIN_HEIGHT, Math.max(MIN_HEIGHT, outline + ev.clientY - y0))) });
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('resizing'); };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    document.body.classList.add('resizing');
-  };
-  return (
-    <aside className="panel" aria-label="Inspector" style={outlineHeight ? ({ '--outline-h': `${outlineHeight}px` } as CSSProperties) : undefined}>
-      <PanelEdge
-        label="Resize the panel"
-        side="left"
-        width={() => document.querySelector('.panel')?.getBoundingClientRect().width ?? 288}
-        onWidth={(w) => {
-          const next = { ...store.getState().settings.widths };
-          if (w === null) delete next.inspector;
-          else next.inspector = w;
-          store.setSettings({ widths: next });
-        }}
-      />
-      <div className="panel-outline">
+  const up = upFrom === selection ? null : above(t);
+  const width = (
+    <PanelEdge
+      label="Resize the panel"
+      side="left"
+      width={() => document.querySelector('.panel')?.getBoundingClientRect().width ?? 288}
+      onWidth={(w) => {
+        const next = { ...store.getState().settings.widths };
+        if (w === null) delete next.inspector;
+        else next.inspector = w;
+        store.setSettings({ widths: next });
+      }}
+    />
+  );
+  if (!up) {
+    return (
+      <aside className="panel" aria-label="Inspector">
+        {width}
         <OutlineSection notify={ctx.notify} notifyUndo={ctx.notifyUndo} onPhoto={onPhoto} />
-      </div>
-      <div
-        className="panel-split"
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize the outline"
-        data-tip="Drag: more outline or more inspector (double-click: as it was)"
-        onPointerDown={drag}
-        onDoubleClick={() => store.setSettings({ outlineHeight: 0 })}
-      />
+      </aside>
+    );
+  }
+  const chrome: HeaderChrome = {};
+  return (
+    <aside className="panel" aria-label="Inspector">
+      {width}
+      <nav className="crumbs" aria-label="Up to">
+        {up.map((c) => (
+          <Fragment key={c.label}>
+            <button type="button" className="crumb" onClick={() => (c.to ? store.select(c.to) : setUpFrom(selection))}>{c.label}</button>
+            <ChevronRight size={12} aria-hidden />
+          </Fragment>
+        ))}
+      </nav>
       <div className="panel-scroll">
         <Header t={t} chrome={chrome} />
-        {sections.length ? sections.map((s) => (
+        {INSPECTOR_SECTIONS.filter((s) => s.when(t)).map((s) => (
           <Section
             key={s.id}
             id={s.id}
@@ -81,8 +78,17 @@ export default function Inspector({ ctx, onPhoto }: { ctx: InspectorContext; onP
           >
             <s.Panel t={t} />
           </Section>
-        )) : <p className="panel-empty">Pick something in the scene, or on the canvas, to change it here.</p>}
+        ))}
       </div>
     </aside>
   );
+}
+
+/** The levels above what is shown, from the scene down (none: the scene itself is shown). */
+function above(t: Target): { label: string; to: Selection }[] | null {
+  const scene = { label: 'Scene', to: null };
+  // A part of a figure, or an action on its track: under the figure.
+  const owner = t.joint ? t.figure : t.action ? t.scene.figures.find((f) => f.id === t.actionFigure) : undefined;
+  if (owner) return [scene, { label: owner.name, to: { kind: 'figure', figure: owner.id } }];
+  return t.figure || t.prop || t.span || t.camera || t.action || t.light || t.ambient || t.many ? [scene] : null;
 }

@@ -1946,8 +1946,6 @@ body.resizing { cursor: col-resize; user-select: none; }
   box-shadow: var(--shadow-float); color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
 }
 
-/* The right-hand panel: the scene's outline over the inspector, the line between them dragged. */
-.panel-outline { display: flex; flex-direction: column; flex: 0 0 var(--outline-h, 42%); min-height: 120px; overflow: hidden; }
-.panel-split { flex: none; height: 5px; margin: -2px 0; border-top: 1px solid var(--border); cursor: row-resize; position: relative; z-index: 1; }
-.panel-split:hover { border-top: 2px solid var(--accent); }
-.panel-empty { margin: 16px 14px; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+/* The right-hand panel: the crumbs back up to the scene, over what is selected. */
+.crumbs { display: flex; align-items: center; gap: 2px; flex: none; min-width: 0; height: 32px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--border); color: var(--text-3); overflow: hidden; }
+.crumbs .crumb { margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
