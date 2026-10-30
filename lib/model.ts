@@ -386,17 +386,20 @@ export class ModelRig {
       return look?.map && (hair || look.alpha !== 'opaque') ? { map: look.map, color: hair ? ink.uniforms.color : WHITE } : undefined;
     });
     this.scalp = this.meshes.map((mesh) => /scalp/i.test((mesh.material as THREE.Material).name ?? ''));
-    // (Where its eyes and brows are meshes of their own, only they are inked: the skin's texture,
-    // shaded round the eyes, the nose and the mouth, would blot.)
+    // Only the skin's and the face's are inked (a hood, a helmet or a hat over the head is drawn as
+    // the clothes are: its dark cloth would ink solid): what is named so, or a character in one
+    // piece; where its eyes and brows are meshes of their own, only they (the skin's texture,
+    // shaded round the eyes, the nose and the mouth, would blot).
     const own = this.meshes.some((mesh) => /brow/i.test(nameOf(mesh)));
-    this.features = this.meshes.map((mesh, i) => (own && !/eye|brow|lash/i.test(nameOf(mesh)) ? undefined : this.featuresOf(mesh, i, nameOf(mesh))));
+    const face = (name: string) => (own ? /eye|brow|lash/i : /body|head|face|eye|brow|lash/i).test(name) || this.meshes.length === 1;
+    this.features = this.meshes.map((mesh, i) => (face(mesh.name) ? this.featuresOf(mesh, i) : undefined));
   }
 
-  /** A mesh's face features, if it has a texture and is of the head (not its hair). */
-  private featuresOf(mesh: THREE.Mesh, i: number, named: string): THREE.Mesh | undefined {
+  /** A mesh's face features, if it has a texture and is of the head. */
+  private featuresOf(mesh: THREE.Mesh, i: number): THREE.Mesh | undefined {
     const map = this.looks[i]?.map;
     const head = this.fitted.bones.get('head');
-    if (!map || !head || /hair|hat|helmet|cap\b/i.test(named)) return undefined;
+    if (!map || !head) return undefined;
     const ofHead = new Set<THREE.Object3D>();
     head.traverse((o) => { ofHead.add(o); });
     const skinned = mesh as THREE.SkinnedMesh;
@@ -404,7 +407,7 @@ export class ModelRig {
     for (let o: THREE.Object3D | null = mesh.parent; o; o = o.parent) under ||= ofHead.has(o);
     const indices = new Set(skinned.isSkinnedMesh ? skinned.skeleton.bones.flatMap((b, k) => (ofHead.has(b) ? [k] : [])) : []);
     if (!weighHead(mesh.geometry, indices, !skinned.isSkinnedMesh && under)) return undefined;
-    const material = featureMaterial(map, this.ink.uniforms.color, /\beyes?\b/i.test(named) && !/brow|lash/i.test(named));
+    const material = featureMaterial(map, this.ink.uniforms.color, /eyes?\b|eyes?_/i.test(mesh.name) && !/brow|lash/i.test(mesh.name));
     let f: THREE.Mesh;
     if (skinned.isSkinnedMesh) {
       const sk = new THREE.SkinnedMesh(mesh.geometry, material);

@@ -77,7 +77,8 @@ export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color 
         // Fills: very dark, and much darker than around (pupils, lashes).
         float fill = smoothstep(0.32, 0.12, sharp) * smoothstep(0.7, 0.45, sharp / max(around, 0.05));
         #ifdef EYE
-          fill = max(fill, smoothstep(0.62, 0.5, sharp));
+          // (An iris: much darker than the white round it, not only at its rim.)
+          fill = max(fill, smoothstep(0.75, 0.6, sharp / max(around, 0.05)) * smoothstep(0.7, 0.55, sharp));
         #endif
         float ink = max(line, fill) * t.a * smoothstep(0.3, 0.6, vHead);
         if (ink < 0.3) discard;
