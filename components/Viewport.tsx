@@ -29,7 +29,7 @@ import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
 import type { Contact } from '@/lib/relations';
 import CameraHandles, { stepRig } from './CameraHandles';
-import LightHandles from './LightHandles';
+import LightHandles, { LightingCircle } from './LightHandles';
 import { STEPS, snapping } from './modifiers';
 import { useProjectSettings, useStudio } from './store-context';
 import { dragged, endDrag } from './dragdrop';
@@ -533,6 +533,9 @@ export default function Viewport({
         {!shotMode && <HoverGhost />}
         {handles && (styleDef(look.style).lit || selection?.kind === 'light') && (
           <LightHandles store={store} scene={scene} sv={sv} selected={selection?.kind === 'light' ? selection.light : null} lit={styleDef(look.style).lit} />
+        )}
+        {handles && selection?.kind === 'lighting' && (
+          <LightingCircle store={store} scene={scene} time={time} />
         )}
         <ShotDriver store={store} scene={scene} clock={clock} time={time} through={through} captureRef={captureRef} />
         {handles && (
