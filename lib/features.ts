@@ -32,10 +32,14 @@ export function weighHead(geometry: THREE.BufferGeometry, head: Set<number>, who
   return any;
 }
 
-/** The ink for a texture's features, in `color` (shared: the style's line colour). */
-export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color }): THREE.ShaderMaterial {
+/**
+ * The ink for a texture's features, in `color` (shared: the style's line colour). `eye`: an eye of
+ * its own (a mesh), its iris filled (an eye with its pupil, as drawn), not only its rim.
+ */
+export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color }, eye = false): THREE.ShaderMaterial {
   map.updateMatrix();
   return new THREE.ShaderMaterial({
+    ...(eye ? { defines: { EYE: '' } } : {}),
     uniforms: { map: { value: map }, mapTransform: { value: map.matrix }, color },
     transparent: true,
     depthWrite: false,
@@ -72,6 +76,9 @@ export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color 
         float line = smoothstep(0.07, 0.2, around - sharp);
         // Fills: very dark, and much darker than around (pupils, lashes).
         float fill = smoothstep(0.32, 0.12, sharp) * smoothstep(0.7, 0.45, sharp / max(around, 0.05));
+        #ifdef EYE
+          fill = max(fill, smoothstep(0.62, 0.5, sharp));
+        #endif
         float ink = max(line, fill) * t.a * smoothstep(0.3, 0.6, vHead);
         if (ink < 0.3) discard;
         gl_FragColor = vec4(color, ink);
@@ -81,10 +88,11 @@ export function featureMaterial(map: THREE.Texture, color: { value: THREE.Color 
 }
 
 /**
- * Hair in one colour (`color`: the style's line colour), where its texture is (its cards' clear
- * parts cut away): solid, as hair is drawn in ink, with no pale gaps at the hairline.
+ * A part in one colour where its texture is, its clear parts cut away: hair in the style's line
+ * colour, solid as hair is drawn in ink (no pale gaps at the hairline); an eye, a brow or a lash
+ * white, their features inked over them (an eye's clear cornea not hiding its iris).
  */
-export function hairMaterial(map: THREE.Texture, color: { value: THREE.Color }): THREE.ShaderMaterial {
+export function cutoutMaterial(map: THREE.Texture, color: { value: THREE.Color }): THREE.ShaderMaterial {
   map.updateMatrix();
   return new THREE.ShaderMaterial({
     uniforms: { map: { value: map }, mapTransform: { value: map.matrix }, color },
@@ -104,12 +112,12 @@ export function hairMaterial(map: THREE.Texture, color: { value: THREE.Color }):
       uniform vec3 color;
       varying vec2 vUv;
       void main() {
-        if (texture2D(map, vUv).a < ${HAIR_CUTOFF.toFixed(2)}) discard;
+        if (texture2D(map, vUv).a < ${CUTOFF.toFixed(2)}) discard;
         gl_FragColor = vec4(color, 1.0);
         #include <colorspace_fragment>
       }`,
   });
 }
 
-/** Where hair's texture is clear enough to be cut away (as drawn, outlined and lined). */
-export const HAIR_CUTOFF = 0.5;
+/** Where a texture is clear enough to be cut away (as drawn, outlined and lined). */
+export const CUTOFF = 0.5;

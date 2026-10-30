@@ -1,6 +1,6 @@
 /*
  * Characters made built-in ones (public/characters/<id>.glb and .png): Mixamo's, figures rigged by
- * scripts/characters/rig.py (Sketchfab's), and the Man, Woman and Child made with MakeHuman
+ * scripts/characters/rig.py (Sketchfab's), and the Man, Woman and women in dresses made with MakeHuman
  * (scripts/characters/makehuman.py).
  *
  *     npm run dev -- -p 3399    (then, in another terminal)
@@ -122,9 +122,8 @@ await page.goto(APP);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 await page.waitForSelector('.stage canvas');
-const tab = page.getByRole('tab', { name: 'Library', exact: true });
+const tab = page.getByRole('tablist', { name: 'Sections' }).getByRole('tab', { name: 'Characters', exact: true });
 if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
-await page.getByRole('tablist', { name: 'Library' }).getByRole('tab', { name: 'Characters', exact: true }).click();
 
 type Page = { __poseStudio: { store: { getState(): { library: { models?: { id: string; thumb?: string }[] } } } } };
 for (const file of files) {

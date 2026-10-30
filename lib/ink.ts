@@ -81,6 +81,9 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
   });
 }
 
+/** How sharply a character's surface folds in to be lined (the mannequin's from 16). */
+const SKIN_CREASES = 60;
+
 /** Translucent single-colour look for onion-skin ghosts. */
 export interface Ghost {
   color: string;
@@ -151,7 +154,7 @@ const PIECES_FRAG = /* glsl */ `
 
 interface StyleMaterials {
   body: THREE.Material;
-  /** A character's body: as the mannequin's, without the creases (its face's own folds would blot). */
+  /** A character's body: as the mannequin's, only its sharpest creases lined (its face's finer folds would blot). */
   skin?: THREE.Material;
   bodySel: THREE.Material;
   /** Under the pointer: what a drag would move (lighter than the selection). */
@@ -318,7 +321,7 @@ export class Ink {
     }
     const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
     const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
-    const shader = (s: 'ink' | 'sketch' | 'anime' | 'contour', base: string, shade: string, creases = true) => styleMaterial(s, this.uniforms, base, shade, creases);
+    const shader = (s: 'ink' | 'sketch' | 'anime' | 'contour', base: string, shade: string, creases?: number) => styleMaterial(s, this.uniforms, base, shade, creases);
     const contour = (base: string, line: string) => shader('contour', base, line);
     switch (style) {
       case 'shaded':
@@ -358,9 +361,9 @@ export class Ink {
         };
       }
       case 'minimal':
-        return { body: contour(body('#ffffff'), '#a29d93'), skin: shader('contour', body('#ffffff'), '#a29d93', false), bodySel: contour('#e2e9ff', '#a29d93'), hover: contour('#f0f4ff', '#a29d93'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
+        return { body: contour(body('#ffffff'), '#a29d93'), skin: shader('contour', body('#ffffff'), '#a29d93', SKIN_CREASES), bodySel: contour('#e2e9ff', '#a29d93'), hover: contour('#f0f4ff', '#a29d93'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };
       default:
-        return { body: contour(body('#ffffff'), '#0b0b0b'), skin: shader('contour', body('#ffffff'), '#0b0b0b', false), bodySel: contour('#d5e5ff', '#0b0b0b'), hover: contour('#ebf2ff', '#0b0b0b'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
+        return { body: contour(body('#ffffff'), '#0b0b0b'), skin: shader('contour', body('#ffffff'), '#0b0b0b', SKIN_CREASES), bodySel: contour('#d5e5ff', '#0b0b0b'), hover: contour('#ebf2ff', '#0b0b0b'), prop: basic('#fbfbfb'), propSel: basic('#d5e5ff') };
     }
   }
 

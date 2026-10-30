@@ -423,8 +423,9 @@ def dress(body, rig, outfit):
             # Sleeves: how far down the upper arm (0: cut at the shoulder; none: no arm at all, an armhole).
             sleeve = piece.get('sleeves', -0.12)
             cuts = [(Vector((0, 0, a)), down, None), (Vector((0, 0, b)), up, None)]
-            # (Round the arms only for what reaches up to them.)
-            if b > at(0.7):
+            # (Round the arms only for what reaches up to the shoulders: a strapless top's neckline
+            # is straight all round, under the arms too.)
+            if b > at(0.78):
                 cuts += [(s + d * (sleeve * n), d, (s, d, 0.11)) for s, d, n in arms]
 
             def beyond(p, m):
@@ -437,10 +438,13 @@ def dress(body, rig, outfit):
                     if (p - c).dot(n) > -m:
                         return True
                 return False
-            keep = {i for i, p, bone, _ in verts if a - 0.03 <= p.z <= b + 0.03 and 'Hand' not in bone and 'ForeArm' not in bone}
+            # (The arms' skin only for sleeves: a top without them leaves no flap under the arm.)
+            keep = {i for i, p, bone, _ in verts if a - 0.03 <= p.z <= b + 0.03 and 'Hand' not in bone and 'ForeArm' not in bone and (sleeve > 0 or 'Arm' not in bone)}
             o = shell(body, keep, piece['name'], piece.get('offset', 0.01), cuts, piece.get('smooth', 12), piece.get('thick', 0.003))
-            # (The skin a centimetre in from the cut, under the cloth: hidden.)
-            hidden |= {i for i, p, bone, _ in verts if i in keep and not beyond(p, 0.012)}
+            # (The skin well in from the cut, under the cloth, hidden: a face goes with any of its
+            # corners, so a few centimetres keep the body whole wherever the cloth could leave a gap.)
+            # (Never an arm's: no top covers the arm round the armpit.)
+            hidden |= {i for i, p, bone, _ in verts if i in keep and 'Arm' not in bone and not beyond(p, 0.04)}
         plain(o, color, image)
         if image:
             wrap(o, piece.get('tile', 0.3))
@@ -468,15 +472,15 @@ def wrap(obj, tile):
 
 def scalp(body, hair, eyes, color):
     """
-    The skin the hair grows from coloured as the hair (a second material on the body's faces under
-    it): MakeHuman's hair cards leave the scalp showing at the hairline, a pale band and a line.
+    The skin the hair grows from coloured as the hair (a second material on the body's faces right
+    under it, none past its edge): MakeHuman's hair cards leave the scalp showing, a pale band.
     """
     tree = kdtree.KDTree(len(hair.data.vertices))
     for i, v in enumerate(hair.data.vertices):
         tree.insert(hair.matrix_world @ v.co, i)
     tree.balance()
     brow = max((eyes.matrix_world @ v.co).z for v in eyes.data.vertices)
-    head = {i for i, p, bone, _ in body_verts(body) if 'Head' in bone and p.z > brow + 0.03 and tree.find(p)[2] < 0.018}
+    head = {i for i, p, bone, _ in body_verts(body) if 'Head' in bone and p.z > brow + 0.03 and tree.find(p)[2] < 0.01}
     mat = bpy.data.materials.new(body.name + '.scalp')
     mat.use_nodes = True
     mat.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*color, 1.0)
