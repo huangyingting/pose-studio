@@ -313,6 +313,19 @@ describe('a move\'s wait and hold, walls and the floor (#16)', () => {
     expect(Math.abs(((yaw(2) - yaw(0) + 540) % 360) - 180)).toBeCloseTo(45, 0);
     expect(yaw(3.95)).toBeCloseTo(yaw(3.1), 3);
   });
+  it('places its subject with room in front of where it faces (auto)', () => {
+    const { store, a } = fresh();
+    const id = liveCamera(store.scene, 0).id;
+    editCamera(store, id, { subject: a });
+    // From its left (it faces the way the camera's left is): on the right third, room on the left.
+    editRig(store, id, { yaw: 90, place: 'auto' });
+    const b = body(sceneAt(store.scene, 0), a);
+    expect(onScreen(store.scene, 0, b.chest).x).toBeGreaterThan(0.2);
+    // Straight on: in the middle.
+    editRig(store, id, { yaw: 0 });
+    expect(Math.abs(onScreen(store.scene, 0, b.chest).x)).toBeLessThan(0.1);
+  });
+
   it('never leaves a wall between itself and its subject, nor goes under the floor', () => {
     const { store } = fresh();
     store.updateScene((sc) => ({ ...sc, set: 'living-room' }));

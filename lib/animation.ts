@@ -210,7 +210,7 @@ export function parseCameras(raw: unknown): Camera[] {
     ...(typeof r.toward === 'string' && r.toward ? { toward: r.toward.slice(0, 40) } : {}),
     ...(typeof r.clear === 'string' && r.clear ? { clear: r.clear.slice(0, 40) } : {}),
     size: SIZES.includes(r.size as ShotSize) ? r.size as ShotSize : 'fs',
-    ...(r.place === 'left' || r.place === 'right' ? { place: r.place } : {}),
+    ...(r.place === 'left' || r.place === 'right' || r.place === 'auto' ? { place: r.place } : {}),
     lens: num(r.lens, 35, 4, 1200),
     ...(typeof r.smooth === 'number' && r.smooth > 0 ? { smooth: num(r.smooth, 0, 0, 10) } : {}),
   });

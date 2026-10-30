@@ -429,9 +429,12 @@ function compose(body: Body, size: ShotSize | SizeBlend, yaw: number, pitch: num
   // Across the floor too, a close shot centres on the head, a wide one on the whole body.
   const look = new THREE.Vector3(body.x + (body.head.x - body.x) * near, (top + bottom) / 2, body.z + (body.head.z - body.z) * near);
   if (place && place !== 'center') {
-    // On a third: the subject a sixth of the frame's width off the middle.
+    // On a third: the subject a sixth of the frame's width off the middle. (Auto: towards the
+    // third behind where it faces, as far as it faces across the frame: room in front of it.)
     const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-    look.addScaledVector(right, (place === 'left' ? 1 : -1) * (dist * tanV * aspect) / 3);
+    const facing = new THREE.Vector3(Math.sin(body.facing * D2R), 0, Math.cos(body.facing * D2R));
+    const side = place === 'auto' ? THREE.MathUtils.clamp(facing.dot(right) / 0.6, -1, 1) : place === 'left' ? 1 : -1;
+    look.addScaledVector(right, side * (dist * tanV * aspect) / 3);
   }
   return { position: look.clone().addScaledVector(dir, dist), look };
 }

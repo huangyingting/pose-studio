@@ -119,7 +119,7 @@ export function FramingPanel({ t }: { t: Target }) {
               full
               value={place}
               onChange={(p) => { setPlaced(p); frame(size, p); }}
-              options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }]}
+              options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }, ...(rig ? [{ value: 'auto' as const, label: 'Auto', title: 'Room in front of where it faces' }] : [])]}
             />
           </PropertyRow>
         </>

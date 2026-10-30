@@ -383,8 +383,8 @@ export interface RigCamera extends CameraBase {
 /** How much of the body a shot holds: extreme wide … extreme close-up (lib/cameras.ts SHOT_SIZES). */
 export type ShotSize = 'ews' | 'ws' | 'fs' | 'mws' | 'ms' | 'mcu' | 'cu' | 'ecu';
 
-/** Where the subject sits in the frame: in the middle, or on the left or right third. */
-export type Placement = 'center' | 'left' | 'right';
+/** Where the subject sits in the frame: in the middle, on the left or right third, or (auto) with room in front of where it faces. */
+export type Placement = 'center' | 'left' | 'right' | 'auto';
 
 /**
  * A camera that works out where it is every frame from its subject's body, so its shot holds

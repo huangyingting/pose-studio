@@ -6,7 +6,7 @@ import { command } from './commands';
 import { setReadout } from './hints';
 import { useScene, useStore, useStudio } from './store-context';
 
-const PLACES: Record<Placement, string> = { left: 'on the left third', center: 'in the middle', right: 'on the right third' };
+const PLACES: Record<Placement, string> = { left: 'on the left third', center: 'in the middle', right: 'on the right third', auto: 'with room in front of it' };
 
 /**
  * Looking through a camera: the shot's frame over the canvas (with the framing guides), a banner
