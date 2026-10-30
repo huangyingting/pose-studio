@@ -145,7 +145,7 @@ export function CharactersBar({ notify, notifyUndo }: BarProps) {
         <ImportButton
           label="Import character…"
           accept=".vrm,.glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.tga,.webp"
-          tip="A character with a skeleton (VRM, glTF/GLB or FBX: VRoid, Mixamo…), with its textures if they are separate files; in the Toon style, drawn in its own colours"
+          tip="A character with a skeleton (VRM, glTF/GLB or FBX: VRoid, Mixamo…), with its textures if they are separate files; in the Anime and 3D styles, drawn in its own colours"
           fileLabel="Character file"
           reading={imp.reading}
           multiple

@@ -131,7 +131,7 @@ function Lamp({ store, light, dome: { base, radius }, aim, selected, lit }: {
         onPointerDown={down}
         // (The click that follows the press is the lamp's: not a figure's behind it.)
         onClick={(e) => e.stopPropagation()}
-        onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `${light.name}, ${lightText(light).toLowerCase()} · ${how} · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime, Toon and Clay: switch to one in the top bar, or from the light\'s menu'); }}
+        onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `${light.name}, ${lightText(light).toLowerCase()} · ${how} · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime, 3D and Clay: switch to one in the top bar, or from the light\'s menu'); }}
         onPointerOut={() => { document.body.style.cursor = ''; setPointerHint(null); }}
         userData={{ light: light.id }}
       >

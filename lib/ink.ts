@@ -321,7 +321,7 @@ export class Ink {
     }
     const basic = (color: string) => new THREE.MeshBasicMaterial({ color });
     const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
-    const shader = (s: 'ink' | 'sketch' | 'anime' | 'contour', base: string, shade: string, creases?: number) => styleMaterial(s, this.uniforms, base, shade, creases);
+    const shader = (s: 'ink' | 'sketch' | 'contour', base: string, shade: string, creases?: number) => styleMaterial(s, this.uniforms, base, shade, creases);
     const contour = (base: string, line: string) => shader('contour', base, line);
     switch (style) {
       case 'shaded':
@@ -342,15 +342,7 @@ export class Ink {
           prop: shader('ink', '#e8e1d0', '#1d1b18'),
           propSel: shader('ink', '#dde4f2', '#1d1b18'),
         };
-      case 'anime':
-        return {
-          body: shader('anime', body('#fcf2ec'), '#d7bccb'),
-          bodySel: shader('anime', '#dce7ff', '#a6b9e6'),
-          hover: shader('anime', '#ecedf8', '#bfc3dc'),
-          prop: shader('anime', '#eef1f6', '#c2c9d8'),
-          propSel: shader('anime', '#dce7ff', '#a6b9e6'),
-        };
-      case 'toon': {
+      case 'anime': {
         const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms);
         return {
           body: toon(body('#fdf4ef'), '#dcc0cc'),
@@ -359,6 +351,11 @@ export class Ink {
           prop: toon('#f1f3f7', '#c6ccd9'),
           propSel: toon('#dce7ff', '#a6b9e6'),
         };
+      }
+      case 'render': {
+        // (Matte, as a 3D tool's default material: the scene's lights and shadows do the rest.)
+        const standard = (color: string) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0 });
+        return { body: standard(body('#e8e2d9')), bodySel: standard('#a8c6ff'), hover: standard('#d3e1fb'), prop: standard('#d6d2ca'), propSel: standard('#a8c6ff') };
       }
       case 'minimal':
         return { body: contour(body('#ffffff'), '#a29d93'), skin: shader('contour', body('#ffffff'), '#a29d93', SKIN_CREASES), bodySel: contour('#e2e9ff', '#a29d93'), hover: contour('#f0f4ff', '#a29d93'), prop: basic('#f7f6f2'), propSel: basic('#e2e9ff') };

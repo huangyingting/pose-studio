@@ -700,7 +700,8 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   // L cycles through every style.
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('l');
-  expect(await style()).toBe('toon');
+  expect(await style()).toBe('render');
+  await expect(page.getByRole('button', { name: 'Render style' })).toContainText('3D');
   await page.keyboard.press('l');
   expect(await style()).toBe('shaded');
 });

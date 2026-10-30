@@ -534,7 +534,7 @@ export type Selection =
   | null;
 
 /** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
-export const STYLES = ['line', 'sketch', 'ink', 'anime', 'toon', 'shaded', 'minimal'] as const;
+export const STYLES = ['line', 'sketch', 'ink', 'anime', 'render', 'shaded', 'minimal'] as const;
 export type Style = (typeof STYLES)[number];
 /** What a selected prop's gizmo does: move it, or (R) scale it. */
 export type GizmoMode = 'translate' | 'scale';

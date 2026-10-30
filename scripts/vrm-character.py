@@ -7,7 +7,7 @@ What it makes is a GLB the app draws as it draws its other characters:
   - its bones are named as our skeleton's (the VRM humanoid's names: hips, leftUpperArm…), so the
     character's list (lib/characters.ts) maps them one to one;
   - its textures are fitted within 1024 px (the editor and exports never need more), re-encoded;
-  - its MToon materials, its humanoid and who made it (VRMC_vrm) stay as they are: the Toon style
+  - its MToon materials, its humanoid and who made it (VRMC_vrm) stay as they are: the Anime style
     reads them (lib/vrm.ts, lib/toon.ts); its spring bones go (not used yet).
 Only for avatars whose licence lets a changed copy be shared (VRM `modification`:
 allowModificationRedistribution), credited as they ask. Needs Pillow.

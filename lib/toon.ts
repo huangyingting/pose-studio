@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { EXTRA_GLSL, type SharedUniforms } from './shaders';
 
 /*
- * The Toon style's surface (#15): a material in the manner of MToon (the VRM toon material, an
+ * The Anime style's surface (#15): a material in the manner of MToon (the VRM toon material, an
  * open specification), in our own code. A lit colour and a shade colour, each with its texture,
  * split at a crisp edge whose place (`shift`) and softness (`toony`) are the material's; a rim
  * light; a glow; cut-out or blended edges; in the scene's key light. VRM characters bring theirs
@@ -10,7 +10,7 @@ import { EXTRA_GLSL, type SharedUniforms } from './shaders';
  * (paintedLook); the mannequin and props one from their colours (flatLook).
  */
 
-/** How a surface looks in the Toon style. */
+/** How a surface looks in the Anime style. */
 export interface ToonLook {
   /** The lit colour and its texture (multiplied), with its opacity. */
   color: THREE.Color;

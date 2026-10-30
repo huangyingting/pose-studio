@@ -1,6 +1,6 @@
 import {
   Armchair, BookOpen, Box, BrickWall, Brush, Circle, CircleDashed, Coffee, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
-  Ribbon, Smartphone, Smile, Sparkles, SeparatorHorizontal, Sun, Wand,
+  Ribbon, Smartphone, Smile, SeparatorHorizontal, Sun, Wand,
   type LucideIcon,
 } from 'lucide-react';
 import type { PropKind, Style } from '@/lib/types';
@@ -30,8 +30,8 @@ export const STYLE_ICONS: Record<Style, LucideIcon> = {
   line: PenTool,
   sketch: PencilLine,
   ink: Brush,
-  anime: Sparkles,
-  toon: Smile,
+  anime: Smile,
+  render: Box,
   shaded: Sun,
   minimal: Minus,
 };

@@ -7,7 +7,7 @@ import { ownLooks, type ToonLook } from './toon';
  * VRM avatars (VRoid Studio's, and the many made like them) turned into our own on import and each
  * time they are read (#15): the skeleton map from its humanoid (VRM 1.0 `VRMC_vrm`, 0.x `VRM`; our
  * skeleton is the VRM 1.0 humanoid), each material's look from its MToon settings (as a ToonLook,
- * for the Toon style: lib/toon.ts), and who made it and on what terms. The file itself is kept as it
+ * for the Anime style: lib/toon.ts), and who made it and on what terms. The file itself is kept as it
  * is, in the user's own library only.
  */
 

@@ -143,25 +143,6 @@ const SKETCH_FRAG = /* glsl */ `
   }
 `;
 
-/** Anime cel shading: two flat tones with a crisp terminator, a small highlight and rim light. */
-const ANIME_FRAG = /* glsl */ `
-  ${COMMON}
-  void main() {
-    vec3 n = normalize(vNormal);
-    vec3 v = normalize(cameraPosition - vWorld);
-    float d = dot(n, lightDir);
-    float lit = smoothstep(0.0, 0.03, d);
-    vec3 col = mix(shade, base, lit);
-    float spec = smoothstep(0.955, 0.97, dot(n, normalize(lightDir + v)));
-    col = mix(col, vec3(1.0), spec * 0.55);
-    float rim = smoothstep(0.66, 0.7, 1.0 - max(dot(n, v), 0.0)) * lit;
-    col = mix(col, vec3(1.0), rim * 0.35);
-    col += extraLight(n, v, 4.0) * mix(base, vec3(1.0), 0.5);
-    gl_FragColor = vec4(col * lightColor, 1.0);
-    #include <colorspace_fragment>
-  }
-`;
-
 /**
  * Flat, with a line where the surface turns away from the eye inside the figure too (under a
  * breast, the jaw, a knee bent towards the camera), not only round its outside: line art, minimal.
@@ -184,9 +165,9 @@ const CONTOUR_FRAG = /* glsl */ `
   }
 `;
 
-export type ShaderStyle = 'ink' | 'sketch' | 'anime' | 'contour';
+export type ShaderStyle = 'ink' | 'sketch' | 'contour';
 
-const FRAGMENTS: Record<ShaderStyle, string> = { ink: INK_FRAG, sketch: SKETCH_FRAG, anime: ANIME_FRAG, contour: CONTOUR_FRAG };
+const FRAGMENTS: Record<ShaderStyle, string> = { ink: INK_FRAG, sketch: SKETCH_FRAG, contour: CONTOUR_FRAG };
 
 export interface SharedUniforms {
   lightDir: { value: THREE.Vector3 };

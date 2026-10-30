@@ -45,7 +45,7 @@ export const BUILT_IN_CHARACTERS: ModelInfo[] = [
     id: `${PREFIX}aoi`, name: 'Aoi', format: 'glb', bones: OURS, body: { sex: 1, height: 1.49 },
     credit: 'by Ueda · personal use · credit required',
   },
-  // Adobe's Mixamo characters, in their own colours in the Toon style (scripts/characters/import.ts).
+  // Adobe's Mixamo characters, in their own colours in the Anime and 3D styles (scripts/characters/import.ts).
   mixamo('adam', 'Jogger', { sex: 0, height: 1.72 }),
   mixamo('brute', 'Barbarian', { sex: 0, height: 2.14 }),
   mixamo('elizabeth', 'Casual woman', { sex: 1, height: 1.58 }),

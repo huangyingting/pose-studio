@@ -73,7 +73,7 @@ describe('VRM avatars made our own (#15)', () => {
     expect(look.outline.width).toBeCloseTo(1.5, 6);
   });
 
-  it('draws it in its own look in the Toon style (its outline its own), as any character in the others', async () => {
+  it('draws it in its own look in the Anime style (its outline its own), as any character in the others', async () => {
     const info = await importModel('Aoi.vrm', bytes(vrmGltf(1)));
     const root = await parseModel('glb', (await loadModelFile(info.id))!);
     const ink = new Ink();
@@ -82,7 +82,7 @@ describe('VRM avatars made our own (#15)', () => {
     model.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && !(o.parent as THREE.Mesh)?.isMesh) meshes.push(o as THREE.Mesh); });
     const body = meshes[0];
     const hull = body.children[0] as THREE.Mesh;
-    model.setLook('toon', null);
+    model.setLook('anime', null);
     const mat = body.material as THREE.ShaderMaterial;
     expect(mat.uniforms.shade.value.toArray().map((v: number) => +v.toFixed(3))).toEqual([0.6, 0.3, 0.4]);
     expect(hull.material).not.toBe(ink.outline);

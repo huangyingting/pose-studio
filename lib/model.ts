@@ -324,9 +324,10 @@ export class ModelRig {
   private size = '';
   /** Its meshes, drawn in the scene's style as the mannequin is (not in the file's own materials). */
   private meshes: THREE.Mesh[] = [];
-  /** Their own looks, where the file gives them (a VRM avatar's), for the Toon style; and the materials made of them. */
+  /** Their own looks, where the file gives them (a VRM avatar's, a painted one's): their materials in the Anime and 3D styles. */
   private looks: (ToonLook | undefined)[] = [];
-  private toons: (THREE.ShaderMaterial | undefined)[] = [];
+  private toons: (THREE.Material | undefined)[] = [];
+  private renders: (THREE.Material | undefined)[] = [];
   /** Their outline hulls (posed with them). */
   private hulls: THREE.Mesh[] = [];
   /** The face's features inked from its textures, by mesh (lib/features.ts): in the styles drawn with lines. */
@@ -432,7 +433,7 @@ export class ModelRig {
   private linked = false;
   private style: Style = 'line';
 
-  /** Draw it in a style, its body tinted as the figure's colour (in Toon, in its own looks where it has them). */
+  /** Draw it in a style, its body tinted as the figure's colour (in Anime and 3D, in its own looks where it has them). */
   setLook(style: Style, tint: string | null) {
     this.style = style;
     const m = this.ink.materialsFor(style, tint ?? undefined);
@@ -452,16 +453,18 @@ export class ModelRig {
     return (this.cuts[i] ??= cutoutMaterial(cut.map, cut.color));
   }
 
-  /** Whether its face is inked: in the styles drawn with lines (not Clay's value study; Toon in the character's own look). */
+  /** Whether its face is inked: in the styles drawn with lines (not Clay's value study, nor 3D; Anime in the character's own look). */
   private inked() {
-    return this.style !== 'toon' && !!styleDef(this.style).outline;
+    return this.style !== 'anime' && !!styleDef(this.style).outline;
   }
 
-  /** A mesh's own look's material, in the Toon style (made once). */
-  private own(i: number): THREE.ShaderMaterial | undefined {
+  /** A mesh's own look's material: toon-shaded in Anime, as a 3D tool draws it in 3D (made once). */
+  private own(i: number): THREE.Material | undefined {
     const look = this.looks[i];
-    if (this.style !== 'toon' || !look || this.ink.ghost) return undefined;
-    return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms));
+    if (!look || this.ink.ghost) return undefined;
+    if (this.style === 'anime') return (this.toons[i] ??= toonMaterial(look, this.ink.uniforms));
+    if (this.style === 'render') return (this.renders[i] ??= standardOf(look));
+    return undefined;
   }
 
   /** Outline it in the accent (linked to the pointer elsewhere), whatever the style. */
@@ -470,7 +473,7 @@ export class ModelRig {
     const outlined = !!styleDef(this.style).outline;
     this.hulls.forEach((h, i) => {
       // (In its own look: its own outline, or none; none where it is cut out or see-through.)
-      const own = this.own(i) ? this.looks[i]! : null;
+      const own = this.style === 'anime' && this.own(i) ? this.looks[i]! : null;
       const look = own?.outline;
       const cutout = own && own.alpha !== 'opaque' && own.map ? { map: own.map, cutoff: own.alpha === 'mask' ? own.cutoff : 0.5 }
         : this.cutOf(i) ? { map: this.cut[i]!.map, cutoff: CUTOFF } : undefined;
@@ -527,11 +530,19 @@ export class ModelRig {
 
   /** (Its geometry and textures are the model's, shared by every figure drawn as it.) */
   dispose() {
-    for (const m of this.toons) m?.dispose();
+    for (const m of [...this.toons, ...this.renders]) m?.dispose();
     for (const f of this.features) (f?.material as THREE.Material | undefined)?.dispose();
     for (const m of this.cuts) m?.dispose();
     this.object.clear();
   }
+}
+
+/** A look as a 3D tool draws it (the 3D style): its colour and texture, its see-through parts, lit and shadowed by the scene's lights. */
+function standardOf(look: ToonLook) {
+  return new THREE.MeshStandardMaterial({
+    color: look.color, map: look.map, opacity: look.opacity, transparent: look.alpha === 'blend', alphaTest: look.alpha === 'mask' ? look.cutoff : 0,
+    side: look.doubleSided ? THREE.DoubleSide : THREE.FrontSide, emissive: look.emissive, emissiveMap: look.emissiveMap, roughness: 0.75, metalness: 0,
+  });
 }
 
 /** The body of the mannequin under a figure drawn as a character: the character's own (a built-in's), or the figure's. */
@@ -661,7 +672,7 @@ function renamed(data: ArrayBuffer, names: Map<number, string>): ArrayBuffer {
   return out.buffer;
 }
 
-/** A character painted with textures (not a VRM avatar) drawn in its own colours in the Toon style: every mesh, textured or not. */
+/** A character painted with textures (not a VRM avatar) drawn in its own colours in the Anime and 3D styles: every mesh, textured or not. */
 function ownTextures(root: THREE.Object3D) {
   const meshes: THREE.Mesh[] = [];
   root.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
@@ -710,7 +721,7 @@ async function asGlb(format: ModelInfo['format'], data: ArrayBuffer, others: Fil
 /**
  * Its meshes and textures made fit to be written. Of its geometry, what we draw (position, normal,
  * one set of texture coordinates, skin), each vertex once (an FBX's triangles each have their own).
- * Of its textures, only those the Toon style draws (its colour and glow: not
+ * Of its textures, only those the Anime and 3D styles draw (its colour and glow: not
  * normal, roughness… maps); one that did not load (a file not chosen, a kind the browser cannot
  * read) left off (the character imported without it); one read as pixels (a TGA) drawn on a canvas
  * (the exporter fits a canvas within its size, but crops pixels); a JPEG where nothing shows through.
