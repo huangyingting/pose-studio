@@ -11,8 +11,8 @@ import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
 import { saveClips } from './assetstore';
 import { projectSettingsOf } from './project';
-import { MAX_LIGHTS, clampLight, fromPreset, keyLight, lightingOf, newLight, placeLight, type Place } from './lighting';
-import { setLights } from './sets';
+import { MAX_LIGHTS, clampLight, forShotOr, fromPreset, keyLight, lightingOf, lookOf, newLight, placeLight, skyAt, withLook, type Look, type Place } from './lighting';
+import { setById, setLights } from './sets';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -34,7 +34,7 @@ import { openingSelection, type Store } from './store';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -100,21 +100,103 @@ export function renameScene(store: Store, name: string) {
 
 /**
  * Play the open scene in a set (lib/sets.ts), or in none. The set's own lights (its lamps, its
- * windows) come with it, in place of the last set's.
+ * windows) come with it, in place of the last set's; an indoor set makes the scene lit indoors
+ * (#17: its walls cast none of the key's shadows), an outdoor one outdoors.
  */
 export function setSceneSet(store: Store, id: string | null) {
   const before = lightingOf(store.scene);
   const own = id ? setLights(id) : [];
   const kept = before.lights.filter((l) => !l.ofSet);
   const lights = [...kept, ...own].slice(0, MAX_LIGHTS);
+  const indoors = setById(id ?? undefined)?.group === 'Indoor';
+  const { indoors: _was, ...env } = before.environment ?? {};
+  void _was;
+  const environment = indoors ? { ...env, indoors: true as const } : env;
   store.group(() => {
     store.updateScene((s) => {
       const { set: _, ...rest } = s;
       void _;
       return id ? { ...rest, set: id } : rest;
     });
-    if (lights.length && (own.length || kept.length !== before.lights.length)) setLighting(store, { ...before, lights });
+    if (lights.length && (own.length || kept.length !== before.lights.length || indoors !== !!before.environment?.indoors)) setLighting(store, withEnvironment({ ...before, lights }, environment));
   });
+}
+
+/** A lighting with an environment (none if it says nothing). */
+function withEnvironment(l: Lighting, environment: Environment): Lighting {
+  const { environment: _, ...rest } = l;
+  void _;
+  return Object.keys(environment).length ? { ...rest, environment } : rest;
+}
+
+/** The azimuth of the open scene's shot camera now, from the people (what a light placed for the shot is placed from). */
+function shotAzimuth(store: Store) {
+  const s = store.scene;
+  const v = cameraAt(s, s.animation ? store.getState().time : 0);
+  return (Math.atan2(v.position.x - v.target.x, v.position.z - v.target.z) * 180) / Math.PI;
+}
+
+/** Change the open scene's look (#17): its key's direction, height, warmth and softness, its contrast, its rim, its fill and rim with the shot or fixed. */
+export function setLook(store: Store, patch: Partial<Look>, key = '') {
+  setLighting(store, withLook(lightingOf(store.scene), patch, subjectOf(store.scene), shotAzimuth(store)), key);
+}
+
+/**
+ * Change where the open scene is lit (#17): indoors or out, the time of day, the weather. Out of
+ * doors, the time and the weather set the sun (the key, if a sun: its height, warmth, brightness and
+ * softness; its direction kept) and the sky.
+ */
+export function setEnvironment(store: Store, patch: Partial<Record<keyof Environment, unknown>>, key = '') {
+  const l = lightingOf(store.scene);
+  const e: Environment = { ...l.environment };
+  if ('indoors' in patch) {
+    if (patch.indoors) e.indoors = true;
+    else delete e.indoors;
+  }
+  if (typeof patch.time === 'number') e.time = Math.min(24, Math.max(0, patch.time));
+  if ('weather' in patch) {
+    if (patch.weather === 'overcast') e.weather = 'overcast';
+    else delete e.weather;
+  }
+  let next = withEnvironment(l, e);
+  if (!e.indoors && ('time' in patch || 'weather' in patch)) {
+    const sky = skyAt(e.time ?? 12, e.weather);
+    const k = keyLight(next);
+    next = {
+      ...next,
+      lights: next.lights.map((x) => (x.id === k?.id && x.kind === 'sun' ? clampLight({ ...x, elevation: sky.elevation, kelvin: sky.kelvin, color: undefined, intensity: sky.intensity, soft: sky.soft }) : x)),
+      ambient: sky.ambient,
+    };
+  }
+  setLighting(store, next, key);
+}
+
+/** A fill or a rim (a sun) placed for the shot, or fixed in the scene where it is now (#17). */
+export function setLightForShot(store: Store, id: string, on: boolean) {
+  const l = lightingOf(store.scene);
+  const keyAz = lookOf(l, subjectOf(store.scene)).direction;
+  setLighting(store, { ...l, lights: l.lights.map((x) => (x.id === id && x.kind === 'sun' && (x.role === 'fill' || x.role === 'rim') ? forShotOr(x, on, keyAz, shotAzimuth(store)) : x)) });
+}
+
+/** Give one of the scene's lights a role (#17; none: null): one key (the last loses it); a sun as a fill or a rim placed for the shot. */
+export function setLightRole(store: Store, id: string, role: Light['role'] | null) {
+  const l = lightingOf(store.scene);
+  const light = l.lights.find((x) => x.id === id);
+  if (!light) return;
+  const lights = l.lights.map((x) => {
+    if (x.id !== id) return role === 'key' && x.role === 'key' ? clampLight({ ...x, role: undefined }) : x;
+    const { role: _r, relative: _rel, follows: _f, ...rest } = x;
+    void _r; void _rel; void _f;
+    if (!role) return clampLight(rest);
+    const forShot = x.kind === 'sun' && (role === 'fill' || role === 'rim');
+    const follows = role === 'follow' ? store.scene.figures.find((f) => !f.hidden)?.id : undefined;
+    return clampLight({
+      ...rest, role,
+      ...(forShot ? { relative: 'shot' as const, azimuth: role === 'fill' ? 35 : 150, elevation: role === 'fill' ? 15 : 35 } : {}),
+      ...(follows ? { follows } : {}),
+    });
+  });
+  setLighting(store, { ...l, lights });
 }
 
 /** Where the open scene's people are: their middle on the floor, at chest height (what lights are placed round). */
@@ -160,7 +242,11 @@ export function editLight(store: Store, id: string, patch: Partial<Omit<Light, '
 export function placeSceneLight(store: Store, id: string, place: Place) {
   const l = lightingOf(store.scene);
   const light = l.lights.find((x) => x.id === id);
-  if (light) setLighting(store, { ...l, lights: l.lights.map((x) => (x.id === id ? placeLight(l, x, place, subjectOf(store.scene)) : x)) });
+  if (!light) return;
+  store.group(() => {
+    setLighting(store, { ...l, lights: l.lights.map((x) => (x.id === id ? placeLight(l, x, place, subjectOf(store.scene)) : x)) });
+    setLightRole(store, id, place);
+  });
 }
 
 /** Change the scene's ambient light. */
@@ -184,7 +270,10 @@ export function addLight(store: Store, what: LightKind | Place = 'lamp'): string
     intensity: kind === 'lamp' ? 0.8 : 1,
   }));
   if (what === 'key' || what === 'fill' || what === 'rim') light = placeLight(l, light, what, at);
-  setLighting(store, { ...l, lights: [...l.lights, light] });
+  store.group(() => {
+    setLighting(store, { ...l, lights: [...l.lights, light] });
+    if (what === 'key' || what === 'fill' || what === 'rim') setLightRole(store, light.id, what);
+  });
   store.select({ kind: 'light', light: light.id });
   return light.id;
 }
@@ -192,7 +281,8 @@ export function addLight(store: Store, what: LightKind | Place = 'lamp'): string
 /** Take a light out of the scene (not its last one). Whether it was. */
 export function deleteLight(store: Store, id: string) {
   const l = lightingOf(store.scene);
-  if (l.lights.length < 2 || !l.lights.some((x) => x.id === id)) return false;
+  // (A set's own stays with its set: dimmed, not deleted.)
+  if (l.lights.length < 2 || !l.lights.some((x) => x.id === id && !x.ofSet)) return false;
   setLighting(store, { ...l, lights: l.lights.filter((x) => x.id !== id) });
   return true;
 }

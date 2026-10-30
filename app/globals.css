@@ -2011,3 +2011,18 @@ button.scene-line-main:hover { background: var(--hover); }
 .scene-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 6px 29px; }
 .scene-chip { height: 22px; max-width: 100%; padding: 0 8px; border: 0; border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .scene-chip:hover { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+
+/* The scene's lighting (#17): the key's direction dial, the outline's set lights. */
+.look-direction { display: grid; grid-template-columns: 116px 1fr; gap: 10px; align-items: center; }
+.direction-dial { width: 116px; height: 116px; touch-action: none; cursor: grab; border-radius: 50%; outline: none; }
+.direction-dial:focus-visible { box-shadow: 0 0 0 3px var(--accent-ring); }
+.direction-dial .dial-ring { fill: var(--well); stroke: var(--border-strong); stroke-width: 1; }
+.direction-dial .dial-mark { font-size: 9px; fill: var(--text-3); text-anchor: middle; pointer-events: none; }
+.direction-dial .dial-people { fill: var(--key); }
+.direction-dial .dial-camera { fill: var(--text-2); }
+.direction-dial .dial-ray { stroke: var(--warn-strong); stroke-width: 1.5; }
+.direction-dial .dial-key { fill: var(--warn-strong); stroke: var(--panel); stroke-width: 1.5; }
+.direction-dial .dial-fill { fill: #f3d9a4; stroke: var(--panel); stroke-width: 1; }
+.direction-dial .dial-rim { fill: #a9c4ff; stroke: var(--panel); stroke-width: 1; }
+.layers-sub { padding: 6px 8px 2px; font-size: 11px; color: var(--text-3); }
+.name-header-note { font-size: 12px; color: var(--text-3); white-space: nowrap; }

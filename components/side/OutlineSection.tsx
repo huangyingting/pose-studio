@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Camera, Castle, Cloudy, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, UserRound, X } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { Camera, Castle, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound, X } from 'lucide-react';
 import {
   addCamera, addFigure, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
-import { MAX_LIGHTS, lightText, lightingOf } from '@/lib/lighting';
+import { MAX_LIGHTS, ROLE_NAMES, lightText, lightingName, lightingOf } from '@/lib/lighting';
 import { shotSpans } from '@/lib/shots';
 import { setById } from '@/lib/sets';
 import { HANDHELD, PROP_KINDS, PROP_LABELS, type Vec3 } from '@/lib/types';
@@ -218,12 +218,29 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
             ) : <IconButton icon={Plus} label={`Add a light (${MAX_LIGHTS} at most)`} disabled onClick={() => {}} size={15} />}
           </div>
           <ul className="layers" aria-label="Lights">
-            {lighting.lights.map((l) => {
+            {/* (The lighting as a whole: its look, where it is, its sky.) */}
+            <li className={selection?.kind === 'lighting' ? 'on' : undefined}>
+              <button
+                type="button"
+                className="layer-main"
+                data-tip="The look: where the key comes from, the contrast, the warmth; indoors or out, the time of day; the sky"
+                data-tip-side="right"
+                onClick={() => store.select({ kind: 'lighting' })}
+              >
+                <SunMedium size={15} strokeWidth={1.75} aria-hidden />
+                <span className="layer-name">Lighting</span>
+                <em>{lightingName(lighting)}</em>
+                <i className="light-dot" style={{ background: `linear-gradient(${lighting.ambient.sky} 50%, ${lighting.ambient.ground} 50%)` }} aria-hidden />
+              </button>
+            </li>
+            {[...lighting.lights.filter((l) => !l.ofSet), ...lighting.lights.filter((l) => l.ofSet)].map((l, i, all) => {
               const name = l.name;
               const Icon = KIND_ICONS[l.kind];
               const c = { store, light: l.id };
               return (
-                <li key={l.id} className={selection?.kind === 'light' && selection.light === l.id ? 'on' : undefined}>
+                <Fragment key={l.id}>
+                {l.ofSet && !all[i - 1]?.ofSet && <li className="layers-sub" aria-hidden>The set&apos;s own</li>}
+                <li className={selection?.kind === 'light' && selection.light === l.id ? 'on' : undefined}>
                   <button
                     type="button"
                     className="layer-main"
@@ -235,28 +252,16 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                   >
                     <Icon size={15} strokeWidth={1.75} aria-hidden />
                     <span className="layer-name">{name}</span>
+                    {l.role && !l.ofSet && <em>{ROLE_NAMES[l.role]}</em>}
                     <i className="light-dot" style={{ background: l.color }} aria-hidden />
                   </button>
                   <span className="layer-actions">
                     <More name={name} kind="light" c={c} />
                   </span>
                 </li>
+                </Fragment>
               );
             })}
-            {/* (The light from all round, always there.) */}
-            <li className={selection?.kind === 'ambient' ? 'on' : undefined}>
-              <button
-                type="button"
-                className="layer-main"
-                data-tip={`The light from all round, ${Math.round(lighting.ambient.intensity * 100)}%`}
-                data-tip-side="right"
-                onClick={() => store.select({ kind: 'ambient' })}
-              >
-                <Cloudy size={15} strokeWidth={1.75} aria-hidden />
-                <span className="layer-name">Ambient light</span>
-                <i className="light-dot" style={{ background: `linear-gradient(${lighting.ambient.sky} 50%, ${lighting.ambient.ground} 50%)` }} aria-hidden />
-              </button>
-            </li>
           </ul>
         </div>
 

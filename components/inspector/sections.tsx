@@ -13,7 +13,8 @@ import {
 } from './figure';
 import { HeldByPanel, PhysicsActions, PhysicsPanel, PropHeader, TransformPanel, transformInfo } from './prop';
 import {
-  AmbientHeader, AmbientPanel, ColourPanel, KindPanel, LightHeader, PlacePanel, ambientInfo, ambientSummary, colourSummary, kindSummary, placeInfo, placeSummary,
+  AmbientPanel, ColourPanel, EnvironmentPanel, KindPanel, LightHeader, LightingHeader, LookPanel, MorePanel, PlacePanel,
+  ambientInfo, ambientSummary, colourSummary, environmentInfo, environmentSummary, kindSummary, lookInfo, lookSummary, moreSummary, placeInfo, placeSummary,
 } from './light';
 import { ManyHeader, ManyPanel, manySummary } from './many';
 import { FilmedByPanel, ShotHeader, ShotPanel, filmedBySummary, shotSummary } from './shot';
@@ -108,11 +109,16 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   // Several things at once.
   { id: 'many', title: 'Selected', when: (t) => !!t.many, Panel: ManyPanel, summary: manySummary },
 
-  // A light (what kind, where, how bright and what colour), and the scene's ambient light.
+  // The scene's lighting as a whole (#17): its look, where it is, more of its look, its sky.
+  { id: 'look', title: 'Look', when: (t) => !!t.lighting, Panel: LookPanel, summary: lookSummary, info: lookInfo },
+  { id: 'environment', title: 'Environment', when: (t) => !!t.lighting, Panel: EnvironmentPanel, summary: environmentSummary, info: environmentInfo },
+  { id: 'lookMore', title: 'More', when: (t) => !!t.lighting, Panel: MorePanel, defaultOpen: false, summary: moreSummary },
+  { id: 'ambient', title: 'Sky and ground', when: (t) => !!t.lighting, Panel: AmbientPanel, defaultOpen: false, summary: ambientSummary, info: ambientInfo },
+
+  // A light (what kind, its role and where, how bright and what colour).
   { id: 'lightKind', title: 'Kind', when: (t) => !!t.light, Panel: KindPanel, summary: kindSummary },
-  { id: 'lightPlace', title: 'Position', when: (t) => !!t.light, Panel: PlacePanel, summary: placeSummary, info: placeInfo },
+  { id: 'lightPlace', title: 'Role & position', when: (t) => !!t.light, Panel: PlacePanel, summary: placeSummary, info: placeInfo },
   { id: 'lightColour', title: 'Brightness & colour', when: (t) => !!t.light, Panel: ColourPanel, summary: colourSummary },
-  { id: 'ambient', title: 'Sky and ground', when: (t) => !!t.ambient, Panel: AmbientPanel, summary: ambientSummary, info: ambientInfo },
 ];
 
 /** The header for what is selected: its name, its menu. */
@@ -124,7 +130,7 @@ export function Header({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   if (t.camera) return <CameraHeader t={t} chrome={chrome} />;
   if (t.action) return <ActionHeader t={t} chrome={chrome} />;
   if (t.light) return <LightHeader t={t} chrome={chrome} />;
-  if (t.ambient) return <AmbientHeader chrome={chrome} />;
+  if (t.lighting) return <LightingHeader t={t} chrome={chrome} />;
   if (t.many) return <ManyHeader t={t} chrome={chrome} />;
   return null;
 }

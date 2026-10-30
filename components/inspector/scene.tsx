@@ -51,8 +51,8 @@ export function SceneOverview({ t }: { t: Target }) {
         </Line>
         <Line icon={Castle} label="Set" value={setById(scene.set)?.name ?? 'None'} go={show('sets')} tip="Pick a set" />
         <Line icon={SunMedium} label="Lighting" value={`${lightingName(lighting)} · ${lighting.lights.length} ${lighting.lights.length === 1 ? 'light' : 'lights'}`} go={show('lighting')} tip="Pick a lighting scheme">
+          <Chip label="Look" onClick={pick({ kind: 'lighting' })} />
           {lighting.lights.map((l) => <Chip key={l.id} label={l.name} onClick={pick({ kind: 'light', light: l.id })} />)}
-          <Chip label="Ambient" onClick={pick({ kind: 'ambient' })} />
         </Line>
         <Line icon={Camera} label="Cameras" value={`${scene.cameras.length}`} go={pick({ kind: 'camera', camera: scene.cameras[0].id })} tip="Its first camera: its framing and move">
           {scene.cameras.map((c) => <Chip key={c.id} label={c.name} onClick={pick({ kind: 'camera', camera: c.id })} />)}

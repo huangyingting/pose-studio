@@ -11,7 +11,7 @@ import {
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
-import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, PLACES, PLACE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
+import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, PLACES, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
@@ -183,7 +183,7 @@ export function selectionCtx(store: Store): Ctx {
     case 'shot': return { store, shot: sel.shot };
     case 'action': return { store, action: sel.action, figure: sel.figure };
     case 'light': return { store, light: sel.light };
-    case 'ambient': return { store };
+    case 'lighting': return { store };
     case 'many': return { store, many: { figures: sel.figures, props: sel.props } };
   }
 }
@@ -643,11 +643,11 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'light.place', title: 'Put it as', help: 'Where a key light, a fill or a rim goes, round the people', icon: SunMedium, when: (c) => !!c.light,
-    items: (c) => PLACES.map((p) => ({ title: PLACE_NAMES[p], run: () => placeSceneLight(c.store, lightOf(c).id, p) })),
+    id: 'light.place', title: 'Make it the', help: 'A key, a fill or a rim, put where it goes round the people', icon: SunMedium, when: (c) => !!c.light && !lightOf(c).ofSet,
+    items: (c) => PLACES.map((p) => ({ title: ROLE_NAMES[p], checked: lightOf(c).role === p, run: () => placeSceneLight(c.store, lightOf(c).id, p) })),
   },
   {
-    id: 'light.shadows', title: 'Shadows', help: 'Only the sun casts shadows', icon: SunMedium, when: (c) => !!c.light && lightOf(c).kind === 'sun', checked: (c) => lightOf(c).shadows,
+    id: 'light.shadows', title: 'Shadows', help: 'Only the key casts shadows', icon: SunMedium, when: (c) => !!c.light && lightOf(c).kind === 'sun' && keyLight(lightingOf(sceneOf(c)))?.id === c.light, checked: (c) => lightOf(c).shadows,
     run: (c) => editLight(c.store, lightOf(c).id, { shadows: !lightOf(c).shadows }),
   },
   {
@@ -655,7 +655,7 @@ export const COMMANDS: Command[] = [
     run: (c) => editProjectSettings(c.store, { style: 'shaded' }),
   },
   {
-    id: 'light.delete', title: 'Delete', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.light,
+    id: 'light.delete', title: 'Delete', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.light && !lightOf(c).ofSet,
     enabled: (c) => lightingOf(sceneOf(c)).lights.length > 1,
     run: (c) => { const name = lightOf(c).name; if (deleteLight(c.store, lightOf(c).id)) App().notifyUndo(`Deleted ${name}`); },
   },
@@ -1385,6 +1385,7 @@ export const MENUS = {
   action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.place', 'light.shadows', 'light.add', '-', 'light.delete'],
+  lighting: ['light.preset', 'light.add'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
     { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', '-',

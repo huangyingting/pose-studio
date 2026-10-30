@@ -87,5 +87,7 @@ function above(t: Target): { label: string; to: Selection }[] | null {
   // A part of a figure, or an action on its track: under the figure.
   const owner = t.joint ? t.figure : t.action ? t.scene.figures.find((f) => f.id === t.actionFigure) : undefined;
   if (owner) return [scene, { label: owner.name, to: { kind: 'figure', figure: owner.id } }];
-  return t.figure || t.prop || t.span || t.camera || t.action || t.light || t.ambient || t.many ? [scene] : null;
+  // A light: under the scene's lighting.
+  if (t.light) return [scene, { label: 'Lighting', to: { kind: 'lighting' } }];
+  return t.figure || t.prop || t.span || t.camera || t.action || t.lighting || t.many ? [scene] : null;
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, LightRig, kelvinColor, keyLight, lightingOf, parseLighting } from '@/lib/lighting';
+import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, LightRig, kelvinColor, keyLight, lightingOf, lookOf, parseLighting, skyAt, withLook } from '@/lib/lighting';
 import { cameraFrom, newScene, parseScene } from '@/lib/doc';
 import { newAnimation } from '@/lib/animation';
 import { parseProjectSettings } from '@/lib/project';
@@ -12,7 +12,7 @@ import { poseScene, referencePoses } from '@/lib/poses';
 const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { DEFAULT_EXPORT, exportCells, parseExportOptions, sheetSize } from '@/lib/render';
 import { Store } from '@/lib/store';
-import { addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setSceneSet } from '@/lib/actions';
+import { addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setEnvironment, setLightRole, setSceneSet } from '@/lib/actions';
 
 /** Deterministic PRNG for shuffles. */
 function seeded(seed: number) {
@@ -251,6 +251,59 @@ describe('scene lighting', () => {
     const lamp = rig.object.children.find((o): o is THREE.PointLight => (o as THREE.PointLight).isPointLight && o.visible)!;
     expect(lamp.position.toArray()).toEqual([4.5, 2, -1.5]);
     rig.dispose();
+  });
+
+  it('a look is read from the key, the fill and the rim, and changed as one (#17)', () => {
+    const three = LIGHTING_PRESETS.find((p) => p.id === 'three-point')!.lighting;
+    expect(lookOf(three)).toMatchObject({ direction: 40, height: 35, contrast: 2.44, rim: 1.1, forShot: true });
+    let l = withLook(three, { direction: -60, height: 20, contrast: 4, warmth: 3200, softness: 0.5 });
+    expect(keyLight(l)).toMatchObject({ azimuth: -60, elevation: 20, kelvin: 3200, color: kelvinColor(3200), soft: 0.5 });
+    expect(l.lights.find((x) => x.role === 'fill')!.intensity).toBe(0.28);
+    // No fill, no rim: taken away; asked for again, made as lights for the shot (their own ids).
+    l = withLook(l, { contrast: null, rim: 0 });
+    expect(l.lights.map((x) => x.role)).toEqual(['key']);
+    l = withLook(DEFAULT_LIGHTING, { contrast: 2, rim: 0.8 });
+    expect(l.lights.map((x) => [x.role, x.relative, x.shadows])).toEqual([['key', undefined, true], ['fill', 'shot', false], ['rim', 'shot', false]]);
+    expect(new Set(l.lights.map((x) => x.id)).size).toBe(3);
+    // Fixed in the scene where they are from a camera at the side (azimuth 90; the key at 40: the fill beyond the camera).
+    const fixed = withLook(l, { forShot: false }, undefined, 90);
+    expect(fixed.lights.find((x) => x.role === 'fill')).toMatchObject({ azimuth: 125 });
+    expect(fixed.lights.find((x) => x.role === 'fill')!.relative).toBeUndefined();
+    expect(lookOf(fixed).forShot).toBe(false);
+    // A lamp as the key: moved round the people.
+    const lamp = clampLight({ id: 'k', kind: 'lamp', role: 'key', position: [0, 1.3, 2], intensity: 1 });
+    const turned = keyLight(withLook({ ...DEFAULT_LIGHTING, lights: [lamp] }, { direction: 90 }))!;
+    expect(turned.position[0]).toBeCloseTo(2, 1);
+    expect(turned.position[2]).toBeCloseTo(0, 1);
+  });
+
+  it('where the scene is lit: an indoor set indoors; the time and the weather set the sun and the sky; one key; a set\'s own lights stay', () => {
+    const storage = new Map<string, string>();
+    const store = new Store({ getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k), clear: () => storage.clear(), key: () => null, length: 0 } as Storage);
+    setSceneSet(store, 'living-room');
+    expect(lightingOf(store.scene).environment).toEqual({ indoors: true });
+    const lamp = lightingOf(store.scene).lights.find((x) => x.ofSet)!;
+    expect(deleteLight(store, lamp.id)).toBe(false);
+    setSceneSet(store, null);
+    expect(lightingOf(store.scene).environment).toBeUndefined();
+    // Dusk: a low warm sun; noon: high and white; overcast: soft, dimmer, a brighter sky.
+    expect(skyAt(19).elevation).toBeLessThan(20);
+    expect(skyAt(19).kelvin).toBeLessThan(4000);
+    expect(skyAt(13).elevation).toBeGreaterThan(60);
+    expect(skyAt(13, 'overcast')).toMatchObject({ soft: 0.9 });
+    setEnvironment(store, { time: 19 });
+    const key = keyLight(lightingOf(store.scene))!;
+    expect(key).toMatchObject({ azimuth: 40, elevation: skyAt(19).elevation, kelvin: skyAt(19).kelvin });
+    expect(lightingOf(store.scene).ambient).toEqual(skyAt(19).ambient);
+    setEnvironment(store, { weather: 'overcast' });
+    expect(lightingOf(store.scene).environment).toEqual({ time: 19, weather: 'overcast' });
+    expect(keyLight(lightingOf(store.scene))!.soft).toBe(0.9);
+    // One key: another made the key, the first loses its role.
+    const sun = addLight(store, 'sun')!;
+    setLightRole(store, sun, 'key');
+    expect(lightingOf(store.scene).lights.map((x) => x.role)).toEqual([undefined, 'key']);
+    setLightRole(store, sun, 'rim');
+    expect(lightingOf(store.scene).lights[1]).toMatchObject({ role: 'rim', relative: 'shot', azimuth: 150 });
   });
 
   it('a set brings its own lamps and windows, and takes them away again', () => {

@@ -144,6 +144,128 @@ export const LIGHTING_PRESETS: { id: string; name: string; description: string; 
   },
 ];
 
+/* ---------- the look: what the lights are for, edited as one (#17) ---------- */
+
+/**
+ * The sun and the sky at a time of day (hours) in a weather: the sun's height, warmth and
+ * brightness, how soft its shadows are, and the light from the sky and the ground. Daylight from 6
+ * to 20 h (low and warm at its ends, high and white at noon); at night, the moon (cool, dim). An
+ * overcast sky: a dimmer, softer sun and a brighter, greyer sky.
+ */
+export function skyAt(time: number, weather?: Environment['weather']) {
+  const day = (time - 6) / 14;
+  const up = day > 0 && day < 1;
+  const high = up ? Math.sin(Math.PI * day) : 0;
+  const mix = (a: string, b: string, u: number) => `#${new THREE.Color(a).lerp(new THREE.Color(b), u).getHexString()}`;
+  const out = {
+    elevation: up ? Math.max(5, Math.round(70 * high)) : 35,
+    kelvin: up ? Math.round((2600 + 3000 * Math.min(1, high * 1.6)) / 100) * 100 : 8500,
+    intensity: round(up ? 0.7 + 0.6 * high : 0.4),
+    soft: 0.1,
+    ambient: { intensity: round(up ? 0.55 + 0.5 * high : 0.4), sky: up ? mix('#ffd9b0', '#dfe9fb', Math.min(1, high * 1.4)) : '#5d6a86', ground: up ? mix('#6e5b4a', '#d6cdbd', high) : '#2c2f36' },
+  };
+  if (weather === 'overcast') {
+    out.intensity = round(out.intensity * 0.45);
+    out.soft = 0.9;
+    out.ambient = { intensity: round(out.ambient.intensity + 0.35), sky: mix(out.ambient.sky, '#d0d4da', 0.7), ground: mix(out.ambient.ground, '#9a9690', 0.5) };
+  }
+  return out;
+}
+
+/** The look of a lighting: where its key comes from and how high, its contrast (key to fill; none: no fill), warmth, softness, rim, and whether its fill and rim go with the shot. */
+export interface Look { direction: number; height: number; contrast: number | null; warmth: number; softness: number; rim: number; forShot: boolean }
+
+/** A lighting's look, read from its lights (#17): its key's, its fill's and its rim's. */
+export function lookOf(l: Lighting, around: Vec3 = SUBJECT): Look {
+  const key = keyLight(l);
+  const fill = l.lights.find((x) => x.role === 'fill');
+  const rim = l.lights.find((x) => x.role === 'rim');
+  const dir = key ? (key.kind === 'sun' ? { azimuth: key.azimuth, elevation: key.elevation } : angles(new THREE.Vector3(...key.position).sub(new THREE.Vector3(...around)))) : { azimuth: 40, elevation: 45 };
+  return {
+    direction: dir.azimuth,
+    height: dir.elevation,
+    contrast: key && fill && fill.intensity > 0.01 ? round(key.intensity / fill.intensity) : null,
+    warmth: key?.kelvin ?? KELVIN.white,
+    softness: key?.soft ?? 0,
+    rim: rim?.intensity ?? 0,
+    forShot: !!(fill?.relative || rim?.relative) || (!fill && !rim),
+  };
+}
+
+/**
+ * A lighting given another look (#17): its key turned and raised (a lamp moved round the people
+ * to that side), its fill as bright as the contrast says (made, as a light for the shot, if there
+ * is none; none for no contrast), the key's warmth and softness, its rim as bright as asked (made,
+ * or taken away at 0), its fill and rim with the shot or (`camAz`: the shot's camera's azimuth
+ * now) fixed in the scene where they are.
+ */
+export function withLook(l: Lighting, patch: Partial<Look>, around: Vec3 = SUBJECT, camAz = 0): Lighting {
+  let lights = [...l.lights];
+  let key = keyLight({ ...l, lights });
+  if (!key) {
+    key = keySun();
+    lights = [key, ...lights];
+  }
+  const put = (x: Light) => { lights = lights.map((y) => (y.id === x.id ? clampLight(x) : y)); };
+  // The key: its direction, height, warmth and softness.
+  let k: Light = { ...key, role: 'key' };
+  if (patch.direction !== undefined || patch.height !== undefined) {
+    const now = lookOf({ ...l, lights }, around);
+    const dir = towards(patch.direction ?? now.direction, patch.height ?? now.height);
+    k = lightFrom(k, dir, around);
+  }
+  if (patch.warmth !== undefined) k = { ...k, kelvin: patch.warmth, color: kelvinColor(patch.warmth) };
+  if (patch.softness !== undefined) k = { ...k, soft: patch.softness };
+  put(k);
+  // The fill: as bright as the contrast says.
+  if (patch.contrast !== undefined) {
+    const fill = lights.find((x) => x.role === 'fill');
+    if (patch.contrast === null) lights = lights.filter((x) => x.role !== 'fill');
+    else if (fill) put({ ...fill, intensity: round(k.intensity / patch.contrast) });
+    else if (lights.length < MAX_LIGHTS) lights.push({ ...forShot('fill', { azimuth: 35, elevation: 15, intensity: round(k.intensity / patch.contrast) }), id: uid('light') });
+  }
+  // The rim.
+  if (patch.rim !== undefined) {
+    const rim = lights.find((x) => x.role === 'rim');
+    if (patch.rim <= 0) lights = lights.filter((x) => x.role !== 'rim');
+    else if (rim) put({ ...rim, intensity: patch.rim });
+    else if (lights.length < MAX_LIGHTS) lights.push({ ...forShot('rim', { azimuth: 150, elevation: 35, intensity: patch.rim, kelvin: 7500 }), id: uid('light') });
+  }
+  // With the shot, or fixed where they are now (seen from the shot's camera).
+  if (patch.forShot !== undefined) {
+    const keyAz = lookOf({ ...l, lights }, around).direction;
+    lights = lights.map((x) => ((x.role === 'fill' || x.role === 'rim') && x.kind === 'sun' ? forShotOr(x, patch.forShot!, keyAz, camAz) : x));
+  }
+  const { scheme: _, ...rest } = l;
+  void _;
+  return { ...rest, lights };
+}
+
+/** Degrees from a to b, -180 to 180. */
+const turn = (a: number, b: number) => ((((b - a) % 360) + 540) % 360) - 180;
+
+/**
+ * A sun as a fill or a rim placed for the shot (`on`: its direction the angle from the shot's
+ * camera, on the side away from the key) or fixed in the scene where it is now (`camAz`: the
+ * shot's camera's azimuth; `keyAz`: the key's), as the light rig places it (#17).
+ */
+export function forShotOr(x: Light, on: boolean, keyAz: number, camAz: number): Light {
+  if (!!x.relative === on) return x;
+  if (on) return clampLight({ ...x, relative: 'shot', azimuth: Math.abs(turn(camAz, x.azimuth)) });
+  const away = turn(camAz, keyAz) > 0 ? -1 : 1;
+  return clampLight({ ...x, relative: undefined, azimuth: turn(0, camAz + away * Math.abs(x.azimuth)) });
+}
+
+/** What each role is called, and what it does. */
+export const ROLE_NAMES: Record<LightRole, string> = { key: 'Key', fill: 'Fill', rim: 'Rim', practical: 'Practical', follow: 'Follow light' };
+export const ROLE_ABOUT: Record<LightRole, string> = {
+  key: 'The main light, fixed in the scene: the only one that casts shadows',
+  fill: 'Softens the key\'s shadows, from the camera\'s side',
+  rim: 'An edge light from behind the people, as the shot sees them',
+  practical: 'A lamp, a lantern, a window in the scene: it lights what is near it',
+  follow: 'Goes with a figure (not turning with it): it stays lit wherever it goes',
+};
+
 /** A scene's lighting (DEFAULT_LIGHTING without its own). */
 export const lightingOf = (scene: Pick<Scene, 'lighting'>) => scene.lighting ?? DEFAULT_LIGHTING;
 

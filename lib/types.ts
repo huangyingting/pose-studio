@@ -558,8 +558,8 @@ export type Selection =
   | { kind: 'camera'; camera: string }
   /** One of the scene's lights (picked in the outline, or its lamp on the canvas). */
   | { kind: 'light'; light: string }
-  /** The scene's ambient light (the last row of the outline's lights). */
-  | { kind: 'ambient' }
+  /** The scene's lighting as a whole (#17: its look, where it is, its sky): the first row of the outline's lights. */
+  | { kind: 'lighting' }
   /** Several figures and props at once (Shift-click adds one or takes it away): moved, turned, duplicated and deleted together. */
   | { kind: 'many'; figures: string[]; props: string[] }
   /** Nothing: the scene itself.  */
