@@ -373,7 +373,8 @@ export class SetObject {
       // shades itself shows stripes of shadow that crawl as the view turns.)
       if (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) mesh.castShadow = false;
     }
-    this.object.traverse((o) => { o.raycast = () => {}; });
+    // (A set stands still: its parts placed once, not worked out again every frame.)
+    this.object.traverse((o) => { o.raycast = () => {}; o.updateMatrix(); o.matrixAutoUpdate = false; });
   }
 
   setStyle(style: Style) {
