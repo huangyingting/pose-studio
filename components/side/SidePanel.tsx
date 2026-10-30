@@ -15,7 +15,7 @@ export interface RailAction {
 }
 
 /**
- * The left side: a rail of sections (the library's categories, the AI assistant) with the open one's panel next
+ * The left side: what is in the scene and what can go in it, a rail of sections (the scene's outline, the library's categories, the AI assistant) with the open one's panel next
  * to it, and below a divider, workspaces that open on their own (Storyboard). Clicking the open
  * section's icon folds the panel away for more canvas.
  */
@@ -24,7 +24,7 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
   const saved = useStudio((s) => s.settings.side);
   const widths = useStudio((s) => s.settings.widths);
   // As a drawer (small screens) a section is always shown.
-  const side: SideSection = saved === 'none' && drawer ? 'poses' : saved;
+  const side: SideSection = saved === 'none' && drawer ? 'scene' : saved;
   const open = SECTIONS.find((s) => s.id === side);
   const pick = (id: SideSection) => store.setSettings({ side: id === side ? 'none' : id });
 

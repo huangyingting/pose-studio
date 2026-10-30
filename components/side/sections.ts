@@ -1,13 +1,15 @@
 import type { ComponentType } from 'react';
-import { Sparkles, type LucideIcon } from 'lucide-react';
+import { ListTree, Sparkles, type LucideIcon } from 'lucide-react';
 import { Assistant } from '@edition/server';
 import type { SIDE_SECTIONS } from '@/lib/store';
 import AssistantSection from './AssistantSection';
 import LibrarySection from './LibrarySection';
 import { LIBRARY_CATEGORIES } from './libraryItems';
+import OutlineSection from './OutlineSection';
 
 /*
- * The left side panel's sections: the library's categories, each its own, and the assistant. A new
+ * The left side panel's sections: what is in the scene (its outline), what can go in it (the
+ * library's categories, each its own) and the assistant. A new
  * one is an entry here: its rail icon and label, and the component that fills the panel. The open
  * section is saved with the settings.
  */
@@ -33,7 +35,9 @@ export interface SideSectionDef {
 }
 
 export const SECTIONS: SideSectionDef[] = [
-  // The library, a category each: characters, poses, motions, sets, lighting and camera moves, applied to the selection.
+  // What is in the open scene, in workflow order: cast, set, cameras, lights, shots.
+  { id: 'scene', label: 'Scene', icon: ListTree, Panel: OutlineSection },
+  // What can go in it: the library, a category each (characters, poses, motions, sets, lighting and camera moves), applied to the selection.
   ...LIBRARY_CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon, Panel: LibrarySection })),
   // Describe what you want (server edition only).
   ...(Assistant ? [{ id: 'ai' as const, label: 'AI assistant', icon: Sparkles, Panel: AssistantSection, wide: true }] : []),

@@ -45,6 +45,11 @@ export function FigureHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
   );
 }
 
+/** A part of a figure: its name (under the figure's, in the crumbs), the part's and the figure's menu. */
+export function JointHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
+  return <NameHeader chrome={chrome} lead={null} name={JOINT_LABELS[t.joint!]} label="Part" menu={() => figureMenu(t.store, t.figure!.id, t.joint)} />;
+}
+
 export function StandInPanel({ t }: { t: Target }) {
   const figure = t.figure!;
   return (
@@ -149,7 +154,6 @@ export function JointActions({ t }: { t: Target }) {
   );
 }
 
-export const jointTitle = (t: Target) => JOINT_LABELS[t.joint!];
 export const jointSummary = (t: Target) => `${angle(t.figure!.bones, t.joint!).map((r) => Math.round(r)).join(' / ')}°`;
 
 /** Pick a part to fine-tune (folded away until wanted: on the canvas a click does the same). */

@@ -553,7 +553,7 @@ function App() {
         <Timeline clock={clock} notify={notify} />
       </main>
 
-      <Inspector ctx={ctx} onPhoto={() => setDialog('photo')} />
+      <Inspector ctx={ctx} />
       {drawer && <div className="scrim only-mobile" onClick={() => setDrawer(null)} />}
 
       {(dialog === 'export' || dialog === 'export-story' || dialog === 'export-video') && (

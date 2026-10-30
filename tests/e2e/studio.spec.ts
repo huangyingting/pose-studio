@@ -91,22 +91,19 @@ async function viewMenu(page: Page, item: string | RegExp) {
 }
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
-/** Open one of the library's categories: a section of the left side panel each (clicking the open one would fold it away). */
-async function libraryShows(page: Page, what: 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting' | 'Camera') {
+/** Open a section of the left side panel: the scene's outline or one of the library's categories (clicking the open one would fold it away). */
+async function libraryShows(page: Page, what: 'Scene' | 'Characters' | 'Poses' | 'Motions' | 'Sets' | 'Lighting' | 'Camera') {
   const tab = page.getByRole('tablist', { name: 'Sections' }).getByRole('tab', { name: what, exact: true });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
-/** The scene's outline (the right panel back up to the scene) or the library (a category open on the left: Poses if none is). */
+/** The scene's outline, or the library (Poses, unless one of its categories is open). */
 async function openSection(page: Page, name: 'Scene' | 'Library') {
-  if (name === 'Library' && !(await page.getByRole('tabpanel').count())) await libraryShows(page, 'Poses');
-  if (name === 'Scene') {
-    const crumb = page.getByRole('navigation', { name: 'Up to' }).getByRole('button', { name: 'Scene', exact: true });
-    if (await crumb.count()) await crumb.click();
-  }
+  if (name === 'Scene') await libraryShows(page, 'Scene');
+  else if (!(await page.getByRole('tabpanel').getByRole('searchbox').count())) await libraryShows(page, 'Poses');
 }
 
-/** One of the scene outline's lists (Cast, Lights, Cameras, Shots…), the right panel back up to the scene first. */
+/** One of the scene outline's lists (Cast, Lights, Cameras, Shots…), the outline opened first. */
 async function outline(page: Page, name: string) {
   await openSection(page, 'Scene');
   return page.getByRole('list', { name, exact: true });
@@ -298,7 +295,7 @@ test('clicking a body part selects it and the sliders edit it', async ({ page })
   const p = await project(page, 'leftLowerLeg');
   const hip = await project(page, 'leftUpperLeg');
   await page.mouse.click((p.x + hip.x) / 2, (p.y + hip.y) / 2);
-  await expect(page.locator('.panel h3').first()).toHaveText('Left thigh');
+  await expect(page.locator('.panel .panel-name')).toHaveText('Left thigh');
 
   const before = angle((await state(page)).scene.figures[0].bones, 'leftUpperLeg');
   const slider = page.locator('.slider input').first();
@@ -572,13 +569,9 @@ test('mobile layout uses drawers', async ({ page }) => {
   await expect(page.locator('.side')).not.toBeInViewport();
   await page.getByRole('button', { name: 'Side panel', exact: true }).click();
   await expect(page.locator('.side')).toBeInViewport();
-  await expect(page.getByRole('region', { name: 'Poses' }).first()).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
   await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
   await expect(page.locator('.side')).not.toBeInViewport();
-  // The scene's outline is in the inspector's drawer.
-  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
-  await expect((await outline(page, 'Cast'))).toBeVisible();
-  await page.locator('.scrim').click({ position: { x: 20, y: 400 } });
   // Scenes switch from the top bar.
   await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
   expect((await state(page)).sceneIndex).toBe(2);
@@ -1277,25 +1270,22 @@ test('the inspector folds away for more canvas and remembers it', async ({ page 
   await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible();
 });
 
-test('the side panel shows a library category at a time, folds away and remembers it', async ({ page }) => {
+test('the side panel switches sections (the scene, a library category each), folds away and remembers it', async ({ page }) => {
   await libraryShows(page, 'Sets');
   await expect(page.getByRole('tabpanel').getByRole('searchbox', { name: 'Search sets' })).toBeVisible();
-  await libraryShows(page, 'Motions');
-  await expect(page.getByRole('tabpanel').getByRole('searchbox', { name: 'Search motions' })).toBeVisible();
-  // The scene's outline is on the right, over the inspector, whichever is open.
+  await libraryShows(page, 'Scene');
   await animate(page);
-  await expect((await outline(page, 'Shots'))).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Shots' })).toBeVisible();
   // Clicking the open section folds the panel; the canvas gets the room.
   const before = (await page.locator('.stage').boundingBox())!.width;
-  await page.getByRole('tab', { name: 'Motions', exact: true }).click();
+  await page.getByRole('tab', { name: 'Scene', exact: true }).click();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
   expect((await page.locator('.stage').boundingBox())!.width).toBeGreaterThan(before + 200);
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
-  await expect((await outline(page, 'Cast'))).toBeVisible();
-  await libraryShows(page, 'Poses');
-  await expect(page.getByRole('region', { name: 'Poses' }).first()).toBeVisible();
+  await libraryShows(page, 'Scene');
+  await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
 });
 
 test('library assets apply to the selection: poses to a figure, motions to its track, saved poses', async ({ page }) => {

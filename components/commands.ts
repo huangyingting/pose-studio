@@ -185,9 +185,9 @@ export function selectionCtx(store: Store): Ctx {
   }
 }
 
-/** Rename in the scene outline (showing it if the right panel is folded away). */
+/** Rename in the scene outline (opening it if another section is showing). */
 export function renameInOutline(store: Store, id: string) {
-  if (!store.getState().settings.inspector) store.setSettings({ inspector: true });
+  if (store.getState().settings.side !== 'scene') store.setSettings({ side: 'scene' });
   startRename(id);
 }
 

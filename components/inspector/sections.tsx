@@ -8,8 +8,8 @@ import {
 } from './action';
 import { CameraHeader, FilmsPanel, FramingPanel, LensPanel, MovesPanel, filmsInfo, filmsSummary, framingSummary, lensSummary, movesInfo, movesSummary } from './camera';
 import {
-  BodyPanel, FigureHeader, HandsPanel, JointActions, JointPanel, JointsPanel, OthersPanel, PlacementPanel, POSTURE_LABELS, PosePanel, StandInPanel,
-  bodySummary, handsSummary, hasOthers, jointSummary, jointTitle, othersSummary, placementSummary,
+  BodyPanel, FigureHeader, HandsPanel, JointHeader, JointActions, JointPanel, JointsPanel, OthersPanel, PlacementPanel, POSTURE_LABELS, PosePanel, StandInPanel,
+  bodySummary, handsSummary, hasOthers, jointSummary, othersSummary, placementSummary,
 } from './figure';
 import { HeldByPanel, PhysicsActions, PhysicsPanel, PropHeader, TransformPanel, transformInfo } from './prop';
 import {
@@ -48,7 +48,7 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
     summary: (t) => POSTURE_LABELS[t.figure!.proxy!], info: () => 'A simple shape for blocking a scene: place it, turn it and key it like a figure.',
   },
   {
-    id: 'joint', title: jointTitle, when: (t) => posable(t) && !!t.joint, Panel: JointPanel, Actions: JointActions, summary: jointSummary,
+    id: 'joint', title: 'Rotation', when: (t) => posable(t) && !!t.joint, Panel: JointPanel, Actions: JointActions, summary: jointSummary,
     info: (t) => (t.joint === 'hips' ? 'To move the whole figure, drag its torso; to turn it, the ring on the floor.' : undefined),
   },
   { id: 'pose', title: 'Pose', when: posable, Panel: PosePanel, summary: () => 'Mirror, copy, reset' },
@@ -115,6 +115,7 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
 
 /** The header for what is selected: its name, its menu. */
 export function Header({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
+  if (t.joint) return <JointHeader t={t} chrome={chrome} />;
   if (t.figure) return <FigureHeader t={t} chrome={chrome} />;
   if (t.prop) return <PropHeader t={t} chrome={chrome} />;
   if (t.span) return <ShotHeader t={t} chrome={chrome} />;

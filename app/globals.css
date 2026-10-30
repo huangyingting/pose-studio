@@ -1946,6 +1946,7 @@ body.resizing { cursor: col-resize; user-select: none; }
   box-shadow: var(--shadow-float); color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none;
 }
 
-/* The right-hand panel: the crumbs back up to the scene, over what is selected. */
-.crumbs { display: flex; align-items: center; gap: 2px; flex: none; min-width: 0; height: 32px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--border); color: var(--text-3); overflow: hidden; }
-.crumbs .crumb { margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The right-hand panel's header: the levels above (Scene › Figure ›), then the name. */
+.crumbs { display: inline-flex; align-items: center; gap: 2px; flex: 0 1 auto; min-width: 0; color: var(--text-3); overflow: hidden; }
+.crumbs .crumb { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs svg { flex: none; }
