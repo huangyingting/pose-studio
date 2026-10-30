@@ -168,7 +168,9 @@ function App() {
   const frameCurrent = useCallback(() => {
     const cur = apiRef.current?.getView();
     const sel = store.getState().selection;
-    const only = sel?.kind === 'figure' || sel?.kind === 'joint' ? sel.figure : sel?.kind === 'prop' ? sel.prop : sel?.kind === 'light' ? `light:${sel.light}` : sel?.kind === 'many' ? [...sel.figures, ...sel.props] : undefined;
+    // (Close up on it, in the middle: a figure, a part of one, a prop, a light, a camera; several together.)
+    const only = sel?.kind === 'figure' ? sel.figure : sel?.kind === 'joint' ? `joint:${sel.figure}:${sel.joint}` : sel?.kind === 'prop' ? sel.prop
+      : sel?.kind === 'light' ? `light:${sel.light}` : sel?.kind === 'camera' ? `camera:${sel.camera}` : sel?.kind === 'many' ? [...sel.figures, ...sel.props] : undefined;
     frame(cur ? { yaw: cur.yaw, pitch: cur.pitch } : angleAt(store.scene, store.getState().time), only);
   }, [frame, store]);
   /** Frame the selection only if it is out of view (something added from the keyboard, beyond the edge). */

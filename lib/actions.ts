@@ -1092,6 +1092,17 @@ export function moveCameraLook(store: Store, camera: string, t: number, look: TH
   }, key);
 }
 
+/** A path camera's lens at its point at time t (the wheel over it), where it is and where it looks kept. */
+export function setCameraLens(store: Store, camera: string, t: number, mm: number, key = '') {
+  store.updateScene((s) => {
+    const cam = pathCamera(s, camera);
+    if (!cam) return s;
+    const before = viewOf(s, cam, t);
+    const point = capturePoint(s, cam, t, before.position, before.target, lensFov(mm, frameAspect()));
+    return withCamera(s, setPointAt(cam, s.animation?.fps ?? 24, t, { ...point, ...(before.roll ? { roll: before.roll } : {}) }));
+  }, key);
+}
+
 /** Remove the point at t of a path camera (by default the one filming then); its last point stays. */
 export function deleteCameraPoint(store: Store, t = store.getState().time, camera?: string) {
   store.updateScene((s) => {

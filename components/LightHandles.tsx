@@ -9,18 +9,23 @@ import type { Store } from '@/lib/store';
 import type { Light, Scene, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
 import { STEPS, snap, snapping } from './modifiers';
+import { GLYPH } from './glyphs';
 
 /*
  * The scene's lights on the canvas, in the lit styles, drawn as simply as cameras are. The sun: a
  * lamp on a dome over the scene, aimed at its middle; selected, a drag moves it over the dome
  * (the shadows follow). A lamp or a window: where it is, a line down to the floor under it;
  * dragged, it moves over the floor at its height, as a prop does (its height in the inspector, or
- * Page Up / Down). A spot, and a window, aimed at what they light. A click selects the light.
+ * Page Up / Down; selected, also the move gizmo). A spot, and a window, aimed at what they light:
+ * selected, a handle there, dragged over the floor at its height to aim it. A click selects the
+ * light; the wheel over it makes it brighter or dimmer.
  */
 
 const LAMP = '#f5a524';
 const ACCENT = '#3b6cff';
 let drags = 0;
+let wheelAt = 0;
+type Controls = { enabled: boolean; enableZoom: boolean } | null;
 
 export default function LightHandles({ store, scene, sv, selected, lit }: { store: Store; scene: Scene; sv: SceneView; selected: string | null; lit: boolean }) {
   // (Worked out again as the scene changes.)
@@ -54,9 +59,62 @@ function Lamp({ store, light, dome: { base, radius }, aim, selected, lit }: {
   useFrame(({ camera }) => {
     const g = glyph.current;
     if (!g) return;
-    g.scale.setScalar(camera.position.distanceTo(g.position) * 0.12);
+    g.scale.setScalar(camera.position.distanceTo(g.position) * GLYPH);
     g.lookAt(to);
+    const a = aimGlyph.current;
+    if (a) a.scale.setScalar(camera.position.distanceTo(a.position) * GLYPH * 0.35);
   });
+  const aimGlyph = useRef<THREE.Mesh>(null);
+
+  /** Follow the pointer over a level plane at `height` (the orbit off meanwhile), till it is let go. */
+  const follow = (height: number, move: (hit: THREE.Vector3, ev: PointerEvent) => void) => {
+    const { gl, camera, controls } = get() as unknown as { gl: THREE.WebGLRenderer; camera: THREE.Camera; controls: Controls };
+    if (controls) controls.enabled = false;
+    const level = new THREE.Plane(new THREE.Vector3(0, 1, 0), -height);
+    const ray = new THREE.Raycaster();
+    const onMove = (ev: PointerEvent) => {
+      const r = gl.domElement.getBoundingClientRect();
+      ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = ray.ray.intersectPlane(level, new THREE.Vector3());
+      if (hit) move(hit, ev);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (controls) controls.enabled = true;
+      setReadout(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+
+  /** Its aim's handle dragged: it points at a place, over the floor at the aim's height. */
+  const aimDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const key = `aim:${drags++}`;
+    follow(to.y, (hit, ev) => {
+      const s = (v: number) => (snapping(ev) ? snap(v, 0.25) : Math.round(v * 100) / 100);
+      editLight(store, light.id, { aim: { point: [s(hit.x), Math.round(to.y * 100) / 100, s(hit.z)] } }, key);
+      setReadout(`${light.name} aimed at ${s(hit.x).toFixed(2)}, ${s(hit.z).toFixed(2)}`);
+    });
+  };
+
+  /** The wheel over it: brighter or dimmer, a step at a time (a trackpad's swipe one step). */
+  const wheel = (e: ThreeEvent<WheelEvent>) => {
+    e.stopPropagation();
+    const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    const now = performance.now();
+    const quiet = now - wheelAt > 180;
+    wheelAt = now;
+    if (!d || !quiet) return;
+    const intensity = Math.min(3, Math.max(0, Math.round((light.intensity + (d < 0 ? 0.1 : -0.1)) * 10) / 10));
+    editLight(store, light.id, { intensity }, `wheel:${light.id}`);
+    setPointerHint(`${light.name}: brightness ${Math.round(intensity * 100)} % · Wheel: brighter, dimmer`);
+  };
+  const zoom = (on: boolean) => { const c = get().controls as unknown as Controls; if (c) c.enableZoom = on; };
 
   const down = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
@@ -131,27 +189,28 @@ function Lamp({ store, light, dome: { base, radius }, aim, selected, lit }: {
         onPointerDown={down}
         // (The click that follows the press is the lamp's: not a figure's behind it.)
         onClick={(e) => e.stopPropagation()}
-        onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(lit ? `${light.name}, ${lightText(light).toLowerCase()} · ${how} · Alt-click a figure: light it from your view` : 'Light shows in Pencil, Ink wash, Anime, 3D and Clay: switch to one in the top bar, or from the light\'s menu'); }}
-        onPointerOut={() => { document.body.style.cursor = ''; setPointerHint(null); }}
+        onWheel={wheel}
+        onPointerOver={() => { document.body.style.cursor = 'grab'; zoom(false); setPointerHint(lit ? `${light.name}, ${lightText(light).toLowerCase()} · ${how} · Wheel: brighter, dimmer` : 'Light shows in Pencil, Ink wash, Anime, 3D and Clay: switch to one in the top bar, or from the light\'s menu'); }}
+        onPointerOut={() => { document.body.style.cursor = ''; zoom(true); setPointerHint(null); }}
         userData={{ light: light.id }}
       >
         {/* (Handles: a press on the lamp is not a drag of the body behind it.) */}
         {light.kind === 'window' ? (
           // A window: a pane, facing what it lights (its +Z).
           <mesh renderOrder={8} userData={{ handle: true, lamp: true }}>
-            <planeGeometry args={[0.24, 0.28]} />
+            <planeGeometry args={[0.15, 0.17]} />
             <meshBasicMaterial color={color} side={THREE.DoubleSide} depthTest={false} transparent opacity={0.55} />
           </mesh>
         ) : (
           // The sun and a lamp: a bulb; the sun and a spot with a shade opening towards what they light.
           <>
             <mesh renderOrder={8} userData={{ handle: true, lamp: true }}>
-              <sphereGeometry args={[0.045, 16, 12]} />
+              <sphereGeometry args={[0.06, 16, 12]} />
               <meshBasicMaterial color={color} depthTest={false} transparent opacity={0.9} />
             </mesh>
             {(sun || light.spot) && (
-              <mesh position={[0, 0, 0.06]} rotation-x={-Math.PI / 2} renderOrder={8} userData={{ handle: true, lamp: true }}>
-                <coneGeometry args={[0.075, 0.1, 16, 1, true]} />
+              <mesh position={[0, 0, 0.08]} rotation-x={-Math.PI / 2} renderOrder={8} userData={{ handle: true, lamp: true }}>
+                <coneGeometry args={[0.09, 0.11, 16, 1, true]} />
                 <meshBasicMaterial color={color} side={THREE.DoubleSide} depthTest={false} transparent opacity={0.6} />
               </mesh>
             )}
@@ -164,6 +223,24 @@ function Lamp({ store, light, dome: { base, radius }, aim, selected, lit }: {
           {sun && <Line points={rim} color={LAMP} lineWidth={1} transparent opacity={0.3} dashed dashSize={0.12} gapSize={0.1} />}
           {sun && <Line points={arc} color={LAMP} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.08} gapSize={0.06} />}
           {(sun || light.spot || light.kind === 'window') && rays.map(([a, b], i) => <Line key={i} points={[a, b]} color={LAMP} lineWidth={1.5} transparent opacity={0.8} />)}
+          {/* A spot's or a window's aim: a line to it and its handle. */}
+          {!sun && (light.spot || light.kind === 'window') && (
+            <>
+              <Line points={[at.toArray() as Vec3, to.toArray() as Vec3]} color={LAMP} lineWidth={1} transparent opacity={0.5} dashed dashSize={0.08} gapSize={0.06} />
+              <mesh
+                ref={aimGlyph}
+                position={to}
+                renderOrder={8}
+                userData={{ handle: true }}
+                onPointerDown={aimDown}
+                onPointerOver={() => { document.body.style.cursor = 'grab'; setPointerHint(`Drag: where ${light.name} points (over the floor at this height) · Ctrl: the 25 cm grid`); }}
+                onPointerOut={() => { document.body.style.cursor = ''; setPointerHint(null); }}
+              >
+                <sphereGeometry args={[1, 14, 10]} />
+                <meshBasicMaterial color={ACCENT} depthTest={false} transparent opacity={0.9} />
+              </mesh>
+            </>
+          )}
         </>
       )}
     </>

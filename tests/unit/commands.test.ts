@@ -31,6 +31,13 @@ describe('commands: one list for keys, menus, toolbars and the palette', () => {
     expect(matchesKey('?', key('?', { shift: true }))).toBe(true);
     expect(matchesKey('space', key(' '))).toBe(true);
     expect(matchesKey('w', key('w', { alt: true }))).toBe(false);
+    // A letter with Shift is its own key: F frames, Shift F is Scene only (a plain letter's command still takes Shift when none claims it).
+    expect(matchesKey('shift+f', key('f'))).toBe(false);
+    expect(matchesKey('shift+f', key('F', { shift: true }))).toBe(true);
+    const store = new Store(new MemoryStorage());
+    expect(commandForKey(key('f'), selectionCtx(store))?.id).toBe('view.frame');
+    expect(commandForKey(key('F', { shift: true }), selectionCtx(store))?.id).toBe('view.stageOnly');
+    expect(commandForKey(key('B', { shift: true }), selectionCtx(store))?.id).toBe('app.board');
   });
 
   it('runs the key on what is selected: Del deletes the selected prop, not the figure', () => {

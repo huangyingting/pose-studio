@@ -521,7 +521,7 @@ export const COMMANDS: Command[] = [
   { id: 'view.frameAll', title: 'Frame all', icon: Maximize, run: () => App().frameAll() },
   { id: 'view.stageOnly', title: 'Scene only', help: 'The scene filling the window, without the panels (Esc, or again: back)', icon: Maximize2, keys: ['shift+f'], checked: () => App().stageOnly(), run: () => App().setStageOnly(!App().stageOnly()) },
   {
-    id: 'view.frame', title: (c) => (['figure', 'joint', 'prop', 'light', 'many'].includes(c.store.getState().selection?.kind ?? '') ? 'Frame the selection' : 'Frame all'), help: 'Frame the selection (everything when nothing is selected)',
+    id: 'view.frame', title: (c) => (['figure', 'joint', 'prop', 'light', 'camera', 'many'].includes(c.store.getState().selection?.kind ?? '') ? 'Frame the selection' : 'Frame all'), help: 'The selection in the middle, close up (everything when nothing is selected)',
     icon: Focus, keys: ['f'], run: () => App().frameSelected(),
   },
   {
@@ -1271,12 +1271,13 @@ export const shortcutOf = (id: string) => { const k = command(id).keys?.[0]; ret
 export const tipOf = (id: string, label?: string) => { const k = shortcutOf(id); const cmd = command(id); const t = label ?? (typeof cmd.title === 'string' ? cmd.title : cmd.help ?? id); return k ? `${t}  ${k}` : t; };
 
 /** Whether a key press is this key ('mod+z' is not 'mod+shift+z'; a symbol's Shift is the symbol's). */
-export function matchesKey(spec: string, e: KeyboardEvent) {
+export function matchesKey(spec: string, e: KeyboardEvent, exact = false) {
   const parts = spec.split('+');
   const key = parts.pop()!;
   if (parts.includes('mod') !== (e.ctrlKey || e.metaKey) || parts.includes('alt') !== e.altKey) return false;
   const letter = /^[a-z]$/.test(key);
-  if (letter && parts.includes('mod') && parts.includes('shift') !== e.shiftKey) return false;
+  // (A letter with Shift is another key (Shift F); one without takes Shift too (Caps Lock, a slip), unless asked exactly.)
+  if (letter && (parts.includes('mod') || parts.includes('shift') || exact) && parts.includes('shift') !== e.shiftKey) return false;
   // (The arrows and the Page keys go further with Shift: a step is not a Shift step; Shift + Tab goes back.)
   if (/^(arrow|page|tab)/.test(key) && parts.includes('shift') !== e.shiftKey) return false;
   const pressed = e.key === ' ' ? 'space' : e.key.toLowerCase();
@@ -1285,7 +1286,9 @@ export function matchesKey(spec: string, e: KeyboardEvent) {
 
 /** The command a key press runs here, if any. */
 export function commandForKey(e: KeyboardEvent, c: Ctx) {
-  return COMMANDS.find((cmd) => cmd.keys?.some((k) => matchesKey(k, e)) && applies(cmd, c) && enabled(cmd, c) && cmd.run);
+  const find = (exact: boolean) => COMMANDS.find((cmd) => cmd.keys?.some((k) => matchesKey(k, e, exact)) && applies(cmd, c) && enabled(cmd, c) && cmd.run);
+  // (The key as pressed first: Shift F is Scene only, not F's Frame.)
+  return find(true) ?? find(false);
 }
 
 /* ---------------- menus ---------------- */

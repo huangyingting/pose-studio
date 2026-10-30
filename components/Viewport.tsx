@@ -7,7 +7,7 @@ import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
-import { addCameraPoint, editLight, moveCameraLook, moveCameraPoint, setCameraPoint, toggleSelected } from '@/lib/actions';
+import { addCameraPoint, editLight, moveCameraLook, moveCameraPoint, setCameraLens, setCameraPoint, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
@@ -19,8 +19,9 @@ import { onModels } from '@/lib/model';
 import { awake, setDrawer, wake } from './frames';
 import { LINES_LAYER } from '@/lib/ink';
 import SelectionTag from './SelectionTag';
+import { GLYPH, GLYPH_LINKED } from './glyphs';
 import { SceneView } from '@/lib/sceneview';
-import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
+import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, LENSES, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { Figure, JointName, Lighting, Scene, Selection, Style, Vec3, View } from '@/lib/types';
@@ -63,7 +64,7 @@ export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; cam
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
   n: number;
-  /** Only these figures or props (the selection), or 'light' (the scene and its lamp), not everything. */
+  /** Only these figures or props (the selection), or close up round one thing ('light:id', 'camera:id', 'joint:figure:joint'), not everything. */
   only?: string | string[];
 }
 
@@ -158,6 +159,8 @@ export default function Viewport({
   const version = useSyncExternalStore(sv.subscribe, sv.getVersion, sv.getVersion);
   const gizmoBusy = useRef(0);
   const gizmo = useRef<TransformControlsImpl>(null);
+  // What the gizmo holds for a light or a camera (they are drawn elsewhere: it is put where they are).
+  const [stand] = useState(() => new THREE.Object3D());
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
   // A joint's slider values as a rotate-gizmo drag began (for its readout).
   const jointFrom = useRef<Vec3 | null>(null);
@@ -266,6 +269,23 @@ export default function Viewport({
   // A scene is first shown from where its camera films it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const openAngle = useMemo(() => angleAt(scene, 0), [scene.id]);
+  // The selected light, if a gizmo moves it (a lamp or a window); the selected camera and its point's
+  // time, if one does (a path camera at one of its points now, a still camera at its one).
+  const gizmoLight = selection?.kind === 'light' ? lightingOf(scene).lights.find((l) => l.id === selection.light && l.kind !== 'sun') ?? null : null;
+  const gizmoCamera = (() => {
+    const cam = selection?.kind === 'camera' ? scene.cameras.find((c) => c.id === selection.camera) : undefined;
+    if (cam?.kind !== 'path') return null;
+    const fps = scene.animation?.fps ?? 24;
+    const now = scene.animation ? time : 0;
+    const point = cam.points.find((p) => Math.abs(p.t - now) < 0.5 / fps) ?? (cam.points.length === 1 ? cam.points[0] : undefined);
+    return point ? { id: cam.id, t: point.t } : null;
+  })();
+  // (What their gizmo holds: put where the light is, or the camera at that point, as they change.)
+  useLayoutEffect(() => {
+    if (gizmoBusy.current === Infinity) return;
+    if (gizmoLight) stand.position.set(...gizmoLight.position);
+    else if (gizmoCamera) stand.position.copy(viewOf(scene, scene.cameras.find((c) => c.id === gizmoCamera.id)!, gizmoCamera.t).position);
+  }, [stand, scene, gizmoLight, gizmoCamera]);
   let target: THREE.Object3D | null = null;
   let mode: 'translate' | 'rotate' | 'scale' = 'translate';
   // The gizmo's size in the world (metres: a move arrow's length, a rotate ring's radius).
@@ -303,6 +323,27 @@ export default function Viewport({
       };
       readout = () => setReadout(jointText(joint, jointFrom.current ?? angle(doc.bones, joint), angle(m.read().bones, joint)));
     }
+  } else if (selection?.kind === 'light' && handles && gizmoLight) {
+    // A lamp or a window: moved (also up and down) by its gizmo (the sun: over its dome, dragged).
+    target = stand;
+    gizmoWorld = 0.35;
+    const id = gizmoLight.id;
+    const r = (v: number) => Math.round(v * 100) / 100;
+    onGizmoChange = () => editLight(store, id, { position: [r(stand.position.x), r(Math.max(0.05, stand.position.y)), r(stand.position.z)] }, `gizmo:${id}`);
+    readout = (from) => {
+      const p = stand.position;
+      setReadout(`${movedText(p.x - from.x, p.z - from.z, p.x, p.z)} · ${metres(p.y)} m high`, [p.x, p.y, p.z]);
+    };
+  } else if (selection?.kind === 'camera' && handles && gizmoCamera) {
+    // A camera at one of its points now (a still camera's one): moved there by its gizmo, looking where it did.
+    target = stand;
+    gizmoWorld = 0.35;
+    const { id, t } = gizmoCamera;
+    onGizmoChange = () => moveCameraPoint(store, id, t, stand.position.clone().setY(Math.max(0.05, stand.position.y)), `gizmo:${id}:${t}`);
+    readout = (from) => {
+      const p = stand.position;
+      setReadout(`${movedText(p.x - from.x, p.z - from.z, p.x, p.z)} · ${metres(p.y)} m high`, [p.x, p.y, p.z]);
+    };
   } else if (selection?.kind === 'prop') {
     const p = sv.props.get(selection.prop);
     if (p) {
@@ -416,6 +457,7 @@ export default function Viewport({
           />
         )}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} playing={() => clock.playing} onClick={handleClick} onDoubleClick={handleDoubleClick} />
+        <primitive object={stand} />
         <GizmoWarmup />
         {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * (coarse ? 1.3 : 1)} />}
         {target && !shotMode && (
@@ -1049,14 +1091,23 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     if (!controls) return 0;
     // Wait a frame so the scene has been synced.
     return requestAnimationFrame(() => {
-      const light = typeof only === 'string' && only.startsWith('light:') ? only.slice('light:'.length) : null;
-      const ids = typeof only === 'string' ? (light ? [] : [only]) : only ?? [];
+      // (A light, a camera or a part of a figure: close up round it, in the middle.)
+      const [kind, id, part] = typeof only === 'string' && /^(light|camera|joint):/.test(only) ? only.split(':') : [];
+      let near: THREE.Vector3 | null = null;
+      let reach = 0.8;
+      if (kind === 'light') near = lampOf(id);
+      else if (kind === 'camera') rigRef.current?.traverse((x) => { if (!near && x.visible && x.userData.camera === id) near = x.getWorldPosition(new THREE.Vector3()); });
+      else if (kind === 'joint') {
+        const m = sv.figures.get(id);
+        near = m?.joints[part as JointName]?.getWorldPosition(new THREE.Vector3()) ?? null;
+        reach = 0.35 * (m?.object.scale.y ?? 1);
+      }
+      const around = near && { forEachPoint: (cb: (p: THREE.Vector3) => void) => { for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) cb(near!.clone().add(new THREE.Vector3(x, y, z).multiplyScalar(reach))); } };
+      const ids = kind ? [] : typeof only === 'string' ? [only] : only ?? [];
       const things = ids.flatMap((id) => { const t = sv.figures.get(id) ?? sv.props.get(id); return t ? [t] : []; });
       const one = things.length ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => things.forEach((t) => t.forEachPoint(cb)) } : undefined;
-      // (A light: the scene and its lamp.)
-      const lamp = light ? lampOf(light) : null;
-      const source = one ? one : lamp ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { sv.forEachPoint(cb); cb(lamp); } } : sv;
-      const fit = (cam: THREE.PerspectiveCamera, yaw: number) => fitCamera(cam, source, { yaw, pitch: view.pitch, fov: view.fov ?? 35 }, one ? 0.45 : 0.2);
+      const source = around ?? one ?? sv;
+      const fit = (cam: THREE.PerspectiveCamera, yaw: number) => fitCamera(cam, source, { yaw, pitch: view.pitch, fov: view.fov ?? 35 }, around ? 0.1 : one ? 0.45 : 0.2);
       // (In a set, from the angle nearest the one asked for whose view of the people no wall or
       // pillar of the set stands across: the angle a scene is filmed from may look in from outside.)
       let yaw = view.yaw;
@@ -1174,12 +1225,12 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
   const glyphs = useRef<(THREE.Object3D | null)[]>([]);
   useFrame((state) => {
     // Keep the cameras a constant size on screen, however far they are.
-    const scale = (o: THREE.Object3D, k = 0.12) => {
+    const scale = (o: THREE.Object3D, k = GLYPH) => {
       const d = state.camera.position.distanceTo(o.position);
       o.visible = d > 0.3;
       o.scale.setScalar(d * k);
     };
-    for (const g of glyphs.current) if (g) scale(g, g.userData.look ? 0.03 : 0.12);
+    for (const g of glyphs.current) if (g) scale(g, g.userData.look ? 0.03 : GLYPH);
     // The playhead's camera position (placed again only when the time changes).
     if (!dot.current) return;
     const t = clock.playing ? clock.time : time;
@@ -1208,7 +1259,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
     if (pending.current.length) state.invalidate();
     scale(dot.current);
     // (The camera whose outline row the pointer rests on, larger.)
-    nowGlyphs.current.forEach((g, i) => { if (g) { scale(g, cameras[i]?.id === store.getState().linked ? 0.17 : 0.12); g.visible &&= !onPoint.current[i]; } });
+    nowGlyphs.current.forEach((g, i) => { if (g) { scale(g, cameras[i]?.id === store.getState().linked ? GLYPH_LINKED : GLYPH); g.visible &&= !onPoint.current[i]; } });
   });
 
   /** Follow the pointer across a plane through `from` (level, or upright facing the view with Shift). */
@@ -1271,11 +1322,36 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
     if (zoomOff.current && !cameras.some((c) => c.id === zoomOff.current && c.kind === 'rig')) { zoomOff.current = null; setZoom(true); }
   }, [cameras, setZoom]);
   useEffect(() => () => setZoom(true), [setZoom]);
-  const link = (id: string) => {
+  // A path camera's point now (a still camera's one): the one its wheel and gizmo change.
+  const pointNow = (c: (typeof cameras)[number]) => {
+    if (c.kind !== 'path') return undefined;
+    const t = a ? time : 0;
+    return (c.points.find((p) => Math.abs(p.t - t) < 0.5 / fps) ?? (c.points.length === 1 ? c.points[0] : undefined))?.t;
+  };
+  /** The wheel over a camera: a rig camera's shot size (Shift: its lens); a path camera's lens at its point. */
+  const wheel = (c: (typeof cameras)[number], at?: number) => (e: ThreeEvent<WheelEvent>) => {
+    e.stopPropagation();
+    // (Shift turns the wheel sideways in most browsers, so either way counts; a step comes at the
+    // first event after a pause, so a trackpad's swipe and its momentum are one step.)
+    const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    const now = performance.now();
+    const quiet = now - wheelAt.current > 180;
+    wheelAt.current = now;
+    if (!d || !quiet) return;
+    if (c.kind === 'rig') { setPointerHint(`${stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey)} · ${e.nativeEvent.shiftKey ? 'Wheel: shot size' : 'Shift-wheel: lens'}`); return; }
+    const t = at ?? pointNow(c);
+    if (t === undefined) return;
+    const lens = fovLens(viewOf(scene, c, t).fov, frameAspect());
+    const i = LENSES.reduce((b, mm, j) => (Math.abs(mm - lens) < Math.abs(LENSES[b] - lens) ? j : b), 0);
+    const mm = LENSES[Math.min(LENSES.length - 1, Math.max(0, i + (d < 0 ? 1 : -1)))];
+    setCameraLens(store, c.id, t, mm, `wheel:${c.id}:${t}`);
+    setPointerHint(`${c.name}: ${mm} mm lens · Wheel: longer, wider`);
+  };
+  const link = (id: string, at?: number) => {
     const cam = cameras.find((c) => c.id === id);
     const zoom = (on: boolean) => {
-      // (Off over a rig camera; back on when the pointer leaves the one it was turned off for, whatever it is now.)
-      if (on ? zoomOff.current !== id : cam?.kind !== 'rig') return;
+      // (Off over a camera its wheel changes; back on when the pointer leaves the one it was turned off for, whatever it is now.)
+      if (on ? zoomOff.current !== id : !cam || (cam.kind === 'path' && (at ?? pointNow(cam)) === undefined)) return;
       zoomOff.current = on ? null : id;
       setZoom(on);
     };
@@ -1295,16 +1371,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
             ref={(g) => { nowGlyphs.current[i] = g; }}
             userData={{ camera: c.id }}
             onPointerDown={(e) => { if (e.button !== 0 || !e.eventObject.visible) return; e.stopPropagation(); store.select({ kind: 'camera', camera: c.id }); }}
-            onWheel={c.kind === 'rig' ? (e) => {
-              e.stopPropagation();
-              // (Shift turns the wheel sideways in most browsers, so either way counts; a step comes at the
-              // first event after a pause, so a trackpad's swipe and its momentum are one step.)
-              const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-              const now = performance.now();
-              const quiet = now - wheelAt.current > 180;
-              wheelAt.current = now;
-              if (d && quiet) setPointerHint(`${stepRig(store, c, d < 0 ? 1 : -1, e.nativeEvent.shiftKey)} · ${e.nativeEvent.shiftKey ? 'Wheel: shot size' : 'Shift-wheel: lens'}`);
-            } : undefined}
+            onWheel={wheel(c)}
             {...link(c.id)}
           >
             <mesh>
@@ -1334,7 +1401,8 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
               quaternion={m.quaternion}
               userData={{ camera: m.cam.id, point: m.t }}
               onPointerDown={(e) => dragOn(e, m.position, m.t, m.cam.id, (p, key) => moveCameraPoint(store, m.cam.id, m.t, p, key))}
-              {...link(m.cam.id)}
+              onWheel={wheel(m.cam, m.t)}
+              {...link(m.cam.id, m.t)}
             >
               {/* A small camera: body and lens, looking down its −Z axis. */}
               <mesh>
