@@ -8,6 +8,11 @@
  *
  * Each pose's fused landmarks are retargeted onto the mannequin (lib/retarget.ts, as a photo is),
  * stood up facing forward, and given its group, name and description from gallery-text.json.
+ *
+ * The reads came out wrong too often to keep (a torso turned back to front, a head turned round,
+ * limbs on the wrong side or through the body, a seat or a hand off the floor): every pose in
+ * lib/gallery-poses.json was since made again by hand from its description. A re-run starts from
+ * the reads again.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { DEFAULT_BODY } from '../../lib/body';
