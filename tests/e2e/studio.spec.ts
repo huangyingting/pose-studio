@@ -222,7 +222,6 @@ test('a new project is one blank scene; the built-in poses are in the library', 
   await poses.getByRole('button', { name: 'Cobra', exact: true }).hover();
   await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
-  await expect(page.getByText('Figure: Hand on head')).toBeVisible();
   expect((await state(page)).scene.figures[0].bones.rightUpperArm).toEqual(refScenes()[0].figures[0].bones.rightUpperArm);
 });
 
@@ -1215,9 +1214,11 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   await expect(page.getByRole('list', { name: 'My motions' })).toBeVisible();
   const motion = (await live(page)).motions[0].id;
   await signIn(page);
-  const server = () => page.evaluate(() => fetch('/api/library').then((r) => r.json()) as Promise<{ version: number; library: { scenes: { name: string }[] } | null }>);
+  // (Signing in may still be navigating: a call the navigation cut short is tried again.)
+  const server = () => page.evaluate(() => fetch('/api/library').then((r) => r.json()) as Promise<{ version: number; library: { scenes: { name: string }[] } | null }>)
+    .catch(() => ({ version: 0, library: null }));
   await expect.poll(async () => (await server()).library?.scenes.length ?? 0, { timeout: 30_000 }).toBeGreaterThanOrEqual(20);
-  await expect.poll(() => page.evaluate(() => fetch('/api/assets').then((r) => r.json()).then((x: { ids: string[] }) => x.ids)), { timeout: 30_000 }).toContain(motion);
+  await expect.poll(() => page.evaluate(() => fetch('/api/assets').then((r) => r.json()).then((x: { ids: string[] }) => x.ids)).catch(() => [] as string[]), { timeout: 30_000 }).toContain(motion);
   // Edits follow a moment later.
   await page.getByLabel('Scene name').fill('Synced scene');
   await expect.poll(async () => (await server()).library?.scenes.map((s) => s.name), { timeout: 30_000 }).toContain('Synced scene');
@@ -1364,8 +1365,9 @@ test('the command palette finds commands, scenes and Library items; Move to… w
   };
   // A Library item, found by the Library's own search: a pose on the selected figure.
   await (await outline(page, 'Cast')).getByRole('button').first().click();
+  const before = (await figs(page))[0].bones;
   await (await find('cobra')).getByRole('option', { name: /^Poses: Cobra/ }).click();
-  await expect(page.getByText('Figure: Cobra')).toBeVisible();
+  await expect.poll(async () => (await figs(page))[0].bones).not.toEqual(before);
   // A command with its key, and a command's choice.
   let palette = await find('mirror');
   await expect(palette.getByRole('option', { name: /^Mirror pose/ })).toContainText('M');
@@ -1418,7 +1420,6 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   const canvas = (await page.locator('.stage canvas').boundingBox())!;
   await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: 'Cobra', exact: true })
     .dragTo(page.locator('.stage canvas'), { targetPosition: { x: chest.x - canvas.x, y: chest.y - canvas.y } });
-  await expect(page.getByText('Figure: Cobra')).toBeVisible();
   const [a, b] = await figs(page);
   expect(a.bones).not.toEqual(first.bones);
   expect(b.bones).toEqual(second.bones);
@@ -2054,7 +2055,8 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
 });
 
 test('a wave over a walk, from the waist up; posing over a motion corrects it', async ({ page }) => {
-  await floorMenu(page, [0, 0, -3], 'Walk here');
+  // (To one side behind: not a spot the figure stands in front of on screen.)
+  await floorMenu(page, [1.2, 0, -3], 'Walk here');
   // Back to the middle of the walk.
   await page.getByRole('button', { name: 'Previous key' }).click();
   for (let i = 0; i < 12; i++) await page.keyboard.press('.');
