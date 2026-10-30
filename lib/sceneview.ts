@@ -203,6 +203,7 @@ export class SceneView {
   }
 
   private applySelection() {
+    this.applyLinked();
     const sel = this.selection;
     for (const [id, m] of this.figures) m.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, (sel?.kind === 'figure' && sel.figure === id) || (sel?.kind === 'many' && sel.figures.includes(id)));
     for (const [id, r] of this.models) r.setSelected(sel?.kind === 'joint' && sel.figure === id ? sel.joint : null, (sel?.kind === 'figure' && sel.figure === id) || (sel?.kind === 'many' && sel.figures.includes(id)));
@@ -217,8 +218,10 @@ export class SceneView {
 
   private linkedId: string | null = null;
   private applyLinked() {
-    for (const [id, m] of this.figures) m.setLinked(id === this.linkedId);
-    for (const [id, r] of this.models) r.setLinked(id === this.linkedId);
+    // (A figure a part of which is selected: outlined so, still picked as it is.)
+    const owner = this.selection?.kind === 'joint' ? this.selection.figure : null;
+    for (const [id, m] of this.figures) m.setLinked(id === this.linkedId || id === owner);
+    for (const [id, r] of this.models) r.setLinked(id === this.linkedId || id === owner);
     for (const [id, p] of this.props) p.setLinked(id === this.linkedId);
   }
 

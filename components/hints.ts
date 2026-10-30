@@ -37,13 +37,17 @@ export function useCanvasPointer() {
 
 const part = (j: JointName) => JOINT_LABELS[j].toLowerCase();
 
-/** On a figure's body: what a drag of the torso, a hand or foot, or another part does. */
-export function bodyHint(name: string, kind: 'body' | 'pelvis' | 'end' | 'swing', joint?: JointName) {
+/**
+ * On a figure's body: what a click picks (the figure first, then, it picked, the part) and what a
+ * drag of the torso, a hand or foot, or another part does.
+ */
+export function bodyHint(name: string, kind: 'body' | 'pelvis' | 'end' | 'swing', joint?: JointName, picked = true) {
   if (kind === 'body') return `Drag: move ${name} · Shift-drag: turn · Right-click: more`;
-  if (kind === 'pelvis') return `Drag: squat or shift, feet stay · Shift-drag: turn · Double-click: whole ${name}`;
-  const p = part(joint!);
-  if (kind === 'end') return `Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll · Double-click: whole ${name}`;
-  return `Drag: turn the ${p} (Ctrl: 5° steps) · Shift-drag: twist · Hold X / Y / Z: one way · Double-click: whole ${name}`;
+  const p = kind === 'pelvis' ? 'hips' : part(joint!);
+  const click = picked ? `Click: the ${p}` : `Click: pick ${name}`;
+  if (kind === 'pelvis') return `${click} · Drag: squat or shift, feet stay · Shift-drag: turn · Double-click: whole ${name}`;
+  if (kind === 'end') return `${click} · Drag: move the ${p}, the ${/hand/i.test(joint!) ? 'arm' : 'leg'} follows · Shift-drag: roll · Double-click: whole ${name}`;
+  return `${click} · Drag: turn the ${p} (Ctrl: 5° steps) · Shift-drag: twist · Hold X / Y / Z: one way · Double-click: whole ${name}`;
 }
 
 export const propHint = (name: string, held: boolean) => (held

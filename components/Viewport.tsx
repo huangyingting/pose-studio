@@ -195,9 +195,9 @@ export default function Viewport({
   useLayoutEffect(() => sv.setStyle(look.style), [sv, look.style]);
   useEffect(() => () => sv.dispose(), [sv]);
 
-  // What is selected, named in the scene above it (not a part of a figure: its gizmo is there, and the inspector names it).
+  // What is selected, named in the scene above it (a part: its figure, still picked).
   const tagged = shotMode || onPick || placing || !selection ? undefined
-    : selection.kind === 'figure' ? scene.figures.find((f) => f.id === selection.figure)?.name
+    : selection.kind === 'figure' || selection.kind === 'joint' ? scene.figures.find((f) => f.id === selection.figure)?.name
       : selection.kind === 'prop' ? scene.props.find((p) => p.id === selection.prop)?.name
         : selection.kind === 'camera' ? scene.cameras.find((x) => x.id === selection.camera)?.name
           : selection.kind === 'light' ? lightingOf(scene).lights.find((l) => l.id === selection.light)?.name : undefined;
@@ -239,11 +239,14 @@ export default function Viewport({
       toggleSelected(store, o.userData.prop ? { prop: o.userData.prop as string } : { figure: o.userData.figure as string });
       return;
     }
+    const figure = o.userData.figure as string | undefined;
+    // A figure: the first click picks it, the next (it picked, or a part of it) the part there.
+    const picked = !!figure && (selection?.kind === 'figure' || selection?.kind === 'joint') && selection.figure === figure;
     if (o.userData.prop) store.select({ kind: 'prop', prop: o.userData.prop as string });
-    else if (figureDoc(o.userData.figure as string)?.proxy) {
-      // Stand-ins are placed, not posed: a click picks the whole figure.
-      store.select({ kind: 'figure', figure: o.userData.figure as string });
-    } else store.select({ kind: 'joint', figure: o.userData.figure as string, joint: o.userData.joint as JointName });
+    else if (!figure) return;
+    // (Stand-ins are placed, not posed: a click picks the whole figure.)
+    else if (!picked || figureDoc(figure)?.proxy) store.select({ kind: 'figure', figure });
+    else store.select({ kind: 'joint', figure, joint: o.userData.joint as JointName });
   };
   /** A double-click on a figure: all of it (it moves when dragged; Y, X or Z with ← → turn and lean it). */
   const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {

@@ -45,6 +45,14 @@ const project = (page: Page, joint: string) =>
 const projectPoint = (page: Page, p: number[]) =>
   page.evaluate((q) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.projectPoint(q), p);
 
+/** A part of a figure picked on the canvas: a click picks the figure, another (after a pause: not a double-click) the part. */
+async function pickPart(page: Page, at: { x: number; y: number }) {
+  await page.mouse.click(at.x, at.y);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'figure' });
+  await page.waitForTimeout(600);
+  await page.mouse.click(at.x, at.y);
+}
+
 async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, modifier?: 'Shift' | 'Control') {
   await page.mouse.move(from.x, from.y);
   if (modifier) await page.keyboard.down(modifier);
@@ -289,10 +297,10 @@ test('tooltips stay inside the window, with the shortcut apart', async ({ page }
   await expect(tip).toHaveCount(0);
 });
 
-test('clicking a body part selects it and the sliders edit it', async ({ page }) => {
+test('clicking a figure picks it, clicking a part of it then selects the part, and the sliders edit it', async ({ page }) => {
   const p = await project(page, 'leftLowerLeg');
   const hip = await project(page, 'leftUpperLeg');
-  await page.mouse.click((p.x + hip.x) / 2, (p.y + hip.y) / 2);
+  await pickPart(page, { x: (p.x + hip.x) / 2, y: (p.y + hip.y) / 2 });
   await expect(page.locator('.panel .panel-name')).toHaveText('Left thigh');
 
   const before = angle((await state(page)).scene.figures[0].bones, 'leftUpperLeg');
@@ -1471,12 +1479,12 @@ test('adding is placing: a ghost follows the pointer, snaps beside a figure and 
   }).toBe(true);
 });
 
-test('a joint clicked is selected (named in the inspector, not on the canvas); its menu has the joint\'s commands', async ({ page }) => {
+test('a joint clicked (its figure picked) is selected, named in the inspector; its menu has the joint\'s commands', async ({ page }) => {
   await page.keyboard.press('1');
   const elbow = await project(page, 'leftLowerArm');
   const hand = await project(page, 'leftHand');
   const at = { x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 };
-  await page.mouse.click(at.x, at.y);
+  await pickPart(page, at);
   await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: unknown } } } }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftLowerArm' });
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).not.toEqual([0, 0, 0]);
   // Right-click it: the joint stays selected, and its menu resets it.

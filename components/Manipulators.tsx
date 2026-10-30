@@ -613,7 +613,9 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
     const name = (id: string) => scene.figures.find((f) => f.id === id)?.name ?? scene.props.find((p) => p.id === id)?.name ?? '';
     if (t.kind === 'prop' || t.kind === 'held') setPointerHint(propHint(name(t.prop), t.kind === 'held'));
     else {
-      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint);
+      const sel = store.getState().selection;
+      const picked = (sel?.kind === 'figure' || sel?.kind === 'joint') && sel.figure === t.figure;
+      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked);
       setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the gizmo`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
