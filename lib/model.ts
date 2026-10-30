@@ -424,7 +424,7 @@ export class ModelRig {
     const joints = skinned.isSkinnedMesh ? skinned.skeleton.bones.map(jointOf) : [jointOf(mesh)];
     const data = new Uint8Array(joints.length * 4);
     const mask = new THREE.DataTexture(data, joints.length, 1);
-    const whole = { value: new THREE.Vector2() };
+    const whole = { value: new THREE.Vector3() };
     const material = glazeMaterial(mask, whole);
     let g: THREE.Mesh;
     if (skinned.isSkinnedMesh) {
@@ -468,11 +468,13 @@ export class ModelRig {
       g.mesh.visible = shown;
       if (!shown) continue;
       g.joints.forEach((j, k) => {
-        g.data[k * 4] = selected === 'all' || selected === j ? 255 : 0;
+        // (A part picked: a clear tint; the whole figure: a faint one, its own.)
+        g.data[k * 4] = selected === j ? 255 : 0;
         g.data[k * 4 + 1] = hover === 'all' || !!hover?.has(j) ? 255 : 0;
+        g.data[k * 4 + 2] = selected === 'all' ? 255 : 0;
       });
       if (g.skinned) g.mask.needsUpdate = true;
-      else g.whole.value.set(g.data[0] / 255, g.data[1] / 255);
+      else g.whole.value.set(g.data[0] / 255, g.data[1] / 255, g.data[2] / 255);
     }
   }
 
@@ -617,14 +619,14 @@ export class ModelRig {
 }
 
 /** A look as a 3D tool draws it (the 3D style): its colour and texture, its see-through parts, lit and shadowed by the scene's lights. */
-/** A mesh's tint and what it is tinted by: each bone's joint and its marks (selected, under the pointer), or the mesh's own (`whole`) where it is not skinned. */
-type Glaze = { mesh: THREE.Mesh; joints: JointName[]; data: Uint8Array; mask: THREE.DataTexture; whole: { value: THREE.Vector2 }; skinned: boolean };
+/** A mesh's tint and what it is tinted by: each bone's joint and its marks (the part picked, under the pointer, the whole figure picked), or the mesh's own (`whole`) where it is not skinned. */
+type Glaze = { mesh: THREE.Mesh; joints: JointName[]; data: Uint8Array; mask: THREE.DataTexture; whole: { value: THREE.Vector3 }; skinned: boolean };
 
 const SELECTED = new THREE.Color('#3b78ff');
 const HOVERED = new THREE.Color('#7ba4ff');
 
 /** The tint over a character's mesh: by how much each vertex goes with the marked bones, selected over under the pointer. */
-function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector2 }) {
+function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector3 }) {
   return new THREE.ShaderMaterial({
     uniforms: { mask: { value: mask }, whole, selected: { value: SELECTED }, hovered: { value: HOVERED } },
     transparent: true,
@@ -635,9 +637,9 @@ function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector2 }) {
     vertexShader: /* glsl */ `
       #include <skinning_pars_vertex>
       uniform sampler2D mask;
-      uniform vec2 whole;
-      varying vec2 vOn;
-      vec2 marks(float bone) { return texelFetch(mask, ivec2(int(bone + 0.5), 0), 0).rg; }
+      uniform vec3 whole;
+      varying vec3 vOn;
+      vec3 marks(float bone) { return texelFetch(mask, ivec2(int(bone + 0.5), 0), 0).rgb; }
       void main() {
         #ifdef USE_SKINNING
           vOn = skinWeight.x * marks(skinIndex.x) + skinWeight.y * marks(skinIndex.y) + skinWeight.z * marks(skinIndex.z) + skinWeight.w * marks(skinIndex.w);
@@ -652,9 +654,9 @@ function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector2 }) {
     fragmentShader: /* glsl */ `
       uniform vec3 selected;
       uniform vec3 hovered;
-      varying vec2 vOn;
+      varying vec3 vOn;
       void main() {
-        float s = smoothstep(0.2, 0.6, vOn.x) * 0.45;
+        float s = max(smoothstep(0.2, 0.6, vOn.x) * 0.45, vOn.z * 0.14);
         float h = smoothstep(0.2, 0.6, vOn.y) * 0.32;
         if (max(s, h) < 0.01) discard;
         gl_FragColor = s >= h ? vec4(selected, s) : vec4(hovered, h);

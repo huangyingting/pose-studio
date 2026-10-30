@@ -342,7 +342,13 @@ export default function Viewport({
       };
     }
   }
-
+  // (Only on what is drawn: a figure just replaced (changed elsewhere, its character read) holds
+  // the old one's joints for a moment. The stand-in for a light or a camera is always there.)
+  if (target && target !== stand) {
+    let o: THREE.Object3D | null = target;
+    while (o && !(o as THREE.Scene).isScene) o = o.parent;
+    if (!o) target = null;
+  }
 
   return (
     <div
