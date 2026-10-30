@@ -468,8 +468,9 @@ export class Mannequin {
   }
 
   /** The height of the figure's lowest point (below 0: it goes through the floor). */
-  lowest() {
-    this.object.updateMatrixWorld(true);
+  lowest(placed = false) {
+    // (`placed`: its bones just placed by the caller, not placed again.)
+    if (!placed) this.object.updateMatrixWorld(true);
     // (The bones by how low their sphere reaches: past the lowest point found, the rest cannot
     // go lower. Only heights worked out.)
     const c = new THREE.Vector3();
@@ -523,7 +524,7 @@ export class Mannequin {
     const root = this.joints.hips;
     root.position.y = 1;
     this.object.updateMatrixWorld(true);
-    root.position.y -= this.lowest();
+    root.position.y -= this.lowest(true);
     if (this.surface) {
       // Standing on a box or a step: up onto the highest top under either foot.
       const on = Math.max(...(['leftFoot', 'rightFoot'] as const).map((j) => {
