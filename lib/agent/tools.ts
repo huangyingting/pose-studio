@@ -2,7 +2,7 @@ import { BUILT_IN_CHARACTERS } from '../characters';
 import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
-  holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, subjectOf, setGaze, setTravel, throwProp, travelTo,
+  holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
   carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
@@ -426,7 +426,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'set_lighting',
-    description: `Light the open scene (saved with it, used by its exports; shows in the lit styles): a lighting scheme (${LIGHTING_PRESETS.map((p) => p.id).join(', ')}), and/or one light added or changed. A light is a sun (a direction; the only one with shadows), a lamp (a place in the scene, reaching so far; a spot aimed at the people) or a window. \`light\` names the one to change (as listed, e.g. "Key light", "Fill light"), or with \`add\` the kind to add (sun, lamp, window) or a lamp put as a fill or a rim (fill, rim). Then direction (degrees round, 0 = from the front) and height (degrees up) for a sun or where a lamp sits round the people, brightness (1 normal) and colour temperature (kelvin, 1800 candle … 6500 white … 10000 blue sky).`,
+    description: `Light the open scene (saved with it, used by its exports; shows in the lit styles): a lighting scheme (${LIGHTING_PRESETS.map((p) => p.id).join(', ')}); the look as a whole (contrast: key to fill, e.g. 2 soft … 8 dramatic; rim: the rim light's strength, 0 none); where it is lit (indoors or not; time of day in hours and the weather, which set the sun and the sky outdoors); and/or one light added or changed. Lights have roles: the key (the only one with shadows, fixed in the scene), a fill and a rim (placed for each shot's camera: their direction is degrees from the camera), practicals (a set's lamps and windows), follow lights. A light is a sun (a direction), a lamp (a place in the scene, reaching so far; a spot aimed at the people) or a window. \`light\` names the one to change (as listed, e.g. "Key light", "Fill light"; none: the key), or with \`add\` the kind to add (sun, lamp, window) or a light put as a fill or a rim (fill, rim). Then direction (degrees round, 0 = from the front) and height (degrees up), brightness (1 normal) and colour temperature (kelvin, 1800 candle … 6500 white … 10000 blue sky).`,
     schema: obj({
       preset: opt(str('Lighting scheme', LIGHTING_PRESETS.map((p) => p.id))),
       add: opt(str('Add a light', ['sun', 'lamp', 'window', 'fill', 'rim'])),
@@ -435,9 +435,19 @@ export const TOOLS: AgentTool[] = [
       height: opt(num('Degrees above the floor')),
       brightness: opt(num('1 is normal')),
       kelvin: opt(num('Colour temperature, 1800 … 10000')),
+      contrast: opt(num('Key to fill, e.g. 2 … 8')),
+      rim: opt(num('The rim light\'s strength, 0 none')),
+      indoors: opt(bool('Lit indoors (no sun; the set casts none of the key\'s shadows)')),
+      time: opt(num('Time of day in hours, 0 … 24 (outdoors)')),
+      weather: opt(str('Weather (outdoors)', ['clear', 'overcast'])),
     }),
     run: (store, i) => {
       if (typeof i.preset === 'string') applyLightingPreset(store, i.preset);
+      const env = { ...(typeof i.indoors === 'boolean' ? { indoors: i.indoors } : {}), ...(typeof i.time === 'number' ? { time: i.time } : {}), ...(typeof i.weather === 'string' ? { weather: i.weather } : {}) };
+      if (Object.keys(env).length) setEnvironment(store, env);
+      if (typeof i.contrast === 'number' || typeof i.rim === 'number') {
+        setLook(store, { ...(typeof i.contrast === 'number' ? { contrast: Math.min(16, Math.max(1, i.contrast)) } : {}), ...(typeof i.rim === 'number' ? { rim: Math.min(3, Math.max(0, i.rim)) } : {}) });
+      }
       let id: string | null = null;
       if (typeof i.add === 'string') {
         id = addLight(store, i.add as LightKind | Place);
@@ -451,7 +461,9 @@ export const TOOLS: AgentTool[] = [
       const l = lightingOf(store.scene).lights.find((x) => x.id === id);
       if (l) {
         let next = { ...l };
-        if (n(i.direction) !== undefined || n(i.height) !== undefined) {
+        // (A fill's or a rim's for the shot: degrees from the camera.)
+        if (l.relative) next = { ...next, ...(n(i.direction) !== undefined ? { azimuth: Math.abs(n(i.direction)!) } : {}), ...(n(i.height) !== undefined ? { elevation: n(i.height)! } : {}) };
+        else if (n(i.direction) !== undefined || n(i.height) !== undefined) {
           next = lightFrom(next, towards(n(i.direction) ?? next.azimuth, n(i.height) ?? next.elevation), subjectOf(store.scene));
         }
         if (n(i.brightness) !== undefined) next.intensity = n(i.brightness)!;
@@ -459,7 +471,9 @@ export const TOOLS: AgentTool[] = [
         editLight(store, l.id, next);
       }
       const now = lightingOf(store.scene);
-      return `Lighting: ${lightingName(now)}; ${now.lights.map((x) => `${x.name} (${x.kind}) ${lightText(x).toLowerCase()}, brightness ${r2(x.intensity)}${x.kelvin ? `, ${x.kelvin} K` : `, ${x.color}`}`).join('; ')}.`;
+      const e = now.environment ?? {};
+      const where = e.indoors ? 'indoors' : `outdoors${e.time !== undefined ? ` at ${r2(e.time)} h` : ''}${e.weather ? `, ${e.weather}` : ''}`;
+      return `Lighting: ${lightingName(now)}, ${where}; ${now.lights.map((x) => `${x.name} (${x.kind}${x.role ? `, ${x.role}` : ''}) ${x.relative ? `${Math.round(x.azimuth)}° from the shot's camera` : lightText(x).toLowerCase()}, brightness ${r2(x.intensity)}${x.kelvin ? `, ${x.kelvin} K` : `, ${x.color}`}`).join('; ')}.`;
     },
   },
   {

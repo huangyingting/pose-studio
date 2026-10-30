@@ -40,6 +40,17 @@ function strict(schema: Record<string, unknown>, path: string) {
 describe('assistant tools', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('lights a scene as a whole: its contrast and rim, indoors or out, the time and the weather (#17)', () => {
+    const store = new Store(new MemoryStorage());
+    const none = { preset: null, add: null, light: null, direction: null, height: null, brightness: null, kelvin: null, contrast: null, rim: null, indoors: null, time: null, weather: null };
+    run(store, 'set_lighting', { ...none, preset: 'three-point' });
+    const text = run(store, 'set_lighting', { ...none, contrast: 4, rim: 0, time: 18.5, weather: 'overcast' });
+    expect(text).toContain('outdoors at 18.5 h, overcast');
+    expect(text).toContain('Fill light (sun, fill)');
+    expect(text).not.toContain('Rim light');
+    expect(run(store, 'set_lighting', { ...none, indoors: true })).toContain(', indoors;');
+  });
+
   it('have strict, unique schemas', () => {
     expect(new Set(TOOLS.map((t) => t.name)).size).toBe(TOOLS.length);
     for (const t of TOOLS) {
