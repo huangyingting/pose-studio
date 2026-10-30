@@ -39,7 +39,8 @@ export function axisLabels(j: JointName): [string, string, string] {
     case 'LowerArm': return ['Bend (−)', 'Twist', 'Side'];
     case 'LowerLeg': return ['Bend (+)', 'Twist', 'Side'];
     case 'Foot': return ['Point (+) / flex (−)', 'Twist', 'Roll'];
-    default: return ['Flex', 'Twist', 'Side'];
+    // (A hand: with the palm to the thigh, its first turn bends it sideways, its last the palm.)
+    default: return ['Side', 'Twist', 'Flex'];
   }
 }
 
@@ -70,9 +71,9 @@ const LEFT_LIMITS: Partial<Record<JointName, Limits>> = {
   head: [[-45, 45], sym(55), sym(35)],
   leftUpperArm: [[-180, 75], sym(100), [-35, 180]],
   leftLowerArm: [[-155, 0], sym(90), sym(15)],
-  leftHand: [[-85, 85], sym(40), sym(45)],
+  leftHand: [[-85, 85], sym(40), sym(85)],
   leftUpperLeg: [[-155, 50], sym(75), [-40, 95]],
-  leftLowerLeg: [[0, 160], sym(35), sym(8)],
+  leftLowerLeg: [[0, 165], sym(35), sym(8)],
   leftFoot: [[-45, 85], sym(35), sym(35)],
 };
 
