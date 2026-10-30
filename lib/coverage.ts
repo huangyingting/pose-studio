@@ -92,7 +92,7 @@ export const COVERAGES: Coverage[] = [
       { key: 'wide', name: 'Wide', subject: 'A', also: 'B', rig: { yaw: 90, pitch: 12, toward: 'B', size: 'ws', lens: 28, smooth: 1 } },
       { key: 'single-a', name: '{A}', subject: 'A', rig: { yaw: 25, pitch: 3, toward: 'B', clear: 'B', size: 'ms', place: 'right', lens: 70, smooth: 0.6 } },
       { key: 'single-b', name: '{B}', subject: 'B', rig: { yaw: -25, pitch: 3, toward: 'A', clear: 'A', size: 'ms', place: 'left', lens: 70, smooth: 0.6 } },
-      { key: 'track-a', name: 'Tracking {A}', subject: 'A', rig: { yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 0.8 } },
+      { key: 'track-a', name: 'Tracking {A}', subject: 'A', rig: { yaw: 90, pitch: 3, turn: true, size: 'mws', lens: 50, smooth: 1 } },
     ],
     cuts: [
       { on: 'start', camera: 'wide' },

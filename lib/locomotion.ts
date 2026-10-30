@@ -518,10 +518,23 @@ function gait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     y = lerp(y, softMin(y, limit + 0.01, 0.03), (1 - swing) * smooth(fwd / (0.15 * len)));
   }
 
-  return compose(pose, legs, {
+  const out = compose(pose, legs, {
     position: [x, y, z], yaw, pitch, roll, feet,
     swing: (run ? 34 : 17) * w * Math.cos(2 * Math.PI * phase), raise: 0, elbows: (run ? -75 : -8) * w,
   });
+  // Setting off and coming to rest, standing where the keyed pose has its feet: the ankles ease
+  // from and into the keyed ones (a wide stance's feet rolled as it has them, not as level as the
+  // legs would put them), so they do not snap where the actions before and after take over. (The
+  // ankles only: the feet stay where they are.)
+  const keyed = D < 0.05 ? 0 : 1 - smooth(Math.min(tau, dur - tau) / Math.min(0.25, ramp));
+  if (keyed > 0) {
+    for (const side of ['L', 'R'] as const) {
+      const j = sided('Foot', side);
+      const [g, k] = [out.joints[j] ?? [0, 0, 0], pose.joints[j] ?? [0, 0, 0]];
+      out.joints[j] = g.map((v, i) => r1(v + wrapDeg(k[i] - v) * keyed)) as Vec3;
+    }
+  }
+  return out;
 }
 
 /**

@@ -36,6 +36,15 @@ export function stepDone(scene: string, id: string) {
   } catch {
     // ignore
   }
+  // (Taken wherever it was, not only from the hint: the hint moves on.)
+  for (const f of [...stepListeners]) f();
+}
+
+const stepListeners = new Set<() => void>();
+/** Called when a suggestion is acted on or dismissed (the hint showing it moves on). */
+export function onStepDone(f: () => void) {
+  stepListeners.add(f);
+  return () => { stepListeners.delete(f); };
 }
 
 const DEFAULT_BONES = JSON.stringify(newFigure().bones);
@@ -62,7 +71,7 @@ export function nextStep(store: Store): Suggestion | null {
     || (a && acting && shotSpans(a).length === 1 && offer('cut', { text: 'One shot so far: let the director film it, or cut it', actions: [] }))
     || (a && shotSpans(a).length > 1 && new Set(shotSpans(a).map((sp) => sp.shot.camera)).size === 1
       && offer('camera', { text: 'All shots use one camera: give shot 2 its own', actions: [] }))
-    || (a && acting && offer('check', { text: 'Check for sliding feet, collisions and pops', actions: [] }))
+    || (a && acting && offer('check', { text: 'Check for sliding feet, collisions, joints bent too far and pops', actions: [] }))
     || null;
   if (!out) return null;
   // The buttons: the commands that take the step.

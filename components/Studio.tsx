@@ -45,7 +45,7 @@ import type { Placing } from './placing';
 import Letterbox from './Letterbox';
 import CameraPip from './CameraPip';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
-import { nextStep, stepDone } from './nextStep';
+import { nextStep, onStepDone, stepDone } from './nextStep';
 
 function webglAvailable() {
   try {
@@ -650,6 +650,7 @@ function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: {
   const pointerHint = usePointerHint();
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
+  useEffect(() => onStepDone(() => setSteps((n) => n + 1)), []);
   if (playing) return null;
   if (pick) return <Pill tone="accent" icon={Crosshair}>{pick.ghost ? pointerHint ?? pick.hint : pick.hint}</Pill>;
   if (pointerHint) return <Pill tone="plain" icon={MousePointer2}>{pointerHint}</Pill>;
@@ -669,9 +670,9 @@ function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: {
     <Pill tone="accent" icon={Lightbulb} label="Next step">
       {step.text}
       {step.actions.map((a) => (
-        <button key={a.label} type="button" className="hint-action" onClick={() => { a.run(); setSteps((n) => n + 1); }}>{a.label}</button>
+        <button key={a.label} type="button" className="hint-action" onClick={() => a.run()}>{a.label}</button>
       ))}
-      <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => { stepDone(store.scene.id, step.id); setSteps((n) => n + 1); }}>
+      <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => stepDone(store.scene.id, step.id)}>
         <X size={13} aria-hidden />
       </button>
     </Pill>

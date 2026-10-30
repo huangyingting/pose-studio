@@ -601,7 +601,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               disabled={checking}
               aria-label={qaLabel}
               aria-expanded={issues?.length ? qaOpen : undefined}
-              data-tip="Check for foot sliding, interpenetration, joint limits and pops"
+              data-tip="Check for sliding feet, collisions, joints bent too far and pops"
               data-tip-side="top"
             >
               {issues?.length ? <TriangleAlert size={15} aria-hidden /> : <Activity size={15} aria-hidden />}

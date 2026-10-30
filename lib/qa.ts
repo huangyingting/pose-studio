@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { frameTimes } from './animation';
+import { LIBRARY } from './assets';
 import { missedCatchesOf, sceneAt, travelAt } from './evaluate';
 import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
@@ -11,7 +12,7 @@ import { groundOf } from './surfaces';
 import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
 import { setBlocks } from './sets';
 import { shotSpans } from './shots';
-import { JOINTS, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
+import { JOINTS, type Animation, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -151,6 +152,16 @@ class Ranges {
 const cm = (m: number) => `${Math.round(m * 100)} cm`;
 
 /** Check an animated scene. Returns the issues found, sorted by time. */
+/**
+ * The recorded Library motion a figure plays as it is at t (none blending into it, no layer over
+ * it): its pose is the recording's, whose own snaps and reaches are not this scene's to fix.
+ */
+function recordedAt(a: Animation, figure: string, t: number) {
+  const on = a.actions.filter((x) => x.roles.some((r) => r.figure === figure) && x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
+  const [x] = on;
+  return on.length === 1 && !x.layer && x.source.kind === 'clip' && x.source.clip.startsWith(LIBRARY) && t - x.start >= (x.blendIn ?? 0) ? x.id : null;
+}
+
 export function checkMotion(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a) return [];
@@ -278,8 +289,11 @@ export function checkMotion(scene: Scene): Issue[] {
       // or taking off: their legs and body are not checked for pops.
       const generated = !!travelAt(a, f.id, times[i]) || generatedBefore.has(f.id);
       if (travelAt(a, f.id, times[i])) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
+      // (Within one recorded motion, as it was recorded: not checked for pops or reach.)
+      const recorded = wrap ? null : recordedAt(a, f.id, times[i]);
+      const asRecorded = !!recorded && recorded === recordedAt(a, f.id, times[i - 1] ?? -1);
       for (const j of JOINTS) {
-        if (generated && (LEGS.has(j) || j === 'hips')) {
+        if ((generated && (LEGS.has(j) || j === 'hips')) || asRecorded) {
           prevStep.delete(f.id + j);
           prevQ.delete(f.id + j);
           continue;
@@ -293,8 +307,8 @@ export function checkMotion(scene: Scene): Issue[] {
         prevQ.set(f.id + j, q);
       }
       const root = m.joints.hips.getWorldPosition(new THREE.Vector3());
-      const pr = generated ? undefined : prevRoot.get(f.id);
-      if (generated) prevStep.delete(`${f.id}:move`);
+      const pr = generated || asRecorded ? undefined : prevRoot.get(f.id);
+      if (generated || asRecorded) prevStep.delete(`${f.id}:move`);
       const jump = pr ? pop(`${f.id}:move`, root.distanceTo(pr), POP_ROOT) : 0;
       if (jump) ranges.hit(`pop:${f.id}:hips:move`, step, jump, { kind: 'pop', figure: f.id, joint: 'hips' });
       prevRoot.set(f.id, root);
@@ -302,7 +316,7 @@ export function checkMotion(scene: Scene): Issue[] {
 
       // Joint limits.
       for (const j of JOINTS) {
-        if (j === 'hips' || f.proxy) continue;
+        if (j === 'hips' || f.proxy || recorded) continue;
         const r = angle(f.bones, j);
         const lim = jointLimits(j);
         const over = Math.max(...r.map((v, k) => {
@@ -408,9 +422,10 @@ function hiddenInShots(scene: Scene): Issue[] {
       for (const f of now.figures.filter((x) => !x.hidden && (!framed || framed.includes(x.id)))) {
         const m = view.figures.get(f.id);
         if (!m) continue;
-        // (The chair someone sits on, is about to, or stands just up from does not hide them: seen from behind, over its back.)
+        // (The chair someone sits on, is about to, or stands just up from and steps away from does
+        // not hide them: seen from behind, over its back, or for a moment as they pass it.)
         const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
-        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && Math.hypot(b.prop.position[0] - hips.x, b.prop.position[2] - hips.z) < 1));
+        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && Math.hypot(b.prop.position[0] - hips.x, b.prop.position[2] - hips.z) < 1.25));
         if (!blockers.length) continue;
         let blocked = 0;
         let behind = '';

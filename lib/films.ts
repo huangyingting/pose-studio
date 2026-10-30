@@ -167,6 +167,9 @@ class Stage {
     t = frame(t);
     this.wait(who, t);
     const m = motion(slug);
+    // (Turning to face something straight after walking there: the walk turns as it arrives, its
+    // last steps taking them round; turning on the spot as they stand would slide their feet.)
+    if (o.face !== undefined && !o.at) this.arriveFacing(who, t, this.yaw(this.where(who).at, o.face));
     const from = this.where(who);
     const seconds = frame(o.seconds ?? m.duration);
     let end: Mark;
@@ -188,16 +191,36 @@ class Stage {
     });
   }
 
-  /** `who` walks or runs from t (they wait till then) to a spot, facing the way they go. The time they get there. */
-  go(who: string, to: Spot, t: number, mode: Travel = 'walk'): number {
+  /** The walk or run of someone's arriving at t (not stepping aside) ends facing this way, if it is not near it already. */
+  private arriveFacing(who: string, t: number, facing: number) {
+    const a = this.scene.animation!;
+    const id = this.id(who);
+    const last = a.actions.filter((x) => x.roles[0].figure === id).reduce<Action | null>((p, q) => (!p || q.start + q.duration > p.start + p.duration ? q : p), null);
+    if (!last || last.source.kind !== 'travel' || last.source.strafe || Math.abs(last.start + last.duration - t) > 1e-3) return;
+    const end = last.roles[0].end!;
+    // (Not a turn right round: the last steps would cross the legs.)
+    const by = Math.abs(wrap(facing - end.facing));
+    if (by < 30 || by > 90) return;
+    const turned = { ...end, facing: Math.round(wrap(facing) * 10) / 10 || 0 };
+    this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x === last ? { ...x, roles: [{ ...x.roles[0], end: turned }] } : x)) } };
+    this.marks.set(who, turned);
+  }
+
+  /**
+   * `who` walks or runs from t (they wait till then) to a spot, facing the way they go (or,
+   * `strafe`, still facing the way they do: stepping back or aside). The time they get there.
+   */
+  go(who: string, to: Spot, t: number, mode: Travel = 'walk', strafe = false): number {
     t = frame(t);
     this.wait(who, t);
     const from = this.where(who).at;
+    const facing = this.where(who).facing;
     const d = Math.hypot(to[0] - from[0], to[1] - from[1]);
     if (d < 0.05) return t;
     // Round anyone in the way (where they are as they pass) and the chairs and tables, on the side away from them.
     const length = (pts: Spot[]) => pts.slice(1).reduce((n, q, i) => n + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0);
-    const time = (pts: Spot[]) => frame(travelTime(mode, length(pts), this.bodies.get(who)!));
+    const sideways = strafe ? Math.abs(Math.sin((toward(from, to) - facing) * D2R)) : 0;
+    const time = (pts: Spot[]) => frame(travelTime(mode, length(pts), this.bodies.get(who)!, undefined, sideways));
     const via: Spot[] = [];
     for (let tries = 0; tries < 3; tries++) {
       const pts = [from, ...via, to];
@@ -219,11 +242,14 @@ class Stage {
     }
     const seconds = time([from, ...via, to]);
     const last = via.at(-1) ?? from;
-    const end = { at: [r3(to[0]), r3(to[1])] as Spot, facing: Math.round(toward(last, to) * 10) / 10 || 0 };
+    const end = { at: [r3(to[0]), r3(to[1])] as Spot, facing: Math.round((strafe ? facing : toward(last, to)) * 10) / 10 || 0 };
     this.moved(who, t, t + seconds, from, via, end);
     return this.add({
       id: uid('act'), start: t, duration: seconds, roles: [{ figure: this.id(who), end }],
-      source: { kind: 'travel', mode, ...(via.length ? { via: via.map((v, i) => ({ at: v, facing: Math.round(toward(i ? via[i - 1] : from, v) * 10) / 10 || 0 })) } : {}) },
+      source: {
+        kind: 'travel', mode, ...(strafe ? { strafe: true } : {}),
+        ...(via.length ? { via: via.map((v, i) => ({ at: v, facing: Math.round((strafe ? facing : toward(i ? via[i - 1] : from, v)) * 10) / 10 || 0 })) } : {}),
+      },
     });
   }
 
@@ -294,7 +320,9 @@ class Stage {
     const stance = o.stance ?? 'fight-idle';
     let t1 = Math.max(t, this.until(who));
     const d = Math.hypot(at[0] - me[0], at[1] - me[1]);
-    if (d > 0.8) t1 = this.go(who, at, t1, d > 3 ? 'run' : 'walk');
+    // (Back or aside, near: stepping there still facing them, not turning away and round again.)
+    const away = d <= 3 && Math.abs(wrap(toward(me, at) - this.where(who).facing)) > 90;
+    if (d > 0.8) t1 = this.go(who, at, t1, d > 3 ? 'run' : 'walk', away);
     t1 = this.play(who, stance, t1, { seconds: d > 0.8 ? 0.35 : 0.5, at, face: facing });
     const end = this.play(who, slug, t1, { mirror: o.mirror });
     return { lands: frame(t1) + m.impact, end };
@@ -328,7 +356,8 @@ class Stage {
     const [dx, dz] = turn(m.move[0] * this.legs(who), m.move[1] * this.legs(who), facing);
     const front: Spot = [seat[0] - dx, seat[1] - dz];
     let t1 = this.go(who, front, t, 'walk');
-    t1 = this.play(who, 'idle', t1, { seconds: 0.7, face: facing });
+    // (Turning round on the spot in front of it: turning as they arrive would take their last steps through it.)
+    t1 = this.play(who, 'idle', t1, { seconds: 0.7, at: front, face: facing });
     t1 = this.play(who, 'stand-to-sit', t1, { at: seat, face: facing });
     this.idle(who, idle);
     return t1;

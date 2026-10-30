@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { motionScene } from '../fixtures/scenes';
-import { newFigure, newProp, newScene } from '@/lib/doc';
+import { putClips } from '@/lib/assets';
+import { newFigure, newProp, newScene, parseClip } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
 import { checkMotion, segmentDistance } from '@/lib/qa';
 import { buildStaging } from '@/lib/stagings';
@@ -26,6 +28,16 @@ describe('motion QA', () => {
       expect(checkMotion(animate([[0, s.figures]])), id).toEqual([]);
     }
   }, 30_000);
+
+  it('leaves a recorded Library motion as it was recorded alone: its own snaps and reach are not the scene\'s to fix', () => {
+    const clip = parseClip(JSON.parse(readFileSync('public/motions/capoeira.json', 'utf8')))!;
+    putClips([clip]);
+    const f = newFigure({ name: 'Mei' });
+    const scene = newScene('Test', [f]);
+    const play = { id: 'a1', start: 0, duration: clip.duration, blendIn: 0.25, roles: [{ figure: f.id }], source: { kind: 'clip' as const, clip: clip.id } };
+    const s: Scene = { ...scene, animation: { duration: clip.duration, fps: 24, loop: false, actions: [play], shots: [{ id: 'main', start: 0, name: 'Shot 1', camera: scene.cameras[0].id }] } };
+    expect(kinds(s).filter((k) => k === 'pop' || k === 'limit')).toEqual([]);
+  });
 
   it('finds a ball flying through someone, but not one let go of or caught at a hand', () => {
     const f = newFigure({ name: 'Ben' });
