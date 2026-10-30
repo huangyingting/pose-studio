@@ -103,6 +103,8 @@ describe('scene templates: what is filmed, without how', () => {
       expect(store.scene.name).toBe(p.name);
       expect(store.scene.coverage?.id, p.id).toBe(p.coverage);
       expect(shotSpans(a).every((s) => store.scene.cameras.some((c) => c.id === s.shot.camera)), p.id).toBe(true);
+      // (Only the coverage's cameras: the one the scene came with, filming none of it, went.)
+      expect(store.scene.cameras.every((c) => c.made), p.id).toBe(true);
       if (p.duration) expect(a.duration).toBe(p.duration);
       expect(checkShots(store.scene).map((i) => i.message), p.id).toEqual([]);
       // Neither holds the other: the template has only a plain camera, the coverage no people.

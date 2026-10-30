@@ -1919,13 +1919,7 @@ export function startFilm(store: Store, what: { template?: string; shoot?: strin
     const people = store.scene.figures.filter((f) => !f.hidden && !f.proxy).length;
     const fallback = people > 1 ? 'dialogue' : 'follow';
     if (!setDirector(store, preset?.coverage ?? fallback, preset && presetCast(store, preset))) setDirector(store, fallback);
-    // (The camera the scene came with, filming none of it now the director's do, goes.)
-    store.updateScene((s) => {
-      const shots = s.animation?.shots ?? [];
-      if (shots.some((x) => !x.camera)) return s;
-      const kept = s.cameras.filter((c) => c.made || shots.some((x) => x.camera === c.id));
-      return kept.length && kept.length < s.cameras.length ? { ...s, cameras: kept } : s;
-    }, '');
+    dropIdleCamera(store);
     store.setTime(0);
     return true;
   });
@@ -1942,7 +1936,19 @@ function shoot(store: Store, id: string) {
   if (!p || !t) return false;
   addScene(store, { ...t.build(), name: p.name });
   if (!store.scene.animation) startAnimation(store, p.duration ?? 6);
-  return !!cover(store, p.coverage, presetCast(store, p));
+  const done = !!cover(store, p.coverage, presetCast(store, p));
+  if (done) dropIdleCamera(store);
+  return done;
+}
+
+/** A new film's cameras are the coverage's: the camera the scene came with, filming none of it, goes. */
+function dropIdleCamera(store: Store) {
+  store.updateScene((s) => {
+    const shots = s.animation?.shots ?? [];
+    if (shots.some((x) => !x.camera)) return s;
+    const kept = s.cameras.filter((c) => c.made || shots.some((x) => x.camera === c.id));
+    return kept.length && kept.length < s.cameras.length ? { ...s, cameras: kept } : s;
+  }, '');
 }
 
 /** Who plays a shoot preset's coverage's roles in the scene just made from its template (its cast, if it says). */
