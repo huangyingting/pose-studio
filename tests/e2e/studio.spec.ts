@@ -406,7 +406,6 @@ test('a selected joint: its rows in the inspector, − and + either side steppin
   await unfold(page, 'Joints');
   await page.getByRole('button', { name: 'Left forearm', exact: true }).click();
   await expect(page.locator('.joint-card')).toHaveCount(0);
-  await expect(page.locator('.sel-label')).toHaveCount(0);
   const bend = () => state(page).then((s) => angle(s.scene.figures[0].bones, 'leftLowerArm')[0]);
   const before = await bend();
   // (The elbow bends one way: − bends it more.)
@@ -1479,7 +1478,6 @@ test('a joint clicked is selected (named in the inspector, not on the canvas); i
   const at = { x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 };
   await page.mouse.click(at.x, at.y);
   await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: unknown } } } }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftLowerArm' });
-  await expect(page.locator('.sel-label')).toHaveCount(0);
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).not.toEqual([0, 0, 0]);
   // Right-click it: the joint stays selected, and its menu resets it.
   await page.mouse.click(at.x, at.y, { button: 'right' });
@@ -1663,6 +1661,21 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
   expect(end(s)[0]).toBeCloseTo(-0.6, 1);
   expect(end(s)[1]).toBeCloseTo(-1.5, 1);
   expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
+});
+
+test('Scene only: the scene filling the window, its button again or Esc back', async ({ page }) => {
+  await page.getByRole('button', { name: 'Scene only' }).click();
+  await expect(page.locator('.topbar')).toBeHidden();
+  await expect(page.getByRole('tablist', { name: 'Sections' })).toBeHidden();
+  const box = await page.locator('.stage canvas').boundingBox();
+  expect(box!.x).toBe(0);
+  expect(box!.y).toBe(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.topbar')).toBeVisible();
+  await page.keyboard.press('Shift+F');
+  await expect(page.locator('.topbar')).toBeHidden();
+  await page.getByRole('button', { name: 'Back to the panels' }).click();
+  await expect(page.getByRole('tablist', { name: 'Sections' })).toBeVisible();
 });
 
 test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {

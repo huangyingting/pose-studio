@@ -18,6 +18,7 @@ import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { awake, setDrawer, wake } from './frames';
 import { LINES_LAYER } from '@/lib/ink';
+import SelectionTag from './SelectionTag';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef } from '@/lib/styles';
@@ -49,9 +50,10 @@ export interface ViewportApi {
   captureShot(): CameraView | null;
   /** What is under a screen point: a figure or prop, and the floor point there. */
   pick(x: number, y: number): CanvasHit;
-  /** Where on screen to label what is selected: just above it (a joint: above its figure, clear of its gizmo). Null if it is not drawn. */
+  /** Where its label goes, just above what is selected (a joint: above its figure, clear of its gizmo). Null if it is not drawn. */
+  labelAt(sel: NonNullable<Selection>): THREE.Vector3 | null;
+  /** That on screen (null: behind the view too). */
   labelPoint(sel: NonNullable<Selection>): { x: number; y: number } | null;
-  /** What turns the selection on screen: a figure's or prop's floor ring (its middle and half its width, px), a camera or the lamp (no width). */
 }
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
@@ -189,6 +191,15 @@ export default function Viewport({
   useLayoutEffect(() => sv.setLinked(shotMode ? null : linked), [sv, linked, scene, shotMode]);
   useLayoutEffect(() => sv.setStyle(look.style), [sv, look.style]);
   useEffect(() => () => sv.dispose(), [sv]);
+
+  // What is selected, named in the scene above it (not a part of a figure: its gizmo is there, and the inspector names it).
+  const tagged = shotMode || onPick || placing || !selection ? undefined
+    : selection.kind === 'figure' ? scene.figures.find((f) => f.id === selection.figure)?.name
+      : selection.kind === 'prop' ? scene.props.find((p) => p.id === selection.prop)?.name
+        : selection.kind === 'camera' ? scene.cameras.find((x) => x.id === selection.camera)?.name
+          : selection.kind === 'light' ? lightingOf(scene).lights.find((l) => l.id === selection.light)?.name : undefined;
+  const tagText = tagged ? (selection?.kind === 'camera' && scene.animation ? `${tagged} · ${time.toFixed(1)} s` : tagged) : null;
+  const labelAt = useCallback((sel: NonNullable<Selection>) => apiRef.current?.labelAt(sel) ?? null, [apiRef]);
 
   const figureDoc = (id: string) => scene.figures.find((f) => f.id === id);
 
@@ -487,6 +498,7 @@ export default function Viewport({
           figures={scene.figures}
           lighting={lightingOf(scene)}
         />
+        <SelectionTag selection={selection} text={tagText} at={labelAt} />
         <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={look.style} />
       </Canvas>
       <DragReadout />
@@ -969,19 +981,15 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       },
       projectPoint: (p) => toScreen(new THREE.Vector3(...p)),
       captureShot: () => captureRef.current(),
-      labelPoint: (sel) => {
-        if (sel.kind === 'light') {
-          // (Behind the view: not on screen.)
-          const lamp = lampOf(sel.light);
-          return !lamp || lamp.clone().project(camera).z > 1 ? null : toScreen(lamp);
-        }
+      labelAt: (sel) => {
+        if (sel.kind === 'light') return lampOf(sel.light);
         if (sel.kind === 'figure' || sel.kind === 'joint') {
           // (A joint's too: clear of its gizmo.)
           // Above the head (cheap enough to follow every frame).
           const m = sv.figures.get(sel.figure);
           if (!m || !m.object.visible && !sv.models.get(sel.figure)) return null;
           const head = m.joints.head.getWorldPosition(new THREE.Vector3());
-          return toScreen(head.setY(head.y + 0.22 * m.object.scale.y));
+          return head.setY(head.y + 0.22 * m.object.scale.y);
         }
         let o: THREE.Object3D | undefined;
         if (sel.kind === 'prop') o = sv.props.get(sel.prop)?.object;
@@ -993,7 +1001,12 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const box = new THREE.Box3().setFromObject(o);
         if (box.isEmpty()) return null;
         const c = box.getCenter(new THREE.Vector3());
-        return toScreen(new THREE.Vector3(c.x, box.max.y, c.z));
+        return new THREE.Vector3(c.x, box.max.y, c.z);
+      },
+      labelPoint: (sel) => {
+        const at = apiRef.current?.labelAt(sel);
+        // (Behind the view: not on screen.)
+        return at && at.clone().project(camera).z <= 1 ? toScreen(at) : null;
       },
       pick: (x, y) => {
         const r = gl.domElement.getBoundingClientRect();

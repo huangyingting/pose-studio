@@ -42,7 +42,6 @@ import { CommandButton } from './CommandButton';
 import CommandPalette from './CommandPalette';
 import ViewBall from './ViewBall';
 import type { Placing } from './placing';
-import SelectionLabel from './SelectionLabel';
 import Letterbox from './Letterbox';
 import CameraPip from './CameraPip';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
@@ -153,7 +152,6 @@ function App() {
   useEffect(() => onOutdated(() => notify('Pose Studio was updated in another tab: reload this one to keep saving', 'error', { label: 'Reload', run: () => location.reload() })), [notify]);
 
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
-  const labelPoint = useCallback((sel: NonNullable<typeof selection>) => apiRef.current?.labelPoint(sel) ?? null, []);
   const projectChest = useCallback((figure: string) => apiRef.current?.project(figure, 'chest') ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
@@ -264,6 +262,18 @@ function App() {
   // (another selection, another scene) cancels.
   // The scene alone, filling the window (the button in its corner, Shift + F).
   const [stageOnly, setStageOnly] = useState(false);
+  // Esc goes back (first, before it clears the selection; a menu or a dialog open: it closes that).
+  useEffect(() => {
+    if (!stageOnly) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setStageOnly(false);
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [stageOnly]);
   const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; take?(hit: CanvasHit): void; ghost?: Placing; selection: typeof selection; scene: string } | null>(null);
   const pick = picked && picked.selection === selection && picked.scene === scene.id ? picked : null;
 
@@ -540,7 +550,6 @@ function App() {
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} />}
         <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
-        <SelectionLabel labelPoint={labelPoint} hidden={!!through || !!pick} />
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
           <div className="stage-hint hide-mobile">
             <Hint
@@ -689,7 +698,7 @@ const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|E
 /** In the canvas's corner: the scene alone, filling the window, or back with its panels. */
 function StageOnlyButton({ on, toggle }: { on: boolean; toggle(): void }) {
   const label = on ? 'Back to the panels' : 'Scene only';
-  const keys = shortcutOf('view.stageOnly');
+  const keys = on ? 'Esc' : shortcutOf('view.stageOnly');
   return (
     <button type="button" className="stage-pop" aria-label={label} aria-pressed={on} data-tip={keys ? `${label} · ${keys}` : label} onClick={toggle}>
       {on ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}
