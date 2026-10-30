@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import {
   ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react';
@@ -540,6 +540,7 @@ function App() {
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
           <div className="stage-hint hide-mobile">
             <Hint
+              clock={clock}
               pick={pick}
               note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
                   ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
@@ -626,12 +627,15 @@ interface Alert { icon: LucideIcon; text: string; action?: { label: string; run(
  * (plain); a correction's or Isolate's note (soft accent); else a next step for the scene, with its
  * commands as buttons (accent).
  */
-function Hint({ pick, note, quiet, alert, keys }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: Alert | null; keys: string | null }) {
+function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: Alert | null; keys: string | null }) {
   const store = useStore();
+  // (Nothing while the film plays, whatever the pointer passes over: followed from the clock itself.)
+  const playing = useSyncExternalStore(clock.subscribe, () => clock.playing, () => false);
   useScene();
   const pointerHint = usePointerHint();
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
+  if (playing) return null;
   if (pick) return <Pill tone="accent" icon={Crosshair}>{pick.ghost ? pointerHint ?? pick.hint : pick.hint}</Pill>;
   if (pointerHint) return <Pill tone="plain" icon={MousePointer2}>{pointerHint}</Pill>;
   if (alert) {

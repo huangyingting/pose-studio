@@ -411,7 +411,7 @@ export default function Viewport({
             position={[0, 0.0005, 0]}
           />
         )}
-        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} onClick={handleClick} onDoubleClick={handleDoubleClick} />
+        <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} playing={() => clock.playing} onClick={handleClick} onDoubleClick={handleDoubleClick} />
         <GizmoWarmup />
         {target && !shotMode && <GizmoScale controls={gizmo} size={gizmoWorld * (coarse ? 1.3 : 1)} />}
         {target && !shotMode && (

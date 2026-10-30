@@ -255,7 +255,7 @@ const TWIST = 0.5;
  * figure or prop). What a drag would move is tinted under the pointer. Pressing starts nothing
  * until the pointer moves a few pixels, so a click still selects and the gizmo keeps its drags.
  */
-export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, onClick, onDoubleClick }: {
+export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, playing, onClick, onDoubleClick }: {
   sv: SceneView;
   store: Store;
   scene: Scene;
@@ -264,6 +264,8 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
+  /** Whether the film is playing: nothing under the pointer is tinted or hinted at then. */
+  playing(): boolean;
   onClick(e: ThreeEvent<MouseEvent>): void;
   onDoubleClick(e: ThreeEvent<MouseEvent>): void;
 }) {
@@ -599,7 +601,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, o
 
   /** Show what a drag would move (and how): tint it, set the cursor. */
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
-    if (e.buttons) return;
+    if (e.buttons || playing()) return;
     if (e.intersections.some((i) => i.object.userData.handle)) { sv.setHover(null); return; }
     const o = pressed(e);
     const t = o && target(o);
