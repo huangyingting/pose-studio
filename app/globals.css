@@ -720,10 +720,14 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
    a soft glow behind them so they read over anything. Its buttons keep their own fill. */
 .stage-hint { position: absolute; left: 50%; bottom: calc(var(--tl-h, 44px) + 12px); z-index: 4; display: flex; justify-content: center; max-width: min(760px, calc(100% - 32px)); transform: translateX(-50%); pointer-events: none; }
 .stage-hint .bar-hint, .stage-hint .bar-hint.plain, .stage-hint .bar-hint.note, .stage-hint .bar-hint.accent, .stage-hint .bar-hint.warn {
-  pointer-events: auto; height: 32px; padding: 0 4px; background: none; box-shadow: none; font-size: 12.5px; font-weight: 500; color: var(--text);
+  pointer-events: auto; height: auto; min-height: 32px; padding: 4px; background: none; box-shadow: none; font-size: 12.5px; font-weight: 500; line-height: 20px; color: var(--text);
   text-shadow: 0 0 3px var(--panel), 0 0 8px var(--panel), 0 0 14px var(--panel);
 }
-.stage-hint .bar-hint-icon { filter: drop-shadow(0 0 3px var(--panel)); }
+.stage-hint .bar-hint-icon { align-self: flex-start; margin-top: 3px; filter: drop-shadow(0 0 3px var(--panel)); }
+/* (A long hint goes on to more lines, not cut off.) */
+.stage-hint .bar-hint-text { white-space: normal; overflow: visible; text-overflow: clip; }
+.stage-hint .hint-part { white-space: nowrap; }
+.stage-hint .hint-action, .stage-hint .hint-dismiss { align-self: center; }
 .stage-hint .hint-action { text-shadow: none; box-shadow: var(--shadow-float); }
 .stage-hint .hint-dismiss { text-shadow: none; }
 .bar-hint kbd { margin: 0 1px 0 0; padding: 1px 5px; font-size: 10.5px; color: var(--text); background: var(--panel); box-shadow: 0 1px 0 var(--border); text-shadow: none; }

@@ -683,19 +683,24 @@ const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|E
  * before the colon, where it is keys ("Alt ← →: turn"). The words themselves unchanged.
  */
 function Keys({ text }: { text: string }) {
-  return text.split(' · ').map((part, i) => {
+  const parts = text.split(' · ');
+  return parts.map((part, i) => {
     const m = /^([^:]{1,28}):(\s.*)$/.exec(part);
     // (Before the colon, keys: drawn as caps, the words between them, Hold, or, /, as they are.)
     const keys = m && m[1].split(' ').some((w) => KEYISH.test(w)) ? m[1] : null;
+    // (A tip kept on one line with its dot: a long hint breaks between tips.)
     return (
       <span key={i}>
-        {i > 0 && <span className="hint-sep"> · </span>}
-        {keys ? (
-          <>
-            {keys.split(/( )/).map((w, j) => (KEYISH.test(w) ? <kbd key={j}>{w}</kbd> : w))}
-            :{m![2]}
-          </>
-        ) : part}
+        <span className="hint-part">
+          {keys ? (
+            <>
+              {keys.split(/( )/).map((w, j) => (KEYISH.test(w) ? <kbd key={j}>{w}</kbd> : w))}
+              :{m![2]}
+            </>
+          ) : part}
+          {i < parts.length - 1 && <span className="hint-sep">{'\u00a0·'}</span>}
+        </span>
+        {i < parts.length - 1 && ' '}
       </span>
     );
   });
