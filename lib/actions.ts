@@ -854,7 +854,7 @@ export function sitOn(store: Store, figureId: string, propId: string) {
   const end = stays.start + stays.duration;
   store.updateScene((s) => ({ ...s, animation: { ...a, actions: [...a.actions, turned, sits, stays].sort((p, q) => p.start - q.start), duration: Math.min(MAX_DURATION, Math.max(a.duration, end)) } }));
   void store.loadClips();
-  store.setTime(sits.start + sits.duration);
+  store.setTime(stays.start);
   store.select({ kind: 'figure', figure: figureId });
   return true;
 }
@@ -869,18 +869,23 @@ export function sittingAt(scene: Scene, figureId: string, t: number) {
 export function standUp(store: Store, figureId: string) {
   const a = store.scene.animation;
   const t = a ? snapTime(a, store.getState().time) : 0;
-  const act = a?.actions.find((x) => !x.layer && x.source.kind === 'clip' && SITTING.includes(x.source.clip) && x.roles.some((r) => r.figure === figureId) && x.start <= t && t < x.start + x.duration);
+  const sitting = (x: Action) => !x.layer && x.source.kind === 'clip' && SITTING.includes(x.source.clip) && x.roles.some((r) => r.figure === figureId);
+  const act = a?.actions.filter((x) => sitting(x) && x.start <= t && t < x.start + x.duration).sort((p, q) => q.start - p.start)[0];
   const f = store.scene.figures.find((x) => x.id === figureId);
   if (!a || !act || !f) return false;
+  // (Its sitting on after it, there, goes: sitting down, then sitting there, all one sit.)
+  const gone = new Set<string>();
+  for (let end = act.start + act.duration, next; (next = a.actions.find((x) => sitting(x) && !gone.has(x.id) && x.id !== act.id && Math.abs(x.start - end) < 1.5 / a.fps)); end = next.start + next.duration) gone.add(next.id);
   const seat = act.roles[0].end ?? { at: [f.position[0], f.position[2]] as [number, number], facing: 0 };
   const up = course(SIT.up);
   const r = (seat.facing * Math.PI) / 180;
   const step = up.move[1] * legsOf(f.body).rootY;
   const stood: [number, number] = [Math.round((seat.at[0] + Math.sin(r) * step) * 1000) / 1000, Math.round((seat.at[1] + Math.cos(r) * step) * 1000) / 1000];
   const rise: Action = { id: uid('act'), start: t, duration: snapTime({ ...a, duration: MAX_DURATION }, up.duration), blendIn: 0.2, roles: [{ figure: figureId, end: { at: stood, facing: seat.facing } }], source: { kind: 'clip', clip: SIT.up } };
-  // (What it did from then on as it sat moves on after it.)
-  const later = a.actions.filter((x) => !x.layer && x.roles.some((rr) => rr.figure === figureId) && x.start >= t + 1e-6);
-  const actions = a.actions.map((x) => (x.id === act.id ? { ...x, duration: Math.max(1 / a.fps, t - x.start) } : later.includes(x) ? { ...x, start: x.start + rise.duration } : x));
+  // (What it does later starts once it is up.)
+  const later = a.actions.filter((x) => !x.layer && !gone.has(x.id) && x.roles.some((rr) => rr.figure === figureId) && x.start >= t + 1e-6);
+  const shift = Math.max(0, rise.start + rise.duration - Math.min(Infinity, ...later.map((x) => x.start)));
+  const actions = a.actions.filter((x) => !gone.has(x.id)).map((x) => (x.id === act.id ? { ...x, duration: Math.max(1 / a.fps, t - x.start) } : later.includes(x) ? { ...x, start: x.start + shift } : x));
   const end = Math.max(a.duration, rise.start + rise.duration, ...actions.map((x) => x.start + x.duration));
   store.updateScene((s) => ({ ...s, animation: { ...a, actions: [...actions, rise].sort((p, q) => p.start - q.start), duration: Math.min(MAX_DURATION, end) } }));
   void store.loadClips();

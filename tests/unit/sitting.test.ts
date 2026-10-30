@@ -52,6 +52,13 @@ describe('sitting on a chair or a stool (#14)', () => {
     expect(sittingAt(store.scene, a, up + 0.1)).toBe(false);
     const stood = hipsAt(store, a, up + 0.1);
     expect(stood.x).toBeGreaterThan(2.3);
+    // (Up for good: no sitting on after it.)
+    expect(sittingAt(store.scene, a, store.scene.animation!.duration - 0.05)).toBe(false);
+    // Got up straight after sitting down: the same.
+    store.undo();
+    store.setTime(t);
+    expect(standUp(store, a)).toBe(true);
+    expect(sittingAt(store.scene, a, store.scene.animation!.duration - 0.05)).toBe(false);
   });
 
   it('sits on a stool with its back to it from where it comes', () => {
