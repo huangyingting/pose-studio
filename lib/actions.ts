@@ -12,7 +12,7 @@ import { clipInfo, partKeys } from './clip';
 import { saveClips } from './assetstore';
 import { projectSettingsOf } from './project';
 import { MAX_LIGHTS, clampLight, forShotOr, fromPreset, keyLight, lightingOf, lookOf, newLight, placeLight, skyAt, withLook, type Look, type Place } from './lighting';
-import { setById, setLights } from './sets';
+import { lightingForSet } from './sets';
 import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, propStretchesOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
@@ -105,20 +105,16 @@ export function renameScene(store: Store, name: string) {
  */
 export function setSceneSet(store: Store, id: string | null) {
   const before = lightingOf(store.scene);
-  const own = id ? setLights(id) : [];
-  const kept = before.lights.filter((l) => !l.ofSet);
-  const lights = [...kept, ...own].slice(0, MAX_LIGHTS);
-  const indoors = setById(id ?? undefined)?.group === 'Indoor';
-  const { indoors: _was, ...env } = before.environment ?? {};
-  void _was;
-  const environment = indoors ? { ...env, indoors: true as const } : env;
+  const after = lightingForSet(before, id);
   store.group(() => {
     store.updateScene((s) => {
       const { set: _, ...rest } = s;
       void _;
       return id ? { ...rest, set: id } : rest;
     });
-    if (lights.length && (own.length || kept.length !== before.lights.length || indoors !== !!before.environment?.indoors)) setLighting(store, withEnvironment({ ...before, lights }, environment));
+    // (Only if the set changes it: a scene left on its default lighting stays so.)
+    const changed = [after, before].some((l) => l.lights.some((x) => x.ofSet)) || !!after.environment?.indoors !== !!before.environment?.indoors;
+    if (after.lights.length && changed) setLighting(store, after);
   });
 }
 

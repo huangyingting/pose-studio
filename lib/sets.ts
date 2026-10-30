@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { CUTAWAY_LAYER, InkedParts, LINES_LAYER, type Ink } from './ink';
-import { clampLight, newLight } from './lighting';
+import { MAX_LIGHTS, clampLight, newLight } from './lighting';
 import { uid } from './uid';
-import type { Light, LightKind, Style, Vec3 } from './types';
+import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
 
 /*
  * Sets: grey boxes of places a scene is played in (a living room, a city street, a Chinese
@@ -336,6 +336,19 @@ export const SETS: SetDef[] = [
 
 /** A set's own lights for a scene (new ids each time). */
 export const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).map((l) => clampLight({ ...newLight(l.kind, l), id: uid('light'), role: 'practical', ofSet: true }));
+
+/**
+ * A lighting for a set (none: null): the last set's own lights given way to this one's, and lit
+ * indoors in an indoor set (#17: its walls cast none of the key's shadows), outdoors in another.
+ */
+export function lightingForSet(l: Lighting, id: string | null): Lighting {
+  const indoors = setById(id ?? undefined)?.group === 'Indoor';
+  const { environment, ...rest } = l;
+  const { indoors: _, ...env } = environment ?? {};
+  void _;
+  const e = indoors ? { ...env, indoors: true as const } : env;
+  return { ...rest, lights: [...l.lights.filter((x) => !x.ofSet), ...(id ? setLights(id) : [])].slice(0, MAX_LIGHTS), ...(Object.keys(e).length ? { environment: e } : {}) };
+}
 
 /** A set by its id. */
 export const setById = (id: string | undefined) => SETS.find((s) => s.id === id);

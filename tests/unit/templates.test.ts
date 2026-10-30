@@ -5,6 +5,7 @@ import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { checkMotion, checkShots } from '@/lib/qa';
 import { facing, withFacing } from '@/lib/relations';
+import { setById } from '@/lib/sets';
 import { shotSpans } from '@/lib/shots';
 import { Store } from '@/lib/store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf } from '@/lib/templates';
@@ -21,6 +22,9 @@ describe('scene templates: what is filmed, without how', () => {
       expect(s.cameras.map((c) => c.made ?? c.kind), t.id).toEqual(['rig']);
       expect(s.coverage, t.id).toBeUndefined();
       if (s.animation) expect(s.animation.shots.map((x) => x.camera), t.id).toEqual([s.cameras[0].id]);
+      // (Lit for its set: indoors in an indoor one, its own lamps and windows with it, #17.)
+      if (s.set) expect(!!s.lighting?.environment?.indoors, t.id).toBe(setById(s.set)!.group === 'Indoor');
+      if (s.set) expect(s.lighting!.lights.filter((l) => l.ofSet).map((l) => l.name), t.id).toEqual(setById(s.set)!.lights?.map((l) => l.name) ?? []);
     }
     expect(checkMotion(SCENE_TEMPLATES.find((t) => t.id === 'high-jump')!.build()).filter((i) => i.kind !== 'camera')).toEqual([]);
   }, 60_000);

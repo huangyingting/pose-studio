@@ -7,6 +7,8 @@ import { clear } from './track';
 import { uid } from './uid';
 import { COVERAGES } from './coverage';
 import { FILMS } from './films';
+import { lightingOf } from './lighting';
+import { lightingForSet } from './sets';
 import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset, Vec3 } from './types';
 
 /*
@@ -146,11 +148,10 @@ export function putTemplate(scene: Scene, template: Scene, cast: string[], t0: n
       ...(holds?.length || base.constraints?.length ? { constraints: [...(base.constraints ?? []), ...(holds ?? [])] } : {}),
     };
   }
-  // (Its light into a scene with nobody in it yet, its set into one without a set.)
-  const next: Scene = {
-    ...scene, figures, props,
-    ...(placed.lighting && !scene.figures.length ? { lighting: placed.lighting } : {}),
-    ...(placed.set && !scene.set ? { set: placed.set } : {}),
-  };
+  // (Its light into a scene with nobody in it yet, its set (and the set's own lights) into one without a set.)
+  const lit = placed.lighting && !scene.figures.length ? placed.lighting : scene.lighting;
+  const setting = placed.set && !scene.set ? placed.set : undefined;
+  const lighting = setting ? lightingForSet(lit ?? lightingOf(scene), setting) : lit;
+  const next: Scene = { ...scene, figures, props, ...(lighting ? { lighting } : {}), ...(setting ? { set: setting } : {}) };
   return animation ? { ...next, animation: normalize(animation, figures) } : next;
 }
