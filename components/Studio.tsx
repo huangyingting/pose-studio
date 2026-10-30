@@ -443,19 +443,6 @@ function App() {
             </Menu>
           </div>
         </div>
-        <div className="tb-hint hide-mobile">
-          <Hint
-            pick={pick}
-            note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
-                ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
-            keys={!through && selection ? stepHint(selectionCtx(store)) : null}
-            quiet={!!through || clock.playing}
-            // (A part selected with the handles hidden: its gizmo is hidden too.)
-            alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
-              ? { icon: EyeOff, text: 'Handles hidden', action: { label: `Show · ${shortcutOf('view.handles') ?? 'H'}`, run: () => command('view.handles').run!(cx) } }
-              : null}
-          />
-        </div>
         <div className="tb-center">
           <input
             className="scene-name"
@@ -550,6 +537,20 @@ function App() {
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} />}
         <SelectionLabel labelPoint={labelPoint} hidden={!!through || !!pick} />
+        {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
+          <div className="stage-hint hide-mobile">
+            <Hint
+              pick={pick}
+              note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
+                  ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
+              keys={!through && selection ? stepHint(selectionCtx(store)) : null}
+              quiet={!!through || clock.playing}
+              // (A part selected with the handles hidden: its gizmo is hidden too.)
+              alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
+                ? { icon: EyeOff, text: 'Handles hidden', action: { label: `Show · ${shortcutOf('view.handles') ?? 'H'}`, run: () => command('view.handles').run!(cx) } }
+                : null}
+            />
+          </div>
         <Timeline clock={clock} notify={notify} />
       </main>
 
@@ -664,8 +665,33 @@ function Pill({ tone, icon: Icon, label, children }: { tone: 'plain' | 'note' | 
   return (
     <div className={`bar-hint ${tone}`} role="status" aria-label={label}>
       <Icon size={14} strokeWidth={2} className="bar-hint-icon" aria-hidden />
-      <span className="bar-hint-text">{text}</span>
+      <span className="bar-hint-text">{typeof text === 'string' ? <Keys text={text} /> : text}</span>
       {rest}
     </div>
   );
+}
+
+/** A gesture or a key, as written in a hint (Drag, Right-click, Alt, ←, H…). */
+const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|Esc|Enter|Space|Page|Up|Down|Arrows|Del|F2|[A-Z]|[←→↑↓]|←→|\/|\+|−)$/;
+
+/**
+ * A hint's words with its gestures and keys as key caps: in each part (between the · ), what comes
+ * before the colon, where it is keys ("Alt ← →: turn"). The words themselves unchanged.
+ */
+function Keys({ text }: { text: string }) {
+  return text.split(' · ').map((part, i) => {
+    const m = /^([^:]{1,28}):(\s.*)$/.exec(part);
+    const keys = m && m[1].split(' ').every((w) => KEYISH.test(w) || w === '' || w === 'or' || w === '/') ? m[1] : null;
+    return (
+      <span key={i}>
+        {i > 0 && <span className="hint-sep"> · </span>}
+        {keys ? (
+          <>
+            {keys.split(/( )/).map((w, j) => (KEYISH.test(w) ? <kbd key={j}>{w}</kbd> : w))}
+            :{m![2]}
+          </>
+        ) : part}
+      </span>
+    );
+  });
 }
