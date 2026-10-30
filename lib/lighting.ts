@@ -82,8 +82,11 @@ const ambient = (intensity = 1, sky = '#ffffff', ground = '#ffffff'): Ambient =>
 /** The key light most scenes start with: the sun from the front-left, above. */
 const keySun = (l: Partial<Light> = {}) => newLight('sun', { name: 'Key light', ...l }, 'key');
 
-/** A scene's lighting without its own: one key light from the front-left, above. */
-export const DEFAULT_LIGHTING: Lighting = { lights: [keySun()], ambient: ambient() };
+/**
+ * A scene's lighting without its own: one key light from the front-left, above; the sky white, the
+ * ground's bounce a warm grey (what is in shade keeps its form: lighter above, darker below).
+ */
+export const DEFAULT_LIGHTING: Lighting = { lights: [keySun()], ambient: ambient(1, '#ffffff', '#c9c2b6') };
 
 /** Where the people are, in a scheme: its lamps placed round it (fromPreset moves them to the people). */
 const SUBJECT: Vec3 = [0, 1.3, 0];
