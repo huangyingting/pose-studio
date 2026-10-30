@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
+  ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -452,7 +452,7 @@ function App() {
             quiet={!!through || clock.playing}
             // (A part selected with the handles hidden: its gizmo is hidden too.)
             alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
-              ? `The handles are hidden: press ${shortcutOf('view.handles') ?? 'H'} (or View → Handles) for the joint's rotate gizmo`
+              ? { icon: EyeOff, text: 'Handles hidden', action: { label: `Show · ${shortcutOf('view.handles') ?? 'H'}`, run: () => command('view.handles').run!(cx) } }
               : null}
           />
         </div>
@@ -615,32 +615,57 @@ function correction(scene: Scene, figureId: string | null, time: number) {
   return `Posing here corrects ${what}`;
 }
 
+/** A warning in the header bar: what is wrong, in a word or two, and the button that puts it right. */
+interface Alert { icon: LucideIcon; text: string; action?: { label: string; run(): void } }
+
 /**
- * The hint in the header bar (its own component: it changes as the pointer moves): what a pick in
- * progress wants; what each gesture does on what is under the pointer; the tool's, a correction's
- * or Isolate's note; else a next step for the scene, with its commands as buttons (the floor's
- * gestures while the pointer is on the empty canvas).
+ * The hint in the header bar (its own component: it changes as the pointer moves), a pill whose
+ * icon and tone say what it is: what a pick in progress wants (accent); a warning with its fix
+ * (amber); what each gesture does on what is under the pointer, or the keys for what is selected
+ * (plain); a correction's or Isolate's note (soft accent); else a next step for the scene, with its
+ * commands as buttons (accent).
  */
-function Hint({ pick, note, quiet, alert, keys }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: string | null; keys: string | null }) {
+function Hint({ pick, note, quiet, alert, keys }: { pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: Alert | null; keys: string | null }) {
   const store = useStore();
   useScene();
   const pointerHint = usePointerHint();
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
-  const hint = pick ? (pick.ghost ? pointerHint ?? pick.hint : pick.hint) : pointerHint ?? alert ?? note;
-  if (hint) return <div className="bar-hint" role="status">{hint}</div>;
+  if (pick) return <Pill tone="accent" icon={Crosshair}>{pick.ghost ? pointerHint ?? pick.hint : pick.hint}</Pill>;
+  if (pointerHint) return <Pill tone="plain" icon={MousePointer2}>{pointerHint}</Pill>;
+  if (alert) {
+    return (
+      <Pill tone="warn" icon={alert.icon}>
+        {alert.text}
+        {alert.action && <button type="button" className="hint-action" onClick={alert.action.run}>{alert.action.label}</button>}
+      </Pill>
+    );
+  }
+  if (note) return <Pill tone="note" icon={Info}>{note}</Pill>;
   const step = !quiet ? nextStep(store) : null;
   // (Else what the keys do for what is selected; else, over the canvas, the floor's gestures.)
-  if (!step) return keys && !quiet ? <div className="bar-hint" role="status">{keys}</div> : overCanvas && !quiet ? <div className="bar-hint" role="status">{FLOOR_HINT}</div> : null;
+  if (!step) return keys && !quiet ? <Pill tone="plain" icon={Keyboard}>{keys}</Pill> : overCanvas && !quiet ? <Pill tone="plain" icon={MousePointer2}>{FLOOR_HINT}</Pill> : null;
   return (
-    <div className="bar-hint step" role="status" aria-label="Next step">
-      <span>{step.text}</span>
+    <Pill tone="accent" icon={Lightbulb} label="Next step">
+      {step.text}
       {step.actions.map((a) => (
         <button key={a.label} type="button" className="hint-action" onClick={() => { a.run(); setSteps((n) => n + 1); }}>{a.label}</button>
       ))}
       <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => { stepDone(store.scene.id, step.id); setSteps((n) => n + 1); }}>
         <X size={13} aria-hidden />
       </button>
+    </Pill>
+  );
+}
+
+/** One hint: its icon, its words (the first child) and any buttons after them. */
+function Pill({ tone, icon: Icon, label, children }: { tone: 'plain' | 'note' | 'accent' | 'warn'; icon: LucideIcon; label?: string; children: ReactNode }) {
+  const [text, ...rest] = Array.isArray(children) ? children : [children];
+  return (
+    <div className={`bar-hint ${tone}`} role="status" aria-label={label}>
+      <Icon size={14} strokeWidth={2} className="bar-hint-icon" aria-hidden />
+      <span className="bar-hint-text">{text}</span>
+      {rest}
     </div>
   );
 }

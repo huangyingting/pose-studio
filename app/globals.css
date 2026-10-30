@@ -707,11 +707,21 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* The hint in the header bar: what a gesture does, what a pick wants, or a next step with its buttons. */
 .tb-hint { display: flex; align-items: center; min-width: 0; height: 100%; padding: 0 8px; }
 .bar-hint {
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 0;
-  color: var(--text-2); font-size: 12px; line-height: 15px;
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; height: 30px; padding: 0 6px 0 10px;
+  border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text-2); font-size: 12px; line-height: 15px; animation: hint-in 160ms ease-out;
 }
-.bar-hint.step { display: flex; align-items: center; gap: 6px; color: var(--text); }
-.bar-hint.step span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-width: 0; overflow: hidden; }
+.bar-hint-icon { flex: none; color: var(--text-3); }
+.bar-hint-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 4px; }
+/* What it is said by its tone: a note, a pick or a next step (accent), a warning (amber). */
+.bar-hint.note { background: var(--accent-soft); box-shadow: none; color: var(--text); }
+.bar-hint.note .bar-hint-icon { color: var(--accent); }
+.bar-hint.accent { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+.bar-hint.accent .bar-hint-icon { color: var(--accent); }
+.bar-hint.warn { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); color: var(--text); font-weight: 500; }
+.bar-hint.warn .bar-hint-icon { color: var(--warn); }
+.bar-hint.warn .hint-action { background: var(--warn); }
+@keyframes hint-in { from { opacity: 0; transform: translateY(-2px); } }
 .hint-action { flex: none; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600; cursor: pointer; }
 .hint-action:hover { background: var(--accent-hover); }
 .hint-dismiss { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-3); cursor: pointer; }
