@@ -1,3 +1,4 @@
+import { CUTAWAY_LAYER } from './ink';
 import * as THREE from 'three';
 import { styleDef } from './styles';
 import type { Ambient, Light, LightKind, Lighting, Scene, Style, Vec3 } from './types';
@@ -316,6 +317,8 @@ export class LightRig {
       s.bias = -0.0004;
       s.normalBias = 0.025;
       s.radius = 3;
+      // (A set's part cut away from the view still casts its shadow.)
+      s.camera.layers.enable(CUTAWAY_LAYER);
       const spot = new THREE.SpotLight(0xffffff, 0, 8, Math.PI / 4, 0.45, 2);
       this.suns.push(sun);
       this.spots.push(spot);

@@ -96,6 +96,12 @@ export interface Ghost {
  */
 export const LINES_LAYER = 1;
 
+/**
+ * The layer a set's part is moved to while it stands in the view's way (cut away: see
+ * SetObject.cutaway): not drawn, but its shadow still cast (the sun's shadow camera sees it).
+ */
+export const CUTAWAY_LAYER = 3;
+
 /** Encode a part id as a colour with 16 levels per channel (robust to 8-bit precision). */
 export function encodeId(id: number) {
   const n = id + 1;

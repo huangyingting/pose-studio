@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { InkedParts, type Ink } from './ink';
+import { CUTAWAY_LAYER, InkedParts, LINES_LAYER, type Ink } from './ink';
 import { clampLight, newLight } from './lighting';
 import { uid } from './uid';
 import type { Light, LightKind, Style, Vec3 } from './types';
@@ -364,10 +364,14 @@ export class SetObject {
   readonly object = new THREE.Group();
   readonly parts: InkedParts;
 
+  /** Its parts (each with its outline), to cut away those in the view's way. */
+  private pieces: THREE.Mesh[] = [];
+
   constructor(ink: Ink, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
     for (const p of setById(id)?.build() ?? []) {
       const mesh = this.parts.add(this.object, geometryOf(p.shape), { set: id }, p.at);
+      this.pieces.push(mesh);
       if (p.rot) mesh.rotation.set(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ');
       // (A floor casts no shadow, only takes them: nothing is under it, and a broad surface that
       // shades itself shows stripes of shadow that crawl as the view turns.)
@@ -379,6 +383,29 @@ export class SetObject {
 
   setStyle(style: Style) {
     this.parts.refresh(style, () => false);
+  }
+
+  /**
+   * Cut away what stands in the view's way: a part the eye is inside, or one between the eye and
+   * what it looks at, is not drawn (its shadow still cast), so the view never shows the inside of
+   * a wall and looks into a room past the wall in front. The rest drawn again.
+   */
+  cutaway(eye: THREE.Vector3, target: THREE.Vector3) {
+    const dir = target.clone().sub(eye);
+    const ray = new THREE.Raycaster(eye, dir.clone().normalize(), 0, Math.max(0, dir.length() - 0.3));
+    const local = new THREE.Vector3();
+    for (const mesh of this.pieces) {
+      const geo = mesh.geometry;
+      const box = (geo.boundingBox ??= (geo.computeBoundingBox(), geo.boundingBox!));
+      const inside = box.containsPoint(mesh.worldToLocal(local.copy(eye)));
+      const hits: THREE.Intersection[] = [];
+      if (!inside) THREE.Mesh.prototype.raycast.call(mesh, ray, hits);
+      const cut = inside || hits.length > 0;
+      if (cut === (mesh.layers.mask === 1 << CUTAWAY_LAYER)) continue;
+      mesh.layers.set(cut ? CUTAWAY_LAYER : 0);
+      // (Its outline too: on no layer while cut away.)
+      for (const child of mesh.children) child.layers.set(cut ? 31 : LINES_LAYER);
+    }
   }
 
   private box: THREE.Box3 | null = null;

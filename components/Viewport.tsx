@@ -100,9 +100,27 @@ function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3)
   const hits: THREE.Intersection[] = [];
   set.traverse((o) => {
     const m = o as THREE.Mesh;
-    if (m.isMesh && m.layers.mask & 1) THREE.Mesh.prototype.raycast.call(m, ray, hits);
+    if (m.isMesh && m.userData.set !== undefined) THREE.Mesh.prototype.raycast.call(m, ray, hits);
   });
   return hits.length > 0;
+}
+
+/** A set's parts in the view's way cut away, as the view moves (SetObject.cutaway). */
+function SetCutaway({ sv }: { sv: SceneView }) {
+  const get = useThree((s) => s.get);
+  const was = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3(), set: null as unknown });
+  useFrame(() => {
+    const { camera, controls } = get() as unknown as { camera: THREE.Camera; controls: { target: THREE.Vector3 } | null };
+    const set = sv.set;
+    if (!set || !controls) return;
+    const w = was.current;
+    if (w.set === set && w.eye.distanceToSquared(camera.position) < 1e-6 && w.target.distanceToSquared(controls.target) < 1e-6) return;
+    w.set = set;
+    w.eye.copy(camera.position);
+    w.target.copy(controls.target);
+    set.cutaway(camera.position, controls.target);
+  });
+  return null;
 }
 
 /**
@@ -447,8 +465,12 @@ export default function Viewport({
             }}
           />
         )}
-        <OrbitControls makeDefault onChange={keepCameraAboveFloor} />
+        {/* (Looking through the shot camera, no easing after letting go: the shot's camera is set
+            from the view once, and the view then follows it; easing on, the two pulled against each
+            other and the view flickered between them.) */}
+        <OrbitControls makeDefault onChange={keepCameraAboveFloor} enableDamping={!through} />
         <DepthRange />
+        <SetCutaway sv={sv} />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
         {scene.animation && onion && <OnionSkin scene={scene} time={time} clock={clock} />}
         {placing && <PlaceGhost key={placing.hint} placing={placing} apiRef={apiRef} />}
