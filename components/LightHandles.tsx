@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
@@ -114,7 +114,10 @@ function Lamp({ store, light, dome: { base, radius }, aim, selected, lit }: {
     editLight(store, light.id, { intensity }, `wheel:${light.id}`);
     setPointerHint(`${light.name}: brightness ${Math.round(intensity * 100)} % · Wheel: brighter, dimmer`);
   };
-  const zoom = (on: boolean) => { const c = get().controls as unknown as Controls; if (c) c.enableZoom = on; };
+  // (Off while the pointer is on it; back on as it leaves, or as it goes from under the pointer: deleted, the style changed.)
+  const zoomOff = useRef(false);
+  const zoom = (on: boolean) => { zoomOff.current = !on; const c = get().controls as unknown as Controls; if (c) c.enableZoom = on; };
+  useEffect(() => () => { if (zoomOff.current) { const c = get().controls as unknown as Controls; if (c) c.enableZoom = true; } }, [get]);
 
   const down = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
