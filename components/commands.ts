@@ -9,9 +9,9 @@ import {
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
-  addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
+  addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
-import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, PLACES, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
+import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
 import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
 import { actionsOf } from '@/lib/evaluate';
@@ -26,7 +26,7 @@ import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById } from '@/lib/assets';
-import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
+import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, LIGHT_ROLES, PROP_KINDS, PROP_LABELS, STYLES, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
 import { PARENT } from '@/lib/skeleton';
@@ -643,8 +643,13 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'light.place', title: 'Make it the', help: 'A key, a fill or a rim, put where it goes round the people', icon: SunMedium, when: (c) => !!c.light && !lightOf(c).ofSet,
-    items: (c) => PLACES.map((p) => ({ title: ROLE_NAMES[p], checked: lightOf(c).role === p, run: () => placeSceneLight(c.store, lightOf(c).id, p) })),
+    id: 'light.place', title: 'Role', help: 'What the light is for: a key, a fill or a rim is put where it goes round the people', icon: SunMedium, when: (c) => !!c.light && !lightOf(c).ofSet,
+    // (As the light's inspector has them.)
+    items: (c) => [...LIGHT_ROLES, null].map((r) => ({
+      title: r ? ROLE_NAMES[r] : 'None',
+      checked: (lightOf(c).role ?? null) === r,
+      run: () => (r === 'key' || r === 'fill' || r === 'rim' ? placeSceneLight(c.store, lightOf(c).id, r) : setLightRole(c.store, lightOf(c).id, r)),
+    })),
   },
   {
     id: 'light.shadows', title: 'Shadows', help: 'Only the key casts shadows', icon: SunMedium, when: (c) => !!c.light && lightOf(c).kind === 'sun' && keyLight(lightingOf(sceneOf(c)))?.id === c.light, checked: (c) => lightOf(c).shadows,

@@ -8,7 +8,7 @@ import { defaultCamera } from './doc';
 import { setBlocks } from './sets';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
 import { projectSettings } from './project';
-import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, RigCamera, Scene, ShotSize, Vec3, View } from './types';
+import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, PropKind, RigCamera, Scene, ShotSize, Vec3, View } from './types';
 
 /*
  * The cameras: how a "director" films the figures. A scene has cameras, at least one, each an
@@ -189,6 +189,12 @@ function evenTime(points: CameraPoint[], ease: PathCamera['ease'], t: number) {
 const rigViews = new WeakMap<object, WeakMap<Camera, Map<string, CameraView>>>();
 
 /** What a camera sees at time t, whatever is cut to then. */
+/** Props a camera keeps out of: how far they reach round their middle on the floor, for a scale of 1. */
+const STANDING: Partial<Record<PropKind, number>> = { chair: 0.6, stool: 0.4, hoop: 0.6, box: 0.6, cylinder: 0.5, sphere: 0.5, step: 0.4 };
+
+/** The shot sizes that frame people whole: in a small room, they take a wider lens. */
+const WIDE: ShotSize[] = ['ews', 'ws', 'fs', 'mws'];
+
 export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect()): CameraView {
   if (cam.kind === 'rig') {
     const owner = movesOf(scene);
@@ -204,9 +210,32 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
       // coming in as the wall comes between, a little before, not at once.)
       if (scene.set) {
         const keep = wallKeep(scene, cam, t, aspect);
-        if (keep < 1) v.position.sub(v.target).multiplyScalar(keep).add(v.target);
+        if (keep < 1) {
+          v.position.sub(v.target).multiplyScalar(keep).add(v.target);
+          // (Come in, a wide shot takes a wider lens to frame as much: as in a small room, not wider
+          // than 12 mm. A closer one just comes in: tighter, the one it is on still in it.)
+          if (WIDE.includes(cam.rig.size)) {
+            const tan = Math.tan((lensFov(v.lens, aspect) * D2R) / 2) / keep;
+            v.lens = Math.max(12, Math.round(fovLens((2 * Math.atan(tan)) / D2R, aspect) * 10) / 10);
+          }
+        }
       }
       v.position.y = Math.max(0.15, v.position.y);
+      // (Never in anyone, nor in what stands on the floor: half a metre out from where they stand at
+      // least, as it swings round past them; out of a chair, a stool, a hoop, a box.)
+      const around = [
+        ...scene.figures.filter((f) => !f.hidden).map((f) => ({ at: (basePoseAt(scene, f.id, t) ?? f).position, r: 0.5 })),
+        ...scene.props.filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length)
+          .map((p) => ({ at: p.position, r: STANDING[p.kind]! * Math.max(p.scale[0], p.scale[2]) + 0.3 })),
+      ];
+      for (const { at, r } of around) {
+        const [dx, dz] = [v.position.x - at[0], v.position.z - at[2]];
+        const d = Math.hypot(dx, dz);
+        if (d >= r) continue;
+        const [ux, uz] = d > 1e-4 ? [dx / d, dz / d] : [v.position.x - v.target.x, v.position.z - v.target.z].map((x, _, a) => x / (Math.hypot(a[0], a[1]) || 1));
+        v.position.x = at[0] + ux * r;
+        v.position.z = at[2] + uz * r;
+      }
       view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: v.roll });
       if (views.size > 2000) views.clear();
       views.set(key, view);
@@ -560,8 +589,12 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     if (!them || !seen(at(0), them, r.lens, aspect)) return { shot: at(0), clear: true, extra: 0 };
     // Round, away from the other, by the least angle that leaves them out (found by halving; it
     // moves smoothly as they do).
+    // (Up to 70° round; a little further if the other is still in it there.)
     let [lo, hi] = [0, 70];
-    if (seen(at(away * hi), them, r.lens, aspect)) return { shot: at(away * hi), clear: false, extra: away * hi };
+    if (seen(at(away * hi), them, r.lens, aspect)) {
+      if (seen(at(away * 100), them, r.lens, aspect)) return { shot: at(away * hi), clear: false, extra: away * hi };
+      [lo, hi] = [70, 100];
+    }
     for (let i = 0; i < 12; i++) {
       const mid = (lo + hi) / 2;
       if (seen(at(away * mid), them, r.lens, aspect)) lo = mid;
@@ -617,15 +650,34 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
       const wall = setBlocks(scene.set, shot.look, shot.position);
       return wall !== null && wall < 0.5 * shot.position.distanceTo(shot.look);
     };
+    // (Where it ends up: a wall in the way brings it in, as wallKeep does: in nobody's way there either.)
+    const pulled = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => {
+      const wall = scene.set ? setBlocks(scene.set, shot.look, shot.position) : null;
+      const dist = shot.position.distanceTo(shot.look);
+      if (wall === null || dist < 1e-6) return shot;
+      const keep = Math.min(1, Math.max(0.3, wall - 0.15) / dist);
+      return { position: shot.position.clone().sub(shot.look).multiplyScalar(keep).add(shot.look), look: shot.look };
+    };
+    const blocked = (shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) => inWay(shot, people) || inWay(pulled(shot), people);
     if (!others.length && !walled(at(keepOut))) return keepOut;
     // One way round only (no swinging back across), further than for people if a wall is in the way.
     const tries = [0, 20, 40, 60, 90].map((x) => keepOut + away * x);
     const unblocked = tries.filter((x) => !blocked(at(x), others) && !walled(at(x)));
     // (Nothing keeps out of everyone's way and the other out of a single: as the single keeps the
     // other out as best it can, unless that is in someone's way; else as far from them as it gets.)
+    // (Walls all round: the side it can stand furthest back on.)
+    const room = (x: number) => {
+      const shot = at(x);
+      const wall = scene.set ? setBlocks(scene.set, shot.look, shot.position) : null;
+      return wall === null ? 1 : wall / Math.max(1e-6, shot.position.distanceTo(shot.look));
+    };
+    // (Walled in all round: out of everyone's way, the other out of a single if it can be, the most room.)
+    const free = tries.filter((x) => !blocked(at(x), others));
+    const walledIn = tries.every((x) => walled(at(x))) && free.length > 0;
     return unblocked.find(out)
-      ?? (other && (unblocked.includes(keepOut) || !unblocked.length) ? keepOut : unblocked[0])
-      ?? (others.length ? tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x)) : keepOut);
+      ?? (other && (unblocked.includes(keepOut) || !unblocked.length) && !walledIn ? keepOut : unblocked[0])
+      ?? (walledIn ? (free.some(out) ? free.filter(out) : free).reduce((x, y) => (room(y) > room(x) ? y : x))
+        : others.length ? tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x)) : keepOut);
   };
   const reach = Math.round(SWING_EASE / 2 / SWING_STEP);
   const held = (i: number) => {
@@ -753,7 +805,7 @@ const SWING_EASE = 1.5;
  * the lens) or has them right in front of it: across its line of sight within a metre and a half
  * of it, between it and what it films.
  */
-function blocked(shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) {
+function inWay(shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) {
   const [cx, cz] = [shot.position.x, shot.position.z];
   const [dx, dz] = [shot.look.x - cx, shot.look.z - cz];
   const len = Math.hypot(dx, dz) || 1;

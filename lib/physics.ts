@@ -143,6 +143,7 @@ function simulate(R: Rapier, body: Body, launch: Launch, steps: number, solids: 
       rotations.set([q.x, q.y, q.z, q.w], i * 4);
     };
     put(0);
+    let before = Math.hypot(...launch.velocity);
     let still = 0;
     let level = 0;
     let down: number | undefined;
@@ -161,8 +162,16 @@ function simulate(R: Rapier, body: Body, launch: Launch, steps: number, solids: 
         });
       }
       world.step();
+      // (A bone moved a long way in a frame (someone set somewhere else) does not send it flying:
+      // someone walking into it knocks it on at a walking pace, 5 m/s at most, faster only if it
+      // was going faster already.)
+      const fast = rb.linvel();
+      const speed = Math.hypot(fast.x, fast.y, fast.z);
+      const cap = Math.max(5, before + GRAVITY / HZ * 1.5);
+      if (speed > cap) rb.setLinvel({ x: (fast.x * cap) / speed, y: (fast.y * cap) / speed, z: (fast.z * cap) / speed }, true);
       put(i);
       const v = rb.linvel();
+      before = Math.hypot(v.x, v.y, v.z);
       // Down to stay: barely moving up or down for a moment (it may roll on).
       level = Math.abs(v.y) < 0.05 ? level + 1 : 0;
       if (down === undefined && level > HZ / 4) down = launch.t + (i - level) / HZ;

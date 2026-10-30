@@ -448,8 +448,8 @@ test('a selected joint: its rows in the inspector, − and + either side steppin
   await expect(page.getByRole('button', { name: 'Bend −5°' })).toHaveAttribute('data-tip', /^−5°, bend/);
   // Its value, typed.
   await page.getByRole('button', { name: /^Bend: .*Click to type a value$/ }).click();
-  await page.getByRole('spinbutton', { name: 'Bend value' }).fill('-40');
-  await page.getByRole('spinbutton', { name: 'Bend value' }).press('Enter');
+  await page.getByRole('textbox', { name: 'Bend value' }).fill('-40');
+  await page.getByRole('textbox', { name: 'Bend value' }).press('Enter');
   await expect.poll(bend).toBeCloseTo(-40, 0);
 });
 
@@ -726,6 +726,9 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
   // L cycles through every style.
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press('l');
+  expect(await style()).toBe('pixel');
+  await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Pixel');
   await page.keyboard.press('l');
   expect(await style()).toBe('render');
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('3D');
@@ -1928,7 +1931,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
   await page.getByRole('region', { name: 'Lighting' }).getByRole('button', { name: 'Dusk', exact: true }).click();
   await openSection(page, 'Scene');
   s = await live(page);
-  expect(s.scene.lighting!.lights.map((l) => [l.kind, l.name])).toEqual([['sun', 'Key light'], ['lamp', 'Fill light']]);
+  expect(s.scene.lighting!.lights.map((l) => [l.kind, l.name])).toEqual([['sun', 'Key light'], ['sun', 'Fill light']]);
   expect(s.scene.lighting!.lights[0].kelvin).toBeLessThanOrEqual(3000);
   await expect((await outline(page, 'Lights')).getByRole('button', { name: 'Fill light', exact: true })).toBeVisible();
   // The key light lit from the left, from the view (its menu).

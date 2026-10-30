@@ -11,7 +11,7 @@ import { groundOf } from './surfaces';
 import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
 import { setBlocks } from './sets';
 import { shotSpans } from './shots';
-import { JOINTS, type JointName, type Prop, type Scene, type Vec3 } from './types';
+import { JOINTS, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -383,6 +383,9 @@ export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), .
  * whoever it frames with them, or everyone) is hidden when a prop blocks the line of sight to at least two of its head, chest and
  * hips.
  */
+/** What people sit on. */
+const SEATS: PropKind[] = ['chair', 'stool'];
+
 function hiddenInShots(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a || !scene.props.some((p) => !p.hold)) return [];
@@ -400,11 +403,15 @@ function hiddenInShots(scene: Scene): Issue[] {
       // The shot's subject and whoever it frames with them (a two-shot), or everyone.
       const framed = cameraFigures(scene, liveCamera(scene, t));
       placeCamera(cam, cameraAt(scene, t), frameAspect());
-      const blockers = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name })));
-      if (!blockers.length) continue;
+      const all = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name, prop: p })));
+      if (!all.length) continue;
       for (const f of now.figures.filter((x) => !x.hidden && (!framed || framed.includes(x.id)))) {
         const m = view.figures.get(f.id);
         if (!m) continue;
+        // (The chair someone sits on, is about to, or stands just up from does not hide them: seen from behind, over its back.)
+        const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
+        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && Math.hypot(b.prop.position[0] - hips.x, b.prop.position[2] - hips.z) < 1));
+        if (!blockers.length) continue;
         let blocked = 0;
         let behind = '';
         for (const j of ['head', 'chest', 'hips'] as const) {
@@ -458,7 +465,8 @@ function cameraInside(scene: Scene): Issue[] {
         if (capsules(rig, f).some((c) => new THREE.Line3(c.p, c.q).closestPointToPoint(p, true, new THREE.Vector3()).distanceTo(p) < c.r)) inside.push({ key: f.id, name: f.name, figure: f.id });
       }
       view.sync(now);
-      for (const pr of now.props) {
+      // (Not a ball or anything thrown, flying past the lens: only what stands where it is.)
+      for (const pr of now.props.filter((x) => !a.props?.[x.id]?.length)) {
         const solid = view.props.get(pr.id)?.solids.some((mesh) => new THREE.Box3().setFromObject(mesh).containsPoint(p));
         if (solid) inside.push({ key: pr.id, name: pr.name, figure: '' });
       }

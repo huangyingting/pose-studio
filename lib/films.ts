@@ -372,8 +372,8 @@ class Stage {
  */
 export function wuxiaDuel(): Scene {
   const s = new Stage('Wuxia duel', [
-    { name: 'Lin', body: 'Tall man', at: [0, 5], facing: 'Mei', idle: 'fight-idle' },
-    { name: 'Mei', body: 'Tall woman', at: [0, -5], facing: 'Lin', idle: 'fight-idle' },
+    { name: 'Lin', body: 'Tall man', at: [0, 3.5], facing: 'Mei', idle: 'fight-idle' },
+    { name: 'Mei', body: 'Tall woman', at: [0, -3.5], facing: 'Lin', idle: 'fight-idle' },
   ], 'dusk', 'old-street');
   // The salute: fist in palm, then the stance.
   s.play('Lin', 'praying', 0.5);
@@ -643,7 +643,7 @@ export function houseParty(): Scene {
 /**
  * The office before a deadline: one on the phone at her desk, one thinking it over by the
  * window, a colleague comes in and gets water, the boss walks the floor on his phone and calls a
- * briefing at the whiteboard; they sit and talk it over, it is agreed, thumbs up, back to work.
+ * briefing; they sit and talk it over, it is agreed, thumbs up, back to work.
  */
 export function officeDeadline(): Scene {
   const s = new Stage('Office deadline', [
@@ -652,8 +652,7 @@ export function officeDeadline(): Scene {
     { name: 'Grace', body: 'Tall woman', at: [2.4, -1.5], facing: 150, idle: 'thinking' },
     { name: 'Mr Hale', body: 'Big man', at: [-5.6, 1.6], facing: 90 },
   ], 'studio', 'office');
-  // The whiteboard, and three chairs facing it.
-  s.prop('wall', [0, 0, 3.1], { scale: [2.4, 1.9, 1], name: 'Whiteboard' });
+  // Three chairs for a briefing.
   const seats = ([[-1.8, 0.8], [0, 0.5], [1.8, 0.8]] as Spot[]).map((at) => s.chair(at, 0));
   // Maya on the phone at her desk, Grace thinking by hers, Tom in through the side door to the water cooler.
   s.play('Maya', 'talking-on-phone', 0.2, { seconds: 16, face: 180 });
@@ -667,19 +666,19 @@ export function officeDeadline(): Scene {
   s.go('Mr Hale', [-4.6, 1.4], 0.5);
   s.play('Mr Hale', 'talking-on-phone', s.until('Mr Hale'), { seconds: 9, face: 'Maya' });
   s.go('Mr Hale', [-0.4, 1.9], s.until('Mr Hale'));
-  // He calls them over to the whiteboard.
+  // He calls them over for a briefing.
   s.play('Mr Hale', 'waving', s.until('Mr Hale'), { face: 'Maya' });
   const meet = s.until('Mr Hale');
   s.sit('Maya', seats[0], 0, Math.max(s.until('Maya'), meet - 1), 'sitting-idle');
   s.sit('Grace', seats[1], 0, Math.max(s.until('Grace'), meet - 0.5), 'sitting-idle');
   s.go('Tom', [6.2, -1.2], Math.max(s.until('Tom'), meet - 2));
   s.sit('Tom', seats[2], 0, s.until('Tom'), 'sitting-idle');
-  // He stands at the board and talks it through.
+  // He stands before them and talks it through.
   s.go('Mr Hale', [2.4, 2.5], meet + 0.3);
   s.idle('Mr Hale', 'idle', [0, 0.6]);
   const brief = Math.max(s.until('Tom'), s.until('Mr Hale')) + 0.3;
   s.play('Mr Hale', 'talking', brief, { seconds: 8, face: [0, 0.6] });
-  s.play('Mr Hale', 'pointing', s.until('Mr Hale'), { face: [0.6, 3] });
+  s.play('Mr Hale', 'pointing', s.until('Mr Hale'), { face: 'Grace' });
   s.play('Tom', 'sitting-talking', s.until('Mr Hale') - 0.5, { seconds: 7 });
   s.play('Mr Hale', 'thinking', s.until('Mr Hale') + 0.5, { face: 'Tom' });
   s.play('Mr Hale', 'head-nod-yes', s.until('Mr Hale'), { face: 'Maya' });
@@ -741,8 +740,8 @@ export function cafeMeeting(): Scene {
   const up = Math.max(s.until('Lea'), s.until('Ben')) + 0.5;
   s.rise('Lea', up, 'happy-idle', 'Ben');
   s.rise('Ben', up + 0.4, 'happy-idle', 'Lea');
-  s.go('Lea', [-2.9, 2.3], s.until('Lea') + 0.2);
-  s.go('Ben', [-1.9, 2.3], s.until('Ben') + 0.2);
+  s.go('Lea', [-3.2, 2.8], s.until('Lea') + 0.2);
+  s.go('Ben', [-2.0, 2.8], s.until('Ben') + 0.2);
   s.face('Lea', 'Ben', s.until('Lea'), 0.8);
   s.face('Ben', 'Lea', s.until('Ben'), 0.8);
   s.play('Ben', 'laughing', s.until('Ben'), { seconds: 4, face: 'Lea' });
@@ -780,7 +779,7 @@ export function kungFuSchool(): Scene {
   }
   s.play('Master Wu', 'head-nod-yes', 12, { face: 'Jun' });
   // Drills on the standing bags.
-  const bags: Spot[] = [[-3.4, 4.6], [3.4, 4.6]];
+  const bags: Spot[] = [[-4.4, 5.2], [4.4, 5.2]];
   for (const [i, at] of bags.entries()) s.prop('cylinder', [at[0], 0, at[1]], { scale: [0.36, 1.6, 0.36], name: `Bag ${i + 1}` });
   // (As far from the bag as the punches reach, and its radius: the fists on it.)
   const reach = (who: string, bag: Spot, from: Spot) => {
@@ -814,7 +813,7 @@ export function kungFuSchool(): Scene {
   s.go('Hua', [-2.2, 3.4], show);
   s.face('Hua', 180, s.until('Hua'));
   s.play('Hua', 'backflip', s.until('Hua') + 0.3);
-  s.go('Ling', [2.6, 2.6], show + 0.4);
+  s.go('Ling', [3.6, 1.6], show + 0.4);
   s.face('Ling', -90, s.until('Ling'));
   s.play('Ling', 'capoeira', s.until('Ling') + 0.4);
   s.go('Jun', [0, 3.4], show + 0.2);

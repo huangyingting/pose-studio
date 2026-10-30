@@ -229,7 +229,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
               >
                 <SunMedium size={15} strokeWidth={1.75} aria-hidden />
                 <span className="layer-name">Lighting</span>
-                <em>{lightingName(lighting)}</em>
+                <em aria-hidden>{lightingName(lighting)}</em>
                 <i className="light-dot" style={{ background: `linear-gradient(${lighting.ambient.sky} 50%, ${lighting.ambient.ground} 50%)` }} aria-hidden />
               </button>
             </li>
@@ -252,7 +252,8 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                   >
                     <Icon size={15} strokeWidth={1.75} aria-hidden />
                     <span className="layer-name">{name}</span>
-                    {l.role && !l.ofSet && <em>{ROLE_NAMES[l.role]}</em>}
+                    {/* (Its role, as a badge: the row is named by the light's name.) */}
+                    {l.role && !l.ofSet && <em aria-hidden>{ROLE_NAMES[l.role]}</em>}
                     <i className="light-dot" style={{ background: l.color }} aria-hidden />
                   </button>
                   <span className="layer-actions">
