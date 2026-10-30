@@ -11,7 +11,7 @@ import { placingTemplate } from './placing';
 import { Thumbnail } from './side/LibrarySection';
 import type { Thumb } from './side/libraryItems';
 import { useStore, useStudio } from './store-context';
-import { Modal, Segmented, type Notify } from './ui';
+import { Modal, Segmented } from './ui';
 
 /** How long it is: as made (a still one still, a film as long as it is), or a film this long (s). */
 const LENGTHS = [{ value: '0', label: 'As made' }, { value: '15', label: '15 s' }, { value: '30', label: '30 s' }, { value: '60', label: '1 min' }];
@@ -32,7 +32,7 @@ interface Tile {
  * together, a set-up, one of mine) or a shoot preset (a template filmed a way). As made, or a film
  * of a length that the director films.
  */
-export function StartDialog({ onClose, notify }: { onClose(): void; notify: Notify }) {
+export function StartDialog({ onClose }: { onClose(): void }) {
   const store = useStore();
   const library = useStudio((s) => s.library);
   const active = useStudio((s) => s.activeFigure);
@@ -44,7 +44,6 @@ export function StartDialog({ onClose, notify }: { onClose(): void; notify: Noti
 
   const start = (tile: Tile) => {
     if (!tile.open()) return;
-    notify(seconds ? `${tile.name}: ${LENGTHS.find((l) => l.value === length)!.label}` : tile.name);
     onClose();
   };
   const empty: Tile = {
@@ -70,7 +69,7 @@ export function StartDialog({ onClose, notify }: { onClose(): void; notify: Noti
         icon: Layers,
         label: figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`,
         // (Placed with the pointer: onto a figure, its first role, or the floor.)
-        run: () => { onClose(); placeOrAdd(placingTemplate(store, t.id), () => { if (placeTemplate(store, t.id)) notify(`${t.name} put into ${store.scene.name}`); }); },
+        run: () => { onClose(); placeOrAdd(placingTemplate(store, t.id), () => { placeTemplate(store, t.id); }); },
       },
       ...(t.group === 'Mine' ? [{ icon: Trash2, label: `Delete the template ${t.name}`, run: () => { deleteTemplate(store, t.id); } }] : []),
     ],

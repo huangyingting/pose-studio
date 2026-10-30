@@ -941,7 +941,6 @@ export const COMMANDS: Command[] = [
       const shot = App().captureShot();
       if (!shot) return;
       setCameraPoint(c.store, shot.position, shot.target, shot.fov, '', c.camera);
-      App().notify(`${cameraById(sceneOf(c), c.camera)?.name} set from the view`);
     },
   },
   {
@@ -1172,8 +1171,7 @@ export const COMMANDS: Command[] = [
       setCameraPoint(c.store, shot.position, shot.target, shot.fov, '', cam.id);
       const picked = c.store.getState().selection?.kind === 'camera';
       if (!c.store.getState().through) c.store.lookThrough(picked ? { camera: cam.id } : {});
-      App().notify(`${cam.name} set from the view`);
-    },
+      },
   },
   {
     id: 'timeline.deleteCameraPoint', title: (c) => `Delete ${rowCamera(c).name}’s point`, icon: Trash2, when: animated,

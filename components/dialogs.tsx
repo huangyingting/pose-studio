@@ -504,7 +504,7 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
   const apply = () => {
     const { figures, skipped } = poseFigures(people, body);
     applyPhotoPose(store, figures, target === 'current' ? posable! : undefined);
-    notify(skipped.length ? `Posed. Not visible in the photo: ${skipped.join(', ')}` : 'Pose applied from photo');
+    if (skipped.length) notify(`Not visible in the photo: ${skipped.join(', ')}`);
     onClose();
   };
 

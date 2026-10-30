@@ -136,7 +136,7 @@ export function CharactersBar({ notify, notifyUndo }: BarProps) {
     // Its file is here now: its thumbnail is drawn once, and kept with it.
     addModel(store, { ...info, thumb: characterThumb(info.id).make() });
     if (figure) setFigureModel(store, figure.id, info.id);
-    notifyUndo(`Imported “${info.name}”${figure ? `: ${figure.name} is drawn as it` : ''}`);
+    notifyUndo(`Imported “${info.name}”`);
   }, notify);
   return (
     <>

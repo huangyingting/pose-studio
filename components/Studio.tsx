@@ -566,7 +566,7 @@ function App() {
         />
       )}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog(null)} />}
-      {dialog === 'start' && <StartDialog onClose={() => setDialog(null)} notify={notify} />}
+      {dialog === 'start' && <StartDialog onClose={() => setDialog(null)} />}
       {dialog === 'palette' && <CommandPalette onClose={() => setDialog(null)} ui={{ notify, notifyUndo }} />}
       {dialog === 'practice' && <PracticeMode onClose={() => setDialog(null)} />}
       {dialog === 'board' && <Board onClose={() => setDialog(null)} onExport={() => setDialog('export-story')} />}

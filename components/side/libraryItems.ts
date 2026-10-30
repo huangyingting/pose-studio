@@ -125,10 +125,9 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
     name: p.name,
     about: p.description,
     icon: PersonStanding,
-    note: figure ? `Click to put it on ${figure.name}` : undefined,
     disabled: !figure,
-    run: () => { if (figure && applyPose(store, figure.id, p.id)) { ui.notifyUndo(`${figure.name}: ${p.name}`); ui.onPick?.(); } },
-    drop: { figure: (id) => { const f = posableById(store, id); if (f && applyPose(store, f.id, p.id)) ui.notifyUndo(`${f.name}: ${p.name}`); } },
+    run: () => { if (figure && applyPose(store, figure.id, p.id)) ui.onPick?.(); },
+    drop: { figure: (id) => { const f = posableById(store, id); if (f) applyPose(store, f.id, p.id); } },
     preview: () => posePreview(p, style(store)),
     ghost: figure ? () => { const f = atPlayhead(store, figure.id); return f ? ghostOf(withPose(f, p)) : null; } : undefined,
     thumb: poseThumb(p),
@@ -143,8 +142,7 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
     name: t.name,
     about: t.description,
     icon: UsersRound,
-    note: figure ? `Click to put it on ${figure.name} and the one nearest` : 'Click to add two figures in it',
-    run: () => { if (placeTemplate(store, t.id, figure?.id ?? null)) { ui.notifyUndo(t.name); ui.onPick?.(); } },
+    run: () => { if (placeTemplate(store, t.id, figure?.id ?? null)) ui.onPick?.(); },
     preview: () => templatePreview(t.id, t.build, style(store)),
     thumb: templateThumb(t.id, t.build),
   }));
@@ -161,7 +159,7 @@ function motionLength(id: string) {
 
 function motions(store: Store, ui: LibraryUi): LibraryItem[] {
   const figure = posable(store);
-  const give = (id: string, name: string) => { if (figure && applyMotion(store, figure.id, id)) { ui.notifyUndo(`${figure.name}: ${name}`); ui.onPick?.(); } };
+  const give = (id: string) => { if (figure && applyMotion(store, figure.id, id)) ui.onPick?.(); };
   const built = MOTIONS.filter((m) => MOTION_GROUPS.includes(m.group)).map((m): LibraryItem => {
     return {
       key: `motion:${m.id}`,
@@ -171,13 +169,12 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       name: m.name,
       icon: Film,
       meta: `${motionLength(m.id).toFixed(1)} s`,
-      note: figure ? `Click to give it to ${figure.name}` : undefined,
       disabled: !figure,
-      run: () => give(m.id, m.name),
+      run: () => give(m.id),
       drop: {
         figure: (id) => {
           const f = posableById(store, id);
-          if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`);
+          if (f) applyMotion(store, f.id, m.id);
         },
         length: m.travel ? undefined : motionLength(m.id),
       },
@@ -187,7 +184,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       actions: !m.travel && figure ? [{
         icon: Layers,
         label: `${m.name}: upper body only, over what ${figure.name} is doing`,
-        run: () => { if (applyUpperBody(store, figure.id, m.id)) { ui.notifyUndo(`${figure.name}: ${m.name} (upper body)`); ui.onPick?.(); } },
+        run: () => { if (applyUpperBody(store, figure.id, m.id)) ui.onPick?.(); },
       }] : undefined,
     };
   });
@@ -196,7 +193,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     const giveTo = (id: string) => void load().then((ok) => {
       const f = posableById(store, id);
       if (!ok) return ui.notify(`Could not load ${m.name}`);
-      if (f && applyMotion(store, f.id, m.id)) ui.notifyUndo(`${f.name}: ${m.name}`);
+      if (f) applyMotion(store, f.id, m.id);
     });
     return {
       key: `motion:${m.id}`,
@@ -206,7 +203,6 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       name: m.name,
       icon: Film,
       meta: `${m.duration.toFixed(1)} s`,
-      note: figure ? `Click to give it to ${figure.name}` : undefined,
       disabled: !figure,
       run: () => { if (figure) { giveTo(figure.id); ui.onPick?.(); } },
       drop: { figure: giveTo, length: m.duration },
@@ -232,7 +228,7 @@ function sets(store: Store, ui: LibraryUi): LibraryItem[] {
   const now = store.scene.set;
   const none: LibraryItem = {
     key: 'set:none', tab: 'sets', part: 'Sets', group: 'Indoor', name: 'No set', icon: Ban, on: !now,
-    note: 'The bare stage', run: () => { if (now) { setSceneSet(store, null); ui.notifyUndo('No set'); } },
+    note: 'The bare stage', run: () => { if (now) { setSceneSet(store, null); } },
   };
   const built = SET_GROUPS.flatMap((g) => SETS.filter((s) => s.group === g)).map((s): LibraryItem => ({
     key: `set:${s.id}`,
@@ -244,8 +240,7 @@ function sets(store: Store, ui: LibraryUi): LibraryItem[] {
     about: s.description,
     icon: Castle,
     on: now === s.id,
-    note: now === s.id ? 'The scene\'s set' : `Click to play ${store.scene.name} in it`,
-    run: () => { if (now !== s.id) { setSceneSet(store, s.id); ui.notifyUndo(`Set: ${s.name}`); ui.onPick?.(); } },
+    run: () => { if (now !== s.id) { setSceneSet(store, s.id); ui.onPick?.(); } },
     preview: () => setPreview(s.id, style(store)),
     thumb: setThumb(s.id),
   }));
@@ -264,8 +259,7 @@ function lighting(store: Store, ui: LibraryUi): LibraryItem[] {
     about: p.description,
     icon: SunMedium,
     on: lightingName(now) === p.name,
-    note: `Click to light ${store.scene.name} so (shows in the lit styles)`,
-    run: () => { applyLightingPreset(store, p.id); ui.notifyUndo(`Lighting: ${p.name}`); ui.onPick?.(); },
+    run: () => { applyLightingPreset(store, p.id); ui.onPick?.(); },
     preview: () => lightingPreview(p.id, p.lighting),
     thumb: lightingThumb(p.id, p.lighting),
   }));
@@ -282,15 +276,11 @@ function characters(store: Store, ui: LibraryUi): LibraryItem[] {
     name,
     icon: UserRound,
     ...(credit ? { meta: credit } : {}),
-    note: [figure ? `Click to draw ${figure.name} as ${name}` : '', credit ?? ''].filter(Boolean).join(' · ') || undefined,
+    note: credit,
     disabled: !figure,
     on: !!figure && (figure.model ?? null) === id,
-    run: () => {
-      if (!figure) return;
-      setFigureModel(store, figure.id, id);
-      ui.notifyUndo(`${figure.name}: drawn as ${name}`);
-    },
-    drop: { figure: (fid) => { const f = posableById(store, fid); if (!f) return; setFigureModel(store, f.id, id); ui.notifyUndo(`${f.name}: drawn as ${name}`); } },
+    run: () => { if (figure) setFigureModel(store, figure.id, id); },
+    drop: { figure: (fid) => { const f = posableById(store, fid); if (f) setFigureModel(store, f.id, id); } },
     preview: id ? () => characterPreview(id, style(store)) : undefined,
     thumb,
     actions: id && own ? [{ icon: Trash2, label: `Delete my character ${name}`, run: () => { deleteModel(store, id); ui.notifyUndo(`Deleted “${name}”`); } }] : undefined,
@@ -324,10 +314,7 @@ function camera(store: Store, ui: LibraryUi): LibraryItem[] {
       note: `${c.description} (${who})`,
       disabled: !cast,
       run: () => {
-        if (!coverScene(store, c.id)) return;
-        const n = store.scene;
-        ui.notify(`${c.name}: ${n.cameras.filter((x) => x.made?.startsWith(`${c.id}:`)).length} cameras, ${shotSpans(n.animation!).length} shots`);
-        ui.onPick?.();
+        if (coverScene(store, c.id)) ui.onPick?.();
       },
     };
   });
@@ -342,7 +329,6 @@ function camera(store: Store, ui: LibraryUi): LibraryItem[] {
     run: () => {
       if (!cam && span) store.setTime(span.start);
       applyCameraMove(store, m.id, cam?.id);
-      ui.notify(`${m.name}: ${m.description}`);
       ui.onPick?.();
     },
     drop: {
@@ -352,7 +338,6 @@ function camera(store: Store, ui: LibraryUi): LibraryItem[] {
         store.setTime(sp.start);
         store.select({ kind: 'shot', shot: id });
         applyCameraMove(store, m.id);
-        ui.notify(`${m.name}: ${m.description}`);
       },
     },
     preview: () => cameraPreview(m, scene, style(store)),
