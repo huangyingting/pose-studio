@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ChevronDown, Download, Ellipsis, Eye, RectangleHorizontal, X, LayoutPanelTop, Lock, LockOpen, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
+  ChevronDown, Download, Ellipsis, Eye, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -421,14 +421,6 @@ function App() {
           </Menu>
           <span className="tb-sep hide-mobile" />
           <div className="toolbar" role="toolbar" aria-label="Canvas tools">
-            {/* Joints bend only as far as a body's do (dragging, the gizmo, the keys). */}
-            <IconButton
-              icon={settings.limits ? Lock : LockOpen}
-              label={titleOf(command('tool.limits'), cx)}
-              pressed={settings.limits}
-              active={settings.limits}
-              onClick={() => command('tool.limits').run!(cx)}
-            />
             <Menu
               label="View"
               className="btn ghost"

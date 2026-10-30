@@ -484,7 +484,7 @@ test('figures, props, body and hands', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Scene name' }).last()).toBeVisible();
   await (await outline(page, 'Cast')).getByRole('button', { name: 'Figure 2', exact: true }).click();
   await unfold(page, 'Hands');
-  await page.getByRole('button', { name: 'Fist' }).click();
+  await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Fist' }).click();
   s = (await state(page)).scene;
   expect(s.figures[1].hands.L.curl[1]).toBe(1);
 
@@ -735,7 +735,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   expect(Math.abs(facingOf(a.bones) - facingOf(b.bones))).toBeCloseTo(180, 0);
 
   await unfold(page, 'With others');
-  await page.getByRole('button', { name: 'Back to back' }).click();
+  await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Back to back' }).click();
   [a, b] = await figs(page);
   expect(Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2])).toBeCloseTo(0.32, 2);
   expect(Math.abs(Math.abs(facingOf(a.bones) - facingOf(b.bones)) - 180)).toBeLessThan(0.5);

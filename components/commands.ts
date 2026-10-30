@@ -1342,6 +1342,8 @@ export const MENUS = {
   view: [
     'view.frameAll', 'view.isolate', 'view.through',
     { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',
+    // (Joints bend only as far as a body's do: dragging, the gizmo, the keys.)
+    { group: 'Posing' }, 'tool.limits',
   ],
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
