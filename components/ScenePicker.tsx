@@ -7,7 +7,7 @@ import { thumbnail } from '@/lib/thumbnails';
 import { openContextMenu } from './ContextMenu';
 import { App, menu } from './commands';
 import { useStore, useStudio } from './store-context';
-import { Menu } from './ui';
+import { Menu, inPopup } from './ui';
 
 const COLUMNS = 3;
 
@@ -23,8 +23,8 @@ export default function ScenePicker() {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      // Menus render inside (or are a scene's right-click menu); anything else outside closes the picker.
-      if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.context-menu')) setOpen(false);
+      // Its menus are drawn on top of everything (as a scene's right-click menu is); anything else outside closes the picker.
+      if (!root.current?.contains(e.target as Node) && !inPopup(e.target)) setOpen(false);
     };
     const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
     window.addEventListener('pointerdown', onDown);

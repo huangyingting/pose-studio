@@ -121,6 +121,9 @@ export type MenuItem =
   | { group: string }
   | '-';
 
+/** Whether something is in a pop-up list (a menu, a drop-down's list, a right-click menu: drawn on top of everything, outside what opened it). */
+export const inPopup = (t: EventTarget | null) => !!(t as Element | null)?.closest?.('.menu-list, .select-list, .context-menu');
+
 /**
  * Where a pop-up list goes on the screen, by the screen and not by what holds its button: next to
  * `anchor` on its `side` (the other side if that has more room and this not enough), lined up with

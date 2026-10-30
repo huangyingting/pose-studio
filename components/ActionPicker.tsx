@@ -7,6 +7,7 @@ import { App, applies, command, enabled, iconOf, titleOf, type Ctx } from './com
 import { LIBRARY_CATEGORIES, type Thumb } from './side/libraryItems';
 import { Thumbnail } from './side/LibrarySection';
 import { useStore } from './store-context';
+import { inPopup } from './ui';
 
 /** The everyday beats offered first (Library motions, by id). */
 const COMMON_BEATS = ['talk', 'wave', 'nod', 'shake-head', 'point', 'sit-down', 'stand-up', 'pick-up'];
@@ -35,7 +36,7 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    const down = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) onClose(); };
+    const down = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node) && !inPopup(e.target)) onClose(); };
     document.addEventListener('pointerdown', down, true);
     return () => document.removeEventListener('pointerdown', down, true);
   }, [onClose]);
