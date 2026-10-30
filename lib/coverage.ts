@@ -109,8 +109,8 @@ export const COVERAGES: Coverage[] = [
     roles: ['A', 'B'],
     cameras: [
       { key: 'wide', name: 'Wide on the fight', subject: 'A', also: 'B', shake: 0.15, rig: { yaw: 90, pitch: 4, toward: 'B', size: 'fs', lens: 28, smooth: 0.7 } },
-      { key: 'low-a', name: 'Low on {A}', subject: 'A', shake: 0.2, rig: { yaw: 40, pitch: -12, toward: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.5 } },
-      { key: 'low-b', name: 'Low on {B}', subject: 'B', shake: 0.2, rig: { yaw: -40, pitch: -12, toward: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.5 } },
+      { key: 'low-a', name: 'Low on {A}', subject: 'A', shake: 0.2, rig: { yaw: 40, pitch: -12, toward: 'B', clear: 'B', size: 'ms', place: 'right', lens: 50, smooth: 0.5 } },
+      { key: 'low-b', name: 'Low on {B}', subject: 'B', shake: 0.2, rig: { yaw: -40, pitch: -12, toward: 'A', clear: 'A', size: 'ms', place: 'left', lens: 50, smooth: 0.5 } },
       { key: 'close-a', name: '{A} close', subject: 'A', shake: 0.25, rig: { yaw: 25, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 70, smooth: 0.5 } },
       { key: 'close-b', name: '{B} close', subject: 'B', shake: 0.25, rig: { yaw: -25, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 70, smooth: 0.5 } },
     ],

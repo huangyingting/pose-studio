@@ -1,7 +1,7 @@
 import { BUILT_IN_CHARACTERS } from '../characters';
 import { modelInfo } from '../model';
 import {
-  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, lookAtFigure,
+  addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, lookAtFigure,
   holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
   carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
@@ -675,14 +675,14 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'hold',
-    description: 'Contacts held over time, from the playhead (animated): a figure\'s hand on part of another figure (hold_on: it stays on as they move), taking the other end of a long prop someone carries (other_end: a stretcher, a bench), lying on a prop (lie_on: carried with it), or letting go of a hold (let_go, by its id from get_scene).',
+    description: 'Contacts held over time, from the playhead (animated): a figure\'s hand on part of another figure (hold_on: it stays on as they move), taking the other end of a long prop someone carries (other_end: a stretcher, a bench), lying on a prop (lie_on: carried with it), sitting on a chair or stool (sit_on: walks to it, turns and sits down), getting up from where it sits (get_up), or letting go of a hold (let_go, by its id from get_scene).',
     schema: obj({
-      kind: str('What', ['hold_on', 'other_end', 'lie_on', 'let_go']),
+      kind: str('What', ['hold_on', 'other_end', 'lie_on', 'sit_on', 'get_up', 'let_go']),
       figure: opt(FIGURE),
       hand: opt(str('Which hand', ['left', 'right'])),
       other: opt(str('hold_on: the other figure')),
       target: opt(str('hold_on: where', CONTACTS)),
-      prop: opt(str('other_end, lie_on: the prop')),
+      prop: opt(str('other_end, lie_on, sit_on: the prop')),
       hold: opt(str('let_go: the hold id')),
     }),
     run: (store, i) => {
@@ -697,7 +697,15 @@ export const TOOLS: AgentTool[] = [
         if (!holdOn(store, f.id, side, b.id, i.target as Contact)) throw new Error(`${f.name} cannot reach ${b.name}'s ${i.target}`);
         return `${f.name}'s ${i.hand} hand holds on to ${b.name}'s ${i.target}.`;
       }
+      if (i.kind === 'get_up') {
+        if (!standUp(store, f.id)) throw new Error(`${f.name} is not sitting at ${r2(store.getState().time)} s`);
+        return `${f.name} gets up; the playhead is at ${r2(store.getState().time)} s.`;
+      }
       const p = findProp(store, i.prop);
+      if (i.kind === 'sit_on') {
+        if (!sitOn(store, f.id, p.id)) throw new Error(`${p.name} is not a chair or a stool to sit on`);
+        return `${f.name} walks to ${p.name} and sits down; the playhead is at ${r2(store.getState().time)} s, sitting.`;
+      }
       if (i.kind === 'other_end') {
         const why = carryProblem(store, f.id, p.id);
         if (why) throw new Error(why);
