@@ -85,8 +85,8 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   { id: 'films', title: 'Shots', when: (t) => !!t.camera, Panel: FilmsPanel, defaultOpen: false, summary: filmsSummary, info: filmsInfo },
   { id: 'framing', title: 'Framing', when: (t) => !!t.camera, Panel: FramingPanel, summary: framingSummary },
   { id: 'lens', title: 'Lens', when: (t) => !!t.camera, Panel: LensPanel, summary: lensSummary },
-  // (A path camera's points are what it is made of: open; a rig's moves are extras.)
-  { id: 'moves', title: 'Moves', when: (t) => !!t.camera, Panel: MovesPanel, defaultOpen: (t) => t.camera?.kind === 'path', summary: movesSummary, info: movesInfo },
+  // (How it moves is what a camera is about (#16): open.)
+  { id: 'moves', title: 'Moves', when: (t) => !!t.camera, Panel: MovesPanel, defaultOpen: true, summary: movesSummary, info: movesInfo },
 
   // An action on a track: its timing, and the section for its kind.
   {

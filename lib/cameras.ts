@@ -394,23 +394,31 @@ type SizeBlend = { from: ShotSize; to: ShotSize; u: number };
 /* ---------- cameras placing themselves (rigs) ---------- */
 
 /**
+ * The run of shots a camera's move plays over at t (shots one after another with it; between its
+ * runs, the last; before its first, none; filming none, the whole animation). None in a still.
+ */
+export function moveRun(scene: Scene, cam: Camera, t: number): { start: number; end: number } | null {
+  const a = scene.animation;
+  if (!a) return null;
+  const first = scene.cameras[0]?.id;
+  const runs: { start: number; end: number }[] = [];
+  for (const s of shotSpans(a)) {
+    if ((s.shot.camera ?? first) !== cam.id) continue;
+    const last = runs.at(-1);
+    if (last && Math.abs(last.end - s.start) < 1e-6) last.end = s.end;
+    else runs.push({ start: s.start, end: s.end });
+  }
+  return runs.find((s) => t >= s.start && t < s.end) ?? runs.filter((s) => s.start <= t).at(-1) ?? (runs.length ? null : { start: 0, end: a.duration });
+}
+
+/**
  * How far a camera's move has gone at t (0–1): over the run of shots it films then (shots one
  * after another with it are one run: a cut in it changes nothing; the cut coming back to it after
  * another camera plays the move again), the last run between its runs; before its first, not yet;
  * filming none, over the whole animation; at its pace. A still scene does not move.
  */
 export function moveProgress(scene: Scene, cam: Camera, t: number, pace: CameraMove['pace']): number {
-  const a = scene.animation;
-  if (!a) return 0;
-  const first = scene.cameras[0]?.id;
-  const spans: { start: number; end: number }[] = [];
-  for (const s of shotSpans(a)) {
-    if ((s.shot.camera ?? first) !== cam.id) continue;
-    const last = spans.at(-1);
-    if (last && Math.abs(last.end - s.start) < 1e-6) last.end = s.end;
-    else spans.push({ start: s.start, end: s.end });
-  }
-  const span = spans.find((s) => t >= s.start && t < s.end) ?? spans.filter((s) => s.start <= t).at(-1) ?? (spans.length ? null : { start: 0, end: a.duration });
+  const span = moveRun(scene, cam, t);
   if (!span) return 0;
   const x = THREE.MathUtils.clamp((t - span.start) / Math.max(1e-6, span.end - span.start), 0, 1);
   if (pace === 'even') return x;
