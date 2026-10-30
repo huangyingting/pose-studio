@@ -19,7 +19,8 @@ import { handlesOf, localBounds } from './props';
 import {
   actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto,
 } from './track';
-import { JUMP_PREP, flightTime } from './locomotion';
+import { JUMP_PREP, flightTime, legsOf } from './locomotion';
+import LIBRARY_INDEX from '../public/motions/index.json';
 import { bodyFor } from './model';
 import { HANDLING, MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
@@ -805,6 +806,86 @@ export function lieOn(store: Store, figure: string, prop: string) {
   const b = localBounds(p.kind);
   const top: Vec3 = [((b.min.x + b.max.x) / 2) * p.scale[0], b.max.y * p.scale[1] + 0.1, ((b.min.z + b.max.z) / 2) * p.scale[2]];
   return addHold(store, figure, 'hips', { prop, at: top });
+}
+
+/** Sitting: what a figure plays down onto a seat, there, and back up (the Library's motions). */
+const SIT = { down: 'library:stand-to-sit', idle: 'library:sitting-idle', up: 'library:sit-to-stand' };
+const SITTING = ['library:stand-to-sit', 'library:sitting-idle', 'library:sitting-talking', 'library:sit-to-type'];
+
+/** A Library motion's entry in its index: how long it is, and where it takes its person (in leg lengths). */
+function course(id: string) {
+  return (LIBRARY_INDEX as unknown as { id: string; duration: number; move: [number, number] }[]).find((m) => m.id === id)!;
+}
+
+/**
+ * Sit on a chair or a stool from the playhead (#14): the figure walks to the front of it, turns its
+ * back to it and sits down onto it, then sits there (its hips a little forward of the seat's
+ * middle). The playhead goes to where it sits. Whether it could.
+ */
+export function sitOn(store: Store, figureId: string, propId: string) {
+  const chair = store.scene.props.find((p) => p.id === propId);
+  const f = store.scene.figures.find((x) => x.id === figureId);
+  if (!chair || !f || chair.hold || (chair.kind !== 'chair' && chair.kind !== 'stool')) return false;
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  // (A chair is sat on facing the way it does; a stool, with the back to it from where the figure is.)
+  const here = figurePoseAt(store.scene, figureId, store.getState().time) ?? f;
+  const away = (Math.atan2(here.position[0] - chair.position[0], here.position[2] - chair.position[2]) * 180) / Math.PI;
+  const facing = chair.kind === 'chair' ? chair.rotation[1] : away;
+  const r = (facing * Math.PI) / 180;
+  const ahead: [number, number] = [Math.sin(r), Math.cos(r)];
+  const seat: [number, number] = [chair.position[0] + ahead[0] * 0.1, chair.position[2] + ahead[1] * 0.1];
+  const legs = legsOf(f.body).rootY;
+  const down = course(SIT.down);
+  // (Where it stands to sit down: as far in front of the seat as sitting down takes it back.)
+  const back = -down.move[1] * legs;
+  const front: [number, number] = [seat[0] + ahead[0] * back, seat[1] + ahead[1] * back];
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
+  const walked = addTravel(store.scene, figureId, store.getState().time, front, 'walk');
+  if (!walked) return false;
+  const a = walked.animation;
+  const at = (x: [number, number]) => ({ at: [r3(x[0]), r3(x[1])] as [number, number], facing: Math.round(facing * 10) / 10 || 0 });
+  const clipAction = (clip: string, start: number, duration: number, end: [number, number]): Action => ({
+    id: uid('act'), start, duration, blendIn: 0.25, roles: [{ figure: figureId, end: at(end) }], source: { kind: 'clip', clip },
+  });
+  const t1 = walked.to;
+  const turned = clipAction('library:idle', t1, 0.6, front);
+  const sits = clipAction(SIT.down, t1 + 0.6, snapTime({ ...a, duration: MAX_DURATION }, down.duration), seat);
+  const stays = clipAction(SIT.idle, sits.start + sits.duration, 4, seat);
+  const end = stays.start + stays.duration;
+  store.updateScene((s) => ({ ...s, animation: { ...a, actions: [...a.actions, turned, sits, stays].sort((p, q) => p.start - q.start), duration: Math.min(MAX_DURATION, Math.max(a.duration, end)) } }));
+  void store.loadClips();
+  store.setTime(sits.start + sits.duration);
+  store.select({ kind: 'figure', figure: figureId });
+  return true;
+}
+
+/** Whether a figure is sitting at t (playing one of the Library's sitting motions). */
+export function sittingAt(scene: Scene, figureId: string, t: number) {
+  const a = scene.animation;
+  return !!a && a.actions.some((x) => !x.layer && x.source.kind === 'clip' && SITTING.includes(x.source.clip) && x.roles.some((r) => r.figure === figureId) && x.start <= t && t < x.start + x.duration);
+}
+
+/** Get up from where a figure sits, at the playhead: what it was doing sitting ends there, and it stands up, stepping forward. */
+export function standUp(store: Store, figureId: string) {
+  const a = store.scene.animation;
+  const t = a ? snapTime(a, store.getState().time) : 0;
+  const act = a?.actions.find((x) => !x.layer && x.source.kind === 'clip' && SITTING.includes(x.source.clip) && x.roles.some((r) => r.figure === figureId) && x.start <= t && t < x.start + x.duration);
+  const f = store.scene.figures.find((x) => x.id === figureId);
+  if (!a || !act || !f) return false;
+  const seat = act.roles[0].end ?? { at: [f.position[0], f.position[2]] as [number, number], facing: 0 };
+  const up = course(SIT.up);
+  const r = (seat.facing * Math.PI) / 180;
+  const step = up.move[1] * legsOf(f.body).rootY;
+  const stood: [number, number] = [Math.round((seat.at[0] + Math.sin(r) * step) * 1000) / 1000, Math.round((seat.at[1] + Math.cos(r) * step) * 1000) / 1000];
+  const rise: Action = { id: uid('act'), start: t, duration: snapTime({ ...a, duration: MAX_DURATION }, up.duration), blendIn: 0.2, roles: [{ figure: figureId, end: { at: stood, facing: seat.facing } }], source: { kind: 'clip', clip: SIT.up } };
+  // (What it did from then on as it sat moves on after it.)
+  const later = a.actions.filter((x) => !x.layer && x.roles.some((rr) => rr.figure === figureId) && x.start >= t + 1e-6);
+  const actions = a.actions.map((x) => (x.id === act.id ? { ...x, duration: Math.max(1 / a.fps, t - x.start) } : later.includes(x) ? { ...x, start: x.start + rise.duration } : x));
+  const end = Math.max(a.duration, rise.start + rise.duration, ...actions.map((x) => x.start + x.duration));
+  store.updateScene((s) => ({ ...s, animation: { ...a, actions: [...actions, rise].sort((p, q) => p.start - q.start), duration: Math.min(MAX_DURATION, end) } }));
+  void store.loadClips();
+  store.setTime(rise.start + rise.duration);
+  return true;
 }
 
 /** Let go of a hold at the playhead (one that has not started by then goes). */

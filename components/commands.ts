@@ -1,12 +1,12 @@
 import {
-  Activity, Aperture, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
-  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn,
+  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
@@ -732,6 +732,10 @@ export const COMMANDS: Command[] = [
     run: (c) => { const saved = savePose(c.store, c.figure!, `${c.store.scene.name} · ${figureOf(c)!.name}`); if (saved) App().notifyUndo(`Saved “${saved.name}” to the library`); },
   },
   // Getting somewhere: picked on the floor (or the spot right-clicked).
+  {
+    id: 'figure.standUp', title: 'Gets up', help: 'Stands up from where it sits, at the playhead', icon: ArrowUpFromDot,
+    when: (c) => !!c.figure && sittingAt(sceneOf(c), c.figure, c.store.getState().time), run: (c) => { standUp(c.store, c.figure!); },
+  },
   { id: 'figure.walk', title: (c) => (c.floor ? 'Walk here' : 'Walk to…'), icon: Footprints, when: (c) => movable(c), run: (c) => goTo(c, 'walk') },
   { id: 'figure.run', title: (c) => (c.floor ? 'Run here' : 'Run to…'), icon: Wind, when: (c) => movable(c), run: (c) => goTo(c, 'run') },
   { id: 'figure.jump', title: (c) => (c.floor ? 'Jump here' : 'Jump to…'), icon: MoveUpRight, when: (c) => movable(c), run: (c) => goTo(c, 'jump') },
@@ -888,6 +892,12 @@ export const COMMANDS: Command[] = [
     id: 'prop.lieOn', title: 'Lies on it', icon: BedSingle,
     when: (c) => { const p = c.prop && propNow(c.store, c.prop); return !!p && (p.kind === 'box' || p.kind === 'mat') && carriers(c).length > 0; },
     items: (c) => carriers(c).map((x) => ({ title: x.name, icon: BedSingle, run: () => lieOn(c.store, x.id, c.prop!) })),
+  },
+  {
+    // (#14: walks to it, turns and sits down on it.)
+    id: 'prop.sitOn', title: 'Sits on it', icon: Armchair,
+    when: (c) => { const p = c.prop && propNow(c.store, c.prop); return !!p && !p.hold && (p.kind === 'chair' || p.kind === 'stool') && carriers(c).length > 0; },
+    items: (c) => carriers(c).map((x) => ({ title: x.name, icon: Armchair, run: () => sitOn(c.store, x.id, c.prop!) })),
   },
   {
     id: 'prop.delete', title: 'Delete', icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!c.prop,
@@ -1372,14 +1382,14 @@ export const MENUS = {
   ],
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
-    { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo',
+    { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo', 'figure.standUp',
     'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
   joint: ['hand.letGo', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
   prop: [
     'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.carry', 'prop.dribble', 'prop.shoot',
-    '-', 'prop.otherEnd', 'prop.lieOn', '-', 'prop.delete',
+    '-', 'prop.otherEnd', 'prop.sitOn', 'prop.lieOn', '-', 'prop.delete',
   ],
   shot: ['rename', 'shot.move', 'shot.camera', 'shot.unpin', '-', 'shot.describe', '-', 'shot.removeCut'],
   camera: [
