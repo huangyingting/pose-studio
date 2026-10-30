@@ -665,7 +665,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .side-field { display: grid; gap: 4px; color: var(--text-2); }
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 40px; padding: 0 6px 0 14px; flex: none; }
 .side-head h2 { margin: 0; font-size: var(--fs-m); font-weight: 600; }
-.side-actions { display: flex; gap: 2px; }
+.side-actions { display: flex; align-items: center; gap: 2px; }
 .count { color: var(--text-3); font-weight: 500; margin-left: 4px; }
 .thumbs {
   list-style: none;
@@ -1241,8 +1241,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* ---------- AI assistant ---------- */
 
 .assistant { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.assistant-head { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px 0 14px; color: var(--text-2); border-bottom: 1px solid var(--border); flex: none; }
-.assistant-head > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .assistant-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
 .assistant-empty { display: grid; gap: 6px; }
 .assistant-suggestion {
@@ -1271,8 +1269,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .assistant-input textarea { flex: 1; min-height: 36px; max-height: 160px; padding: 4px 0; border: 0; resize: none; background: transparent; font: inherit; color: var(--text); outline: none; field-sizing: content; }
 .assistant-input .send { background: var(--accent); color: var(--on-accent); }
 .assistant-input .send:disabled { background: var(--press); color: var(--text-3); opacity: 1; }
-.assistant-setup { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px 14px; }
-.assistant-setup h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-l); font-weight: 600; }
+.assistant-setup { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 14px 16px; }
 .assistant-setup .field { display: grid; gap: 4px; color: var(--text-2); }
 .assistant-setup .field input { height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); font: inherit; color: var(--text); }
 .assistant-setup .field input:focus { outline: none; background: var(--raised); box-shadow: var(--focus); }

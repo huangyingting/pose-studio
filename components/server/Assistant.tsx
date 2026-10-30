@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useSession } from 'next-auth/react';
-import { ArrowUp, Plus, Sparkles, Square, TriangleAlert, Wrench } from 'lucide-react';
+import { ArrowUp, Plus, Square, TriangleAlert, Wrench } from 'lucide-react';
 import { assistantTurn } from '@/lib/agent/turn';
 import { withBase } from '@/lib/paths';
 import type { Store } from '@/lib/store';
@@ -101,30 +101,32 @@ export default function Assistant() {
   if (auth === 'loading') return <div className="assistant" />;
   if (auth !== 'authenticated') {
     return (
-      <div className="assistant-setup">
-        <h3><Sparkles size={15} aria-hidden /> Assistant</h3>
-        <Hint>Sign in to pose and animate by describing it</Hint>
-        <SignInButtons />
+      <div className="assistant">
+        <div className="side-head"><h2>Assistant</h2></div>
+        <div className="assistant-setup">
+          <Hint>Sign in to pose and animate by describing it</Hint>
+          <SignInButtons />
+        </div>
       </div>
     );
   }
   if (status && !status.enabled) {
     return (
-      <div className="assistant-setup">
-        <h3><Sparkles size={15} aria-hidden /> Assistant</h3>
-        <Hint>Not set up on this server</Hint>
+      <div className="assistant">
+        <div className="side-head"><h2>Assistant</h2></div>
+        <div className="assistant-setup"><Hint>Not set up on this server</Hint></div>
       </div>
     );
   }
 
   return (
     <div className="assistant">
-      <div className="assistant-head">
-        <Sparkles size={14} aria-hidden />
-        <span>Assistant</span>
-        <span className="spacer" />
-        {status && <span className="assistant-usage" data-tip="Assistant requests today">{status.used} / {status.limit}</span>}
-        <IconButton icon={Plus} label="New chat" onClick={() => session.reset()} size={14} disabled={!session.items.length} />
+      <div className="side-head">
+        <h2>Assistant</h2>
+        <div className="side-actions">
+          {status && <span className="assistant-usage" data-tip="Assistant requests today">{status.used} / {status.limit}</span>}
+          <IconButton icon={Plus} label="New chat" onClick={() => session.reset()} size={14} disabled={!session.items.length} />
+        </div>
       </div>
       <div className="assistant-log" aria-live="polite">
         {!session.items.length && (
