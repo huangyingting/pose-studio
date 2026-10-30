@@ -145,7 +145,7 @@ export function PlacePanel({ t }: { t: Target }) {
             value={aimValue(light)}
             options={[
               { value: 'none', label: light.kind === 'window' ? 'The people' : 'Straight down' },
-              { value: 'people', label: 'Where the people are now' },
+              { value: 'people', label: 'Where they stand' },
               ...people.map((f) => ({ value: f.id, label: f.name })),
             ]}
             onChange={(v) => set({ aim: v === 'none' ? undefined : v === 'people' ? { point: subjectOf(t.scene) } : { figure: v } })}
