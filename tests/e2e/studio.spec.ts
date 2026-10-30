@@ -1130,10 +1130,10 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   await page.getByRole('textbox', { name: 'Shot caption' }).blur();
 
   await page.keyboard.press('Control+e');
-  await page.getByRole('radio', { name: 'Keyframe pack', exact: true }).click();
+  await page.getByRole('radio', { name: 'AI video pack', exact: true }).click();
   await page.getByRole('switch', { name: 'Greybox clips' }).uncheck();
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download' }).click()]);
-  expect(download.suggestedFilename()).toBe('Wave_hello_keyframes.zip');
+  expect(download.suggestedFilename()).toBe('Wave_hello_ai_pack.zip');
   const zip = readFileSync((await download.path())!);
   const text = zip.toString('latin1');
   for (const name of ['cutlist.otio', '01_Shot_1/first_depth.png', '02_Shot_2/last_normal.png', '02_Shot_2/camera.json']) expect(text).toContain(name);

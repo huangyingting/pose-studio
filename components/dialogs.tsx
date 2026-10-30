@@ -153,7 +153,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         const blob = await keyframePack(shots, whole ? 'Story' : scene.name, {
           width, height, style, lineWidth: o.lineWidth * (height / 640), greybox: o.greybox,
         }, setProgress, abort.current.signal);
-        const name = `${title}_keyframes.zip`;
+        const name = `${title}_ai_pack.zip`;
         downloadBlob(blob, name);
         notify(`Saved ${name}`);
         onClose();
@@ -214,10 +214,10 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       ],
     },
     {
-      group: 'AI keyframes',
+      group: 'For AI video',
       options: [
-        { value: 'pack', label: 'This scene', name: 'Keyframe pack', icon: Package, title: 'Per shot: first and last frames, depth, normals, camera and prompt, for AI video tools' },
-        { value: 'story-pack', label: 'Storyboard', name: 'Storyboard keyframes', icon: Package, title: 'The storyboard\'s shots, with one cut list', off: story0 },
+        { value: 'pack', label: 'This scene', name: 'AI video pack', icon: Package, title: 'Per shot: first and last frames, depth, normals, camera and prompt, for AI video tools' },
+        { value: 'story-pack', label: 'Storyboard', name: 'Storyboard AI pack', icon: Package, title: 'The storyboard\'s shots, with one cut list', off: story0 },
       ],
     },
     {
