@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addFigure, addProp, addStandIn, applyPhotoPose, cutShot, deleteSelection, duplicateSelection, nextName, renameProp, startAnimation,
+  addFigure, addProp, addStandIn, applyPhotoPose, cutShot, deleteSelection, duplicateSelection, renameProp, startAnimation,
 } from '@/lib/actions';
-import { newFigure, parseScene } from '@/lib/doc';
+import { newFigure, nextName, parseScene } from '@/lib/doc';
 import { withAngles } from '@/lib/pose';
 import { keyTimesOf } from '@/lib/track';
 import { Store } from '@/lib/store';

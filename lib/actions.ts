@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { cloneHand } from './hands';
 import { jointLimits, sided, wrapDeg } from './joints';
 import {
-  NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, symmetrize, uid, withPosture,
+  NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, nextName, symmetrize, uid, withPosture,
 } from './doc';
 import { MAX_DURATION, newAnimation, normalize, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById, hasClip } from './assets';
@@ -58,14 +58,6 @@ export function duplicateCurrentScene(store: Store, index = store.getState().sce
   if (!src) return;
   if (index !== store.getState().sceneIndex) store.setSceneIndex(index);
   addScene(store, duplicateScene(src));
-}
-
-/** A name not used yet: "Chair", then "Chair 2", "Chair 3", … */
-export function nextName(base: string, taken: string[]) {
-  const stem = base.replace(/\s+\d+$/, '').trim() || base;
-  const used = new Set(taken);
-  if (!used.has(stem)) return stem;
-  for (let n = 2; ; n++) if (!used.has(`${stem} ${n}`)) return `${stem} ${n}`;
 }
 
 export function deleteScene(store: Store, index = store.getState().sceneIndex) {

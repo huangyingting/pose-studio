@@ -104,6 +104,14 @@ export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0], name: stri
   return { id: uid('p'), name, kind, position, rotation: [0, 0, 0], scale: [...PROP_DEFAULT_SCALE[kind]] };
 }
 
+/** A name not used yet: "Chair", then "Chair 2", "Chair 3", … */
+export function nextName(base: string, taken: string[]) {
+  const stem = base.replace(/\s+\d+$/, '').trim() || base;
+  const used = new Set(taken);
+  if (!used.has(stem)) return stem;
+  for (let n = 2; ; n++) if (!used.has(`${stem} ${n}`)) return `${stem} ${n}`;
+}
+
 export function duplicateScene(s: Scene): Scene {
   const ids = new Map(s.figures.map((f) => [f.id, uid('f')]));
   const propIds = new Map(s.props.map((p) => [p.id, uid('p')]));

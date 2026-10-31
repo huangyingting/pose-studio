@@ -25,7 +25,7 @@ export default function CommandPalette({ onClose, ui }: { onClose(): void; ui: L
     if (cmd.id === 'app.palette' || !applies(cmd, c)) continue;
     const title = titleOf(cmd, c);
     if (cmd.items) {
-      for (const ch of cmd.items(c)) all.push({ key: `${cmd.id}:${ch.title}`, title: `${title}: ${ch.title}`, icon: ch.icon ?? iconOf(cmd, c), checked: ch.checked, disabled: ch.disabled, run: ch.run });
+      cmd.items(c).forEach((ch, i) => all.push({ key: `${cmd.id}:${i}`, title: `${title}: ${ch.title}`, icon: ch.icon ?? iconOf(cmd, c), checked: ch.checked, disabled: ch.disabled, run: ch.run }));
     } else if (cmd.run) {
       all.push({ key: cmd.id, title, icon: iconOf(cmd, c), keys: cmd.keys && keyLabel(cmd.keys[0]), checked: cmd.checked?.(c), disabled: !enabled(cmd, c), run: () => cmd.run!(c) });
     }

@@ -2,12 +2,12 @@ import { BUILT_IN_CHARACTERS } from '../characters';
 import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, turnTo, strikeFigure, lookAtFigure,
-  holdProp, moveAction, moveMark, nextName, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
+  holdProp, moveAction, moveMark, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
   carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { LIGHTING_PRESETS, MAX_LIGHTS, kelvinColor, keyLight, lightFrom, lightText, lightingName, lightingOf, towards, type Place } from '../lighting';
-import { newFigure, newProp, newScene, withPosture } from '../doc';
+import { newFigure, newProp, newScene, nextName, withPosture } from '../doc';
 import { projectSettingsOf } from '../project';
 import { HAND_PRESETS, cloneHand } from '../hands';
 import { actionsOf, figurePoseAt, marksOf, missedCatchesOf, overWarp } from '../evaluate';

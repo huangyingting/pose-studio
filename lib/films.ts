@@ -2,7 +2,7 @@ import INDEX from '../public/motions/index.json';
 import { BUILT_IN, LIBRARY, clipById } from './assets';
 import { BODY_PRESETS, DEFAULT_BODY } from './body';
 import { newAnimation, propKeyOf } from './animation';
-import { newFigure, newProp, newScene } from './doc';
+import { newFigure, newProp, newScene, nextName } from './doc';
 import { arrivalAt } from './evaluate';
 import { held } from './hold';
 import { fromPreset } from './lighting';
@@ -13,7 +13,7 @@ import { putPropKey } from './propmotion';
 import { REACT_LEAD } from './strike';
 import { withFacing } from './relations';
 import { uid } from './uid';
-import type { Action, BodyParams, Mark, Prop, PropKind, Scene, Side, Travel, Vec3 } from './types';
+import { PROP_LABELS, type Action, type BodyParams, type Mark, type Prop, type PropKind, type Scene, type Side, type Travel, type Vec3 } from './types';
 
 /*
  * Films: scene templates staged as a director would, beat by beat, a minute or more each, for a
@@ -128,7 +128,7 @@ class Stage {
 
   /** A prop on the set. */
   prop(kind: PropKind, at: Vec3, o: { scale?: Vec3; turn?: number; name?: string } = {}): string {
-    const p: Prop = { ...newProp(kind, at, o.name), ...(o.scale ? { scale: o.scale } : {}), ...(o.turn ? { rotation: [0, o.turn, 0] as Vec3 } : {}) };
+    const p: Prop = { ...newProp(kind, at, nextName(o.name ?? PROP_LABELS[kind], this.scene.props.map((x) => x.name))), ...(o.scale ? { scale: o.scale } : {}), ...(o.turn ? { rotation: [0, o.turn, 0] as Vec3 } : {}) };
     this.scene = { ...this.scene, props: [...this.scene.props, p] };
     return p.id;
   }
