@@ -1,5 +1,6 @@
 'use client';
 
+import { rovingKey, useRoving, type Roving } from './roving';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Clapperboard, Download, Film, ImagePlus, Keyboard, LayoutGrid, LayoutPanelTop, Package, RefreshCw, Rows3, ScanFace, Square, type LucideIcon } from 'lucide-react';
 import { keyframePack } from '@/lib/pack';
@@ -67,6 +68,9 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const [progress, setProgress] = useState(0);
   const abort = useRef<AbortController | null>(null);
   const preview = useRef<HTMLDivElement>(null);
+  // (Its outputs a radio group: one Tab stop, the arrows choose: #20.)
+  const outputList = useRef<HTMLDivElement>(null);
+  useRoving(outputList, OUTPUT_KEYS);
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
   // Animation outputs fall back to the single scene when the open one is not animated; the story's, when there is none.
   const scope: ExportOptions['scope'] = (!animated && (o.scope === 'frames' || o.scope === 'video')) || (o.scope === 'all' && scenes.length < 2)
@@ -248,7 +252,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       }
     >
       <div className="export-grid">
-        <div className="export-outputs" role="radiogroup" aria-label="Export">
+        <div className="export-outputs" role="radiogroup" aria-label="Export" ref={outputList} onKeyDown={(e) => rovingKey(e, OUTPUT_KEYS)}>
           {outputs.map((g) => (
             <div key={g.group} className="export-group">
               <h3>{g.group}</h3>
@@ -585,3 +589,5 @@ export function HelpDialog({ onClose }: { onClose(): void }) {
     </Modal>
   );
 }
+
+const OUTPUT_KEYS: Roving = { items: '[role="radio"]', orientation: 'vertical', chosen: '[aria-checked="true"]', activate: (el) => el.click() };

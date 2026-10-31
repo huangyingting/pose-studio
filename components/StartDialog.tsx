@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
+import { rovingKey, useRoving, type Roving } from './roving';
 import { Clapperboard, FilePlus2, Layers, PersonStanding, Trash2, UsersRound, type LucideIcon } from 'lucide-react';
 import { addScene, deleteShoot, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, startFilm } from '@/lib/actions';
 import { COVERAGES } from '@/lib/coverage';
@@ -90,7 +91,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
         {groups.filter(([, tiles]) => tiles.length).map(([group, tiles]) => (
           <section key={group} aria-label={group}>
             <h3 className="start-group">{group}</h3>
-            <div className="start-grid" role="list">
+            <TileGrid>
               {tiles.map((tile) => (
                 <div key={tile.key} className="start-tile" role="listitem">
                   <button type="button" className="start-open" onClick={() => start(tile)}>
@@ -109,10 +110,18 @@ export function StartDialog({ onClose }: { onClose(): void }) {
                   )}
                 </div>
               ))}
-            </div>
+            </TileGrid>
           </section>
         ))}
       </div>
     </Modal>
   );
 }
+
+/** A group's tiles: one Tab stop, the arrows between them, Enter opens one (#20). */
+function TileGrid({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useRoving(ref, TILE_KEYS);
+  return <div className="start-grid" role="list" ref={ref} onKeyDown={(e) => rovingKey(e, TILE_KEYS)}>{children}</div>;
+}
+const TILE_KEYS: Roving = { items: '.start-open', orientation: 'grid' };
