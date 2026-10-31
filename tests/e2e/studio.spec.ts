@@ -183,6 +183,8 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await page.getByLabel('Search motions').fill(motion);
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion} [\\d.]+ s$`) }).click();
   await page.getByLabel('Search motions').fill('');
+  // (Out of the search box: the keys are the studio's again.)
+  await page.getByLabel('Search motions').blur();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
