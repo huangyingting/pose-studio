@@ -41,7 +41,7 @@ export function onPhysicsReady(f: () => void) {
 /** Steps a second. */
 export const HZ = 240;
 /** How long something down on the floor rolls freely before it slows to a stop (s). */
-const ROLL = 1.5;
+const ROLL = 4;
 export const GRAVITY = 9.81;
 /** How the floor gives a bounce back (a body's bounce on it is the mean of the two). */
 export const FLOOR_BOUNCE = 0.5;

@@ -12,7 +12,7 @@ import { groundOf } from './surfaces';
 import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
 import { setBlocks } from './sets';
 import { shotSpans } from './shots';
-import { JOINTS, type Animation, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
+import { JOINTS, type Action, type Animation, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -160,6 +160,17 @@ function recordedAt(a: Animation, figure: string, t: number) {
   const on = a.actions.filter((x) => x.roles.some((r) => r.figure === figure) && x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
   const [x] = on;
   return on.length === 1 && !x.layer && x.source.kind === 'clip' && x.source.clip.startsWith(LIBRARY) && t - x.start >= (x.blendIn ?? 0) ? x.id : null;
+}
+
+/** Whether a figure's pose at t is recordings' only: one recorded motion, or one blending into another (their own reach, not this scene's). */
+function recordingsAt(a: Animation, figure: string, t: number) {
+  if (recordedAt(a, figure, t)) return true;
+  const mine = a.actions.filter((x) => !x.layer && x.roles.some((r) => r.figure === figure));
+  const lib = (x?: Action) => !!x && x.source.kind === 'clip' && x.source.clip.startsWith(LIBRARY);
+  const now = mine.find((x) => x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
+  if (!lib(now) || a.actions.some((x) => x.layer && x.roles.some((r) => r.figure === figure) && x.start <= t && t < x.start + x.duration)) return false;
+  const before = mine.filter((x) => x !== now && x.start + x.duration <= now!.start + 1e-6).sort((p, q) => p.start + p.duration - (q.start + q.duration)).at(-1);
+  return lib(before);
 }
 
 export function checkMotion(scene: Scene): Issue[] {
@@ -330,9 +341,10 @@ export function checkMotion(scene: Scene): Issue[] {
       prevRoot.set(f.id, root);
       if (wrap) continue;
 
-      // Joint limits.
+      // Joint limits. (Not where the pose is recordings' alone.)
+      const mixed = recorded || recordingsAt(a, f.id, times[i]);
       for (const j of JOINTS) {
-        if (j === 'hips' || f.proxy || recorded) continue;
+        if (j === 'hips' || f.proxy || mixed) continue;
         const r = angle(f.bones, j);
         const lim = jointLimits(j);
         const over = Math.max(...r.map((v, k) => {
