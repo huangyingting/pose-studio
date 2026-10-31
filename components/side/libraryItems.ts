@@ -217,7 +217,9 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     };
   };
   // The Library's motion files: each fetched the first time it is used or shown.
-  const files = libraryMotions().map((m) => clipItem(m, () => fetchLibraryClip(m.id)));
+  const files = libraryMotions().map((m) => clipItem(m, () => fetchLibraryClip(m.id)))
+    // (In the groups' order, Moving first, as on the Generated tab.)
+    .sort((p, q) => MOTION_GROUPS.indexOf(p.group as never) - MOTION_GROUPS.indexOf(q.group as never));
   // (One person's each: an imported clip of several people is not offered.)
   const mine = (store.getState().library.clips ?? []).filter((m) => m.people.length <= 1).map((m): LibraryItem => ({
     ...clipItem({ ...m, group: 'My motions' }, () => Promise.resolve(hasClip(m.id))),
@@ -305,7 +307,7 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     id: 'motions', label: 'Motions', icon: Film, items: motions, Bar: MotionsBar,
     // (Recorded from people, Mixamo's; made here, posed and stepped by the app; and your own.)
     kinds: [
-      { id: 'captured', label: 'Motion capture', tip: 'Recorded from real people (Mixamo)' },
+      { id: 'captured', label: 'Mocap', tip: 'Motion capture: recorded from real people (Mixamo)' },
       { id: 'generated', label: 'Generated', tip: 'Made by Pose Studio: posed key by key, with steps worked out for walks, runs and jumps' },
       { id: 'imported', label: 'Imported', tip: 'The motions you import (BVH, FBX, glTF or a Pose Studio motion) and save', empty: 'Motions you import, or save from a Posed block, show here.' },
     ],

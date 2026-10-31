@@ -186,8 +186,8 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
-/** One of the Motions tabs: Motion capture, Generated or Imported. */
-async function motionsTab(page: Page, tab: 'Motion capture' | 'Generated' | 'Imported') {
+/** One of the Motions tabs: Mocap, Generated or Imported. */
+async function motionsTab(page: Page, tab: 'Mocap' | 'Generated' | 'Imported') {
   await page.getByRole('radiogroup', { name: 'Motions from' }).getByRole('radio', { name: tab }).click();
 }
 
