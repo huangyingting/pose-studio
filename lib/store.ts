@@ -8,7 +8,7 @@ import { setModels } from './model';
 import { newScene, parseLibrary } from './doc';
 import { sceneAt } from './evaluate';
 import { keepProps, setPropKey } from './propmotion';
-import { setPoseAt } from './track';
+import { relink, setPoseAt } from './track';
 import { shotSpans } from './shots';
 import type { Figure, GizmoMode, Library, Pose, Prop, Scene, Selection } from './types';
 
@@ -312,7 +312,7 @@ export class Store {
     const prevIndex = this.state.sceneIndex;
     let next = update(prev);
     if (next === prev) return;
-    next = this.directed(prev, this.grown(this.autoKey(prev, next)));
+    next = this.directed(prev, this.relinked(prev, this.grown(this.autoKey(prev, next))));
     // (A locked row's track stays as it is, #22: the change is refused, and said.)
     const locked = lockedChange(prev.scenes[prevIndex], next.scenes[this.state.sceneIndex]);
     if (locked) {
@@ -364,6 +364,17 @@ export class Store {
    * The director (#14): the open scene's live coverage cut again when what is filmed changed (what
    * they do, who is in it, props, its shots), shots taken over by hand kept.
    */
+  /** Reactions kept on their blows (#23: lib/track.ts relink), in the open scene. */
+  private relinked(prev: Library, next: Library): Library {
+    const i = this.state.sceneIndex;
+    const after = next.scenes[i];
+    const a = after?.animation;
+    if (!a || !a.actions.some((x) => x.reactsTo)) return next;
+    const before = prev.scenes.find((x) => x.id === after.id)?.animation;
+    const animation = relink(a, before);
+    return animation === a ? next : { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
+  }
+
   private directed(prev: Library, next: Library): Library {
     const i = this.state.sceneIndex;
     const before = prev.scenes[i];

@@ -429,6 +429,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
     ...(v.blendCurve === 'linear' || v.blendCurve === 'in' || v.blendCurve === 'out' ? { blendCurve: v.blendCurve } : {}),
     ...(typeof v.strength === 'number' && v.strength >= 0 && v.strength < 1 ? { strength: Math.round(v.strength * 100) / 100 } : {}),
     ...(v.mask === 'arms' || v.mask === 'head' || v.mask === 'legs' ? { mask: v.mask } : {}),
+    ...(typeof v.reactsTo === 'string' && v.reactsTo ? { reactsTo: v.reactsTo.slice(0, 40) } : {}),
     ...(v.layer === 'correction' || v.layer === 'upper' ? { layer: v.layer } : {}),
     roles,
     source,

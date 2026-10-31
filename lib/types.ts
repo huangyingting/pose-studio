@@ -275,6 +275,8 @@ export interface Action {
   strength?: number;
   /** What an action over another plays on (#23): the upper body when not given, the arms, the head and neck, or the legs. */
   mask?: 'arms' | 'head' | 'legs';
+  /** The strike it reacts to (#23: React to): it stays timed to its blow as that moves. */
+  reactsTo?: string;
   layer?: 'upper' | 'correction';
   roles: Role[];
   source: ActionSource;

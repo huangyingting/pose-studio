@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight, Link as LinkIcon } from 'lucide-react';
 import {
   deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, deleteAction,
 } from '@/lib/actions';
@@ -509,6 +509,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const leads = group?.filter((x, i) => !group.slice(0, i).some((y) => y.roles.some((r) => x.roles.some((q) => q.figure === r.figure))));
     let moved = false;
     let slipped = 0;
+    const back = store.getState().time;
     let y = e.clientY;
     const mine = new Set((group ?? [act]).flatMap((x) => [x.start, x.start + x.duration]));
     const snap = snapper((x) => [...mine].some((m) => Math.abs(m - x) < 1e-6));
@@ -533,6 +534,11 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       else if (part === 'end') trim(store, act.id, 'end', start + duration + dt, key);
       else if (part === 'start') trim(store, act.id, 'start', start + dt, key);
       else setBlend(store, act.id, blend - dt, key);
+      // (What is dragged shows on the canvas meanwhile, #23: the pose at the edge, or at the start of a slipped motion.)
+      if (part === 'start' || part === 'end' || slipping) {
+        const now = store.scene.animation?.actions.find((x) => x.id === act.id);
+        if (now) store.setTime(part === 'end' ? now.start + now.duration - 1e-3 : now.start);
+      }
     };
     const stop = follow(e.clientX, move);
     const up = (ev: PointerEvent) => {
@@ -541,6 +547,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (moved) {
+        // (The playhead back where it was, after showing what was dragged.)
+        if (part === 'start' || part === 'end' || slipping) store.setTime(back);
         // Let go over another person's row: it is theirs now (Ctrl: a copy for them), #22.
         const row = part === 'move' && !leads ? (document.elementFromPoint(ev.clientX, y) as HTMLElement | null)?.closest<HTMLElement>('[data-row]')?.dataset.row : undefined;
         if (row && row !== figureId && act.roles.length === 1 && !act.layer) {
@@ -1197,6 +1205,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                           }}
                         >
                           {group && <Users size={11} aria-hidden />}
+                          {/* Kept on the blow it reacts to (#23). */}
+                          {x.reactsTo && <LinkIcon size={11} aria-label="Kept on its blow" />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
                           {/* Its repeats, each a segment (#23). */}
                           {(() => {

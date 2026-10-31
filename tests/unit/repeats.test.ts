@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { applyMotion, applyUpperBody, setActionLook, travelTo, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
+import { addFigure, deleteAction, moveAction, reactTo, unlinkReaction, applyMotion, applyUpperBody, setActionLook, travelTo, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { mirrorPose } from '@/lib/clip';
 import { withAngles } from '@/lib/pose';
@@ -211,5 +211,31 @@ describe('motion options (#23)', () => {
     // Half of it: between none of it and all of it.
     expect(turnOf(half, all, 'rightUpperArm')).toBeLessThan(turnOf(none, all, 'rightUpperArm'));
     expect(turnOf(half, none, 'rightUpperArm')).toBeGreaterThan(1);
+  });
+});
+
+describe('linked reactions (#23)', () => {
+  it('a reaction stays on its blow: the strike moved, the reaction with it; unlinked, it stays; the strike gone, the link goes', () => {
+    const { store, a } = fresh();
+    addFigure(store, [0, 0, 0.75]);
+    const b = store.getState().activeFigure!;
+    startAnimation(store, 4);
+    store.setTime(0);
+    applyMotion(store, a, 'jab-cross');
+    store.setTime(0);
+    applyMotion(store, b, 'hit');
+    const clip = (who: string) => actionsOf(store.scene.animation!, who).find((x) => x.source.kind === 'clip')!;
+    const strike = clip(a);
+    reactTo(store, clip(b).id, strike.id);
+    expect(clip(b).reactsTo).toBe(strike.id);
+    const at = clip(b).start;
+    moveAction(store, strike.id, strike.start + 1);
+    expect(clip(b).start).toBeCloseTo(at + 1, 1);
+    unlinkReaction(store, clip(b).id);
+    moveAction(store, clip(a).id, clip(a).start + 0.5);
+    expect(clip(b).start).toBeCloseTo(at + 1, 1);
+    reactTo(store, clip(b).id, clip(a).id);
+    deleteAction(store, clip(a).id);
+    expect(clip(b).reactsTo).toBeUndefined();
   });
 });

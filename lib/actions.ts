@@ -1128,6 +1128,8 @@ export function reactTo(store: Store, id: string, strikeId: string): number | nu
   if (!act || !strike || !src || src.kind !== 'clip' || !clip) return null;
   const lands = strike.start + (src.lead ?? 0) + strikeTime(clip) / (src.speed ?? 1);
   moveAction(store, id, Math.max(0, lands - REACT_LEAD));
+  // (Kept on its blow from now on, #23.)
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => (x.id === id ? { ...x, reactsTo: strikeId } : x)) } } : s));
   const scene = store.scene;
   const striker = figurePoseAt(scene, strike.roles[0].figure, lands);
   const struck = figurePoseAt(scene, act.roles[0].figure, lands);
@@ -1237,6 +1239,16 @@ export function editAsKeys(store: Store, id: string): boolean {
   });
   store.updateScene((x) => (x.animation ? { ...x, animation: { ...x.animation, actions: [...x.animation.actions.filter((y) => y.id !== id), ...made].sort((p, q) => p.start - q.start) } } : x));
   return true;
+}
+
+/** A reaction no longer kept on its blow (#23). */
+export function unlinkReaction(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
+    if (x.id !== id) return x;
+    const { reactsTo: _r, ...rest } = x;
+    void _r;
+    return rest;
+  }) } } : s));
 }
 
 /** A correction held over the whole of what it corrects, or changing it only around its edits (#23). */

@@ -1,5 +1,6 @@
 import { keyPose, keyTimes, keysClip, partKeys, placeClip, samplePart, setPartKey, startFacing, type Key } from './clip';
 import { clipById, playedClip } from './assets';
+import { REACT_LEAD, strikeTime } from './strike';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf, seamOf } from './evaluate';
 import { JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
@@ -772,7 +773,10 @@ export function splitAction(a: Animation, id: string, t: number): Animation {
       { ...keysAction(figure, after, act.layer), duration: end(act) - time },
     ]));
   }
-  return sorted(replace(a, act, [first, second]));
+  // (A reaction to it stays linked to the half its blow is in, #23.)
+  const lands = landsAt(act);
+  const out = sorted(replace(a, act, [first, second]));
+  return lands !== null && lands >= time ? { ...out, actions: out.actions.map((x) => (x.reactsTo === act.id ? { ...x, reactsTo: second.id } : x)) } : out;
 }
 
 /**
@@ -807,6 +811,42 @@ export function duplicateActions(a: Animation, ids: string[]): Animation {
       .map((x) => ({ ...x, id: uid('act'), start: x.start + now.duration }));
     if (!now.layer) out = rippleInStep(out, now.roles.map((r) => r.figure), end(now), now.duration, [end(now)]);
     out = longer(sorted({ ...out, actions: [...out.actions, copy, ...fixes] }), end(copy));
+  }
+  return out;
+}
+
+/** When a strike's blow lands (s), if it is a motion at hand. */
+export function landsAt(strike: Action): number | null {
+  const src = strike.source;
+  const clip = src.kind === 'clip' ? playedClip(src) : null;
+  return src.kind === 'clip' && clip ? strike.start + (src.lead ?? 0) + strikeTime(clip) / (src.speed ?? 1) : null;
+}
+
+/**
+ * Reactions kept on their blows (#23): each reacting to a strike starts REACT_LEAD before the blow
+ * lands, after the strike was moved, trimmed, slipped or retimed (what its people do after moving
+ * along); one whose strike is gone is no longer linked.
+ */
+export function relink(a: Animation, before: Animation | undefined): Animation {
+  let out = a;
+  for (const x of a.actions.filter((y) => y.reactsTo)) {
+    const now = out.actions.find((y) => y.id === x.id);
+    if (!now) continue;
+    const strike = out.actions.find((y) => y.id === now.reactsTo);
+    if (!strike) {
+      const { reactsTo: _r, ...rest } = now;
+      void _r;
+      out = replace(out, now, [rest]);
+      continue;
+    }
+    const was = before?.actions.find((y) => y.id === strike.id);
+    if (was && JSON.stringify([was.start, was.duration, was.source]) === JSON.stringify([strike.start, strike.duration, strike.source])) continue;
+    const lands = landsAt(strike);
+    if (lands === null) continue;
+    const who = now.roles.map((r) => r.figure);
+    const floor = Math.max(0, ...out.actions.filter((y) => y !== now && y.layer === now.layer && y.roles.some((r) => who.includes(r.figure)) && end(y) <= now.start + 1e-6).map(end));
+    const to = Math.max(floor, Math.round((lands - REACT_LEAD) * out.fps) / out.fps);
+    if (Math.abs(to - now.start) > 0.5 / out.fps) out = rippleInStep(out, who, now.start, to - now.start);
   }
   return out;
 }
