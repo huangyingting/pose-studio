@@ -1,6 +1,7 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { useRef, type CSSProperties } from 'react';
+import { rovingKey, useRoving, type Roving } from '../roving';
 import type { LucideIcon } from 'lucide-react';
 import type { SideSection } from '@/lib/store';
 import { useStore, useStudio } from '../store-context';
@@ -28,9 +29,12 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
   const open = SECTIONS.find((s) => s.id === side);
   const pick = (id: SideSection) => store.setSettings({ side: id === side ? 'none' : id });
 
+  // (One Tab stop for the tabs, ↑ ↓ between them, the panel following: #20.)
+  const rail = useRef<HTMLElement>(null);
+  useRoving(rail, RAIL_KEYS);
   return (
     <aside className={`side${open ? '' : ' collapsed'}`} aria-label="Side panel">
-      <nav className="rail" role="tablist" aria-orientation="vertical" aria-label="Sections">
+      <nav className="rail" role="tablist" aria-orientation="vertical" aria-label="Sections" ref={rail} onKeyDown={(e) => rovingKey(e, RAIL_KEYS)}>
         {SECTIONS.map((s) => (
           <button
             key={s.id}
@@ -79,3 +83,5 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
     </aside>
   );
 }
+
+const RAIL_KEYS: Roving = { items: '[role="tab"]', orientation: 'vertical', chosen: '[aria-selected="true"]', activate: (el) => el.click() };

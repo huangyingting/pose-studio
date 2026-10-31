@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { rovingKey, useRoving, type Roving } from '../roving';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { libraryMotions, onLibraryMotions } from '@/lib/librarymotions';
@@ -109,8 +110,12 @@ function Group({ id, title, count, children }: { id: string; title: string; coun
 
 /** Items as thumbnails (a grid) or rows. */
 function List({ category, title, items, preview }: { category: LibraryCategory; title: string; items: LibraryItem[]; preview: Bind }) {
+  // (One Tab stop per list, the arrows inside — all four in a grid; moving only focuses, Enter applies: #20.)
+  const list = useRef<HTMLUListElement>(null);
+  const keys: Roving = category.grid ? { items: ':scope > li > button.lib-tile', orientation: 'grid' } : { items: ':scope > li > button:first-child', orientation: 'vertical' };
+  useRoving(list, keys);
   return (
-    <ul className={category.grid ? 'lib-grid' : 'side-list library-list'} aria-label={title}>
+    <ul className={category.grid ? 'lib-grid' : 'side-list library-list'} aria-label={title} ref={list} onKeyDown={(e) => rovingKey(e, keys)}>
       {items.map((it) => (
         <li key={it.key}>
           <button

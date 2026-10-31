@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, CircleCheck, CircleHelp, Ellipsis, X, type LucideIcon } from 'lucide-react';
 import { PANEL_WIDTH } from '@/lib/store';
@@ -635,13 +635,29 @@ export function Segmented<T extends string>({ value, options, onChange, label, i
   /** Stretch to the container width. */
   full?: boolean;
 }) {
+  // (A radio group: one Tab stop, the chosen one; the arrows choose the next or the one before: #20.)
+  const stop = options.some((o) => o.value === value) ? value : options[0]?.value;
+  const step = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const by = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!by || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const open = options.filter((o) => !o.disabled);
+    const i = open.findIndex((o) => o.value === value);
+    const next = open[(i + by + open.length) % open.length];
+    if (!next) return;
+    onChange(next.value);
+    const buttons = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')];
+    buttons[options.indexOf(next)]?.focus();
+  };
   return (
-    <div className={`segmented${full ? ' full' : ''}`} role="radiogroup" aria-label={label}>
+    <div className={`segmented${full ? ' full' : ''}`} role="radiogroup" aria-label={label} onKeyDown={step}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           role="radio"
+          tabIndex={o.value === stop ? 0 : -1}
           aria-checked={o.value === value}
           aria-label={iconOnly ? o.label : undefined}
           aria-disabled={o.disabled || undefined}

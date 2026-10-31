@@ -1722,6 +1722,39 @@ test('Scene only: the scene filling the window, its button again or Esc back', a
   await page.keyboard.press('i');
 });
 
+test('the panels by the keyboard (#20): one Tab stop per list, the arrows inside; the outline selects as it moves; Shift+F10 opens a row\'s menu', async ({ page }) => {
+  await templateScene(page, 'Café meeting');
+  const focused = () => page.evaluate(() => (document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent ?? '').trim());
+  // The rail: ↑ ↓ between its tabs, the panel following.
+  const rail = page.getByRole('tablist', { name: 'Sections' });
+  await rail.getByRole('tab', { name: 'Scene', exact: true }).focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(rail.getByRole('tab', { name: 'Characters' })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect(rail.getByRole('tab', { name: 'Scene', exact: true })).toHaveAttribute('aria-selected', 'true');
+  // The outline: one stop for its rows (their ⋯ and eye are none); ↓ moves and selects.
+  const lea = (await outline(page, 'Cast')).getByRole('button', { name: /^Lea/ });
+  await lea.focus();
+  await page.keyboard.press('ArrowDown');
+  expect(await focused()).toMatch(/^Ben/);
+  const now = await live(page);
+  expect(now.scene.figures.find((f) => f.id === now.active)?.name).toBe('Ben');
+  await page.keyboard.press('Tab');
+  expect(await focused()).not.toMatch(/^More for|^Hide/);
+  await page.keyboard.press('Shift+Tab');
+  expect(await focused()).toMatch(/^Ben/);
+  await page.keyboard.press('Shift+F10');
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // A segmented control: one stop, the arrows choose.
+  await page.keyboard.press('Control+e');
+  const pass = page.getByRole('radiogroup', { name: 'Pass' });
+  await pass.getByRole('radio', { name: 'Picture' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(pass.getByRole('radio', { name: 'Depth' })).toHaveAttribute('aria-checked', 'true');
+  expect(await pass.getByRole('radio', { name: 'Normals' }).getAttribute('tabindex')).toBe('-1');
+});
+
 test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {
   const sel = () => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: { kind: string } | null } } } }).__poseStudio.store.getState().selection);
   const scene = await live(page);

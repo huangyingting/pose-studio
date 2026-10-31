@@ -20,6 +20,16 @@ import { useProjectSettings, useScene, useStore, useStudio } from '../store-cont
 import { Hint, IconButton, Menu } from '../ui';
 import { KIND_ICONS } from '../inspector/light';
 import type { SectionProps } from './sections';
+import { menuKey, rovingKey, useRoving, type Roving } from '../roving';
+
+/** The outline's rows for the keyboard: ↑ ↓ between them all, selecting as a click does; their ⋯ and eye left to the menu (Shift + F10). */
+const OUTLINE_KEYS: Roving = {
+  items: '.layers > li > button.layer-main',
+  orientation: 'vertical',
+  chosen: '.layers > li.on > button.layer-main',
+  activate: (el) => el.click(),
+  quiet: '.layers .layer-actions button',
+};
 
 /**
  * The open scene in workflow order: its cast (figures and stand-ins), its set (props), its
@@ -53,12 +63,15 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
     openContextMenu(e, menu('many', { store, many: { figures: selection.figures, props: selection.props } }), `${selection.figures.length + selection.props.length} selected`);
   };
 
+  // (One Tab stop for all its rows, the arrows between them, moving selects: #20.)
+  const rows = useRef<HTMLDivElement>(null);
+  useRoving(rows, OUTLINE_KEYS);
   return (
     <div className="side-section outline">
       <div className="side-head">
         <h2>Scene</h2>
       </div>
-      <div className="side-scroll">
+      <div className="side-scroll" ref={rows} onKeyDown={(e) => { if (!rovingKey(e, OUTLINE_KEYS)) menuKey(e); }}>
         <div className="outline-group">
           <div className="outline-head">
             <h3>Cast <span className="count">{scene.figures.length}</span></h3>

@@ -157,7 +157,12 @@
 html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
 /* (Text areas grow with what is typed or keep their size: no resize grip.) */
 textarea { resize: none; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* The keyboard's focus (#20): one ring, drawn just inside the shape the user sees (it follows the
+   corners); a row's ring round the whole row; a thumbnail's outside it (inside is its "chosen"). */
+:focus-visible { outline: 1.5px solid var(--accent); outline-offset: -1.5px; }
+.layers .layer-main:focus-visible { outline: none; }
+.layers li:has(> .layer-main:focus-visible) { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.lib-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: var(--accent-soft); }
 
 .loading, .fatal {
