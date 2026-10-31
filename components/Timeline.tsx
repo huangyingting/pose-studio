@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
   deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix,
@@ -47,6 +47,9 @@ function idleGaps(a: Animation, id: string): [number, number][] {
 }
 
 /** Ruler spacings (seconds), finest first: the finest that keeps ticks (and labels) apart is used. */
+/** How near an edge of a zoomed view a drag slides it on (px), and at most how fast (windows a second). */
+const EDGE = 32;
+const EDGE_SPEED = 1.5;
 const TICKS = [1 / 24, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
 const LABELS = [0.25, 0.5, 1, 2, 5, 10, 30, 60, 120];
 
@@ -166,10 +169,26 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   let v0 = zoom ? Math.min(Math.max(0, zoom.start), total - span) : 0;
   if (zoom && clock.playing && (time < v0 || time > v0 + span)) v0 = Math.min(total - span, Math.max(0, v0 + Math.floor((time - v0) / span) * span));
   const v1 = v0 + span;
+  // (The window on show, for what runs between renders: a drag, its auto-scroll.)
+  const view = useRef({ v0, span, zoomed: !!zoom, total });
+  useLayoutEffect(() => { view.current = { v0, span, zoomed: !!zoom, total }; });
   const setWindow = (start: number, s: number) => {
     const sp = Math.min(total, Math.max(Math.min(0.5, total), s));
     setZoom(sp >= total - 1e-6 ? null : { start: Math.min(Math.max(0, start), total - sp), span: sp });
   };
+  // (The playhead moved out of the window, by a key, a step, a check's issue: the window turns a page to show it.)
+  useEffect(() => {
+    let was = store.getState().time;
+    const off = store.subscribe(() => {
+      const t = store.getState().time;
+      if (t === was) return;
+      was = t;
+      const v = view.current;
+      if (!v.zoomed || clock.playing || (t >= v.v0 - 1e-6 && t <= v.v0 + v.span + 1e-6)) return;
+      setZoom({ start: Math.min(v.total - v.span, Math.max(0, t < v.v0 ? t - v.span * 0.8 : t - v.span * 0.2)), span: v.span });
+    });
+    return () => { off(); };
+  }, [store, clock]);
   /** Zoom about the playhead: it keeps its place on screen, or the view centres on it. */
   const zoomBy = (factor: number) => {
     const sp = span * factor;
@@ -246,7 +265,40 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
 
   const timeAt = (clientX: number) => {
     const r = track.current!.getBoundingClientRect();
-    return v0 + ((clientX - r.left) / r.width) * span;
+    return view.current.v0 + ((clientX - r.left) / r.width) * view.current.span;
+  };
+  /**
+   * While something is dragged along the lanes of a zoomed view: near an edge the window slides on,
+   * faster the nearer, and the drag goes on with the time now under the pointer. Returns the stop.
+   */
+  const follow = (x0: number, move: (ev: { clientX: number }) => void) => {
+    let x = x0;
+    let last = 0;
+    const at = (ev: PointerEvent) => { x = ev.clientX; };
+    let raf = 0;
+    const tick = (now: number) => {
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+      last = now;
+      const v = view.current;
+      const el = track.current;
+      if (v.zoomed && el) {
+        const r = el.getBoundingClientRect();
+        const d = x < r.left + EDGE ? -(r.left + EDGE - x) : x > r.right - EDGE ? x - (r.right - EDGE) : 0;
+        if (d) {
+          const by = Math.sign(d) * Math.min(1, Math.abs(d) / EDGE) ** 2 * EDGE_SPEED * v.span * dt;
+          const start = Math.min(Math.max(0, v.v0 + by), v.total - v.span);
+          if (Math.abs(start - v.v0) > 1e-9) {
+            view.current = { ...v, v0: start };
+            setZoom({ start, span: v.span });
+            move({ clientX: x });
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    window.addEventListener('pointermove', at, true);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('pointermove', at, true); };
   };
   // Ctrl + wheel zooms about the pointer; Shift + wheel (or a sideways swipe) scrolls when zoomed.
   useEffect(() => {
@@ -275,8 +327,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const el = e.currentTarget as HTMLElement;
     el.setPointerCapture(e.pointerId);
     seek(timeAt(e.clientX));
-    const move = (ev: PointerEvent) => seek(timeAt(ev.clientX));
-    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
+    const move = (ev: { clientX: number }) => seek(timeAt(ev.clientX));
+    const stop = follow(e.clientX, move);
+    const up = () => { stop(); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
   };
@@ -308,9 +361,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       ...camTimes,
       ...(a.shots?.map((x) => x.start) ?? []),
     ].filter((x) => Math.abs(x - t) > 1e-6);
-    const move = (ev: PointerEvent) => {
+    const move = (ev: { clientX: number }) => {
       let to = snapTime(a, timeAt(ev.clientX));
-      const near = others.find((x) => Math.abs(x - to) < (6 / laneWidth) * span);
+      const near = others.find((x) => Math.abs(x - to) < (6 / laneWidth) * view.current.span);
       if (near !== undefined) to = near;
       if (Math.abs(to - from) < 1e-6) return;
       dragged = true;
@@ -331,7 +384,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         store.setTime(now);
       }
     };
+    const stop = follow(e.clientX, move);
     const up = () => {
+      stop();
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       // A Shift-click (no drag) adds the key to those picked, or takes it out.
@@ -350,8 +405,10 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     if (e.button !== 0 || !e.shiftKey) return;
     e.stopPropagation();
     const t0 = timeAt(e.clientX);
-    const move = (ev: PointerEvent) => setBox({ figure: figureId, t0, t1: timeAt(ev.clientX) });
+    const move = (ev: { clientX: number }) => setBox({ figure: figureId, t0, t1: timeAt(ev.clientX) });
+    const stop = follow(e.clientX, move);
     const up = (ev: PointerEvent) => {
+      stop();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       setBox(null);
@@ -375,7 +432,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const [start, duration, blend] = [act.start, act.duration, act.blendIn ?? 0];
     const key = `act:${act.id}:${part}`;
     let moved = false;
-    const move = (ev: PointerEvent) => {
+    const move = (ev: { clientX: number }) => {
       if (!moved && Math.abs(ev.clientX - x0) < 3) return;
       moved = true;
       const dt = timeAt(ev.clientX) - t0;
@@ -383,7 +440,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       else if (part === 'end') retime(store, act.id, duration + dt, key);
       else setBlend(store, act.id, blend - dt, key);
     };
+    const stop = follow(e.clientX, move);
     const up = () => {
+      stop();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (moved) return;
@@ -402,7 +461,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const cam = rowCam.id;
     let from = t;
     const key = `campoint:${t}`;
-    const move = (ev: PointerEvent) => {
+    const move = (ev: { clientX: number }) => {
       const to = snapTime(a, timeAt(ev.clientX));
       if (Math.abs(to - from) < 1e-6) return;
       retimeCameraPoint(store, from, to, key, cam);
@@ -413,7 +472,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         store.setTime(now);
       }
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const stop = follow(e.clientX, move);
+    const up = () => { stop(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
@@ -424,7 +484,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     e.stopPropagation();
     pause();
     const key = `${part}:${sp.shot.id}`;
-    const move = (ev: PointerEvent) => {
+    const move = (ev: { clientX: number }) => {
       const t = timeAt(ev.clientX);
       if (part === 'cut') moveShotCut(store, sp.shot.id, t, key);
       else {
@@ -432,7 +492,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         editShot(store, sp.shot.id, { blend: Math.min(now.end - now.start, Math.max(0, snapTime(a, t) - now.start)) });
       }
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const stop = follow(e.clientX, move);
+    const up = () => { stop(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
@@ -483,6 +544,47 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+
+  /**
+   * The timeline's own keys, while it has the focus (#19): ← → a frame, Shift + ← → the active row's
+   * previous / next key, Home / End, ↑ ↓ the person above / below, = − 0 zoom; Esc gives the keys back.
+   */
+  const onKeys = (e: ReactKeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, [role="menu"], [role="alertdialog"]')) return;
+    const at = store.getState().time;
+    const go = (t: number | undefined) => { if (t !== undefined) seek(Math.min(Math.max(0, t), a.duration)); };
+    const row = (by: number) => {
+      const i = figures.findIndex((f) => f.id === active?.id);
+      const next = figures[Math.min(figures.length - 1, Math.max(0, i + by))];
+      if (next && next.id !== active?.id) store.setActiveFigure(next.id);
+    };
+    const keys: Record<string, () => void> = {
+      ArrowLeft: () => (e.shiftKey ? go(prevKey) : go(at - 1 / a.fps)),
+      ArrowRight: () => (e.shiftKey ? go(nextKey) : go(at + 1 / a.fps)),
+      Home: () => go(0),
+      End: () => go(a.duration),
+      ArrowUp: () => row(-1),
+      ArrowDown: () => row(1),
+      '=': () => zoomBy(0.5),
+      '+': () => zoomBy(0.5),
+      '-': () => zoomBy(2),
+      '0': () => setZoom(null),
+      Escape: () => (e.currentTarget as HTMLElement).blur(),
+    };
+    const run = keys[e.key];
+    if (!run) return;
+    e.preventDefault();
+    e.stopPropagation();
+    run();
+  };
+  const tracks = useRef<HTMLDivElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [keysHere, setKeysHere] = useState(false);
+  // (The active person's row in sight whenever they change: from the canvas, the outline or the keys.)
+  useEffect(() => {
+    const row = tracks.current?.querySelector<HTMLElement>(`[data-row="${activeId}"]`);
+    row?.scrollIntoView({ block: 'nearest' });
+  }, [activeId]);
 
   // The commands reach the motion check and the zoom here.
   useEffect(() => {
@@ -644,14 +746,29 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       </div>
 
       {!folded && (
-        <div className="tl-tracks" style={height ? { height, maxHeight: 'none' } : undefined}>
+        <div
+          className={`tl-tracks${scrolled ? ' scrolled' : ''}`}
+          ref={tracks}
+          style={height ? { height, maxHeight: 'none' } : undefined}
+          tabIndex={0}
+          role="group"
+          aria-label="Tracks"
+          onKeyDown={onKeys}
+          onFocus={() => setKeysHere(true)}
+          onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeysHere(false); }}
+          // (Clicked in, it takes the keys; not from what has a focus of its own.)
+          onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('input, textarea, select')) e.currentTarget.focus({ preventScroll: true }); }}
+          onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
+        >
+          {keysHere && <span className="tl-keys" aria-hidden><kbd>←</kbd><kbd>→</kbd> frame · <kbd>Shift</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> person · <kbd>Home</kbd><kbd>End</kbd> · <kbd>=</kbd><kbd>−</kbd> zoom · <kbd>Esc</kbd></span>}
           <div className="tl-labels" style={{ gridTemplateRows: rows }}>
-            <span aria-hidden />
-            <span aria-hidden>Shots</span>
+            <span className="tl-head ruler" aria-hidden />
+            <span className="tl-head shots" aria-hidden>Shots</span>
             {multi ? figures.map((f) => (
               <button
                 key={f.id}
                 type="button"
+                tabIndex={-1}
                 className={`tl-figure${f.id === active?.id ? ' on' : ''}`}
                 onClick={() => store.setActiveFigure(f.id)}
                 onContextMenu={(e) => openContextMenu(e, menu('figure', { store, figure: f.id }), f.name)}
@@ -748,6 +865,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               return (
                 <div
                   key={f.id}
+                  data-row={f.id}
                   className={`tl-row${multi && f.id === active?.id ? ' active' : ''}${keying === f.id && !f.proxy ? ' autokey' : ''}`}
                   aria-label={multi ? `${f.name} keys` : 'Pose keys'}
                   onPointerDown={boxKeys(f.id)}

@@ -1492,6 +1492,10 @@ export const GESTURES: [string, string][] = [
   ['Repeat an action · keep a keyed block as a motion', 'Right-click its block'],
   ['Make the animation longer', 'Key or add past its end (the faint stretch)'],
   ['Reorder scenes (scene picker)', 'Alt + arrows'],
+  // (The timeline's own keys, once it is clicked in: Esc or a click on the canvas gives them back. #19)
+  ['Timeline (clicked in): a frame · the previous / next key · start / end', '← → · Shift ← → · Home End'],
+  ['Timeline (clicked in): the person above / below · zoom in, out, whole', '↑ ↓ · = − 0'],
+  ['Drag to the edge of a zoomed timeline', 'It scrolls on'],
 ];
 
 /** The keys for what is selected (the step commands), for the help: what, and the keys. */

@@ -1773,6 +1773,53 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   expect(actionsOf(s.scene.animation!, s.active)[1].source).toMatchObject({ mode: 'jump', spin: 1 });
 });
 
+test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots stay as its rows scroll; a drag at the edge of a zoomed view scrolls on', async ({ page }) => {
+  test.setTimeout(150_000);
+  await templateScene(page, 'House party');
+  const store = () => live(page);
+  const lanes = page.locator('.tl-lanes');
+  let box = (await lanes.boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.3, box.y + 8);
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.tl-tracks'))).toBe(true);
+  // A frame on, two; the next key; the end; the start.
+  const t0 = (await store()).time;
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  const fps = (await store()).scene.animation!.fps;
+  expect((await store()).time).toBeCloseTo(t0 + 2 / fps, 3);
+  await page.keyboard.press('Shift+ArrowRight');
+  expect((await store()).time).toBeGreaterThan(t0 + 2 / fps);
+  await page.keyboard.press('End');
+  expect((await store()).time).toBeCloseTo((await store()).scene.animation!.duration, 2);
+  await page.keyboard.press('Home');
+  expect((await store()).time).toBe(0);
+  // The person below, and on to the last: their row in sight under the ruler and Shots, which stay.
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setSettings(s: object): void } } }).__poseStudio.store.setSettings({ timelineHeight: 150 }));
+  const people = (await store()).scene.figures;
+  for (let i = 0; i < people.length; i++) await page.keyboard.press('ArrowDown');
+  expect((await store()).active).toBe(people.at(-1)!.id);
+  const tracks = (await page.locator('.tl-tracks').boundingBox())!;
+  await expect.poll(async () => page.locator('.tl-tracks').evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
+  expect((await page.locator('.tl-ruler').boundingBox())!.y).toBeCloseTo(tracks.y, 0);
+  const last = (await page.locator(`.tl-row[data-row="${people.at(-1)!.id}"]`).boundingBox())!;
+  expect(last.y + last.height).toBeLessThanOrEqual(tracks.y + tracks.height + 1);
+  // Zoomed in, the playhead dragged to the right edge and held there: the window scrolls on.
+  await page.keyboard.press('=');
+  await page.keyboard.press('=');
+  await expect(page.locator('.tl-scroll')).toBeVisible();
+  box = (await lanes.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.5, tracks.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 3, tracks.y + 8, { steps: 4 });
+  const at = (await store()).time;
+  await page.waitForTimeout(1500);
+  expect((await store()).time).toBeGreaterThan(at + 1);
+  await page.mouse.up();
+  // Esc gives the keys back to the canvas.
+  await page.keyboard.press('Escape');
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.tl-tracks'))).toBe(false);
+});
+
 test('actions are blocks on the timeline: picked for the inspector, retimed by their edge, blended by their ramp', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   let s = await live(page);
