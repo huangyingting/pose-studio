@@ -113,6 +113,12 @@ export function seamOf(src: Extract<Action['source'], { kind: 'clip' }>, clip: C
   return apart > 10 ? 0.25 : 0;
 }
 
+/** How far a blend has gone at x (0–1) on its curve (#23): smoothly, evenly, easing in or out. */
+export function curved(x: number, curve?: Action['blendCurve']): number {
+  const u = Math.min(1, Math.max(0, x));
+  return curve === 'linear' ? u : curve === 'in' ? u * u : curve === 'out' ? 1 - (1 - u) * (1 - u) : smooth(u);
+}
+
 /** A figure's actions on one layer, in order. */
 export function actionsOf(a: Animation, figure: string, layer?: Action['layer']): Action[] {
   return a.actions
@@ -468,7 +474,7 @@ class Evaluator {
     if (acts.some((x) => x.source.kind === 'travel' && x.start - EPS <= t && Math.abs(end(x) - next.start) < EPS)) return null;
     const time = this.blendOf(f, next);
     if (next.start - t >= time) return null;
-    return { act: next, w: smooth(1 - (next.start - t) / time), from: next.start - time };
+    return { act: next, w: curved(1 - (next.start - t) / time, next.blendCurve), from: next.start - time };
   }
 
   /** Whether both feet are on the ground (their ankles no higher above it than standing has them). */

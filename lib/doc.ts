@@ -426,6 +426,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
     start,
     duration: Math.min(MAX_DURATION - start, Math.max(0, num(v.duration, 0))),
     ...(blendIn > 0 ? { blendIn: Math.min(10, blendIn) } : {}),
+    ...(v.blendCurve === 'linear' || v.blendCurve === 'in' || v.blendCurve === 'out' ? { blendCurve: v.blendCurve } : {}),
     ...(v.layer === 'correction' || v.layer === 'upper' ? { layer: v.layer } : {}),
     roles,
     source,

@@ -1012,8 +1012,12 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
   }
   if (issue.kind === 'pop') {
     const act = mine.find((x) => !x.layer && x.source.kind === 'clip' && Math.abs(x.start - issue.start) < 0.4 && (x.blendIn ?? 0) < 0.5);
-    if (!act) return null;
-    return { label: 'Ease into it', run: () => setBlend(store, act.id, 0.5) };
+    if (act) return { label: 'Ease into it', run: () => setBlend(store, act.id, 0.5) };
+    // (At a repeat's start, #23: a blend between the repeats.)
+    const rep = mine.find((x) => x.source.kind === 'clip' && (x.source.repeat ?? 1) > 1 && x.start < issue.start && issue.start < x.start + x.duration
+      && Array.from({ length: (x.source as { repeat: number }).repeat - 1 }, (_, k) => x.start + ((k + 1) * x.duration) / (x.source as { repeat: number }).repeat).some((s) => Math.abs(s - issue.start) < 0.4));
+    if (rep) return { label: 'Blend between the repeats', run: () => setClipOptions(store, rep.id, { seam: 0.3 }) };
+    return null;
   }
   return null;
 }
@@ -1197,6 +1201,16 @@ function keepPull(s: Scene, next: Scene, id: string): Scene {
 /** Let a motion end where it takes the figure by itself: its mark goes (#18). */
 export function clearMark(store: Store, id: string, figureId: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => (x.id !== id ? x : { ...x, roles: x.roles.map((r) => (r.figure === figureId ? { figure: r.figure } : r)) })) } } : s));
+}
+
+/** How an action's blend in goes (#23): smoothly (null), evenly, easing in or out. */
+export function setBlendCurve(store: Store, id: string, curve: Action['blendCurve'] | null) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
+    if (x.id !== id) return x;
+    const { blendCurve: _c, ...rest } = x;
+    void _c;
+    return curve ? { ...rest, blendCurve: curve } : rest;
+  }) } } : s));
 }
 
 /** How long an action blends in from what was before it (s). */

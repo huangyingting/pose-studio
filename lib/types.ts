@@ -261,6 +261,8 @@ export interface Action {
   duration: number;
   /** Seconds before it starts over which the figure eases from what it is doing into its first pose (it then plays as made). */
   blendIn?: number;
+  /** How that blend goes (#23): evenly, easing in (slow, then quicker) or out; smoothly (easing both) when not given. */
+  blendCurve?: 'linear' | 'in' | 'out';
   layer?: 'upper' | 'correction';
   roles: Role[];
   source: ActionSource;

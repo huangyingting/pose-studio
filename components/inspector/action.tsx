@@ -1,7 +1,7 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setPlayRange, setTravel } from '@/lib/actions';
+import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setPlayRange, setBlendCurve, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById, playedClip } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
@@ -62,6 +62,17 @@ export function TimingPanel({ t }: { t: Target }) {
           <span>Blends in</span>
           <NumberField prefix="s" label="Blend in" value={act.blendIn ?? 0} step={0.05} min={0} max={2} onChange={(v) => setBlend(t.store, id, v, `act:${id}:blend`)} />
         </label>
+      )}
+      {!act.layer && act.source.kind !== 'keys' && !!act.blendIn && (
+        // How the blend goes (#23).
+        <PropertyRow label="Blend">
+          <Select<'smooth' | 'linear' | 'in' | 'out'>
+            label="How it blends in"
+            value={act.blendCurve ?? 'smooth'}
+            onChange={(v) => setBlendCurve(t.store, id, v === 'smooth' ? null : v)}
+            options={[{ value: 'smooth', label: 'Smoothly' }, { value: 'linear', label: 'Evenly' }, { value: 'in', label: 'Easing in' }, { value: 'out', label: 'Easing out' }]}
+          />
+        </PropertyRow>
       )}
       {/* Played again, one after another; a keyed block kept as a motion. */}
       {applies(command('action.repeat'), ctx) && (

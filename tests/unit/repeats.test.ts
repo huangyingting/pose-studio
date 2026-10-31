@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { applyMotion, repeatAction, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
+import { applyMotion, issueFix, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { mirrorPose } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
-import { actionsOf, figurePoseAt } from '@/lib/evaluate';
+import { actionsOf, curved, figurePoseAt } from '@/lib/evaluate';
 import type { JointName, Pose } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
@@ -69,5 +69,42 @@ describe('repeats (#23)', () => {
     expect(blocks).toHaveLength(3);
     expect(blocks.map((x) => !!(x.source as { mirror?: boolean }).mirror)).toEqual([false, true, false]);
     expect(blocks.slice(1).map((x) => x.blendIn)).toEqual([0.3, 0.3]);
+  });
+});
+
+describe('blends (#23)', () => {
+  it('go smoothly, evenly, easing in or out', () => {
+    expect([0, 0.5, 1].map((x) => curved(x))).toEqual([0, 0.5, 1]);
+    expect(curved(0.25, 'linear')).toBeCloseTo(0.25, 6);
+    expect(curved(0.5, 'in')).toBeCloseTo(0.25, 6);
+    expect(curved(0.5, 'out')).toBeCloseTo(0.75, 6);
+    expect(curved(0.25)).toBeLessThan(0.25);
+  });
+
+  it('a block\'s blend in goes on its curve: easing in, it is still nearer what it came from halfway', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(1);
+    applyMotion(store, a, SWING);
+    const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    setBlend(store, act.id, 0.8);
+    const from = figurePoseAt(store.scene, a, act.start - 0.8)!;
+    const mid = act.start - 0.4;
+    setBlendCurve(store, act.id, 'in');
+    const easing = apart(figurePoseAt(store.scene, a, mid)!, from);
+    setBlendCurve(store, act.id, 'out');
+    const quick = apart(figurePoseAt(store.scene, a, mid)!, from);
+    expect(quick).toBeGreaterThan(easing);
+    expect(parseScene(JSON.parse(JSON.stringify(store.scene)))!.animation!.actions.find((x) => x.id === act.id)!.blendCurve).toBe('out');
+  });
+
+  it('the motion check\'s pop at a repeat\'s start is fixed with a blend between the repeats', () => {
+    const { store, a, id, act } = swung(2);
+    setClipOptions(store, id, { seam: 0 });
+    const at = act().start + act().duration / 2;
+    const fix = issueFix(store, { kind: 'pop', figure: a, start: at, end: at + 0.05, message: '' } as never)!;
+    expect(fix.label).toBe('Blend between the repeats');
+    fix.run();
+    expect(act().source).toMatchObject({ seam: 0.3 });
   });
 });
