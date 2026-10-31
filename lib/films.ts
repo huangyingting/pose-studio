@@ -534,7 +534,10 @@ export function standOff(): Scene {
  * the fan at the side feeding them new balls; the defender's own drive and miss; the last play,
  * and the cheering.
  */
-export function streetBasketball(): Scene {
+export /** How long the Library's Jump crouches before it leaves the floor (s): a defender's starts that much before the shot. */
+const JUMP_CROUCH = 0.8;
+
+function streetBasketball(): Scene {
   const s = new Stage('Street basketball', [
     { name: 'Jay', body: 'Tall man', at: [-0.6, 0], facing: 0 },
     { name: 'Kofi', body: 'Man', at: [2.4, 1], facing: 0 },
@@ -567,7 +570,7 @@ export function streetBasketball(): Scene {
   s.face('Jay', [0, 8.5], caught + 0.2, 0.5);
   let shot = s.until('Jay') + 0.2;
   let end = s.handle('Jay', a, 'shoot', shot, { hoop });
-  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot));
+  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot - JUMP_CROUCH));
   t = Math.max(end, s.until('Rico')) + 0.6;
   s.play('Fan', 'standing-thumbs-up', t);
   s.play('Kofi', 'happy-idle', t, { seconds: 3, face: 'Jay' });
@@ -589,7 +592,7 @@ export function streetBasketball(): Scene {
   // His shot: off the rim.
   shot = s.until('Rico') + 0.1;
   end = s.handle('Rico', b, 'shoot', shot, { hoop, miss: true });
-  s.play('Jay', 'jump', Math.max(s.until('Jay'), shot));
+  s.play('Jay', 'jump', Math.max(s.until('Jay'), shot - JUMP_CROUCH));
   t = Math.max(end, s.until('Jay')) + 1.2;
   s.play('Rico', 'disappointed', t, { seconds: 4 });
   s.play('Fan', 'shaking-head-no', Math.max(s.until('Fan'), t));
@@ -612,7 +615,7 @@ export function streetBasketball(): Scene {
   s.face('Jay', [0, 8.5], Math.max(s.until('Jay'), caught + 0.2), 0.5);
   shot = s.until('Jay') + 0.2;
   end = s.handle('Jay', c, 'shoot', shot, { hoop });
-  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot));
+  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot - JUMP_CROUCH));
   // In: they cheer, the fan waves, the defender hangs his head.
   t = Math.max(end, s.until('Rico')) + 0.8;
   s.play('Jay', 'standing-thumbs-up', t, { face: 'Kofi' });
@@ -631,7 +634,7 @@ export function streetBasketball(): Scene {
   s.play('Jay', 'head-nod-yes', Math.max(s.until('Jay'), s.until('Rico') - 2), { face: 'Rico' });
   s.play('Rico', 'talking', s.until('Rico'), { seconds: 6, face: 'Kofi' });
   s.play('Kofi', 'laughing', Math.max(s.until('Kofi'), s.until('Rico') - 5), { seconds: 5, face: 'Rico' });
-  s.play('Jay', 'shrugging', s.until('Rico') - 2, { face: 'Rico' });
+  s.play('Jay', 'shrugging', Math.max(s.until('Jay'), s.until('Rico') - 2), { face: 'Rico' });
   return s.done(0.5);
 }
 
