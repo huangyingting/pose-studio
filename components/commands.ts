@@ -1391,7 +1391,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
       const choices = cmd.items(c);
       if (!choices.length) continue;
       out.push({ group: titleOf(cmd, c) });
-      for (const ch of choices) out.push({ label: ch.title, icon: ch.icon, checked: ch.checked, disabled: ch.disabled, onSelect: ch.run });
+      for (const ch of choices) out.push({ label: ch.title, icon: ch.icon, checked: ch.checked, radio: ch.checked !== undefined, disabled: ch.disabled, onSelect: ch.run });
       continue;
     }
     out.push({

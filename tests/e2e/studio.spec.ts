@@ -109,7 +109,8 @@ async function openShotCamera(page: Page) {
 /** Pick an item of the top bar's View menu. */
 async function viewMenu(page: Page, item: string | RegExp) {
   await page.getByRole('button', { name: 'View', exact: true }).click();
-  await page.getByRole('menu', { name: 'View' }).getByRole('menuitemradio', { name: item }).or(page.getByRole('menu', { name: 'View' }).getByRole('menuitem', { name: item })).click();
+  const menu = page.getByRole('menu', { name: 'View' });
+  await menu.getByRole('menuitemradio', { name: item }).or(menu.getByRole('menuitemcheckbox', { name: item })).or(menu.getByRole('menuitem', { name: item })).click();
 }
 
 /** Open a section of the left side panel (clicking the open one would fold it away). */
@@ -963,7 +964,7 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   await expect(page.getByRole('button', { name: 'Look through Camera 1' })).toBeVisible();
   // Looked through from its menu: a banner says the view moves it; Ctrl+D copies it.
   await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).click({ button: 'right' });
-  await page.getByRole('menuitemradio', { name: 'Look through it' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Look through it' }).click();
   await expect(page.locator('.letterbox-banner')).toHaveText(/^Moving Camera 1 at \d+\.\d\d s: drag to change it · Esc to stop$/);
   await page.keyboard.press('Control+d');
   expect((await anim(page)).cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2', 'Camera 1 copy']);
@@ -2179,9 +2180,9 @@ test('the timeline zooms, retimes a stretch, plays slower and folds away', async
   await page.getByRole('menuitemradio', { name: /^0\.5×/ }).click();
   await expect(page.getByRole('button', { name: 'Playback speed' })).toHaveText('0.5×');
   await page.getByRole('button', { name: 'Animation options' }).click();
-  await page.getByRole('menuitemradio', { name: 'Repeat this shot' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Repeat this shot' }).click();
   await page.getByRole('button', { name: 'Animation options' }).click();
-  await expect(page.getByRole('menuitemradio', { name: 'Repeat this shot' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('menuitemcheckbox', { name: 'Repeat this shot' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
 
   // Folded down to its toolbar (remembered).

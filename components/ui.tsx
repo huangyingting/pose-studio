@@ -116,6 +116,8 @@ export function IconButton({ icon: Icon, label, shortcut, onClick, active, disab
 export type MenuItem =
   | {
     label: string; icon?: LucideIcon; shortcut?: string; onSelect(): void; danger?: boolean; disabled?: boolean; checked?: boolean;
+    /** One of a group's choices (checked: the one chosen); otherwise a checked item is a switch on its own. */
+    radio?: boolean;
     /** It can also be dragged onto what it applies to (a prop onto the floor). */
     drag?: DropTarget;
   }
@@ -284,7 +286,7 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
           <button
             key={i}
             type="button"
-            role={it.checked === undefined ? 'menuitem' : 'menuitemradio'}
+            role={it.checked === undefined ? 'menuitem' : it.radio ? 'menuitemradio' : 'menuitemcheckbox'}
             aria-checked={it.checked}
             className={`menu-item${it.danger ? ' danger' : ''}${it.checked ? ' checked' : ''}`}
             disabled={it.disabled}

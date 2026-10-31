@@ -360,7 +360,7 @@ function App() {
       // The arrow and Page keys belong to what has focus if it uses them (a slider, a menu, a list, tabs), and
       // scroll a side panel last clicked in; a plain button just clicked keeps no hold on them.
       if ((e.key.startsWith('Arrow') || e.key.startsWith('Page')) && (el === document.body ? inPanel
-        : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-tracks'))) return;
+        : el.closest('input, select, [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="listbox"], [role="option"], [role="combobox"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="grid"], [role="tree"], [role="list"] [tabindex], .tl-tracks'))) return;
       // Space presses the button that has the focus when the keyboard brought it there (Tab, as
       // browsers have it); after the pointer was last used (a click, a dialog closed), Space plays.
       // (In a menu or a list, Space chooses the item it is on, however the focus got there.)
