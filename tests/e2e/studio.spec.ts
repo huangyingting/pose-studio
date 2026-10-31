@@ -190,7 +190,7 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
 
 /** One of the Motions tabs: Mocap, Generated or Imported. */
 async function motionsTab(page: Page, tab: 'Mocap' | 'Generated' | 'Imported') {
-  await page.getByRole('radiogroup', { name: 'Motions from' }).getByRole('radio', { name: tab }).click();
+  await page.getByRole('tablist', { name: 'Motions from' }).getByRole('tab', { name: tab }).click();
 }
 
 /** The New scene dialog (Scenes → New → From a template…). */

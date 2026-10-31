@@ -10,7 +10,7 @@ import { spanAt } from '@/lib/shots';
 import type { Scene } from '@/lib/types';
 import { styleDef } from '@/lib/styles';
 import { useProjectSettings, useStore, useStudio } from '../store-context';
-import { IconButton, Segmented } from '../ui';
+import { IconButton } from '../ui';
 import { endDrag, startDrag } from '../dragdrop';
 import { setHoverGhost } from '../hints';
 import { LIBRARY_CATEGORIES, type LibraryCategory, type LibraryItem, type LibraryUi, type Thumb } from './libraryItems';
@@ -61,11 +61,7 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
           />
         </label>
       </div>
-      {open.kinds && !q && (
-        <div className="library-row">
-          <Segmented full label={`${open.label} from`} value={kind} onChange={setKind} options={open.kinds.map((k) => ({ value: k.id, label: k.label, title: k.tip }))} />
-        </div>
-      )}
+      {open.kinds && !q && <KindTabs category={open} kind={kind} onPick={setKind} />}
       <div className="side-scroll">
         {!q && open.Bar && <open.Bar {...ui} kind={kind} />}
         {found.length ? <Items category={open} items={found} preview={preview.bind} />
@@ -73,6 +69,46 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
           : open.kinds?.find((k) => k.id === kind)?.empty && <p className="empty-note">{open.kinds.find((k) => k.id === kind)!.empty}</p>}
       </div>
       {preview.card}
+    </div>
+  );
+}
+
+/**
+ * A category's tabs (where its items come from): an icon each, the open one named too and
+ * widest, as wide as the search above; a tip says what each holds. ← → go between them.
+ */
+function KindTabs({ category, kind, onPick }: { category: LibraryCategory; kind: string; onPick(kind: string): void }) {
+  const kinds = category.kinds!;
+  const step = (e: KeyboardEvent<HTMLDivElement>) => {
+    const by = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!by) return;
+    e.preventDefault();
+    const next = kinds[(kinds.findIndex((k) => k.id === kind) + by + kinds.length) % kinds.length];
+    onPick(next.id);
+    (e.currentTarget.querySelector(`[data-kind="${next.id}"]`) as HTMLElement | null)?.focus();
+  };
+  return (
+    <div className="lib-tabs" role="tablist" aria-label={`${category.label} from`} onKeyDown={step}>
+      {kinds.map((k) => {
+        const on = k.id === kind;
+        return (
+          <button
+            key={k.id}
+            type="button"
+            role="tab"
+            data-kind={k.id}
+            aria-selected={on}
+            aria-label={k.label}
+            tabIndex={on ? 0 : -1}
+            className={`lib-tab${on ? ' on' : ''}`}
+            data-tip={on ? k.tip : `${k.label}: ${k.tip}`}
+            onClick={() => onPick(k.id)}
+          >
+            <k.icon size={15} strokeWidth={1.75} aria-hidden />
+            {on && <span className="lib-tab-label">{k.label}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

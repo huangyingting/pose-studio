@@ -1831,6 +1831,13 @@ button.psec-title svg { color: var(--text-3); }
 .library-target { margin: 0 14px 8px; color: var(--text-2); font-size: var(--fs-s); line-height: 1.45; }
 .library-target strong { color: var(--text); font-weight: 600; }
 .library-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 10px 8px; }
+/* A category's tabs (Motions: Mocap, Generated, Imported): an icon each, the open one named and widest; as wide as the search. */
+.lib-tabs { display: flex; gap: 2px; margin: 0 10px 8px; padding: 2px; border-radius: var(--radius); background: var(--well); flex: none; }
+.lib-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1 1 0; min-width: 0; max-width: 44px; height: var(--control-s); padding: 0 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font-size: var(--fs-s); font-weight: 540; cursor: pointer; }
+.lib-tab:hover { color: var(--text); }
+.lib-tab.on { flex: 1 0 auto; max-width: none; background: var(--raised); color: var(--text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--shade) 5%, transparent), 0 1px 3px color-mix(in srgb, var(--shade) 10%, transparent); }
+.lib-tab:focus-visible { outline: none; box-shadow: var(--focus); }
+.lib-tab-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .library-row .search { flex: 1; margin: 0; }
 .side-section .thumbs { overflow: visible; }
 .side-section .thumbs li { position: relative; }

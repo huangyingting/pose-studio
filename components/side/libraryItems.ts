@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Ban, Castle, SunMedium, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
+import { Ban, Castle, SunMedium, Film, Import, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, WandSparkles, type LucideIcon } from 'lucide-react';
 import { applyMotion, applyPose, applyUpperBody, deleteModel, deleteMotion, deletePose, applyLightingPreset, placeTemplate, setFigureModel, setSceneSet } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
@@ -82,7 +82,7 @@ export interface LibraryCategory {
   /** Above its items: what they apply to, and what adds to it. */
   Bar?: ComponentType<BarProps>;
   /** Its items on tabs of their own, by where they come from (a search looks in all of them); what an empty one says. */
-  kinds?: { id: string; label: string; tip: string; empty?: string }[];
+  kinds?: { id: string; label: string; icon: LucideIcon; tip: string; empty?: string }[];
 }
 
 /** A figure that can take poses, motions and characters (stand-ins cannot). */
@@ -307,9 +307,9 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     id: 'motions', label: 'Motions', icon: Film, items: motions, Bar: MotionsBar,
     // (Recorded from people, Mixamo's; made here, posed and stepped by the app; and your own.)
     kinds: [
-      { id: 'captured', label: 'Mocap', tip: 'Motion capture: recorded from real people (Mixamo)' },
-      { id: 'generated', label: 'Generated', tip: 'Made by Pose Studio: posed key by key, with steps worked out for walks, runs and jumps' },
-      { id: 'imported', label: 'Imported', tip: 'The motions you import (BVH, FBX, glTF or a Pose Studio motion) and save', empty: 'Motions you import, or save from a Posed block, show here.' },
+      { id: 'captured', label: 'Mocap', icon: Video, tip: 'Motion capture: recorded from real people (Mixamo)' },
+      { id: 'generated', label: 'Generated', icon: WandSparkles, tip: 'Made by Pose Studio: posed key by key, with steps worked out for walks, runs and jumps' },
+      { id: 'imported', label: 'Imported', icon: Import, tip: 'The motions you import (BVH, FBX, glTF or a Pose Studio motion) and save', empty: 'Motions you import, or save from a Posed block, show here.' },
     ],
   },
   // Where the scene is played: a set behind it.
