@@ -1805,7 +1805,13 @@ export function editProjectSettings(store: Store, patch: Partial<ProjectSettings
 
 /** Put a scene in the story or leave it out of it (the storyboard and its exports). */
 export function setInStory(store: Store, sceneId: string, inStory: boolean) {
-  store.commit((lib) => ({ ...lib, scenes: lib.scenes.map((s) => (s.id !== sceneId ? s : inStory ? (({ offStory: _, ...rest }) => rest)(s) : { ...s, offStory: true })) }));
+  const put = (s: Scene): Scene => {
+    if (!inStory) return { ...s, offStory: true };
+    const { offStory: _, ...rest } = s;
+    void _;
+    return rest;
+  };
+  store.commit((lib) => ({ ...lib, scenes: lib.scenes.map((s) => (s.id !== sceneId ? s : put(s))) }));
 }
 
 /** How long a still scene stays on screen in the story. */
