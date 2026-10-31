@@ -875,14 +875,14 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 @container (max-width: 680px) { .tl-zoom { display: none; } }
 @container (max-width: 720px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
 @container (max-width: 460px) { .tl-step, .tl-speed { display: none; } .tl-time { margin-left: 4px; } }
-.tl-tracks { position: relative; display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto 1fr; padding: 0 12px 10px 0; max-height: min(45vh, 360px); overflow-y: auto; scrollbar-width: thin; outline: none; }
+.tl-tracks { position: relative; display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: 1fr auto; padding: 0 12px 10px 0; max-height: min(45vh, 360px); overflow-y: auto; scrollbar-width: thin; outline: none; }
 /* Taking the keys (#19): a line along its top says so. */
 .tl-tracks:focus-within { box-shadow: inset 0 2px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
 .tl-keys { position: sticky; bottom: 16px; z-index: 6; grid-column: 1 / -1; grid-row: 1 / -1; justify-self: end; align-self: end; height: 18px; margin-right: 4px; padding: 0 8px; display: inline-flex; align-items: center; gap: 3px; border-radius: var(--radius-pill); background: var(--raised); box-shadow: var(--shadow-pop); color: var(--text-2); font-size: var(--fs-xs); white-space: nowrap; pointer-events: none; }
 @keyframes tl-keys { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 .tl-keys { animation: tl-keys 5s ease-in forwards; }
 .tl-keys kbd { font: inherit; font-family: var(--mono); padding: 0 3px; border-radius: 3px; background: var(--panel-2); color: var(--text); }
-.tl-labels { grid-row: 1; grid-column: 1; align-self: start; display: grid; color: var(--text-2); font-size: var(--fs-m); font-weight: 500; padding-left: 12px; }
+.tl-labels { grid-row: 1; grid-column: 1; align-content: start; display: grid; color: var(--text-2); font-size: var(--fs-m); font-weight: 500; padding-left: 12px; }
 .tl-labels span { display: flex; align-items: center; }
 /* The ruler and the Shots row stay at the top as the rows scroll under them. */
 .tl-head, .tl-lanes > .tl-ruler, .tl-lanes > .tl-row.shots { position: sticky; z-index: 4; background: var(--panel); }
@@ -890,7 +890,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-head.shots, .tl-lanes > .tl-row.shots { top: 20px; }
 .tl-tracks.scrolled .tl-head.shots, .tl-tracks.scrolled .tl-lanes > .tl-row.shots { box-shadow: 0 4px 6px -4px color-mix(in srgb, var(--shade) 30%, transparent); }
 .tl-labels > .tl-figure, .tl-lanes > .tl-row { scroll-margin-top: 50px; }
-.tl-lanes { grid-row: 1; grid-column: 2; align-self: start; position: relative; display: grid; cursor: ew-resize; touch-action: none; overflow-x: clip; }
+.tl-lanes { grid-row: 1; grid-column: 2; align-content: start; position: relative; display: grid; cursor: ew-resize; touch-action: none; overflow-x: clip; }
 .tl-ruler { position: relative; border-bottom: 1px solid var(--border); }
 .tl-ruler .tick { position: absolute; bottom: 0; width: 1px; height: 4px; background: var(--border-strong); }
 .tl-ruler .tick.major { height: 8px; background: var(--text-3); }
