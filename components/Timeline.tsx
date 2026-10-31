@@ -1193,7 +1193,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                           />
                         )}
                         <span
-                          className={`tl-travel grab ${kind}${group ? ' group' : ''}${isPicked(x.id) ? ' sel' : ''}`}
+                          className={`tl-travel grab ${kind}${group ? ' group' : ''}${isPicked(x.id) ? ' sel' : ''}${(() => { const px = (x.duration / span) * laneWidth; return px < 12 ? ' tiny' : px < 28 ? ' tight' : ''; })()}`}
                           style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
                           data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click or double-click to edit, drag to move it (and what follows)${x.source.kind === 'clip' ? ', Ctrl-drag to play another part of it there' : ''}; ${x.source.kind === 'travel' ? 'its right edge: how long it takes' : 'its edges trim it, Alt-drag one to stretch it'}; Delete removes it\nRight-click for more`}
                           onPointerDown={dragAction(x, f.id, 'move')}
