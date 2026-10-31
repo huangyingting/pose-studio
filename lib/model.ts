@@ -195,9 +195,14 @@ export class Fitted {
     const at = (b: Bone) => this.bones.get(b)?.getWorldPosition(new THREE.Vector3()) ?? null;
     this.frame.updateMatrixWorld(true);
     if (!frame) {
-      // Stood up: the spine's way up, the left leg's way left.
+      // Stood up: the spine's way up (snapped to a world axis when already upright, so anatomical
+      // spine curve does not tilt the floor), the left leg's way left.
       const hips = at('hips')!;
       const up = (at('neck') ?? at('head')!).clone().sub(hips).normalize();
+      const [ax, ay, az] = [Math.abs(up.x), Math.abs(up.y), Math.abs(up.z)];
+      if (Math.max(ax, ay, az) > Math.cos(THREE.MathUtils.degToRad(20))) {
+        up.set(ax > ay && ax > az ? Math.sign(up.x) : 0, ay >= ax && ay >= az ? Math.sign(up.y) : 0, az > ax && az > ay ? Math.sign(up.z) : 0);
+      }
       const left = at('leftUpperLeg')!.clone().sub(at('rightUpperLeg')!);
       const forward = new THREE.Vector3().crossVectors(left, up).normalize();
       left.crossVectors(up, forward).normalize();
