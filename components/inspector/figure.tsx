@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import {
   ArrowLeftRight, ChevronDown, Copy, Eye, Footprints, Hand, Mars, Minus, Navigation, PanelLeft, PanelRight, PersonStanding, Pin, Plus, Repeat, RotateCcw, Unlink, UserRound, Venus, X,
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { BUILT_IN_CHARACTERS } from '@/lib/characters';
 import { figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
 import { JOINT_LABELS, axisEnds, axisLabels, jointLimits, wrapDeg } from '@/lib/joints';
+import { modelTrouble, onModels } from '@/lib/model';
 import { angle } from '@/lib/pose';
 import { CONTACTS, CONTACT_LABELS, distance, facing, type Contact } from '@/lib/relations';
 import { FIGURE_COLORS, FINGERS, POSTURES, type Constraint, type Hand as HandPose, type Posture, type Scene, type Side, type Vec3 } from '@/lib/types';
@@ -417,6 +418,7 @@ export function BodyPanel({ t }: { t: Target }) {
   const setBody = (patch: Partial<typeof body>, key = '') => store.updateFigure(figure.id, (f) => ({ ...f, body: { ...f.body, ...patch } }), key);
   const models = modelsOf(t);
   const drawnAs = figure.model && models.some((m) => m.id === figure.model);
+  const trouble = useSyncExternalStore(onModels, () => (figure.model ? modelTrouble(figure.model) : null), () => null);
   return (
     <>
       <div className="field">
@@ -428,6 +430,11 @@ export function BodyPanel({ t }: { t: Target }) {
           options={[{ value: '', label: 'Mannequin' }, ...models.map((m) => ({ value: m.id, label: m.name }))]}
         />
       </div>
+      {drawnAs && trouble && (
+        <p className="hint">
+          {trouble === 'unfetched' ? 'Its file could not be fetched (offline?): the mannequin stands in until it comes.' : 'Its file could not be read: the mannequin stands in.'}
+        </p>
+      )}
       <div className="swatches" role="radiogroup" aria-label="Colour">
         <button type="button" role="radio" aria-checked={!figure.color} aria-label="No colour" className={`swatch none${!figure.color ? ' on' : ''}`} onClick={() => setFigureColor(store, figure.id, null)} />
         {FIGURE_COLORS.map((c) => (

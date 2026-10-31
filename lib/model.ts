@@ -765,7 +765,12 @@ export function setModels(list: ModelInfo[] | undefined) {
 
 export const modelInfo = (id: string) => infos.get(id) ?? null;
 
-/** Call `f` whenever a model's file has been read (figures drawn as it can be now). Returns a function that stops it. */
+/** Why a model is not drawn (the mannequin stands in): its file could not be got (offline), or not read. */
+export function modelTrouble(id: string): 'unfetched' | 'unreadable' | null {
+  return unreachable.has(id) ? 'unreadable' : failedAt.has(id) && !templates.has(id) ? 'unfetched' : null;
+}
+
+/** Call `f` whenever a model's file has been read (figures drawn as it can be now), or could not be. Returns a function that stops it. */
 export function onModels(f: () => void) {
   listeners.add(f);
   return () => { listeners.delete(f); };
@@ -791,6 +796,7 @@ export function modelTemplate(id: string): THREE.Object3D | null {
   // scene woken to ask then). Got but not readable: not again this visit.
   const later = (err?: unknown) => {
     failedAt.set(id, Date.now());
+    changed();
     setTimeout(changed, RETRY_MS);
     if (err) console.warn(`Could not get the model ${info.name}:`, err);
   };
@@ -800,9 +806,11 @@ export function modelTemplate(id: string): THREE.Object3D | null {
       if (!data) return;
       try {
         templates.set(id, await parseModel(info.format, data));
+        failedAt.delete(id);
         changed();
       } catch (err) {
         unreachable.add(id);
+        changed();
         console.warn(`Could not read the model ${info.name}:`, err);
       }
     }, later)
