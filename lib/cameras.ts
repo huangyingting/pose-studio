@@ -964,6 +964,16 @@ function framed(c: MoveContext, o: Partial<CameraRig> & { size: ShotSize }, turn
   return { kind: 'rig', rig };
 }
 
+/**
+ * A framing (as `framed`) held where it is as the shot starts: a camera fixed in the scene and
+ * looking at a fixed spot, not following its subject as it moves.
+ */
+function fixed(c: MoveContext, o: Partial<CameraRig> & { size: ShotSize }, turn = 0): CameraForm {
+  const v = viewOf(c.scene, reform(c.camera, framed(c, o, turn)), c.start);
+  const path = reform(c.camera, { kind: 'path', anchor: 'world', aim: 'point', points: [] }) as PathCamera;
+  return { kind: 'path', anchor: 'world', aim: 'point', points: [pointIn(c.scene, path, c.start, v.position, v.target, v.lens, v.roll)] };
+}
+
 /** A framing at its own angle on the subject (degrees from its front; a following shot), as the move asks. */
 const rigged = (rig: CameraRig): CameraForm => ({ kind: 'rig', rig });
 
@@ -972,13 +982,13 @@ const another = (c: MoveContext) => c.scene.figures.find((f) => !f.hidden && f.i
 
 /** Ready-made camera moves: a framing and a move (#16), each over a shot's time. */
 export const CAMERA_MOVES: MovePreset[] = [
-  { id: 'static', group: 'Fixed', name: 'Locked-off wide', description: 'A fixed camera that shows everything', apply: (c) => framed(c, { size: 'ws' }) },
+  { id: 'static', group: 'Fixed', name: 'Locked-off wide', description: 'A fixed camera that shows everything', apply: (c) => fixed(c, { size: 'ws' }) },
   { id: 'push', group: 'Towards & away', name: 'Push in', description: 'Slowly dolly towards the figures', apply: (c) => framed(c, { size: 'fs', move: { kind: 'push', size: 'mcu' } }) },
   { id: 'pull', group: 'Towards & away', name: 'Pull out', description: 'Start close and reveal the whole scene', apply: (c) => framed(c, { size: 'mcu', move: { kind: 'push', size: 'ws' } }) },
   { id: 'orbit90', group: 'Around & up', name: 'Arc 90°', description: 'Circle a quarter of the way around', apply: (c) => framed(c, { size: 'mws', pitch: c.base.pitch + 4, move: { kind: 'arc', by: 90 } }, -45) },
   { id: 'orbit360', group: 'Around & up', name: 'Orbit 360°', description: 'A full turntable around the figures', apply: (c) => framed(c, { size: 'fs', pitch: c.base.pitch + 6, move: { kind: 'arc', by: 360, pace: 'even' } }) },
   { id: 'crane', group: 'Around & up', name: 'Crane up', description: 'Rise from eye level to a high angle', apply: (c) => framed(c, { size: 'fs', pitch: -2, move: { kind: 'crane', by: 50 } }) },
-  { id: 'hero', group: 'Fixed', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens', apply: (c) => framed(c, { size: 'mws', pitch: -14, lens: 35, move: { kind: 'push', size: 'ms' } }, -15) },
+  { id: 'hero', group: 'Towards & away', name: 'Low-angle hero', description: 'Look up at the figures with a wide lens', apply: (c) => framed(c, { size: 'mws', pitch: -14, lens: 35, move: { kind: 'push', size: 'ms' } }, -15) },
   { id: 'tracking', group: 'Following', name: 'Tracking from the left', description: 'Move alongside from the left, keeping a medium wide shot', apply: () => rigged({ yaw: 90, pitch: 3, size: 'mws', lens: 50, smooth: 0.6 }) },
   { id: 'follow', group: 'Following', name: 'Follow behind', description: 'Behind the subject, turning as it turns', apply: () => rigged({ yaw: 180, pitch: 10, turn: true, size: 'fs', lens: 35, smooth: 0.8 }) },
   { id: 'lead', group: 'Following', name: 'Leading shot', description: 'Ahead of the subject, looking back at it as it comes', apply: () => rigged({ yaw: 10, pitch: 2, turn: true, size: 'ms', lens: 50, smooth: 0.8 }) },
@@ -991,12 +1001,12 @@ export const CAMERA_MOVES: MovePreset[] = [
   { id: 'overhead-follow', group: 'Classic shots', name: 'Overhead tracking', description: 'Straight down from above, following the subject (Scorsese, Wes Anderson)', apply: () => rigged({ yaw: 0, pitch: 85, size: 'ws', lens: 35, smooth: 0.6 }) },
   { id: 'spielberg', group: 'Classic shots', name: 'Spielberg push-in', description: 'A slow push to a close-up on the face as the character realises something', apply: (c) => framed(c, { size: 'mws', pitch: 2, lens: 50, move: { kind: 'push', size: 'cu' } }) },
   { id: 'barrel-roll', group: 'Classic shots', name: 'Barrel roll', description: 'The camera turns over on its axis as it pushes in: disorientation, a world upside down', apply: (c) => framed(c, { size: 'fs', move: { kind: 'roll', by: 360, size: 'ms' } }) },
-  { id: 'high', group: 'Fixed', name: 'High angle', description: 'Look down on the figures from above: they seem smaller, weaker', apply: (c) => framed(c, { size: 'fs', pitch: 38 }) },
-  { id: 'overhead', group: 'Fixed', name: "Bird's-eye", description: 'Straight down from overhead, like a map', apply: (c) => framed(c, { size: 'ws', pitch: 86 }) },
-  { id: 'worm', group: 'Fixed', name: "Worm's-eye", description: 'From the floor looking up, with a wide lens', apply: (c) => framed(c, { size: 'fs', pitch: -30, lens: 18 }) },
-  { id: 'dutch', group: 'Fixed', name: 'Dutch angle', description: 'The camera tilted sideways: unease, tension', apply: (c) => framed(c, { size: 'mws', roll: 18 }) },
-  { id: 'closeup', group: 'Fixed', name: 'Close-up', description: 'A fixed close-up of the subject on a long lens', apply: (c) => framed(c, { size: 'cu', pitch: 2, lens: 85 }) },
-  { id: 'profile', group: 'Fixed', name: 'Profile', description: 'Side-on to the subject, a medium shot', apply: (c) => framed(c, { size: 'ms', pitch: 0, lens: 50 }, 90) },
+  { id: 'high', group: 'Fixed', name: 'High angle', description: 'Look down on the figures from above: they seem smaller, weaker', apply: (c) => fixed(c, { size: 'fs', pitch: 38 }) },
+  { id: 'overhead', group: 'Fixed', name: "Bird's-eye", description: 'Straight down from overhead, like a map', apply: (c) => fixed(c, { size: 'ws', pitch: 86 }) },
+  { id: 'worm', group: 'Fixed', name: "Worm's-eye", description: 'From the floor looking up, with a wide lens', apply: (c) => fixed(c, { size: 'fs', pitch: -30, lens: 18 }) },
+  { id: 'dutch', group: 'Fixed', name: 'Dutch angle', description: 'The camera tilted sideways: unease, tension', apply: (c) => fixed(c, { size: 'mws', roll: 18 }) },
+  { id: 'closeup', group: 'Fixed', name: 'Close-up', description: 'A fixed close-up of the subject on a long lens', apply: (c) => fixed(c, { size: 'cu', pitch: 2, lens: 85 }) },
+  { id: 'profile', group: 'Fixed', name: 'Profile', description: 'Side-on to the subject, a medium shot', apply: (c) => fixed(c, { size: 'ms', pitch: 0, lens: 50 }, 90) },
   { id: 'pan', group: 'Pan & tilt', name: 'Pan', description: 'The camera stays and turns, from its subject to another (or across the scene)', apply: (c) => framed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c) } : { kind: 'pan', by: 40 } }) },
   { id: 'tilt', group: 'Pan & tilt', name: 'Tilt up', description: 'The camera stays and tilts up from the feet to the face', apply: (c) => framed(c, { size: 'ms', pitch: 0, move: { kind: 'tilt', by: 20 } }) },
   { id: 'whip', group: 'Pan & tilt', name: 'Whip pan', description: 'Holds, then swings round fast to the other side', apply: (c) => framed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c), pace: 'snap' } : { kind: 'pan', by: 90, pace: 'snap' } }) },

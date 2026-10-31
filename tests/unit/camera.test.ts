@@ -8,7 +8,7 @@ import { Rig } from '@/lib/relations';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { DEFAULT_EXPORT, exportCells, videoSize } from '@/lib/render';
-import { ASPECTS, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, samplePath, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
+import { ASPECTS, CAMERA_MOVES, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, samplePath, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import { setBlocks } from '@/lib/sets';
 import type { CameraPoint, PathCamera, RigCamera, Scene } from '@/lib/types';
@@ -114,6 +114,25 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     expect(describeShot(store.scene)).toMatch(/tracking shot/);
   });
 
+
+  it('a fixed ready-made stays where it is and looks at the same spot, however far its subject walks', () => {
+    for (const id of CAMERA_MOVES.filter((m) => m.group === 'Fixed').map((m) => m.id)) {
+      const { store, a } = fresh();
+      store.setTime(0);
+      const walk = travelTo(store, a, [3, 4], 'walk')!;
+      store.setTime(0);
+      applyCameraMove(store, id);
+      const cam = liveCamera(store.scene, 0)!;
+      expect(cam, id).toMatchObject({ kind: 'path', anchor: 'world', aim: 'point' });
+      const [from, to] = [cameraAt(store.scene, 0), cameraAt(store.scene, walk.to)];
+      expect(to.position.distanceTo(from.position), id).toBeLessThan(1e-6);
+      expect(to.target.distanceTo(from.target), id).toBeLessThan(1e-6);
+    }
+    // (Its framing is the one asked for as the shot starts: a Dutch angle tilted, a close-up close.)
+    const { store } = fresh();
+    applyCameraMove(store, 'dutch');
+    expect(Math.abs(cameraAt(store.scene, 0).roll)).toBeGreaterThan(10);
+  });
 
   it('films in the scene\'s frame shape: the lens sees as on that frame, videos come out that shape', () => {
     const { store } = fresh();
