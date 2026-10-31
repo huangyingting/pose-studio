@@ -81,7 +81,7 @@
    * and keys; s: controls; base: cards, menus; l: panels, dialogs; xl: sheets; pill), control
    * heights (s 24, m 28, l 32) and spacing (4 · 8 · 12 · 16 · 24).
    */
-  --fs-2xs: 9px; --fs-xs: 10px; --fs-s: 11px; --fs-m: 12px; --fs-l: 13px; --fs-xl: 15px; --fs-2xl: 18px; --fs-display: 24px;
+  --fs-2xs: 10px; --fs-xs: 11px; --fs-s: 12px; --fs-m: 13px; --fs-l: 14px; --fs-xl: 16px; --fs-2xl: 19px; --fs-display: 25px;
   --radius-xs: 4px;
   --radius-s: 6px;
   --radius: 8px;
