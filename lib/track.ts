@@ -710,6 +710,39 @@ export function splitAction(a: Animation, id: string, t: number): Animation {
 }
 
 /**
+ * Take actions away, what each of their people does after moving up (#22: a ripple delete), the
+ * latest first. Not the corrections on them (they go with the time, as with any gap closed).
+ */
+export function rippleDelete(a: Animation, ids: string[]): Animation {
+  const acts = a.actions.filter((x) => ids.includes(x.id)).sort((p, q) => q.start - p.start);
+  let out = a;
+  for (const act of acts) {
+    const now = out.actions.find((x) => x.id === act.id);
+    if (!now) continue;
+    out = replace(out, now, []);
+    if (!now.layer) out = rippleInStep(out, now.roles.map((r) => r.figure), end(now), -now.duration, [end(now)]);
+  }
+  return out;
+}
+
+/**
+ * Each action again right after itself (#22: duplicate), what follows moving along; it ends where
+ * it goes by itself (no mark). A walk, run or jump is not duplicated (it would go nowhere).
+ */
+export function duplicateActions(a: Animation, ids: string[]): Animation {
+  const acts = a.actions.filter((x) => ids.includes(x.id) && x.source.kind !== 'travel').sort((p, q) => q.start - p.start);
+  let out = a;
+  for (const act of acts) {
+    const now = out.actions.find((x) => x.id === act.id);
+    if (!now) continue;
+    const copy: Action = { ...now, id: uid('act'), start: end(now), roles: now.roles.map((r) => ({ figure: r.figure })) };
+    if (!now.layer) out = rippleInStep(out, now.roles.map((r) => r.figure), end(now), now.duration, [end(now)]);
+    out = longer(sorted({ ...out, actions: [...out.actions, copy] }), end(copy));
+  }
+  return out;
+}
+
+/**
  * Slip a motion (#22): the part of it it plays moved by `by` seconds of the block's time (later in
  * the motion: positive), the block where it is. Within the motion; not for a repeat or a loop.
  */
@@ -811,11 +844,20 @@ function turn(x: number, z: number, deg: number): [number, number] {
 }
 
 /** Make room on a figure's track from t0 to t1: keys there go (one is kept at t0), actions starting there go, ones running into it end at t0. */
+/** An action ending at t instead (#22): a motion plays only the part of it up to there (its `to`). */
+function cutShort(x: Action, t: number): Action {
+  const src = x.source;
+  const whole = src.kind === 'clip' ? clipById(src.clip) : null;
+  if (src.kind !== 'clip' || !whole || whole.loop || (src.repeat ?? 1) > 1) return { ...x, duration: t - x.start };
+  const to = Math.round(((src.from ?? 0) + (t - x.start) * (src.speed ?? 1)) * 1000) / 1000;
+  return { ...x, duration: t - x.start, source: { ...src, to: Math.min(whole.duration, to) } };
+}
+
 export function clear(scene: Scene, figure: string, t0: number, t1: number): Animation {
   const split = splitAt(scene, figure, t0);
   let a = split.a;
   for (const x of actionsOf(a, figure)) {
-    if (x.start < t0 - EPS && end(x) > t0 + EPS) a = replace(a, x, [{ ...x, duration: t0 - x.start }]);
+    if (x.start < t0 - EPS && end(x) > t0 + EPS) a = replace(a, x, [cutShort(x, t0)]);
     else if (x.start > t0 + EPS && x.start < t1 - EPS) {
       if (isKeys(x)) {
         const later = keysOf(x).filter((k) => k.t >= t1 - EPS);

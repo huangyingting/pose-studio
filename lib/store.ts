@@ -205,8 +205,13 @@ export class Store {
       const prop = selection.prop;
       if (!scene.props.some((p) => p.id === prop)) selection = null;
     } else if (selection?.kind === 'action') {
-      const { action, figure } = selection;
+      const { action, figure, also } = selection;
       if (!scene.animation?.actions.some((x) => x.id === action && x.roles.some((r) => r.figure === figure))) selection = null;
+      else if (also) {
+        // (Those picked with it that are still there.)
+        const kept = also.filter((id) => scene.animation!.actions.some((x) => x.id === id));
+        if (kept.length !== also.length) selection = { kind: 'action', action, figure, ...(kept.length ? { also: kept } : {}) };
+      }
     } else if (selection?.kind === 'shot') {
       const shot = selection.shot;
       if (!scene.animation || !shotSpans(scene.animation).some((sp) => sp.shot.id === shot)) selection = null;

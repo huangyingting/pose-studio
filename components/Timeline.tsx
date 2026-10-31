@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -228,6 +228,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   // Each figure has its own key track; the key buttons work on the active figure's.
   const activeId = useStudio((st) => st.activeFigure);
   const selected = useStudio((st) => (st.selection?.kind === 'action' ? st.selection.action : null));
+  // (Blocks picked with it, #22.)
+  const also = useStudio((st) => (st.selection?.kind === 'action' ? st.selection.also : undefined));
+  const isPicked = (id: string) => selected === id || !!also?.includes(id);
   // Auto-key: posing the selected figure keys it at the playhead (shown in red on its row and the playhead).
   const keying = useStudio((st) => (st.selection?.kind === 'figure' || st.selection?.kind === 'joint' ? st.selection.figure : null));
   // A Library item dragged over a row: where (and for how long) it would go.
@@ -443,13 +446,22 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const [x0, t0] = [e.clientX, timeAt(e.clientX)];
     const [start, duration, blend] = [act.start, act.duration, act.blendIn ?? 0];
     const key = `act:${act.id}:${part}`;
-    const [stretch, slipping] = [e.altKey, (e.ctrlKey || e.metaKey) && part === 'move'];
+    const [stretch, slipping, adding] = [e.altKey, (e.ctrlKey || e.metaKey) && part === 'move', e.shiftKey];
+    // (Picked with others: they move together, each person's first carrying what follows, #22.)
+    const sel = store.getState().selection;
+    const group = part === 'move' && sel?.kind === 'action' && sel.also?.length && [sel.action, ...sel.also].includes(act.id)
+      ? [sel.action, ...sel.also].map((id) => a.actions.find((x) => x.id === id)!).filter(Boolean).sort((p, q) => p.start - q.start)
+      : null;
+    const leads = group?.filter((x, i) => !group.slice(0, i).some((y) => y.roles.some((r) => x.roles.some((q) => q.figure === r.figure))));
     let moved = false;
-    const move = (ev: { clientX: number }) => {
+    let y = e.clientY;
+    const move = (ev: { clientX: number; clientY?: number }) => {
+      if (ev.clientY !== undefined) y = ev.clientY;
       if (!moved && Math.abs(ev.clientX - x0) < 3) return;
       moved = true;
       const dt = timeAt(ev.clientX) - t0;
       if (slipping) slip(store, act.id, -dt, key);
+      else if (leads) store.group(() => leads.forEach((x) => moveAction(store, x.id, x.start + dt, `${key}:${x.id}`)));
       else if (part === 'move') moveAction(store, act.id, start + dt, key);
       else if (part === 'end' && (stretch || act.layer === 'correction')) retime(store, act.id, duration + dt, key);
       else if (part === 'end') trim(store, act.id, 'end', start + duration + dt, key);
@@ -457,11 +469,27 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       else setBlend(store, act.id, blend - dt, key);
     };
     const stop = follow(e.clientX, move);
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       stop();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      if (moved) return;
+      if (moved) {
+        // Let go over another person's row: it is theirs now (Ctrl: a copy for them), #22.
+        const row = part === 'move' && !leads ? (document.elementFromPoint(ev.clientX, y) as HTMLElement | null)?.closest<HTMLElement>('[data-row]')?.dataset.row : undefined;
+        if (row && row !== figureId && act.roles.length === 1 && !act.layer) {
+          const why = giveAction(store, act.id, row, ev.ctrlKey || ev.metaKey);
+          if (why) notify(why);
+        }
+        return;
+      }
+      const now = store.getState().selection;
+      // Shift-click: picked with the others (or let go of), #22.
+      if (adding && now?.kind === 'action' && now.action !== act.id) {
+        const others = now.also ?? [];
+        const next = others.includes(act.id) ? others.filter((id) => id !== act.id) : [...others, act.id];
+        store.select({ kind: 'action', action: now.action, figure: now.figure, ...(next.length ? { also: next } : {}) });
+        return;
+      }
       store.select({ kind: 'action', action: act.id, figure: figureId });
       seek(act.start);
     };
@@ -973,7 +1001,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                           />
                         )}
                         <span
-                          className={`tl-travel grab ${kind}${group ? ' group' : ''}${selected === x.id ? ' sel' : ''}`}
+                          className={`tl-travel grab ${kind}${group ? ' group' : ''}${isPicked(x.id) ? ' sel' : ''}`}
                           style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
                           data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click or double-click to edit, drag to move it (and what follows)${x.source.kind === 'clip' ? ', Ctrl-drag to play another part of it there' : ''}; ${x.source.kind === 'travel' ? 'its right edge: how long it takes' : 'its edges trim it, Alt-drag one to stretch it'}; Delete removes it\nRight-click for more`}
                           onPointerDown={dragAction(x, f.id, 'move')}
@@ -1015,7 +1043,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                     // A correction: its own thin band over what it corrects; its right edge retimes it.
                     <span
                       key={x.id}
-                      className={`tl-fixband${selected === x.id ? ' sel' : ''}`}
+                      className={`tl-fixband${isPicked(x.id) ? ' sel' : ''}`}
                       style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
                       data-tip="A correction over a motion or a walk: click to edit it, drag its right edge to retime it"
                       onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}

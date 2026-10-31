@@ -4,7 +4,7 @@ import { jointLimits, sided, wrapDeg } from './joints';
 import {
   NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, nextName, symmetrize, uid, withPosture,
 } from './doc';
-import { MAX_DURATION, newAnimation, normalize, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
+import { MAX_DURATION, newAnimation, normalize, placeAnimation, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
 import { BUILT_IN, clipById, hasClip, playedClip } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
@@ -17,7 +17,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, naturalEnd,
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, setPoseAt, setTravelMode, travelInto, turnArriving,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -1263,6 +1263,107 @@ export function setActionTarget(store: Store, id: string, target: PropTarget) {
 }
 
 /** Remove an action (a motion, say) from the tracks of everyone in it. */
+/** Take actions away, what follows moving up (#22: Shift + Delete; see track.rippleDelete). */
+export function rippleDeleteActions(store: Store, ids: string[]) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: rippleDelete(s.animation, ids) } : s));
+  store.setTime(store.getState().time);
+}
+
+/** Each action again right after itself (#22: Ctrl + D; see track.duplicateActions). */
+export function duplicateBlocks(store: Store, ids: string[]) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: duplicateActions(s.animation, ids) } : s));
+}
+
+/** Blocks copied (#22): each with where its first person was and which way they faced as it began. */
+let copied: { acts: Action[]; at: { x: number; z: number; facing: number }[] } | null = null;
+
+/** Actions as copied (with where each began). */
+function copyOf(s: Scene, ids: string[]): NonNullable<typeof copied> | null {
+  const acts = (s.animation?.actions ?? []).filter((x) => ids.includes(x.id)).sort((p, q) => p.start - q.start);
+  if (!acts.length) return null;
+  return {
+    acts: structuredClone(acts),
+    at: acts.map((x) => {
+      const p = figurePoseAt(s, x.roles[0].figure, x.start) ?? s.figures.find((f) => f.id === x.roles[0].figure)!;
+      return { x: p.position[0], z: p.position[2], facing: facingOf(p.bones) };
+    }),
+  };
+}
+
+/** Copy actions (#22: Ctrl + C on blocks), to paste on someone at the playhead. How many. */
+export function copyActions(store: Store, ids: string[]): number {
+  copied = copyOf(store.scene, ids);
+  return copied?.acts.length ?? 0;
+}
+
+/**
+ * Give an action to another figure (#22: dragged onto their row), at the same time, from where they
+ * are; `copy`: they do it too. One person's actions only (a motion of several is recast). Why not.
+ */
+export function giveAction(store: Store, id: string, figure: string, copy = false): string | null {
+  const act = store.scene.animation?.actions.find((x) => x.id === id);
+  if (!act) return 'Nothing to give';
+  if (act.roles.length > 1) return 'A motion of several people is recast from its menu';
+  if (act.roles[0].figure === figure) return null;
+  const clip = copyOf(store.scene, [id])!;
+  return store.group(() => {
+    if (!copy) deleteAction(store, id);
+    return pasteClip(store, clip, figure, act.start);
+  });
+}
+
+export const hasCopiedActions = () => !!copied?.acts.length;
+
+/**
+ * Paste the copied actions on a figure from t (#22: Ctrl + V), in their timing: each from where its
+ * person is then, turned their way (keys and marks moved and turned so); what they did there gives
+ * way. A motion of several people goes on the figure and the nearest others. Why not, if it can't.
+ */
+export function pasteActions(store: Store, figure: string, t: number): string | null {
+  return copied ? pasteClip(store, copied, figure, t) : 'Copy a block first (Ctrl + C on the timeline)';
+}
+
+function pasteClip(store: Store, clip: NonNullable<typeof copied>, figure: string, t: number): string | null {
+  const base = clip.acts[0].start;
+  let s = store.scene;
+  let a = s.animation ?? newAnimation(s, 4);
+  const made: string[] = [];
+  for (const [i, act] of clip.acts.entries()) {
+    const start = snapTime({ ...a, duration: MAX_DURATION }, t + act.start - base);
+    s = { ...s, animation: a };
+    const who = s.figures.find((f) => f.id === figure);
+    if (!who) return 'Pick someone to paste on';
+    // (The others of a motion of several: the nearest, as from the Library.)
+    const here = figurePoseAt(s, figure, start) ?? who;
+    const others = s.figures.filter((f) => f.id !== figure && !f.hidden)
+      .map((f) => ({ f, d: Math.hypot((figurePoseAt(s, f.id, start) ?? f).position[0] - here.position[0], (figurePoseAt(s, f.id, start) ?? f).position[2] - here.position[2]) }))
+      .sort((p, q) => p.d - q.d).map((x) => x.f.id);
+    if (others.length < act.roles.length - 1) return `${actionLabel(act)} needs ${act.roles.length} people`;
+    const cast = [figure, ...others.slice(0, act.roles.length - 1)];
+    const from = clip.at[i];
+    const deg = wrapDeg(facingOf(here.bones) - from.facing);
+    const r = (deg * Math.PI) / 180;
+    const place = (px: number, pz: number): [number, number] => {
+      const [dx, dz] = [px - from.x, pz - from.z];
+      return [dx * Math.cos(r) + dz * Math.sin(r) + here.position[0], -dx * Math.sin(r) + dz * Math.cos(r) + here.position[2]];
+    };
+    const moved = placeAnimation({ ...a, actions: [act] }, deg, place).actions[0];
+    const pasted: Action = {
+      ...moved,
+      id: uid('act'),
+      start,
+      roles: moved.roles.map((role, k) => ({ figure: cast[k], ...(act.source.kind === 'travel' && role.end ? { end: role.end } : {}) })),
+    };
+    for (const f of cast) a = clear({ ...s, animation: a }, f, start, start + pasted.duration);
+    a = { ...a, actions: [...a.actions, pasted].sort((p, q) => p.start - q.start), duration: Math.max(a.duration, Math.min(MAX_DURATION, start + pasted.duration)) };
+    made.push(pasted.id);
+  }
+  store.updateScene((x) => ({ ...x, animation: a }));
+  store.setTime(store.getState().time);
+  if (made.length) store.select({ kind: 'action', action: made[0], figure, ...(made.length > 1 ? { also: made.slice(1) } : {}) });
+  return null;
+}
+
 export function deleteAction(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.filter((x) => x.id !== id) } } : s));
   store.setTime(store.getState().time);

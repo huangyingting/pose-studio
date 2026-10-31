@@ -560,8 +560,12 @@ export type Selection =
   /** (Picked: its move gizmo; a click on it then picks the part there.) */
   | { kind: 'figure'; figure: string }
   | { kind: 'prop'; prop: string }
-  /** An action on a figure's track (a walk, a motion, posed keys), picked on the timeline from that figure's row. */
-  | { kind: 'action'; action: string; figure: string }
+  /**
+   * An action on a figure's track (a walk, a motion, posed keys), picked on the timeline from that
+   * figure's row; `also`: other blocks picked with it (Shift-click, #22), moved, deleted, duplicated
+   * and copied with it (its inspector is the first one's).
+   */
+  | { kind: 'action'; action: string; figure: string; also?: string[] }
   /** A shot of the animation (see lib/shots.ts; 'main' when it is not cut). */
   | { kind: 'shot'; shot: string }
   /** A camera of the animation (picked in the outline or on the canvas). */

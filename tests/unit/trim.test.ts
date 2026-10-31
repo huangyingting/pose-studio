@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addKeyframe, applyMotion, repeatAction, retime, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
+import { addFigure, addKeyframe, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
@@ -209,6 +209,50 @@ describe('splitting at the playhead (#22)', () => {
     const walking = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'travel')!;
     store.setTime((walk.from + walk.to) / 2);
     expect(splitAt(store, walking.id)).toMatch(/is not split/);
+  });
+});
+
+describe('arranging blocks (#22)', () => {
+  it('Shift + Delete closes the gap; Ctrl + D puts it again right after itself, what follows moving along', () => {
+    const { store, a, id, act, next } = jabbed(true);
+    const d = act().duration;
+    const second = next().id;
+    duplicateBlocks(store, [id]);
+    const clips = () => actionsOf(store.scene.animation!, a).filter((x) => x.source.kind === 'clip');
+    expect(clips()).toHaveLength(3);
+    expect(clips()[1].start).toBeCloseTo(act().start + d, 3);
+    expect(clips()[2].id).toBe(second);
+    expect(clips()[2].start).toBeCloseTo(act().start + 2 * d, 2);
+    rippleDeleteActions(store, [clips()[1].id]);
+    expect(clips()).toHaveLength(2);
+    expect(clips()[1].start).toBeCloseTo(act().start + d, 2);
+  });
+
+  it('copied, pasted on someone else at the playhead: from where they are, turned their way; given to them by dragging', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 6);
+    addFigure(store, [3, 0, 2]);
+    const b = store.getState().activeFigure!;
+    store.setTime(0);
+    const walk = travelTo(store, a, [1, 2], 'walk')!;
+    const walking = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'travel')!;
+    const from = figurePoseAt(store.scene, a, 0)!.position;
+    const to = figurePoseAt(store.scene, a, walk.to)!.position;
+    expect(copyActions(store, [walking.id])).toBe(1);
+    expect(pasteActions(store, b, 1)).toBeNull();
+    const pasted = actionsOf(store.scene.animation!, b).find((x) => x.source.kind === 'travel')!;
+    expect(pasted.start).toBeCloseTo(1, 3);
+    // The same walk from where b is (b faces the same way as a: the same way across the floor).
+    const bAt = figurePoseAt(store.scene, b, 1)!.position;
+    const bTo = pasted.roles[0].end!.at;
+    expect(Math.hypot(bTo[0] - bAt[0] - (to[0] - from[0]), bTo[1] - bAt[2] - (to[2] - from[2]))).toBeLessThan(0.05);
+    // A motion given to a by dragging: it leaves b.
+    store.setTime(4);
+    applyMotion(store, b, JAB);
+    const swing = actionsOf(store.scene.animation!, b).find((x) => x.source.kind === 'clip')!;
+    expect(giveAction(store, swing.id, a)).toBeNull();
+    expect(actionsOf(store.scene.animation!, b).some((x) => x.source.kind === 'clip')).toBe(false);
+    expect(actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!.start).toBeCloseTo(swing.start, 3);
   });
 });
 

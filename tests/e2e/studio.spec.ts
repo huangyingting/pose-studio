@@ -1958,6 +1958,16 @@ test('a motion block\'s edges trim it; Alt-drag stretches it (#22)', async ({ pa
   const parts = await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip'));
   expect(parts).toHaveLength(2);
   expect(parts[1].start).toBeCloseTo(mid, 3);
+  // Both picked (Shift-click the second), duplicated together, then taken away together.
+  await page.locator('.tl-travel.clip').nth(0).click({ position: { x: 30, y: 4 } });
+  await page.locator('.tl-travel.clip').nth(1).click({ position: { x: 30, y: 4 }, modifiers: ['Shift'] });
+  await expect(page.locator('.tl-travel.clip.sel')).toHaveCount(2);
+  await page.locator('.stage canvas').hover({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+d');
+  expect(await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip').length)).toBe(4);
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Delete');
+  expect(await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip').length)).toBe(0);
 });
 
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {

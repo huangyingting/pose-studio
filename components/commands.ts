@@ -5,7 +5,7 @@ import {
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
@@ -124,6 +124,8 @@ export interface Ctx {
   camera?: string;
   shot?: string;
   action?: string;
+  /** Other blocks picked with the action (#22). */
+  also?: string[];
   /** A scene of the project (the scene picker). */
   scene?: number;
   /** A spot on the floor. */
@@ -182,7 +184,7 @@ export function selectionCtx(store: Store): Ctx {
     case 'prop': return { store, prop: sel.prop };
     case 'camera': return { store, camera: sel.camera };
     case 'shot': return { store, shot: sel.shot };
-    case 'action': return { store, action: sel.action, figure: sel.figure };
+    case 'action': return { store, action: sel.action, figure: sel.figure, ...(sel.also ? { also: sel.also } : {}) };
     case 'light': return { store, light: sel.light };
     case 'lighting': return { store };
     case 'many': return { store, many: { figures: sel.figures, props: sel.props } };
@@ -217,6 +219,19 @@ const heldIn = (c: Ctx) => {
   return side ? c.store.scene.props.find((p) => { const h = propNow(c.store, p.id)?.hold; return h?.figure === c.figure && h?.hand === side; }) : undefined;
 };
 /** An action that can be played again: a motion, or a keyed block of two keys or more. */
+/** The blocks picked: the action and those with it (#22). */
+const blocks = (c: Ctx) => (c.action ? [c.action, ...(c.also ?? [])] : []);
+
+/** Move the picked blocks by frames, each person's first (what follows comes along). */
+function nudge(c: Ctx, frames: number) {
+  const a = c.store.scene.animation;
+  if (!a) return;
+  const by = frames / a.fps;
+  const acts = blocks(c).map((id) => a.actions.find((x) => x.id === id)!).filter(Boolean).sort((p, q) => p.start - q.start);
+  const first = acts.filter((x, i) => !acts.slice(0, i).some((y) => y.roles.some((r) => x.roles.some((q) => q.figure === r.figure))));
+  c.store.group(() => first.forEach((x) => moveAction(c.store, x.id, x.start + by, `nudge:${x.id}`)));
+}
+
 /** What S splits: the action selected, else what the person picked does at the playhead (#22). */
 const splitting = (c: Ctx) => {
   const act = actionOf(c);
@@ -320,6 +335,8 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
     // (A fixed camera, #21, steps as one on a path does: it moves itself, not round its subject.)
     return cam ? { kind: cam.kind === 'rig' && !cam.rig.fixed ? 'rig' : 'camera', id: cam.id } : null;
   }
+  // (Blocks picked on the timeline: Alt + ← → nudges them, #22; the arrows are not the figure's then.)
+  if (c.action) return null;
   // A joint: X, Y or Z held with ← → steps that slider (the arrows alone go to another joint).
   if (c.joint) return heldAxis() !== undefined && (k === 'left' || k === 'right') ? { kind: 'joint' } : null;
   if (c.many) return k === 'turnUp' || k === 'turnDown' || k === 'raise' || k === 'lower' ? null : { kind: 'many' };
@@ -705,8 +722,8 @@ export const COMMANDS: Command[] = [
   { id: 'pose.mirror', title: 'Mirror pose', icon: FlipHorizontal2, keys: ['m'], run: (c) => mirrorPose(c.store) },
   { id: 'pose.leftToRight', title: 'Copy left side onto right', run: (c) => symmetrizePose(c.store, 'L') },
   { id: 'pose.rightToLeft', title: 'Copy right side onto left', run: (c) => symmetrizePose(c.store, 'R') },
-  { id: 'pose.copy', title: 'Copy pose', icon: ClipboardCopy, keys: ['mod+c'], when: () => !window.getSelection()?.toString(), run: (c) => { if (copyPose(c.store)) App().notify('Pose copied'); } },
-  { id: 'pose.paste', title: 'Paste pose', icon: ClipboardPaste, keys: ['mod+v'], run: (c) => { if (!pastePose(c.store)) App().notify('Copy a pose first', 'error'); } },
+  { id: 'pose.copy', title: 'Copy pose', icon: ClipboardCopy, keys: ['mod+c'], when: (c) => !c.action && !window.getSelection()?.toString(), run: (c) => { if (copyPose(c.store)) App().notify('Pose copied'); } },
+  { id: 'pose.paste', title: 'Paste pose', icon: ClipboardPaste, keys: ['mod+v'], when: (c) => !c.action, run: (c) => { if (!pastePose(c.store)) App().notify('Copy a pose first', 'error'); } },
   { id: 'pose.reset', title: 'Reset pose', icon: RotateCcw, run: (c) => resetPose(c.store) },
 
   // A part of a figure (the selected joint).
@@ -1192,9 +1209,38 @@ export const COMMANDS: Command[] = [
     run: (c) => trim(c.store, c.action!, 'end', c.store.getState().time),
   },
   {
-    id: 'action.remove', title: (c) => `Remove ${actionOf(c) ? actionLabel(actionOf(c)!) : ''}`, icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!actionOf(c),
-    run: (c) => { const act = actionOf(c)!; deleteAction(c.store, act.id); App().notifyUndo(`Deleted ${actionLabel(act)}`); },
+    id: 'action.remove', title: (c) => (c.also?.length ? `Remove ${c.also.length + 1} blocks` : `Remove ${actionOf(c) ? actionLabel(actionOf(c)!) : ''}`), icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!actionOf(c),
+    run: (c) => {
+      const act = actionOf(c)!;
+      c.store.group(() => blocks(c).forEach((id) => deleteAction(c.store, id)));
+      App().notifyUndo(c.also?.length ? `Deleted ${blocks(c).length} blocks` : `Deleted ${actionLabel(act)}`);
+    },
   },
+  {
+    id: 'action.rippleDelete', title: (c) => (c.also?.length ? `Remove ${c.also.length + 1} blocks, closing the gaps` : 'Remove, closing the gap'), help: 'Remove the block: what that person does after moves up', icon: Trash2, keys: ['shift+delete', 'shift+backspace'], danger: true,
+    when: (c) => !!actionOf(c),
+    run: (c) => { const n = blocks(c).length; rippleDeleteActions(c.store, blocks(c)); App().notifyUndo(n > 1 ? `Deleted ${n} blocks` : 'Deleted, the gap closed'); },
+  },
+  {
+    id: 'action.duplicate', title: 'Duplicate', help: 'The block again right after itself (what follows moves along)', icon: Copy, keys: ['mod+d'],
+    when: (c) => !!actionOf(c) && blocks(c).some((id) => c.store.scene.animation?.actions.find((x) => x.id === id)?.source.kind !== 'travel'),
+    run: (c) => duplicateBlocks(c.store, blocks(c)),
+  },
+  {
+    id: 'action.copy', title: 'Copy', help: 'Copy the block, to paste on someone at the playhead', icon: ClipboardCopy, keys: ['mod+c'], when: (c) => !!actionOf(c),
+    run: (c) => { const n = copyActions(c.store, blocks(c)); App().notify(n > 1 ? `${n} blocks copied` : 'Block copied'); },
+  },
+  {
+    id: 'action.paste', title: 'Paste at the playhead', help: 'Paste the blocks copied on this person at the playhead (what they did there gives way)', icon: ClipboardPaste, keys: ['mod+v'],
+    when: (c) => !!actionOf(c) && hasCopiedActions(),
+    run: (c) => { const why = pasteActions(c.store, c.figure!, c.store.getState().time); if (why) App().notify(why, 'error'); },
+  },
+  {
+    id: 'action.nudgeLeft', title: 'Nudge a frame earlier', keys: ['alt+arrowleft'], when: (c) => !!actionOf(c), run: (c) => nudge(c, -1),
+  },
+  { id: 'action.nudgeRight', title: 'Nudge a frame later', keys: ['alt+arrowright'], when: (c) => !!actionOf(c), run: (c) => nudge(c, 1) },
+  { id: 'action.nudgeLeft10', title: 'Nudge ten frames earlier', keys: ['alt+shift+arrowleft'], when: (c) => !!actionOf(c), run: (c) => nudge(c, -10) },
+  { id: 'action.nudgeRight10', title: 'Nudge ten frames later', keys: ['alt+shift+arrowright'], when: (c) => !!actionOf(c), run: (c) => nudge(c, 10) },
 
   // A key on a figure's track (`at`): how it goes on to the next, and holding it.
   {
@@ -1467,7 +1513,7 @@ export const MENUS = {
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
-  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
+  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.copy', 'action.paste', 'action.duplicate', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove', 'action.rippleDelete'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.place', 'light.shadows', 'light.add', '-', 'light.delete'],
   lighting: ['light.preset', 'light.add'],
