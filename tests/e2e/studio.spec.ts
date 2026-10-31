@@ -1714,6 +1714,12 @@ test('Scene only: the scene filling the window, its button again or Esc back', a
   await expect(page.locator('.topbar')).toBeHidden();
   await page.getByRole('button', { name: 'Back to the panels' }).click();
   await expect(page.getByRole('tablist', { name: 'Sections' })).toBeVisible();
+  // With the inspector folded away too, the canvas still fills the window (not squeezed to nothing).
+  await page.keyboard.press('i');
+  await page.getByRole('button', { name: 'Scene only' }).click();
+  await expect.poll(async () => (await page.locator('.stage canvas').boundingBox())?.width).toBeGreaterThan(1000);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('i');
 });
 
 test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {

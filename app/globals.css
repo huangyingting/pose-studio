@@ -1205,7 +1205,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .ambient-colours input[type='color'] { width: 100%; height: 26px; padding: 0 2px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--panel); cursor: pointer; }
 .light-unlit { display: grid; gap: 6px; padding: 8px; border-radius: var(--radius-s); background: var(--warn-soft); color: var(--text); font-size: var(--fs-m); }
 /* The scene alone (no top bar, no panels), filling the window; its button in the canvas's top-left corner. */
-.studio.stage-only { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: 'stage'; }
+/* (Whatever else is folded away: the inspector's own columns do not win over the stage alone.) */
+.studio.stage-only, .studio.stage-only.inspector-closed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: 'stage'; }
 .studio.stage-only > .topbar, .studio.stage-only > .side, .studio.stage-only > .panel, .studio.stage-only > .scrim { display: none !important; }
 .stage-pop {
   position: absolute; top: 10px; left: 10px; z-index: 3; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;

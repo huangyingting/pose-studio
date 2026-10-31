@@ -950,6 +950,11 @@ function ShotDriver({ store, scene, clock, time, through, captureRef }: {
 function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView }) {
   const invalidate = useThree((s) => s.invalidate);
   const el = useThree((s) => s.gl.domElement);
+  // (Resized, the canvas is cleared: drawn again at its new size, whenever the resize comes —
+  // the panels hidden or shown, the window resized, the timeline opened.)
+  const size = useThree((s) => s.size);
+  const dpr = useThree((s) => s.viewport.dpr);
+  useEffect(() => wake(), [size, dpr]);
   useEffect(() => {
     setDrawer(invalidate);
     const up = () => wake();
