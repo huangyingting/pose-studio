@@ -246,6 +246,39 @@ export function startFacing(part: ClipPart, first: Pose, mirror = false): number
   return mirror ? -part.facing : part.facing;
 }
 
+const ranges = new WeakMap<Clip, Map<string, Clip>>();
+
+/**
+ * The part of a clip from `from` to `to` (seconds of it, #22) as a clip of its own starting at 0: its
+ * keys there (the ends sampled), its events and contacts within it, each part facing at its start
+ * as its person looks then. The whole clip when that is all of it. Kept per clip and part.
+ */
+export function clipRange(c: Clip, from: number, to: number): Clip {
+  const a = Math.max(0, Math.min(c.duration, from));
+  const b = Math.max(a, Math.min(c.duration, to));
+  if (a <= 1e-6 && b >= c.duration - 1e-6) return c;
+  let byRange = ranges.get(c);
+  if (!byRange) ranges.set(c, (byRange = new Map()));
+  const key = `${a}:${b}`;
+  const hit = byRange.get(key);
+  if (hit) return hit;
+  const parts = c.parts.map((part): ClipPart => {
+    const times = [a, ...keyTimes(part).filter((t) => t > a + 1e-6 && t < b - 1e-6), b];
+    const keys = times.map((t) => ({ t: t - a, pose: samplePart(part, t, c.duration, false) }));
+    const first = samplePart(part, 0, c.duration, false);
+    const facing = wrapDeg(startFacing(part, first) + facingOf(keys[0].pose.bones) - facingOf(first.bones));
+    const linear = part.tracks.find((t) => t.name === ROOT)?.interpolation === 'linear';
+    return { ...partFromPoses(part.name, keys, linear ? 'linear' : 'smooth', part.body), facing };
+  });
+  const made: Clip = {
+    ...c, duration: b - a, loop: false, parts,
+    events: c.events.filter((e) => e.t >= a - 1e-6 && e.t <= b + 1e-6).map((e) => ({ ...e, t: Math.max(0, e.t - a) })),
+    contacts: c.contacts.filter((x) => x.end > a && x.start < b).map((x) => ({ ...x, start: Math.max(a, x.start) - a, end: Math.min(b, x.end) - a })),
+  };
+  byRange.set(key, made);
+  return made;
+}
+
 /** The pose mirrored left ↔ right (across the plane x = 0). */
 export function mirrorPose(p: Pose): Pose {
   return { ...p, bones: mirrorBones(p.bones), position: [-p.position[0] || 0, p.position[1], p.position[2]], hands: { L: { ...p.hands.R, curl: [...p.hands.R.curl] }, R: { ...p.hands.L, curl: [...p.hands.L.curl] } } };

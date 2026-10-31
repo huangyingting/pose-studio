@@ -5,7 +5,7 @@ import {
   NEUTRAL_ANGLES, cameraFrom, duplicateScene, mirrorFigure, newFigure, newProp, newScene, nextName, symmetrize, uid, withPosture,
 } from './doc';
 import { MAX_DURATION, newAnimation, normalize, propKeyOf, setDuration as setAnimDuration, snapTime } from './animation';
-import { BUILT_IN, clipById, hasClip } from './assets';
+import { BUILT_IN, clipById, hasClip, playedClip } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
 import { clipInfo, partKeys } from './clip';
@@ -17,7 +17,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, naturalEnd,
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, setPoseAt, setTravelMode, travelInto, turnArriving,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -1120,7 +1120,7 @@ export function reactTo(store: Store, id: string, strikeId: string): number | nu
   const act = a?.actions.find((x) => x.id === id);
   const strike = a?.actions.find((x) => x.id === strikeId);
   const src = strike?.source;
-  const clip = src?.kind === 'clip' ? clipById(src.clip) : undefined;
+  const clip = src?.kind === 'clip' ? playedClip(src) : undefined;
   if (!act || !strike || !src || src.kind !== 'clip' || !clip) return null;
   const lands = strike.start + strikeTime(clip) / (src.speed ?? 1);
   moveAction(store, id, Math.max(0, lands - REACT_LEAD));
@@ -1141,25 +1141,42 @@ export function reactTo(store: Store, id: string, strikeId: string): number | nu
   }
 }
 
-/** Retime an action to last `duration` (see track.retimeAction). */
+/** Retime an action to last `duration`: a motion played faster or slower (see track.retimeAction). */
 export function retime(store: Store, id: string, duration: number, key = '') {
-  store.updateScene((s) => {
-    if (!s.animation) return s;
-    const was = s.animation.actions.find((x) => x.id === id);
-    const next: Scene = { ...s, animation: retimeAction(s.animation, id, duration) };
-    const now = next.animation!.actions.find((x) => x.id === id);
-    // (A motion played longer or shorter by itself ends elsewhere: a mark set for it moves as far,
-    // so it is pulled no more than it was, not held where it was, its steps sliding.)
-    if (!was || !now || was.source.kind !== 'clip' || !was.roles.some((r) => r.end)) return next;
-    const roles = now.roles.map((r) => {
-      if (!r.end) return r;
-      const [a0, a1] = [naturalEnd(s, was, r.figure), naturalEnd(next, now, r.figure)];
-      if (!a0 || !a1) return r;
-      const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
-      return { ...r, end: { at: [r3(r.end.at[0] + a1.at[0] - a0.at[0]), r3(r.end.at[1] + a1.at[1] - a0.at[1])] as [number, number], facing: Math.round(wrapDeg(r.end.facing + a1.facing - a0.facing) * 10) / 10 || 0 } };
-    });
-    return { ...next, animation: { ...next.animation!, actions: next.animation!.actions.map((x) => (x.id === id ? { ...x, roles } : x)) } };
-  }, key);
+  store.updateScene((s) => (s.animation ? keepPull(s, { ...s, animation: retimeAction(s.animation, id, duration) }, id) : s), key);
+}
+
+/** Trim an action's start or end to `t` (#22; see track.trimAction), its mark pulling it no more than it did. */
+export function trim(store: Store, id: string, side: 'start' | 'end', t: number, key = '') {
+  store.updateScene((s) => (s.animation ? keepPull(s, { ...s, animation: trimAction(s.animation, id, side, t) }, id) : s), key);
+}
+
+/** The part of a motion an action plays (#22; see track.playRange). */
+export function setPlayRange(store: Store, id: string, from: number, to: number, key = '') {
+  store.updateScene((s) => (s.animation ? keepPull(s, { ...s, animation: playRange(s.animation, id, from, to) }, id) : s), key);
+}
+
+/** Slip a motion: another part of it played where the block is (#22; see track.slipAction). */
+export function slip(store: Store, id: string, by: number, key = '') {
+  store.updateScene((s) => (s.animation ? keepPull(s, { ...s, animation: slipAction(s.animation, id, by) }, id) : s), key);
+}
+
+/**
+ * A motion that now ends elsewhere by itself (played faster, trimmed, slipped): a mark set for it
+ * moves as far, so it is pulled no more than it was, not held where it was, its steps sliding.
+ */
+function keepPull(s: Scene, next: Scene, id: string): Scene {
+  const was = s.animation!.actions.find((x) => x.id === id);
+  const now = next.animation!.actions.find((x) => x.id === id);
+  if (!was || !now || was.source.kind !== 'clip' || !was.roles.some((r) => r.end)) return next;
+  const roles = now.roles.map((r) => {
+    if (!r.end) return r;
+    const [a0, a1] = [naturalEnd(s, was, r.figure), naturalEnd(next, now, r.figure)];
+    if (!a0 || !a1) return r;
+    const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+    return { ...r, end: { at: [r3(r.end.at[0] + a1.at[0] - a0.at[0]), r3(r.end.at[1] + a1.at[1] - a0.at[1])] as [number, number], facing: Math.round(wrapDeg(r.end.facing + a1.facing - a0.facing) * 10) / 10 || 0 } };
+  });
+  return { ...next, animation: { ...next.animation!, actions: next.animation!.actions.map((x) => (x.id === id ? { ...x, roles } : x)) } };
 }
 
 /** Let a motion end where it takes the figure by itself: its mark goes (#18). */
@@ -1179,7 +1196,7 @@ export function setBlend(store: Store, id: string, blendIn: number, key = '') {
 export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean }, key = '') {
   const act = actionById(store, id);
   if (act?.source.kind !== 'clip') return;
-  const clip = clipById(act.source.clip);
+  const clip = playedClip(act.source);
   if (patch.speed !== undefined && clip && !clip.loop) retime(store, id, (clip.duration * (act.source.repeat ?? 1)) / Math.min(4, Math.max(0.25, patch.speed)), key);
   store.updateScene((s) => {
     if (!s.animation) return s;

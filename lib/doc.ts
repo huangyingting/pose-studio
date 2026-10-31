@@ -387,6 +387,13 @@ function parseTarget(v: unknown, figures: Set<string>, props: Set<string>): Prop
   return null;
 }
 
+/** The part of a motion an action plays (#22), seconds of it: `from` before `to`, both at 0 or more. */
+function range(from: unknown, to: unknown): { from?: number; to?: number } {
+  const a = typeof from === 'number' && Number.isFinite(from) && from > 0 ? Math.min(MAX_DURATION, from) : undefined;
+  const b = typeof to === 'number' && Number.isFinite(to) && to > (a ?? 0) ? Math.min(MAX_DURATION, to) : undefined;
+  return { ...(a !== undefined ? { from: Math.round(a * 1000) / 1000 } : {}), ...(b !== undefined ? { to: Math.round(b * 1000) / 1000 } : {}) };
+}
+
 function parseAction(v: unknown, figures: Set<string>, duration: number, props: Set<string>): Action | null {
   if (!isObj(v) || !Array.isArray(v.roles) || !isObj(v.source)) return null;
   const roles = v.roles.slice(0, 8).filter(isObj).map((r) => {
@@ -398,7 +405,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   let source: Action['source'];
   if (o.kind === 'clip' && typeof o.clip === 'string') {
     const speed = num(o.speed, 1);
-    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}) };
+    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to) };
   } else if (o.kind === 'keys') {
     const clip = parseClip(o.clip);
     if (!clip) return null;

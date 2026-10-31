@@ -1,5 +1,5 @@
 import { newAnimation } from './animation';
-import { keyPose } from './clip';
+import { clipRange, keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
 import { HANDLING, MOTIONS } from './motions';
@@ -39,6 +39,12 @@ export function putClips(clips: Clip[]) {
 }
 
 export const hasClip = (id: string) => id.startsWith(BUILT_IN) || loaded.has(id);
+
+/** The clip an action plays (#22): the part of it from `from` to `to`, or all of it (a loop is played whole). */
+export function playedClip(src: { clip: string; from?: number; to?: number }): Clip | null {
+  const c = clipById(src.clip);
+  return c && !c.loop && (src.from !== undefined || src.to !== undefined) ? clipRange(c, src.from ?? 0, src.to ?? c.duration) : c;
+}
 
 /** Changes whenever clips come in (what is evaluated with them is worked out again). */
 export const clipsVersion = () => version;

@@ -1911,6 +1911,46 @@ test('actions are blocks on the timeline: picked for the inspector, retimed by t
   expect(actionsOf((await live(page)).scene.animation!, s.active).filter((a) => a.source.kind === 'travel').map((a) => (a.source as { mode: string }).mode)).toEqual(['run', 'run']);
 });
 
+test('a motion block\'s edges trim it; Alt-drag stretches it (#22)', async ({ page }) => {
+  await sceneWithMotion(page, 'Baseball swing');
+  const motion = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'clip')!);
+  const before = await motion();
+  const s = await live(page);
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const perSecond = lanes.width / shownTime(s.scene.animation!.duration);
+  const drag = async (x: number, y: number, by: number, alt = false) => {
+    await page.mouse.move(x, y);
+    if (alt) await page.keyboard.down('Alt');
+    await page.mouse.down();
+    for (let i = 1; i <= 5; i++) await page.mouse.move(x + (by * perSecond * i) / 5, y);
+    await page.mouse.up();
+    if (alt) await page.keyboard.up('Alt');
+  };
+  const block = () => page.locator('.tl-travel.clip').first().boundingBox().then((b) => b!);
+  // Its right edge half a second in: it plays less of the motion, at the same speed.
+  let box = await block();
+  await drag(box.x + box.width - 2, box.y + box.height / 2, -0.5);
+  let now = await motion();
+  expect(before.duration - now.duration).toBeGreaterThan(0.3);
+  expect(now.source).toMatchObject({ kind: 'clip', to: expect.any(Number) });
+  expect((now.source as { speed?: number }).speed ?? 1).toBeCloseTo(1, 2);
+  // Its left edge: it starts later, its end where it was.
+  box = await block();
+  // (Above the key at its start.)
+  await drag(box.x + 2, box.y + 2, 0.4);
+  const trimmed = await motion();
+  expect(trimmed.start - now.start).toBeGreaterThan(0.2);
+  expect(trimmed.start + trimmed.duration).toBeCloseTo(now.start + now.duration, 2);
+  expect((trimmed.source as { from?: number }).from).toBeGreaterThan(0.2);
+  // Alt: stretched, the part it plays kept.
+  box = await block();
+  await drag(box.x + box.width - 2, box.y + box.height / 2, 0.6, true);
+  now = await motion();
+  expect(now.duration - trimmed.duration).toBeGreaterThan(0.3);
+  expect((now.source as { speed?: number }).speed).toBeLessThan(0.9);
+  expect((now.source as { from?: number; to?: number }).to).toBe((trimmed.source as { to?: number }).to);
+});
+
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {
   await addLayer(page, 'Stick');
   let s = await live(page);

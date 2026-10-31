@@ -226,7 +226,8 @@ export interface Clip {
 export type ActionSource =
   /** A Clip from the library (by id), one part per role, placed from where each role is. */
   /** (`repeat`: a clip that does not loop played so many times, one after another.) */
-  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean; repeat?: number }
+  /** (`from`, `to`: the part of a clip that does not loop it plays, seconds of it (#22): all of it when not given.) */
+  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean; repeat?: number; from?: number; to?: number }
   /** Poses keyed by hand: a one-part Clip of the action's own, in world space. One key: a held pose. */
   | { kind: 'keys'; clip: Clip }
   /** Walking, running or jumping to the role's end mark (via other marks), its steps generated. */

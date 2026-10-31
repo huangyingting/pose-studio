@@ -1,7 +1,7 @@
 import { faceAt } from './face';
 import * as THREE from 'three';
 import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart, startFacing } from './clip';
-import { clipById, clipsVersion } from './assets';
+import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
 import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
@@ -95,7 +95,7 @@ export function actionsOf(a: Animation, figure: string, layer?: Action['layer'])
 
 /** A clip action's clip (null: missing). */
 function clipOf(act: Action): Clip | null {
-  return act.source.kind === 'keys' ? act.source.clip : act.source.kind === 'clip' ? clipById(act.source.clip) : null;
+  return act.source.kind === 'keys' ? act.source.clip : act.source.kind === 'clip' ? playedClip(act.source) : null;
 }
 
 class Evaluator {

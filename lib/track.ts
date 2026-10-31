@@ -1,5 +1,5 @@
-import { keyPose, keyTimes, keysClip, partKeys, placeClip, setPartKey, startFacing, type Key } from './clip';
-import { clipById } from './assets';
+import { keyPose, keyTimes, keysClip, partKeys, placeClip, samplePart, setPartKey, startFacing, type Key } from './clip';
+import { clipById, playedClip } from './assets';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
 import { JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
@@ -197,7 +197,7 @@ export function repeatAction(a: Animation, id: string, times: number): Animation
   if (!act || times < 1) return a;
   const src = act.source;
   if (src.kind === 'clip') {
-    const clip = clipById(src.clip);
+    const clip = playedClip(src);
     if (!clip) return a;
     // (One play takes as long as it does now: its speed is kept.)
     const once = clip.duration / (src.speed ?? 1);
@@ -496,7 +496,7 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
   let next: Action = { ...act, duration: d };
   const src = act.source;
   if (src.kind === 'clip') {
-    const clip = clipById(src.clip);
+    const clip = playedClip(src);
     if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round(((clip.duration * (src.repeat ?? 1)) / d) * 1000) / 1000 } };
   } else if (src.kind === 'keys') {
     const k = d / Math.max(EPS, act.duration);
@@ -506,6 +506,146 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
   // (A correction is retimed by itself: it is over what it corrects, which stays.)
   const moved = act.layer === 'correction' ? a : rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
   return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
+}
+
+/** The least a trimmed block keeps (s). */
+const MIN_BLOCK = 0.1;
+
+/**
+ * Trim an action (#22) at its start or its end to `t`, what it plays staying where it is in time:
+ * - a motion: the part of it it plays (`from` / `to`), within the motion; repeated, whole repeats
+ *   added or taken away; a loop, more or fewer laps (from its start);
+ * - keys: how long the last pose holds (its end), or where its keys start (the pose there keyed);
+ * - a walk, run or jump: its end is how long it takes (as retimeAction); its start is not trimmed.
+ * A shorter or longer end moves what that person (each of its people) does after along; a later
+ * start leaves a gap before it. Not before what comes before it on its layer.
+ */
+export function trimAction(a: Animation, id: string, side: 'start' | 'end', t: number): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  if (!act) return a;
+  const src = act.source;
+  const frame = (v: number) => Math.round(v * a.fps) / a.fps;
+  const least = Math.max(MIN_BLOCK, 1 / a.fps);
+  if (src.kind === 'travel' || act.layer === 'correction') return side === 'end' ? retimeAction(a, id, t - act.start) : a;
+  if (side === 'end') {
+    let d = Math.max(least, frame(t) - act.start);
+    let source: ActionSource = src;
+    if (src.kind === 'clip') {
+      const whole = clipById(src.clip);
+      if (!whole) return a;
+      const speed = src.speed ?? 1;
+      const from = src.from ?? 0;
+      if (whole.loop) source = src;
+      else if ((src.repeat ?? 1) > 1) {
+        // (Whole repeats: as many as reach there.)
+        const once = ((src.to ?? whole.duration) - from) / speed;
+        const n = Math.max(1, Math.min(50, Math.round(d / once)));
+        d = once * n;
+        const { repeat: _r, ...rest } = src;
+        void _r;
+        source = n > 1 ? { ...rest, repeat: n } : rest;
+      } else {
+        // (Within the motion: not past its end, nor before where it starts.)
+        const to = Math.min(whole.duration, from + d * speed);
+        d = (to - from) / speed;
+        source = { ...src, to: Math.round(to * 1000) / 1000 };
+        if (source.to! >= whole.duration - 1e-3) delete source.to;
+      }
+    } else {
+      // Keys: the last pose held for longer, or less (not before the last key).
+      const last = keysOf(act).at(-1)?.t ?? act.start;
+      d = Math.max(d, last - act.start, least);
+    }
+    d = Math.max(least, frame(d));
+    const by = d - act.duration;
+    if (Math.abs(by) < 1e-6 && source === src) return a;
+    const next: Action = { ...act, duration: d, source };
+    const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
+    return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
+  }
+  // The start: later or earlier, its end where it is.
+  const who = act.roles.map((r) => r.figure);
+  const layer = (x: Action) => x.layer ?? 'base';
+  const before = a.actions.filter((x) => x !== act && layer(x) === layer(act) && x.roles.some((r) => who.includes(r.figure)) && end(x) <= act.start + 1e-6);
+  const floor = Math.max(0, ...before.map(end));
+  let start = Math.min(end(act) - least, Math.max(floor, frame(t)));
+  let source: ActionSource = src;
+  if (src.kind === 'clip') {
+    const whole = clipById(src.clip);
+    if (!whole) return a;
+    const speed = src.speed ?? 1;
+    if (whole.loop) source = src;
+    else if ((src.repeat ?? 1) > 1) {
+      const once = ((src.to ?? whole.duration) - (src.from ?? 0)) / speed;
+      const n = Math.max(1, Math.min(50, Math.round((end(act) - start) / once)));
+      start = end(act) - once * n;
+      if (start < floor - 1e-6) start = end(act) - once * Math.max(1, n - 1);
+      const { repeat: _r, ...rest } = src;
+      void _r;
+      source = Math.round((end(act) - start) / once) > 1 ? { ...rest, repeat: Math.round((end(act) - start) / once) } : rest;
+    } else {
+      // (Not before the motion's first frame: what it plays stays where it was.)
+      const from = Math.max(0, (src.from ?? 0) + (start - act.start) * speed);
+      start = act.start + (from - (src.from ?? 0)) / speed;
+      source = { ...src, from: Math.round(from * 1000) / 1000 };
+      if (source.from! <= 1e-3) delete source.from;
+    }
+  } else if (src.kind === 'keys') {
+    // Keys before it go; the pose there is keyed (later); earlier, its first pose held from there.
+    const keys = keysOf(act);
+    const clip = src.clip;
+    const posed = samplePart(clip.parts[0], Math.min(clip.duration, Math.max(0, start - act.start)), clip.duration, false);
+    const kept = keys.filter((k) => k.t > start + 1e-6);
+    const at = start < act.start ? [{ t: start, pose: keys[0].pose }, ...keys] : [{ t: start, pose: posed }, ...kept];
+    return sorted(replace(a, act, [{ ...keysAction(act.roles[0].figure, at, act.layer), id: act.id, duration: end(act) - start, ...(act.blendIn ? { blendIn: act.blendIn } : {}) }]));
+  }
+  if (Math.abs(start - act.start) < 1e-6 && source === src) return a;
+  return sorted(replace(a, act, [{ ...act, start, duration: end(act) - start, source }]));
+}
+
+/**
+ * The part of a motion an action plays, from `from` to `to` (seconds of the motion, #22), its block
+ * where it starts, as long as that takes at its speed (repeats repeating it); what that person (each
+ * of its people) does after moves along. Not for a loop.
+ */
+export function playRange(a: Animation, id: string, from: number, to: number): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  const src = act?.source;
+  if (!act || src?.kind !== 'clip') return a;
+  const whole = clipById(src.clip);
+  if (!whole || whole.loop) return a;
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
+  const least = Math.max(MIN_BLOCK, 1 / a.fps) * (src.speed ?? 1);
+  const f = r3(Math.max(0, Math.min(whole.duration - least, from)));
+  const t = r3(Math.max(f + least, Math.min(whole.duration, to)));
+  const source = { ...src, from: f, to: t };
+  if (source.from <= 1e-3) delete (source as { from?: number }).from;
+  if (source.to >= whole.duration - 1e-3) delete (source as { to?: number }).to;
+  const d = Math.round((((t - f) * (src.repeat ?? 1)) / (src.speed ?? 1)) * a.fps) / a.fps;
+  const by = d - act.duration;
+  const next: Action = { ...act, duration: d, source };
+  const moved = Math.abs(by) < 1e-6 ? a : rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
+  return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
+}
+
+/**
+ * Slip a motion (#22): the part of it it plays moved by `by` seconds of the block's time (later in
+ * the motion: positive), the block where it is. Within the motion; not for a repeat or a loop.
+ */
+export function slipAction(a: Animation, id: string, by: number): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  const src = act?.source;
+  if (!act || src?.kind !== 'clip' || (src.repeat ?? 1) > 1) return a;
+  const whole = clipById(src.clip);
+  if (!whole || whole.loop) return a;
+  const speed = src.speed ?? 1;
+  const length = act.duration * speed;
+  const from = Math.max(0, Math.min(whole.duration - length, (src.from ?? 0) + by * speed));
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
+  const source = { ...src, from: r3(from), to: r3(from + length) };
+  if (source.from <= 1e-3) delete (source as { from?: number }).from;
+  if (source.to >= whole.duration - 1e-3) delete (source as { to?: number }).to;
+  return replace(a, act, [{ ...act, source }]);
 }
 
 /**

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MAX_DURATION, propKeyOf } from './animation';
-import { clipById } from './assets';
+import { playedClip } from './assets';
 import { grip } from './hold';
 import { Ink } from './ink';
 import { FLOOR_BOUNCE, GRAVITY, aim, aimBounce, flightAt, fly, type Body, type Flight, type Solid } from './physics';
@@ -212,7 +212,7 @@ function happenings(a: Animation, id: string): Happening[] {
   const out: Happening[] = (a.props?.[id] ?? []).map((key) => ({ t: key.t, kind: 'key', key }));
   for (const act of a.actions) {
     if (act.prop !== id || act.source.kind !== 'clip') continue;
-    const clip = clipById(act.source.clip);
+    const clip = playedClip(act.source);
     if (!clip) continue;
     const speed = act.source.speed ?? 1;
     const laps = clip.loop && clip.duration > 1e-6 ? Math.max(1, Math.round((act.duration * speed) / clip.duration)) : (act.source.repeat ?? 1);

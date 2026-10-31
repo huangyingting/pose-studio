@@ -1,9 +1,9 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setTravel } from '@/lib/actions';
+import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setPlayRange, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
-import { clipById } from '@/lib/assets';
+import { clipById, playedClip } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { actionLabel } from '@/lib/track';
@@ -90,7 +90,7 @@ export function PosedPanel({ t }: { t: Target }) {
 
 const speedOf = (act: Action) => {
   if (act.source.kind !== 'clip') return 1;
-  const clip = clipById(act.source.clip);
+  const clip = playedClip(act.source);
   return act.source.speed ?? (clip && !clip.loop ? (clip.duration * (act.source.repeat ?? 1)) / act.duration : 1);
 };
 /** How far its mark pulls a motion from where it ends by itself, if noticeably (#18). */
@@ -114,8 +114,17 @@ export function MotionPanel({ t }: { t: Target }) {
   if (act.source.kind !== 'clip') return null;
   const src = act.source;
   const speed = speedOf(act);
+  const whole = clipById(src.clip);
   return (
     <>
+      {whole && !whole.loop && (
+        <PropertyRow label="Plays" info={`The part of ${whole.name} it plays (seconds of it, ${whole.duration.toFixed(2)} s in all): drag the block's edges to trim it`}>
+          <div className="lens-row">
+            <NumberField prefix="s" label="Plays from" value={src.from ?? 0} step={1 / 24} min={0} max={whole.duration} onChange={(v) => setPlayRange(t.store, act.id, v, src.to ?? whole.duration, `act:${act.id}:range`)} />
+            <NumberField prefix="s" label="Plays to" value={src.to ?? whole.duration} step={1 / 24} min={0} max={whole.duration} onChange={(v) => setPlayRange(t.store, act.id, src.from ?? 0, v, `act:${act.id}:range`)} />
+          </div>
+        </PropertyRow>
+      )}
       <label className="field">
         <span>Speed</span>
         <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(t.store, act.id, { speed: v }, `act:${act.id}:speed`)} />

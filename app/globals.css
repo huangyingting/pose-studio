@@ -961,6 +961,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-fixband.sel { background: var(--fix); }
 .tl-fixband .tl-edge { width: 5px; }
 .tl-edge { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
+.tl-edge.start { right: auto; left: 0; }
 .tl-edge:hover { background: color-mix(in srgb, var(--shade) 12%, transparent); }
 /* An action's buttons (edit, remove, more): while the pointer is over it (always on touch). */
 .tl-ramp { position: absolute; top: 5px; bottom: 5px; z-index: 1; clip-path: polygon(0 100%, 100% 0, 100% 100%); background: currentColor; opacity: 0.35; cursor: w-resize; }

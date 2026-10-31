@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -432,23 +432,28 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   };
 
   /**
-   * Drag an action along its row (what everyone in it does after comes along), its right edge to
-   * retime it, or the ramp before it to blend into it over longer; a click picks it for the inspector.
+   * Drag an action along its row (what everyone in it does after comes along; Ctrl: slip, another
+   * part of its motion played there), an edge to trim it (#22; Alt: stretch it, its speed), or the
+   * ramp before it to blend into it over longer; a click picks it for the inspector.
    */
-  const dragAction = (act: Action, figureId: string, part: 'move' | 'end' | 'blend') => (e: ReactPointerEvent) => {
+  const dragAction = (act: Action, figureId: string, part: 'move' | 'start' | 'end' | 'blend') => (e: ReactPointerEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     pause();
     const [x0, t0] = [e.clientX, timeAt(e.clientX)];
     const [start, duration, blend] = [act.start, act.duration, act.blendIn ?? 0];
     const key = `act:${act.id}:${part}`;
+    const [stretch, slipping] = [e.altKey, (e.ctrlKey || e.metaKey) && part === 'move'];
     let moved = false;
     const move = (ev: { clientX: number }) => {
       if (!moved && Math.abs(ev.clientX - x0) < 3) return;
       moved = true;
       const dt = timeAt(ev.clientX) - t0;
-      if (part === 'move') moveAction(store, act.id, start + dt, key);
-      else if (part === 'end') retime(store, act.id, duration + dt, key);
+      if (slipping) slip(store, act.id, -dt, key);
+      else if (part === 'move') moveAction(store, act.id, start + dt, key);
+      else if (part === 'end' && (stretch || act.layer === 'correction')) retime(store, act.id, duration + dt, key);
+      else if (part === 'end') trim(store, act.id, 'end', start + duration + dt, key);
+      else if (part === 'start') trim(store, act.id, 'start', start + dt, key);
       else setBlend(store, act.id, blend - dt, key);
     };
     const stop = follow(e.clientX, move);
@@ -970,7 +975,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         <span
                           className={`tl-travel grab ${kind}${group ? ' group' : ''}${selected === x.id ? ' sel' : ''}`}
                           style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
-                          data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click or double-click to edit, drag to move it (and what follows), its right edge to retime it; Delete removes it\nRight-click for more`}
+                          data-tip={`${label}${x.layer === 'upper' ? ` (upper body, over what ${f.name} is doing)` : ''}${group ? ` with ${x.roles.filter((r) => r.figure !== f.id).map((r) => figures.find((g) => g.id === r.figure)?.name).join(', ')}` : ''}: click or double-click to edit, drag to move it (and what follows)${x.source.kind === 'clip' ? ', Ctrl-drag to play another part of it there' : ''}; ${x.source.kind === 'travel' ? 'its right edge: how long it takes' : 'its edges trim it, Alt-drag one to stretch it'}; Delete removes it\nRight-click for more`}
                           onPointerDown={dragAction(x, f.id, 'move')}
                           onDoubleClick={() => { pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}
                           onContextMenu={(e) => {
@@ -981,6 +986,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         >
                           {group && <Users size={11} aria-hidden />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
+                          {x.source.kind !== 'travel' && <i className="tl-edge start" aria-hidden onPointerDown={dragAction(x, f.id, 'start')} />}
                           <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                         </span>
                       </span>
