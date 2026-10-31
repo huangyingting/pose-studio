@@ -737,6 +737,8 @@ const cache = new WeakMap<Animation, { key: string; ev: Evaluator }>();
  * still works if its animation comes back (an undo): it takes them again.
  */
 const recent: Evaluator[] = [];
+/** Each evaluator by its animation's actions, with what else it was made for. */
+const byMoves = new WeakMap<Action[], { key: string; ev: Evaluator; a: Animation; figures: Figure[] }>();
 const RECENT = 4;
 
 /** The evaluator of a scene's animation (shared while the animation, cast and ground stay the same). */
@@ -759,9 +761,18 @@ function evaluator(scene: Scene): Evaluator {
     }
     return hit.ev;
   }
+  // (The same moves in another animation, only its shots or cameras changed (the director cutting
+  // it, a camera set): what was worked out for them still holds.)
+  const same = !hit && byMoves.get(a.actions);
+  if (same && same.key === key && same.figures === scene.figures && same.a.constraints === a.constraints && same.a.props === a.props
+    && same.a.duration === a.duration && same.a.fps === a.fps && same.a.loop === a.loop) {
+    cache.set(a, { key, ev: same.ev });
+    return evaluator(scene);
+  }
   hit?.ev.dispose();
   const ev = new Evaluator(scene);
   cache.set(a, { key, ev });
+  byMoves.set(a.actions, { key, ev, a, figures: scene.figures });
   recent.push(ev);
   if (recent.length > RECENT) recent.shift()!.dispose();
   return ev;
