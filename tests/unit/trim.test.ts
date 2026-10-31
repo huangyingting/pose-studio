@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addKeyframe, addMarker, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
+import { addFigure, addKeyframe, addMarker, copyKeys, deleteKeys, pasteKeys, retimeKeys, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
+import { keyTimesOf } from '@/lib/track';
+import { withAngles } from '@/lib/pose';
 import type { Action, Clip, Pose } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
@@ -322,6 +324,51 @@ describe('in and out, locked and muted rows (#22)', () => {
     expect(apart(muted, playing)).toBeGreaterThan(5);
     setTrack(store, a, { muted: false });
     expect(apart(figurePoseAt(store.scene, a, mid)!, playing)).toBeLessThan(1);
+  });
+});
+
+describe('picked keys (#22)', () => {
+  /** A figure keyed at 0 (as it stands) and at 1 (its right arm up, a step to its right). */
+  function keyed() {
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    store.setTime(0);
+    addKeyframe(store);
+    store.setTime(1);
+    store.updateFigure(a, (f) => ({ ...f, position: [f.position[0] - 0.5, f.position[1], f.position[2]], bones: withAngles(f.bones, { rightUpperArm: [0, 0, 80] }) }));
+    addKeyframe(store);
+    return { store, a };
+  }
+
+  it('copied and pasted on someone else at the playhead: in their timing, from where they are; mirrored: left for right', () => {
+    const { store, a } = keyed();
+    addFigure(store, [3, 0, 0]);
+    const b = store.getState().activeFigure!;
+    expect(copyKeys(store, a, [0, 1])).toBe(2);
+    expect(pasteKeys(store, b, 2)).toBeNull();
+    expect(keyTimesOf(store.scene.animation!, b)).toEqual(expect.arrayContaining([2, 3]));
+    const [p0, p1] = [figurePoseAt(store.scene, b, 2)!, figurePoseAt(store.scene, b, 3)!];
+    const [a0, a1] = [figurePoseAt(store.scene, a, 0)!, figurePoseAt(store.scene, a, 1)!];
+    // The same step, from where b is.
+    expect(p1.position[0] - p0.position[0]).toBeCloseTo(a1.position[0] - a0.position[0], 2);
+    expect(apart({ ...p1, bones: { rightUpperArm: p1.bones.rightUpperArm } } as Pose, { ...a1, bones: { rightUpperArm: a1.bones.rightUpperArm } } as Pose)).toBeLessThan(2);
+    // Mirrored: the left arm up, the step the other way.
+    expect(pasteKeys(store, b, 3.5, true)).toBeNull();
+    const m1 = figurePoseAt(store.scene, b, 4.5)!;
+    const m0 = figurePoseAt(store.scene, b, 3.5)!;
+    expect(m1.position[0] - m0.position[0]).toBeCloseTo(-(a1.position[0] - a0.position[0]), 2);
+    expect(apart({ ...m1, bones: { leftUpperArm: m1.bones.leftUpperArm } } as Pose, { ...m0, bones: { leftUpperArm: m0.bones.leftUpperArm } } as Pose)).toBeGreaterThan(30);
+  });
+
+  it('scaled in time from the first; deleted together', () => {
+    const { store, a } = keyed();
+    store.setTime(2);
+    store.updateFigure(a, (f) => ({ ...f, position: [f.position[0], f.position[1], f.position[2] + 1] }));
+    addKeyframe(store);
+    expect(retimeKeys(store, a, [0, 1, 2], [0, 2, 4])).toEqual([0, 2, 4]);
+    expect(keyTimesOf(store.scene.animation!, a)).toEqual([0, 2, 4]);
+    deleteKeys(store, a, [2, 4]);
+    expect(keyTimesOf(store.scene.animation!, a)).toEqual([0]);
   });
 });
 

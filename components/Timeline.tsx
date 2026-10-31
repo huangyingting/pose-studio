@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -447,6 +447,27 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
   };
+  /** Drag the end of the picked keys' span (#22): their timing scaled from the first, as far as no key is passed. */
+  const scaleKeys = (figureId: string) => (e: ReactPointerEvent) => {
+    if (e.button !== 0 || !keyPick || keyPick.times.length < 2) return;
+    e.stopPropagation();
+    pause();
+    const start = [...keyPick.times].sort((p, q) => p - q);
+    const [first, last] = [start[0], start[start.length - 1]];
+    let now = start;
+    const snap = snapper((x) => start.some((t) => Math.abs(t - x) < 1e-6));
+    const move = (ev: { clientX: number }) => {
+      const end = Math.max(first + 1 / a.fps, snap.at(timeAt(ev.clientX)));
+      const k = (end - first) / Math.max(1e-6, last - first);
+      const to = start.map((t) => first + (t - first) * k);
+      now = retimeKeys(store, figureId, now, to, `scale:${figureId}`);
+      setPicked({ figure: figureId, times: now });
+    };
+    const stop = follow(e.clientX, move);
+    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   /** Shift-drag along a row's empty stretch: a box picking the keys in it. */
   const boxKeys = (figureId: string) => (e: ReactPointerEvent) => {
     if (e.button !== 0 || !e.shiftKey) return;
@@ -685,7 +706,26 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
    * previous / next key, Home / End, ↑ ↓ the person above / below, = − 0 zoom; Esc gives the keys back.
    */
   const onKeys = (e: ReactKeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, [role="menu"], [role="alertdialog"]')) return;
+    if ((e.target as HTMLElement).closest('input, textarea, [role="menu"], [role="alertdialog"]')) return;
+    // Keys picked (#22): Ctrl + C copies them, Ctrl + V pastes the copied at the playhead on the
+    // person picked (Ctrl + Shift + V mirrored), Delete removes them.
+    const mod = e.ctrlKey || e.metaKey;
+    const keysHere = keyPick && keyPick.times.length ? keyPick : null;
+    const who = activeId ?? figures[0]?.id;
+    const keyed: Record<string, (() => void) | undefined> = {
+      c: mod && keysHere ? () => { const n = copyKeys(store, keysHere.figure, keysHere.times); notify(`${n} ${n === 1 ? 'key' : 'keys'} copied`); } : undefined,
+      v: mod && hasCopiedKeys() && who ? () => { const why = pasteKeys(store, who, store.getState().time, e.shiftKey); if (why) notify(why); } : undefined,
+      Delete: !mod && keysHere ? () => { deleteKeys(store, keysHere.figure, keysHere.times); setPicked(null); } : undefined,
+      Backspace: !mod && keysHere ? () => { deleteKeys(store, keysHere.figure, keysHere.times); setPicked(null); } : undefined,
+    };
+    const doKeys = keyed[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+    if (doKeys) {
+      e.preventDefault();
+      e.stopPropagation();
+      doKeys();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const at = store.getState().time;
     const go = (t: number | undefined) => { if (t !== undefined) seek(Math.min(Math.max(0, t), a.duration)); };
     const row = (by: number) => {
@@ -1160,6 +1200,14 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       <Plus size={13} aria-hidden /> Add an action
                     </button>
                   )}
+                  {keyPick?.figure === f.id && keyPick.times.length > 1 && (() => {
+                    const [lo, hi] = [Math.min(...keyPick.times), Math.max(...keyPick.times)];
+                    return (
+                      <span className="tl-keyspan" style={{ left: pct(lo), width: `${((hi - lo) / span) * 100}%` }} aria-hidden>
+                        <i className="tl-keyspan-end" data-tip="Drag to stretch or squeeze the picked keys' timing" onPointerDown={(e) => scaleKeys(f.id)(e)} />
+                      </span>
+                    );
+                  })()}
                   {box?.figure === f.id && <span className="tl-box" style={{ left: pct(Math.min(box.t0, box.t1)), width: `${(Math.abs(box.t1 - box.t0) / span) * 100}%` }} aria-hidden />}
                   {dropAt?.figure === f.id && (
                     <span className="tl-drop" style={{ left: pct(dropAt.t), width: dropAt.length ? `${(dropAt.length / span) * 100}%` : undefined }} aria-hidden />

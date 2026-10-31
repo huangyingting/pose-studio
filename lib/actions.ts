@@ -8,7 +8,7 @@ import { MAX_DURATION, newAnimation, normalize, placeAnimation, propKeyOf, setDu
 import { BUILT_IN, clipById, hasClip, playedClip } from './assets';
 import { applyCoverage, castCoverage, coverageById } from './coverage';
 import { asTemplate, putTemplate, shootsOf, templatesOf } from './templates';
-import { clipInfo, partKeys } from './clip';
+import { clipInfo, keysClip, mirrorPose as mirrored, partFromPoses, partKeys, placeClip, type Key } from './clip';
 import { saveClips } from './assetstore';
 import { projectSettingsOf } from './project';
 import { MAX_LIGHTS, clampLight, forShotOr, fromPreset, keyLight, lightingOf, lookOf, newLight, placeLight, skyAt, withLook, type Look, type Place } from './lighting';
@@ -1396,6 +1396,78 @@ export function deleteKeyframe(store: Store, figureId = store.getState().activeF
   if (!figureId) return;
   store.updateScene((s) => (s.animation ? { ...s, animation: removeKeyAt(s.animation, figureId, t) } : s));
   store.setTime(t);
+}
+
+/** Keys copied (#22): a figure's poses at its picked keys, in their timing. */
+let copiedKeys: Key[] | null = null;
+
+/** Copy a figure's keys at these times (#22: Ctrl + C on picked keys). How many. */
+export function copyKeys(store: Store, figure: string, times: number[]): number {
+  const s = store.scene;
+  const keys = [...times].sort((p, q) => p - q).flatMap((t) => { const pose = figurePoseAt(s, figure, t); return pose ? [{ t, pose }] : []; });
+  copiedKeys = keys.length ? keys : null;
+  return keys.length;
+}
+
+export const hasCopiedKeys = () => !!copiedKeys?.length;
+
+/**
+ * Paste the copied keys on a figure from t (#22: Ctrl + V; Ctrl + Shift + V `mirror`, left for
+ * right): in their timing, from where the figure is then and turned its way; each as if posed there
+ * (a key on a Posed block, a correction over a motion). Why not, if it can't.
+ */
+export function pasteKeys(store: Store, figure: string, t: number, mirror = false): string | null {
+  const keys = copiedKeys;
+  if (!keys) return 'Copy some keys first (Shift-click them, then Ctrl + C)';
+  const s = store.scene;
+  const here = figurePoseAt(s, figure, t);
+  if (!s.animation || !here) return 'Animate the scene to paste keys';
+  const ref = keys[0].pose;
+  const turn = (deg: number, at: [number, number], to: [number, number]) => {
+    const r = (deg * Math.PI) / 180;
+    return (x: number, z: number): [number, number] => [(x - at[0]) * Math.cos(r) + (z - at[1]) * Math.sin(r) + to[0], -(x - at[0]) * Math.sin(r) + (z - at[1]) * Math.cos(r) + to[1]];
+  };
+  // To the first key's own frame (facing ahead, at the origin), mirrored there if asked, then to the figure's.
+  let clip = placeClip(keysClip(keys.map((k) => ({ t: k.t - keys[0].t, pose: k.pose }))), -facingOf(ref.bones), turn(-facingOf(ref.bones), [ref.position[0], ref.position[2]], [0, 0]));
+  if (mirror) clip = { ...clip, parts: [partFromPoses('Keys', partKeys(clip.parts[0]).map((k) => ({ ...k, pose: mirrored(k.pose) })), 'smooth')] };
+  clip = placeClip(clip, facingOf(here.bones), turn(facingOf(here.bones), [0, 0], [here.position[0], here.position[2]]));
+  const at = snapTime(s.animation, t);
+  store.updateScene((x) => {
+    let a = x.animation!;
+    for (const k of partKeys(clip.parts[0])) a = setPoseAt({ ...x, animation: a }, figure, at + k.t, k.pose);
+    return { ...x, animation: a };
+  });
+  store.setTime(store.getState().time);
+  return null;
+}
+
+/** Delete a figure's keys at these times (#22: Delete on picked keys). */
+export function deleteKeys(store: Store, figure: string, times: number[]) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: times.reduce((a, t) => removeKeyAt(a, figure, t), s.animation) } : s));
+  store.setTime(store.getState().time);
+}
+
+/**
+ * A figure's keys at `from` moved to `to` (the same count, in order: #22, picked keys scaled in
+ * time). Each refused move (onto another key) leaves that key where it was. Where they are now.
+ */
+export function retimeKeys(store: Store, figure: string, from: number[], to: number[], key = ''): number[] {
+  const a0 = store.scene.animation;
+  if (!a0 || from.length !== to.length) return from;
+  const pairs = from.map((f, i) => [f, snapTime(a0, to[i])] as const).sort((p, q) => p[0] - q[0]);
+  // (Those moving later first, from the last; then those moving earlier, from the first.)
+  const order = [...pairs.filter(([f, t]) => t > f).reverse(), ...pairs.filter(([f, t]) => t <= f)];
+  const now = new Map(pairs.map(([f]) => [f, f]));
+  store.updateScene((s) => {
+    let a = s.animation!;
+    for (const [f, t] of order) {
+      const next = moveKeyTo(a, figure, f, t);
+      if (next !== a) { a = next; now.set(f, t); }
+    }
+    return { ...s, animation: a };
+  }, key);
+  store.setTime(store.getState().time);
+  return from.map((f) => now.get(f) ?? f);
 }
 
 /** Move several of a figure's keys in time together; returns whether they moved. */

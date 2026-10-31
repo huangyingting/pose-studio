@@ -1100,6 +1100,20 @@ test('keys picked together with Shift-click move together; a correction is a ban
   await page.mouse.up();
   s = await live(page);
   expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1.5, 2.5]);
+  // Copied (Ctrl + C, the timeline focused), pasted at the playhead (Ctrl + V): in their timing (#22).
+  await page.locator('.tl-tracks').focus();
+  await page.keyboard.press('Control+c');
+  await expect(page.locator('.toast', { hasText: '2 keys copied' })).toHaveCount(1);
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(3.5));
+  await page.locator('.tl-tracks').focus();
+  await page.keyboard.press('Control+v');
+  s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1.5, 2.5, 3.5, 4.5]);
+  // Delete: the picked ones go.
+  await page.locator('.tl-tracks').focus();
+  await page.keyboard.press('Delete');
+  s = await live(page);
+  expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 3.5, 4.5]);
 });
 
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
