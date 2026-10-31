@@ -262,7 +262,7 @@ class Evaluator {
           const side = bone === 'leftFoot' ? 'L' : 'R';
           // (Each time round a clip played again, where the foot lands then.)
           const repeat = (act.source as { repeat?: number }).repeat;
-          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? MAX_LAPS : repeat! - 1, Math.max(0, Math.floor(((t - act.start) * speed) / clip.duration + EPS))) : 0;
+          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? MAX_LAPS : repeat! - 1, lapOf((t - act.start) * speed, clip.duration)) : 0;
           const key = `${act.id}:${f.id}:${n}:${lap}`;
           let at = this.anchors.get(key);
           if (!at) {
@@ -571,11 +571,14 @@ class Evaluator {
     let u = (t - act.start) * (src.speed ?? 1);
     let laps = 0;
     if ((clip.loop || src.repeat) && clip.duration > EPS) {
-      laps = Math.min(clip.loop ? MAX_LAPS : src.repeat! - 1, Math.floor(u / clip.duration + EPS));
+      // (On a lap's end exactly — the action's own end — the end of that lap, not the start of the
+      // next: a loop not quite closed would otherwise jump back to its first frame there.)
+      laps = Math.min(clip.loop ? MAX_LAPS : src.repeat! - 1, lapOf(u, clip.duration));
       u = Math.min(clip.duration, Math.max(0, u - laps * clip.duration));
     } else u = Math.min(clip.duration, Math.max(0, u));
     const first = sample(0);
-    let raw = sample(u);
+    // (At a lap's end, its last frame: not wrapped round to its first.)
+    let raw = sample(u, u < clip.duration - EPS ? clip.loop : false);
     if (laps) {
       // (Where a lap ends: its last frame, not wrapped round to its first.)
       const last = sample(clip.duration, false);
@@ -816,6 +819,9 @@ export function marksOf(scene: Scene, act: Action, id: string): { start: Mark; e
   const ev = evaluator(scene);
   return { start: ev.startMark(f, act), end: ev.endMark(f, act) };
 }
+
+/** Which time round a clip played again is at u (its own seconds): a lap's end is that lap's, not the next one's start. */
+const lapOf = (u: number, duration: number) => Math.max(0, Math.ceil(u / duration - EPS) - 1);
 
 /** How far a clip may be warped to its end mark: in distance (a fraction of its own) and direction (degrees). */
 export const WARP = { distance: 0.25, angle: 30 };
