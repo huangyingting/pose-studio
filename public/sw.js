@@ -7,6 +7,8 @@
  * - Hashed build assets (/_next/static) and the MediaPipe runtime: cache first (immutable).
  * - The motion library (/motions: its index and files change with a release, by the same names):
  *   network first, the kept copy offline.
+ * - Once the worker runs, the page asks it to keep what it loaded before (its first visit's build
+ *   assets) and all of the motion library (the templates are made of it), one file at a time.
  * - Other same-origin GETs: stale-while-revalidate.
  */
 const VERSION = 'v2';
@@ -69,6 +71,33 @@ async function staleWhileRevalidate(request) {
     .catch(() => hit ?? Response.error());
   return hit ?? update;
 }
+
+async function keep(loaded) {
+  const cache = await caches.open(ASSETS);
+  const kept = async (url) => {
+    if (await cache.match(url)) return true;
+    try {
+      const res = await fetch(url);
+      if (res.ok) await cache.put(url, res);
+      return true;
+    } catch {
+      return false; // (Offline: kept next time.)
+    }
+  };
+  for (const url of loaded) {
+    const path = new URL(url).pathname.slice(BASE.length - 1);
+    if (new URL(url).origin === self.location.origin && path.startsWith('/_next/static/')) await kept(url);
+  }
+  const index = await networkFirstAsset(new Request(`${BASE}motions/index.json`));
+  if (!index.ok) return;
+  for (const { id } of await index.json()) {
+    if (!(await kept(`${BASE}motions/${encodeURIComponent(id.slice(id.indexOf(':') + 1))}.json`))) return;
+  }
+}
+
+self.addEventListener('message', (event) => {
+  if (Array.isArray(event.data?.keep)) event.waitUntil(keep(event.data.keep));
+});
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;

@@ -414,6 +414,9 @@ function App() {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register(withBase('/sw.js'), { scope: withBase('/') }).catch((err) => console.warn('Service worker registration failed', err));
+    // (Once it runs, it keeps what this page loaded before it did, and the motion library, which
+    // the templates are made of: all of it works offline from the first visit.)
+    void navigator.serviceWorker.ready.then((r) => r.active?.postMessage({ keep: performance.getEntriesByType('resource').map((e) => e.name) }));
   }, []);
 
   // Read-only hook for automated tests and power users (e.g. `__poseStudio.store.getState()` in the console).
