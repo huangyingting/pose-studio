@@ -9,7 +9,7 @@
  *   network first, the kept copy offline.
  * - Once the worker runs, the page asks it to keep what it loaded before (its first visit's build
  *   assets), the characters' pictures and all of the motion library (the templates are made of
- *   it), one file at a time.
+ *   it), a few files at a time.
  * - Other same-origin GETs: stale-while-revalidate.
  */
 const VERSION = 'v2';
@@ -91,9 +91,12 @@ async function keep(loaded) {
   }
   const index = await networkFirstAsset(new Request(`${BASE}motions/index.json`));
   if (!index.ok) return;
-  for (const { id } of await index.json()) {
-    if (!(await kept(`${BASE}motions/${encodeURIComponent(id.slice(id.indexOf(':') + 1))}.json`))) return;
-  }
+  const motions = (await index.json()).map(({ id }) => `${BASE}motions/${encodeURIComponent(id.slice(id.indexOf(':') + 1))}.json`);
+  // (A few at a time; all stop when offline.)
+  const next = async () => {
+    for (let url; (url = motions.shift()); ) if (!(await kept(url))) motions.length = 0;
+  };
+  await Promise.all([next(), next(), next(), next()]);
 }
 
 self.addEventListener('message', (event) => {
