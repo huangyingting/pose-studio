@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
 import { SceneView } from '@/lib/sceneview';
 import { SETS, SET_GROUPS, setModels } from '@/lib/sets';
-import { MODELS, SET_BUDGET, SURFACES, type SetIndex } from '@/lib/setassets';
+import { MODELS, SET_BUDGET, SKIES, SURFACES, type SetIndex } from '@/lib/setassets';
 import INDEX from '../../public/sets/index.json';
 
 const index = INDEX as unknown as SetIndex;
@@ -43,17 +43,20 @@ describe('sets', () => {
       expect(index.models[id].tris, id).toBeLessThanOrEqual(a.tris);
     }
     for (const id of Object.keys(SURFACES)) expect(index.surfaces[id], id).toBeDefined();
+    for (const id of Object.keys(SKIES)) expect(index.skies[id], id).toBeDefined();
     // (Shapes as lib/sets.ts makes them: a box 12 triangles, a column 4 a side, a ball 20 × 14, a ring 10 × 32.)
     const shapeTris = (shape: unknown[]) => (shape[0] === 'box' ? 12 : shape[0] === 'cyl' ? 4 * ((shape[4] as number | undefined) ?? 20) : shape[0] === 'sphere' ? 520 : 640);
     for (const s of SETS) {
       const pieces = s.build();
       const tris = pieces.reduce((n, p) => n + (p.shape[0] === 'model' ? index.models[p.shape[1]].tris : shapeTris(p.shape)), 0);
       const surfaces = new Set(pieces.flatMap((p) => { const l = p.look; const id = typeof l === 'string' ? l : l?.surface; return id ? [id] : []; }));
-      const bytes = setModels(s.id).reduce((n, id) => n + index.models[id].bytes, 0) + [...surfaces].reduce((n, id) => n + index.surfaces[id].bytes, 0);
+      // (Outdoors, its sky in 3D too: the largest it could be.)
+      const sky = s.group === 'Outdoor' ? Math.max(...Object.values(index.skies).map((x) => x.bytes)) : 0;
+      const bytes = setModels(s.id).reduce((n, id) => n + index.models[id].bytes, 0) + [...surfaces].reduce((n, id) => n + index.surfaces[id].bytes, 0) + sky;
       expect(tris, `${s.id}: triangles`).toBeLessThanOrEqual(SET_BUDGET.tris);
       expect(bytes, `${s.id}: bytes`).toBeLessThanOrEqual(SET_BUDGET.bytes);
     }
-    const all = Object.values(index.models).reduce((n, m) => n + m.bytes, 0) + Object.values(index.surfaces).reduce((n, x) => n + x.bytes, 0);
+    const all = [index.models, index.surfaces, index.skies].flatMap((x) => Object.values(x)).reduce((n, x) => n + x.bytes, 0);
     expect(all).toBeLessThanOrEqual(100 * 1024 * 1024);
   });
 });

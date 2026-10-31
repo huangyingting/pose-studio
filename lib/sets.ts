@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import SET_INDEX from '../public/sets/index.json';
 import { CUTAWAY_LAYER, InkedParts, LINES_LAYER, type Ink } from './ink';
-import { MAX_LIGHTS, clampLight, newLight } from './lighting';
+import { MAX_LIGHTS, clampLight, newLight, skyOf } from './lighting';
 import { withBase } from './paths';
-import type { ModelId, SetIndex, SurfaceId } from './setassets';
+import type { ModelId, SetIndex, Sky, SurfaceId } from './setassets';
 import { uid } from './uid';
 import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
 
@@ -328,7 +330,7 @@ export const SETS: SetDef[] = [
     description: 'A park: a gravel path through the grass, trees and bushes, benches, a round fountain and lamp posts.',
     lights: [bulb('Lamp post', [-8, 4.4, 0], { color: '#ffd09e', kelvin: undefined, intensity: 0.6, range: 10 })],
     build: () => [
-      { ...floor(40, 34, -4), look: { surface: 'grass', color: '#b5d08e' } },
+      { ...floor(40, 34, -4), look: { surface: 'grass', rough: 1, metal: 0 } },
       { ...B(40, 0.02, 3, 0, 0, 1.2), look: 'gravel' },
       M('ash', -6, -4), M('oak', -10, -9, 40), M('aspen', 5, -8, 120), M('ash', 10.5, -3.5, 200), M('oak', -3, -13, 300), M('aspen', 13, -11, 60),
       M('bush', -4.4, -1.4), M('bush', 7.6, -1.6, 90), M('bush', -13, -2, 30), M('fern', -6.8, -2.4), M('fern', 11.8, -1.5, 70),
@@ -618,11 +620,59 @@ function materialOf(look: Look): THREE.Material {
       color: o.color ?? '#ffffff',
       roughness: o.rough ?? (m ? 1 : 0.8),
       metalness: o.metal ?? (m ? 1 : 0),
-      ...(m ? { map: m.color, normalMap: m.normal, aoMap: m.orm, roughnessMap: m.orm, metalnessMap: m.orm } : {}),
+      // (Its own roughness and metal, if given: not its texture's.)
+      ...(m ? { map: m.color, normalMap: m.normal, aoMap: m.orm, ...(o.rough === undefined ? { roughnessMap: m.orm } : {}), ...(o.metal === undefined ? { metalnessMap: m.orm } : {}) } : {}),
     });
   }
   looks.set(key, mat);
   return mat;
+}
+
+/* ---------- what is round a set in 3D (#25): its sky outdoors, a room's light indoors ---------- */
+
+const skies = new Map<Sky, THREE.DataTexture | null>();
+/** A sky as read (null until it has been: fetching starts now). */
+function skyTexture(sky: Sky): THREE.DataTexture | null {
+  const file = INDEX.skies?.[sky]?.file;
+  if (skies.has(sky) || !file || typeof document === 'undefined') return skies.get(sky) ?? null;
+  skies.set(sky, null);
+  new HDRLoader().loadAsync(withBase(`/sets/${file}`)).then((t) => {
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    skies.set(sky, t);
+    arrived();
+  }, (err) => {
+    console.warn(`Could not get the ${sky} sky:`, err);
+    setTimeout(() => { skies.delete(sky); arrived(); }, RETRY_MS);
+  });
+  return null;
+}
+
+/** Each renderer's prefiltered lights from all round (a sky's, a room's), made once. */
+const prefiltered = new WeakMap<THREE.WebGLRenderer, { pmrem: THREE.PMREMGenerator; made: Map<string, THREE.Texture> }>();
+function prefilter(renderer: THREE.WebGLRenderer, key: string, make: (pmrem: THREE.PMREMGenerator) => THREE.Texture) {
+  let p = prefiltered.get(renderer);
+  if (!p) prefiltered.set(renderer, (p = { pmrem: new THREE.PMREMGenerator(renderer), made: new Map() }));
+  let t = p.made.get(key);
+  if (!t) p.made.set(key, (t = make(p.pmrem)));
+  return t;
+}
+
+/** How bright each sky's light is: a night's dim. */
+const SKY_LIGHT: Record<Sky, number> = { day: 0.55, overcast: 0.5, dusk: 0.4, night: 0.15 };
+
+/**
+ * What is round a set in 3D: outdoors its sky (seen behind it, and the light from all round), by
+ * its lighting's time of day; indoors, a room's light from all round. Null without a set, or
+ * until its sky has come.
+ */
+export function surroundings(id: string | undefined, lighting: Lighting, renderer: THREE.WebGLRenderer): { background: THREE.Texture | null; environment: THREE.Texture; intensity: number } | null {
+  const set = setById(id);
+  if (!set) return null;
+  if (set.group === 'Indoor') return { background: null, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
+  const sky = skyOf(lighting);
+  const t = skyTexture(sky);
+  if (!t) return null;
+  return { background: t, environment: prefilter(renderer, sky, (pmrem) => pmrem.fromEquirectangular(t).texture), intensity: SKY_LIGHT[sky] };
 }
 
 /** The models a set is furnished with. */

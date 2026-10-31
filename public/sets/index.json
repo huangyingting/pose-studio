@@ -873,8 +873,8 @@
    "color": "surfaces/grass-color.webp",
    "normal": "surfaces/grass-normal.webp",
    "orm": "surfaces/grass-orm.webp",
-   "bytes": 1223892,
-   "tile": 2
+   "bytes": 1265430,
+   "tile": 1.4
   },
   "gravel": {
    "color": "surfaces/gravel-color.webp",
@@ -989,6 +989,24 @@
    "tile": 2
   }
  },
+ "skies": {
+  "day": {
+   "file": "skies/day.hdr",
+   "bytes": 1435119
+  },
+  "dusk": {
+   "file": "skies/dusk.hdr",
+   "bytes": 1166018
+  },
+  "night": {
+   "file": "skies/night.hdr",
+   "bytes": 1389258
+  },
+  "overcast": {
+   "file": "skies/overcast.hdr",
+   "bytes": 1174053
+  }
+ },
  "made": {
   "model:sofa": "{\"ph\":\"sofa_03\",\"tris\":8000,\"tex\":1024}",
   "model:armchair": "{\"ph\":\"ArmChair_01\",\"tris\":6000,\"tex\":1024}",
@@ -1080,7 +1098,7 @@
   "surface:concrete": "{\"ph\":\"concrete_floor_01\",\"tex\":1024}",
   "surface:facade-tiles": "{\"ph\":\"rectangular_facade_tiles\",\"tex\":1024}",
   "surface:red-brick": "{\"ph\":\"red_brick_03\",\"tex\":1024}",
-  "surface:grass": "{\"ph\":\"leafy_grass\",\"tex\":1024}",
+  "surface:grass": "{\"acg\":\"Grass001\",\"tex\":1024}",
   "surface:gravel": "{\"ph\":\"gravel_floor\",\"tex\":1024}",
   "surface:sandstone": "{\"ph\":\"sandstone_blocks_04\",\"tex\":1024}",
   "surface:grey-roof": "{\"ph\":\"grey_roof_tiles\",\"tex\":1024}",
@@ -1096,6 +1114,10 @@
   "surface:dry-ground": "{\"ph\":\"dry_ground_01\",\"tex\":1024}",
   "surface:stone-blocks": "{\"ph\":\"medieval_blocks_03\",\"tex\":1024}",
   "surface:flagstones": "{\"ph\":\"precast_stone_paving\",\"tex\":1024}",
-  "surface:old-planks": "{\"ph\":\"old_planks_02\",\"tex\":1024}"
+  "surface:old-planks": "{\"ph\":\"old_planks_02\",\"tex\":1024}",
+  "sky:day": "\"kloofendal_48d_partly_cloudy_puresky\"",
+  "sky:dusk": "\"qwantani_dusk_2_puresky\"",
+  "sky:night": "\"qwantani_night_puresky\"",
+  "sky:overcast": "\"kloofendal_overcast_puresky\""
  }
 }

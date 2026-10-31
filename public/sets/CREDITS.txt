@@ -85,7 +85,6 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
   concrete: https://polyhaven.com/a/concrete_floor_01
   facade-tiles: https://polyhaven.com/a/rectangular_facade_tiles
   red-brick: https://polyhaven.com/a/red_brick_03
-  grass: https://polyhaven.com/a/leafy_grass
   gravel: https://polyhaven.com/a/gravel_floor
   sandstone: https://polyhaven.com/a/sandstone_blocks_04
   grey-roof: https://polyhaven.com/a/grey_roof_tiles
@@ -103,6 +102,13 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
   flagstones: https://polyhaven.com/a/precast_stone_paving
   old-planks: https://polyhaven.com/a/old_planks_02
   bark: https://polyhaven.com/a/bark_brown_02
+  day sky: https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky
+  dusk sky: https://polyhaven.com/a/qwantani_dusk_2_puresky
+  night sky: https://polyhaven.com/a/qwantani_night_puresky
+  overcast sky: https://polyhaven.com/a/kloofendal_overcast_puresky
+
+From ambientCG (https://ambientcg.com), CC0 1.0 (public domain):
+  grass: https://ambientcg.com/view?id=Grass001
 
 The trees (ash, oak, aspen, bush) are grown by ez-tree (https://github.com/dgreenheck/ez-tree), whose leaves they use:
 

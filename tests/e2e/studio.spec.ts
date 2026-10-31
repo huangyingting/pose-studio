@@ -2089,6 +2089,21 @@ test('posing over a motion makes a correction around that moment: how long it fa
   await expect(page.getByLabel('Fades over')).toHaveCount(0);
 });
 
+test('a set is furnished with its models; in 3D textured and under its sky, fetched only then (#25)', async ({ page }) => {
+  const fetched: string[] = [];
+  page.on('requestfinished', (r) => { const m = /\/sets\/(models|surfaces|skies)\//.exec(r.url()); if (m) fetched.push(m[1]); });
+  await libraryShows(page, 'Sets');
+  await page.locator('.lib-grid button.lib-tile', { hasText: 'Greek temple' }).first().click();
+  // In line art: its models, outlined; none of its textures.
+  await expect.poll(() => fetched.filter((x) => x === 'models').length).toBeGreaterThan(2);
+  expect(fetched).not.toContain('surfaces');
+  // In 3D: its textures and its sky.
+  await page.getByRole('button', { name: 'Render style' }).click();
+  await page.getByRole('menuitemradio', { name: /^3D/ }).click();
+  await expect.poll(() => fetched.filter((x) => x === 'surfaces').length).toBeGreaterThan(2);
+  await expect.poll(() => fetched.includes('skies')).toBe(true);
+});
+
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {
   await addLayer(page, 'Stick');
   let s = await live(page);

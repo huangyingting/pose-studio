@@ -275,6 +275,23 @@ export function keyLight(l: Lighting): Light | undefined {
   return l.lights.find((x) => x.role === 'key') ?? by(l.lights.filter((x) => x.kind === 'sun' && !x.relative)) ?? by(l.lights);
 }
 
+/**
+ * Which sky a lighting is under (#25: the sky round an outdoor set in 3D): its time of day if it
+ * has one, else told from its key light (low and warm: dusk; cold and dim: night); overcast if so.
+ */
+export function skyOf(l: Lighting): 'day' | 'dusk' | 'night' | 'overcast' {
+  const e = l.environment;
+  if (e?.weather === 'overcast') return 'overcast';
+  if (e?.time !== undefined) {
+    const day = (e.time - 6) / 14;
+    return day <= 0 || day >= 1 ? 'night' : day < 0.1 || day > 0.9 ? 'dusk' : 'day';
+  }
+  const key = keyLight(l);
+  if (!key || l.ambient.intensity < 0.6 || (key.kelvin ?? 6500) >= 8000) return 'night';
+  if (key.kind === 'sun' && key.elevation < 20 && (key.kelvin ?? 6500) < 4500) return 'dusk';
+  return 'day';
+}
+
 /** A scheme's lighting for a scene, its lamps round the people where they are (`at`: their middle on the floor). */
 export function fromPreset(id: string, at: Vec3 = [0, 0, 0]): Lighting | null {
   const p = LIGHTING_PRESETS.find((x) => x.id === id);

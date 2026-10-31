@@ -1,6 +1,6 @@
 /*
  * What the sets are made of (#25): models (furniture, props, plants) and surfaces (textures for the
- * sets' own walls, floors and roofs), CC0 from Poly Haven; and trees, grown by ez-tree (MIT, its
+ * sets' own walls, floors and roofs), CC0 from Poly Haven (a lawn from ambientCG); and trees, grown by ez-tree (MIT, its
  * leaves) with Poly Haven's bark. `npm run sets` (scripts/sets.ts)
  * fetches each, fits it to its budget and writes it to public/sets/, with an index of what each
  * came to (triangles, bytes); lib/sets.ts places them. Within budget: a model ≤ 20 k triangles
@@ -24,10 +24,8 @@ export interface TreeAsset {
   tex: 512 | 1024;
 }
 
-export interface SurfaceAsset {
-  ph: string;
-  tex: 512 | 1024;
-}
+/** A surface's textures: Poly Haven's (`ph`) or ambientCG's (`acg`, CC0 too: a lawn Poly Haven has none of). */
+export type SurfaceAsset = ({ ph: string } | { acg: string }) & { tex: 512 | 1024 };
 
 /** A model's budget by its kind (most triangles). */
 export const MODEL_BUDGET = { small: 5_000, model: 20_000, tree: 40_000, building: 50_000 } as const;
@@ -141,7 +139,7 @@ export const SURFACES = {
   'concrete': { ph: 'concrete_floor_01', tex: 1024 },
   'facade-tiles': { ph: 'rectangular_facade_tiles', tex: 1024 },
   'red-brick': { ph: 'red_brick_03', tex: 1024 },
-  'grass': { ph: 'leafy_grass', tex: 1024 },
+  'grass': { acg: 'Grass001', tex: 1024 },
   'gravel': { ph: 'gravel_floor', tex: 1024 },
   'sandstone': { ph: 'sandstone_blocks_04', tex: 1024 },
   // China
@@ -163,6 +161,15 @@ export const SURFACES = {
 } satisfies Record<string, SurfaceAsset>;
 export type SurfaceId = keyof typeof SURFACES;
 
+/** The skies round the outdoor sets in 3D (Poly Haven's skies without ground, 1K HDR), by the light's time of day. */
+export const SKIES = {
+  day: 'kloofendal_48d_partly_cloudy_puresky',
+  dusk: 'qwantani_dusk_2_puresky',
+  night: 'qwantani_night_puresky',
+  overcast: 'kloofendal_overcast_puresky',
+} as const;
+export type Sky = keyof typeof SKIES;
+
 /** The bark the trees are grown with (Poly Haven). */
 export const BARK = 'bark_brown_02';
 
@@ -170,4 +177,5 @@ export const BARK = 'bark_brown_02';
 export interface SetIndex {
   models: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
   surfaces: Record<string, { color: string; normal: string; orm: string; bytes: number; tile: number }>;
+  skies: Record<string, { file: string; bytes: number }>;
 }

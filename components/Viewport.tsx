@@ -17,7 +17,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { PixelPass } from '@/lib/pixel';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
-import { onSetAssets } from '@/lib/sets';
+import { onSetAssets, surroundings } from '@/lib/sets';
 import { awake, setDrawer, wake } from './frames';
 import { LINES_LAYER } from '@/lib/ink';
 import SelectionTag from './SelectionTag';
@@ -446,7 +446,7 @@ export default function Viewport({
           if (!moved && !onPick && performance.now() - pickedAt.current > 300 && performance.now() - gizmoBusy.current > 250) store.select(null);
         }}
       >
-        <Backdrop style={look.style} />
+        <Backdrop style={look.style} scene={scene} />
         <Waker store={store} clock={clock} sv={sv} />
         <Lights sv={sv} style={look.style} scene={scene} time={time} clock={clock} />
         <DropLine />
@@ -719,14 +719,25 @@ function DragReadout() {
   return <div className={`drag-readout${r.axis === undefined ? '' : ` axis-${'xyz'[r.axis]}`}`} role="status" style={{ transform: `translate(${r.x + 16}px, ${r.y + 20}px)` }}>{r.text}</div>;
 }
 
-/** Behind everything: the style's background colour, or its paper. */
-function Backdrop({ style }: { style: Style }) {
+/**
+ * Behind everything: the style's background colour, or its paper; in 3D round a set, its sky and
+ * the light from all round (#25), as they come.
+ */
+function Backdrop({ style, scene }: { style: Style; scene: Scene }) {
   const get = useThree((s) => s.get);
+  const [came, setCame] = useState(0);
+  useEffect(() => onSetAssets(() => setCame((n) => n + 1)), []);
+  const lighting = lightingOf(scene);
   useEffect(() => {
     const def = styleDef(style);
-    get().scene.background = (def.paper && paperTexture()) || new THREE.Color(def.background);
+    const three = get();
+    const round = style === 'render' ? surroundings(scene.set, lighting, three.gl) : null;
+    three.scene.background = round?.background ?? ((def.paper && paperTexture()) || new THREE.Color(def.background));
+    three.scene.environment = round?.environment ?? null;
+    three.scene.environmentIntensity = round?.intensity ?? 1;
+    three.scene.backgroundIntensity = round?.background ? Math.max(0.25, round.intensity * 1.6) : 1;
     wake();
-  }, [get, style]);
+  }, [get, style, scene.set, lighting, came]);
   return null;
 }
 

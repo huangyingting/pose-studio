@@ -5,6 +5,7 @@
 // occlusion-roughness-metal maps resized and made WebP. Writes public/sets/ and its index.json
 // (what each came to), lib/setassets.ts lists what. Downloads are kept in data/sets. Run with
 // `npm run sets` (only what is new or changed is made again; `npm run sets -- --all` for all).
+import { execFileSync } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -15,7 +16,7 @@ import { ALL_EXTENSIONS, EXTMeshoptCompression } from '@gltf-transform/extension
 import { dedup, flatten, getBounds, join as joinMeshes, prune, quantize, reorder, simplify, textureCompress, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
-import { BARK, MODELS, SURFACES, type ModelAsset, type SetIndex, type TreeAsset } from '../lib/setassets';
+import { BARK, MODELS, SKIES, SURFACES, type ModelAsset, type SetIndex, type SurfaceAsset, type TreeAsset } from '../lib/setassets';
 
 const CACHE = 'data/sets';
 const OUT = 'public/sets';
@@ -172,9 +173,32 @@ async function finish(id: string, doc: Document, tex: number) {
   return { file, tris: triangles(doc), bytes: bytes.byteLength, size: [r(max[0] - min[0]), r(max[1] - min[1]), r(max[2] - min[2])] as [number, number, number] };
 }
 
+/**
+ * ambientCG's 1K maps of a texture, fetched into the cache: colour, normal, and its occlusion and
+ * roughness packed as Poly Haven's are (red, green); its real size (m).
+ */
+async function fetchAcgMaps(acg: string) {
+  const dir = join(CACHE, 'surfaces', acg);
+  const zip = await download(`https://ambientcg.com/get?file=${acg}_1K-JPG.zip`, join(dir, `${acg}.zip`));
+  const at = (kind: string) => join(dir, `${acg}_1K-JPG_${kind}.jpg`);
+  if (!existsSync(at('Color'))) execFileSync('unzip', ['-o', '-q', zip, '-d', dir]);
+  const orm = join(dir, 'orm.png');
+  if (!existsSync(orm)) {
+    const [ao, rough] = await Promise.all([at('AmbientOcclusion'), at('Roughness')].map((f) => sharp(f).greyscale().raw().toBuffer({ resolveWithObject: true })));
+    const { width, height } = ao.info;
+    const px = Buffer.alloc(width * height * 3);
+    for (let i = 0; i < width * height; i++) { px[i * 3] = ao.data[i]; px[i * 3 + 1] = rough.data[i]; }
+    await sharp(px, { raw: { width, height, channels: 3 } }).png().toFile(orm);
+  }
+  const info = await json<{ foundAssets: { dimensionX?: number }[] }>(`https://ambientcg.com/api/v2/full_json?id=${acg}&include=dimensionsData`);
+  return { maps: { color: at('Color'), normal: at('NormalGL'), orm }, size: (info.foundAssets[0]?.dimensionX ?? 200) / 100 };
+}
+
 /** A surface's maps (1K JPEGs) resized and made WebP; its tile's size from the texture's real one. */
-async function makeSurface(id: string, a: { ph: string; tex: number }) {
-  const [maps, info] = await Promise.all([fetchMaps(a.ph), json<{ dimensions?: number[] }>(`${API}/info/${a.ph}`)]);
+async function makeSurface(id: string, a: SurfaceAsset) {
+  const [maps, size] = 'acg' in a
+    ? await fetchAcgMaps(a.acg).then((x) => [x.maps, x.size] as const)
+    : await Promise.all([fetchMaps(a.ph), json<{ dimensions?: number[] }>(`${API}/info/${a.ph}`).then((x) => (x.dimensions?.[0] ?? 2000) / 1000)]);
   await mkdir(join(OUT, 'surfaces'), { recursive: true });
   let bytes = 0;
   const out: Record<string, string> = {};
@@ -184,16 +208,16 @@ async function makeSurface(id: string, a: { ph: string; tex: number }) {
     bytes += (await stat(join(OUT, file))).size;
     out[kind] = file;
   }
-  const tile = Math.round(((info.dimensions?.[0] ?? 2000) / 1000) * 100) / 100;
+  const tile = Math.round(size * 100) / 100;
   return { color: out.color, normal: out.normal, orm: out.orm, bytes, tile };
 }
 
 async function main() {
   await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready, MeshoptSimplifier.ready]);
   const indexFile = join(OUT, 'index.json');
-  const before: SetIndex & { made?: Record<string, string> } = existsSync(indexFile) ? JSON.parse(await readFile(indexFile, 'utf8')) : { models: {}, surfaces: {} };
+  const before: SetIndex & { made?: Record<string, string> } = existsSync(indexFile) ? JSON.parse(await readFile(indexFile, 'utf8')) : { models: {}, surfaces: {}, skies: {} };
   const made = before.made ?? {};
-  const index: SetIndex & { made: Record<string, string> } = { models: {}, surfaces: {}, made: {} };
+  const index: SetIndex & { made: Record<string, string> } = { models: {}, surfaces: {}, skies: {}, made: {} };
   // (What each was made from: made again only if that changed.)
   const fresh = (key: string, recipe: unknown, file?: string) => !all && made[key] === JSON.stringify(recipe) && !!file && existsSync(join(OUT, file));
   const failed: string[] = [];
@@ -221,10 +245,22 @@ async function main() {
     const s = index.surfaces[id];
     console.log(`${id.padEnd(16)} surface ${(s.bytes / 1024).toFixed(0).padStart(6)} KB  tile ${s.tile} m`);
   }
+  // The skies: Poly Haven's 1K HDR as it is.
+  await mkdir(join(OUT, 'skies'), { recursive: true });
+  for (const [id, ph] of Object.entries(SKIES)) {
+    const file = `skies/${id}.hdr`;
+    if (!fresh(`sky:${id}`, ph, file)) {
+      const files = await json<{ hdri: Record<string, { hdr: { url: string } }> }>(`${API}/files/${ph}`);
+      await writeFile(join(OUT, file), await readFile(await download(files.hdri['1k'].hdr.url, join(CACHE, 'skies', `${ph}.hdr`))));
+    }
+    index.skies[id] = { file, bytes: (await stat(join(OUT, file))).size };
+    index.made[`sky:${id}`] = JSON.stringify(ph);
+    console.log(`${id.padEnd(16)} sky     ${(index.skies[id].bytes / 1024).toFixed(0).padStart(6)} KB`);
+  }
   await writeFile(indexFile, `${JSON.stringify(index, null, 1)}\n`);
   // (What is no longer listed goes.)
-  const kept = new Set([...Object.values(index.models).map((m) => m.file), ...Object.values(index.surfaces).flatMap((x) => [x.color, x.normal, x.orm])]);
-  for (const dir of ['models', 'surfaces']) {
+  const kept = new Set([...Object.values(index.models).map((m) => m.file), ...Object.values(index.surfaces).flatMap((x) => [x.color, x.normal, x.orm]), ...Object.values(index.skies).map((x) => x.file)]);
+  for (const dir of ['models', 'surfaces', 'skies']) {
     for (const f of await readdir(join(OUT, dir)).catch(() => [] as string[])) if (!kept.has(`${dir}/${f}`)) await rm(join(OUT, dir, f));
   }
   const total = [...kept].length;
@@ -233,8 +269,12 @@ async function main() {
   const credits = [
     'The sets\' models, surfaces and bark (public/sets) are from Poly Haven (https://polyhaven.com), CC0 1.0 (public domain):',
     ...Object.entries(MODELS).flatMap(([id, x]) => ('ph' in x ? [`  ${id}: ${ph(x.ph, 'a')}`] : [])),
-    ...Object.entries(SURFACES).map(([id, x]) => `  ${id}: ${ph(x.ph, 'a')}`),
+    ...Object.entries(SURFACES).flatMap(([id, x]) => ('ph' in x ? [`  ${id}: ${ph(x.ph, 'a')}`] : [])),
     `  bark: ${ph(BARK, 'a')}`,
+    ...Object.entries(SKIES).map(([id, x]) => `  ${id} sky: ${ph(x, 'a')}`),
+    '',
+    'From ambientCG (https://ambientcg.com), CC0 1.0 (public domain):',
+    ...Object.entries(SURFACES).flatMap(([id, x]) => ('acg' in x ? [`  ${id}: https://ambientcg.com/view?id=${x.acg}`] : [])),
     '',
     'The trees (' + Object.entries(MODELS).filter(([, x]) => 'tree' in x).map(([id]) => id).join(', ') + ') are grown by ez-tree (https://github.com/dgreenheck/ez-tree), whose leaves they use:',
     '',
