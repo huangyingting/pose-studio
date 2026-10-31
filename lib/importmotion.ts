@@ -89,12 +89,13 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
   const action = mixer.clipAction(src.clip).setLoop(THREE.LoopOnce, 1);
   action.clampWhenFinished = true;
   action.play();
-  const duration = Math.min(MAX_SECONDS, src.clip.duration || 1 / RATE);
+  const from = setUpFrame(mixer, src.clip, first);
+  const duration = Math.min(MAX_SECONDS, src.clip.duration - from || 1 / RATE);
   const count = Math.max(2, Math.round(duration * RATE) + 1);
   const frames: { bones: Bones; hips: THREE.Vector3; ankle: number }[][] = [];
   try {
     for (let i = 0; i < count; i++) {
-      mixer.setTime((duration * i) / (count - 1));
+      mixer.setTime(from + (duration * i) / (count - 1));
       frames.push(people.map((p) => {
         const world = p.read();
         const bones: Bones = {};
@@ -126,6 +127,26 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
   // (Each person facing where they look, the wrists' roll the forearms': lib/motionfix.ts.)
   const clip = refineClip({ id: uid('clip'), name, duration: r3(duration), loop: false, parts, events: [], contacts: [] });
   return { ...clip, contacts: parts.flatMap((_, n) => detectContacts(clip, n, RATE)) };
+}
+
+/** The limbs a set-up frame has somewhere else altogether (by more than SET_UP). */
+const LIMBS: Bone[] = ['leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg'];
+const SET_UP = THREE.MathUtils.degToRad(45);
+
+/**
+ * When the motion starts: after its first frame if that is a set-up pose, not the motion (a T-pose
+ * put first for retargeting, as the CMU library's BVH release has: a limb swung far in one frame).
+ * Kept, it would stand the motion on its straight legs (the feet lower than the motion's ever go:
+ * the motion floating) and snap from it as it starts.
+ */
+function setUpFrame(mixer: THREE.AnimationMixer, clip: THREE.AnimationClip, rig: Fitted): number {
+  const dt = clip.tracks.map((t) => t.times[1] - t.times[0]).find((x) => x > 0);
+  if (!dt || clip.duration < dt * 3) return 0;
+  mixer.setTime(0);
+  const a = rig.read();
+  mixer.setTime(dt);
+  const b = rig.read();
+  return LIMBS.some((l) => a.get(l)!.angleTo(b.get(l)!) > SET_UP) ? dt : 0;
 }
 
 /** Read and retarget a motion file in one go. */

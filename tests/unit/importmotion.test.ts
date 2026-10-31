@@ -22,7 +22,7 @@ class MemoryStorage implements Storage {
 }
 
 /** The fixture as a file's bytes. */
-const file = (n: typeof CMU) => new TextEncoder().encode(bvh(n)).buffer as ArrayBuffer;
+const file = (n: typeof CMU, o?: { setUp?: boolean }) => new TextEncoder().encode(bvh(n, o)).buffer as ArrayBuffer;
 
 describe('importing motions from other tools', () => {
   for (const [rig, names] of [['CMU / Mixamo-style names', CMU], ['Unreal-style names', UNREAL]] as const) {
@@ -55,6 +55,25 @@ describe('importing motions from other tools', () => {
       model.dispose();
     });
   }
+
+  it('leaves out a T-pose put first for retargeting (the CMU library\'s BVH release): the motion starts after it, its feet on the floor', async () => {
+    const clip = retargetMotion(await readMotionFile('Stand_up.bvh', file(CMU, { setUp: true })));
+    expect(clip.duration).toBeCloseTo(0.2, 3);
+    putClips([clip]);
+    const scene = clipScene(clip);
+    const model = new Rig();
+    const m = model.model(sceneAt(scene, 0).figures[0]);
+    m.object.updateMatrixWorld(true);
+    const at = (j: 'hips' | 'leftHand' | 'leftUpperArm') => m.joints[j].getWorldPosition(new THREE.Vector3());
+    // Crouched with the arms down from the start (not the T-pose), the feet on the floor (not
+    // lifted off it by the T-pose's straight legs, lower than the motion's ever are).
+    expect(at('leftHand').y).toBeLessThan(at('leftUpperArm').y - 0.3);
+    expect(m.lowest()).toBeCloseTo(0, 1);
+    const crouched = at('hips').y;
+    const standing = model.model(sceneAt(scene, clip.duration).figures[0]);
+    expect(standing.joints.hips.getWorldPosition(new THREE.Vector3()).y - crouched).toBeGreaterThan(0.1);
+    model.dispose();
+  });
 
   it('keeps imported motions in the library and gives them to a figure where it stands', async () => {
     const store = new Store(new MemoryStorage());

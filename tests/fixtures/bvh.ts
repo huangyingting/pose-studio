@@ -19,7 +19,7 @@ export const UNREAL = {
  * forward with the left foot. The right foot stays planted (its leg tilts back as the hips go
  * ahead and dip), the left swings through off the floor and lands 80 cm ahead, the hips 40 cm.
  */
-export function bvh(n: typeof CMU): string {
+export function bvh(n: typeof CMU, o: { setUp?: boolean } = {}): string {
   const joint = (name: string, offset: string, inner: string) => `JOINT ${name}\n{\nOFFSET ${offset}\nCHANNELS 3 Zrotation Xrotation Yrotation\n${inner}}\n`;
   const end = (offset: string) => `End Site\n{\nOFFSET ${offset}\n}\n`;
   const leg = (s: 'L' | 'R', x: number) =>
@@ -34,7 +34,14 @@ export function bvh(n: typeof CMU): string {
   // Channels are Z, X, Y: an X turn of −θ swings a leg forward, +θ back (and bends a knee).
   const swinging = { [n.upLeg(n.side.R)]: [0, 13.4, 0], [n.upLeg(n.side.L)]: [0, -30, 0], [n.leg(n.side.L)]: [0, 40, 0] };
   const landed = { [n.upLeg(n.side.R)]: [0, 28.4, 0], [n.upLeg(n.side.L)]: [0, -28.4, 0] };
-  const motion = ['MOTION', 'Frames: 3', 'Frame Time: 0.1',
-    frame([0, 92, 0], {}), frame([0, 89.7, 20], swinging), frame([0, 81.9, 40], landed)].join('\n');
+  const frames = [frame([0, 92, 0], {}), frame([0, 89.7, 20], swinging), frame([0, 81.9, 40], landed)];
+  if (o.setUp) {
+    // As the CMU library's BVH release: a T-pose put first (where the motion starts, the legs
+    // straight: the feet lower than the floor), then the motion: crouched, then standing, the arms down.
+    const down = { [n.arm(n.side.L)]: [-75, 0, 0], [n.arm(n.side.R)]: [75, 0, 0] };
+    const crouched = { ...down, [n.upLeg(n.side.L)]: [0, -45, 0], [n.upLeg(n.side.R)]: [0, -45, 0], [n.leg(n.side.L)]: [0, 75, 0], [n.leg(n.side.R)]: [0, 75, 0] };
+    frames.splice(0, 3, frame([0, 72, 0], {}), frame([0, 72, 0], crouched), frame([0, 92, 20], down), frame([0, 92, 40], down));
+  }
+  const motion = ['MOTION', `Frames: ${frames.length}`, 'Frame Time: 0.1', ...frames].join('\n');
   return `${hierarchy}${motion}\n`;
 }
