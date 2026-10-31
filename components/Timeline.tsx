@@ -263,9 +263,13 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const prevKey = [...stops].reverse().find((t) => t < time - 1e-3);
   const nextKey = stops.find((t) => t > time + 1e-3);
 
+  // (While dragging, the scale the drag began with: what is dragged past the end lengthens the film,
+  // and the window shown rescales, but the drag keeps to its own; only its auto-scroll moves it on.)
+  const dragView = useRef<{ v0: number; span: number } | null>(null);
   const timeAt = (clientX: number) => {
     const r = track.current!.getBoundingClientRect();
-    return view.current.v0 + ((clientX - r.left) / r.width) * view.current.span;
+    const v = dragView.current ?? view.current;
+    return v.v0 + ((clientX - r.left) / r.width) * v.span;
   };
   /**
    * While something is dragged along the lanes of a zoomed view: near an edge the window slides on,
@@ -274,6 +278,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const follow = (x0: number, move: (ev: { clientX: number }) => void) => {
     let x = x0;
     let last = 0;
+    dragView.current = { v0: view.current.v0, span: view.current.span };
     const at = (ev: PointerEvent) => { x = ev.clientX; };
     let raf = 0;
     const tick = (now: number) => {
@@ -289,6 +294,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           const start = Math.min(Math.max(0, v.v0 + by), v.total - v.span);
           if (Math.abs(start - v.v0) > 1e-9) {
             view.current = { ...v, v0: start };
+            dragView.current = { v0: start, span: v.span };
             setZoom({ start, span: v.span });
             move({ clientX: x });
           }
@@ -298,7 +304,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     };
     raf = requestAnimationFrame(tick);
     window.addEventListener('pointermove', at, true);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('pointermove', at, true); };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('pointermove', at, true); dragView.current = null; };
   };
   // Ctrl + wheel zooms about the pointer; Shift + wheel (or a sideways swipe) scrolls when zoomed.
   useEffect(() => {
@@ -581,9 +587,15 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const [scrolled, setScrolled] = useState(false);
   const [keysHere, setKeysHere] = useState(false);
   // (The active person's row in sight whenever they change: from the canvas, the outline or the keys.)
+  // (Only the tracks scroll, up or down, under their fixed header: nothing else moves.)
   useEffect(() => {
-    const row = tracks.current?.querySelector<HTMLElement>(`[data-row="${activeId}"]`);
-    row?.scrollIntoView({ block: 'nearest' });
+    const box = tracks.current;
+    const row = box?.querySelector<HTMLElement>(`[data-row="${activeId}"]`);
+    if (!box || !row) return;
+    const [b, r] = [box.getBoundingClientRect(), row.getBoundingClientRect()];
+    const head = ROW.ruler + ROW.shots;
+    if (r.top < b.top + head) box.scrollTop -= b.top + head - r.top;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
   }, [activeId]);
 
   // The commands reach the motion check and the zoom here.

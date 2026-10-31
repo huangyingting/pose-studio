@@ -1822,6 +1822,12 @@ test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots sta
   // Esc gives the keys back to the canvas.
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => !!document.activeElement?.closest('.tl-tracks'))).toBe(false);
+  // Made taller than its rows (its top edge dragged up): the scrollbar at its bottom, not under the last row.
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setSettings(s: object): void } } }).__poseStudio.store.setSettings({ timelineHeight: 420 }));
+  await expect.poll(async () => {
+    const [t, b] = [(await page.locator('.tl-tracks').boundingBox())!, (await page.locator('.tl-scroll').boundingBox())!];
+    return t.y + t.height - (b.y + b.height);
+  }).toBeLessThan(24);
 });
 
 test('actions are blocks on the timeline: picked for the inspector, retimed by their edge, blended by their ramp', async ({ page }) => {
