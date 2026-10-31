@@ -154,6 +154,20 @@ describe('assistant tools', () => {
     store.setTime(store.scene.animation!.duration);
     expect(run(store, 'throw_prop', { prop: 'Ball', to_figure: null, hand: null, hoop: 'Hoop', miss: null, dribble: null, x: null, z: null })).toMatch(/let go at .* arriving at/);
     expect(edit({ remove: true })).toBe('Removed Walk.');
+    // A motion's part, its split, in place, a layer's body parts and strength (#22, #23).
+    store.setTime(0);
+    run(store, 'apply_motion', { figure: id, motion: 'cartwheel' });
+    const jump = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'clip')!;
+    const editJump = (patch: Record<string, unknown>) => run(store, 'edit_action', { action: jump.id, start: null, duration: null, blend_in: null, speed: null, mirrored: null, remove: null, ...patch });
+    editJump({ plays_from: 0.2, in_place: true });
+    expect(store.scene.animation!.actions.find((x) => x.id === jump.id)!.source).toMatchObject({ from: 0.2, inPlace: true });
+    const now = store.scene.animation!.actions.find((x) => x.id === jump.id)!;
+    editJump({ split_at: now.start + now.duration / 2 });
+    expect(actionsOf(store.scene.animation!, id).filter((x) => x.source.kind === 'clip')).toHaveLength(2);
+    const wave = actionsOf(store.scene.animation!, id, 'upper')[0];
+    run(store, 'edit_action', { action: wave.id, plays_on: 'arms', strength: 0.5 });
+    expect(store.scene.animation!.actions.find((x) => x.id === wave.id)).toMatchObject({ mask: 'arms', strength: 0.5 });
+    expect(JSON.parse(run(store, 'get_scene')).animation.actions.find((x: { id: string }) => x.id === wave.id)).toMatchObject({ plays_on: 'arms', strength: 0.5 });
   }, 60_000);
 
   it('films a scene with a coverage', () => {

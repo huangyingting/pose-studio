@@ -3,7 +3,7 @@ import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, turnTo, strikeFigure, lookAtFigure,
   holdProp, moveAction, moveMark, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
-  carryProblem, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, setPlayRange, setActionLook, splitAt, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { LIGHTING_PRESETS, MAX_LIGHTS, kelvinColor, keyLight, lightFrom, lightText, lightingName, lightingOf, towards, type Place } from '../lighting';
@@ -24,7 +24,7 @@ import { CAMERA_MOVES, SHOT_SIZES, liveCamera, rigRule, type Placement, type Sho
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, shootsOf, templatesOf } from '../templates';
-import { FIGURE_COLORS, JOINTS, MOVE_KINDS, type MoveKind, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
+import { type Action, FIGURE_COLORS, JOINTS, MOVE_KINDS, type MoveKind, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -103,6 +103,13 @@ function sceneSummary(store: Store) {
         end: r2(x.start + x.duration),
         ...(x.blendIn ? { blend_in: x.blendIn } : {}),
         ...(x.source.kind === 'clip' && (x.source.speed || x.source.mirror) ? { speed: x.source.speed ?? 1, mirrored: !!x.source.mirror } : {}),
+        // (#22, #23: the part of its motion it plays, its repeats, how it plays.)
+        ...(x.source.kind === 'clip' && (x.source.from !== undefined || x.source.to !== undefined) ? { plays: [r2(x.source.from ?? 0), x.source.to !== undefined ? r2(x.source.to) : 'end'] } : {}),
+        ...(x.source.kind === 'clip' && x.source.repeat ? { repeat: x.source.repeat, ...(x.source.alternate ? { alternate_mirrored: true } : {}) } : {}),
+        ...(x.source.kind === 'clip' && x.source.inPlace ? { in_place: true } : {}),
+        ...(x.mask ? { plays_on: x.mask } : {}),
+        ...(x.strength !== undefined ? { strength: x.strength } : {}),
+        ...(x.reactsTo ? { reacts_to: x.reactsTo } : {}),
         ...(!x.layer && x.source.kind !== 'keys' ? { marks: x.roles.map((r) => { const m = marksOf(s, x, r.figure)?.end; return m && { x: r2(m.at[0]), z: r2(m.at[1]), facing: r1(m.facing) }; }) } : {}),
         ...(x.prop ? { prop: s.props.find((p) => p.id === x.prop)?.name } : {}),
       })),
@@ -663,14 +670,21 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'edit_action',
-    description: 'Change one action (by id, from get_scene): when it starts (what that person does after moves along), how long it takes (a motion plays faster or slower, a walk takes longer), how long it blends in from what came before, a motion\'s speed or mirroring (left for right); or remove it.',
+    description: 'Change one action (by id, from get_scene): when it starts (what that person does after moves along), how long it takes (a motion plays faster or slower, a walk takes longer), the part of its motion it plays (plays_from / plays_to, seconds of the motion: trimmed), how long it blends in from what came before, a motion\'s speed or mirroring (left for right), whether it plays in place (its travel taken out), every other repeat mirrored, what a motion over another plays on and how strongly; split it in two at a time; or remove it.',
     schema: obj({
       action: str('Action id'),
       start: opt(num('Start (s)')),
       duration: opt(num('Length (s)')),
+      plays_from: opt(num('The part of its motion it plays: from (seconds of the motion)')),
+      plays_to: opt(num('The part of its motion it plays: to (seconds of the motion)')),
       blend_in: opt(num('Blend in (s)')),
       speed: opt(num('A motion\'s speed (1 as made)')),
       mirrored: opt(bool('A motion mirrored left for right')),
+      in_place: opt(bool('A motion\'s travel taken out: it stays where it starts')),
+      alternate_mirrored: opt(bool('A repeated motion: every other repeat mirrored')),
+      plays_on: opt(str('A motion over another: "upper body", "arms", "head" or "legs"')),
+      strength: opt(num('A motion over another, or a correction: how much of it shows (0–1)')),
+      split_at: opt(num('Split it in two at this time (s)')),
       remove: opt(bool('Remove the action')),
     }),
     run: (store, i) => {
@@ -685,6 +699,20 @@ export const TOOLS: AgentTool[] = [
       if (typeof i.duration === 'number') retime(store, act.id, i.duration);
       if (typeof i.blend_in === 'number') setBlend(store, act.id, i.blend_in);
       if (typeof i.speed === 'number' || typeof i.mirrored === 'boolean') setClipOptions(store, act.id, { ...(typeof i.speed === 'number' ? { speed: i.speed } : {}), ...(typeof i.mirrored === 'boolean' ? { mirror: i.mirrored } : {}) });
+      if ((typeof i.plays_from === 'number' || typeof i.plays_to === 'number') && act.source.kind === 'clip') {
+        const now = store.scene.animation!.actions.find((x) => x.id === act.id)!.source as Extract<Action['source'], { kind: 'clip' }>;
+        setPlayRange(store, act.id, typeof i.plays_from === 'number' ? i.plays_from : now.from ?? 0, typeof i.plays_to === 'number' ? i.plays_to : now.to ?? 1e6);
+      }
+      if (typeof i.in_place === 'boolean' || typeof i.alternate_mirrored === 'boolean') setClipOptions(store, act.id, { ...(typeof i.in_place === 'boolean' ? { inPlace: i.in_place } : {}), ...(typeof i.alternate_mirrored === 'boolean' ? { alternate: i.alternate_mirrored } : {}) });
+      if (typeof i.plays_on === 'string' || typeof i.strength === 'number') {
+        const mask = i.plays_on === 'arms' || i.plays_on === 'head' || i.plays_on === 'legs' ? i.plays_on : typeof i.plays_on === 'string' ? null : undefined;
+        setActionLook(store, act.id, { ...(mask !== undefined ? { mask } : {}), ...(typeof i.strength === 'number' ? { strength: i.strength } : {}) });
+      }
+      if (typeof i.split_at === 'number') {
+        store.setTime(i.split_at);
+        const why = splitAt(store, act.id);
+        if (why) throw new Error(why);
+      }
       const now = store.scene.animation!.actions.find((x) => x.id === act.id)!;
       return `${label}: ${r2(now.start)}–${r2(now.start + now.duration)} s.`;
     },
