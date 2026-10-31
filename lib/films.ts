@@ -837,7 +837,7 @@ export function kungFuSchool(): Scene {
   s.play('Hua', 'punching-bag', s.until('Hua'), { seconds: 9.7, face: bags[0] });
   s.go('Ling', reach('Ling', bags[1], [2.4, 3]), drill + 0.2);
   s.play('Ling', 'punching-bag', s.until('Ling'), { seconds: 9.7, face: bags[1] });
-  // Jun and the master spar: the master's kick blocked, Jun's blows into his guard, the master's jab lands.
+  // Jun and the master spar: the master's kick blocked, Jun's blows into his guard, the master's hook lands.
   s.idle('Jun', 'fight-idle', 'Master Wu');
   s.idle('Master Wu', 'fight-idle', 'Jun');
   s.go('Master Wu', [0, 0.4], drill);
@@ -848,7 +848,7 @@ export function kungFuSchool(): Scene {
   x = s.strike('Jun', 'hook-punch', s.until('Jun') + 0.2, 'Master Wu');
   s.react('Master Wu', 'standing-dodge-left', x.lands, 0.4);
   s.face('Master Wu', 'Jun', s.until('Master Wu'));
-  x = s.strike('Master Wu', 'jab-cross', s.until('Master Wu') + 0.2, 'Jun');
+  x = s.strike('Master Wu', 'hook-punch', s.until('Master Wu') + 0.2, 'Jun');
   s.react('Jun', 'hit-reaction', x.lands, 0.15);
   // The acrobatics: Hua's flip back, Ling's capoeira, Jun's backflip; the master watches.
   const show = Math.max(...students.map((w) => s.until(w))) + 0.5;
@@ -938,17 +938,17 @@ export function streetChase(): Scene {
   let x = s.strike('Thief', 'hook-punch', Math.max(s.until('Thief'), s.until('Officer Park')) + 0.4, 'Officer Park');
   s.react('Officer Park', 'standing-dodge-left', x.lands, 0.4);
   s.face('Officer Park', 'Thief', s.until('Officer Park'));
-  x = s.strike('Officer Park', 'jab-cross', s.until('Officer Park') + 0.2, 'Thief');
+  x = s.strike('Officer Park', 'uppercut', s.until('Officer Park') + 0.2, 'Thief');
   s.react('Thief', 'hit-reaction', x.lands, 0.15);
   // He gives up: down on his knees; she holds him there and calls it in.
   s.play('Thief', 'kneeling-idle', s.until('Thief'), { seconds: 2, face: 'Officer Park', blend: 0.8 });
   s.idle('Thief', 'kneeling-idle');
   s.play('Officer Park', 'pointing', s.until('Officer Park') + 0.5, { seconds: 4, face: 'Thief' });
-  s.play('Officer Park', 'talking-on-phone', s.until('Officer Park'), { seconds: 8, face: 'Thief' });
+  s.play('Officer Park', 'talking-on-phone', s.until('Officer Park'), { seconds: 9, face: 'Thief' });
   // Clara comes running up the street.
   s.go('Clara', [12.4, -0.4], 40, 'run');
   s.play('Clara', 'shake-fist', s.until('Clara'), { face: 'Thief' });
-  s.play('Clara', 'happy-idle', s.until('Clara'), { seconds: 4, face: 'Officer Park' });
+  s.play('Clara', 'happy-idle', s.until('Clara'), { seconds: 5, face: 'Officer Park' });
   return s.done(1);
 }
 
