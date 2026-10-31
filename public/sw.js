@@ -8,7 +8,8 @@
  * - The motion library (/motions: its index and files change with a release, by the same names):
  *   network first, the kept copy offline.
  * - Once the worker runs, the page asks it to keep what it loaded before (its first visit's build
- *   assets) and all of the motion library (the templates are made of it), one file at a time.
+ *   assets), the characters' pictures and all of the motion library (the templates are made of
+ *   it), one file at a time.
  * - Other same-origin GETs: stale-while-revalidate.
  */
 const VERSION = 'v2';
@@ -85,8 +86,8 @@ async function keep(loaded) {
     }
   };
   for (const url of loaded) {
-    const path = new URL(url).pathname.slice(BASE.length - 1);
-    if (new URL(url).origin === self.location.origin && path.startsWith('/_next/static/')) await kept(url);
+    const u = new URL(url);
+    if (u.origin === self.location.origin && u.pathname.startsWith(BASE) && !u.pathname.startsWith(`${BASE}api/`)) await kept(url);
   }
   const index = await networkFirstAsset(new Request(`${BASE}motions/index.json`));
   if (!index.ok) return;

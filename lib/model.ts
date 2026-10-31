@@ -771,7 +771,6 @@ export function onModels(f: () => void) {
   return () => { listeners.delete(f); };
 }
 
-/** A model, as read from its file (null until it has been: reading starts now). */
 /** A model's file is here now (synced): asked for at once, whatever failed before. */
 export function modelArrived(id: string) {
   failedAt.delete(id);
@@ -779,6 +778,7 @@ export function modelArrived(id: string) {
   return modelTemplate(id);
 }
 
+/** A model, as read from its file (null until it has been: reading starts now). */
 export function modelTemplate(id: string): THREE.Object3D | null {
   const hit = templates.get(id);
   const info = infos.get(id);

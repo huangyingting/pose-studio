@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
+import { BUILT_IN_CHARACTERS, characterImage } from '@/lib/characters';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam } from '@/lib/share';
@@ -414,9 +415,10 @@ function App() {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register(withBase('/sw.js'), { scope: withBase('/') }).catch((err) => console.warn('Service worker registration failed', err));
-    // (Once it runs, it keeps what this page loaded before it did, and the motion library, which
-    // the templates are made of: all of it works offline from the first visit.)
-    void navigator.serviceWorker.ready.then((r) => r.active?.postMessage({ keep: performance.getEntriesByType('resource').map((e) => e.name) }));
+    // (Once it runs, it keeps what this page loaded before it did, the characters' pictures and the
+    // motion library, which the templates are made of: all of it works offline from the first visit.)
+    const keep = [...performance.getEntriesByType('resource').map((e) => e.name), ...BUILT_IN_CHARACTERS.map((c) => new URL(characterImage(c.id), location.href).href)];
+    void navigator.serviceWorker.ready.then((r) => r.active?.postMessage({ keep }));
   }, []);
 
   // Read-only hook for automated tests and power users (e.g. `__poseStudio.store.getState()` in the console).
