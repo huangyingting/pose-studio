@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { applyMotion, issueFix, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
+import { applyMotion, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { mirrorPose } from '@/lib/clip';
+import { withAngles } from '@/lib/pose';
 import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, curved, figurePoseAt } from '@/lib/evaluate';
 import type { JointName, Pose } from '@/lib/types';
@@ -106,5 +107,71 @@ describe('blends (#23)', () => {
     expect(fix.label).toBe('Blend between the repeats');
     fix.run();
     expect(act().source).toMatchObject({ seam: 0.3 });
+  });
+});
+
+describe('keys and motions (#23)', () => {
+  /** The swing on its own, its person posed (the right forearm bent) at t over it. */
+  function corrected(t: number) {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(0);
+    applyMotion(store, a, SWING);
+    const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    const before = (u: number) => figurePoseAt(store.scene, a, u)!;
+    const was = [before(t - 1), before(t)];
+    store.setTime(t);
+    store.updateFigure(a, (f) => ({ ...f, bones: withAngles(f.bones, { rightLowerArm: [-120, 0, 0] }) }));
+    const fixes = () => actionsOf(store.scene.animation!, a, 'correction');
+    return { store, a, act, was, fixes };
+  }
+
+  it('an edit over a motion changes it around that moment, fading over half a second either side, not the whole motion', () => {
+    const { store, a, was, fixes } = corrected(1.5);
+    expect(fixes()).toHaveLength(1);
+    expect(fixes()[0].start).toBeCloseTo(1, 2);
+    expect(fixes()[0].start + fixes()[0].duration).toBeCloseTo(2, 2);
+    expect(apart(figurePoseAt(store.scene, a, 0.5)!, was[0])).toBeLessThan(1);
+    expect(turnOf(figurePoseAt(store.scene, a, 1.5)!, was[1], 'rightLowerArm')).toBeGreaterThan(20);
+    // Another edit within reach joins it.
+    store.setTime(1.8);
+    store.updateFigure(a, (f) => ({ ...f, bones: withAngles(f.bones, { leftLowerArm: [-100, 0, 0] }) }));
+    expect(fixes()).toHaveLength(1);
+    expect(fixes()[0].start + fixes()[0].duration).toBeCloseTo(2.3, 1);
+  });
+
+  it('over the whole motion if asked: one change held throughout', () => {
+    const { store, a, act, fixes } = corrected(1.5);
+    const startBefore = figurePoseAt(store.scene, a, act.start + 0.05)!;
+    setCorrectionThroughout(store, fixes()[0].id, true);
+    expect(turnOf(figurePoseAt(store.scene, a, act.start + 0.05)!, startBefore, 'rightLowerArm')).toBeGreaterThan(10);
+    setCorrectionThroughout(store, fixes()[0].id, false);
+    expect(turnOf(figurePoseAt(store.scene, a, act.start + 0.05)!, startBefore, 'rightLowerArm')).toBeLessThan(1);
+  });
+
+  it('corrections go with what they correct: slipped the other way, duplicated with it', () => {
+    const { store, act, fixes } = corrected(1.5);
+    trim(store, act.id, 'end', act.start + 2);
+    const at = fixes()[0].start;
+    slip(store, act.id, 0.3);
+    expect(fixes()[0].start).toBeCloseTo(at - 0.3, 1);
+    duplicateBlocks(store, [act.id]);
+    expect(fixes()).toHaveLength(2);
+  });
+
+  it('a motion edited as keys plays as it did, a Posed block with fewer keys than frames', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(0);
+    applyMotion(store, a, SWING);
+    const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    const times = [0.3, 1, 1.7, 2.4];
+    const was = times.map((t) => figurePoseAt(store.scene, a, t)!);
+    expect(editAsKeys(store, act.id)).toBe(true);
+    const posed = store.scene.animation!.actions.find((x) => x.id === act.id)!;
+    expect(posed.source.kind).toBe('keys');
+    const keys = (posed.source as { clip: { parts: { tracks: { times: number[] }[] }[] } }).clip.parts[0].tracks[0].times.length;
+    expect(keys).toBeLessThan(act.duration * 24);
+    times.forEach((t, i) => expect(apart(figurePoseAt(store.scene, a, t)!, was[i])).toBeLessThan(6));
   });
 });

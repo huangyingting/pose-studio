@@ -13,11 +13,11 @@ import { saveClips } from './assetstore';
 import { projectSettingsOf } from './project';
 import { MAX_LIGHTS, clampLight, forShotOr, fromPreset, keyLight, lightingOf, lookOf, newLight, placeLight, skyAt, withLook, type Look, type Place } from './lighting';
 import { lightingForSet } from './sets';
-import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, naturalEnd, propStretchesOf, warpOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
+import { CATCH_LEAD, UPPER_EASE, actionPoseAt, actionsOf, arrivalAt, figurePoseAt, naturalEnd, propStretchesOf, warpOf, propWorldAt, sceneAt, settledAt, warpLimit } from './evaluate';
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, setPoseAt, setTravelMode, travelInto, turnArriving,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, correctionThroughout, keysAction, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -29,14 +29,14 @@ import {
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
 import { TRIPOD_MOVES, angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, firstFilmed, reshapeCamera, standing, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
-import { angle, bonesOf, facingOf, withAngles } from './pose';
+import { angle, bonesOf, facingOf, fromQuat, toQuat, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, unpinShot as unpin, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
 import type { Issue } from './qa';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, RigCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Pose, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, RigCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1203,6 +1203,48 @@ export function clearMark(store: Store, id: string, figureId: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => (x.id !== id ? x : { ...x, roles: x.roles.map((r) => (r.figure === figureId ? { figure: r.figure } : r)) })) } } : s));
 }
 
+/** How near a motion edited as keys keeps to it: degrees for its bones, metres for where it is. */
+const KEYS_NEAR = { deg: 2, m: 0.01 };
+
+/**
+ * A motion made into keys to edit freely (#23: Edit as keys): each person's own Posed block of its
+ * poses, a key wherever its motion changes course (within 2° and 1 cm of it), its timing kept; where
+ * it ends (its mark) as it was. What its motion did with a prop (a throw) is not kept.
+ */
+export function editAsKeys(store: Store, id: string): boolean {
+  const s = store.scene;
+  const a = s.animation;
+  const act = a?.actions.find((x) => x.id === id);
+  if (!a || !act || act.source.kind !== 'clip') return false;
+  const frames = Math.max(1, Math.round(act.duration * a.fps));
+  const made = act.roles.map((role) => {
+    const poses = Array.from({ length: frames + 1 }, (_, i) => ({ t: act.start + Math.min(act.duration, i / a.fps), pose: actionPoseAt(s, act, role.figure, act.start + Math.min(act.duration, i / a.fps))! }));
+    // (Kept: the first, the last, and wherever a straight run from the last kept would stray.)
+    const near = (p: Pose, q: Pose) => Math.hypot(p.position[0] - q.position[0], p.position[1] - q.position[1], p.position[2] - q.position[2]) <= KEYS_NEAR.m
+      && (Object.keys(p.bones) as (keyof Pose['bones'])[]).every((j) => !q.bones[j] || (fromQuat(p.bones[j]).angleTo(fromQuat(q.bones[j])) * 180) / Math.PI <= KEYS_NEAR.deg);
+    const kept = [poses[0]];
+    let from = 0;
+    for (let j = 2; j < poses.length; j++) {
+      const off = poses.slice(from + 1, j).some((k, n) => {
+        const u = (n + 1) / (j - from);
+        const between = { ...poses[from].pose, bones: Object.fromEntries((Object.keys(poses[from].pose.bones) as (keyof Pose['bones'])[]).filter((b) => poses[j].pose.bones[b]).map((b) => [b, toQuat(fromQuat(poses[from].pose.bones[b]).slerp(fromQuat(poses[j].pose.bones[b]), u))])) as Pose['bones'], position: poses[from].pose.position.map((v, i) => v + (poses[j].pose.position[i] - v) * u) as Vec3 };
+        return !near(k.pose, between);
+      });
+      if (off) { kept.push(poses[j - 1]); from = j - 1; }
+    }
+    if (poses.length > 1) kept.push(poses[poses.length - 1]);
+    return { ...keysAction(role.figure, kept), id: role.figure === act.roles[0].figure ? act.id : uid('act'), ...(act.blendIn ? { blendIn: act.blendIn } : {}) };
+  });
+  store.updateScene((x) => (x.animation ? { ...x, animation: { ...x.animation, actions: [...x.animation.actions.filter((y) => y.id !== id), ...made].sort((p, q) => p.start - q.start) } } : x));
+  return true;
+}
+
+/** A correction held over the whole of what it corrects, or changing it only around its edits (#23). */
+export function setCorrectionThroughout(store: Store, id: string, throughout: boolean) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: correctionThroughout(s, id, throughout) } : s));
+  store.setTime(store.getState().time);
+}
+
 /** How an action's blend in goes (#23): smoothly (null), evenly, easing in or out. */
 export function setBlendCurve(store: Store, id: string, curve: Action['blendCurve'] | null) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
@@ -1302,7 +1344,11 @@ let copied: { acts: Action[]; at: { x: number; z: number; facing: number }[] } |
 
 /** Actions as copied (with where each began). */
 function copyOf(s: Scene, ids: string[]): NonNullable<typeof copied> | null {
-  const acts = (s.animation?.actions ?? []).filter((x) => ids.includes(x.id)).sort((p, q) => p.start - q.start);
+  const all = s.animation?.actions ?? [];
+  const picked = all.filter((x) => ids.includes(x.id));
+  // (With the corrections on them, #23: they go where the blocks go.)
+  const fixes = all.filter((x) => x.layer === 'correction' && !ids.includes(x.id) && picked.some((b) => !b.layer && b.roles[0].figure === x.roles[0].figure && x.start < b.start + b.duration - 1e-6 && x.start + x.duration > b.start + 1e-6));
+  const acts = [...picked, ...fixes].sort((p, q) => p.start - q.start || (p.layer === 'correction' ? 1 : 0) - (q.layer === 'correction' ? 1 : 0));
   if (!acts.length) return null;
   return {
     acts: structuredClone(acts),
@@ -1377,7 +1423,8 @@ function pasteClip(store: Store, clip: NonNullable<typeof copied>, figure: strin
       start,
       roles: moved.roles.map((role, k) => ({ figure: cast[k], ...(act.source.kind === 'travel' && role.end ? { end: role.end } : {}) })),
     };
-    for (const f of cast) a = clear({ ...s, animation: a }, f, start, start + pasted.duration);
+    // (What they did there gives way; a correction goes on what it was pasted with.)
+    if (act.layer !== 'correction') for (const f of cast) a = clear({ ...s, animation: a }, f, start, start + pasted.duration);
     a = { ...a, actions: [...a.actions, pasted].sort((p, q) => p.start - q.start), duration: Math.max(a.duration, Math.min(MAX_DURATION, start + pasted.duration)) };
     made.push(pasted.id);
   }

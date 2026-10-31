@@ -86,20 +86,73 @@ export function setPoseAt(scene: Scene, figure: string, time: number, pose: Pose
   return sorted({ ...a, actions: [...a.actions, keysAction(figure, [{ t, pose }])] });
 }
 
-/** A hand edit over a clip or a travel: a key on the figure's correction there (starting and ending at no change). */
+/** How far an edit over a motion reaches either side of its moment (s, #23): it fades in and out over that. */
+export const FALLOFF = 0.5;
+
+/**
+ * A hand edit over a clip or a travel: a key on the figure's correction there (#23: local, fading in
+ * and out over FALLOFF either side of it, within what it corrects; edits whose reaches meet join up
+ * in one correction). A correction made to hold over the whole motion (its ends keyed as its
+ * edits) stays so.
+ */
 function correct(scene: Scene, figure: string, over: Action, t: number, pose: Pose): Animation {
   const a = scene.animation!;
   const tol = 0.5 / a.fps;
   const base = basePoseAt(scene, figure, t)!;
   const delta = correctionOf(base, pose);
-  const fix = actionsOf(a, figure, 'correction').find((x) => x.start - tol <= t && t <= end(x) + tol);
-  if (fix) {
-    const keys = [...keysOf(fix).filter((k) => Math.abs(k.t - t) >= tol), { t, pose: delta }].sort((p, q) => p.t - q.t);
-    return replace(a, fix, [{ ...keysAction(figure, keys, 'correction'), id: fix.id }]);
-  }
   const none = correctionOf(delta, delta);
-  const keys = [{ t: over.start, pose: none }, { t, pose: delta }, { t: end(over), pose: none }];
-  return sorted({ ...a, actions: [...a.actions, keysAction(figure, keys, 'correction')] });
+  const [lo, hi] = [over.start, end(over)];
+  const fix = actionsOf(a, figure, 'correction').find((x) => x.start - FALLOFF - tol <= t && t <= end(x) + FALLOFF + tol && x.start < hi + tol && end(x) > lo - tol);
+  const changes = (k: Key) => JSON.stringify(k.pose) !== JSON.stringify(none);
+  const held = !!fix && changes(keysOf(fix)[0]) && changes(keysOf(fix).at(-1)!);
+  // Its edits (not the no-change keys it fades from and to), this one put in.
+  const edits = [...(fix ? keysOf(fix).filter((k) => (held || changes(k)) && Math.abs(k.t - t) >= tol) : []), { t, pose: delta }].sort((p, q) => p.t - q.t);
+  const keys = held ? edits : [
+    ...(edits[0].t - FALLOFF > lo + tol ? [{ t: snapTime(a, edits[0].t - FALLOFF), pose: none }] : edits[0].t > lo + tol ? [{ t: lo, pose: none }] : []),
+    ...edits,
+    ...(edits.at(-1)!.t + FALLOFF < hi - tol ? [{ t: snapTime(a, edits.at(-1)!.t + FALLOFF), pose: none }] : edits.at(-1)!.t < hi - tol ? [{ t: hi, pose: none }] : []),
+  ];
+  const made = keysAction(figure, keys, 'correction');
+  return sorted(fix ? replace(a, fix, [{ ...made, id: fix.id }]) : { ...a, actions: [...a.actions, made] });
+}
+
+/** Whether a correction is held over the whole of what it corrects (its ends keyed as its edits, #23). */
+export function correctionHeld(fix: Action): boolean {
+  const keys = keysOf(fix);
+  if (!keys.length) return false;
+  const none = JSON.stringify(correctionOf(keys[0].pose, keys[0].pose));
+  return JSON.stringify(keys[0].pose) !== none && JSON.stringify(keys.at(-1)!.pose) !== none;
+}
+
+/**
+ * A correction over the whole of what it corrects (#23: one change held throughout), or back to
+ * changing it only around its edits.
+ */
+export function correctionThroughout(scene: Scene, id: string, throughout: boolean): Animation {
+  const a = scene.animation!;
+  const fix = a.actions.find((x) => x.id === id && x.layer === 'correction');
+  if (!fix) return a;
+  const figure = fix.roles[0].figure;
+  const keys = keysOf(fix);
+  const none = correctionOf(keys[0].pose, keys[0].pose);
+  const changes = (k: Key) => JSON.stringify(k.pose) !== JSON.stringify(none);
+  const edits = keys.filter(changes);
+  if (!edits.length) return a;
+  // (What it corrects: the motion or walk under its middle.)
+  const mid = edits[Math.floor(edits.length / 2)].t;
+  const over = actionsOf(a, figure).find((x) => x.duration > 1e-6 && x.source.kind !== 'keys' && x.start - 1e-6 <= mid && mid <= end(x) + 1e-6);
+  const [lo, hi] = over ? [over.start, end(over)] : [fix.start, end(fix)];
+  // (Back to around its edits: not the ends it was held to, unless that is all there is.)
+  const inner = edits.filter((k) => k.t > lo + 1e-6 && k.t < hi - 1e-6);
+  if (!throughout && inner.length) edits.splice(0, edits.length, ...inner);
+  const next = throughout
+    ? [{ t: lo, pose: edits[0].pose }, ...inner, { t: hi, pose: edits.at(-1)!.pose }]
+    : [
+      ...(edits[0].t - FALLOFF > lo ? [{ t: snapTime(a, edits[0].t - FALLOFF), pose: none }] : []),
+      ...edits,
+      ...(edits.at(-1)!.t + FALLOFF < hi ? [{ t: snapTime(a, edits.at(-1)!.t + FALLOFF), pose: none }] : []),
+    ];
+  return sorted(replace(a, fix, [{ ...keysAction(figure, next, 'correction'), id: fix.id }]));
 }
 
 /**
@@ -748,8 +801,11 @@ export function duplicateActions(a: Animation, ids: string[]): Animation {
     const now = out.actions.find((x) => x.id === act.id);
     if (!now) continue;
     const copy: Action = { ...now, id: uid('act'), start: end(now), roles: now.roles.map((r) => ({ figure: r.figure })) };
+    // (The corrections on it again on its copy, #23.)
+    const fixes = now.layer ? [] : actionsOf(out, now.roles[0].figure, 'correction').filter((x) => x.start >= now.start - 1e-6 && x.start < end(now) - 1e-6)
+      .map((x) => ({ ...x, id: uid('act'), start: x.start + now.duration }));
     if (!now.layer) out = rippleInStep(out, now.roles.map((r) => r.figure), end(now), now.duration, [end(now)]);
-    out = longer(sorted({ ...out, actions: [...out.actions, copy] }), end(copy));
+    out = longer(sorted({ ...out, actions: [...out.actions, copy, ...fixes] }), end(copy));
   }
   return out;
 }
@@ -771,7 +827,11 @@ export function slipAction(a: Animation, id: string, by: number): Animation {
   const source = { ...src, from: r3(from), to: r3(from + length) };
   if (source.from <= 1e-3) delete (source as { from?: number }).from;
   if (source.to >= whole.duration - 1e-3) delete (source as { to?: number }).to;
-  return replace(a, act, [{ ...act, source }]);
+  // (The corrections on it stay on the moments they correct, #23: they move as far the other way.)
+  const moved = (from - (src.from ?? 0)) / speed;
+  const out = replace(a, act, [{ ...act, source }]);
+  return { ...out, actions: out.actions.map((x) => (x.layer === 'correction' && x.roles[0].figure === act.roles[0].figure && x.start >= act.start - 1e-6 && x.start < end(act) - 1e-6
+    ? { ...x, start: Math.round((x.start - moved) * a.fps) / a.fps } : x)) };
 }
 
 /**

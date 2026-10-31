@@ -3,12 +3,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, deleteAction,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
-import { actionLabel, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { actionLabel, correctionHeld, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
 import { cameraById, liveCamera } from '@/lib/cameras';
@@ -508,6 +508,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       : null;
     const leads = group?.filter((x, i) => !group.slice(0, i).some((y) => y.roles.some((r) => x.roles.some((q) => q.figure === r.figure))));
     let moved = false;
+    let slipped = 0;
     let y = e.clientY;
     const mine = new Set((group ?? [act]).flatMap((x) => [x.start, x.start + x.duration]));
     const snap = snapper((x) => [...mine].some((m) => Math.abs(m - x) < 1e-6));
@@ -524,7 +525,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         setSnapAt(s0 ?? s1);
       } else if (part === 'end') dt = snap.at(start + duration + dt) - start - duration;
       else if (part === 'start') dt = snap.at(start + dt) - start;
-      if (slipping) slip(store, act.id, -dt, key);
+      // (A slip goes on from where the last move left it.)
+      if (slipping) { slip(store, act.id, -(dt - slipped), key); slipped = dt; }
       else if (leads) store.group(() => leads.forEach((x) => moveAction(store, x.id, x.start + dt, `${key}:${x.id}`)));
       else if (part === 'move') moveAction(store, act.id, start + dt, key);
       else if (part === 'end' && (stretch || act.layer === 'correction')) retime(store, act.id, duration + dt, key);
@@ -1243,6 +1245,16 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       style={{ left: pct(x.start), width: `${(x.duration / span) * 100}%` }}
                       data-tip="A correction over a motion or a walk: click to edit it, drag its right edge to retime it"
                       onPointerDown={(e) => { if (e.button) return; e.stopPropagation(); pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}
+                      // Its menu (#23): held over the whole motion, or only around its edits; deleted.
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const whole = correctionHeld(x);
+                        openContextMenu(e, [
+                          { label: 'Over the whole motion', checked: whole, onSelect: () => setCorrectionThroughout(store, x.id, !whole) },
+                          { label: 'Delete the correction', icon: Trash2, danger: true, onSelect: () => deleteAction(store, x.id) },
+                        ], `${f.name} · correction`);
+                      }}
                     >
                       <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                     </span>

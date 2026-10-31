@@ -5,7 +5,7 @@ import {
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, addMarker, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, addMarker, editAsKeys, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
@@ -1229,6 +1229,11 @@ export const COMMANDS: Command[] = [
     run: (c) => duplicateBlocks(c.store, blocks(c)),
   },
   {
+    id: 'action.editAsKeys', title: 'Edit as keys', help: 'Make the motion keys to edit freely: a Posed block of its poses (what it did with a prop is not kept)', icon: Diamond,
+    when: (c) => actionOf(c)?.source.kind === 'clip' && !actionOf(c)!.layer,
+    run: (c) => { if (editAsKeys(c.store, c.action!)) App().notifyUndo('Made into keys'); },
+  },
+  {
     id: 'action.copy', title: 'Copy', help: 'Copy the block, to paste on someone at the playhead', icon: ClipboardCopy, keys: ['mod+c'], when: (c) => !!actionOf(c),
     run: (c) => { const n = copyActions(c.store, blocks(c)); App().notify(n > 1 ? `${n} blocks copied` : 'Block copied'); },
   },
@@ -1537,7 +1542,7 @@ export const MENUS = {
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
-  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.copy', 'action.paste', 'action.duplicate', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove', 'action.rippleDelete'],
+  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.copy', 'action.paste', 'action.duplicate', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', 'action.editAsKeys', '-', 'action.edit', 'action.remove', 'action.rippleDelete'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.place', 'light.shadows', 'light.add', '-', 'light.delete'],
   lighting: ['light.preset', 'light.add'],
