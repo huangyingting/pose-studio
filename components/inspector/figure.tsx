@@ -21,7 +21,7 @@ import { STEPS } from '../modifiers';
 import { CommandButton } from '../CommandButton';
 import { command, figureMenu, menuItems, selectionCtx, shortcutOf } from '../commands';
 import { useScene, useStore, useStudio } from '../store-context';
-import { IconButton, Menu, NameHeader, NumberField, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
+import { IconButton, Menu, NameHeader, NumberField, Segmented, Select, Slider, Toggle, Toolbar, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /* A figure's (or a stand-in's) header and sections: see sections.ts for which show when. */
@@ -163,7 +163,7 @@ export function JointsPanel({ t }: { t: Target }) {
 export function PosePanel({ t }: { t: Target }) {
   const c = selectionCtx(t.store);
   return (
-    <div className="toolrow">
+    <Toolbar label="Pose">
       <CommandButton id="pose.mirror" ctx={c} />
       <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => command('pose.leftToRight').run!(c)}>L→R</button>
       <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="Right → Left" onClick={() => command('pose.rightToLeft').run!(c)}>R→L</button>
@@ -172,7 +172,7 @@ export function PosePanel({ t }: { t: Target }) {
       <CommandButton id="pose.paste" ctx={c} />
       <span className="toolrow-sep" />
       <CommandButton id="pose.reset" ctx={c} />
-    </div>
+    </Toolbar>
   );
 }
 
@@ -283,14 +283,14 @@ export function OthersPanel({ t }: { t: Target }) {
             <span>To</span>
             <Select label="Other figure" value={other.id} onChange={setOtherId} options={others.map((f) => ({ value: f.id, label: f.name }))} />
           </div>
-          <div className="toolrow" role="group" aria-label="Place with the other figure">
+          <Toolbar label="Place with the other figure">
             <IconButton icon={Navigation} label="Turn to" onClick={() => arrange(store, figure.id, other.id, 'face')} />
             <IconButton icon={ArrowLeftRight} label="Face each other" onClick={() => arrange(store, figure.id, other.id, 'faceEachOther')} />
             <IconButton icon={Eye} label="Look at" onClick={() => lookAtFigure(store, figure.id, other.id)} />
             <IconButton icon={PanelLeft} label="Beside (left)" onClick={() => arrange(store, figure.id, other.id, 'besideL')} />
             <IconButton icon={PanelRight} label="Beside (right)" onClick={() => arrange(store, figure.id, other.id, 'besideR')} />
             <IconButton icon={Repeat} label="Back to back" onClick={() => arrange(store, figure.id, other.id, 'backToBack')} />
-          </div>
+          </Toolbar>
           <Slider
             label="Distance"
             min={0.2}

@@ -1,5 +1,6 @@
 'use client';
 
+import { rovingKey, useRoving, type Roving } from './roving';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, CircleCheck, CircleHelp, Ellipsis, X, type LucideIcon } from 'lucide-react';
@@ -673,6 +674,14 @@ export function Segmented<T extends string>({ value, options, onChange, label, i
     </div>
   );
 }
+
+/** A row of buttons for one thing (a toolbar): one Tab stop, ← → between them (#20). */
+export function Toolbar({ label, className = 'toolrow', children }: { label: string; className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useRoving(ref, TOOLBAR_KEYS);
+  return <div className={className} role="toolbar" aria-label={label} ref={ref} onKeyDown={(e) => rovingKey(e, TOOLBAR_KEYS)}>{children}</div>;
+}
+const TOOLBAR_KEYS: Roving = { items: 'button', orientation: 'horizontal' };
 
 /** Styled native select. */
 /**
