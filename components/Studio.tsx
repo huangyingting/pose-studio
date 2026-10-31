@@ -33,7 +33,7 @@ import { PracticeMode } from './Practice';
 import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
-import { IconButton, Menu, Toasts, type Notify, type Toast } from './ui';
+import { IconButton, Menu, Toasts, Toolbar, type Notify, type Toast } from './ui';
 import { onOutdated } from '@/lib/assetstore';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
@@ -436,7 +436,7 @@ function App() {
             <ChevronDown size={15} className="brand-chevron" aria-hidden />
           </Menu>
           <span className="tb-sep hide-mobile" />
-          <div className="toolbar" role="toolbar" aria-label="Canvas tools">
+          <Toolbar className="toolbar" label="Canvas tools">
             <Menu
               label="View"
               className="btn ghost"
@@ -457,7 +457,7 @@ function App() {
             >
               <StyleIcon size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={14} aria-hidden />
             </Menu>
-          </div>
+          </Toolbar>
         </div>
         <div className="tb-center">
           <input
