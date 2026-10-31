@@ -179,8 +179,16 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await page.getByLabel('Scene name').fill(name);
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  // (Found by its name: a search looks on all the Motions tabs.)
+  await page.getByLabel('Search motions').fill(motion);
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: new RegExp(`^${motion} [\\d.]+ s$`) }).click();
+  await page.getByLabel('Search motions').fill('');
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+}
+
+/** One of the Motions tabs: Motion capture, Generated or Imported. */
+async function motionsTab(page: Page, tab: 'Motion capture' | 'Generated' | 'Imported') {
+  await page.getByRole('radiogroup', { name: 'Motions from' }).getByRole('radio', { name: tab }).click();
 }
 
 /** The New scene dialog (Scenes → New → From a template…). */
@@ -1273,6 +1281,7 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   // An imported motion's frames go up apart from the library, as a file of its own.
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Imported');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   await expect(page.getByRole('list', { name: 'My motions' })).toBeVisible();
   const motion = (await live(page)).motions[0].id;
@@ -1367,6 +1376,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
   await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + PAIRS + 1);
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Generated');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump ahead/ }).click();
   const sc = (await live(page)).scene;
   const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => (x.source.kind === 'travel' ? x.source.mode : x.source.kind)));
@@ -2097,6 +2107,7 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   const scenes = (await state(page)).library.scenes.length;
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Generated');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jab & cross [\d.]+ s$/ }).click();
   // In this scene (no new one), on the selected figure alone: people together each get their own motion.
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
@@ -2108,6 +2119,7 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   await openSection(page, 'Scene');
   await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure\b/ }).first().click();
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Generated');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Take a hit [\d.]+ s$/ }).click();
   const hit = () => live(page).then((x) => x.scene.animation!.actions.find((a) => a.source.kind === 'clip' && a.roles[0].figure !== second.id)!);
   const before = (await hit()).start;
@@ -2242,6 +2254,7 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
 test('a motion file is imported into My motions and given to the figure', async ({ page }) => {
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Imported');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   const mine = page.getByRole('list', { name: 'My motions' });
   await expect(mine.getByRole('button', { name: /^Step forward/ })).toBeVisible();
@@ -2262,6 +2275,7 @@ test('a motion file is imported into My motions and given to the figure', async 
   await expect.poll(async () => Math.abs((await at(clip.start + clip.duration)) - (await at(clip.start))), { timeout: 15_000 }).toBeGreaterThan(0.1);
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Imported');
   // Deleting it takes it out of the library (the figure keeps its keys).
   await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
@@ -2381,6 +2395,7 @@ test('a wave over a walk, from the waist up; posing over a motion corrects it', 
   await expect(page.getByRole('status').filter({ hasText: /^Posing here corrects Figure's walk$/ })).toBeVisible();
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
+  await motionsTab(page, 'Generated');
   await page.getByRole('button', { name: /^Wave hello: upper body only/ }).click();
   await expect(page.locator('.tl-travel.upper')).toHaveText(/Wave hello · upper body/);
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });

@@ -10,7 +10,7 @@ import { spanAt } from '@/lib/shots';
 import type { Scene } from '@/lib/types';
 import { styleDef } from '@/lib/styles';
 import { useProjectSettings, useStore, useStudio } from '../store-context';
-import { IconButton } from '../ui';
+import { IconButton, Segmented } from '../ui';
 import { endDrag, startDrag } from '../dragdrop';
 import { setHoverGhost } from '../hints';
 import { LIBRARY_CATEGORIES, type LibraryCategory, type LibraryItem, type LibraryUi, type Thumb } from './libraryItems';
@@ -43,7 +43,9 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
 
   const q = query.trim().toLowerCase();
   const items = open.items(store, ui);
-  const found = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
+  // (On its tab, if it has them; a search finds them on all.)
+  const [kind, setKind] = useKind(open);
+  const found = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : open.kinds ? items.filter((it) => it.kind === kind) : items;
   return (
     <div className="side-section library" aria-label={open.label}>
       <div className="side-head"><h2>{open.label}</h2></div>
@@ -59,13 +61,34 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
           />
         </label>
       </div>
+      {open.kinds && !q && (
+        <div className="library-row">
+          <Segmented full label={`${open.label} from`} value={kind} onChange={setKind} options={open.kinds.map((k) => ({ value: k.id, label: k.label, title: k.tip }))} />
+        </div>
+      )}
       <div className="side-scroll">
-        {!q && open.Bar && <open.Bar {...ui} />}
-        {found.length || !q ? <Items category={open} items={found} preview={preview.bind} /> : <p className="empty-note">Nothing matches “{query.trim()}”</p>}
+        {!q && open.Bar && <open.Bar {...ui} kind={kind} />}
+        {found.length ? <Items category={open} items={found} preview={preview.bind} />
+          : q ? <p className="empty-note">Nothing matches “{query.trim()}”</p>
+          : open.kinds?.find((k) => k.id === kind)?.empty && <p className="empty-note">{open.kinds.find((k) => k.id === kind)!.empty}</p>}
       </div>
       {preview.card}
     </div>
   );
+}
+
+/** Which of a category's tabs is open (its first at first; kept for the next visit). */
+function useKind(category: LibraryCategory): [string, (kind: string) => void] {
+  const key = `pose-studio-libkind-${category.id}`;
+  const first = category.kinds?.[0]?.id ?? '';
+  const [kinds, setKinds] = useState<Record<string, string>>({});
+  const stored = typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
+  const kind = kinds[category.id] ?? (category.kinds?.some((k) => k.id === stored) ? stored! : first);
+  const set = (k: string) => {
+    try { localStorage.setItem(key, k); } catch { /* ignore */ }
+    setKinds((now) => ({ ...now, [category.id]: k }));
+  };
+  return [kind, set];
 }
 
 /** A category's items, in its parts (a region each) and groups (each folds, and remembers it). */

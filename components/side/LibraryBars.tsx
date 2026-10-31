@@ -15,7 +15,8 @@ import type { LibraryUi } from './libraryItems';
  * it (saving the pose, importing a motion or a character, saving the scene as a template).
  */
 
-export type BarProps = LibraryUi;
+/** What a category's bar is given: the library's ways of saying things, and its open tab (if it has tabs). */
+export type BarProps = LibraryUi & { kind?: string };
 
 /** Who the library applies to, or what to select first. */
 function Target({ children }: { children: ReactNode }) {
@@ -100,7 +101,7 @@ export function PosesBar({ notifyUndo }: BarProps) {
   );
 }
 
-export function MotionsBar({ notify, notifyUndo }: BarProps) {
+export function MotionsBar({ notify, notifyUndo, kind }: BarProps) {
   const store = useStore();
   const { figure } = usePosable();
   const imp = useImport(async ([file], map) => {
@@ -113,7 +114,8 @@ export function MotionsBar({ notify, notifyUndo }: BarProps) {
   return (
     <>
       <Target>{figure ? <>On <strong>{figure.name}</strong>, at the playhead</> : 'Select a figure to give it a motion'}</Target>
-      <div className="library-row">
+      {/* (Importing on the Imported tab, where they go.) */}
+      {kind === 'imported' && <div className="library-row">
         <ImportButton
           label="Import motion…"
           accept=".bvh,.fbx,.glb,.gltf,.json"
@@ -122,7 +124,7 @@ export function MotionsBar({ notify, notifyUndo }: BarProps) {
           reading={imp.reading}
           onFiles={(files) => void imp.run(files)}
         />
-      </div>
+      </div>}
       {imp.dialog}
     </>
   );
