@@ -222,7 +222,13 @@ export function parseCameras(raw: unknown): Camera[] {
     ...(r.place === 'left' || r.place === 'right' || r.place === 'auto' ? { place: r.place } : {}),
     lens: num(r.lens, 35, 4, 1200),
     ...(typeof r.smooth === 'number' && r.smooth > 0 ? { smooth: num(r.smooth, 0, 0, 10) } : {}),
+    ...(fixedOf(r.fixed) ? { fixed: fixedOf(r.fixed)! } : {}),
   });
+  const fixedOf = (f: unknown): CameraRig['fixed'] | null => {
+    if (typeof f !== 'object' || f === null) return null;
+    const x = f as Record<string, unknown>;
+    return { position: vec(x.position), look: vec(x.look), ...(x.aim === 'subject' ? { aim: 'subject' as const } : {}) };
+  };
   const ids = new Set<string>();
   return objects(raw, 100).flatMap((x, i): Camera[] => {
     let id = str(x.id, 40) || uid('cam');

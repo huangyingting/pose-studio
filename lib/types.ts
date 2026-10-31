@@ -420,6 +420,11 @@ export interface CameraRig {
   lens: number;
   /** Seconds the subject's motion is smoothed over (a window centred on each moment). */
   smooth?: number;
+  /**
+   * Fixed (#21): where it stands in the scene, a tripod (it does not follow its subject), and
+   * where it looks: there (locked), or turning to keep its subject in frame (`aim: 'subject'`).
+   */
+  fixed?: { position: Vec3; look: Vec3; aim?: 'subject' };
 }
 
 /**

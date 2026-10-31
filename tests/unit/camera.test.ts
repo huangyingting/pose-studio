@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addCamera, aimCamera, applyCameraMove, editRig, moveCameraPoint, setCameraPointAim, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
+import { addCamera, aimCamera, applyCameraMove, setCameraStand, standOf, editRig, moveCameraPoint, setCameraPointAim, removeAnimation, cutShot, deleteCamera, editCamera, editShot, frameShot, moveMark, editAsPath, setCameraMove, setCameraPoint, editProjectSettings, setLens, setShotSubject, startAnimation, travelTo } from '@/lib/actions';
 import { checkMotion } from '@/lib/qa';
 import { newScene, parseScene } from '@/lib/doc';
 import { describeShot } from '@/lib/prompt';
@@ -8,7 +8,7 @@ import { Rig } from '@/lib/relations';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { DEFAULT_EXPORT, exportCells, videoSize } from '@/lib/render';
-import { ASPECTS, CAMERA_MOVES, SHOT_ASPECT, angleOf, cameraAt, fovLens, frameAspect, lensFov, liveCamera, placeCamera, samplePath, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
+import { ASPECTS, CAMERA_MOVES, SHOT_ASPECT, angleOf, cameraAt, cameraById, fovLens, frameAspect, lensFov, liveCamera, placeCamera, samplePath, sizeOf, subjectPlace, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import { setBlocks } from '@/lib/sets';
 import type { CameraPoint, PathCamera, RigCamera, Scene } from '@/lib/types';
@@ -115,7 +115,7 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
   });
 
 
-  it('a fixed ready-made stays where it is and looks at the same spot, however far its subject walks', () => {
+  it('a fixed ready-made stays where it is and looks at the same spot, however far its subject walks (#21)', () => {
     for (const id of CAMERA_MOVES.filter((m) => m.group === 'Fixed').map((m) => m.id)) {
       const { store, a } = fresh();
       store.setTime(0);
@@ -123,7 +123,7 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
       store.setTime(0);
       applyCameraMove(store, id);
       const cam = liveCamera(store.scene, 0)!;
-      expect(cam, id).toMatchObject({ kind: 'path', anchor: 'world', aim: 'point' });
+      expect(cam.kind === 'rig' && cam.rig.fixed, id).toBeTruthy();
       const [from, to] = [cameraAt(store.scene, 0), cameraAt(store.scene, walk.to)];
       expect(to.position.distanceTo(from.position), id).toBeLessThan(1e-6);
       expect(to.target.distanceTo(from.target), id).toBeLessThan(1e-6);
@@ -132,6 +132,73 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     const { store } = fresh();
     applyCameraMove(store, 'dutch');
     expect(Math.abs(cameraAt(store.scene, 0).roll)).toBeGreaterThan(10);
+  });
+
+  it('a camera is fixed, follows or goes along a path, switched keeping the picture; fixed, it turns to its subject if asked, and makes a tripod\'s moves (#21)', () => {
+    const { store, a } = fresh();
+    store.setTime(0);
+    const walk = travelTo(store, a, [3, 4], 'walk')!;
+    store.setTime(0);
+    applyCameraMove(store, 'tracking');
+    const id = liveCamera(store.scene, 0)!.id;
+    expect(standOf(cameraById(store.scene, id)!)).toBe('follows');
+    // Following: it goes with the walker.
+    expect(cameraAt(store.scene, walk.to).position.distanceTo(cameraAt(store.scene, 0).position)).toBeGreaterThan(2);
+    // Fixed, from the middle of the walk: it stands where it was then, looking where it did.
+    const mid = Math.round((walk.to / 2) * 24) / 24;
+    store.setTime(mid);
+    const before = cameraAt(store.scene, mid);
+    setCameraStand(store, id, 'fixed');
+    expect(standOf(cameraById(store.scene, id)!)).toBe('fixed');
+    for (const t of [0, mid, walk.to]) {
+      expect(cameraAt(store.scene, t).position.distanceTo(before.position)).toBeLessThan(0.01);
+      expect(cameraAt(store.scene, t).target.distanceTo(before.target)).toBeLessThan(0.01);
+    }
+    // (Described for AI video tools as it is: on a tripod, not a tracking shot.)
+    expect(describeShot(store.scene)).toMatch(/locked-off camera on a tripod/);
+    expect(describeShot(store.scene)).not.toMatch(/tracking shot/);
+    // Turning to its subject: still where it stands, looking at the walker as they go.
+    const cam = cameraById(store.scene, id) as RigCamera;
+    editRig(store, id, { fixed: { ...cam.rig.fixed!, aim: 'subject' } });
+    const end = cameraAt(store.scene, walk.to);
+    expect(end.position.distanceTo(before.position)).toBeLessThan(0.01);
+    const walker = figurePoseAt(store.scene, a, walk.to)!.position;
+    const dir = end.target.clone().sub(end.position).setY(0).normalize();
+    const toWalker = new THREE.Vector3(walker[0], 0, walker[2]).sub(end.position.clone().setY(0)).normalize();
+    expect(dir.dot(toWalker)).toBeGreaterThan(0.98);
+    // Put somewhere from the view (looking through it): exactly there, whatever the time, no point added.
+    store.setTime(walk.to);
+    const spot = new THREE.Vector3(4, 1.6, 7);
+    setCameraPoint(store, spot, new THREE.Vector3(0, 1, 0), 40, '', id);
+    expect(standOf(cameraById(store.scene, id)!)).toBe('fixed');
+    for (const t of [0, walk.to]) expect(cameraAt(store.scene, t).position.distanceTo(spot)).toBeLessThan(0.01);
+    // A framing puts it where that framing is (at the playhead), and it stays there.
+    editRig(store, id, { size: 'cu' });
+    const close = cameraAt(store.scene, walk.to).position;
+    expect(close.distanceTo(spot)).toBeGreaterThan(1);
+    expect(cameraAt(store.scene, 0).position.distanceTo(close)).toBeLessThan(0.01);
+    // A pan by degrees: it turns where it stands.
+    setCameraMove(store, id, { kind: 'pan', by: 40 });
+    const fixedRig = (cameraById(store.scene, id) as RigCamera).rig;
+    expect(fixedRig.fixed).toBeTruthy();
+    // Kept as it is in the saved data.
+    expect((parseScene(JSON.parse(JSON.stringify(store.scene)))!.cameras.find((c) => c.id === id) as RigCamera).rig.fixed).toEqual(fixedRig.fixed);
+    // Following again, from where it stands at the playhead: the same picture, then it goes along.
+    setCameraMove(store, id, null);
+    editRig(store, id, { fixed: { position: fixedRig.fixed!.position, look: fixedRig.fixed!.look } });
+    store.setTime(mid);
+    const stood = cameraAt(store.scene, mid).position;
+    setCameraStand(store, id, 'follows');
+    expect(standOf(cameraById(store.scene, id)!)).toBe('follows');
+    // (Its angle on the walker kept: it is the same way from them as it stood.)
+    const after = cameraAt(store.scene, mid);
+    const there = figurePoseAt(store.scene, a, mid)!.position;
+    const way = (p: THREE.Vector3) => Math.atan2(p.x - there[0], p.z - there[2]) * 180 / Math.PI;
+    expect(Math.abs(way(after.position) - way(stood))).toBeLessThan(5);
+    expect(cameraAt(store.scene, walk.to).position.distanceTo(after.position)).toBeGreaterThan(1);
+    // A path: its points where it went.
+    setCameraStand(store, id, 'path');
+    expect(standOf(cameraById(store.scene, id)!)).toBe('path');
   });
 
   it('films in the scene\'s frame shape: the lens sees as on that frame, videos come out that shape', () => {
@@ -440,7 +507,9 @@ describe('one camera model: stills and shots film through the scene\'s cameras',
     editCamera(store, id, { subject: a });
     frameShot(store, 'mcu', { lens: 85, camera: id });
     const cam = store.scene.cameras.find((c) => c.id === id)!;
-    expect(cam).toMatchObject({ kind: 'path', points: [{ lens: 85 }] });
+    // (Made from the view, it is fixed (#21): it stands where it was put.)
+    expect(cam).toMatchObject({ kind: 'rig', rig: { lens: 85 } });
+    expect((cam as RigCamera).rig.fixed).toBeTruthy();
     expect(sizeOf(store.scene, cam, 0, viewOf(store.scene, cam, 0))).toBe('mcu');
     // A still is taken by the first camera, or by the one picked.
     const o = { ...DEFAULT_EXPORT, scope: 'current' as const };

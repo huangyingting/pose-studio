@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeftRight, ArrowRightToLine, ArrowUpDown, ArrowUpFromLine, Camera as CameraIcon, Clapperboard, Eye, Focus, MoveHorizontal, Plus, RotateCcw, RotateCw, Spline, Square, Trash2, ZoomIn, type LucideIcon } from 'lucide-react';
-import { addCameraPoint, applyCameraMove, deleteCameraPoint, editAsPath, editCamera, editRig, frameShot, setCameraMove, setLens } from '@/lib/actions';
-import { CAMERA_GROUPS, CAMERA_MOVES, LENSES, MOVE_NAMES, SHOT_SIZES, frameAspect, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
+import { ArrowLeftRight, ArrowRightToLine, ArrowUpDown, ArrowUpFromLine, Camera as CameraIcon, Clapperboard, Eye, Focus, MoveHorizontal, Plus, RotateCcw, RotateCw, Square, Trash2, ZoomIn, type LucideIcon } from 'lucide-react';
+import { addCameraPoint, applyCameraMove, deleteCameraPoint, editCamera, editRig, frameShot, setCameraMove, setCameraStand, setLens, standOf, type CameraStand } from '@/lib/actions';
+import { CAMERA_GROUPS, CAMERA_MOVES, LENSES, MOVE_NAMES, SHOT_SIZES, TRIPOD_MOVES, frameAspect, liveCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { sceneAt } from '@/lib/evaluate';
 import { setBlocks } from '@/lib/sets';
 import { sharedRenderer } from '@/lib/thumbnails';
@@ -111,7 +111,7 @@ export function FramingPanel({ t }: { t: Target }) {
       </div>
       {size && lens ? (
         <>
-          <PropertyRow label="Size" info={rig ? 'Kept as the subject moves.' : t.scene.animation ? 'At the playhead: the camera moves to frame it.' : undefined}>
+          <PropertyRow label="Size" info={rig?.fixed ? 'Puts the camera where this framing is, at the playhead: there it stays.' : rig ? 'Kept as the subject moves.' : t.scene.animation ? 'At the playhead: the camera moves to frame it.' : undefined}>
             <Select<ShotSize> label="Shot size" value={size} onChange={(x) => frame(x, place)} options={SHOT_SIZES.map((x) => ({ value: x.id, label: `${x.short} · ${x.name}` }))} />
           </PropertyRow>
           <PropertyRow label="Place">
@@ -155,10 +155,15 @@ function RigAngle({ t, cam, rig }: { t: Target; cam: RigCamera; rig: CameraRig }
           />
         </PropertyRow>
       )}
-      <Toggle label="Turns with it" hint="Turns as the subject turns. Off: keeps the angle the subject faced at the camera's first shot" checked={!!rig.turn} onChange={(on) => edit({ turn: on })} />
-      <PropertyRow label="Smoothing" info="Seconds the subject's motion is smoothed over: a steadier frame">
-        <NumberField prefix="s" label="Smoothing" value={rig.smooth ?? 0} step={0.1} min={0} max={5} digits={1} onChange={(v) => edit({ smooth: v }, `rig-smooth:${cam.id}`)} />
-      </PropertyRow>
+      {/* (How it follows: a fixed camera does not.) */}
+      {!rig.fixed && (
+        <>
+          <Toggle label="Turns with it" hint="Turns as the subject turns. Off: keeps the angle the subject faced at the camera's first shot" checked={!!rig.turn} onChange={(on) => edit({ turn: on })} />
+          <PropertyRow label="Smoothing" info="Seconds the subject's motion is smoothed over: a steadier frame">
+            <NumberField prefix="s" label="Smoothing" value={rig.smooth ?? 0} step={0.1} min={0} max={5} digits={1} onChange={(v) => edit({ smooth: v }, `rig-smooth:${cam.id}`)} />
+          </PropertyRow>
+        </>
+      )}
       <PropertyRow label="Dutch" info="Tilted about the line of sight: unease, tension">
         <NumberField prefix="°" label="Dutch angle" value={rig.roll ?? 0} step={5} min={-90} max={90} digits={0} onChange={(v) => edit({ roll: v }, `rig-roll:${cam.id}`)} />
       </PropertyRow>
@@ -193,13 +198,21 @@ export function LensPanel({ t }: { t: Target }) {
   );
 }
 
-export const movesSummary = (t: Target) => { const cam = t.camera!; return cam.kind === 'path' ? 'Custom path' : cam.rig.move ? MOVE_NAMES[cam.rig.move.kind] : 'Holds'; };
-export const movesInfo = (t: Target) => (t.camera!.kind === 'rig'
-  ? 'It moves over each shot it films, from its framing at the shot\'s start, as it frames its subject every frame: the move holds when the blocking or the cut changes.'
-  : 'On the canvas, drag a camera to move it (Shift: up and down) and its look point; double-click its path to add a point. Looking through it, frame the view and set a camera point from the timeline.');
+const STANDS: Record<CameraStand, string> = { fixed: 'Fixed', follows: 'Follows', path: 'Path' };
+export const movesSummary = (t: Target) => {
+  const cam = t.camera!;
+  return cam.kind === 'path' ? 'Custom path' : `${STANDS[standOf(cam)]} · ${cam.rig.move ? MOVE_NAMES[cam.rig.move.kind] : 'Holds'}`;
+};
+export const movesInfo = (t: Target) => {
+  const cam = t.camera!;
+  if (cam.kind === 'path') return 'On the canvas, drag a camera to move it (Shift: up and down) and its look point; double-click its path to add a point. Looking through it, frame the view and set a camera point from the timeline.';
+  return cam.rig.fixed
+    ? 'It stands where it was put, whatever its subject does: looking through it and moving the view puts it somewhere else. Its moves are a tripod\'s, over each shot it films.'
+    : 'It moves over each shot it films, from its framing at the shot\'s start, as it frames its subject every frame: the move holds when the blocking or the cut changes.';
+};
 
-/** The moves to pick from (#16): none, the kinds, or a custom path. */
-const MOVES: { id: 'none' | MoveKind | 'path'; label: string; icon: LucideIcon; tip: string }[] = [
+/** The moves to pick from (#16): none, or a kind (a fixed camera: a tripod's). */
+const MOVES: { id: 'none' | MoveKind; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'none', label: 'None', icon: Square, tip: 'Holds its framing' },
   { id: 'push', label: 'Push', icon: ArrowRightToLine, tip: 'Closer (or wider) over the shot' },
   { id: 'arc', label: 'Arc', icon: RotateCw, tip: 'Round its subject' },
@@ -207,10 +220,9 @@ const MOVES: { id: 'none' | MoveKind | 'path'; label: string; icon: LucideIcon; 
   { id: 'truck', label: 'Truck', icon: MoveHorizontal, tip: 'Sideways' },
   { id: 'pan', label: 'Pan', icon: ArrowLeftRight, tip: 'Turns to another figure, or by degrees' },
   { id: 'tilt', label: 'Tilt', icon: ArrowUpDown, tip: 'Tilts up (or down)' },
-  { id: 'zoom', label: 'Zoom', icon: ZoomIn, tip: 'The lens changes; the camera stays' },
+  { id: 'zoom', label: 'Zoom', icon: ZoomIn, tip: 'The lens changes, not where the camera is' },
   { id: 'dolly', label: 'Dolly zoom', icon: Focus, tip: 'The lens changes, the subject keeps its size: the world behind it stretches' },
   { id: 'roll', label: 'Roll', icon: RotateCcw, tip: 'Turns about the line of sight' },
-  { id: 'path', label: 'Path', icon: Spline, tip: 'A custom path of points, edited one by one (from a move: one way)' },
 ];
 
 /** A move of a kind, as it starts out (how far, where to). */
@@ -230,26 +242,54 @@ function startMove(kind: MoveKind, rig: CameraRig | null): CameraMove {
   }
 }
 
-/** How it moves over each shot it films (#16): a move from its framing, or a custom path. */
+/**
+ * How it moves over each shot it films: whether it stands where it is put, follows its subject or
+ * goes along a path of its own (#21); a move from its framing (#16), or its path.
+ */
 export function MovesPanel({ t }: { t: Target }) {
   const cam = t.camera!;
   const set = (patch: Parameters<typeof editCamera>[2]) => editCamera(t.store, cam.id, patch);
-  const now = cam.kind === 'path' ? 'path' : cam.rig.move?.kind ?? 'none';
+  const stand = standOf(cam);
+  const now = cam.kind === 'path' ? null : cam.rig.move?.kind ?? 'none';
   const pick = (id: (typeof MOVES)[number]['id']) => {
     if (id === now) return;
-    if (id === 'path') editAsPath(t.store, cam.id);
-    else setCameraMove(t.store, cam.id, id === 'none' ? null : startMove(id, cam.kind === 'rig' ? cam.rig : null));
+    setCameraMove(t.store, cam.id, id === 'none' ? null : startMove(id, cam.kind === 'rig' ? cam.rig : null));
   };
+  const fixed = cam.kind === 'rig' ? cam.rig.fixed : undefined;
   return (
     <>
-      <div className="move-grid" role="radiogroup" aria-label="Camera move">
-        {MOVES.map((m) => (
-          <button key={m.id} type="button" role="radio" aria-checked={m.id === now} className={m.id === now ? 'on' : ''} data-tip={m.tip} onClick={() => pick(m.id)}>
-            <m.icon size={16} strokeWidth={1.75} aria-hidden />
-            <span>{m.label}</span>
-          </button>
-        ))}
-      </div>
+      <Segmented<CameraStand>
+        label="Camera"
+        full
+        value={stand}
+        onChange={(v) => setCameraStand(t.store, cam.id, v)}
+        options={[
+          { value: 'fixed', label: 'Fixed', title: 'Stands where it is put (a tripod): it does not follow its subject' },
+          { value: 'follows', label: 'Follows', title: 'Goes with its subject, framing it as it moves' },
+          { value: 'path', label: 'Path', title: 'Along a path of its own, point by point' },
+        ]}
+      />
+      {fixed && cam.kind === 'rig' && (
+        <PropertyRow label="Aim">
+          <Segmented<'locked' | 'subject'>
+            label="Fixed camera aims"
+            full
+            value={fixed.aim ?? 'locked'}
+            onChange={(v) => editRig(t.store, cam.id, { fixed: { position: fixed.position, look: fixed.look, ...(v === 'subject' ? { aim: 'subject' as const } : {}) } })}
+            options={[{ value: 'locked', label: 'Locked', title: 'Looks where it was put' }, { value: 'subject', label: 'Subject', title: 'Turns to keep its subject in frame' }]}
+          />
+        </PropertyRow>
+      )}
+      {cam.kind === 'rig' && (
+        <div className="move-grid" role="radiogroup" aria-label="Camera move">
+          {MOVES.filter((m) => !fixed || m.id === 'none' || TRIPOD_MOVES.includes(m.id)).map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={m.id === now} className={m.id === now ? 'on' : ''} data-tip={m.tip} onClick={() => pick(m.id)}>
+              <m.icon size={16} strokeWidth={1.75} aria-hidden />
+              <span>{m.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {/* (The classic shots, ready-made: a framing and a move for this camera; a still scene is animated to film one.) */}
       <Menu
         label="Ready-made moves"

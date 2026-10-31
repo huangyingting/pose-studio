@@ -28,7 +28,7 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, reshapeCamera, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
+import { TRIPOD_MOVES, angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, firstFilmed, reshapeCamera, standing, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
 import { angle, bonesOf, facingOf, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, unpinShot as unpin, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
@@ -36,7 +36,7 @@ import type { Issue } from './qa';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, RigCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1344,6 +1344,39 @@ function here(store: Store) {
   return a ? { t: snapTime(a, store.getState().time), fps: a.fps } : { t: 0, fps: 24 };
 }
 
+/** When a camera's framing is taken: at the playhead if it films then, else as it first films. */
+const framingTime = (s: Scene, cam: Camera, now: number) => (liveCamera(s, now).id === cam.id ? now : firstFilmed(s, cam));
+
+/**
+ * A fixed camera's angle on its subject, its size and lens, as seen from where it stands (#21): the
+ * framing it has there (kept, so its framing controls start from where it is).
+ */
+function fixedFraming(s: Scene, cam: RigCamera, fixed: NonNullable<CameraRig['fixed']>, t: number, lens: number): CameraRig {
+  const { fixed: _, move, ...rest } = cam.rig;
+  void _;
+  const seen = viewOf(s, { ...cam, shake: undefined, rig: { ...rest, lens, fixed: { ...fixed, aim: 'subject' } } }, t);
+  return { ...rigFrom(s, { ...cam, rig: rest }, seen, t, { lens }), ...(move ? { move } : {}), fixed };
+}
+
+/** A fixed camera put exactly where a view has it (#21): its framing from there. */
+function placeFixed(s: Scene, cam: RigCamera, t: number, position: THREE.Vector3, look: THREE.Vector3, lens: number): RigCamera {
+  const fixed = { ...standing(position, look), ...(cam.rig.fixed?.aim ? { aim: cam.rig.fixed.aim } : {}) };
+  return { ...cam, rig: fixedFraming(s, cam, fixed, t, Math.round(lens * 10) / 10) };
+}
+
+/**
+ * A fixed camera put where a framing of its subject is (#21): from its angle on it where it stands,
+ * with what `patch` changes (its size, where the subject sits, its angle).
+ */
+function restand(s: Scene, cam: RigCamera, patch: Partial<CameraRig>, t: number): CameraRig {
+  const { fixed, move, ...rest } = cam.rig;
+  const from = fixed ? fixedFraming(s, cam, fixed, t, rest.lens) : cam.rig;
+  const { fixed: _f, move: _m, ...framing } = { ...from, ...patch };
+  void _f; void _m;
+  const v = viewOf(s, { ...cam, shake: undefined, rig: framing }, t);
+  return { ...framing, ...(move ? { move } : {}), fixed: { ...standing(v.position, v.target), ...(fixed?.aim ? { aim: fixed.aim } : {}) } };
+}
+
 /** A path camera of a scene, by id. */
 const pathCamera = (s: Scene, id: string) => {
   const cam = cameraById(s, id);
@@ -1359,6 +1392,8 @@ export function setCameraPoint(store: Store, position: THREE.Vector3, look: THRE
   const { t, fps } = here(store);
   store.updateScene((s) => {
     const cam = (camera && cameraById(s, camera)) || liveCamera(s, t);
+    // (Fixed, #21: put exactly there, never a point added.)
+    if (cam.kind === 'rig' && cam.rig.fixed) return withCamera(s, placeFixed(s, cam, t, position, look, fovLens(fov, frameAspect())));
     if (cam.kind === 'rig') {
       const view = { position, target: look, fov, lens: fovLens(fov, frameAspect()), roll: 0 };
       return withCamera(s, { ...cam, rig: rigFrom(s, cam, view, t, { size: cam.rig.size, lens: Math.round(view.lens) }) });
@@ -1473,7 +1508,10 @@ export function frameShot(store: Store, size: ShotSize, o: { lens?: number; plac
       const { place: _place, ...rig } = cam.rig;
       void _place;
       const place = o.place ?? cam.rig.place;
-      return withCamera(s, { ...cam, rig: { ...rig, size, ...(o.lens ? { lens: o.lens } : {}), ...(place && place !== 'center' ? { place } : {}) } });
+      const framed = { ...rig, size, ...(o.lens ? { lens: o.lens } : {}), ...(place && place !== 'center' ? { place } : {}) };
+      // (Fixed, #21: put where that framing is.)
+      if (cam.rig.fixed) return withCamera(s, { ...cam, rig: restand(s, cam, { size, lens: framed.lens, place: framed.place }, framingTime(s, cam, t)) });
+      return withCamera(s, { ...cam, rig: framed });
     }
     const view = viewOf(s, cam, t);
     const point = framePoint(s, cam, t, size, { ...angleOf(view), lens: o.lens ?? view.lens, place: o.place });
@@ -1578,6 +1616,42 @@ export function setCameraMove(store: Store, id: string, move: CameraMove | null,
   }, key);
 }
 
+/** What kind of camera it is to the user (#21): standing where it is put, following its subject, or along a path of its own. */
+export type CameraStand = 'fixed' | 'follows' | 'path';
+export const standOf = (cam: Camera): CameraStand => (cam.kind === 'path' ? 'path' : cam.rig.fixed ? 'fixed' : 'follows');
+
+/**
+ * Make a camera fixed, following or a path (#21), keeping the picture: fixed, it stands where it is
+ * at the playhead (if it films then; else as it first films); following, it keeps its angle on its
+ * subject from there. A fixed camera keeps only a tripod's move (a pan, tilt, zoom or roll).
+ */
+export function setCameraStand(store: Store, id: string, stand: CameraStand) {
+  const cam = cameraById(store.scene, id);
+  if (!cam || standOf(cam) === stand) return;
+  if (stand === 'path') return editAsPath(store, id);
+  const { t: now } = here(store);
+  store.updateScene((s) => {
+    const c = cameraById(s, id)!;
+    const t = framingTime(s, c, now);
+    // (Fixed to following: as if it had turned to its subject where it stands, to keep its angle on it.)
+    const seen = c.kind === 'rig' && c.rig.fixed && stand === 'follows' ? { ...c, rig: { ...c.rig, move: undefined, fixed: { ...c.rig.fixed, aim: 'subject' as const } } } : c;
+    const view = viewOf(s, { ...seen, shake: undefined } as Camera, t);
+    const base: CameraRig = c.kind === 'rig' ? { ...c.rig } : rigFrom(s, c, view, t, { lens: Math.round(view.lens) });
+    delete base.fixed;
+    let rig: CameraRig;
+    if (stand === 'fixed') {
+      rig = { ...base, lens: Math.round(view.lens * 10) / 10, fixed: standing(view.position, view.target) };
+      if (view.roll) rig.roll = Math.round(view.roll * 10) / 10;
+      if (rig.move && !TRIPOD_MOVES.includes(rig.move.kind)) delete rig.move;
+    } else {
+      // (Its angle on its subject and its size from where it stood; its lens as it was.)
+      rig = { ...rigFrom(s, reform(c, { kind: 'rig', rig: base }), view, t, { lens: base.lens }) };
+      delete rig.fixed;
+    }
+    return withCamera(s, reform(c, { kind: 'rig', rig, ...(c.shake ? { shake: c.shake } : {}) }));
+  }, `camera:${id}`);
+}
+
 /**
  * A camera as a custom path, to edit point by point (#16, one way): points where it goes over the
  * shots it films, every half second (a still scene: one).
@@ -1616,7 +1690,14 @@ export function editRig(store: Store, id: string, patch: Partial<CameraRig>, key
     if (patch.smooth !== undefined) rig.smooth = Math.min(10, Math.max(0, patch.smooth));
     if (patch.lens !== undefined) rig.lens = Math.min(1200, Math.max(4, patch.lens));
     if (rig.place === 'center') delete rig.place;
-    for (const k of ['turn', 'roll', 'move', 'toward', 'clear', 'smooth'] as const) if (!rig[k]) delete rig[k];
+    for (const k of ['turn', 'roll', 'move', 'toward', 'clear', 'smooth', 'fixed'] as const) if (!rig[k]) delete rig[k];
+    // (Fixed, #21: a framing puts it where that framing is, at the playhead (if it films then); its
+    // lens alone zooms, the camera staying.)
+    const framing = (['yaw', 'pitch', 'size', 'place', 'toward'] as const).filter((k) => k in patch);
+    if (rig.fixed && framing.length) {
+      const changed = Object.fromEntries(framing.map((k) => [k, rig[k]])) as Partial<CameraRig>;
+      return withCamera(s, { ...cam, rig: restand(s, { ...cam, rig }, changed, framingTime(s, cam, here(store).t)) });
+    }
     return withCamera(s, { ...cam, rig });
   }, key);
 }
@@ -1631,8 +1712,9 @@ export function addCamera(store: Store, view?: CameraView, film = true): string 
   const s = store.scene;
   const live = liveCamera(s, t);
   const v = view ?? cameraAt(s, t);
-  const shell = reform(newCamera(s, live.subject ? { subject: live.subject } : {}), { kind: 'path', anchor: 'world', aim: 'point', points: [] }) as PathCamera;
-  const cam: PathCamera = { ...shell, points: [capturePoint(s, shell, t, v.position, v.target, v.fov)] };
+  // (Fixed, #21: it stands where the view is, looking where it does.)
+  const shell = reform(newCamera(s, live.subject ? { subject: live.subject } : {}), { kind: 'rig', rig: { yaw: 0, pitch: 0, size: 'fs', lens: 50, fixed: standing(v.position, v.target) } }) as RigCamera;
+  const cam = placeFixed(s, shell, t, v.position, v.target, fovLens(v.fov, frameAspect()));
   store.updateScene((x) => {
     const a = x.animation;
     const withIt = { ...x, cameras: [...x.cameras, cam] };
@@ -2309,7 +2391,7 @@ export function stepJoint(store: Store, figure: string, joint: JointName, axis: 
  */
 export function stepCamera(store: Store, id: string, step: { right?: number; forward?: number; up?: number; pan?: number; tilt?: number }) {
   const cam = cameraById(store.scene, id);
-  if (!cam || cam.kind !== 'path') return;
+  if (!cam || (cam.kind !== 'path' && !cam.rig.fixed)) return;
   const view = viewOf(store.scene, cam, store.scene.animation ? store.getState().time : 0);
   const dir = view.target.clone().sub(view.position);
   const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
@@ -2323,6 +2405,8 @@ export function stepCamera(store: Store, id: string, step: { right?: number; for
   const { t, fps } = here(store);
   // Its roll stays.
   store.updateScene((s) => {
+    const fixed = cameraById(s, id);
+    if (fixed?.kind === 'rig' && fixed.rig.fixed) return withCamera(s, placeFixed(s, fixed, t, position, look, fixed.rig.lens));
     const c = pathCamera(s, id);
     return c ? withCamera(s, setPointAt(c, fps, t, { ...capturePoint(s, c, t, position, look, view.fov), ...(view.roll ? { roll: view.roll } : {}) })) : s;
   }, `step:${id}`);

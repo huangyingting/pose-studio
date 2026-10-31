@@ -887,7 +887,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   };
   await openShotCamera(page);
   await unfold(page, 'Moves');
-  await inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio', { name: 'Path' }).click();
+  await inspector.getByRole('radiogroup', { name: 'Camera', exact: true }).getByRole('radio', { name: 'Path' }).click();
   // A medium shot at the playhead, then an 85 mm lens (the subject keeps its size: the camera backs off).
   await choose(page, 'Shot size', /^MS ·/);
   let s = await shot();
@@ -924,14 +924,23 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
   await expect(inspector.getByRole('textbox', { name: 'Camera name' })).toHaveValue('Camera 1');
   await unfold(page, 'Shots');
   await expect(inspector.getByRole('list', { name: 'Shots it films' })).toContainText('Shot 1');
-  // A framing again (no move: it holds it, following its subject): the shot size is a rule, kept every frame.
+  // Following its subject again (#21; no move: it holds its framing): the shot size is a rule, kept every frame.
   await unfold(page, 'Moves');
-  await inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio', { name: 'None' }).click();
+  await inspector.getByRole('radiogroup', { name: 'Camera', exact: true }).getByRole('radio', { name: 'Follows' }).click();
   await choose(page, 'Shot size', /^MCU ·/);
   expect(await shot()).toMatchObject({ kind: 'rig', rig: { size: 'mcu' } });
   // An arc round it over the shot, by 90° to start with.
   await inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio', { name: 'Arc' }).click();
   expect(await shot()).toMatchObject({ kind: 'rig', rig: { move: { kind: 'arc', by: 90 } } });
+  // Fixed (#21): it stands where it is, its moves a tripod's (an arc is not one: dropped); locked, or turning to its subject.
+  await inspector.getByRole('radiogroup', { name: 'Camera', exact: true }).getByRole('radio', { name: 'Fixed' }).click();
+  const fixed = (await shot()) as unknown as { kind: string; rig: { move?: unknown; fixed?: { aim?: string } } };
+  expect(fixed.kind).toBe('rig');
+  expect(fixed.rig.fixed).toBeTruthy();
+  expect(fixed.rig.move).toBeUndefined();
+  await expect(inspector.getByRole('radiogroup', { name: 'Camera move' }).getByRole('radio')).toHaveText(['None', 'Pan', 'Tilt', 'Zoom', 'Roll']);
+  await inspector.getByRole('radiogroup', { name: 'Fixed camera aims' }).getByRole('radio', { name: 'Subject' }).click();
+  expect(((await shot()) as unknown as typeof fixed).rig.fixed!.aim).toBe('subject');
 });
 
 test('cuts move on the timeline; a camera on a path has a row, one on a rule none; looked through', async ({ page }) => {
@@ -939,7 +948,6 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   await animate(page);
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
   await page.keyboard.press('c');
-  const timeline = page.getByRole('region', { name: 'Timeline' });
   // The cut is dragged later; the cameras stay as they were.
   const before = await anim(page);
   const cut = page.locator('.tl-shot').nth(1).locator('.tl-cut');
@@ -953,10 +961,13 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   await page.locator('.tl-shot').nth(1).hover();
   await drag(page, { x: ramp.x + 8, y: ramp.y + 4 }, { x: ramp.x + 60, y: ramp.y + 4 });
   expect((await anim(page)).animation!.shots[1].blend).toBeGreaterThan(0.1);
-  // The second shot films with a new camera (its menu); the camera row follows the playhead.
+  // The second shot films with a new camera (its menu), fixed where the view was (#21).
   await page.locator('.tl-shot').nth(1).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'New camera from the view' }).click();
-  await expect(timeline.getByRole('button', { name: 'Camera 2', exact: true })).toBeVisible();
+  const made2 = await anim(page);
+  const second = made2.cameras.find((c) => c.id === made2.animation!.shots[1].camera)!;
+  expect(second.name).toBe('Camera 2');
+  expect((second as Camera & { rig: { fixed?: unknown } }).rig.fixed).toBeTruthy();
   // Selected in the outline, the first camera: it places itself by its rule, nothing to edit on the timeline (no row).
   await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).click();
   await expect(page.locator('.tl-row.camera')).toHaveCount(0);

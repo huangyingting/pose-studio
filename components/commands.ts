@@ -308,7 +308,8 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
   const through = s.getState().through;
   if (through) {
     const cam = through.camera ? cameraById(sceneOf(c), through.camera) : liveCamera(sceneOf(c), s.getState().time);
-    return cam ? { kind: cam.kind === 'rig' ? 'rig' : 'camera', id: cam.id } : null;
+    // (A fixed camera, #21, steps as one on a path does: it moves itself, not round its subject.)
+    return cam ? { kind: cam.kind === 'rig' && !cam.rig.fixed ? 'rig' : 'camera', id: cam.id } : null;
   }
   // A joint: X, Y or Z held with ← → steps that slider (the arrows alone go to another joint).
   if (c.joint) return heldAxis() !== undefined && (k === 'left' || k === 'right') ? { kind: 'joint' } : null;
@@ -318,7 +319,7 @@ function stepping(c: Ctx, k: StepKey): { kind: 'figure' | 'prop' | 'many' | 'cam
   if (c.camera) {
     const cam = cameraById(sceneOf(c), c.camera);
     if (!cam) return null;
-    if (cam.kind === 'rig') return k === 'turnLeft' || k === 'turnRight' ? null : { kind: 'rig', id: cam.id };
+    if (cam.kind === 'rig' && !cam.rig.fixed) return k === 'turnLeft' || k === 'turnRight' ? null : { kind: 'rig', id: cam.id };
     return { kind: 'camera', id: cam.id };
   }
   if (c.light) return k === 'turnUp' || k === 'turnDown' ? null : { kind: 'light', id: c.light };

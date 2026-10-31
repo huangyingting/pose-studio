@@ -60,7 +60,7 @@ function cameraSummary(scene: Scene, cam: Camera, t: number) {
   const view = cam.kind === 'rig' ? null : viewOf(scene, cam, t);
   const size = cam.kind === 'rig' ? cam.rig.size : sizeOf(scene, cam, t, view!);
   const lens = Math.round(cam.kind === 'rig' ? cam.rig.lens : view!.lens);
-  const moves = cam.kind === 'rig' ? (cam.rig.move ? MOVE_NAMES[cam.rig.move.kind] : 'Holds') : cam.points.length > 1 ? 'Path' : 'Still';
+  const moves = cam.kind === 'rig' ? `${cam.rig.fixed ? 'Fixed' : 'Follows'} · ${cam.rig.move ? MOVE_NAMES[cam.rig.move.kind] : 'Holds'}` : cam.points.length > 1 ? 'Path' : 'Still';
   return [cam.name, SHOT_SIZES.find((x) => x.id === size)?.short, `${lens} mm`, moves].filter(Boolean).join(' · ');
 }
 

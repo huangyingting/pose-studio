@@ -77,7 +77,7 @@ describe('steps from the keyboard (#13)', () => {
     expect(stepJoint(store, id, 'head', 1, 10)).toBeCloseTo(-175, 3);
   });
 
-  it('moves a path camera across and pans it', () => {
+  it('moves a camera made from the view (fixed) across and pans it', () => {
     const store = new Store(new MemoryStorage());
     const cam = addCamera(store);
     const view = () => viewOf(store.scene, cameraById(store.scene, cam)!, 0);
@@ -93,10 +93,10 @@ describe('steps from the keyboard (#13)', () => {
     expect((Math.acos(Math.min(1, d0.dot(d1))) * 180) / Math.PI).toBeCloseTo(5, 0);
   });
 
-  it('keeps a path camera\'s roll', () => {
+  it('keeps a fixed camera\'s roll', () => {
     const store = new Store(new MemoryStorage());
     const cam = addCamera(store);
-    store.updateScene((s) => ({ ...s, cameras: s.cameras.map((c) => (c.id === cam && c.kind === 'path' ? { ...c, points: c.points.map((p) => ({ ...p, roll: 10 })) } : c)) }));
+    store.updateScene((s) => ({ ...s, cameras: s.cameras.map((c) => (c.id === cam && c.kind === 'rig' ? { ...c, rig: { ...c.rig, roll: 10 } } : c)) }));
     stepCamera(store, cam, { right: 0.1 });
     expect(viewOf(store.scene, cameraById(store.scene, cam)!, 0).roll).toBeCloseTo(10, 3);
   });

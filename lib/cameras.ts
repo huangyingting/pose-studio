@@ -8,7 +8,7 @@ import { defaultCamera } from './doc';
 import { setBlocks } from './sets';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
 import { projectSettings } from './project';
-import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, PathCamera, Placement, PropKind, RigCamera, Scene, ShotSize, Vec3, View } from './types';
+import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, MoveKind, PathCamera, Placement, PropKind, RigCamera, Scene, ShotSize, Vec3, View } from './types';
 
 /*
  * The cameras: how a "director" films the figures. A scene has cameras, at least one, each an
@@ -196,6 +196,11 @@ const STANDING: Partial<Record<PropKind, number>> = { chair: 0.6, stool: 0.4, ho
 const WIDE: ShotSize[] = ['ews', 'ws', 'fs', 'mws'];
 
 export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect()): CameraView {
+  // (Fixed, #21: where it was put, kept out of nothing: it does not move.)
+  if (cam.kind === 'rig' && cam.rig.fixed) {
+    const v = fixedView(scene, cam, cam.rig, t, aspect);
+    return shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: v.roll });
+  }
   if (cam.kind === 'rig') {
     const owner = movesOf(scene);
     let byCam = rigViews.get(owner);
@@ -550,7 +555,7 @@ export function moveProgress(scene: Scene, cam: Camera, t: number, m: Pick<Camer
 }
 
 /** When a camera's angle is measured from: the start of the first shot it films (else the start). */
-function firstFilmed(scene: Scene, cam: Camera) {
+export function firstFilmed(scene: Scene, cam: Camera) {
   const a = scene.animation;
   return a ? shotSpans(a).find((s) => s.shot.camera === cam.id)?.start ?? 0 : 0;
 }
@@ -778,6 +783,37 @@ function moved(
   return { position, target, lens: m.kind === 'zoom' || m.kind === 'dolly' ? lens : r.lens, roll };
 }
 
+/** The moves a fixed camera makes (#21): a tripod's, the camera staying where it stands. */
+export const TRIPOD_MOVES: MoveKind[] = ['pan', 'tilt', 'zoom', 'roll'];
+
+/**
+ * A fixed camera at t (#21): where it stands, looking where it was put or at its subject (as its
+ * framing would: the head of a close shot, the whole of a wide one, on its third), as far through
+ * its move (a tripod's) as the shot has gone.
+ */
+function fixedView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: number) {
+  const f = r.fixed!;
+  const position = new THREE.Vector3(...f.position);
+  // (What a framing of a body from here looks at.)
+  const lookAt = (body: Body) => {
+    const { yaw, pitch } = angleOf({ position, target: new THREE.Vector3(body.x, body.top - body.height / 2, body.z), fov: 0, lens: r.lens, roll: 0 });
+    return compose(body, r.size, yaw, pitch, r.lens, r.place, aspect).look;
+  };
+  let target = f.aim === 'subject' ? lookAt(framedBody(scene, cam, t, r.smooth ?? 0)) : new THREE.Vector3(...f.look);
+  const m = r.move && TRIPOD_MOVES.includes(r.move.kind) ? r.move : undefined;
+  const u = m ? moveProgress(scene, cam, t, m) : 0;
+  const roll = (r.roll ?? 0) + (m?.kind === 'roll' ? u * (m.by ?? 0) : 0);
+  const lens = m?.kind === 'zoom' ? r.lens + (Math.min(400, Math.max(8, m.by || r.lens)) - r.lens) * u : r.lens;
+  if (m && u > 0) {
+    const dir = target.clone().sub(position);
+    const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    if (m.kind === 'pan' && m.to && scene.figures.some((x) => x.id === m.to && !x.hidden)) target = target.lerp(lookAt(smoothBody(scene, [m.to], t, r.smooth ?? 0)), u);
+    else if (m.kind === 'pan') target = position.clone().add(dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), -u * (m.by ?? 0) * D2R));
+    else if (m.kind === 'tilt') target = position.clone().add(dir.applyAxisAngle(right, u * (m.by ?? 0) * D2R));
+  }
+  return { position, target, lens, roll };
+}
+
 /** How far a camera is from the nearest of some people (where they stand). */
 function clearance(shot: { position: THREE.Vector3 }, people: Vec3[]) {
   return Math.min(...people.map((p) => Math.hypot(p[0] - shot.position.x, p[2] - shot.position.z)));
@@ -965,14 +1001,20 @@ function framed(c: MoveContext, o: Partial<CameraRig> & { size: ShotSize }, turn
 }
 
 /**
- * A framing (as `framed`) held where it is as the shot starts: a camera fixed in the scene and
- * looking at a fixed spot, not following its subject as it moves.
+ * A framing (as `framed`) standing where it puts the camera as the shot starts (#21): fixed in the
+ * scene, looking at a fixed spot, not following its subject as it moves.
  */
 function fixed(c: MoveContext, o: Partial<CameraRig> & { size: ShotSize }, turn = 0): CameraForm {
-  const v = viewOf(c.scene, reform(c.camera, framed(c, o, turn)), c.start);
-  const path = reform(c.camera, { kind: 'path', anchor: 'world', aim: 'point', points: [] }) as PathCamera;
-  return { kind: 'path', anchor: 'world', aim: 'point', points: [pointIn(c.scene, path, c.start, v.position, v.target, v.lens, v.roll)] };
+  const form = framed(c, o, turn) as Pick<RigCamera, 'kind' | 'rig'>;
+  const v = viewOf(c.scene, reform(c.camera, { ...form, rig: { ...form.rig, move: undefined } }), c.start);
+  return { kind: 'rig', rig: { ...form.rig, fixed: standing(v.position, v.target) } };
 }
+
+/** Where a fixed camera stands and looks, as a view has it (#21). */
+export const standing = (position: THREE.Vector3, look: THREE.Vector3): NonNullable<CameraRig['fixed']> => {
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  return { position: position.toArray().map(r3) as Vec3, look: look.toArray().map(r3) as Vec3 };
+};
 
 /** A framing at its own angle on the subject (degrees from its front; a following shot), as the move asks. */
 const rigged = (rig: CameraRig): CameraForm => ({ kind: 'rig', rig });
@@ -1007,12 +1049,12 @@ export const CAMERA_MOVES: MovePreset[] = [
   { id: 'dutch', group: 'Fixed', name: 'Dutch angle', description: 'The camera tilted sideways: unease, tension', apply: (c) => fixed(c, { size: 'mws', roll: 18 }) },
   { id: 'closeup', group: 'Fixed', name: 'Close-up', description: 'A fixed close-up of the subject on a long lens', apply: (c) => fixed(c, { size: 'cu', pitch: 2, lens: 85 }) },
   { id: 'profile', group: 'Fixed', name: 'Profile', description: 'Side-on to the subject, a medium shot', apply: (c) => fixed(c, { size: 'ms', pitch: 0, lens: 50 }, 90) },
-  { id: 'pan', group: 'Pan & tilt', name: 'Pan', description: 'The camera stays and turns, from its subject to another (or across the scene)', apply: (c) => framed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c) } : { kind: 'pan', by: 40 } }) },
-  { id: 'tilt', group: 'Pan & tilt', name: 'Tilt up', description: 'The camera stays and tilts up from the feet to the face', apply: (c) => framed(c, { size: 'ms', pitch: 0, move: { kind: 'tilt', by: 20 } }) },
-  { id: 'whip', group: 'Pan & tilt', name: 'Whip pan', description: 'Holds, then swings round fast to the other side', apply: (c) => framed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c), pace: 'snap' } : { kind: 'pan', by: 90, pace: 'snap' } }) },
+  { id: 'pan', group: 'Pan & tilt', name: 'Pan', description: 'The camera stays and turns, from its subject to another (or across the scene)', apply: (c) => fixed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c) } : { kind: 'pan', by: 40 } }) },
+  { id: 'tilt', group: 'Pan & tilt', name: 'Tilt up', description: 'The camera stays and tilts up from the feet to the face', apply: (c) => fixed(c, { size: 'ms', pitch: 0, move: { kind: 'tilt', by: 20 } }) },
+  { id: 'whip', group: 'Pan & tilt', name: 'Whip pan', description: 'Holds, then swings round fast to the other side', apply: (c) => fixed(c, { size: 'mws', move: another(c) ? { kind: 'pan', to: another(c), pace: 'snap' } : { kind: 'pan', by: 90, pace: 'snap' } }) },
   { id: 'truck', group: 'Towards & away', name: 'Truck', description: 'The camera slides sideways past the figures, looking straight on', apply: (c) => framed(c, { size: 'mws', move: { kind: 'truck', by: 2, pace: 'even' } }) },
-  { id: 'zoom', group: 'Towards & away', name: 'Slow zoom', description: 'The camera stays; the lens slowly zooms in', apply: (c) => framed(c, { size: 'ws', lens: 35, move: { kind: 'zoom', by: 70 } }) },
-  { id: 'crashzoom', group: 'Towards & away', name: 'Crash zoom', description: 'Holds wide, then zooms in fast on the subject', apply: (c) => framed(c, { size: 'ws', lens: 28, move: { kind: 'zoom', by: 110, pace: 'snap' } }) },
+  { id: 'zoom', group: 'Towards & away', name: 'Slow zoom', description: 'The camera stays; the lens slowly zooms in', apply: (c) => fixed(c, { size: 'ws', lens: 35, move: { kind: 'zoom', by: 70 } }) },
+  { id: 'crashzoom', group: 'Towards & away', name: 'Crash zoom', description: 'Holds wide, then zooms in fast on the subject', apply: (c) => fixed(c, { size: 'ws', lens: 28, move: { kind: 'zoom', by: 110, pace: 'snap' } }) },
   { id: 'cranedown', group: 'Around & up', name: 'Crane down', description: 'Come down from high above to eye level', apply: (c) => framed(c, { size: 'fs', pitch: 55, move: { kind: 'crane', by: -53 } }, -15) },
   { id: 'aerial', group: 'Around & up', name: 'Aerial reveal', description: 'A drone shot: from close and low, up and away to see the whole place', apply: (c) => framed(c, { size: 'ms', pitch: 8, move: { kind: 'crane', by: 42, size: 'ews' } }) },
   { id: 'steadicam', group: 'Following', name: 'Steadicam', description: 'Close behind the subject\'s shoulder, gliding smoothly as it goes', apply: () => rigged({ yaw: 155, pitch: 6, turn: true, size: 'ms', lens: 28, smooth: 0.9 }) },
@@ -1074,6 +1116,12 @@ export function filmWith(scene: Scene, moveId: string, o: { index?: number; foll
   const cam = reform(start, move.apply({ scene, camera: start, start: span.start, end: span.end, base }));
   const shots = spans.map((s) => (s === span ? { ...s.shot, camera: cam.id } : s.shot));
   const filmed = withCamera({ ...scene, animation: { ...a, shots } }, cam);
+  // (Following its subject, asked (a motion's preview): a fixed camera too.)
+  if (o.follow && cam.kind === 'rig' && cam.rig.fixed) {
+    const { fixed: _, ...rig } = cam.rig;
+    void _;
+    return withCamera(filmed, { ...cam, rig });
+  }
   return o.follow && cam.kind === 'path' ? withCamera(filmed, restate(filmed, cam, { anchor: 'subject', aim: 'subject' })) : filmed;
 }
 
