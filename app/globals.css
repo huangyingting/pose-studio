@@ -98,10 +98,10 @@
   --mono: var(--font-mono, ui-monospace), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-family: var(--font);
   font-size: var(--fs-m);
-  /* Two weights: 500 for everything, 600 for what heads or stands out (titles, section heads,
+  /* Two weights: 540 for everything, 600 for what heads or stands out (titles, section heads,
      what is chosen); the three text colours say what matters (text, text-2 for labels, text-3 for
      notes). Icons drawn with one stroke to match. */
-  font-weight: 500;
+  font-weight: 540;
   line-height: 1.4;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -188,7 +188,7 @@ button { font: inherit; color: inherit; }
   white-space: nowrap;
   transition: background 0.12s, color 0.12s, box-shadow 0.12s;
 }
-.btn { height: var(--control-m); padding: 0 12px; border-radius: var(--radius-s); font-weight: 500; }
+.btn { height: var(--control-m); padding: 0 12px; border-radius: var(--radius-s); font-weight: 540; }
 .btn.ghost:hover:not(:disabled) { background: var(--hover); }
 .btn.subtle { background: var(--panel); box-shadow: var(--raise); }
 .btn.subtle:hover:not(:disabled) { background: var(--panel-2); }
@@ -233,7 +233,7 @@ button { font: inherit; color: inherit; }
   background: var(--ink);
   color: var(--on-accent);
   font-size: var(--fs-s);
-  font-weight: 500;
+  font-weight: 540;
   line-height: 1.35;
   box-shadow: 0 4px 14px color-mix(in srgb, var(--shade) 18%, transparent);
   pointer-events: none;
@@ -245,13 +245,13 @@ button { font: inherit; color: inherit; }
   border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--light) 14%, transparent);
   color: color-mix(in srgb, var(--light) 78%, transparent);
-  font: 500 var(--fs-xs)/17px var(--font);
+  font: 540 var(--fs-xs)/17px var(--font);
 }
-.tooltip-more { flex-basis: 100%; color: color-mix(in srgb, var(--light) 72%, transparent); font-weight: 500; }
+.tooltip-more { flex-basis: 100%; color: color-mix(in srgb, var(--light) 72%, transparent); font-weight: 540; }
 @keyframes tip { from { opacity: 0; } }
 
 kbd {
-  font: 500 var(--fs-xs)/1 var(--mono);
+  font: 540 var(--fs-xs)/1 var(--mono);
   color: var(--text-2);
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -381,7 +381,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--text-2);
-  font-weight: 500;
+  font-weight: 540;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -402,7 +402,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
-  font-weight: 500;
+  font-weight: 540;
   text-align: left;
   cursor: pointer;
 }
@@ -439,7 +439,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .select-list li.active { background: var(--hover); }
 .select-list li:has(.select-option) { height: auto; padding-top: 5px; padding-bottom: 5px; }
 .select-option { display: grid; gap: 1px; }
-.select-option small { font-size: var(--fs-s); font-weight: 500; color: var(--text-3); }
+.select-option small { font-size: var(--fs-s); font-weight: 540; color: var(--text-3); }
 .select-list li svg { flex: none; color: var(--accent); visibility: hidden; }
 .select-list li[aria-selected='true'] { color: var(--accent); font-weight: 600; }
 .select-list li[aria-selected='true'] svg { visibility: visible; }
@@ -576,7 +576,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .menu-item kbd {
   flex: none; padding: 1px 5px; border: 0; border-radius: var(--radius-xs);
   background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border);
-  color: var(--text-3); font: 500 var(--fs-xs)/16px var(--font); white-space: nowrap;
+  color: var(--text-3); font: 540 var(--fs-xs)/16px var(--font); white-space: nowrap;
 }
 .menu-sep { height: 1px; margin: var(--space-1) var(--space-2); background: var(--border); }
 .menu-group { padding: var(--space-2) var(--space-2) var(--space-1); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); }
@@ -659,7 +659,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .side-list button svg { flex: none; color: var(--text-2); }
 .side-list button svg.warn { color: var(--warn); }
 .side-list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-list em { font-size: var(--fs-s); font-weight: 500; font-style: normal; color: var(--text-3); }
+.side-list em { font-size: var(--fs-s); font-weight: 540; font-style: normal; color: var(--text-3); }
 /* The name wins: a long note gives way (ellipsis), and makes room for a row's buttons on hover. */
 .library-list .side-list-name { flex: 1 0 auto; max-width: 70%; }
 .library-list em { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
@@ -670,7 +670,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 40px; padding: 0 6px 0 14px; flex: none; }
 .side-head h2 { margin: 0; font-size: var(--fs-m); font-weight: 600; }
 .side-actions { display: flex; align-items: center; gap: 2px; }
-.count { color: var(--text-3); font-weight: 500; margin-left: 4px; }
+.count { color: var(--text-3); font-weight: 540; margin-left: 4px; }
 .thumbs {
   list-style: none;
   margin: 0;
@@ -718,7 +718,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.thumbs li.active .thumb span { color: var(--text); font-weight: 500; }
+.thumbs li.active .thumb span { color: var(--text); font-weight: 540; }
 .thumb .badge {
   position: absolute;
   top: 6px;
@@ -779,7 +779,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
    a soft glow behind them so they read over anything. Its buttons keep their own fill. */
 .stage-hint { position: absolute; left: 50%; bottom: calc(var(--tl-h, 44px) + 12px); z-index: 4; display: flex; justify-content: center; max-width: min(760px, calc(100% - 32px)); transform: translateX(-50%); pointer-events: none; }
 .stage-hint .bar-hint, .stage-hint .bar-hint.plain, .stage-hint .bar-hint.note, .stage-hint .bar-hint.accent, .stage-hint .bar-hint.warn {
-  pointer-events: auto; height: auto; min-height: 32px; padding: 4px; background: none; box-shadow: none; font-size: var(--fs-m); font-weight: 500; line-height: 20px; color: var(--stage-text);
+  pointer-events: auto; height: auto; min-height: 32px; padding: 4px; background: none; box-shadow: none; font-size: var(--fs-m); font-weight: 540; line-height: 20px; color: var(--stage-text);
   text-shadow: 0 0 3px var(--stage-halo), 0 0 8px var(--stage-halo), 0 0 14px var(--stage-halo);
 }
 .stage-hint .bar-hint-icon { align-self: flex-start; margin-top: 3px; filter: drop-shadow(0 0 3px var(--stage-halo)); }
@@ -803,7 +803,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .bar-hint.note .bar-hint-icon { color: var(--accent); }
 .bar-hint.accent { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
 .bar-hint.accent .bar-hint-icon { color: var(--accent); }
-.bar-hint.warn { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); color: var(--text); font-weight: 500; }
+.bar-hint.warn { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); color: var(--text); font-weight: 540; }
 .bar-hint.warn .bar-hint-icon { color: var(--warn); }
 .bar-hint.warn .hint-action { background: var(--warn); }
 @keyframes hint-in { from { opacity: 0; transform: translateY(-2px); } }
@@ -862,8 +862,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 }
 .tl-play:hover { background: var(--accent-hover); }
 .tl-time { display: inline-flex; align-items: baseline; gap: 4px; margin-left: 8px; font: 600 var(--fs-l) var(--mono); font-variant-numeric: tabular-nums; min-width: 128px; }
-.tl-time span { color: var(--text-3); font-weight: 500; font-size: var(--fs-s); }
-.tl-time em { font-style: normal; color: var(--text-2); font-weight: 500; font-size: var(--fs-s); margin-left: 4px; }
+.tl-time span { color: var(--text-3); font-weight: 540; font-size: var(--fs-s); }
+.tl-time em { font-style: normal; color: var(--text-2); font-weight: 540; font-size: var(--fs-s); margin-left: 4px; }
 .tl-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; flex: none; }
 .tl-duration { position: relative; width: 74px; margin-left: 4px; flex: none; }
 /* Asked before shortening: scale into the new length, or cut. */
@@ -886,7 +886,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 @keyframes tl-keys { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 .tl-keys { animation: tl-keys 5s ease-in forwards; }
 .tl-keys kbd { font: inherit; font-family: var(--mono); padding: 0 3px; border-radius: 3px; background: var(--panel-2); color: var(--text); }
-.tl-labels { grid-row: 1; grid-column: 1; align-content: start; display: grid; color: var(--text-2); font-size: var(--fs-m); font-weight: 500; padding-left: 12px; }
+.tl-labels { grid-row: 1; grid-column: 1; align-content: start; display: grid; color: var(--text-2); font-size: var(--fs-m); font-weight: 540; padding-left: 12px; }
 .tl-labels span { display: flex; align-items: center; }
 /* The ruler and the Shots row stay at the top as the rows scroll under them. */
 .tl-head, .tl-lanes > .tl-ruler, .tl-lanes > .tl-row.shots { position: sticky; z-index: 4; background: var(--panel); }
@@ -898,7 +898,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-ruler { position: relative; border-bottom: 1px solid var(--border); }
 .tl-ruler .tick { position: absolute; bottom: 0; width: 1px; height: 4px; background: var(--border-strong); }
 .tl-ruler .tick.major { height: 8px; background: var(--text-3); }
-.tl-ruler .tick em { position: absolute; bottom: 7px; left: 4px; font: 500 var(--fs-xs) var(--mono); font-style: normal; color: var(--text-3); white-space: nowrap; }
+.tl-ruler .tick em { position: absolute; bottom: 7px; left: 4px; font: 540 var(--fs-xs) var(--mono); font-style: normal; color: var(--text-3); white-space: nowrap; }
 .tl-row { position: relative; border-bottom: 1px solid var(--border); background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 8 - 1px), color-mix(in srgb, var(--shade) 2.5%, transparent) 0 calc(100% / 8)); }
 .tl-row.camera { border-bottom: 0; }
 .tl-row.active { background-color: color-mix(in srgb, var(--accent) 5%, transparent); }
@@ -1068,7 +1068,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-shot:hover .tl-blend.none { opacity: 1; }
 .tl-shot .tl-cut { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 1; cursor: ew-resize; }
 .tl-shot .tl-cut:hover { background: color-mix(in srgb, var(--accent) 45%, transparent); }
-.tl-shot em { font-style: normal; font-weight: 500; color: var(--text-3); margin-left: auto; }
+.tl-shot em { font-style: normal; font-weight: 540; color: var(--text-3); margin-left: auto; }
 .tl-shot:hover { background: var(--press); }
 .tl-shot.on { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
 .tl-shot.on em { color: color-mix(in srgb, var(--accent) 65%, transparent); }
@@ -1137,11 +1137,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   cursor: pointer;
 }
 .qa-card li button:hover { background: var(--hover); }
-.qa-card li .qa-fix { display: inline-flex; width: auto; margin: 0 0 6px 8px; padding: 0 10px; height: var(--control-s); border-radius: var(--radius-s); background: var(--panel-2); color: var(--accent); font-weight: 500; }
+.qa-card li .qa-fix { display: inline-flex; width: auto; margin: 0 0 6px 8px; padding: 0 10px; height: var(--control-s); border-radius: var(--radius-s); background: var(--panel-2); color: var(--accent); font-weight: 540; }
 .qa-card li .qa-fix:hover { background: var(--hover); }
 .qa-kind { font-weight: 600; color: var(--warn); }
 .qa-kind.overlap, .qa-kind.floor { color: var(--danger); }
-.qa-card em { justify-self: end; font-size: var(--fs-s); font-weight: 500; font-style: normal; color: var(--text-3); }
+.qa-card em { justify-self: end; font-size: var(--fs-s); font-weight: 540; font-style: normal; color: var(--text-3); }
 .qa-msg { grid-column: 1 / -1; color: var(--text); }
 .qa-hint { grid-column: 1 / -1; color: var(--text-2); }
 .shot-editor textarea {
@@ -1281,7 +1281,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 @keyframes pulse { 50% { opacity: 0.4; } }
 .assistant-tool { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-2); font-size: var(--fs-s); }
 .assistant-tool svg { flex: none; color: var(--text-3); }
-.assistant-tool code { flex: none; font: 500 var(--fs-s) var(--mono); color: var(--text); }
+.assistant-tool code { flex: none; font: 540 var(--fs-s) var(--mono); color: var(--text); }
 .assistant-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .assistant-tool.failed, .assistant-tool.failed svg { color: var(--danger); }
 .assistant-input { display: flex; align-items: flex-end; gap: 6px; margin: 0 10px 10px; padding: 6px 6px 6px 10px; border-radius: var(--radius-l); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); flex: none; }
@@ -1298,7 +1298,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .panel-title { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
 /* The header stays while the sections scroll: the way back to the scene, what is selected, the panel's own buttons. */
 .panel-scroll > .panel-title { position: sticky; top: 0; z-index: 2; background: var(--panel); }
-.crumb { display: inline-flex; align-items: center; gap: 2px; flex: none; height: 24px; margin-left: -6px; padding: 0 2px 0 6px; border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text-3); font: inherit; font-weight: 500; cursor: pointer; }
+.crumb { display: inline-flex; align-items: center; gap: 2px; flex: none; height: 24px; margin-left: -6px; padding: 0 2px 0 6px; border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text-3); font: inherit; font-weight: 540; cursor: pointer; }
 .crumb:hover { background: var(--hover); color: var(--text); }
 .panel-hide { flex: none; width: 28px; height: 28px; color: var(--text-3); }
 /* A picked part: a small map to pick another, beside its sliders. */
@@ -1315,7 +1315,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .warp-warn { padding: 8px 10px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger-text); font-size: var(--fs-m); }
 .warp-warn p { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 6px; }
 .warp-warn .row { display: flex; gap: 6px; }
-.title-note { color: var(--text-3); font-size: var(--fs-m); font-weight: 500; }
+.title-note { color: var(--text-3); font-size: var(--fs-m); font-weight: 540; }
 .spacer { flex: 1; }
 
 .psec { border-bottom: 1px solid var(--border); padding: 4px 14px 14px; }
@@ -1404,8 +1404,8 @@ button.psec-title svg { color: var(--text-3); }
 .hidden { display: none; }
 .form { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .form .field .segmented.full { width: 100%; }
-.form label:not(.switch):not(.btn) { display: grid; gap: 6px; color: var(--text-2); font-weight: 500; }
-.form .field { display: grid; gap: 6px; color: var(--text-2); font-weight: 500; justify-items: stretch; }
+.form label:not(.switch):not(.btn) { display: grid; gap: 6px; color: var(--text-2); font-weight: 540; }
+.form .field { display: grid; gap: 6px; color: var(--text-2); font-weight: 540; justify-items: stretch; }
 .form .field > .segmented:not(.full) { justify-self: start; }
 .form .row { display: flex; gap: 8px; }
 .form .row label { flex: 1; min-width: 0; }
@@ -1550,7 +1550,7 @@ button.psec-title svg { color: var(--text-3); }
 .panel-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-s); background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; transition: opacity 0.1s; }
 .panel-card:hover .panel-actions, .panel-card:focus-within .panel-actions { opacity: 1; }
 .panel-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.panel-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.panel-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 540; }
 .panel-hold { width: 72px; flex: none; }
 .panel-caption {
   font: inherit;
@@ -1631,14 +1631,14 @@ button.psec-title svg { color: var(--text-3); }
   border-radius: var(--radius-l);
   background: color-mix(in srgb, var(--light) 8%, transparent);
   color: var(--on-accent);
-  font-weight: 500;
+  font-weight: 540;
   cursor: pointer;
 }
 .practice-session footer button:hover:not(:disabled) { background: color-mix(in srgb, var(--light) 14%, transparent); }
 .practice-session footer button:disabled { opacity: 0.3; cursor: default; }
 .practice-session footer button.play { min-width: 56px; background: var(--on-accent); color: var(--ink); }
 .practice-count { color: color-mix(in srgb, var(--light) 50%, transparent); font-variant-numeric: tabular-nums; }
-.practice-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.practice-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 540; }
 .practice-timer { font: 600 var(--fs-display)/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .practice-timer.ending { color: var(--danger-on-dark); }
 .practice-progress { background: color-mix(in srgb, var(--light) 8%, transparent); }
@@ -1716,7 +1716,7 @@ button.psec-title svg { color: var(--text-3); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-.assistant-usage { font-size: var(--fs-s); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.assistant-usage { font-size: var(--fs-s); font-weight: 540; font-variant-numeric: tabular-nums; color: var(--text-3); }
 .signin-buttons { display: grid; gap: 8px; }
 .signin-buttons .btn { justify-content: center; }
 .avatar {
@@ -1752,7 +1752,7 @@ button.psec-title svg { color: var(--text-3); }
 .outline-still { display: grid; gap: 8px; padding: 0 14px; }
 .layer-main .layer-tag { margin-left: auto; color: var(--text-3); }
 .layer-main .layer-tag.warn { color: var(--warn); }
-.layer-main em { min-width: 0; margin-left: auto; overflow: hidden; font-size: var(--fs-s); font-weight: 500; font-style: normal; color: var(--text-3); text-overflow: ellipsis; white-space: nowrap; }
+.layer-main em { min-width: 0; margin-left: auto; overflow: hidden; font-size: var(--fs-s); font-weight: 540; font-style: normal; color: var(--text-3); text-overflow: ellipsis; white-space: nowrap; }
 /* (A short name keeps its place; the note beside it gives way.) */
 .layer-main .layer-name { flex: none; }
 .layer-main .layer-tag + em { margin-left: 4px; }
@@ -1805,7 +1805,7 @@ button.psec-title svg { color: var(--text-3); }
 /* The Library's categories: icon tabs in one row (the open one named, until the row is too narrow). */
 .library { container: library / inline-size; }
 .lib-tabs { display: flex; gap: 2px; margin: 8px 10px 6px; padding: 2px; border-radius: var(--radius); background: var(--panel-2); flex: none; }
-.lib-tab { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: 1 1 0; min-width: 0; max-width: 40px; height: 28px; padding: 0 6px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font-size: var(--fs-m); font-weight: 500; cursor: pointer; }
+.lib-tab { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: 1 1 0; min-width: 0; max-width: 40px; height: 28px; padding: 0 6px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font-size: var(--fs-m); font-weight: 540; cursor: pointer; }
 .lib-tab:hover { color: var(--text); }
 .lib-tab.on { flex: 1 0 auto; max-width: none; background: var(--panel); color: var(--text); box-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 8%, transparent); }
 .lib-tab-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -1907,14 +1907,14 @@ button.psec-title svg { color: var(--text-3); }
 .psec { padding: 6px 14px 16px; }
 .psec.closed { padding-bottom: 6px; }
 .psec h3, h3.psec-title { font-size: var(--fs-s); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
-.psec-summary { margin-left: 6px; overflow: hidden; color: var(--text-3); font-size: var(--fs-s); font-weight: 500; text-transform: none; letter-spacing: 0; white-space: nowrap; text-overflow: ellipsis; }
+.psec-summary { margin-left: 6px; overflow: hidden; color: var(--text-3); font-size: var(--fs-s); font-weight: 540; text-transform: none; letter-spacing: 0; white-space: nowrap; text-overflow: ellipsis; }
 .psec-body { gap: 4px; }
 .hint { margin: 0; color: var(--text-3); font-size: var(--fs-s); line-height: 1.45; }
 
 /* A property: its label on the left, its control on the right, one row of about 28 px. */
 .panel .field, .form .field, .prow {
   display: grid; grid-template-columns: var(--label-w, 76px) minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 4px;
-  min-height: 28px; color: var(--text-2); font-size: var(--fs-m); font-weight: 500;
+  min-height: 28px; color: var(--text-2); font-size: var(--fs-m); font-weight: 540;
 }
 .panel .field > :not(:first-child), .form .field > :not(:first-child), .prow > :not(:first-child) { grid-column: 2; min-width: 0; }
 .panel .field > :first-child, .form .field > :first-child { display: flex; align-items: center; gap: 2px; min-width: 0; color: var(--text-2); }
@@ -1934,7 +1934,7 @@ button.psec-title svg { color: var(--text-3); }
 .info-btn:hover, .info-btn[aria-expanded='true'] { color: var(--text-2); background: var(--hover); }
 .info-wrap { position: relative; display: inline-flex; }
 .psec-actions .info-pop { left: auto; right: -8px; }
-.info-pop { position: absolute; top: calc(100% + 4px); left: -8px; z-index: var(--z-drawer); width: 220px; padding: 7px 9px; border-radius: var(--radius-s); background: var(--ink); color: var(--on-accent); font-size: var(--fs-s); font-weight: 500; line-height: 1.45; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-float); }
+.info-pop { position: absolute; top: calc(100% + 4px); left: -8px; z-index: var(--z-drawer); width: 220px; padding: 7px 9px; border-radius: var(--radius-s); background: var(--ink); color: var(--on-accent); font-size: var(--fs-s); font-weight: 540; line-height: 1.45; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-float); }
 
 /* A row that stands for something kept elsewhere (a shot's camera): click it to go there. */
 .summary-row {
@@ -2007,7 +2007,7 @@ span.view-end.minus { opacity: 0.5; cursor: default; }
 /* Beside the pointer while something is dragged: how far it has moved or turned, a joint's value. */
 .drag-readout {
   position: fixed; top: 0; left: 0; z-index: var(--z-readout); padding: 3px 8px; border-radius: var(--radius-s); background: var(--ink); color: var(--on-accent);
-  font-size: var(--fs-s); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
+  font-size: var(--fs-s); font-weight: 540; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
 }
 /* The selected joint's arcs, one per slider: thin to look at, wide to grab. */
 /* The selected joint's card: − value + for each slider. */
@@ -2055,14 +2055,14 @@ body.resizing { cursor: col-resize; user-select: none; }
 .scene-overview section { display: grid; padding: 8px 8px 10px; }
 .scene-overview section + section { border-top: 1px solid var(--border); }
 .scene-overview h3 { margin: 0 6px 6px; font-size: var(--fs-s); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
-.scene-overview h3 span { margin-left: 4px; font-weight: 500; color: var(--text-3); text-transform: none; letter-spacing: 0; }
+.scene-overview h3 span { margin-left: 4px; font-weight: 540; color: var(--text-3); text-transform: none; letter-spacing: 0; }
 .scene-line { display: grid; gap: 4px; }
 .scene-line-main { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 6px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font: inherit; text-align: left; }
 button.scene-line-main { cursor: pointer; }
 button.scene-line-main:hover { background: var(--hover); }
 .scene-line-main > svg:first-child { flex: none; color: var(--text-2); }
 .scene-line-label { flex: none; width: 76px; color: var(--text-2); }
-.scene-line-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.scene-line-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 540; }
 .scene-line-go { flex: none; color: var(--text-3); }
 .scene-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 6px 29px; }
 .scene-chip { height: 22px; max-width: 100%; padding: 0 8px; border: 0; border-radius: var(--radius-pill); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: var(--fs-s); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
@@ -2083,6 +2083,6 @@ button.scene-line-main:hover { background: var(--hover); }
 .layers-sub { padding: 6px 8px 2px; font-size: var(--fs-s); color: var(--text-3); }
 .name-header-note { font-size: var(--fs-m); color: var(--text-3); white-space: nowrap; }
 
-/* Icons: one stroke, a little firmer than the drawing default, to stand with the 500 type (but the
+/* Icons: one stroke, a little firmer than the drawing default, to stand with the 540 type (but the
    big, light ones drawn thin on purpose). */
 svg.lucide:not([stroke-width="1.25"]):not([stroke-width="1.5"]) { stroke-width: 1.85; }
