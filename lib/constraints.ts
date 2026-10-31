@@ -179,9 +179,31 @@ export function solveHolds(rig: Rig, f: Figure, holds: Hold[], limits = true): P
     const here = { side, p: end.getWorldPosition(new THREE.Vector3()), q: end.getWorldQuaternion(new THREE.Quaternion()) } as const;
     let solved: Figure['bones'];
     if (foot && h.relative) {
-      // The leg turned by what it takes to bring the foot from where it is to `at` (its own way of bending kept).
-      const [from, to] = [plantFeet(rig, fig, [here]).bones, plantFeet(rig, fig, [{ ...here, p: h.at }]).bones];
-      solved = Object.fromEntries(chain.map((j) => [j, toQuat(fromQuat(fig.bones[j]).multiply(fromQuat(from[j]).invert().multiply(fromQuat(to[j]))))]));
+      // The leg turned by what it takes to bring the foot from where it is to `at` (its own way of
+      // bending kept); again from where that leaves it, while it is still off the spot (the turn is
+      // worked out for the leg as the solver would bend it, not quite as the clip has it).
+      // (Only while it comes nearer: a spot out of reach is not chased round.)
+      let bonesNow = fig.bones;
+      let best = { bones: fig.bones, miss: Infinity };
+      // (Fully held only: easing onto or off the spot, one turn, as before — no jumps as it starts.)
+      for (let pass = 0; pass < (h.weight >= 0.999 ? 3 : 1); pass++) {
+        const cur = { ...fig, bones: bonesNow };
+        const e = rig.model(cur).joints[h.bone];
+        const at = { side, p: e.getWorldPosition(new THREE.Vector3()), q: e.getWorldQuaternion(new THREE.Quaternion()) } as const;
+        const miss = at.p.distanceTo(h.at);
+        if (pass > 0) {
+          if (miss >= best.miss) break;
+          best = { bones: bonesNow, miss };
+          if (miss < 0.003) break;
+        }
+        const [from, to] = [plantFeet(rig, cur, [at]).bones, plantFeet(rig, cur, [{ ...at, p: h.at }]).bones];
+        const next = { ...bonesNow, ...Object.fromEntries(chain.map((j) => [j, toQuat(fromQuat(bonesNow[j]).multiply(fromQuat(from[j]).invert().multiply(fromQuat(to[j]))))])) };
+        // (A leg that would swing round to another way of bending — a deep crouch — is left as the first turn has it.)
+        if (pass > 0 && chain.some((j) => fromQuat(next[j]).angleTo(fromQuat(fig.bones[j])) > 0.6)) break;
+        bonesNow = next;
+        if (pass === 0) best = { bones: bonesNow, miss: Infinity };
+      }
+      solved = best.bones;
     } else if (foot) solved = plantFeet(rig, fig, [{ ...here, p: h.at }]).bones;
     else {
       // A hand turns its arm by the least it takes (continuous as the target moves, from the pose

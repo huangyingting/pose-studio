@@ -48,7 +48,7 @@ describe('motion QA', () => {
     const id = store.figure!.id;
     expect(applyMotion(store, id, idle.id)).toBe(true);
     // Turned a half turn round over it (as an end mark facing the other way does).
-    store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.source.kind === 'clip' ? { ...x, roles: [{ figure: id, end: { at: [0, 0] as [number, number], facing: 120 } }] } : x)) } }));
+    store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.source.kind === 'clip' ? { ...x, roles: [{ figure: id, end: { at: [0, 0] as [number, number], facing: 170 } }] } : x)) } }));
     const slide = checkMotion(store.scene).find((i) => i.kind === 'slide')!;
     expect(slide).toBeTruthy();
     const fix = issueFix(store, slide)!;
@@ -58,8 +58,8 @@ describe('motion QA', () => {
     // (Stepped round to face that way first; the motion then as it goes by itself.)
     const [turn, play] = store.scene.animation!.actions.filter((x) => x.source.kind !== 'keys');
     expect(turn.source.kind).toBe('travel');
-    expect(turn.roles[0].end!.facing).toBe(120);
-    expect(Math.abs(play.roles[0].end!.facing - 120)).toBeLessThan(5);
+    expect(turn.roles[0].end!.facing).toBe(170);
+    expect(Math.abs(play.roles[0].end!.facing - 170)).toBeLessThan(5);
   });
 
   it('finds a ball flying through someone, but not one let go of or caught at a hand', () => {
