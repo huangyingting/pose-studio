@@ -1486,7 +1486,8 @@ button.psec-title svg { color: var(--text-3); }
 .board-add-list { flex: none; display: flex; gap: 10px; margin: 0; padding: 10px 16px; overflow-x: auto; list-style: none; border-bottom: 1px solid var(--border); background: var(--panel); }
 .board-add-list button { display: grid; gap: 4px; width: 132px; padding: 4px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font: inherit; font-size: var(--fs-s); text-align: left; cursor: pointer; }
 .board-add-list button:hover { background: var(--panel-2); color: var(--text); }
-.board-add-list img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-s); box-shadow: inset 0 0 0 1px var(--border); }
+.board-add-list img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-s); border: 1px solid var(--border); }
+.board-add-list .board-add-hint { align-self: center; width: 120px; color: var(--text-3); font-size: var(--fs-s); }
 .board-add-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-grid {
   flex: 1;

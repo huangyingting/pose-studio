@@ -88,9 +88,10 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
   // Scenes left out of the story, to put back in.
   const addList = adding && (
     <ul className="board-add-list" aria-label="Scenes to add">
+      <li className="board-add-hint" aria-hidden>Left out of the story: click one to put it back</li>
       {out.map((s) => (
         <li key={s.id}>
-          <button type="button" onClick={() => { setInStory(store, s.id, true); setAdding(out.length > 1); }}>
+          <button type="button" data-tip="Put it back into the story" onClick={() => { setInStory(store, s.id, true); setAdding(out.length > 1); }}>
             {/* Generated data: URLs, so next/image does not apply. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={thumbnail(s)} alt="" />
@@ -107,7 +108,8 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
         <h2><LayoutPanelTop size={18} aria-hidden /> Storyboard</h2>
         <span className="muted">{entries.length} {entries.length === 1 ? 'scene' : 'scenes'} · {shots.length} {shots.length === 1 ? 'shot' : 'shots'} · {storyLength(shots).toFixed(1)} s</span>
         <span className="spacer" />
-        {out.length > 0 && (
+        {/* (Empty, the board's own button says it.) */}
+        {out.length > 0 && (shots.length > 0 || adding) && (
           <button type="button" className="btn subtle" aria-expanded={adding} onClick={() => setAdding(!adding)}>
             <Plus size={15} aria-hidden /> Add a scene
           </button>
