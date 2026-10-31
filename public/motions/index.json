@@ -52,14 +52,14 @@
  {
   "id": "library:baseball-pitching",
   "name": "Baseball pitch",
-  "duration": 3.933,
+  "duration": 5.2,
   "people": 1,
   "group": "Sport & acrobatics",
   "move": [
-   0,
-   0
+   0.126,
+   -0.016
   ],
-  "turn": 0
+  "turn": -1
  },
  {
   "id": "library:baseball-hit",
@@ -125,7 +125,7 @@
  {
   "id": "library:victory",
   "name": "Cheer, sitting",
-  "duration": 6.1,
+  "duration": 8.533,
   "people": 1,
   "group": "Sitting & lying",
   "loop": true,
@@ -280,7 +280,6 @@
   "duration": 1.167,
   "people": 1,
   "group": "Weapons",
-  "loop": true,
   "move": [
    0,
    0
@@ -334,6 +333,18 @@
    0.146
   ],
   "turn": 85
+ },
+ {
+  "id": "library:pick-up-item",
+  "name": "Grab something on the run",
+  "duration": 1.2,
+  "people": 1,
+  "group": "Moving",
+  "move": [
+   -0.021,
+   5.063
+  ],
+  "turn": 0
  },
  {
   "id": "library:blocking",
@@ -423,7 +434,6 @@
   "duration": 2.3,
   "people": 1,
   "group": "Fighting",
-  "loop": true,
   "move": [
    0,
    0
@@ -449,7 +459,6 @@
   "duration": 2.167,
   "people": 1,
   "group": "Fighting",
-  "loop": true,
   "impact": 1.14,
   "move": [
    0,
@@ -468,7 +477,6 @@
   "duration": 2.133,
   "people": 1,
   "group": "Fighting",
-  "loop": true,
   "impact": 0.44,
   "move": [
    0,
@@ -484,12 +492,13 @@
  {
   "id": "library:jazz-dancing",
   "name": "Jazz",
-  "duration": 2.267,
+  "duration": 5.433,
   "people": 1,
   "group": "Dance",
+  "loop": true,
   "move": [
-   -0.005,
-   1.376
+   0,
+   0
   ],
   "turn": 0
  },
@@ -509,13 +518,12 @@
  {
   "id": "library:jump",
   "name": "Jump",
-  "duration": 1.667,
+  "duration": 2.767,
   "people": 1,
   "group": "Sport & acrobatics",
-  "loop": true,
   "move": [
-   0,
-   0
+   -0.016,
+   3.982
   ],
   "turn": 0
  },
@@ -610,7 +618,7 @@
  },
  {
   "id": "library:lying-down",
-  "name": "Lie down",
+  "name": "Lie down on a bed",
   "duration": 5.733,
   "people": 1,
   "group": "Sitting & lying",
@@ -639,7 +647,6 @@
   "duration": 11.5,
   "people": 1,
   "group": "Using things",
-  "loop": true,
   "move": [
    0,
    0
@@ -665,7 +672,6 @@
   "duration": 2.6,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -703,24 +709,11 @@
   ]
  },
  {
-  "id": "library:pick-up-item",
-  "name": "Pick something up",
-  "duration": 1.2,
-  "people": 1,
-  "group": "Using things",
-  "move": [
-   -0.021,
-   5.063
-  ],
-  "turn": 0
- },
- {
   "id": "library:pointing",
   "name": "Point at someone",
   "duration": 3.433,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -746,7 +739,6 @@
   "duration": 3.233,
   "people": 1,
   "group": "Using things",
-  "loop": true,
   "move": [
    0,
    0
@@ -759,7 +751,6 @@
   "duration": 6.267,
   "people": 1,
   "group": "Using things",
-  "loop": true,
   "move": [
    0,
    0
@@ -784,7 +775,6 @@
   "duration": 1.3,
   "people": 1,
   "group": "Fighting",
-  "loop": true,
   "move": [
    0,
    0
@@ -809,7 +799,6 @@
   "duration": 2.5,
   "people": 1,
   "group": "Fighting",
-  "loop": true,
   "impact": 1.08,
   "move": [
    0,
@@ -893,7 +882,6 @@
   "duration": 2.833,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -919,7 +907,6 @@
   "duration": 2.433,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -932,7 +919,6 @@
   "duration": 1.8,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -945,7 +931,6 @@
   "duration": 2,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -1031,14 +1016,14 @@
  {
   "id": "library:stand-up",
   "name": "Stand up, slow",
-  "duration": 4.833,
+  "duration": 8.267,
   "people": 1,
   "group": "Sitting & lying",
   "move": [
-   -0.032,
-   0.408
+   0.012,
+   0.807
   ],
-  "turn": -2
+  "turn": 75
  },
  {
   "id": "library:breathing-idle",
@@ -1098,7 +1083,6 @@
   "duration": 4,
   "people": 1,
   "group": "Feelings",
-  "loop": true,
   "move": [
    0,
    0
@@ -1134,14 +1118,14 @@
  {
   "id": "library:sword-and-shield-attack",
   "name": "Sword and shield, strike",
-  "duration": 1.733,
+  "duration": 2.333,
   "people": 1,
   "group": "Weapons",
   "move": [
-   -0.007,
-   2.298
+   -0.009,
+   3.655
   ],
-  "turn": -37
+  "turn": -44
  },
  {
   "id": "library:talking-on-phone",
@@ -1158,7 +1142,7 @@
  {
   "id": "library:talking",
   "name": "Talk, explaining",
-  "duration": 3.933,
+  "duration": 4.8,
   "people": 1,
   "group": "Talking & gestures",
   "loop": true,
@@ -1199,7 +1183,6 @@
   "duration": 4.867,
   "people": 1,
   "group": "Using things",
-  "loop": true,
   "move": [
    0,
    0
@@ -1212,7 +1195,6 @@
   "duration": 4.167,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0
@@ -1249,7 +1231,6 @@
   "duration": 1.333,
   "people": 1,
   "group": "Fighting",
-  "loop": true,
   "impact": 0.47,
   "move": [
    0,
@@ -1357,7 +1338,6 @@
   "duration": 3.267,
   "people": 1,
   "group": "Talking & gestures",
-  "loop": true,
   "move": [
    0,
    0

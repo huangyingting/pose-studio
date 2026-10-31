@@ -331,7 +331,7 @@ export const MOTIONS: Motion[] = [
       const extend = { ...stance, bones: bonesOf({ ...g, hips: [-12, g.hips![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, leftUpperLeg: support(-12), rightUpperLeg: [-88, 0, -6] as Vec3, rightLowerLeg: [6, 0, 0] as Vec3, rightFoot: [-25, 0, 0] as Vec3 }) };
       return animated('Front kick', [
         { t: 0, figures: [stance] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
-      ], { duration: 1.5, loop: true, view: { yaw: 70, pitch: 2, fov: 28 } });
+      ], { duration: 1.5, loop: false, view: { yaw: 70, pitch: 2, fov: 28 } });
     }),
   },
   {
@@ -363,7 +363,7 @@ export const MOTIONS: Motion[] = [
       return animated('Block & duck', [
         { t: 0, figures: [stance] }, { t: 0.2, figures: [block] }, { t: 0.55, figures: [block] }, { t: 0.75, figures: [stance] },
         { t: 1.0, figures: [duck] }, { t: 1.3, figures: [duck] }, { t: 1.6, figures: [stance] },
-      ], { duration: 1.9, loop: true, view: { yaw: 60, pitch: 4, fov: 28 } });
+      ], { duration: 1.9, loop: false, view: { yaw: 60, pitch: 4, fov: 28 } });
     }),
   },
   {
@@ -573,7 +573,7 @@ export const MOTIONS: Motion[] = [
       });
       return animated('Bow', [
         { t: 0, figures: [stand] }, { t: 0.7, figures: [bow] }, { t: 1.4, figures: [bow] }, { t: 2.1, figures: [stand] },
-      ], { duration: 2.6, loop: true, view: { yaw: 55, pitch: 6, fov: 24 } });
+      ], { duration: 2.6, loop: false, view: { yaw: 55, pitch: 6, fov: 24 } });
     },
   },
   // Everyday beats (#14): what people do in a scene between the big actions.

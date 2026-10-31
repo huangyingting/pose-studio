@@ -68,7 +68,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Kneeling Idle': ['Kneel', 'Sitting & lying'],
   'Crouch To Stand': ['Get up from one knee', 'Sitting & lying'],
   'Stand Up': ['Stand up, slow', 'Sitting & lying'],
-  'Lying Down': ['Lie down', 'Sitting & lying'],
+  'Lying Down': ['Lie down on a bed', 'Sitting & lying'],
   'Laying Idle': ['Lie, idle', 'Sitting & lying'],
   'Talking': ['Talk, explaining', 'Talking & gestures'],
   'Sitting Talking': ['Talk, sitting', 'Talking & gestures'],
@@ -97,7 +97,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Thinking': ['Think', 'Feelings'],
   'Carrying': ['Hold a box', 'Using things'],
   'Lifting Object': ['Lift a heavy box', 'Using things'],
-  'Pick Up Item': ['Pick something up', 'Using things'],
+  'Pick Up Item': ['Grab something on the run', 'Moving'],
   'Throw Object': ['Throw', 'Using things'],
   'Push': ['Push something heavy', 'Using things'],
   'Pull Heavy Object': ['Pull something heavy', 'Using things'],
@@ -152,6 +152,15 @@ const round = (v: number) => Math.round(v * 1000) / 1000;
 
 const quatAngle = (a: number[], b: number[]) => (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
 
+/**
+ * Done once, though they end as they start: a gesture, a blow, a reaction, using something (a
+ * block of one is trimmed, not made of laps; played longer, it holds its last pose).
+ */
+const ONCE = [
+  'Shooting', 'Surprised', 'Head Nod Yes', 'Shaking Head No', 'Pointing', 'Salute', 'Shake Fist', 'Shrugging', 'Standing Thumbs Up', 'Dismissing Gesture',
+  'Jump', 'Hit Reaction', 'Hook Punch', 'Jab Cross', 'Receive Punch To The Face', 'Roundhouse Kick', 'Uppercut', 'Lifting Object', 'Button Pushing', 'Pulling Lever', 'Throw Object',
+];
+
 /** A walk, run or the like (not a turn): going round carries on from where it got to. */
 const isCycle = (name: string) => /walk|run|jog|sprint|strafe/i.test(name) && !/turn/i.test(name);
 
@@ -160,6 +169,7 @@ const isCycle = (name: string) => /walk|run|jog|sprint|strafe/i.test(name) && !/
  * it starts (a dodge, a turn does not: done once), or goes on from there as a walk does: it can go round.
  */
 function loops(clip: Clip): boolean {
+  if (ONCE.includes(clip.name)) return false;
   return clip.parts.every((p) => {
     const a = samplePart(p, 0, clip.duration, false), b = samplePart(p, clip.duration, clip.duration, false);
     if (Math.abs(a.position[1] - b.position[1]) > 0.02) return false;
