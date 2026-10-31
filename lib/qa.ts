@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { frameTimes } from './animation';
 import { LIBRARY } from './assets';
-import { missedCatchesOf, sceneAt, travelAt, warpOf } from './evaluate';
+import { figurePoseAt, missedCatchesOf, sceneAt, travelAt, warpOf } from './evaluate';
 import { JOINT_LABELS, jointLimits, wrapDeg } from './joints';
 import { Ink } from './ink';
 import { PropObject } from './props';
@@ -12,7 +12,7 @@ import { groundOf } from './surfaces';
 import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
 import { setBlocks } from './sets';
 import { shotSpans } from './shots';
-import { JOINTS, type Action, type Animation, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
+import { JOINTS, type Action, type Animation, type Figure, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
 
 /*
  * Motion QA: play the animation frame by frame and flag what usually gives a shot away:
@@ -173,6 +173,15 @@ function recordingsAt(a: Animation, figure: string, t: number) {
   return lib(before);
 }
 
+/** How far a joint is bent past its natural range (degrees, 0: within it). */
+function pastLimit(bones: Figure['bones'], j: JointName) {
+  const lim = jointLimits(j);
+  return Math.max(...angle(bones, j).map((v, k) => {
+    const w = wrapDeg(v);
+    return Math.max(lim[k][0] - w, w - lim[k][1], 0);
+  }));
+}
+
 export function checkMotion(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a) return [];
@@ -242,6 +251,17 @@ export function checkMotion(scene: Scene): Issue[] {
       const w = warpOf(scene, act, act.roles[0].figure);
       const long = Math.max(1, act.duration);
       unwarped.set(id, (x = !!w && w.distance / long < 0.02 && w.angle / long < 2 && (w.distance < 0.03 || act.duration > 4) && (w.angle < 3 || act.duration > 4)));
+    }
+    return x;
+  };
+  // How far past its range each joint is at a travel's two ends, as posed there.
+  const overAt = new Map<string, Partial<Record<JointName, number>>>();
+  const keyedOver = (way: Action, id: string) => {
+    let x = overAt.get(way.id);
+    if (!x) {
+      const [p, q] = [figurePoseAt(scene, id, way.start), figurePoseAt(scene, id, way.start + way.duration)];
+      x = Object.fromEntries(JOINTS.map((j) => [j, Math.max(p ? pastLimit(p.bones, j) : 0, q ? pastLimit(q.bones, j) : 0)]));
+      overAt.set(way.id, x);
     }
     return x;
   };
@@ -344,16 +364,14 @@ export function checkMotion(scene: Scene): Issue[] {
       prevRoot.set(f.id, root);
       if (wrap) continue;
 
-      // Joint limits. (Not where the pose is recordings' alone.)
+      // Joint limits. (Not where the pose is recordings' alone; on the way between two poses, no
+      // further past than they are: a walk eases into a crouch as the crouch has its ankles.)
       const mixed = recorded || recordingsAt(a, f.id, times[i]);
+      const way = mixed || f.proxy ? null : travelAt(a, f.id, times[i]);
+      const ends = way ? keyedOver(way, f.id) : null;
       for (const j of JOINTS) {
         if (j === 'hips' || f.proxy || mixed) continue;
-        const r = angle(f.bones, j);
-        const lim = jointLimits(j);
-        const over = Math.max(...r.map((v, k) => {
-          const w = wrapDeg(v);
-          return Math.max(lim[k][0] - w, w - lim[k][1], 0);
-        }));
+        const over = pastLimit(f.bones, j) - (ends?.[j] ?? 0);
         if (over > LIMIT_SLACK) ranges.hit(`limit:${f.id}:${j}`, step, over, { kind: 'limit', figure: f.id, joint: j });
       }
       const c = capsules(rig, f);
