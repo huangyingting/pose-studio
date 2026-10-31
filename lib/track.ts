@@ -628,6 +628,87 @@ export function playRange(a: Animation, id: string, from: number, to: number): A
   return longer(sorted(replace(moved, moved.actions.find((x) => x.id === id)!, [next])), end(next));
 }
 
+/** Why an action can't be split at t (#22), or null if it can. */
+export function unsplittable(a: Animation, id: string, t: number): string | null {
+  const act = a.actions.find((x) => x.id === id);
+  if (!act) return 'Nothing to split';
+  if (act.source.kind === 'travel') return 'A walk, run or jump goes all the way to its mark: it is not split';
+  const least = Math.max(MIN_BLOCK, 1 / a.fps);
+  if (t < act.start + least - 1e-6 || t > end(act) - least + 1e-6) return `Put the playhead inside ${actionLabel(act)} to split it there`;
+  return null;
+}
+
+/**
+ * Split a repeated motion into its repeats (#22, #23): one block each, the part of the motion and
+ * its speed kept; the first keeps its blend in, the last its mark.
+ */
+export function splitRepeats(a: Animation, id: string): Animation {
+  const act = a.actions.find((x) => x.id === id);
+  const src = act?.source;
+  if (!act || src?.kind !== 'clip' || (src.repeat ?? 1) < 2) return a;
+  const n = src.repeat!;
+  const once = act.duration / n;
+  const { repeat: _r, ...one } = src;
+  void _r;
+  const blocks = Array.from({ length: n }, (_, i): Action => ({
+    ...act,
+    id: i ? uid('act') : act.id,
+    start: act.start + once * i,
+    duration: once,
+    source: one,
+    roles: act.roles.map((r) => (i === n - 1 ? r : { figure: r.figure })),
+    ...(i && act.blendIn ? { blendIn: undefined } : {}),
+  })).map((x) => { if (x.blendIn === undefined) delete x.blendIn; return x; });
+  return sorted(replace(a, act, blocks));
+}
+
+/**
+ * Split an action at t (#22): two blocks, the second going on from where the first leaves off (no
+ * blend), the part of its motion each plays its own; the first keeps its blend in, the second its
+ * mark. A repeated motion splits into its repeats first, then the one under t; a loop into two
+ * loops; keys into two Posed blocks, the pose at t keyed in both. A walk, run or jump is not split.
+ */
+export function splitAction(a: Animation, id: string, t: number): Animation {
+  if (unsplittable(a, id, t)) return a;
+  const time = Math.round(t * a.fps) / a.fps;
+  const act0 = a.actions.find((x) => x.id === id)!;
+  const src0 = act0.source;
+  if (src0.kind === 'clip' && (src0.repeat ?? 1) > 1) {
+    const apart = splitRepeats(a, id);
+    // (At a repeat's end: apart already.)
+    const under = apart.actions.find((x) => x.roles[0].figure === act0.roles[0].figure && x.layer === act0.layer && x.start < time - 1e-6 && time < end(x) - 1e-6 && x.source.kind === 'clip');
+    return under && !unsplittable(apart, under.id, time) ? splitAction(apart, under.id, time) : apart;
+  }
+  const act = act0;
+  const src = act.source;
+  const first: Action = { ...act, duration: time - act.start, roles: act.roles.map((r) => ({ figure: r.figure })) };
+  const second: Action = { ...act, id: uid('act'), start: time, duration: end(act) - time };
+  delete second.blendIn;
+  if (src.kind === 'clip') {
+    const whole = clipById(src.clip);
+    if (!whole) return a;
+    if (!whole.loop) {
+      const speed = src.speed ?? 1;
+      const cut = Math.round(((src.from ?? 0) + (time - act.start) * speed) * 1000) / 1000;
+      first.source = { ...src, to: cut };
+      second.source = { ...src, from: cut };
+      if ((second.source as { to?: number }).to === undefined) delete (second.source as { to?: number }).to;
+    }
+  } else if (src.kind === 'keys') {
+    const keys = keysOf(act);
+    const clip = src.clip;
+    const pose = samplePart(clip.parts[0], Math.min(clip.duration, time - act.start), clip.duration, false);
+    const before = [...keys.filter((k) => k.t < time - 1e-6), { t: time, pose }];
+    const after = [{ t: time, pose }, ...keys.filter((k) => k.t > time + 1e-6)];
+    const figure = act.roles[0].figure;
+    return sorted(replace(a, act, [
+      { ...keysAction(figure, before, act.layer), id: act.id, duration: time - act.start, ...(act.blendIn ? { blendIn: act.blendIn } : {}) },
+      { ...keysAction(figure, after, act.layer), duration: end(act) - time },
+    ]));
+  }
+  return sorted(replace(a, act, [first, second]));
+}
+
 /**
  * Slip a motion (#22): the part of it it plays moved by `by` seconds of the block's time (later in
  * the motion: positive), the block where it is. Within the motion; not for a repeat or a loop.

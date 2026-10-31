@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addKeyframe, applyMotion, repeatAction, retime, setPlayRange, slip, startAnimation, trim } from '@/lib/actions';
+import { addKeyframe, applyMotion, repeatAction, retime, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
@@ -155,6 +155,60 @@ describe('trimming a motion (#22)', () => {
     expect(later.start).toBeCloseTo(0.5, 2);
     expect(later.start + later.duration).toBeCloseTo(2.5, 2);
     expect(figurePoseAt(store.scene, a, 0.5)!.position[0]).toBeGreaterThan(0.2);
+  });
+});
+
+describe('splitting at the playhead (#22)', () => {
+  it('a motion: two blocks, the second going on from where the first leaves off', () => {
+    const { store, a, id, act } = jabbed();
+    const before = { ...act() };
+    const at = Math.round((before.start + 1.2) * 24) / 24;
+    const was = [at - 1 / 24, at + 1 / 24].map((t) => figurePoseAt(store.scene, a, t)!);
+    store.setTime(at);
+    expect(splitAt(store, id)).toBeNull();
+    const [one, two] = actionsOf(store.scene.animation!, a).filter((x) => x.source.kind === 'clip');
+    expect(one.id).toBe(id);
+    expect(one.start + one.duration).toBeCloseTo(at, 6);
+    expect(two.start).toBeCloseTo(at, 6);
+    expect(two.start + two.duration).toBeCloseTo(before.start + before.duration, 6);
+    expect((one.source as { to?: number }).to).toBeCloseTo((two.source as { from?: number }).from!, 6);
+    expect(two.blendIn).toBeUndefined();
+    // It plays as it did across the split.
+    [at - 1 / 24, at + 1 / 24].forEach((t, i) => expect(apart(figurePoseAt(store.scene, a, t)!, was[i], true)).toBeLessThan(2));
+    expect(Math.hypot(...[0, 2].map((k) => figurePoseAt(store.scene, a, at + 1 / 24)!.position[k] - was[1].position[k]))).toBeLessThan(0.02);
+  });
+
+  it('a repeated motion splits into its repeats, then the one under the playhead', () => {
+    const { store, a, id, act } = jabbed();
+    const once = act().duration;
+    repeatAction(store, id, 3);
+    store.setTime(Math.round((act().start + once * 1.5) * 24) / 24);
+    expect(splitAt(store, id)).toBeNull();
+    const blocks = actionsOf(store.scene.animation!, a).filter((x) => x.source.kind === 'clip');
+    expect(blocks).toHaveLength(4);
+    expect(blocks.every((x) => !(x.source as { repeat?: number }).repeat)).toBe(true);
+  });
+
+  it('keys: two Posed blocks, the pose at the playhead keyed in both; a walk is not split', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    store.setTime(0);
+    addKeyframe(store);
+    store.setTime(2);
+    store.updateFigure(a, (f) => ({ ...f, position: [2, f.position[1], f.position[2]] }));
+    addKeyframe(store);
+    const posed = actionsOf(store.scene.animation!, a)[0];
+    const mid = figurePoseAt(store.scene, a, 1)!.position[0];
+    store.setTime(1);
+    expect(splitAt(store, posed.id)).toBeNull();
+    const two = actionsOf(store.scene.animation!, a).filter((x) => x.source.kind === 'keys');
+    expect(two).toHaveLength(2);
+    expect(figurePoseAt(store.scene, a, 1)!.position[0]).toBeCloseTo(mid, 3);
+    store.setTime(2);
+    const walk = travelTo(store, a, [4, 4], 'walk')!;
+    const walking = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'travel')!;
+    store.setTime((walk.from + walk.to) / 2);
+    expect(splitAt(store, walking.id)).toMatch(/is not split/);
   });
 });
 

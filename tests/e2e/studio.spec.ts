@@ -1949,6 +1949,15 @@ test('a motion block\'s edges trim it; Alt-drag stretches it (#22)', async ({ pa
   expect(now.duration - trimmed.duration).toBeGreaterThan(0.3);
   expect((now.source as { speed?: number }).speed).toBeLessThan(0.9);
   expect((now.source as { from?: number; to?: number }).to).toBe((trimmed.source as { to?: number }).to);
+  // S splits it at the playhead: two blocks, the second going on from the first.
+  await page.locator('.tl-travel.clip').first().click({ position: { x: 30, y: 4 } });
+  const mid = Math.round((now.start + now.duration / 2) * 24) / 24;
+  await page.evaluate((t) => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(t), mid);
+  await page.locator('.stage canvas').hover({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('s');
+  const parts = await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip'));
+  expect(parts).toHaveLength(2);
+  expect(parts[1].start).toBeCloseTo(mid, 3);
 });
 
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {

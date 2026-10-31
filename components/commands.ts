@@ -1,11 +1,11 @@
 import {
-  Activity, Aperture, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, applyUpperBody, reactTo, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
@@ -217,6 +217,15 @@ const heldIn = (c: Ctx) => {
   return side ? c.store.scene.props.find((p) => { const h = propNow(c.store, p.id)?.hold; return h?.figure === c.figure && h?.hand === side; }) : undefined;
 };
 /** An action that can be played again: a motion, or a keyed block of two keys or more. */
+/** What S splits: the action selected, else what the person picked does at the playhead (#22). */
+const splitting = (c: Ctx) => {
+  const act = actionOf(c);
+  if (act) return act;
+  const a = c.store.scene.animation;
+  const who = c.store.getState().activeFigure;
+  const t = c.store.getState().time;
+  return a && who ? a.actions.find((x) => !x.layer && x.roles.some((r) => r.figure === who) && x.start < t - 1e-6 && t < x.start + x.duration - 1e-6) : undefined;
+};
 const repeatable = (c: Ctx) => {
   const act = actionOf(c);
   return !!act && !act.layer && (act.source.kind === 'clip' || (act.source.kind === 'keys' && act.duration > 1e-6));
@@ -1163,6 +1172,26 @@ export const COMMANDS: Command[] = [
   },
   { id: 'action.edit', title: 'Edit in the inspector', icon: Pencil, when: (c) => !!actionOf(c), run: (c) => c.store.select({ kind: 'action', action: c.action!, figure: c.figure! }) },
   {
+    id: 'action.split', title: 'Split at the playhead', help: 'Split the action at the playhead: two blocks, the second going on from where the first leaves off', icon: SquareSplitHorizontal, keys: ['s'],
+    when: (c) => { const x = splitting(c); return !!x && x.source.kind !== 'travel'; },
+    run: (c) => { const why = splitAt(c.store, splitting(c)!.id); if (why) App().notify(why, 'error'); },
+  },
+  {
+    id: 'action.splitRepeats', title: 'Split into repeats', help: 'One block for each repeat, to trim, speed up, mirror or remove one by one', icon: SquareSplitHorizontal,
+    when: (c) => { const s = actionOf(c)?.source; return s?.kind === 'clip' && (s.repeat ?? 1) > 1; },
+    run: (c) => splitIntoRepeats(c.store, c.action!),
+  },
+  {
+    id: 'action.trimStart', title: 'Trim the start to the playhead', icon: ArrowRightToLine, keys: ['alt+['],
+    when: (c) => !!actionOf(c) && actionOf(c)!.source.kind !== 'travel' && !actionOf(c)!.layer,
+    run: (c) => trim(c.store, c.action!, 'start', c.store.getState().time),
+  },
+  {
+    id: 'action.trimEnd', title: 'Trim the end to the playhead', icon: ArrowLeftToLine, keys: ['alt+]'],
+    when: (c) => !!actionOf(c),
+    run: (c) => trim(c.store, c.action!, 'end', c.store.getState().time),
+  },
+  {
     id: 'action.remove', title: (c) => `Remove ${actionOf(c) ? actionLabel(actionOf(c)!) : ''}`, icon: Trash2, keys: ['delete', 'backspace'], danger: true, when: (c) => !!actionOf(c),
     run: (c) => { const act = actionOf(c)!; deleteAction(c.store, act.id); App().notifyUndo(`Deleted ${actionLabel(act)}`); },
   },
@@ -1438,7 +1467,7 @@ export const MENUS = {
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
-  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
+  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.saveMotion', '-', 'action.edit', 'action.remove'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.place', 'light.shadows', 'light.add', '-', 'light.delete'],
   lighting: ['light.preset', 'light.add'],

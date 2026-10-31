@@ -17,7 +17,7 @@ import { CATCH_LEAD, UPPER_EASE, actionsOf, arrivalAt, figurePoseAt, naturalEnd,
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, setPoseAt, setTravelMode, travelInto, turnArriving,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -1149,6 +1149,21 @@ export function retime(store: Store, id: string, duration: number, key = '') {
 /** Trim an action's start or end to `t` (#22; see track.trimAction), its mark pulling it no more than it did. */
 export function trim(store: Store, id: string, side: 'start' | 'end', t: number, key = '') {
   store.updateScene((s) => (s.animation ? keepPull(s, { ...s, animation: trimAction(s.animation, id, side, t) }, id) : s), key);
+}
+
+/** Split an action at the playhead (#22; see track.splitAction). Why not, if it can't be. */
+export function splitAt(store: Store, id: string): string | null {
+  const a = store.scene.animation;
+  const t = store.getState().time;
+  const why = a ? unsplittable(a, id, t) : 'Nothing to split';
+  if (why) return why;
+  store.updateScene((s) => (s.animation ? { ...s, animation: splitAction(s.animation, id, t) } : s));
+  return null;
+}
+
+/** A repeated motion as one block per repeat (see track.splitRepeats). */
+export function splitIntoRepeats(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: splitRepeats(s.animation, id) } : s));
 }
 
 /** The part of a motion an action plays (#22; see track.playRange). */
