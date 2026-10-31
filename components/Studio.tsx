@@ -14,6 +14,7 @@ import { loadPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionLabel } from '@/lib/track';
+import { modelTemplate, onModels } from '@/lib/model';
 import { actionsOf } from '@/lib/evaluate';
 import { styleDef } from '@/lib/styles';
 import { lightingOf } from '@/lib/lighting';
@@ -183,6 +184,42 @@ function App() {
       if (!at || !box || at.x < box.left || at.x > box.right || at.y < box.top || at.y > box.bottom) frameCurrent();
     });
   }, [frameCurrent, store]);
+
+  // A figure drawn as another character (taller, broader than the mannequin) kept in sight: once its
+  // model is in, if its head or feet are out of the view, the view frames it.
+  useEffect(() => {
+    const models = new Map(store.scene.figures.map((f) => [f.id, f.model ?? null]));
+    let pending: { id: string; model: string | null } | null = null;
+    const check = () => {
+      const p = pending;
+      if (!p || (p.model && !modelTemplate(p.model))) return;
+      pending = null;
+      // (Two frames on: the model drawn at its size.)
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const api = apiRef.current;
+        const box = document.querySelector('.stage canvas')?.getBoundingClientRect();
+        if (!api || !box || store.getState().through) return;
+        // (The head's joint is at its neck: the top of the head well above it.)
+        const room = { head: box.height * 0.12, leftFoot: box.height * 0.04, rightFoot: box.height * 0.04 };
+        const out = (['head', 'leftFoot', 'rightFoot'] as const).some((j) => {
+          const at = api.project(p.id, j);
+          return !at || at.x < box.left || at.x > box.right || at.y < box.top + room[j] || at.y > box.bottom - room[j];
+        });
+        const cur = api.getView();
+        if (out && cur) frame({ yaw: cur.yaw, pitch: cur.pitch }, p.id);
+      }));
+    };
+    const offStore = store.subscribe(() => {
+      for (const f of store.scene.figures) {
+        const m = f.model ?? null;
+        if (models.has(f.id) && models.get(f.id) !== m) pending = { id: f.id, model: m };
+        models.set(f.id, m);
+      }
+      check();
+    });
+    const offModels = onModels(check);
+    return () => { offStore(); offModels(); };
+  }, [store, frame]);
 
   // Open a shared pose from the URL fragment.
   useEffect(() => {
