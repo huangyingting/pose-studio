@@ -1460,7 +1460,7 @@ export function figureMenu(store: Store, figure: string, joint?: JointName): Men
 }
 
 /** A command's choices as a menu of their own (the render styles). */
-export const choices = (id: string, c: Ctx): MenuItem[] => (command(id).items?.(c) ?? []).map((ch) => ({ label: ch.title, icon: ch.icon, checked: ch.checked, disabled: ch.disabled, onSelect: ch.run }));
+export const choices = (id: string, c: Ctx): MenuItem[] => (command(id).items?.(c) ?? []).map((ch) => ({ label: ch.title, icon: ch.icon, checked: ch.checked, radio: ch.checked !== undefined, disabled: ch.disabled, onSelect: ch.run }));
 
 /** Gestures are not commands: the help dialog lists them with the keys. */
 export const GESTURES: [string, string][] = [
