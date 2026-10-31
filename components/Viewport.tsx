@@ -17,6 +17,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { PixelPass } from '@/lib/pixel';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
+import { onSetAssets } from '@/lib/sets';
 import { awake, setDrawer, wake } from './frames';
 import { LINES_LAYER } from '@/lib/ink';
 import SelectionTag from './SelectionTag';
@@ -961,7 +962,7 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
     // (The pointer on the canvas; or anywhere while a button is held: a drag begun on it goes on
     // past its edge, following the pointer on the window.)
     const pointer = (e: PointerEvent) => { if (e.buttons || e.type !== 'pointermove' || e.target === el) wake(); };
-    const offs = [store.subscribe(up), clock.subscribe(up), sv.subscribe(up), onModels(up)];
+    const offs = [store.subscribe(up), clock.subscribe(up), sv.subscribe(up), onModels(up), onSetAssets(up)];
     const events = ['pointermove', 'pointerdown', 'pointerup'] as const;
     for (const e of events) window.addEventListener(e, pointer, { passive: true, capture: true });
     el.addEventListener('wheel', up, { passive: true });

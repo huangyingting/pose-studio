@@ -1,0 +1,129 @@
+The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://polyhaven.com), CC0 1.0 (public domain):
+  sofa: https://polyhaven.com/a/sofa_03
+  armchair: https://polyhaven.com/a/ArmChair_01
+  coffee-table: https://polyhaven.com/a/modern_coffee_table_01
+  side-table: https://polyhaven.com/a/side_table_01
+  tv-unit: https://polyhaven.com/a/modern_wooden_cabinet
+  bookshelf: https://polyhaven.com/a/wooden_bookshelf_worn
+  potted-plant: https://polyhaven.com/a/potted_plant_02
+  tall-plant: https://polyhaven.com/a/potted_plant_01
+  small-plant: https://polyhaven.com/a/potted_plant_04
+  picture: https://polyhaven.com/a/hanging_picture_frame_02
+  picture-2: https://polyhaven.com/a/hanging_picture_frame_01
+  wall-clock: https://polyhaven.com/a/wall_clock
+  ottoman: https://polyhaven.com/a/Ottoman_01
+  office-desk: https://polyhaven.com/a/metal_office_desk
+  drawer-cabinet: https://polyhaven.com/a/drawer_cabinet
+  steel-shelves: https://polyhaven.com/a/steel_frame_shelves_01
+  meeting-table: https://polyhaven.com/a/dining_table
+  dining-chair: https://polyhaven.com/a/dining_chair_02
+  laptop: https://polyhaven.com/a/classic_laptop
+  notepads: https://polyhaven.com/a/office_notepads
+  stationery: https://polyhaven.com/a/stationery_supplies
+  projector-screen: https://polyhaven.com/a/projector_screen
+  chalkboard: https://polyhaven.com/a/standing_chalkboard_01
+  cafe-table: https://polyhaven.com/a/round_wooden_table_02
+  cafe-chair: https://polyhaven.com/a/gallinera_chair
+  bar-stool: https://polyhaven.com/a/metal_stool_03
+  cash-register: https://polyhaven.com/a/CashRegister_01
+  display-shelves: https://polyhaven.com/a/wooden_display_shelves_01
+  pendant-lamp: https://polyhaven.com/a/hanging_industrial_lamp
+  wine-bottles: https://polyhaven.com/a/wine_bottles_01
+  tea-set: https://polyhaven.com/a/tea_set_01
+  vase: https://polyhaven.com/a/ceramic_vase_01
+  apartments: https://polyhaven.com/a/modular_urban_apartments_facade
+  street-lamp: https://polyhaven.com/a/street_lamp_01
+  park-lamp: https://polyhaven.com/a/street_lamp_02
+  street-bench: https://polyhaven.com/a/modular_street_seating
+  bench: https://polyhaven.com/a/painted_wooden_bench
+  trash-can: https://polyhaven.com/a/metal_trash_can
+  hydrant: https://polyhaven.com/a/fire_hydrant
+  utility-box: https://polyhaven.com/a/utility_box_02
+  manhole: https://polyhaven.com/a/water_manhole_cover
+  covered-car: https://polyhaven.com/a/covered_car
+  shutter: https://polyhaven.com/a/rollershutter_door
+  aircon: https://polyhaven.com/a/exterior_aircon_unit
+  planter: https://polyhaven.com/a/planter_box_02
+  rocks: https://polyhaven.com/a/rock_moss_set_01
+  fern: https://polyhaven.com/a/fern_02
+  chinese-armchair: https://polyhaven.com/a/chinese_armchair
+  chinese-tea-table: https://polyhaven.com/a/chinese_tea_table
+  chinese-stool: https://polyhaven.com/a/chinese_stool
+  chinese-cabinet: https://polyhaven.com/a/chinese_cabinet
+  chinese-console: https://polyhaven.com/a/chinese_console_table
+  chinese-screen: https://polyhaven.com/a/chinese_screen_panels
+  chinese-chandelier: https://polyhaven.com/a/chinese_chandelier
+  chinese-sofa: https://polyhaven.com/a/chinese_sofa
+  antique-vase: https://polyhaven.com/a/antique_ceramic_vase_01
+  brass-vase: https://polyhaven.com/a/brass_vase_01
+  clay-pot: https://polyhaven.com/a/ceramic_pot
+  wooden-lantern: https://polyhaven.com/a/wooden_lantern_01
+  barrel: https://polyhaven.com/a/Barrel_01
+  crate: https://polyhaven.com/a/wooden_crate_01
+  bucket: https://polyhaven.com/a/wooden_bucket_01
+  basket: https://polyhaven.com/a/wicker_basket_01
+  marble-bust: https://polyhaven.com/a/marble_bust_01
+  castle-door: https://polyhaven.com/a/large_castle_door
+  gothic-cabinet: https://polyhaven.com/a/GothicCabinet_01
+  gothic-commode: https://polyhaven.com/a/GothicCommode_01
+  throne: https://polyhaven.com/a/WoodenChair_01
+  chandelier: https://polyhaven.com/a/Chandelier_01
+  candleholders: https://polyhaven.com/a/brass_candleholders
+  goblets: https://polyhaven.com/a/brass_goblets
+  wine-barrel: https://polyhaven.com/a/wine_barrel_01
+  jug: https://polyhaven.com/a/jug_01
+  wooden-bowl: https://polyhaven.com/a/wooden_bowl_01
+  feast-table: https://polyhaven.com/a/painted_wooden_table
+  oak-floor: https://polyhaven.com/a/wood_floor
+  plaster: https://polyhaven.com/a/plastered_wall
+  rug: https://polyhaven.com/a/fabric_pattern_05
+  cafe-floor: https://polyhaven.com/a/checkered_pavement_tiles
+  brick: https://polyhaven.com/a/brick_wall_001
+  dark-wood: https://polyhaven.com/a/dark_wooden_planks
+  asphalt: https://polyhaven.com/a/asphalt_02
+  paving: https://polyhaven.com/a/rectangular_paving
+  concrete: https://polyhaven.com/a/concrete_floor_01
+  facade-tiles: https://polyhaven.com/a/rectangular_facade_tiles
+  red-brick: https://polyhaven.com/a/red_brick_03
+  grass: https://polyhaven.com/a/leafy_grass
+  gravel: https://polyhaven.com/a/gravel_floor
+  sandstone: https://polyhaven.com/a/sandstone_blocks_04
+  grey-roof: https://polyhaven.com/a/grey_roof_tiles
+  courtyard-paving: https://polyhaven.com/a/brick_floor_02
+  palace-floor: https://polyhaven.com/a/square_floor
+  stone-tiles: https://polyhaven.com/a/stone_tiles
+  red-plaster: https://polyhaven.com/a/red_plaster_weathered
+  rough-plaster: https://polyhaven.com/a/white_rough_plaster
+  planks: https://polyhaven.com/a/brown_planks_05
+  cobblestones: https://polyhaven.com/a/cobblestone_floor_01
+  marble: https://polyhaven.com/a/marble_01
+  temple-paving: https://polyhaven.com/a/sandstone_blocks_08
+  dry-ground: https://polyhaven.com/a/dry_ground_01
+  stone-blocks: https://polyhaven.com/a/medieval_blocks_03
+  flagstones: https://polyhaven.com/a/precast_stone_paving
+  old-planks: https://polyhaven.com/a/old_planks_02
+  bark: https://polyhaven.com/a/bark_brown_02
+
+The trees (ash, oak, aspen, bush) are grown by ez-tree (https://github.com/dgreenheck/ez-tree), whose leaves they use:
+
+MIT License
+
+Copyright (c) 2024 Daniel Greenheck
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,0 +1,1101 @@
+{
+ "models": {
+  "sofa": {
+   "file": "models/sofa.glb",
+   "tris": 7999,
+   "bytes": 318648,
+   "size": [
+    2.731,
+    1.118,
+    0.925
+   ]
+  },
+  "armchair": {
+   "file": "models/armchair.glb",
+   "tris": 5626,
+   "bytes": 465456,
+   "size": [
+    0.848,
+    1.065,
+    0.766
+   ]
+  },
+  "coffee-table": {
+   "file": "models/coffee-table.glb",
+   "tris": 4500,
+   "bytes": 189700,
+   "size": [
+    0.6,
+    0.39,
+    1.202
+   ]
+  },
+  "side-table": {
+   "file": "models/side-table.glb",
+   "tris": 2756,
+   "bytes": 91272,
+   "size": [
+    0.55,
+    0.551,
+    0.45
+   ]
+  },
+  "tv-unit": {
+   "file": "models/tv-unit.glb",
+   "tris": 12700,
+   "bytes": 392956,
+   "size": [
+    2.44,
+    0.68,
+    0.52
+   ]
+  },
+  "bookshelf": {
+   "file": "models/bookshelf.glb",
+   "tris": 9999,
+   "bytes": 626028,
+   "size": [
+    1.374,
+    2.063,
+    0.581
+   ]
+  },
+  "potted-plant": {
+   "file": "models/potted-plant.glb",
+   "tris": 6486,
+   "bytes": 496052,
+   "size": [
+    0.701,
+    0.84,
+    0.655
+   ]
+  },
+  "tall-plant": {
+   "file": "models/tall-plant.glb",
+   "tris": 7831,
+   "bytes": 657604,
+   "size": [
+    0.587,
+    1.335,
+    0.634
+   ]
+  },
+  "small-plant": {
+   "file": "models/small-plant.glb",
+   "tris": 4018,
+   "bytes": 159516,
+   "size": [
+    0.167,
+    0.267,
+    0.185
+   ]
+  },
+  "picture": {
+   "file": "models/picture.glb",
+   "tris": 3678,
+   "bytes": 100404,
+   "size": [
+    0.752,
+    0.5,
+    0.033
+   ]
+  },
+  "picture-2": {
+   "file": "models/picture-2.glb",
+   "tris": 2586,
+   "bytes": 56472,
+   "size": [
+    0.594,
+    0.841,
+    0.016
+   ]
+  },
+  "wall-clock": {
+   "file": "models/wall-clock.glb",
+   "tris": 3658,
+   "bytes": 101988,
+   "size": [
+    0.32,
+    0.32,
+    0.047
+   ]
+  },
+  "ottoman": {
+   "file": "models/ottoman.glb",
+   "tris": 4240,
+   "bytes": 107584,
+   "size": [
+    0.885,
+    0.624,
+    0.621
+   ]
+  },
+  "office-desk": {
+   "file": "models/office-desk.glb",
+   "tris": 6898,
+   "bytes": 204900,
+   "size": [
+    2,
+    0.787,
+    0.947
+   ]
+  },
+  "drawer-cabinet": {
+   "file": "models/drawer-cabinet.glb",
+   "tris": 7997,
+   "bytes": 230796,
+   "size": [
+    1.141,
+    1.881,
+    0.488
+   ]
+  },
+  "steel-shelves": {
+   "file": "models/steel-shelves.glb",
+   "tris": 4348,
+   "bytes": 89196,
+   "size": [
+    1.097,
+    2.141,
+    0.502
+   ]
+  },
+  "meeting-table": {
+   "file": "models/meeting-table.glb",
+   "tris": 1048,
+   "bytes": 117400,
+   "size": [
+    2.256,
+    0.877,
+    1.39
+   ]
+  },
+  "dining-chair": {
+   "file": "models/dining-chair.glb",
+   "tris": 5000,
+   "bytes": 100360,
+   "size": [
+    0.434,
+    0.973,
+    0.576
+   ]
+  },
+  "laptop": {
+   "file": "models/laptop.glb",
+   "tris": 4379,
+   "bytes": 164892,
+   "size": [
+    0.652,
+    0.543,
+    0.486
+   ]
+  },
+  "notepads": {
+   "file": "models/notepads.glb",
+   "tris": 666,
+   "bytes": 27596,
+   "size": [
+    1.103,
+    0.022,
+    0.66
+   ]
+  },
+  "stationery": {
+   "file": "models/stationery.glb",
+   "tris": 4412,
+   "bytes": 113204,
+   "size": [
+    0.302,
+    0.164,
+    0.084
+   ]
+  },
+  "projector-screen": {
+   "file": "models/projector-screen.glb",
+   "tris": 5560,
+   "bytes": 316944,
+   "size": [
+    1.094,
+    1.799,
+    0.916
+   ]
+  },
+  "chalkboard": {
+   "file": "models/chalkboard.glb",
+   "tris": 2372,
+   "bytes": 101560,
+   "size": [
+    0.92,
+    1.509,
+    0.759
+   ]
+  },
+  "cafe-table": {
+   "file": "models/cafe-table.glb",
+   "tris": 4254,
+   "bytes": 113092,
+   "size": [
+    0.796,
+    0.746,
+    0.796
+   ]
+  },
+  "cafe-chair": {
+   "file": "models/cafe-chair.glb",
+   "tris": 4999,
+   "bytes": 144640,
+   "size": [
+    0.58,
+    1.034,
+    0.604
+   ]
+  },
+  "bar-stool": {
+   "file": "models/bar-stool.glb",
+   "tris": 6576,
+   "bytes": 401440,
+   "size": [
+    0.461,
+    1.023,
+    0.471
+   ]
+  },
+  "cash-register": {
+   "file": "models/cash-register.glb",
+   "tris": 3727,
+   "bytes": 176576,
+   "size": [
+    0.598,
+    0.621,
+    0.624
+   ]
+  },
+  "display-shelves": {
+   "file": "models/display-shelves.glb",
+   "tris": 3174,
+   "bytes": 83748,
+   "size": [
+    0.371,
+    1.556,
+    1.078
+   ]
+  },
+  "pendant-lamp": {
+   "file": "models/pendant-lamp.glb",
+   "tris": 4432,
+   "bytes": 189104,
+   "size": [
+    0.55,
+    1.355,
+    0.55
+   ]
+  },
+  "wine-bottles": {
+   "file": "models/wine-bottles.glb",
+   "tris": 3460,
+   "bytes": 192280,
+   "size": [
+    0.676,
+    0.331,
+    0.08
+   ]
+  },
+  "tea-set": {
+   "file": "models/tea-set.glb",
+   "tris": 6000,
+   "bytes": 212260,
+   "size": [
+    0.917,
+    0.165,
+    0.484
+   ]
+  },
+  "vase": {
+   "file": "models/vase.glb",
+   "tris": 3698,
+   "bytes": 49716,
+   "size": [
+    0.204,
+    0.4,
+    0.203
+   ]
+  },
+  "apartments": {
+   "file": "models/apartments.glb",
+   "tris": 49726,
+   "bytes": 1747960,
+   "size": [
+    51.53,
+    17.001,
+    6.665
+   ]
+  },
+  "street-lamp": {
+   "file": "models/street-lamp.glb",
+   "tris": 5997,
+   "bytes": 224872,
+   "size": [
+    0.704,
+    3.871,
+    0.386
+   ]
+  },
+  "park-lamp": {
+   "file": "models/park-lamp.glb",
+   "tris": 4999,
+   "bytes": 106396,
+   "size": [
+    0.385,
+    1.674,
+    0.806
+   ]
+  },
+  "street-bench": {
+   "file": "models/street-bench.glb",
+   "tris": 8975,
+   "bytes": 916064,
+   "size": [
+    4.34,
+    0.95,
+    0.77
+   ]
+  },
+  "bench": {
+   "file": "models/bench.glb",
+   "tris": 630,
+   "bytes": 73660,
+   "size": [
+    1.165,
+    0.889,
+    0.496
+   ]
+  },
+  "trash-can": {
+   "file": "models/trash-can.glb",
+   "tris": 3718,
+   "bytes": 302768,
+   "size": [
+    1.777,
+    0.906,
+    0.553
+   ]
+  },
+  "hydrant": {
+   "file": "models/hydrant.glb",
+   "tris": 2704,
+   "bytes": 198752,
+   "size": [
+    0.873,
+    0.799,
+    0.317
+   ]
+  },
+  "utility-box": {
+   "file": "models/utility-box.glb",
+   "tris": 4999,
+   "bytes": 117108,
+   "size": [
+    0.92,
+    1.12,
+    0.432
+   ]
+  },
+  "manhole": {
+   "file": "models/manhole.glb",
+   "tris": 4999,
+   "bytes": 152736,
+   "size": [
+    0.691,
+    0.068,
+    0.691
+   ]
+  },
+  "covered-car": {
+   "file": "models/covered-car.glb",
+   "tris": 7999,
+   "bytes": 328996,
+   "size": [
+    1.789,
+    1.411,
+    4.38
+   ]
+  },
+  "shutter": {
+   "file": "models/shutter.glb",
+   "tris": 1104,
+   "bytes": 95348,
+   "size": [
+    3.08,
+    2.4,
+    0.3
+   ]
+  },
+  "aircon": {
+   "file": "models/aircon.glb",
+   "tris": 4636,
+   "bytes": 438144,
+   "size": [
+    1.796,
+    0.928,
+    0.374
+   ]
+  },
+  "planter": {
+   "file": "models/planter.glb",
+   "tris": 4641,
+   "bytes": 155256,
+   "size": [
+    1.251,
+    0.453,
+    0.467
+   ]
+  },
+  "rocks": {
+   "file": "models/rocks.glb",
+   "tris": 4198,
+   "bytes": 337124,
+   "size": [
+    8.005,
+    1.759,
+    6.943
+   ]
+  },
+  "fern": {
+   "file": "models/fern.glb",
+   "tris": 4287,
+   "bytes": 90384,
+   "size": [
+    1.973,
+    0.428,
+    1.724
+   ]
+  },
+  "ash": {
+   "file": "models/ash.glb",
+   "tris": 20000,
+   "bytes": 1064472,
+   "size": [
+    7.822,
+    9.201,
+    7.622
+   ]
+  },
+  "oak": {
+   "file": "models/oak.glb",
+   "tris": 13806,
+   "bytes": 1098480,
+   "size": [
+    6.9,
+    8.486,
+    7.018
+   ]
+  },
+  "aspen": {
+   "file": "models/aspen.glb",
+   "tris": 7200,
+   "bytes": 925724,
+   "size": [
+    4.957,
+    10.632,
+    4.477
+   ]
+  },
+  "bush": {
+   "file": "models/bush.glb",
+   "tris": 13872,
+   "bytes": 976328,
+   "size": [
+    2.066,
+    2.006,
+    2.147
+   ]
+  },
+  "chinese-armchair": {
+   "file": "models/chinese-armchair.glb",
+   "tris": 2675,
+   "bytes": 101900,
+   "size": [
+    0.848,
+    1.587,
+    0.789
+   ]
+  },
+  "chinese-tea-table": {
+   "file": "models/chinese-tea-table.glb",
+   "tris": 2508,
+   "bytes": 72836,
+   "size": [
+    0.841,
+    0.499,
+    0.836
+   ]
+  },
+  "chinese-stool": {
+   "file": "models/chinese-stool.glb",
+   "tris": 1090,
+   "bytes": 72124,
+   "size": [
+    0.599,
+    0.631,
+    0.506
+   ]
+  },
+  "chinese-cabinet": {
+   "file": "models/chinese-cabinet.glb",
+   "tris": 8000,
+   "bytes": 325444,
+   "size": [
+    1.263,
+    2.872,
+    0.545
+   ]
+  },
+  "chinese-console": {
+   "file": "models/chinese-console.glb",
+   "tris": 5612,
+   "bytes": 458456,
+   "size": [
+    1.72,
+    0.66,
+    0.338
+   ]
+  },
+  "chinese-screen": {
+   "file": "models/chinese-screen.glb",
+   "tris": 784,
+   "bytes": 88224,
+   "size": [
+    1.294,
+    1.603,
+    0.377
+   ]
+  },
+  "chinese-chandelier": {
+   "file": "models/chinese-chandelier.glb",
+   "tris": 4018,
+   "bytes": 161348,
+   "size": [
+    0.878,
+    0.748,
+    0.878
+   ]
+  },
+  "chinese-sofa": {
+   "file": "models/chinese-sofa.glb",
+   "tris": 704,
+   "bytes": 66468,
+   "size": [
+    2.285,
+    0.86,
+    0.969
+   ]
+  },
+  "antique-vase": {
+   "file": "models/antique-vase.glb",
+   "tris": 4466,
+   "bytes": 81092,
+   "size": [
+    0.255,
+    0.44,
+    0.255
+   ]
+  },
+  "brass-vase": {
+   "file": "models/brass-vase.glb",
+   "tris": 4999,
+   "bytes": 77752,
+   "size": [
+    0.227,
+    0.692,
+    0.227
+   ]
+  },
+  "clay-pot": {
+   "file": "models/clay-pot.glb",
+   "tris": 3592,
+   "bytes": 103584,
+   "size": [
+    0.656,
+    0.372,
+    0.502
+   ]
+  },
+  "wooden-lantern": {
+   "file": "models/wooden-lantern.glb",
+   "tris": 4519,
+   "bytes": 184516,
+   "size": [
+    0.221,
+    0.53,
+    0.235
+   ]
+  },
+  "barrel": {
+   "file": "models/barrel.glb",
+   "tris": 2682,
+   "bytes": 136728,
+   "size": [
+    0.563,
+    0.88,
+    0.563
+   ]
+  },
+  "crate": {
+   "file": "models/crate.glb",
+   "tris": 5000,
+   "bytes": 135720,
+   "size": [
+    0.825,
+    0.35,
+    0.409
+   ]
+  },
+  "bucket": {
+   "file": "models/bucket.glb",
+   "tris": 5000,
+   "bytes": 143508,
+   "size": [
+    0.367,
+    0.55,
+    0.342
+   ]
+  },
+  "basket": {
+   "file": "models/basket.glb",
+   "tris": 1750,
+   "bytes": 139348,
+   "size": [
+    0.383,
+    0.117,
+    0.293
+   ]
+  },
+  "marble-bust": {
+   "file": "models/marble-bust.glb",
+   "tris": 2942,
+   "bytes": 124368,
+   "size": [
+    0.272,
+    0.515,
+    0.299
+   ]
+  },
+  "castle-door": {
+   "file": "models/castle-door.glb",
+   "tris": 6000,
+   "bytes": 688044,
+   "size": [
+    2.012,
+    2.965,
+    0.296
+   ]
+  },
+  "gothic-cabinet": {
+   "file": "models/gothic-cabinet.glb",
+   "tris": 7999,
+   "bytes": 346684,
+   "size": [
+    1.719,
+    2.361,
+    1.117
+   ]
+  },
+  "gothic-commode": {
+   "file": "models/gothic-commode.glb",
+   "tris": 3897,
+   "bytes": 111072,
+   "size": [
+    1.201,
+    1.212,
+    0.581
+   ]
+  },
+  "throne": {
+   "file": "models/throne.glb",
+   "tris": 8000,
+   "bytes": 351148,
+   "size": [
+    0.688,
+    2.274,
+    0.658
+   ]
+  },
+  "chandelier": {
+   "file": "models/chandelier.glb",
+   "tris": 5367,
+   "bytes": 291712,
+   "size": [
+    0.741,
+    0.798,
+    0.808
+   ]
+  },
+  "candleholders": {
+   "file": "models/candleholders.glb",
+   "tris": 3533,
+   "bytes": 1810912,
+   "size": [
+    1.052,
+    0.835,
+    0.364
+   ]
+  },
+  "goblets": {
+   "file": "models/goblets.glb",
+   "tris": 4356,
+   "bytes": 238844,
+   "size": [
+    0.453,
+    0.273,
+    0.298
+   ]
+  },
+  "wine-barrel": {
+   "file": "models/wine-barrel.glb",
+   "tris": 3596,
+   "bytes": 143684,
+   "size": [
+    0.742,
+    0.87,
+    0.755
+   ]
+  },
+  "jug": {
+   "file": "models/jug.glb",
+   "tris": 5000,
+   "bytes": 67548,
+   "size": [
+    0.275,
+    0.211,
+    0.168
+   ]
+  },
+  "wooden-bowl": {
+   "file": "models/wooden-bowl.glb",
+   "tris": 3392,
+   "bytes": 93132,
+   "size": [
+    0.313,
+    0.094,
+    0.309
+   ]
+  },
+  "feast-table": {
+   "file": "models/feast-table.glb",
+   "tris": 600,
+   "bytes": 56508,
+   "size": [
+    2.406,
+    0.959,
+    1.137
+   ]
+  }
+ },
+ "surfaces": {
+  "oak-floor": {
+   "color": "surfaces/oak-floor-color.webp",
+   "normal": "surfaces/oak-floor-normal.webp",
+   "orm": "surfaces/oak-floor-orm.webp",
+   "bytes": 186358,
+   "tile": 1.7
+  },
+  "plaster": {
+   "color": "surfaces/plaster-color.webp",
+   "normal": "surfaces/plaster-normal.webp",
+   "orm": "surfaces/plaster-orm.webp",
+   "bytes": 579192,
+   "tile": 2
+  },
+  "rug": {
+   "color": "surfaces/rug-color.webp",
+   "normal": "surfaces/rug-normal.webp",
+   "orm": "surfaces/rug-orm.webp",
+   "bytes": 209074,
+   "tile": 0.5
+  },
+  "cafe-floor": {
+   "color": "surfaces/cafe-floor-color.webp",
+   "normal": "surfaces/cafe-floor-normal.webp",
+   "orm": "surfaces/cafe-floor-orm.webp",
+   "bytes": 124152,
+   "tile": 2
+  },
+  "brick": {
+   "color": "surfaces/brick-color.webp",
+   "normal": "surfaces/brick-normal.webp",
+   "orm": "surfaces/brick-orm.webp",
+   "bytes": 542020,
+   "tile": 3
+  },
+  "dark-wood": {
+   "color": "surfaces/dark-wood-color.webp",
+   "normal": "surfaces/dark-wood-normal.webp",
+   "orm": "surfaces/dark-wood-orm.webp",
+   "bytes": 387242,
+   "tile": 2
+  },
+  "asphalt": {
+   "color": "surfaces/asphalt-color.webp",
+   "normal": "surfaces/asphalt-normal.webp",
+   "orm": "surfaces/asphalt-orm.webp",
+   "bytes": 1166230,
+   "tile": 3
+  },
+  "paving": {
+   "color": "surfaces/paving-color.webp",
+   "normal": "surfaces/paving-normal.webp",
+   "orm": "surfaces/paving-orm.webp",
+   "bytes": 246140,
+   "tile": 2
+  },
+  "concrete": {
+   "color": "surfaces/concrete-color.webp",
+   "normal": "surfaces/concrete-normal.webp",
+   "orm": "surfaces/concrete-orm.webp",
+   "bytes": 806950,
+   "tile": 2
+  },
+  "facade-tiles": {
+   "color": "surfaces/facade-tiles-color.webp",
+   "normal": "surfaces/facade-tiles-normal.webp",
+   "orm": "surfaces/facade-tiles-orm.webp",
+   "bytes": 264300,
+   "tile": 2
+  },
+  "red-brick": {
+   "color": "surfaces/red-brick-color.webp",
+   "normal": "surfaces/red-brick-normal.webp",
+   "orm": "surfaces/red-brick-orm.webp",
+   "bytes": 751096,
+   "tile": 1
+  },
+  "grass": {
+   "color": "surfaces/grass-color.webp",
+   "normal": "surfaces/grass-normal.webp",
+   "orm": "surfaces/grass-orm.webp",
+   "bytes": 1223892,
+   "tile": 2
+  },
+  "gravel": {
+   "color": "surfaces/gravel-color.webp",
+   "normal": "surfaces/gravel-normal.webp",
+   "orm": "surfaces/gravel-orm.webp",
+   "bytes": 1361066,
+   "tile": 2.25
+  },
+  "sandstone": {
+   "color": "surfaces/sandstone-color.webp",
+   "normal": "surfaces/sandstone-normal.webp",
+   "orm": "surfaces/sandstone-orm.webp",
+   "bytes": 527246,
+   "tile": 3
+  },
+  "grey-roof": {
+   "color": "surfaces/grey-roof-color.webp",
+   "normal": "surfaces/grey-roof-normal.webp",
+   "orm": "surfaces/grey-roof-orm.webp",
+   "bytes": 435340,
+   "tile": 3
+  },
+  "courtyard-paving": {
+   "color": "surfaces/courtyard-paving-color.webp",
+   "normal": "surfaces/courtyard-paving-normal.webp",
+   "orm": "surfaces/courtyard-paving-orm.webp",
+   "bytes": 578656,
+   "tile": 1.87
+  },
+  "palace-floor": {
+   "color": "surfaces/palace-floor-color.webp",
+   "normal": "surfaces/palace-floor-normal.webp",
+   "orm": "surfaces/palace-floor-orm.webp",
+   "bytes": 615296,
+   "tile": 2
+  },
+  "stone-tiles": {
+   "color": "surfaces/stone-tiles-color.webp",
+   "normal": "surfaces/stone-tiles-normal.webp",
+   "orm": "surfaces/stone-tiles-orm.webp",
+   "bytes": 590004,
+   "tile": 3.17
+  },
+  "red-plaster": {
+   "color": "surfaces/red-plaster-color.webp",
+   "normal": "surfaces/red-plaster-normal.webp",
+   "orm": "surfaces/red-plaster-orm.webp",
+   "bytes": 283606,
+   "tile": 2
+  },
+  "rough-plaster": {
+   "color": "surfaces/rough-plaster-color.webp",
+   "normal": "surfaces/rough-plaster-normal.webp",
+   "orm": "surfaces/rough-plaster-orm.webp",
+   "bytes": 737272,
+   "tile": 1
+  },
+  "planks": {
+   "color": "surfaces/planks-color.webp",
+   "normal": "surfaces/planks-normal.webp",
+   "orm": "surfaces/planks-orm.webp",
+   "bytes": 282020,
+   "tile": 1
+  },
+  "cobblestones": {
+   "color": "surfaces/cobblestones-color.webp",
+   "normal": "surfaces/cobblestones-normal.webp",
+   "orm": "surfaces/cobblestones-orm.webp",
+   "bytes": 550498,
+   "tile": 1
+  },
+  "marble": {
+   "color": "surfaces/marble-color.webp",
+   "normal": "surfaces/marble-normal.webp",
+   "orm": "surfaces/marble-orm.webp",
+   "bytes": 91644,
+   "tile": 1.5
+  },
+  "temple-paving": {
+   "color": "surfaces/temple-paving-color.webp",
+   "normal": "surfaces/temple-paving-normal.webp",
+   "orm": "surfaces/temple-paving-orm.webp",
+   "bytes": 71294,
+   "tile": 3
+  },
+  "dry-ground": {
+   "color": "surfaces/dry-ground-color.webp",
+   "normal": "surfaces/dry-ground-normal.webp",
+   "orm": "surfaces/dry-ground-orm.webp",
+   "bytes": 612964,
+   "tile": 4
+  },
+  "stone-blocks": {
+   "color": "surfaces/stone-blocks-color.webp",
+   "normal": "surfaces/stone-blocks-normal.webp",
+   "orm": "surfaces/stone-blocks-orm.webp",
+   "bytes": 842158,
+   "tile": 2
+  },
+  "flagstones": {
+   "color": "surfaces/flagstones-color.webp",
+   "normal": "surfaces/flagstones-normal.webp",
+   "orm": "surfaces/flagstones-orm.webp",
+   "bytes": 338064,
+   "tile": 2.24
+  },
+  "old-planks": {
+   "color": "surfaces/old-planks-color.webp",
+   "normal": "surfaces/old-planks-normal.webp",
+   "orm": "surfaces/old-planks-orm.webp",
+   "bytes": 298082,
+   "tile": 2
+  }
+ },
+ "made": {
+  "model:sofa": "{\"ph\":\"sofa_03\",\"tris\":8000,\"tex\":1024}",
+  "model:armchair": "{\"ph\":\"ArmChair_01\",\"tris\":6000,\"tex\":1024}",
+  "model:coffee-table": "{\"ph\":\"modern_coffee_table_01\",\"tris\":4500,\"tex\":1024}",
+  "model:side-table": "{\"ph\":\"side_table_01\",\"tris\":5000,\"tex\":512}",
+  "model:tv-unit": "{\"ph\":\"modern_wooden_cabinet\",\"tris\":13000,\"tex\":1024}",
+  "model:bookshelf": "{\"ph\":\"wooden_bookshelf_worn\",\"tris\":10000,\"tex\":1024}",
+  "model:potted-plant": "{\"ph\":\"potted_plant_02\",\"tris\":12000,\"tex\":1024}",
+  "model:tall-plant": "{\"ph\":\"potted_plant_01\",\"tris\":12000,\"tex\":1024}",
+  "model:small-plant": "{\"ph\":\"potted_plant_04\",\"tris\":5000,\"tex\":512}",
+  "model:picture": "{\"ph\":\"hanging_picture_frame_02\",\"tris\":5000,\"tex\":512}",
+  "model:picture-2": "{\"ph\":\"hanging_picture_frame_01\",\"tris\":5000,\"tex\":512}",
+  "model:wall-clock": "{\"ph\":\"wall_clock\",\"tris\":5000,\"tex\":512}",
+  "model:ottoman": "{\"ph\":\"Ottoman_01\",\"tris\":5000,\"tex\":512}",
+  "model:office-desk": "{\"ph\":\"metal_office_desk\",\"tris\":7000,\"tex\":1024}",
+  "model:drawer-cabinet": "{\"ph\":\"drawer_cabinet\",\"tris\":8000,\"tex\":1024}",
+  "model:steel-shelves": "{\"ph\":\"steel_frame_shelves_01\",\"tris\":5000,\"tex\":512}",
+  "model:meeting-table": "{\"ph\":\"dining_table\",\"tris\":5000,\"tex\":512}",
+  "model:dining-chair": "{\"ph\":\"dining_chair_02\",\"tris\":5000,\"tex\":512}",
+  "model:laptop": "{\"ph\":\"classic_laptop\",\"tris\":5000,\"tex\":512}",
+  "model:notepads": "{\"ph\":\"office_notepads\",\"tris\":5000,\"tex\":512}",
+  "model:stationery": "{\"ph\":\"stationery_supplies\",\"tris\":5000,\"tex\":512}",
+  "model:projector-screen": "{\"ph\":\"projector_screen\",\"tris\":6000,\"tex\":1024}",
+  "model:chalkboard": "{\"ph\":\"standing_chalkboard_01\",\"tris\":5000,\"tex\":512}",
+  "model:cafe-table": "{\"ph\":\"round_wooden_table_02\",\"tris\":5000,\"tex\":512}",
+  "model:cafe-chair": "{\"ph\":\"gallinera_chair\",\"tris\":5000,\"tex\":512}",
+  "model:bar-stool": "{\"ph\":\"metal_stool_03\",\"tris\":7000,\"tex\":1024}",
+  "model:cash-register": "{\"ph\":\"CashRegister_01\",\"tris\":5000,\"tex\":512}",
+  "model:display-shelves": "{\"ph\":\"wooden_display_shelves_01\",\"tris\":5000,\"tex\":512}",
+  "model:pendant-lamp": "{\"ph\":\"hanging_industrial_lamp\",\"tris\":5000,\"tex\":512}",
+  "model:wine-bottles": "{\"ph\":\"wine_bottles_01\",\"tris\":5000,\"tex\":512}",
+  "model:tea-set": "{\"ph\":\"tea_set_01\",\"tris\":6000,\"tex\":1024}",
+  "model:vase": "{\"ph\":\"ceramic_vase_01\",\"tris\":5000,\"tex\":512}",
+  "model:apartments": "{\"ph\":\"modular_urban_apartments_facade\",\"tris\":50000,\"tex\":1024}",
+  "model:street-lamp": "{\"ph\":\"street_lamp_01\",\"tris\":6000,\"tex\":1024}",
+  "model:park-lamp": "{\"ph\":\"street_lamp_02\",\"tris\":5000,\"tex\":512}",
+  "model:street-bench": "{\"ph\":\"modular_street_seating\",\"tris\":9000,\"tex\":1024}",
+  "model:bench": "{\"ph\":\"painted_wooden_bench\",\"tris\":5000,\"tex\":512}",
+  "model:trash-can": "{\"ph\":\"metal_trash_can\",\"tris\":5000,\"tex\":512}",
+  "model:hydrant": "{\"ph\":\"fire_hydrant\",\"tris\":5000,\"tex\":512}",
+  "model:utility-box": "{\"ph\":\"utility_box_02\",\"tris\":5000,\"tex\":512}",
+  "model:manhole": "{\"ph\":\"water_manhole_cover\",\"tris\":5000,\"tex\":512}",
+  "model:covered-car": "{\"ph\":\"covered_car\",\"tris\":8000,\"tex\":1024}",
+  "model:shutter": "{\"ph\":\"rollershutter_door\",\"tris\":5000,\"tex\":512}",
+  "model:aircon": "{\"ph\":\"exterior_aircon_unit\",\"tris\":5000,\"tex\":512}",
+  "model:planter": "{\"ph\":\"planter_box_02\",\"tris\":5000,\"tex\":512}",
+  "model:rocks": "{\"ph\":\"rock_moss_set_01\",\"tris\":10000,\"tex\":1024}",
+  "model:fern": "{\"ph\":\"fern_02\",\"tris\":5000,\"tex\":512}",
+  "model:ash": "{\"tree\":\"Ash Medium\",\"height\":9,\"tris\":40000,\"tex\":1024}",
+  "model:oak": "{\"tree\":\"Oak Medium\",\"height\":8,\"tris\":40000,\"tex\":1024}",
+  "model:aspen": "{\"tree\":\"Aspen Medium\",\"height\":10,\"tris\":40000,\"tex\":1024}",
+  "model:bush": "{\"tree\":\"Bush 1\",\"height\":1.6,\"tris\":40000,\"tex\":1024}",
+  "model:chinese-armchair": "{\"ph\":\"chinese_armchair\",\"tris\":5000,\"tex\":512}",
+  "model:chinese-tea-table": "{\"ph\":\"chinese_tea_table\",\"tris\":5000,\"tex\":512}",
+  "model:chinese-stool": "{\"ph\":\"chinese_stool\",\"tris\":5000,\"tex\":512}",
+  "model:chinese-cabinet": "{\"ph\":\"chinese_cabinet\",\"tris\":8000,\"tex\":1024}",
+  "model:chinese-console": "{\"ph\":\"chinese_console_table\",\"tris\":6000,\"tex\":1024}",
+  "model:chinese-screen": "{\"ph\":\"chinese_screen_panels\",\"tris\":5000,\"tex\":512}",
+  "model:chinese-chandelier": "{\"ph\":\"chinese_chandelier\",\"tris\":5000,\"tex\":512}",
+  "model:chinese-sofa": "{\"ph\":\"chinese_sofa\",\"tris\":5000,\"tex\":512}",
+  "model:antique-vase": "{\"ph\":\"antique_ceramic_vase_01\",\"tris\":5000,\"tex\":512}",
+  "model:brass-vase": "{\"ph\":\"brass_vase_01\",\"tris\":5000,\"tex\":512}",
+  "model:clay-pot": "{\"ph\":\"ceramic_pot\",\"tris\":5000,\"tex\":512}",
+  "model:wooden-lantern": "{\"ph\":\"wooden_lantern_01\",\"tris\":5000,\"tex\":512}",
+  "model:barrel": "{\"ph\":\"Barrel_01\",\"tris\":5000,\"tex\":512}",
+  "model:crate": "{\"ph\":\"wooden_crate_01\",\"tris\":5000,\"tex\":512}",
+  "model:bucket": "{\"ph\":\"wooden_bucket_01\",\"tris\":5000,\"tex\":512}",
+  "model:basket": "{\"ph\":\"wicker_basket_01\",\"tris\":5000,\"tex\":512}",
+  "model:marble-bust": "{\"ph\":\"marble_bust_01\",\"tris\":5000,\"tex\":512}",
+  "model:castle-door": "{\"ph\":\"large_castle_door\",\"tris\":6000,\"tex\":1024}",
+  "model:gothic-cabinet": "{\"ph\":\"GothicCabinet_01\",\"tris\":8000,\"tex\":1024}",
+  "model:gothic-commode": "{\"ph\":\"GothicCommode_01\",\"tris\":5000,\"tex\":512}",
+  "model:throne": "{\"ph\":\"WoodenChair_01\",\"tris\":8000,\"tex\":1024}",
+  "model:chandelier": "{\"ph\":\"Chandelier_01\",\"tris\":8000,\"tex\":1024}",
+  "model:candleholders": "{\"ph\":\"brass_candleholders\",\"tris\":6000,\"tex\":1024}",
+  "model:goblets": "{\"ph\":\"brass_goblets\",\"tris\":5000,\"tex\":512}",
+  "model:wine-barrel": "{\"ph\":\"wine_barrel_01\",\"tris\":5000,\"tex\":512}",
+  "model:jug": "{\"ph\":\"jug_01\",\"tris\":5000,\"tex\":512}",
+  "model:wooden-bowl": "{\"ph\":\"wooden_bowl_01\",\"tris\":5000,\"tex\":512}",
+  "model:feast-table": "{\"ph\":\"painted_wooden_table\",\"tris\":5000,\"tex\":512}",
+  "surface:oak-floor": "{\"ph\":\"wood_floor\",\"tex\":1024}",
+  "surface:plaster": "{\"ph\":\"plastered_wall\",\"tex\":1024}",
+  "surface:rug": "{\"ph\":\"fabric_pattern_05\",\"tex\":512}",
+  "surface:cafe-floor": "{\"ph\":\"checkered_pavement_tiles\",\"tex\":1024}",
+  "surface:brick": "{\"ph\":\"brick_wall_001\",\"tex\":1024}",
+  "surface:dark-wood": "{\"ph\":\"dark_wooden_planks\",\"tex\":1024}",
+  "surface:asphalt": "{\"ph\":\"asphalt_02\",\"tex\":1024}",
+  "surface:paving": "{\"ph\":\"rectangular_paving\",\"tex\":1024}",
+  "surface:concrete": "{\"ph\":\"concrete_floor_01\",\"tex\":1024}",
+  "surface:facade-tiles": "{\"ph\":\"rectangular_facade_tiles\",\"tex\":1024}",
+  "surface:red-brick": "{\"ph\":\"red_brick_03\",\"tex\":1024}",
+  "surface:grass": "{\"ph\":\"leafy_grass\",\"tex\":1024}",
+  "surface:gravel": "{\"ph\":\"gravel_floor\",\"tex\":1024}",
+  "surface:sandstone": "{\"ph\":\"sandstone_blocks_04\",\"tex\":1024}",
+  "surface:grey-roof": "{\"ph\":\"grey_roof_tiles\",\"tex\":1024}",
+  "surface:courtyard-paving": "{\"ph\":\"brick_floor_02\",\"tex\":1024}",
+  "surface:palace-floor": "{\"ph\":\"square_floor\",\"tex\":1024}",
+  "surface:stone-tiles": "{\"ph\":\"stone_tiles\",\"tex\":1024}",
+  "surface:red-plaster": "{\"ph\":\"red_plaster_weathered\",\"tex\":1024}",
+  "surface:rough-plaster": "{\"ph\":\"white_rough_plaster\",\"tex\":1024}",
+  "surface:planks": "{\"ph\":\"brown_planks_05\",\"tex\":1024}",
+  "surface:cobblestones": "{\"ph\":\"cobblestone_floor_01\",\"tex\":1024}",
+  "surface:marble": "{\"ph\":\"marble_01\",\"tex\":1024}",
+  "surface:temple-paving": "{\"ph\":\"sandstone_blocks_08\",\"tex\":1024}",
+  "surface:dry-ground": "{\"ph\":\"dry_ground_01\",\"tex\":1024}",
+  "surface:stone-blocks": "{\"ph\":\"medieval_blocks_03\",\"tex\":1024}",
+  "surface:flagstones": "{\"ph\":\"precast_stone_paving\",\"tex\":1024}",
+  "surface:old-planks": "{\"ph\":\"old_planks_02\",\"tex\":1024}"
+ }
+}

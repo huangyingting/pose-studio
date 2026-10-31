@@ -18,7 +18,8 @@
     "setup:mediapipe": "node scripts/setup-mediapipe.mjs",
     "motions": "jiti scripts/library-motions.ts",
     "postinstall": "prisma generate && node scripts/setup-mediapipe.mjs",
-    "db:migrate": "prisma migrate deploy"
+    "db:migrate": "prisma migrate deploy",
+    "sets": "jiti scripts/sets.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -38,6 +39,10 @@
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@dgreenheck/ez-tree": "^1.1.0",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@playwright/test": "^1.64.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.19.2",
@@ -47,7 +52,9 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3",
     "jiti": "^2.7.0",
+    "meshoptimizer": "^1.3.0",
     "prisma": "^7.10.1",
+    "sharp": "^0.35.5",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },
