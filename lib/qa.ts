@@ -230,7 +230,9 @@ export function checkMotion(scene: Scene): Issue[] {
     }
   });
 
-  // (A recorded motion left as recorded: warped by no more than a few centimetres and degrees.)
+  // (A recorded motion left as recorded: warped by no more than a few centimetres and degrees, or
+  // so slowly over a long one, a couple of centimetres and degrees a second, that a foot it slides
+  // is sliding as recorded.)
   const unwarped = new Map<string, boolean>();
   const ownMotion = (id: string | null) => {
     if (!id) return false;
@@ -238,7 +240,8 @@ export function checkMotion(scene: Scene): Issue[] {
     if (x === undefined) {
       const act = a.actions.find((y) => y.id === id)!;
       const w = warpOf(scene, act, act.roles[0].figure);
-      unwarped.set(id, (x = !!w && w.distance < 0.03 && w.angle < 3));
+      const long = Math.max(1, act.duration);
+      unwarped.set(id, (x = !!w && w.distance / long < 0.02 && w.angle / long < 2 && (w.distance < 0.03 || act.duration > 4) && (w.angle < 3 || act.duration > 4)));
     }
     return x;
   };

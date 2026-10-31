@@ -176,7 +176,7 @@ class Stage {
       const here = this.where(who);
       const want = this.yaw(here.at, o.face);
       const by = wrap(want - here.facing);
-      if (Math.abs(by) > 30 && o.seconds - frame(turnTime(by)) >= 0.5) {
+      if (Math.abs(by) > 15 && o.seconds - frame(turnTime(by)) >= 0.5) {
         const t2 = this.turn(who, want, t);
         return this.play(who, slug, t2, { ...o, seconds: o.seconds - (t2 - t) });
       }
