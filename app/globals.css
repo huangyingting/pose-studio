@@ -1161,6 +1161,16 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 }
 .shot-editor textarea:focus { outline: none; background: var(--raised); box-shadow: var(--focus); }
 .tl-past { position: absolute; top: 0; bottom: 0; pointer-events: none; border-left: 1px dashed var(--border-strong); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--text-3) 9%, transparent) 6px 7px); }
+/* Markers on the ruler (#22): a flag and its name; dragged along it. */
+.tl-marker {
+  position: absolute; top: 0; z-index: 4; display: flex; align-items: center; gap: 3px; max-width: 120px; height: 14px; padding: 0 5px 0 4px; margin-left: -1px;
+  border: 0; border-left: 2px solid var(--accent); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  color: var(--text); font-size: var(--fs-2xs); line-height: 14px; cursor: ew-resize; white-space: nowrap;
+}
+.tl-marker span { overflow: hidden; text-overflow: ellipsis; }
+.tl-marker:hover { background: color-mix(in srgb, var(--accent) 26%, var(--panel)); }
+/* Where a drag snapped to (#22). */
+.tl-snapline { position: absolute; top: 0; bottom: 0; z-index: 4; width: 0; margin-left: -0.5px; border-left: 1px dashed var(--accent); pointer-events: none; }
 .tl-playhead { position: absolute; top: 0; bottom: 0; z-index: 5; width: 2px; margin-left: -1px; background: var(--danger); pointer-events: none; }
 .tl-playhead::before { content: ''; position: absolute; top: -2px; left: -4px; width: 10px; height: 10px; border-radius: 2px 2px 50% 50%; background: var(--danger); }
 

@@ -943,13 +943,14 @@ export function cutTo(scene: Scene, d: number): Scene {
       void _via;
       return [{ ...x, duration: d - x.start, roles: [{ ...x.roles[0], end: cut.mark }], source: cut.via.length ? { ...source, via: cut.via } : source }];
     }
-    return end(x) <= d + EPS ? [x] : [{ ...x, duration: d - x.start }];
+    return end(x) <= d + EPS ? [x] : [cutShort(x, d)];
   });
   const props = a.props && Object.fromEntries(Object.entries(a.props).map(([id, keys]) => [id, keys.filter((k) => k.t <= d + EPS)]));
   const shots = a.shots.filter((x, i) => i === 0 || x.start < d - EPS);
   const constraints = a.constraints?.filter((c) => c.start < d - EPS).map((c) => ({ ...c, end: Math.min(c.end, d) }));
   const cameras = scene.cameras.map((c) => (c.kind === 'path' ? { ...c, points: c.points.filter((p, i) => i === 0 || p.t <= d + EPS) } : c));
-  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots, ...(constraints ? { constraints } : {}) } };
+  const markers = a.markers?.filter((m) => m.t <= d + EPS);
+  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots, ...(constraints ? { constraints } : {}), ...(a.markers ? { markers } : {}) } };
 }
 
 /**

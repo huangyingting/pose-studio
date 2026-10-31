@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -239,7 +239,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const multi = figures.length > 1;
   const active = figures.find((f) => f.id === activeId) ?? figures[0];
   const activeKeys = active ? keyTimesOf(a, active.id) : [];
-  const stops = active ? moments(a, active.id) : moments(a);
+  const markers = a.markers ?? [];
+  // (Where Shift + ← → go: the keys and moments, and the markers, #22.)
+  const stops = [...new Set([...(active ? moments(a, active.id) : moments(a)), ...markers.map((m) => m.t)])].sort((p, q) => p - q);
   const near = (t: number) => Math.abs(t - time) < 0.5 / a.fps;
   const onKey = activeKeys.some(near);
   const spans = shotSpans(a);
@@ -247,6 +249,34 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const picked = useStudio((st) => (st.selection?.kind === 'camera' ? st.selection.camera : null));
   const rowCam = cameraById(scene, picked ?? undefined) ?? liveCamera(scene, time);
   const camTimes = rowCam.kind === 'path' ? rowCam.points.map((p) => p.t) : [];
+  // Drags snap (#22): to the playhead, blocks' edges, keys, cuts, markers and the camera's points
+  // within 6 px, a line showing where; the magnet in the bar turns it off.
+  const snapping = useStudio((st) => st.settings.timelineSnap);
+  const [snapAt, setSnapAt] = useState<number | null>(null);
+  const snapper = (skip: (t: number) => boolean = () => false) => {
+    const now = store.scene.animation!;
+    const targets = snapping ? [
+      store.getState().time,
+      ...now.actions.flatMap((x) => [x.start, x.start + x.duration]),
+      ...figures.flatMap((f) => moments(now, f.id)),
+      ...now.shots.map((x) => x.start),
+      ...(now.markers ?? []).map((m) => m.t),
+      ...camTimes,
+    ].filter((t) => !skip(t)) : [];
+    /** Where t lands: on a target within reach (null if none: the frame it is on). */
+    const near = (t: number) => {
+      const reach = (6 / laneWidth) * view.current.span;
+      let best: number | null = null;
+      for (const x of targets) if (Math.abs(x - t) <= reach && (best === null || Math.abs(x - t) < Math.abs(best - t))) best = x;
+      return best;
+    };
+    return {
+      near,
+      /** t, snapped (the line shown where). */
+      at: (t: number) => { const x = near(t); setSnapAt(x); return x ?? t; },
+      done: () => setSnapAt(null),
+    };
+  };
   // Motion check results, valid until the animation changes.
   const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
   const [qaOpen, setQaOpen] = useState(false);
@@ -370,15 +400,14 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     // Keys elsewhere to line up with (other figures', props', the camera's, the cuts): a punch
     // lands as the other flinches.
     const others = [
-      ...figures.filter((f) => f.id !== figureId).flatMap((f) => moments(a, f.id)),
       ...Object.values(a.props ?? {}).flatMap((keys) => keys.map((k) => k.t)),
-      ...camTimes,
-      ...(a.shots?.map((x) => x.start) ?? []),
     ].filter((x) => Math.abs(x - t) > 1e-6);
+    const snap = snapper((x) => Math.abs(x - t) < 1e-6);
     const move = (ev: { clientX: number }) => {
       let to = snapTime(a, timeAt(ev.clientX));
-      const near = others.find((x) => Math.abs(x - to) < (6 / laneWidth) * view.current.span);
-      if (near !== undefined) to = near;
+      const near = snap.near(to) ?? (snapping ? others.find((x) => Math.abs(x - to) < (6 / laneWidth) * view.current.span) : undefined);
+      setSnapAt(near ?? null);
+      if (near !== undefined && near !== null) to = near;
       if (Math.abs(to - from) < 1e-6) return;
       dragged = true;
       if (group) {
@@ -401,6 +430,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const stop = follow(e.clientX, move);
     const up = () => {
       stop();
+      snap.done();
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       // A Shift-click (no drag) adds the key to those picked, or takes it out.
@@ -455,11 +485,21 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const leads = group?.filter((x, i) => !group.slice(0, i).some((y) => y.roles.some((r) => x.roles.some((q) => q.figure === r.figure))));
     let moved = false;
     let y = e.clientY;
+    const mine = new Set((group ?? [act]).flatMap((x) => [x.start, x.start + x.duration]));
+    const snap = snapper((x) => [...mine].some((m) => Math.abs(m - x) < 1e-6));
     const move = (ev: { clientX: number; clientY?: number }) => {
       if (ev.clientY !== undefined) y = ev.clientY;
       if (!moved && Math.abs(ev.clientX - x0) < 3) return;
       moved = true;
-      const dt = timeAt(ev.clientX) - t0;
+      let dt = timeAt(ev.clientX) - t0;
+      // (Its start, or else its end, onto what is near; an edge onto what is near it.)
+      if (part === 'move' && !slipping) {
+        const s0 = snap.near(start + dt);
+        const s1 = s0 === null ? snap.near(start + duration + dt) : null;
+        dt = s0 !== null ? s0 - start : s1 !== null ? s1 - start - duration : dt;
+        setSnapAt(s0 ?? s1);
+      } else if (part === 'end') dt = snap.at(start + duration + dt) - start - duration;
+      else if (part === 'start') dt = snap.at(start + dt) - start;
       if (slipping) slip(store, act.id, -dt, key);
       else if (leads) store.group(() => leads.forEach((x) => moveAction(store, x.id, x.start + dt, `${key}:${x.id}`)));
       else if (part === 'move') moveAction(store, act.id, start + dt, key);
@@ -471,6 +511,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const stop = follow(e.clientX, move);
     const up = (ev: PointerEvent) => {
       stop();
+      snap.done();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (moved) {
@@ -528,8 +569,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     e.stopPropagation();
     pause();
     const key = `${part}:${sp.shot.id}`;
+    const snap = snapper((x) => Math.abs(x - sp.start) < 1e-6);
     const move = (ev: { clientX: number }) => {
-      const t = timeAt(ev.clientX);
+      const t = part === 'cut' ? snap.at(timeAt(ev.clientX)) : timeAt(ev.clientX);
       if (part === 'cut') moveShotCut(store, sp.shot.id, t, key);
       else {
         const now = shotSpans(store.scene.animation!).find((x) => x.shot.id === sp.shot.id)!;
@@ -537,9 +579,38 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       }
     };
     const stop = follow(e.clientX, move);
-    const up = () => { stop(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  };
+
+  /** Drag a marker along the ruler (snapping as any drag); a click goes to it (#22). */
+  const dragMarker = (id: string, t: number) => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    pause();
+    const x0 = e.clientX;
+    let moved = false;
+    const snap = snapper((x) => Math.abs(x - t) < 1e-6);
+    const move = (ev: { clientX: number }) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      moved = true;
+      editMarker(store, id, { t: snap.at(timeAt(ev.clientX)) }, `marker:${id}`);
+    };
+    const stop = follow(e.clientX, move);
+    const up = () => {
+      stop();
+      snap.done();
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (!moved) seek(t);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const renameMarker = (id: string, name: string) => {
+    const next = window.prompt('Marker name', name)?.trim();
+    if (next) editMarker(store, id, { name: next });
   };
 
   const check = () => {
@@ -613,6 +684,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       '+': () => zoomBy(0.5),
       '-': () => zoomBy(2),
       '0': () => setZoom(null),
+      // (A marker at the playhead, #22.)
+      m: () => addMarker(store, at),
+      M: () => addMarker(store, at),
       Escape: () => (e.currentTarget as HTMLElement).blur(),
     };
     const run = keys[e.key];
@@ -739,6 +813,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
             <button type="button" className="btn ghost tl-btn" aria-label={titleOf(command('timeline.cut'), c)} data-tip={tipOf('timeline.cut')} data-tip-side="top" onClick={() => command('timeline.cut').run!(c)}>
               <Scissors size={16} aria-hidden /> <span className="tl-label">Cut</span>
             </button>
+            <CommandButton id="timeline.marker" ctx={c} tipSide="top" />
+            <CommandButton id="timeline.snap" ctx={c} tipSide="top" />
           </>
         )}
         <CommandButton id="timeline.cameraPoint" ctx={c} tipSide="top" />
@@ -813,7 +889,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('input, textarea, select')) e.currentTarget.focus({ preventScroll: true }); }}
           onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
         >
-          {keysHere && <span className="tl-keys" aria-hidden><kbd>←</kbd><kbd>→</kbd> frame · <kbd>Shift</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> person · <kbd>Home</kbd><kbd>End</kbd> · <kbd>=</kbd><kbd>−</kbd> zoom · <kbd>Esc</kbd></span>}
+          {keysHere && <span className="tl-keys" aria-hidden><kbd>←</kbd><kbd>→</kbd> frame · <kbd>Shift</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> person · <kbd>Home</kbd><kbd>End</kbd> · <kbd>=</kbd><kbd>−</kbd> zoom · <kbd>M</kbd> marker · <kbd>Esc</kbd></span>}
           <div className="tl-labels" style={{ gridTemplateRows: rows }}>
             <span className="tl-head ruler" aria-hidden />
             <span className="tl-head shots" aria-hidden>Shots</span>
@@ -861,6 +937,28 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   </span>
                 );
               })}
+              {markers.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="tl-marker"
+                  style={{ left: pct(m.t) }}
+                  aria-label={`Marker ${m.name} at ${m.t.toFixed(2)} s`}
+                  data-tip={`${m.name}: drag to move, double-click to rename\nRight-click for more`}
+                  onPointerDown={dragMarker(m.id, m.t)}
+                  onDoubleClick={() => renameMarker(m.id, m.name)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openContextMenu(e, [
+                      { label: 'Rename…', icon: Pencil, onSelect: () => renameMarker(m.id, m.name) },
+                      { label: 'Delete', icon: Trash2, danger: true, onSelect: () => editMarker(store, m.id, null) },
+                    ], m.name);
+                  }}
+                >
+                  <span>{m.name}</span>
+                </button>
+              ))}
               {issues?.map((i, n) => (
                 <button
                   key={n}
@@ -1153,6 +1251,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               // Past the end: the playhead goes there, and a key or an action put there lengthens the animation.
               <div className="tl-past" style={{ left: pct(Math.max(v0, a.duration)), right: 0 }} aria-hidden />
             )}
+            {snapAt !== null && snapAt >= v0 && snapAt <= v1 && <div className="tl-snapline" style={{ left: pct(snapAt) }} aria-hidden />}
             {time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
               <div
                 className={`tl-playhead${keying ? ' autokey' : ''}`}

@@ -1970,6 +1970,39 @@ test('a motion block\'s edges trim it; Alt-drag stretches it (#22)', async ({ pa
   expect(await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip').length)).toBe(0);
 });
 
+test('markers on the ruler (M); drags snap to them, the magnet turns it off (#22)', async ({ page }) => {
+  await sceneWithMotion(page, 'Baseball swing');
+  const anim = () => live(page).then((x) => x.scene.animation!);
+  const motion = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'clip')!);
+  // M with the timeline focused: a marker at the playhead.
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(2));
+  await page.locator('.tl-tracks').focus();
+  await page.keyboard.press('m');
+  await expect(page.locator('.tl-marker')).toHaveCount(1);
+  expect((await anim()).markers!.map((m) => m.t)).toEqual([2]);
+  // The motion's end dragged to near it: it lands on it.
+  const s = await live(page);
+  const lanes = (await page.locator('.tl-lanes').boundingBox())!;
+  const perSecond = lanes.width / shownTime(s.scene.animation!.duration);
+  const before = await motion();
+  const box = (await page.locator('.tl-travel.clip').first().boundingBox())!;
+  const x0 = box.x + box.width - 2;
+  const target = x0 + (2.03 - (before.start + before.duration)) * perSecond;
+  await page.mouse.move(x0, box.y + 4);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(x0 + ((target - x0) * i) / 6, box.y + 4);
+  await expect(page.locator('.tl-snapline')).toHaveCount(1);
+  await page.mouse.up();
+  const now = await motion();
+  expect(now.start + now.duration).toBeCloseTo(2, 3);
+  await expect(page.locator('.tl-snapline')).toHaveCount(0);
+  // The magnet off: it doesn't.
+  const snap = page.getByRole('button', { name: 'Snap' });
+  await expect(snap).toHaveAttribute('aria-pressed', 'true');
+  await snap.click();
+  await expect(snap).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {
   await addLayer(page, 'Stick');
   let s = await live(page);

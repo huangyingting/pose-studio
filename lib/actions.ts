@@ -1464,6 +1464,34 @@ export function setAnimationOptions(store: Store, patch: { duration?: number; lo
 }
 
 /** Shorten the animation to `duration` keeping its timing: what is past the new end goes (the length field scales instead). */
+/* Markers: beats on the ruler (#22) */
+
+/** A marker at t (on a frame), named the next "Marker n". Its id. */
+export function addMarker(store: Store, t: number, name?: string): string | null {
+  const a = store.scene.animation;
+  if (!a) return null;
+  const at = snapTime(a, t);
+  const existing = a.markers?.find((m) => Math.abs(m.t - at) < 0.5 / a.fps);
+  if (existing) return existing.id;
+  const mark = { id: uid('mark'), t: at, name: name?.trim().slice(0, 60) || nextName('Marker 1', (a.markers ?? []).map((m) => m.name)) };
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, markers: [...(s.animation.markers ?? []), mark].sort((p, q) => p.t - q.t) } } : s));
+  return mark.id;
+}
+
+/** A marker moved to t, renamed, or (null) taken away. */
+export function editMarker(store: Store, id: string, patch: { t?: number; name?: string } | null, key = '') {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a?.markers) return s;
+    const markers = patch === null
+      ? a.markers.filter((m) => m.id !== id)
+      : a.markers.map((m) => (m.id !== id ? m : { ...m, ...(patch.t !== undefined ? { t: snapTime(a, patch.t) } : {}), ...(patch.name !== undefined ? { name: patch.name.trim().slice(0, 60) || m.name } : {}) })).sort((p, q) => p.t - q.t);
+    const { markers: _m, ...rest } = a;
+    void _m;
+    return { ...s, animation: markers.length ? { ...rest, markers } : rest };
+  }, key);
+}
+
 export function cutAnimation(store: Store, duration: number) {
   store.updateScene((s) => cutTo(s, Math.max(0.2, duration)), 'anim-options');
   store.setTime(store.getState().time);

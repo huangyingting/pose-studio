@@ -1,11 +1,11 @@
 import {
-  Activity, Aperture, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, Magnet, Flag, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, addMarker, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
@@ -1345,6 +1345,14 @@ export const COMMANDS: Command[] = [
   {
     id: 'shot.unpin', title: 'Hand back to the director', help: 'A shot taken over by hand: let the director cut it again', icon: Clapperboard,
     when: (c) => !!spanOf(c)?.shot.pinned && !!sceneOf(c).coverage?.live, run: (c) => unpinShot(c.store, spanOf(c)!.shot.id),
+  },
+  {
+    id: 'timeline.snap', title: 'Snap', help: 'Drags on the timeline snap to the playhead, blocks\' edges, keys, cuts and markers', icon: Magnet, when: animated,
+    checked: (c) => c.store.getState().settings.timelineSnap, run: (c) => c.store.setSettings({ timelineSnap: !c.store.getState().settings.timelineSnap }),
+  },
+  {
+    id: 'timeline.marker', title: 'Add a marker', help: 'A marker at the playhead: a beat to time things to (M with the timeline focused)', icon: Flag, when: animated,
+    run: (c) => addMarker(c.store, c.store.getState().time),
   },
   { id: 'timeline.repeat', title: 'Repeat this shot', icon: Repeat1, when: animated, checked: () => App().repeatShot(), run: () => App().setRepeatShot(!App().repeatShot()) },
   { id: 'timeline.loop', title: 'Loop the animation', icon: Repeat, when: animated, checked: (c) => !!sceneOf(c).animation?.loop, run: (c) => setAnimationOptions(c.store, { loop: !sceneOf(c).animation!.loop }) },

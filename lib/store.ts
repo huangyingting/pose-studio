@@ -28,6 +28,8 @@ export interface Settings {
   timelineFolded: boolean;
   /** Height of the timeline's tracks (px), or 0 to fit them (up to a limit). */
   timelineHeight: number;
+  /** Drags on the timeline snap to the playhead, blocks' edges, keys, cuts and markers (#22: its magnet). */
+  timelineSnap: boolean;
   /** Looking through the shot camera, show the rule-of-thirds lines and safe areas. */
   guides: boolean;
   /** Widths the side panels were dragged to (px): each left section's, and the inspector's. */
@@ -77,7 +79,7 @@ export interface State {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', inspector: true, timelineFolded: false, timelineHeight: 0, guides: false, widths: {}, theme: 'system',
+  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', inspector: true, timelineFolded: false, timelineHeight: 0, timelineSnap: true, guides: false, widths: {}, theme: 'system',
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -125,6 +127,7 @@ function loadSettings(storage: Storage | null): Settings {
         inspector: s.inspector !== false,
         timelineFolded: s.timelineFolded === true,
         timelineHeight: typeof s.timelineHeight === 'number' ? Math.min(2000, Math.max(0, s.timelineHeight)) : 0,
+        timelineSnap: s.timelineSnap !== false,
         guides: s.guides === true,
         widths: Object.fromEntries(Object.entries(s.widths ?? {}).filter(([k, v]) => (k === 'inspector' || SIDE_SECTIONS.includes(k as (typeof SIDE_SECTIONS)[number])) && typeof v === 'number')
           .map(([k, v]) => [k, Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, v as number))])),

@@ -464,6 +464,15 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
     duration, fps, loop, actions, ...(Object.keys(props).length ? { props } : {}), ...(holds.length ? { constraints: holds } : {}),
     shots: parseShots(v.shots, duration, cameras),
   };
+  // (Beats on the ruler, #22: within it, each its own id.)
+  const ids = new Set<string>();
+  const markers = (Array.isArray(v.markers) ? v.markers.slice(0, 200) : []).filter(isObj).flatMap((m) => {
+    let id = str(m.id, '').slice(0, 40) || uid('mark');
+    if (ids.has(id)) id = uid('mark');
+    ids.add(id);
+    return typeof m.t === 'number' && Number.isFinite(m.t) ? [{ id, t: Math.round(Math.min(duration, Math.max(0, m.t)) * 1000) / 1000, name: str(m.name, '').slice(0, 60) }] : [];
+  }).sort((p, q) => p.t - q.t);
+  if (markers.length) anim.markers = markers;
   return anim;
 }
 

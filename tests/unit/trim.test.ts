@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addKeyframe, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
+import { addFigure, addKeyframe, addMarker, editMarker, setAnimationOptions, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
@@ -253,6 +253,24 @@ describe('arranging blocks (#22)', () => {
     expect(giveAction(store, swing.id, a)).toBeNull();
     expect(actionsOf(store.scene.animation!, b).some((x) => x.source.kind === 'clip')).toBe(false);
     expect(actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!.start).toBeCloseTo(swing.start, 3);
+  });
+});
+
+describe('markers (#22)', () => {
+  it('a beat on the ruler: added at the playhead (on a frame, one per frame), moved, renamed, taken away; kept, scaled with the animation, cut with it', () => {
+    const { store } = fresh();
+    startAnimation(store, 4);
+    const id = addMarker(store, 1.01)!;
+    expect(addMarker(store, 1.0)).toBe(id);
+    expect(store.scene.animation!.markers).toEqual([{ id, t: 1, name: 'Marker' }]);
+    const two = addMarker(store, 3, 'The punch lands')!;
+    editMarker(store, id, { t: 2.5, name: 'She turns' });
+    expect(store.scene.animation!.markers!.map((m) => [m.name, m.t])).toEqual([['She turns', 2.5], ['The punch lands', 3]]);
+    expect(parseScene(JSON.parse(JSON.stringify(store.scene)))!.animation!.markers).toEqual(store.scene.animation!.markers);
+    setAnimationOptions(store, { duration: 8 });
+    expect(store.scene.animation!.markers!.map((m) => m.t)).toEqual([5, 6]);
+    editMarker(store, two, null);
+    expect(store.scene.animation!.markers!.map((m) => m.name)).toEqual(['She turns']);
   });
 });
 

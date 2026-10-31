@@ -322,6 +322,8 @@ export interface Animation {
    * (a cut) or the animation ends, filmed by one of the scene's cameras.
    */
   shots: Shot[];
+  /** Beats to time things to (#22): named moments on the ruler, which drags snap to. */
+  markers?: Marker[];
 }
 
 /** Frame shapes the shots can be filmed in. */
@@ -466,6 +468,13 @@ export interface CameraPoint {
   stop?: true;
   /** What it looks at here, its own (a figure, or a spot); none: as the camera aims. Between two points, it turns from one to the other. */
   aim?: { figure: string } | { point: Vec3 };
+}
+
+/** A beat on the timeline (#22): "the punch lands", "she turns". */
+export interface Marker {
+  id: string;
+  t: number;
+  name: string;
 }
 
 export interface Library {
