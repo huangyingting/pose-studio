@@ -21,6 +21,7 @@ import ActionPicker, { type PickerAt } from './ActionPicker';
 import { CommandButton } from './CommandButton';
 import { dragged, endDrag } from './dragdrop';
 import { stepDone } from './nextStep';
+import { rovingKey, useRoving, type Roving } from './roving';
 import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
@@ -47,6 +48,10 @@ function idleGaps(a: Animation, id: string): [number, number][] {
 }
 
 /** Ruler spacings (seconds), finest first: the finest that keeps ticks (and labels) apart is used. */
+/** The timeline bar's buttons for the keyboard: a toolbar (#20). */
+// (Not the buttons of its question about shortening, which takes the focus while it is asked.)
+const BAR_KEYS: Roving = { items: 'button:not(.tl-ask *)', orientation: 'horizontal' };
+
 /** How near an edge of a zoomed view a drag slides it on (px), and at most how fast (windows a second). */
 const EDGE = 32;
 const EDGE_SPEED = 1.5;
@@ -584,6 +589,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     run();
   };
   const tracks = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  useRoving(bar, BAR_KEYS);
   const [scrolled, setScrolled] = useState(false);
   const [keysHere, setKeysHere] = useState(false);
   // (The active person's row in sight whenever they change: from the canvas, the outline or the keys.)
@@ -661,7 +668,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   return (
     <div className={`timeline${folded ? ' folded' : ''}`} role="region" aria-label="Timeline" ref={root}>
       {!folded && <div className="tl-resize" onPointerDown={resize} onDoubleClick={() => store.setSettings({ timelineHeight: 0 })} data-tip="Drag to make the timeline taller or shorter (double-click: fit)" aria-hidden />}
-      <div className="tl-bar">
+      {/* (Its buttons one Tab stop, ← → between them: #20; the length field keeps its own keys.) */}
+      <div className="tl-bar" role="toolbar" aria-label="Animation" ref={bar} onKeyDown={(e) => rovingKey(e, BAR_KEYS)}>
         <div className="tl-transport">
           <CommandButton id="timeline.prevKey" ctx={c} tipSide="top" className="tl-step" disabled={prevKey === undefined} />
           <button type="button" className="tl-play" onClick={toggle} aria-label={clock.playing ? 'Pause' : 'Play'} data-tip={tipOf('timeline.play', clock.playing ? 'Pause' : 'Play')} data-tip-side="top">
