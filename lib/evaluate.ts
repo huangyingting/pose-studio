@@ -86,6 +86,33 @@ function blend(a: Pose, b: Pose, u: number): Pose {
   return { bones, position: a.position.map((v, i) => mix(v, b.position[i])) as Vec3, hands: { L: hand('L'), R: hand('R') }, grounded: u < 0.5 ? a.grounded : b.grounded };
 }
 
+/** How far a repeat's end and the next one's start are apart: their bones' largest turn (degrees). */
+const seams = new WeakMap<ClipPart, Map<string, number>>();
+
+/**
+ * Seconds a repeat of a motion blends in from the one before (#23): as asked, or a short blend where
+ * a repeat ends far (over 10°) from how the next starts, none where it ends as it starts.
+ */
+export function seamOf(src: Extract<Action['source'], { kind: 'clip' }>, clip: Clip, part: ClipPart): number {
+  if (src.seam !== undefined) return src.seam;
+  let byPart = seams.get(part);
+  if (!byPart) seams.set(part, (byPart = new Map()));
+  const key = `${clip.duration}:${!!src.alternate}`;
+  let apart = byPart.get(key);
+  if (apart === undefined) {
+    const end = samplePart(part, clip.duration, clip.duration, false);
+    const start = samplePart(part, 0, clip.duration, false);
+    const next = src.alternate ? mirrorPose(start) : start;
+    apart = 0;
+    for (const j of Object.keys(end.bones) as (keyof Pose['bones'])[]) {
+      if (j === 'hips' || !next.bones[j]) continue;
+      apart = Math.max(apart, (fromQuat(end.bones[j]).angleTo(fromQuat(next.bones[j])) * 180) / Math.PI);
+    }
+    byPart.set(key, apart);
+  }
+  return apart > 10 ? 0.25 : 0;
+}
+
 /** A figure's actions on one layer, in order. */
 export function actionsOf(a: Animation, figure: string, layer?: Action['layer']): Action[] {
   return a.actions
@@ -571,8 +598,10 @@ class Evaluator {
       const pose = this.held(f, act);
       return { pose, mark: start, part: null, u: 0, mirror: false };
     }
-    const mirror = !!src.mirror;
-    const sample = (u: number, loop = clip.loop) => (mirror ? mirrorPose(samplePart(part, u, clip.duration, loop)) : samplePart(part, u, clip.duration, loop));
+    // (Repeated, every other one mirrored, #23.)
+    const alternate = !!src.alternate && !!src.repeat && !clip.loop;
+    const mirrorOf = (lap: number) => !!src.mirror !== (alternate && lap % 2 === 1);
+    const sample = (u: number, loop = clip.loop, lap = 0) => (mirrorOf(lap) ? mirrorPose(samplePart(part, u, clip.duration, loop)) : samplePart(part, u, clip.duration, loop));
     // Time in the clip; a loop played longer than once goes round again from where it got to.
     let u = (t - act.start) * (src.speed ?? 1);
     let laps = 0;
@@ -582,21 +611,32 @@ class Evaluator {
       laps = Math.min(clip.loop ? MAX_LAPS : src.repeat! - 1, lapOf(u, clip.duration));
       u = Math.min(clip.duration, Math.max(0, u - laps * clip.duration));
     } else u = Math.min(clip.duration, Math.max(0, u));
+    const mirror = mirrorOf(laps);
     const first = sample(0);
-    // (At a lap's end, its last frame: not wrapped round to its first.)
-    let raw = sample(u, u < clip.duration - EPS ? clip.loop : false);
-    if (laps) {
-      // (Where a lap ends: its last frame, not wrapped round to its first.)
-      const last = sample(clip.duration, false);
-      const lapTurn = facingOf(last.bones) - facingOf(first.bones);
-      for (let k = 0; k < laps; k++) {
-        const [dx, dz] = turn(raw.position[0] - first.position[0], raw.position[2] - first.position[2], lapTurn);
-        raw = turned({ ...raw, position: [last.position[0] + dx, raw.position[1], last.position[2] + dz] }, lapTurn);
+    // A lap's pose at u, where its laps before have taken it: each starts where the one before ended
+    // (its last frame, not wrapped round to its first), turned as far as that one turned. (By the
+    // lap's parity: they are the same but for every other one mirrored.)
+    const steps = [0, 1].map((p) => {
+      const from = sample(0, clip.loop, p);
+      const last = sample(clip.duration, false, p + 1);
+      return { from, last, turn: facingOf(last.bones) - facingOf(from.bones) };
+    });
+    const lapPose = (lap: number, at: number) => {
+      let raw = sample(at, at < clip.duration - EPS ? clip.loop : false, lap);
+      for (let k = lap; k >= 1; k--) {
+        const { from, last, turn: by } = steps[k % 2];
+        const [dx, dz] = turn(raw.position[0] - from.position[0], raw.position[2] - from.position[2], by);
+        raw = turned({ ...raw, position: [last.position[0] + dx, raw.position[1], last.position[2] + dz] }, by);
       }
-    }
+      return raw;
+    };
+    let raw = lapPose(laps, u);
+    // Into a repeat from the one before, over its seam (#23).
+    const seam = laps && !clip.loop ? seamOf(src, clip, part) * (src.speed ?? 1) : 0;
+    if (seam > EPS && u < seam) raw = blend(lapPose(laps - 1, clip.duration), raw, smooth(u / seam));
     const size = legsOf(f.body).rootY / legsOf(part.body ?? f.body).rootY;
     // (Turned so it starts facing the figure's way: where its person looks, not just its pelvis.)
-    const facing0 = startFacing(part, first, mirror);
+    const facing0 = startFacing(part, first, mirrorOf(0));
     const by = start.facing - facing0;
     const [dx, dz] = turn((raw.position[0] - first.position[0]) * size, (raw.position[2] - first.position[2]) * size, by);
     let y = raw.grounded ? raw.position[1] : legsOf(f.body).rootY + (raw.position[1] - legsOf(part.body ?? f.body).rootY) * size;

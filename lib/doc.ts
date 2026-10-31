@@ -407,7 +407,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   let source: Action['source'];
   if (o.kind === 'clip' && typeof o.clip === 'string') {
     const speed = num(o.speed, 1);
-    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to) };
+    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to), ...(typeof o.seam === 'number' && Number.isFinite(o.seam) ? { seam: Math.min(2, Math.max(0, Math.round(o.seam * 100) / 100)) } : {}), ...(o.alternate === true ? { alternate: true } : {}) };
   } else if (o.kind === 'keys') {
     const clip = parseClip(o.clip);
     if (!clip) return null;

@@ -130,6 +130,24 @@ export function MotionPanel({ t }: { t: Target }) {
         <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(t.store, act.id, { speed: v }, `act:${act.id}:speed`)} />
       </label>
       <Toggle label="Mirrored" hint="Left for right" checked={!!src.mirror} onChange={(mirror) => setClipOptions(t.store, act.id, { mirror })} />
+      {(src.repeat ?? 1) > 1 && whole && !whole.loop && (
+        <>
+          {/* Between repeats (#23): each blends in from the one before, or cuts to it. */}
+          <PropertyRow label="Between" info="How each repeat follows the one before: blended over a time, or a cut (as it suits: a short blend where a repeat ends far from how the next starts)">
+            <div className="lens-row">
+              <Segmented<'auto' | 'blend' | 'cut'>
+                label="Between repeats"
+                full
+                value={src.seam === undefined ? 'auto' : src.seam > 0 ? 'blend' : 'cut'}
+                onChange={(v) => setClipOptions(t.store, act.id, { seam: v === 'auto' ? null : v === 'cut' ? 0 : Math.max(0.1, src.seam ?? 0.25) })}
+                options={[{ value: 'auto', label: 'Auto' }, { value: 'blend', label: 'Blend' }, { value: 'cut', label: 'Cut' }]}
+              />
+              {src.seam !== undefined && src.seam > 0 && <NumberField prefix="s" label="Blend between repeats" value={src.seam} step={0.05} min={0.05} max={2} onChange={(v) => setClipOptions(t.store, act.id, { seam: v }, `act:${act.id}:seam`)} />}
+            </div>
+          </PropertyRow>
+          <Toggle label="Alternate mirrored" hint="Every other repeat left for right (a left jab, then a right)" checked={!!src.alternate} onChange={(alternate) => setClipOptions(t.store, act.id, { alternate })} />
+        </>
+      )}
       {!tooFar(t) && pull(t) && (
         <div className="warp-note">
           <p>{pull(t)}</p>

@@ -1208,7 +1208,7 @@ export function setBlend(store: Store, id: string, blendIn: number, key = '') {
  * A clip action's speed (a clip that does not loop takes longer or shorter for it) and whether it
  * is mirrored (left for right).
  */
-export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean }, key = '') {
+export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean; seam?: number | null; alternate?: boolean }, key = '') {
   const act = actionById(store, id);
   if (act?.source.kind !== 'clip') return;
   const clip = playedClip(act.source);
@@ -1222,6 +1222,15 @@ export function setClipOptions(store: Store, id: string, patch: { speed?: number
       if (patch.mirror !== undefined) {
         if (patch.mirror) source.mirror = true;
         else delete source.mirror;
+      }
+      // (Between repeats, #23: a blend of its own, or (null) as it suits; every other one mirrored.)
+      if (patch.seam !== undefined) {
+        if (patch.seam === null) delete source.seam;
+        else source.seam = Math.min(2, Math.max(0, Math.round(patch.seam * 100) / 100));
+      }
+      if (patch.alternate !== undefined) {
+        if (patch.alternate) source.alternate = true;
+        else delete source.alternate;
       }
       return { ...x, source };
     });

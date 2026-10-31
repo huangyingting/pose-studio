@@ -1187,6 +1187,11 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         >
                           {group && <Users size={11} aria-hidden />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
+                          {/* Its repeats, each a segment (#23). */}
+                          {(() => {
+                            const n = x.source.kind === 'clip' ? x.source.repeat ?? 1 : 1;
+                            return Array.from({ length: n - 1 }, (_, k) => <i key={`lap${k}`} className="tl-lap" style={{ left: `${((k + 1) / n) * 100}%` }} aria-hidden />);
+                          })()}
                           {x.source.kind !== 'travel' && <i className="tl-edge start" aria-hidden onPointerDown={dragAction(x, f.id, 'start')} />}
                           <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                         </span>

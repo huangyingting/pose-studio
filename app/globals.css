@@ -1193,6 +1193,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* The picked keys' span (#22): its end stretches or squeezes their timing. */
 .tl-keyspan { position: absolute; top: 2px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 40%, transparent); pointer-events: none; }
 .tl-keyspan-end { position: absolute; top: -3px; right: -5px; width: 10px; height: 10px; border-radius: 2px; background: var(--accent); cursor: ew-resize; pointer-events: auto; }
+/* A repeated motion's repeats (#23): a divider between each. */
+.tl-lap { position: absolute; top: 3px; bottom: 3px; width: 0; border-left: 1px dashed currentColor; opacity: 0.55; pointer-events: none; }
 /* Where a drag snapped to (#22). */
 .tl-snapline { position: absolute; top: 0; bottom: 0; z-index: 4; width: 0; margin-left: -0.5px; border-left: 1px dashed var(--accent); pointer-events: none; }
 .tl-playhead { position: absolute; top: 0; bottom: 0; z-index: 5; width: 2px; margin-left: -1px; background: var(--danger); pointer-events: none; }

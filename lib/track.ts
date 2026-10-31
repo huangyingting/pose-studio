@@ -1,7 +1,7 @@
 import { keyPose, keyTimes, keysClip, partKeys, placeClip, samplePart, setPartKey, startFacing, type Key } from './clip';
 import { clipById, playedClip } from './assets';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
-import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf } from './evaluate';
+import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf, seamOf } from './evaluate';
 import { JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
@@ -648,17 +648,29 @@ export function splitRepeats(a: Animation, id: string): Animation {
   if (!act || src?.kind !== 'clip' || (src.repeat ?? 1) < 2) return a;
   const n = src.repeat!;
   const once = act.duration / n;
-  const { repeat: _r, ...one } = src;
-  void _r;
-  const blocks = Array.from({ length: n }, (_, i): Action => ({
-    ...act,
-    id: i ? uid('act') : act.id,
-    start: act.start + once * i,
-    duration: once,
-    source: one,
-    roles: act.roles.map((r) => (i === n - 1 ? r : { figure: r.figure })),
-    ...(i && act.blendIn ? { blendIn: undefined } : {}),
-  })).map((x) => { if (x.blendIn === undefined) delete x.blendIn; return x; });
+  const { repeat: _r, seam: _s, alternate, ...one } = src;
+  void _r; void _s;
+  // (Each after the first blends in as the repeat did, #23; every other one mirrored if they were.)
+  const played = playedClip(src);
+  const seam = played?.parts[0] ? seamOf(src, played, played.parts[0]) : 0;
+  const blocks = Array.from({ length: n }, (_, i): Action => {
+    const mirror = !!src.mirror !== (!!alternate && i % 2 === 1);
+    const { mirror: _m, ...rest } = one;
+    void _m;
+    const x: Action = {
+      ...act,
+      id: i ? uid('act') : act.id,
+      start: act.start + once * i,
+      duration: once,
+      source: mirror ? { ...rest, mirror: true } : rest,
+      roles: act.roles.map((r) => (i === n - 1 ? r : { figure: r.figure })),
+    };
+    if (i) {
+      if (seam > 0) x.blendIn = seam;
+      else delete x.blendIn;
+    }
+    return x;
+  });
   return sorted(replace(a, act, blocks));
 }
 
