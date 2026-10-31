@@ -603,20 +603,20 @@ function App() {
         {!through && <ViewBall ctx={cx} view={viewNow} />}
         <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
-          <div className="stage-hint hide-mobile">
-            <Hint
-              clock={clock}
-              pick={pick}
-              note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
-                  ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
-              keys={!through && selection ? stepHint(selectionCtx(store)) : null}
-              quiet={!!through || clock.playing}
-              // (A part selected with the handles hidden: its gizmo is hidden too.)
-              alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
-                ? { icon: EyeOff, text: 'Handles hidden', action: { label: `Show · ${shortcutOf('view.handles') ?? 'H'}`, run: () => command('view.handles').run!(cx) } }
-                : null}
-            />
-          </div>
+        <div className="stage-hint hide-mobile">
+          <Hint
+            clock={clock}
+            pick={pick}
+            note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
+                ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
+            keys={!through && selection ? stepHint(selectionCtx(store)) : null}
+            quiet={!!through || clock.playing}
+            // (A part selected with the handles hidden: its gizmo is hidden too.)
+            alert={!settings.showHandles && !through && selection?.kind === 'joint' && !scene.figures.find((f) => f.id === selection.figure)?.proxy
+              ? { icon: EyeOff, text: 'Handles hidden', action: { label: `Show · ${shortcutOf('view.handles') ?? 'H'}`, run: () => command('view.handles').run!(cx) } }
+              : null}
+          />
+        </div>
         <Timeline clock={clock} notify={notify} />
       </main>
 

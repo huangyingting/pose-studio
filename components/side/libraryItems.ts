@@ -290,7 +290,6 @@ function characters(store: Store, ui: LibraryUi): LibraryItem[] {
 }
 
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
-  // A cast, a set and what they do (and shoot presets: one filmed with a coverage).
   // Who a figure is drawn as.
   { id: 'characters', label: 'Characters', icon: UserRound, grid: true, items: characters, Bar: CharactersBar },
   { id: 'poses', label: 'Poses', icon: PersonStanding, grid: true, items: poses, Bar: PosesBar },
