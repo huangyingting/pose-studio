@@ -1807,6 +1807,10 @@ test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots sta
   await page.keyboard.press('=');
   await page.keyboard.press('=');
   await expect(page.locator('.tl-scroll')).toBeVisible();
+  // Its scrollbar at the bottom of the tracks in sight, not below the rows scrolled away.
+  const bar = (await page.locator('.tl-scroll').boundingBox())!;
+  expect(bar.y + bar.height).toBeLessThanOrEqual(tracks.y + tracks.height + 1);
+  expect(bar.y + bar.height).toBeGreaterThan(tracks.y + tracks.height - 24);
   box = (await lanes.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.5, tracks.y + 8);
   await page.mouse.down();
