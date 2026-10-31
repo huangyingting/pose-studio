@@ -1,12 +1,12 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
+import { clearMark, correctEveryRepeat, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
-import { actionLabel } from '@/lib/track';
+import { actionLabel, correctionHeld, reachOf, repeatedUnder } from '@/lib/track';
 import type { Action, Travel } from '@/lib/types';
 import { applies, command, menu, menuItems, type Ctx } from '../commands';
 import { Hint, Menu, NumberField, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
@@ -103,6 +103,29 @@ export function PosedPanel({ t }: { t: Target }) {
       {/* (A correction: as much of it as shows, #23.) */}
       {act.layer === 'correction' && (
         <Slider label="Strength" min={0} max={1} step={0.05} value={act.strength ?? 1} display={`${Math.round((act.strength ?? 1) * 100)}%`} onChange={(v) => setActionLook(t.store, act.id, { strength: v }, `act:${act.id}:strength`)} />
+      )}
+      {/* (Over the whole motion, or around its edits fading over a time; on every repeat.) */}
+      {act.layer === 'correction' && <CorrectionReach t={t} />}
+    </>
+  );
+}
+
+function CorrectionReach({ t }: { t: Target }) {
+  const act = t.action!;
+  const whole = correctionHeld(act);
+  const repeated = repeatedUnder(t.scene.animation!, act);
+  return (
+    <>
+      <Toggle label="Over the whole motion" hint="One change held throughout what it corrects, rather than around its edits" checked={whole} onChange={(on) => setCorrectionThroughout(t.store, act.id, on)} />
+      {!whole && (
+        <PropertyRow label="Fades" info="How long it takes to fade in before its edits and out after them (seconds either side)">
+          <NumberField prefix="s" label="Fades over" value={reachOf(act)} step={0.05} min={0.05} max={5} onChange={(v) => setCorrectionThroughout(t.store, act.id, false, v, `act:${act.id}:reach`)} />
+        </PropertyRow>
+      )}
+      {repeated && (
+        <button type="button" className="btn subtle" onClick={() => correctEveryRepeat(t.store, act.id)} data-tip="The same change at the same moment of each repeat (those without a correction there)">
+          <Repeat size={15} aria-hidden /> On every repeat
+        </button>
       )}
     </>
   );

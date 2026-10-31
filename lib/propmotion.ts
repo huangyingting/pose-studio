@@ -221,7 +221,9 @@ function happenings(a: Animation, id: string): Happening[] {
         const t = act.start + ((act.source as { lead?: number }).lead ?? 0) + (e.t + lap * clip.duration) / speed;
         const figure = act.roles[e.part]?.figure;
         if (!figure || t > act.start + act.duration + 1e-6) continue;
-        const hand: Side = act.source.mirror ? (e.hand === 'L' ? 'R' : 'L') : e.hand;
+        // (Every other repeat mirrored, if so: its hand the other one, #23.)
+        const mirrored = !!act.source.mirror !== (!!act.source.alternate && lap % 2 === 1);
+        const hand: Side = mirrored ? (e.hand === 'L' ? 'R' : 'L') : e.hand;
         out.push({ t, kind: e.kind, figure, hand, act });
       }
     }

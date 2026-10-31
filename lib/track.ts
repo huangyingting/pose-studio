@@ -103,18 +103,35 @@ function correct(scene: Scene, figure: string, over: Action, t: number, pose: Po
   const delta = correctionOf(base, pose);
   const none = correctionOf(delta, delta);
   const [lo, hi] = [over.start, end(over)];
-  const fix = actionsOf(a, figure, 'correction').find((x) => x.start - FALLOFF - tol <= t && t <= end(x) + FALLOFF + tol && x.start < hi + tol && end(x) > lo - tol);
+  const fix = actionsOf(a, figure, 'correction').find((x) => x.start - reachOf(x) - tol <= t && t <= end(x) + reachOf(x) + tol && x.start < hi + tol && end(x) > lo - tol);
+  const reach = fix ? reachOf(fix) : FALLOFF;
   const changes = (k: Key) => JSON.stringify(k.pose) !== JSON.stringify(none);
   const held = !!fix && changes(keysOf(fix)[0]) && changes(keysOf(fix).at(-1)!);
   // Its edits (not the no-change keys it fades from and to), this one put in.
   const edits = [...(fix ? keysOf(fix).filter((k) => (held || changes(k)) && Math.abs(k.t - t) >= tol) : []), { t, pose: delta }].sort((p, q) => p.t - q.t);
   const keys = held ? edits : [
-    ...(edits[0].t - FALLOFF > lo + tol ? [{ t: snapTime(a, edits[0].t - FALLOFF), pose: none }] : edits[0].t > lo + tol ? [{ t: lo, pose: none }] : []),
+    ...(edits[0].t - reach > lo + tol ? [{ t: snapTime(a, edits[0].t - reach), pose: none }] : edits[0].t > lo + tol ? [{ t: lo, pose: none }] : []),
     ...edits,
-    ...(edits.at(-1)!.t + FALLOFF < hi - tol ? [{ t: snapTime(a, edits.at(-1)!.t + FALLOFF), pose: none }] : edits.at(-1)!.t < hi - tol ? [{ t: hi, pose: none }] : []),
+    ...(edits.at(-1)!.t + reach < hi - tol ? [{ t: snapTime(a, edits.at(-1)!.t + reach), pose: none }] : edits.at(-1)!.t < hi - tol ? [{ t: hi, pose: none }] : []),
   ];
   const made = keysAction(figure, keys, 'correction');
-  return sorted(fix ? replace(a, fix, [{ ...made, id: fix.id }]) : { ...a, actions: [...a.actions, made] });
+  // (Kept as it was otherwise: its strength.)
+  return sorted(fix ? replace(a, fix, [{ ...fix, ...made, id: fix.id }]) : { ...a, actions: [...a.actions, made] });
+}
+
+/**
+ * How far a correction fades in and out either side of its edits (s, #23): FALLOFF unless set
+ * otherwise; 0 for one held over the whole motion.
+ */
+export function reachOf(fix: Action): number {
+  if (correctionHeld(fix)) return 0;
+  const keys = keysOf(fix);
+  if (keys.length < 2) return FALLOFF;
+  const none = JSON.stringify(correctionOf(keys[0].pose, keys[0].pose));
+  const edits = keys.filter((k) => JSON.stringify(k.pose) !== none);
+  if (!edits.length) return FALLOFF;
+  // (The longer side: the other may be cut short by where the motion starts or ends.)
+  return Math.round(Math.max(edits[0].t - keys[0].t, keys.at(-1)!.t - edits.at(-1)!.t) * 1000) / 1000 || FALLOFF;
 }
 
 /** Whether a correction is held over the whole of what it corrects (its ends keyed as its edits, #23). */
@@ -127,9 +144,9 @@ export function correctionHeld(fix: Action): boolean {
 
 /**
  * A correction over the whole of what it corrects (#23: one change held throughout), or back to
- * changing it only around its edits.
+ * changing it only around its edits, fading in and out over `reach` either side of them.
  */
-export function correctionThroughout(scene: Scene, id: string, throughout: boolean): Animation {
+export function correctionThroughout(scene: Scene, id: string, throughout: boolean, reach = FALLOFF): Animation {
   const a = scene.animation!;
   const fix = a.actions.find((x) => x.id === id && x.layer === 'correction');
   if (!fix) return a;
@@ -149,11 +166,44 @@ export function correctionThroughout(scene: Scene, id: string, throughout: boole
   const next = throughout
     ? [{ t: lo, pose: edits[0].pose }, ...inner, { t: hi, pose: edits.at(-1)!.pose }]
     : [
-      ...(edits[0].t - FALLOFF > lo ? [{ t: snapTime(a, edits[0].t - FALLOFF), pose: none }] : []),
+      ...(edits[0].t - reach > lo + 1e-6 ? [{ t: snapTime(a, edits[0].t - reach), pose: none }] : edits[0].t > lo + 1e-6 ? [{ t: lo, pose: none }] : []),
       ...edits,
-      ...(edits.at(-1)!.t + FALLOFF < hi ? [{ t: snapTime(a, edits.at(-1)!.t + FALLOFF), pose: none }] : []),
+      ...(edits.at(-1)!.t + reach < hi - 1e-6 ? [{ t: snapTime(a, edits.at(-1)!.t + reach), pose: none }] : edits.at(-1)!.t < hi - 1e-6 ? [{ t: hi, pose: none }] : []),
     ];
-  return sorted(replace(a, fix, [{ ...keysAction(figure, next, 'correction'), id: fix.id }]));
+  return sorted(replace(a, fix, [{ ...fix, ...keysAction(figure, next, 'correction'), id: fix.id }]));
+}
+
+/**
+ * A correction on a repeated motion put on the same moment of each of its other repeats too (#23),
+ * where they have none of their own there yet.
+ */
+export function correctionEveryRepeat(scene: Scene, id: string): Animation {
+  const a = scene.animation!;
+  const fix = a.actions.find((x) => x.id === id && x.layer === 'correction');
+  const over = fix && repeatedUnder(a, fix);
+  if (!fix || !over) return a;
+  const figure = fix.roles[0].figure;
+  const n = (over.source as { repeat: number }).repeat;
+  const lap = over.duration / n;
+  const k = Math.floor((fix.start + fix.duration / 2 - over.start) / lap);
+  const tol = 0.5 / a.fps;
+  const made: Action[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i === k) continue;
+    const by = (i - k) * lap;
+    const keys = keysOf(fix).map((x) => ({ ...x, t: snapTime(a, x.t + by) })).filter((x) => x.t >= over.start - tol && x.t <= end(over) + tol);
+    if (keys.length < 2) continue;
+    const [lo, hi] = [keys[0].t, keys.at(-1)!.t];
+    if (actionsOf(a, figure, 'correction').some((x) => x.start < hi - tol && end(x) > lo + tol)) continue;
+    made.push({ ...fix, ...keysAction(figure, keys, 'correction') });
+  }
+  return made.length ? sorted({ ...a, actions: [...a.actions, ...made] }) : a;
+}
+
+/** The repeated motion a correction is on (#23), if it is on one. */
+export function repeatedUnder(a: Animation, fix: Action): Action | undefined {
+  const mid = fix.start + fix.duration / 2;
+  return actionsOf(a, fix.roles[0].figure).find((x) => x.source.kind === 'clip' && (x.source.repeat ?? 1) > 1 && x.start - 1e-6 <= mid && mid <= end(x) + 1e-6);
 }
 
 /**

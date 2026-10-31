@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, deleteAction, moveAction, reactTo, unlinkReaction, applyMotion, applyUpperBody, setActionLook, travelTo, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
+import { addFigure, correctEveryRepeat, deleteAction, moveAction, reactTo, unlinkReaction, applyMotion, applyUpperBody, setActionLook, travelTo, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { mirrorPose } from '@/lib/clip';
 import { withAngles } from '@/lib/pose';
 import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, curved, figurePoseAt } from '@/lib/evaluate';
+import { reachOf } from '@/lib/track';
 import type { JointName, Pose } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
 
@@ -147,6 +148,41 @@ describe('keys and motions (#23)', () => {
     expect(turnOf(figurePoseAt(store.scene, a, act.start + 0.05)!, startBefore, 'rightLowerArm')).toBeGreaterThan(10);
     setCorrectionThroughout(store, fixes()[0].id, false);
     expect(turnOf(figurePoseAt(store.scene, a, act.start + 0.05)!, startBefore, 'rightLowerArm')).toBeLessThan(1);
+  });
+
+  it('fading over a time of its own, kept as it is edited again; its strength kept too', () => {
+    const { store, a, was, fixes } = corrected(1.5);
+    setActionLook(store, fixes()[0].id, { strength: 0.5 });
+    setCorrectionThroughout(store, fixes()[0].id, false, 1);
+    expect(reachOf(fixes()[0])).toBeCloseTo(1, 2);
+    expect(fixes()[0].start).toBeCloseTo(0.5, 2);
+    // Changed 0.8 s before the edit now (not with half a second's fade).
+    expect(turnOf(figurePoseAt(store.scene, a, 0.7)!, was[0], 'rightLowerArm')).toBeGreaterThan(0.5);
+    store.setTime(1.8);
+    store.updateFigure(a, (f) => ({ ...f, bones: withAngles(f.bones, { leftLowerArm: [-100, 0, 0] }) }));
+    expect(fixes()).toHaveLength(1);
+    expect(reachOf(fixes()[0])).toBeCloseTo(1, 2);
+    expect(fixes()[0].strength).toBe(0.5);
+    setCorrectionThroughout(store, fixes()[0].id, true);
+    expect(fixes()[0].strength).toBe(0.5);
+    expect(reachOf(fixes()[0])).toBe(0);
+  });
+
+  it('on a repeated motion: on every repeat, the same moment of each; again, nothing more', () => {
+    const { store, a, id, act } = swung(3);
+    setClipOptions(store, id, { seam: 0 });
+    const lap = act().duration / 3;
+    const at = act().start + lap + lap / 2;
+    const before = [0, 1, 2].map((k) => figurePoseAt(store.scene, a, act().start + k * lap + lap / 2)!);
+    store.setTime(at);
+    store.updateFigure(a, (f) => ({ ...f, bones: withAngles(f.bones, { rightLowerArm: [-120, 0, 0] }) }));
+    const fixes = () => actionsOf(store.scene.animation!, a, 'correction');
+    expect(fixes()).toHaveLength(1);
+    correctEveryRepeat(store, fixes()[0].id);
+    expect(fixes()).toHaveLength(3);
+    [0, 2].forEach((k) => expect(turnOf(figurePoseAt(store.scene, a, act().start + k * lap + lap / 2)!, before[k], 'rightLowerArm')).toBeGreaterThan(20));
+    correctEveryRepeat(store, fixes()[1].id);
+    expect(fixes()).toHaveLength(3);
   });
 
   it('corrections go with what they correct: slipped the other way, duplicated with it', () => {

@@ -1925,25 +1925,27 @@ test('actions are blocks on the timeline: picked for the inspector, retimed by t
   expect(actionsOf((await live(page)).scene.animation!, s.active).filter((a) => a.source.kind === 'travel').map((a) => (a.source as { mode: string }).mode)).toEqual(['run', 'run']);
 });
 
-test('a motion block\'s edges trim it; Alt-drag stretches it (#22)', async ({ page }) => {
+test('a motion block\'s edges trim it (a note says what it plays); Alt-drag stretches it (#22)', async ({ page }) => {
   await sceneWithMotion(page, 'Baseball swing');
   const motion = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'clip')!);
   const before = await motion();
   const s = await live(page);
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
   const perSecond = lanes.width / shownTime(s.scene.animation!.duration);
-  const drag = async (x: number, y: number, by: number, alt = false) => {
+  const drag = async (x: number, y: number, by: number, alt = false, during?: () => Promise<void>) => {
     await page.mouse.move(x, y);
     if (alt) await page.keyboard.down('Alt');
     await page.mouse.down();
     for (let i = 1; i <= 5; i++) await page.mouse.move(x + (by * perSecond * i) / 5, y);
+    await during?.();
     await page.mouse.up();
     if (alt) await page.keyboard.up('Alt');
   };
   const block = () => page.locator('.tl-travel.clip').first().boundingBox().then((b) => b!);
   // Its right edge half a second in: it plays less of the motion, at the same speed.
   let box = await block();
-  await drag(box.x + box.width - 2, box.y + box.height / 2, -0.5);
+  await drag(box.x + box.width - 2, box.y + box.height / 2, -0.5, false, () => expect(page.locator('.tl-readout')).toHaveText(/^Trim end · plays 0\.00–\d\.\d\d s of Baseball swing$/));
+  await expect(page.locator('.tl-readout')).toHaveCount(0);
   let now = await motion();
   expect(before.duration - now.duration).toBeGreaterThan(0.3);
   expect(now.source).toMatchObject({ kind: 'clip', to: expect.any(Number) });
@@ -1980,6 +1982,19 @@ test('a motion block\'s edges trim it; Alt-drag stretches it (#22)', async ({ pa
   await page.keyboard.press('Control+d');
   expect(await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip').length)).toBe(4);
   await page.keyboard.press('Control+z');
+  // Or a Shift-drag box over them, from the empty stretch after them.
+  await page.locator('.tl-travel.clip').nth(0).click({ position: { x: 30, y: 4 } });
+  await expect(page.locator('.tl-travel.clip.sel')).toHaveCount(1);
+  const last = (await page.locator('.tl-travel.clip').nth(1).boundingBox())!;
+  const first = (await page.locator('.tl-travel.clip').nth(0).boundingBox())!;
+  await page.keyboard.down('Shift');
+  await page.mouse.move(last.x + last.width + 40, last.y + last.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(last.x + last.width + 40 - ((last.x + last.width + 40 - first.x - 10) * i) / 5, last.y + last.height / 2);
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await expect(page.locator('.tl-travel.clip.sel')).toHaveCount(2);
+  await page.locator('.stage canvas').hover({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Delete');
   expect(await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip').length)).toBe(0);
 });
@@ -1994,6 +2009,10 @@ test('markers on the ruler (M); drags snap to them, the magnet turns it off (#22
   await page.keyboard.press('m');
   await expect(page.locator('.tl-marker')).toHaveCount(1);
   expect((await anim()).markers!.map((m) => m.t)).toEqual([2]);
+  // Coloured from its menu.
+  await page.locator('.tl-marker').click({ button: 'right' });
+  await page.getByRole('menuitemradio', { name: 'Red' }).click();
+  await expect(page.locator('.tl-marker.red')).toHaveCount(1);
   // The motion's end dragged to near it: it lands on it.
   const s = await live(page);
   const lanes = (await page.locator('.tl-lanes').boundingBox())!;
@@ -2033,6 +2052,29 @@ test('markers on the ruler (M); drags snap to them, the magnet turns it off (#22
   await page.keyboard.press('Delete');
   await expect(page.locator('.toast', { hasText: 'row is locked' })).toHaveCount(1);
   expect((await anim()).actions.some((a) => a.source.kind === 'clip')).toBe(true);
+});
+
+test('posing over a motion makes a correction around that moment: how long it fades, or over the whole motion (#23)', async ({ page }) => {
+  await sceneWithMotion(page, 'Baseball swing');
+  const fix = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active, 'correction')[0]);
+  const motion = await live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'clip')!);
+  // The right forearm bent at 1.5 s.
+  await page.evaluate(() => {
+    const store = (window as unknown as { __poseStudio: { store: { setTime(t: number): void; getState(): { activeFigure: string }; updateFigure(id: string, fn: (f: { bones: Record<string, number[]> }) => unknown): void } } }).__poseStudio.store;
+    store.setTime(1.5);
+    store.updateFigure(store.getState().activeFigure, (f) => ({ ...f, bones: { ...f.bones, rightLowerArm: [-0.8, 0, 0, 0.6] } }));
+  });
+  await expect(page.locator('.tl-fixband')).toHaveCount(1);
+  expect((await fix()).start).toBeCloseTo(1, 2);
+  await page.locator('.tl-fixband').click({ position: { x: 4, y: 2 } });
+  // Fading over a second either side.
+  await page.getByLabel('Fades over').fill('1');
+  await page.getByLabel('Fades over').press('Enter');
+  await expect.poll(async () => (await fix()).start).toBeCloseTo(0.5, 2);
+  // Over the whole motion.
+  await page.getByRole('switch', { name: 'Over the whole motion' }).check();
+  await expect.poll(async () => (await fix()).start).toBeCloseTo(motion.start, 2);
+  await expect(page.getByLabel('Fades over')).toHaveCount(0);
 });
 
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {

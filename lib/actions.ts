@@ -17,7 +17,7 @@ import { CATCH_LEAD, UPPER_EASE, actionPoseAt, actionsOf, arrivalAt, figurePoseA
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, correctionThroughout, keysAction, setPoseAt, setTravelMode, travelInto, turnArriving,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, correctionThroughout, correctionEveryRepeat, keysAction, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -36,7 +36,7 @@ import type { Issue } from './qa';
 import { HANDHELD, PROP_LABELS } from './types';
 import { held, released } from './hold';
 import { REACT_LEAD, strikeTime } from './strike';
-import type { Action, Ambient, Pose, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, RigCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
+import type { Action, Ambient, Pose, Animation, Environment, Camera, CameraMove, CameraPoint, CameraRig, Clip, PathCamera, RigCamera, Constraint, Figure, PropTarget, Hand, JointName, Light, LightKind, Lighting, Marker, ModelInfo, ProjectSettings, Posture, Prop, PropKind, Scene, Selection, ShootPreset, Side, Travel, Vec3 } from './types';
 
 /* Scenes (library entries) */
 
@@ -1251,9 +1251,18 @@ export function unlinkReaction(store: Store, id: string) {
   }) } } : s));
 }
 
-/** A correction held over the whole of what it corrects, or changing it only around its edits (#23). */
-export function setCorrectionThroughout(store: Store, id: string, throughout: boolean) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: correctionThroughout(s, id, throughout) } : s));
+/**
+ * A correction held over the whole of what it corrects, or changing it only around its edits (#23),
+ * fading in and out over `reach` (s) either side of them.
+ */
+export function setCorrectionThroughout(store: Store, id: string, throughout: boolean, reach?: number, key = '') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: correctionThroughout(s, id, throughout, reach) } : s), key);
+  store.setTime(store.getState().time);
+}
+
+/** A correction on a repeated motion put on the same moment of each of its repeats (#23). */
+export function correctEveryRepeat(store: Store, id: string) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: correctionEveryRepeat(s, id) } : s));
   store.setTime(store.getState().time);
 }
 
@@ -1656,13 +1665,19 @@ export function addMarker(store: Store, t: number, name?: string): string | null
 }
 
 /** A marker moved to t, renamed, or (null) taken away. */
-export function editMarker(store: Store, id: string, patch: { t?: number; name?: string } | null, key = '') {
+export function editMarker(store: Store, id: string, patch: { t?: number; name?: string; color?: Marker['color'] | null } | null, key = '') {
   store.updateScene((s) => {
     const a = s.animation;
     if (!a?.markers) return s;
     const markers = patch === null
       ? a.markers.filter((m) => m.id !== id)
-      : a.markers.map((m) => (m.id !== id ? m : { ...m, ...(patch.t !== undefined ? { t: snapTime(a, patch.t) } : {}), ...(patch.name !== undefined ? { name: patch.name.trim().slice(0, 60) || m.name } : {}) })).sort((p, q) => p.t - q.t);
+      : a.markers.map((m) => {
+        if (m.id !== id) return m;
+        const next: Marker = { ...m, ...(patch.t !== undefined ? { t: snapTime(a, patch.t) } : {}), ...(patch.name !== undefined ? { name: patch.name.trim().slice(0, 60) || m.name } : {}) };
+        if (patch.color === null) delete next.color;
+        else if (patch.color) next.color = patch.color;
+        return next;
+      }).sort((p, q) => p.t - q.t);
     const { markers: _m, ...rest } = a;
     void _m;
     return { ...s, animation: markers.length ? { ...rest, markers } : rest };

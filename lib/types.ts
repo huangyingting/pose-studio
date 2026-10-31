@@ -501,7 +501,11 @@ export interface Marker {
   id: string;
   t: number;
   name: string;
+  /** Its colour, to tell kinds of beat apart (the accent if none). */
+  color?: MarkerColor;
 }
+export const MARKER_COLORS = ['red', 'yellow', 'green', 'grey'] as const;
+export type MarkerColor = (typeof MARKER_COLORS)[number];
 
 export interface Library {
   version: 3;

@@ -271,7 +271,12 @@ describe('markers (#22)', () => {
     const two = addMarker(store, 3, 'The punch lands')!;
     editMarker(store, id, { t: 2.5, name: 'She turns' });
     expect(store.scene.animation!.markers!.map((m) => [m.name, m.t])).toEqual([['She turns', 2.5], ['The punch lands', 3]]);
+    // Coloured, to tell kinds of beat apart (and back to the accent).
+    editMarker(store, two, { color: 'red' });
+    expect(store.scene.animation!.markers![1].color).toBe('red');
     expect(parseScene(JSON.parse(JSON.stringify(store.scene)))!.animation!.markers).toEqual(store.scene.animation!.markers);
+    editMarker(store, two, { color: null });
+    expect('color' in store.scene.animation!.markers![1]).toBe(false);
     setAnimationOptions(store, { duration: 8 });
     expect(store.scene.animation!.markers!.map((m) => m.t)).toEqual([5, 6]);
     editMarker(store, two, null);

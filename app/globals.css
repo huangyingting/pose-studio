@@ -1167,11 +1167,15 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* Markers on the ruler (#22): a flag and its name; dragged along it. */
 .tl-marker {
   position: absolute; top: 0; z-index: 4; display: flex; align-items: center; gap: 3px; max-width: 120px; height: 14px; padding: 0 5px 0 4px; margin-left: -1px;
-  border: 0; border-left: 2px solid var(--accent); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  border: 0; border-left: 2px solid var(--mk, var(--accent)); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: color-mix(in srgb, var(--mk, var(--accent)) 16%, var(--panel));
   color: var(--text); font-size: var(--fs-2xs); line-height: 14px; cursor: ew-resize; white-space: nowrap;
 }
 .tl-marker span { overflow: hidden; text-overflow: ellipsis; }
-.tl-marker:hover { background: color-mix(in srgb, var(--accent) 26%, var(--panel)); }
+.tl-marker:hover { background: color-mix(in srgb, var(--mk, var(--accent)) 26%, var(--panel)); }
+.tl-marker.red { --mk: var(--danger); }
+.tl-marker.yellow { --mk: var(--warn); }
+.tl-marker.green { --mk: var(--ok); }
+.tl-marker.grey { --mk: var(--text-3); }
 /* In and out (#22): the stretch playback goes round, its ends dragged. */
 .tl-range { position: absolute; top: 0; height: 100%; z-index: 1; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 -2px 0 var(--accent); pointer-events: none; }
 .tl-range-end { position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; cursor: ew-resize; pointer-events: auto; background: var(--accent); border-radius: 2px; }
@@ -1199,6 +1203,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* A repeated motion's repeats (#23): a divider between each. */
 .tl-lap { position: absolute; top: 3px; bottom: 3px; width: 0; border-left: 1px dashed currentColor; opacity: 0.55; pointer-events: none; }
 /* Where a drag snapped to (#22). */
+/* What a drag of an action does, by what is dragged (#22). */
+.tl-readout { position: absolute; top: 2px; z-index: 6; margin-left: 6px; padding: 1px 6px; border-radius: var(--radius-xs); background: var(--text); color: var(--panel); font-size: var(--fs-2xs); line-height: 16px; white-space: nowrap; pointer-events: none; }
+.tl-readout.left { transform: translateX(calc(-100% - 12px)); }
 .tl-snapline { position: absolute; top: 0; bottom: 0; z-index: 4; width: 0; margin-left: -0.5px; border-left: 1px dashed var(--accent); pointer-events: none; }
 .tl-playhead { position: absolute; top: 0; bottom: 0; z-index: 5; width: 2px; margin-left: -1px; background: var(--danger); pointer-events: none; }
 .tl-playhead::before { content: ''; position: absolute; top: -2px; left: -4px; width: 10px; height: 10px; border-radius: 2px 2px 50% 50%; background: var(--danger); }

@@ -1,19 +1,20 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight, Link as LinkIcon } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight, Link as LinkIcon, Repeat } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, deleteAction,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, correctEveryRepeat, deleteAction,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
+import { clipById } from '@/lib/assets';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
-import { actionLabel, correctionHeld, correctionTimesOf, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
+import { actionLabel, correctionHeld, correctionTimesOf, repeatedUnder, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { ISSUE_LABELS, checkMotion, type Issue } from '@/lib/qa';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
 import { cameraById, liveCamera } from '@/lib/cameras';
 import { DIRECTOR_STYLES } from '@/lib/coverage';
-import type { Action, Animation, Scene } from '@/lib/types';
+import { MARKER_COLORS, type Action, type Animation, type Scene } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
 import { choices, command, menu, menuItems, setApp, tipOf, titleOf, type Ctx } from './commands';
@@ -205,7 +206,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const [pickedKeys, setPickedKeys] = useState<{ scene: string; figure: string; times: number[] } | null>(null);
   const keyPick = pickedKeys && pickedKeys.scene === scene.id ? pickedKeys : null;
   const setPicked = (p: { figure: string; times: number[] } | null) => setPickedKeys(p && { ...p, scene: scene.id });
-  const [box, setBox] = useState<{ figure: string; t0: number; t1: number } | null>(null);
+  const [box, setBox] = useState<{ figure: string; rows: string[]; t0: number; t1: number } | null>(null);
   // A shorter length asks first whether to scale what is there into it or cut it (for this scene).
   const [asked, setShorten] = useState<{ scene: string; d: number } | null>(null);
   const shorten = asked?.scene === scene.id ? asked.d : null;
@@ -256,6 +257,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   // within 6 px, a line showing where; the magnet in the bar turns it off.
   const snapping = useStudio((st) => st.settings.timelineSnap);
   const [snapAt, setSnapAt] = useState<number | null>(null);
+  // (What a drag of an action does, said by what is dragged while it goes on, #22.)
+  const [readout, setReadout] = useState<{ t: number; text: string } | null>(null);
   const snapper = (skip: (t: number) => boolean = () => false) => {
     const now = store.scene.animation!;
     const targets = snapping ? [
@@ -468,24 +471,61 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
-  /** Shift-drag along a row's empty stretch: a box picking the keys in it. */
+  /**
+   * Shift-drag along a row's empty stretch: a box picking the keys in it, and the blocks in it on
+   * every row it is drawn across (#22).
+   */
   const boxKeys = (figureId: string) => (e: ReactPointerEvent) => {
     if (e.button !== 0 || !e.shiftKey) return;
     e.stopPropagation();
     const t0 = timeAt(e.clientX);
-    const move = (ev: { clientX: number }) => setBox({ figure: figureId, t0, t1: timeAt(ev.clientX) });
+    const y0 = e.clientY;
+    let y = y0;
+    // (The people's rows between where it started and the pointer, top to bottom.)
+    const across = () => [...(root.current?.querySelectorAll<HTMLElement>('[data-row]') ?? [])]
+      .filter((r) => { const b = r.getBoundingClientRect(); return b.bottom > Math.min(y0, y) && b.top <= Math.max(y0, y); })
+      .map((r) => r.dataset.row!);
+    const move = (ev: { clientX: number; clientY?: number }) => {
+      if (ev.clientY !== undefined) y = ev.clientY;
+      setBox({ figure: figureId, rows: across(), t0, t1: timeAt(ev.clientX) });
+    };
     const stop = follow(e.clientX, move);
     const up = (ev: PointerEvent) => {
       stop();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       setBox(null);
+      y = ev.clientY;
       const [lo, hi] = [Math.min(t0, timeAt(ev.clientX)), Math.max(t0, timeAt(ev.clientX))];
-      const times = keyTimesOf(store.scene.animation!, figureId).filter((x) => x >= lo - 1e-6 && x <= hi + 1e-6);
+      const anim = store.scene.animation!;
+      const times = keyTimesOf(anim, figureId).filter((x) => x >= lo - 1e-6 && x <= hi + 1e-6);
       setPicked(times.length ? { figure: figureId, times } : null);
+      // The blocks it covers (not corrections: they go with what they correct), picked together.
+      const rows = across();
+      const blocks = anim.actions.filter((x) => x.layer !== 'correction' && x.source.kind !== 'keys' && x.duration > 1e-6 && x.start < hi - 1e-6 && x.start + x.duration > lo + 1e-6 && x.roles.some((r) => rows.includes(r.figure)));
+      if (blocks.length) {
+        const [first, ...also] = blocks;
+        store.select({ kind: 'action', action: first.id, figure: first.roles.find((r) => rows.includes(r.figure))!.figure, ...(also.length ? { also: also.map((x) => x.id) } : {}) });
+      }
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  };
+
+  /** What a drag does to an action, as it goes on (#22): "Trim end · plays 1.20–3.80 s of Jab, cross". */
+  const readoutOf = (now: Action, part: 'move' | 'start' | 'end' | 'blend', stretch: boolean, slipping: boolean) => {
+    const src = now.source;
+    const s2 = (x: number) => `${x.toFixed(2)} s`;
+    const t = part === 'start' || part === 'move' ? now.start : part === 'end' ? now.start + now.duration : now.start - (now.blendIn ?? 0);
+    if (part === 'blend') return { t, text: `Blend in · ${s2(now.blendIn ?? 0)}` };
+    const whole = src.kind === 'clip' ? clipById(src.clip) : null;
+    if (src.kind === 'clip' && whole && !whole.loop && (slipping || (part !== 'move' && !stretch && !now.layer))) {
+      const verb = slipping ? 'Slip' : part === 'start' ? 'Trim start' : 'Trim end';
+      return { t, text: `${verb} · plays ${(src.from ?? 0).toFixed(2)}–${s2(src.to ?? whole.duration)} of ${whole.name}` };
+    }
+    if (part === 'move') return { t, text: `Starts at ${s2(now.start)}` };
+    if (src.kind === 'clip' && stretch) return { t, text: `Stretch · ${(src.speed ?? 1).toFixed(2)}× · ${s2(now.duration)}` };
+    return { t, text: `${part === 'start' ? 'Starts at' : 'Length'} ${s2(part === 'start' ? now.start : now.duration)}` };
   };
 
   /**
@@ -516,6 +556,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const move = (ev: { clientX: number; clientY?: number }) => {
       if (ev.clientY !== undefined) y = ev.clientY;
       if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      const said = () => { const now = store.scene.animation?.actions.find((x) => x.id === act.id); if (now) setReadout(readoutOf(now, part, stretch, slipping)); };
+      queueMicrotask(said);
       moved = true;
       let dt = timeAt(ev.clientX) - t0;
       // (Its start, or else its end, onto what is near; an edge onto what is near it.)
@@ -544,6 +586,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const up = (ev: PointerEvent) => {
       stop();
       snap.done();
+      setReadout(null);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (moved) {
@@ -566,7 +609,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         return;
       }
       store.select({ kind: 'action', action: act.id, figure: figureId });
-      seek(act.start);
+      // (A click on one of its repeats goes to that repeat, #23.)
+      const n = act.source.kind === 'clip' ? act.source.repeat ?? 1 : 1;
+      seek(act.start + (act.duration / n) * Math.min(n - 1, Math.max(0, Math.floor(((t0 - act.start) / act.duration) * n))));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -1026,17 +1071,22 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 <button
                   key={m.id}
                   type="button"
-                  className="tl-marker"
+                  className={`tl-marker${m.color ? ` ${m.color}` : ''}`}
                   style={{ left: pct(m.t) }}
                   aria-label={`Marker ${m.name} at ${m.t.toFixed(2)} s`}
-                  data-tip={`${m.name}: drag to move, double-click to rename\nRight-click for more`}
+                  data-tip={`${m.name}: drag to move, double-click (or F2) to rename\nRight-click for more`}
                   onPointerDown={dragMarker(m.id, m.t)}
                   onDoubleClick={() => renameMarker(m.id, m.name)}
+                  onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); renameMarker(m.id, m.name); } }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     openContextMenu(e, [
                       { label: 'Rename…', icon: Pencil, onSelect: () => renameMarker(m.id, m.name) },
+                      // (Its colour, to tell kinds of beat apart.)
+                      { group: 'Colour' },
+                      ...[undefined, ...MARKER_COLORS].map((c) => ({ label: c ? c[0].toUpperCase() + c.slice(1) : 'Blue', radio: true, checked: m.color === c, onSelect: () => editMarker(store, m.id, { color: c ?? null }) })),
+                      '-',
                       { label: 'Delete', icon: Trash2, danger: true, onSelect: () => editMarker(store, m.id, null) },
                     ], m.name);
                   }}
@@ -1234,7 +1284,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       </span>
                     );
                   })()}
-                  {box?.figure === f.id && <span className="tl-box" style={{ left: pct(Math.min(box.t0, box.t1)), width: `${(Math.abs(box.t1 - box.t0) / span) * 100}%` }} aria-hidden />}
+                  {box && (box.rows.includes(f.id) || box.figure === f.id) && <span className="tl-box" style={{ left: pct(Math.min(box.t0, box.t1)), width: `${(Math.abs(box.t1 - box.t0) / span) * 100}%` }} aria-hidden />}
                   {dropAt?.figure === f.id && (
                     <span className="tl-drop" style={{ left: pct(dropAt.t), width: dropAt.length ? `${(dropAt.length / span) * 100}%` : undefined }} aria-hidden />
                   )}
@@ -1262,6 +1312,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         const whole = correctionHeld(x);
                         openContextMenu(e, [
                           { label: 'Over the whole motion', checked: whole, onSelect: () => setCorrectionThroughout(store, x.id, !whole) },
+                          ...(repeatedUnder(a, x) ? [{ label: 'On every repeat', icon: Repeat, onSelect: () => correctEveryRepeat(store, x.id) }] : []),
                           { label: 'Delete the correction', icon: Trash2, danger: true, onSelect: () => deleteAction(store, x.id) },
                         ], `${f.name} · correction`);
                       }}
@@ -1372,6 +1423,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               <div className="tl-past" style={{ left: pct(Math.max(v0, a.duration)), right: 0 }} aria-hidden />
             )}
             {snapAt !== null && snapAt >= v0 && snapAt <= v1 && <div className="tl-snapline" style={{ left: pct(snapAt) }} aria-hidden />}
+            {readout && readout.t >= v0 && readout.t <= v1 && <div className={`tl-readout${readout.t > v0 + span * 0.6 ? ' left' : ''}`} style={{ left: pct(readout.t) }} role="status">{readout.text}</div>}
             {time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
               <div
                 className={`tl-playhead${keying ? ' autokey' : ''}`}

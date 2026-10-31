@@ -10,8 +10,8 @@ import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bon
 import { parseLighting } from './lighting';
 import { setById } from './sets';
 import {
-  BONES, FINGERS, HOLDERS, JOINTS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type ModelInfo, type PoseAsset,
+  BONES, FINGERS, HOLDERS, JOINTS, MARKER_COLORS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type MarkerColor, type ModelInfo, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -476,7 +476,7 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
     let id = str(m.id, '').slice(0, 40) || uid('mark');
     if (ids.has(id)) id = uid('mark');
     ids.add(id);
-    return typeof m.t === 'number' && Number.isFinite(m.t) ? [{ id, t: Math.round(Math.min(duration, Math.max(0, m.t)) * 1000) / 1000, name: str(m.name, '').slice(0, 60) }] : [];
+    return typeof m.t === 'number' && Number.isFinite(m.t) ? [{ id, t: Math.round(Math.min(duration, Math.max(0, m.t)) * 1000) / 1000, name: str(m.name, '').slice(0, 60), ...((MARKER_COLORS as readonly unknown[]).includes(m.color) ? { color: m.color as MarkerColor } : {}) }] : [];
   }).sort((p, q) => p.t - q.t);
   if (markers.length) anim.markers = markers;
   const r = isObj(v.range) ? v.range : null;
