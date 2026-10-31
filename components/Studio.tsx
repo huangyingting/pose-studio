@@ -281,8 +281,15 @@ function App() {
 
   const openFile = async (file: File, mode: 'replace' | 'append') => {
     try {
-      const data = JSON.parse(await file.text());
+      let data: unknown;
+      try {
+        data = JSON.parse(await file.text());
+      } catch {
+        throw new Error(`${file.name} is not a Pose Studio project`);
+      }
       const lib = parseLibrary(data);
+      // (A file with no scenes in it does not empty the project.)
+      if (!lib.scenes.length) throw new Error(`there are no scenes in ${file.name}`);
       const what = `${lib.scenes.length} scene${lib.scenes.length === 1 ? '' : 's'}`;
       addMotions(store, clipsIn(data));
       if (mode === 'replace') {
