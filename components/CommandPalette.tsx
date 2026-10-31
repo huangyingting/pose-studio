@@ -62,7 +62,7 @@ export default function CommandPalette({ onClose, ui }: { onClose(): void; ui: L
     <div className="palette-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="palette" role="dialog" aria-modal="true" aria-label="Command palette">
         <label className="palette-input">
-          <Search size={15} aria-hidden />
+          <Search size={16} aria-hidden />
           <input
             type="text"
             role="combobox"
@@ -94,9 +94,9 @@ export default function CommandPalette({ onClose, ui }: { onClose(): void; ui: L
               onPointerMove={() => { if (i !== at) setActive(i); }}
               onClick={() => go(e)}
             >
-              {e.icon ? <e.icon size={14} aria-hidden /> : <span className="palette-blank" />}
+              {e.icon ? <e.icon size={15} aria-hidden /> : <span className="palette-blank" />}
               <span className="palette-title">{e.title}</span>
-              {e.checked && <Check size={13} aria-label="On" />}
+              {e.checked && <Check size={14} aria-label="On" />}
               {e.keys && <kbd>{e.keys}</kbd>}
             </li>
           ))}

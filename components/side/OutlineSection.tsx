@@ -75,7 +75,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                 { label: 'From a photo…', icon: ScanFace, onSelect: onPhoto },
               ]}
             >
-              <Plus size={15} strokeWidth={1.75} aria-hidden />
+              <Plus size={16} strokeWidth={1.75} aria-hidden />
             </Menu>
           </div>
           <ul className="layers" aria-label="Cast">
@@ -93,7 +93,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                     onClick={(e) => (e.shiftKey ? toggleSelected(store, { figure: f.id }) : store.select({ kind: 'figure', figure: f.id }))}
                     onMenu={(e) => { if (manyHas(f.id)) return manyMenu(e); store.select({ kind: 'figure', figure: f.id }); openContextMenu(e, menu('figure', { store, figure: f.id }), f.name); }}
                   >
-                    {moving && <Film size={12} className="layer-tag" aria-label="animated" />}
+                    {moving && <Film size={13} className="layer-tag" aria-label="animated" />}
                   </Row>
                   <span className="layer-actions">
                     <More name={f.name} kind="figure" c={{ store, figure: f.id }} />
@@ -103,7 +103,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                       pressed={!f.hidden}
                       className={f.hidden ? 'keep' : ''}
                       onClick={() => setFigureHidden(store, f.id, !f.hidden)}
-                      size={14}
+                      size={15}
                     />
                   </span>
                 </li>
@@ -132,18 +132,18 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                 })),
               ]}
             >
-              <Plus size={15} strokeWidth={1.75} aria-hidden />
+              <Plus size={16} strokeWidth={1.75} aria-hidden />
             </Menu>
           </div>
           <ul className="layers" aria-label="Set">
             {setById(scene.set) && (
               <li>
                 <button type="button" className="layer-main" data-tip="The set the scene is played in: change it in the Library's Sets" data-tip-side="right" onClick={() => store.setSettings({ side: 'sets' })}>
-                  <Castle size={15} strokeWidth={1.75} aria-hidden />
+                  <Castle size={16} strokeWidth={1.75} aria-hidden />
                   <span className="layer-name">{setById(scene.set)!.name}</span>
                 </button>
                 <span className="layer-actions">
-                  <IconButton icon={X} label={`Take the set ${setById(scene.set)!.name} away`} className="row-action" size={13} onClick={() => setSceneSet(store, null)} />
+                  <IconButton icon={X} label={`Take the set ${setById(scene.set)!.name} away`} className="row-action" size={14} onClick={() => setSceneSet(store, null)} />
                 </span>
               </li>
             )}
@@ -160,7 +160,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                     onClick={(e) => (e.shiftKey ? toggleSelected(store, { prop: p.id }) : store.select({ kind: 'prop', prop: p.id }))}
                     onMenu={(e) => { if (manyHas(p.id)) return manyMenu(e); store.select({ kind: 'prop', prop: p.id }); openContextMenu(e, menu('prop', { store, prop: p.id }), p.name); }}
                   >
-                    {p.hold && <Hand size={12} className="layer-tag" aria-label={`In ${scene.figures.find((f) => f.id === p.hold!.figure)?.name}'s ${p.hold.hand === 'L' ? 'left' : 'right'} hand`} />}
+                    {p.hold && <Hand size={13} className="layer-tag" aria-label={`In ${scene.figures.find((f) => f.id === p.hold!.figure)?.name}'s ${p.hold.hand === 'L' ? 'left' : 'right'} hand`} />}
                   </Row>
                   <span className="layer-actions">
                     <More name={p.name} kind="prop" c={{ store, prop: p.id }} />
@@ -179,7 +179,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                 icon={Plus}
                 label={a ? 'New camera from the view, for the shot at the playhead' : 'New camera from the view'}
                 onClick={() => store.select({ kind: 'camera', camera: addCamera(store) })}
-                size={15}
+                size={16}
               />
             </div>
             <ul className="layers" aria-label="Cameras">
@@ -213,9 +213,9 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
             <h3>Lights <span className="count">{lighting.lights.length}</span></h3>
             {lighting.lights.length < MAX_LIGHTS ? (
               <Menu label="Add a light" className="ibtn" align="end" tip="Add a sun, a lamp or a window" items={() => command('light.add').items!({ store }).map((x) => ({ label: x.title, onSelect: x.run }))}>
-                <Plus size={15} strokeWidth={1.75} aria-hidden />
+                <Plus size={16} strokeWidth={1.75} aria-hidden />
               </Menu>
-            ) : <IconButton icon={Plus} label={`Add a light (${MAX_LIGHTS} at most)`} disabled onClick={() => {}} size={15} />}
+            ) : <IconButton icon={Plus} label={`Add a light (${MAX_LIGHTS} at most)`} disabled onClick={() => {}} size={16} />}
           </div>
           <ul className="layers" aria-label="Lights">
             {/* (The lighting as a whole: its look, where it is, its sky.) */}
@@ -227,7 +227,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                 data-tip-side="right"
                 onClick={() => store.select({ kind: 'lighting' })}
               >
-                <SunMedium size={15} strokeWidth={1.75} aria-hidden />
+                <SunMedium size={16} strokeWidth={1.75} aria-hidden />
                 <span className="layer-name">Lighting</span>
                 <em aria-hidden>{lightingName(lighting)}</em>
                 <i className="light-dot" style={{ background: `linear-gradient(${lighting.ambient.sky} 50%, ${lighting.ambient.ground} 50%)` }} aria-hidden />
@@ -250,7 +250,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
                     onClick={() => { store.select({ kind: 'light', light: l.id }); App().frameSelection?.(); }}
                     onContextMenu={(e) => { store.select({ kind: 'light', light: l.id }); openContextMenu(e, menu('light', c), name); }}
                   >
-                    <Icon size={15} strokeWidth={1.75} aria-hidden />
+                    <Icon size={16} strokeWidth={1.75} aria-hidden />
                     <span className="layer-name">{name}</span>
                     {/* (Its role, as a badge: the row is named by the light's name.) */}
                     {l.role && !l.ofSet && <em aria-hidden>{ROLE_NAMES[l.role]}</em>}
@@ -269,7 +269,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
         <div className="outline-group">
           <div className="outline-head">
             <h3>Shots <span className="count">{spans.length}</span></h3>
-            {a && <IconButton icon={Scissors} label="Cut a new shot at the playhead" shortcut={shortcutOf('timeline.cut')} onClick={() => command('timeline.cut').run!({ store })} size={15} />}
+            {a && <IconButton icon={Scissors} label="Cut a new shot at the playhead" shortcut={shortcutOf('timeline.cut')} onClick={() => command('timeline.cut').run!({ store })} size={16} />}
           </div>
           {a ? (
             <ul className="layers" aria-label="Shots">
@@ -312,7 +312,7 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
 function More({ name, kind, c }: { name: string; kind: 'figure' | 'prop' | 'camera' | 'shot' | 'light'; c: Ctx }) {
   return (
     <Menu label={`More for ${name}`} className="ibtn" align="end" tip="More (or right-click the row)" items={() => menu(kind, c)}>
-      <Ellipsis size={14} aria-hidden />
+      <Ellipsis size={15} aria-hidden />
     </Menu>
   );
 }
@@ -331,7 +331,7 @@ function Row({ icon: Icon, lead, name, title, renaming, onRename, onClick, onMen
   children?: React.ReactNode;
 }) {
   const store = useStore();
-  const head = Icon ? <Icon size={15} strokeWidth={1.75} aria-hidden /> : lead;
+  const head = Icon ? <Icon size={16} strokeWidth={1.75} aria-hidden /> : lead;
   if (renaming) {
     return (
       <div className="layer-main">

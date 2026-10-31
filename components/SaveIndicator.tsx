@@ -16,7 +16,7 @@ export default function SaveIndicator({ status, cloud }: { status: SaveStatus; c
     : ['Syncing…', 'Saved in this browser; syncing to your account', RefreshCw];
   return (
     <span className={`save-status ${status === 'saved' && cloud && cloud.status !== 'synced' ? cloud.status : status}`} data-tip={tip}>
-      <Icon size={14} aria-hidden />
+      <Icon size={15} aria-hidden />
       <span className="hide-sm">{text}</span>
     </span>
   );

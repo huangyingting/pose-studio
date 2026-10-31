@@ -68,7 +68,7 @@ export function Modal({ title, icon: Icon, onClose, children, footer, wide }: {
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={wide ? 'modal wide' : 'modal'} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
         <header>
-          <h2 id={titleId}>{Icon && <Icon size={16} aria-hidden />}{title}</h2>
+          <h2 id={titleId}>{Icon && <Icon size={17} aria-hidden />}{title}</h2>
           <IconButton icon={X} label="Close" onClick={onClose} />
         </header>
         <div className="modal-body">{children}</div>
@@ -81,7 +81,7 @@ export function Modal({ title, icon: Icon, onClose, children, footer, wide }: {
 /* ---------------- Buttons ---------------- */
 
 /** Square icon button with a tooltip (label + optional shortcut). */
-export function IconButton({ icon: Icon, label, shortcut, onClick, active, disabled, tipSide = 'bottom', className = '', size = 16, pressed }: {
+export function IconButton({ icon: Icon, label, shortcut, onClick, active, disabled, tipSide = 'bottom', className = '', size = 17, pressed }: {
   icon: LucideIcon;
   label: string;
   shortcut?: string;
@@ -264,7 +264,7 @@ function MenuScroll({ dir }: { dir: 'up' | 'down' }) {
   };
   return (
     <div ref={ref} className={`menu-scroll ${dir}${more ? ' on' : ''}`} aria-hidden onPointerEnter={() => roll(true)} onPointerLeave={() => roll(false)}>
-      {dir === 'up' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      {dir === 'up' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
     </div>
   );
 }
@@ -292,10 +292,10 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
             onDragStart={it.drag && ((e) => startDrag(e, it.drag!))}
             onDragEnd={it.drag && (() => { endDrag(); onDone(); })}
           >
-            <span className="menu-icon" aria-hidden>{it.icon && <it.icon size={15} strokeWidth={1.75} />}</span>
+            <span className="menu-icon" aria-hidden>{it.icon && <it.icon size={16} strokeWidth={1.75} />}</span>
             <span className="menu-label">{it.label}</span>
             {it.shortcut && <kbd>{it.shortcut}</kbd>}
-            {it.checked && <Check className="menu-check" size={14} strokeWidth={2.25} aria-hidden />}
+            {it.checked && <Check className="menu-check" size={15} strokeWidth={2.25} aria-hidden />}
           </button>
         ),
       )}
@@ -334,7 +334,7 @@ export function NameHeader({ lead, name, label, onRename, children, chrome, menu
       {children}
       {menu && (typeof menu === 'function' || menu.length > 0) && (
         <Menu label={`${name} menu`} className="ibtn" align="end" tip="More" items={menu}>
-          <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+          <Ellipsis size={17} strokeWidth={1.75} aria-hidden />
         </Menu>
       )}
       {chrome?.after}
@@ -397,7 +397,7 @@ export function Section({ id, title, actions, children, defaultOpen = true, summ
       <div className="psec-head">
         {key ? (
           <button type="button" className="psec-title" aria-expanded={open} onClick={toggle}>
-            {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+            {open ? <ChevronDown size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />}
             <h3>{title}</h3>
             {!open && summary && <span className="psec-summary">{summary}</span>}
           </button>
@@ -424,7 +424,7 @@ export function Info({ text, label = 'More about this' }: { text: string; label?
   );
 }
 
-const Info16 = (props: { 'aria-hidden': boolean }) => <CircleHelp size={12} strokeWidth={2} {...props} />;
+const Info16 = (props: { 'aria-hidden': boolean }) => <CircleHelp size={13} strokeWidth={2} {...props} />;
 
 /** A property: its label (and ⓘ) on the left, its control on the right. */
 export function PropertyRow({ label, info, children }: { label: string; info?: string; children: ReactNode }) {
@@ -650,7 +650,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, i
           data-tip-side="top"
           onClick={() => { if (!o.disabled) onChange(o.value); }}
         >
-          {o.icon && <o.icon size={15} strokeWidth={1.75} aria-hidden />}
+          {o.icon && <o.icon size={16} strokeWidth={1.75} aria-hidden />}
           {!iconOnly && <span>{o.label}</span>}
         </button>
       ))}
@@ -767,7 +767,7 @@ export function Select<T extends string>({ value, options, onChange, label }: {
         onKeyDown={onKey}
       >
         <span>{options[index]?.label}</span>
-        <ChevronDown size={14} aria-hidden />
+        <ChevronDown size={15} aria-hidden />
       </button>
       {open && createPortal(
         <ul ref={list} id={`${id}-list`} className="select-list" role="listbox" aria-label={label}>
@@ -785,7 +785,7 @@ export function Select<T extends string>({ value, options, onChange, label }: {
               onPointerMove={() => setActive(i)}
               onClick={() => { pick(i); button.current?.focus(); }}
             >
-              <Check size={14} aria-hidden />
+              <Check size={15} aria-hidden />
               {o.hint ? <span className="select-option"><span>{o.label}</span><small id={`${id}-${i}-hint`}>{o.hint}</small></span> : <span>{o.label}</span>}
             </li>
           ))}
@@ -865,7 +865,7 @@ function ToastItem({ toast: t, dismiss }: { toast: Toast; dismiss(id: number): v
   const Icon = t.kind === 'error' ? CircleAlert : CircleCheck;
   return (
     <div className={`toast ${t.kind}`}>
-      <Icon size={16} aria-hidden />
+      <Icon size={17} aria-hidden />
       <span>{t.text}</span>
       {t.action && (
         <button

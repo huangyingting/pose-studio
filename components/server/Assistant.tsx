@@ -125,7 +125,7 @@ export default function Assistant() {
         <h2>Assistant</h2>
         <div className="side-actions">
           {status && <span className="assistant-usage" data-tip="Assistant requests today">{status.used} / {status.limit}</span>}
-          <IconButton icon={Plus} label="New chat" onClick={() => session.reset()} size={14} disabled={!session.items.length} />
+          <IconButton icon={Plus} label="New chat" onClick={() => session.reset()} size={15} disabled={!session.items.length} />
         </div>
       </div>
       <div className="assistant-log" aria-live="polite">
@@ -141,7 +141,7 @@ export default function Assistant() {
           if (it.kind === 'tool') {
             return (
               <div key={i} className={`assistant-tool${it.ok ? '' : ' failed'}`} data-tip={it.result}>
-                {it.ok ? <Wrench size={12} aria-hidden /> : <TriangleAlert size={12} aria-hidden />}
+                {it.ok ? <Wrench size={13} aria-hidden /> : <TriangleAlert size={13} aria-hidden />}
                 <code>{it.name}</code>
                 <span>{it.result.startsWith('{') ? 'read the scene' : it.result.split('\n')[0]}</span>
               </div>
@@ -161,8 +161,8 @@ export default function Assistant() {
           rows={2}
         />
         {busy
-          ? <IconButton icon={Square} label="Stop" onClick={() => session.stop()} size={14} />
-          : <button type="submit" className="ibtn send" aria-label="Send" disabled={!text.trim()}><ArrowUp size={15} aria-hidden /></button>}
+          ? <IconButton icon={Square} label="Stop" onClick={() => session.stop()} size={15} />
+          : <button type="submit" className="ibtn send" aria-label="Send" disabled={!text.trim()}><ArrowUp size={16} aria-hidden /></button>}
       </form>
     </div>
   );

@@ -57,7 +57,7 @@ function ImportButton({ label, accept, tip, fileLabel, reading, multiple, onFile
   return (
     <>
       <button type="button" className="btn subtle library-import" disabled={reading} onClick={() => ref.current?.click()} data-tip={tip}>
-        <Upload size={14} aria-hidden /> {reading ? 'Importing…' : label}
+        <Upload size={15} aria-hidden /> {reading ? 'Importing…' : label}
       </button>
       <input
         ref={ref}
@@ -93,7 +93,7 @@ export function PosesBar({ notifyUndo }: BarProps) {
             if (saved) notifyUndo(`Saved “${saved.name}” to the library`);
           }}
         >
-          <BookmarkPlus size={14} aria-hidden /> {figure ? `Save ${figure.name}'s pose` : 'Save the selected figure’s pose'}
+          <BookmarkPlus size={15} aria-hidden /> {figure ? `Save ${figure.name}'s pose` : 'Save the selected figure’s pose'}
         </button>
       </div>
     </>

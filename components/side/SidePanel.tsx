@@ -44,7 +44,7 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
             data-tip-side="right"
             onClick={() => pick(s.id)}
           >
-            <s.icon size={18} strokeWidth={1.75} aria-hidden />
+            <s.icon size={19} strokeWidth={1.75} aria-hidden />
             <span className="rail-label">{s.label}</span>
           </button>
         ))}

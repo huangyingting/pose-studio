@@ -241,7 +241,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
           {!filmed && !model && scope !== 'current' && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT, scope })} data-tip="4 columns of 600 × 640 cells">Reset layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
-            <Download size={15} aria-hidden />
+            <Download size={16} aria-hidden />
             {busy ? (filmed ? `${video ? 'Recording' : 'Packing'}… ${Math.round(progress * 100)}%` : 'Rendering…') : 'Download'}
           </button>
         </>
@@ -265,7 +265,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
                   data-tip-side="right"
                   onClick={() => set({ scope: op.value })}
                 >
-                  <op.icon size={15} strokeWidth={1.75} aria-hidden /><span>{op.label}</span>
+                  <op.icon size={16} strokeWidth={1.75} aria-hidden /><span>{op.label}</span>
                 </button>
               ))}
             </div>

@@ -34,7 +34,7 @@ export function FigureHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
   return (
     <NameHeader
       chrome={chrome}
-      lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
+      lead={<Icon size={17} strokeWidth={1.75} aria-hidden />}
       name={figure.name}
       label="Figure name"
       onRename={(name) => renameFigure(t.store, figure.id, name)}
@@ -93,7 +93,7 @@ function StepButton({ label, by, end, onStep }: { label: string; by: 1 | -1; end
       // (From the keyboard: Enter or Space.)
       onClick={(e) => { if (e.detail === 0) onStep(by * STEPS.joint * (e.shiftKey ? 3 : 1)); }}
     >
-      {by < 0 ? <Minus size={14} aria-hidden /> : <Plus size={14} aria-hidden />}
+      {by < 0 ? <Minus size={15} aria-hidden /> : <Plus size={15} aria-hidden />}
     </button>
   );
 }
@@ -206,7 +206,7 @@ export function PlacementPanel({ t }: { t: Target }) {
       {!figure.proxy && (
         // Walking, running, jumping or stepping somewhere, or throwing what it holds: picked on the floor.
         <Menu label="Move to…" className="btn subtle move-to" items={() => menuItems(['figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.throw', 'figure.wholeTo'], { store, figure: figure.id })}>
-          <Footprints size={14} aria-hidden /> Move to… <ChevronDown size={13} aria-hidden />
+          <Footprints size={15} aria-hidden /> Move to… <ChevronDown size={14} aria-hidden />
         </Menu>
       )}
       {animation && !figure.proxy && (
@@ -319,7 +319,7 @@ export function OthersPanel({ t }: { t: Target }) {
                     if (!reachFor(store, figure.id, side, other.id, contact)) t.ctx.notify('Out of reach: move the figures closer', 'error');
                   }}
                 >
-                  <Hand size={14} aria-hidden /> Reach
+                  <Hand size={15} aria-hidden /> Reach
                 </button>
                 {scene.animation && (
                   <button
@@ -330,7 +330,7 @@ export function OthersPanel({ t }: { t: Target }) {
                       if (!holdOn(store, figure.id, side, other.id, contact)) t.ctx.notify('Out of reach now: the hand stretches towards it', 'error');
                     }}
                   >
-                    <Pin size={14} aria-hidden /> Hold on
+                    <Pin size={15} aria-hidden /> Hold on
                   </button>
                 )}
               </div>
@@ -342,7 +342,7 @@ export function OthersPanel({ t }: { t: Target }) {
                 <li key={c.id}>
                   <span>{holdLabel(c, scene)}</span>
                   <em>{c.start.toFixed(1)}–{c.end.toFixed(1)} s</em>
-                  <IconButton icon={Unlink} label="Let go here" size={13} onClick={() => letGo(store, c.id)} />
+                  <IconButton icon={Unlink} label="Let go here" size={14} onClick={() => letGo(store, c.id)} />
                 </li>
               ))}
             </ul>
@@ -398,7 +398,7 @@ export function HandsPanel({ t }: { t: Target }) {
         />
       </div>
       <button type="button" className="btn subtle" onClick={() => setHand(t.store, side === 'L' ? 'R' : 'L', hand)}>
-        <Copy size={14} aria-hidden /> Copy to {side === 'L' ? 'right' : 'left'} hand
+        <Copy size={15} aria-hidden /> Copy to {side === 'L' ? 'right' : 'left'} hand
       </button>
     </>
   );

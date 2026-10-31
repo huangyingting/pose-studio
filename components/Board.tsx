@@ -105,17 +105,17 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
   return (
     <div className="board" role="dialog" aria-modal="true" aria-label="Storyboard">
       <header className="board-head">
-        <h2><LayoutPanelTop size={18} aria-hidden /> Storyboard</h2>
+        <h2><LayoutPanelTop size={19} aria-hidden /> Storyboard</h2>
         <span className="muted">{entries.length} {entries.length === 1 ? 'scene' : 'scenes'} · {shots.length} {shots.length === 1 ? 'shot' : 'shots'} · {storyLength(shots).toFixed(1)} s</span>
         <span className="spacer" />
         {/* (Empty, the board's own button says it.) */}
         {out.length > 0 && (shots.length > 0 || adding) && (
           <button type="button" className="btn subtle" aria-expanded={adding} onClick={() => setAdding(!adding)}>
-            <Plus size={15} aria-hidden /> Add a scene
+            <Plus size={16} aria-hidden /> Add a scene
           </button>
         )}
         <button type="button" className="btn primary" disabled={!shots.length} onClick={onExport}>
-          <Download size={15} aria-hidden /> Export
+          <Download size={16} aria-hidden /> Export
         </button>
         <IconButton icon={X} label="Close storyboard" shortcut={shortcutOf('app.deselect')} onClick={onClose} />
       </header>
@@ -141,8 +141,8 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
                   {thumbs[i] ? <img src={thumbs[i]} alt="" draggable={false} /> : <div className="ph" />}
                   <span className="panel-no">{i + 1}</span>
                   <div className="panel-actions">
-                    <IconButton icon={ArrowUpRight} label={`Open ${x.scene.name}${x.span ? ` at ${x.span.shot.name}` : ''}`} onClick={() => open(x)} size={14} />
-                    <IconButton icon={EyeOff} label={`Leave ${x.scene.name} out of the story`} onClick={() => setInStory(store, x.scene.id, false)} size={14} />
+                    <IconButton icon={ArrowUpRight} label={`Open ${x.scene.name}${x.span ? ` at ${x.span.shot.name}` : ''}`} onClick={() => open(x)} size={15} />
+                    <IconButton icon={EyeOff} label={`Leave ${x.scene.name} out of the story`} onClick={() => setInStory(store, x.scene.id, false)} size={15} />
                   </div>
                 </div>
                 <div className="panel-meta">
@@ -169,7 +169,7 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
         <div className="board-empty">
           <LayoutPanelTop size={28} strokeWidth={1.5} aria-hidden />
           <h3>Tell a story, one scene at a time</h3>
-          {!adding && out.length > 0 && <button type="button" className="btn primary" onClick={() => setAdding(true)}><Plus size={15} aria-hidden /> Add a scene</button>}
+          {!adding && out.length > 0 && <button type="button" className="btn primary" onClick={() => setAdding(true)}><Plus size={16} aria-hidden /> Add a scene</button>}
         </div>
       )}
     </div>

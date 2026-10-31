@@ -69,7 +69,7 @@ function Setup({ onStart, onCancel }: { onStart(slides: Slide[], o: PracticeOpti
 
   return (
     <div className="practice-setup">
-      <h2><Timer size={18} aria-hidden /> Gesture practice <Info text="A timed slideshow of poses to draw from. Space pauses, ← and → go back and on, Esc stops." label="About gesture practice" /></h2>
+      <h2><Timer size={19} aria-hidden /> Gesture practice <Info text="A timed slideshow of poses to draw from. Space pauses, ← and → go back and on, Esc stops." label="About gesture practice" /></h2>
       <div className="form">
         <Field label="Poses">
           <Segmented<PracticeOptions['source']> label="Poses"
@@ -187,7 +187,7 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
   if (done) {
     return (
       <div className="practice-setup">
-        <h2><CircleCheck size={18} aria-hidden /> Session complete</h2>
+        <h2><CircleCheck size={19} aria-hidden /> Session complete</h2>
         <p className="muted">{slides.length} {slides.length === 1 ? 'pose' : 'poses'} in {formatTime(elapsed)}. Nice work.</p>
         <div className="row practice-actions">
           <button type="button" className="btn ghost" onClick={onExit}>Close</button>
@@ -214,16 +214,16 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
       </div>
       <footer>
         <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous pose" data-tip="Previous  ←">
-          <SkipBack size={18} aria-hidden />
+          <SkipBack size={19} aria-hidden />
         </button>
         <button type="button" onClick={() => setPaused((p) => !p)} className="play" aria-label={paused ? 'Resume' : 'Pause'} data-tip="Pause / resume  Space">
-          {paused ? <Play size={18} aria-hidden /> : <Pause size={18} aria-hidden />}
+          {paused ? <Play size={19} aria-hidden /> : <Pause size={19} aria-hidden />}
         </button>
         <button type="button" onClick={() => go(index + 1)} aria-label={index === slides.length - 1 ? 'Finish' : 'Next pose'} data-tip="Next  →">
-          <SkipForward size={18} aria-hidden />
+          <SkipForward size={19} aria-hidden />
         </button>
         <button type="button" onClick={onExit} aria-label="Stop" data-tip="Stop  Esc">
-          <X size={18} aria-hidden /> <span>Stop</span>
+          <X size={19} aria-hidden /> <span>Stop</span>
         </button>
       </footer>
     </div>

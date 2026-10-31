@@ -33,7 +33,7 @@ export default function Inspector({ ctx }: { ctx: InspectorContext }) {
         {up.map((c) => (
           <Fragment key={c.label}>
             <button type="button" className="crumb" onClick={() => store.select(c.to)}>{c.label}</button>
-            <ChevronRight size={12} aria-hidden />
+            <ChevronRight size={13} aria-hidden />
           </Fragment>
         ))}
       </nav>

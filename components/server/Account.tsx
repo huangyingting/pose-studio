@@ -73,7 +73,7 @@ export function SignInButtons() {
     <div className="signin-buttons">
       {providers.map((p) => (
         <button key={p.id} type="button" className="btn subtle" onClick={() => signInWith(p.id)}>
-          <LogIn size={15} aria-hidden /> {PROVIDER_LABELS[p.id] ?? `Continue with ${p.name}`}
+          <LogIn size={16} aria-hidden /> {PROVIDER_LABELS[p.id] ?? `Continue with ${p.name}`}
         </button>
       ))}
     </div>
@@ -109,7 +109,7 @@ export function Account() {
         tip="Sign in to sync your library and use the assistant"
         items={providers.map((p) => ({ label: PROVIDER_LABELS[p.id] ?? `Continue with ${p.name}`, icon: LogIn, onSelect: () => signInWith(p.id) }))}
       >
-        <LogIn size={15} aria-hidden /> <span className="hide-sm">Sign in</span>
+        <LogIn size={16} aria-hidden /> <span className="hide-sm">Sign in</span>
       </Menu>
     );
   }

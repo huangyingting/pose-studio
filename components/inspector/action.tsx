@@ -26,10 +26,10 @@ export function ActionHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
   return (
     <div className="panel-title">
       {chrome.before}
-      <Icon size={16} strokeWidth={1.75} aria-hidden />
+      <Icon size={17} strokeWidth={1.75} aria-hidden />
       <span className="title-static" aria-label="Action">{label}</span>
       <Menu label={`${label} menu`} className="ibtn" align="end" tip="More" items={() => menu('action', { store: t.store, action: act.id, figure: t.actionFigure })}>
-        <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+        <Ellipsis size={17} strokeWidth={1.75} aria-hidden />
       </Menu>
       {chrome.after}
     </div>
@@ -66,12 +66,12 @@ export function TimingPanel({ t }: { t: Target }) {
       {/* Played again, one after another; a keyed block kept as a motion. */}
       {applies(command('action.repeat'), ctx) && (
         <Menu label="Repeat" className="btn subtle move-to" items={() => menuItems(['action.repeat'], ctx)}>
-          <Repeat size={14} aria-hidden /> Repeat <ChevronDown size={13} aria-hidden />
+          <Repeat size={15} aria-hidden /> Repeat <ChevronDown size={14} aria-hidden />
         </Menu>
       )}
       {applies(command('action.saveMotion'), ctx) && (
         <button type="button" className="btn subtle move-to" onClick={() => command('action.saveMotion').run!(ctx)}>
-          <BookmarkPlus size={14} aria-hidden /> Save as a motion
+          <BookmarkPlus size={15} aria-hidden /> Save as a motion
         </button>
       )}
     </>
@@ -129,7 +129,7 @@ export function MotionPanel({ t }: { t: Target }) {
       )}
       {tooFar(t) && (
         <div className="warp-warn">
-          <p><TriangleAlert size={12} aria-hidden /> Its mark is further than the motion can stretch (±25%, ±30°).</p>
+          <p><TriangleAlert size={13} aria-hidden /> Its mark is further than the motion can stretch (±25%, ±30°).</p>
           <div className="row">
             <button type="button" className="btn subtle" onClick={() => fitWarp(t.store, act.id, t.actionFigure!, 'back')}>Move it back</button>
             <button type="button" className="btn subtle" onClick={() => fitWarp(t.store, act.id, t.actionFigure!, 'walk')}>Walk the rest</button>

@@ -42,7 +42,7 @@ export default function ScenePicker() {
         data-tip={open ? undefined : `Scenes (${scenes.length})  [ ]`}
         onClick={() => setOpen(!open)}
       >
-        <ChevronDown size={15} aria-hidden />
+        <ChevronDown size={16} aria-hidden />
       </button>
       {open && (
         <div className="scene-popover" role="dialog" aria-label="Scenes">
@@ -116,7 +116,7 @@ function SceneGrid({ onPick }: { onPick(): void }) {
               { label: 'From a template…', icon: LayoutTemplate, onSelect: () => { App().dialog('start'); onPick(); } },
             ]}
           >
-            <FilePlus2 size={14} strokeWidth={1.75} aria-hidden /> New
+            <FilePlus2 size={15} strokeWidth={1.75} aria-hidden /> New
           </Menu>
           <Menu
             label="Scene actions"
@@ -125,12 +125,12 @@ function SceneGrid({ onPick }: { onPick(): void }) {
             tip="More"
             items={() => menu('scene', { store, scene: index })}
           >
-            <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+            <Ellipsis size={17} strokeWidth={1.75} aria-hidden />
           </Menu>
         </div>
       </div>
       <label className="search">
-        <Search size={14} aria-hidden />
+        <Search size={15} aria-hidden />
         <input type="search" placeholder="Search scenes" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search scenes" autoFocus />
       </label>
       <ol className="thumbs" ref={list}>

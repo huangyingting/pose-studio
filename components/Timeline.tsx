@@ -111,7 +111,7 @@ function Still({ openPicker }: { openPicker(figure: string, el: Element): void }
           data-tip-side="top"
           onClick={() => command('timeline.key').run!(c)}
         >
-          <Diamond size={15} aria-hidden /> <span className="tl-label">Key</span>
+          <Diamond size={16} aria-hidden /> <span className="tl-label">Key</span>
         </button>
         {active && (
           <button
@@ -123,7 +123,7 @@ function Still({ openPicker }: { openPicker(figure: string, el: Element): void }
             data-tip={`What ${active.name} does: walk somewhere, a motion, a pose…`}
             data-tip-side="top"
           >
-            <Plus size={15} aria-hidden /> <span className="tl-label">Add an action</span>
+            <Plus size={16} aria-hidden /> <span className="tl-label">Add an action</span>
           </button>
         )}
         <span className="tl-sep" />
@@ -665,7 +665,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         <div className="tl-transport">
           <CommandButton id="timeline.prevKey" ctx={c} tipSide="top" className="tl-step" disabled={prevKey === undefined} />
           <button type="button" className="tl-play" onClick={toggle} aria-label={clock.playing ? 'Pause' : 'Play'} data-tip={tipOf('timeline.play', clock.playing ? 'Pause' : 'Play')} data-tip-side="top">
-            {clock.playing ? <Pause size={16} aria-hidden /> : <Play size={16} aria-hidden />}
+            {clock.playing ? <Pause size={17} aria-hidden /> : <Play size={17} aria-hidden />}
           </button>
           <CommandButton id="timeline.nextKey" ctx={c} tipSide="top" className="tl-step" disabled={nextKey === undefined} />
           <span className="tl-time" aria-live="off">
@@ -690,20 +690,20 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           data-tip-side="top"
           onClick={() => command('timeline.key').run!(c)}
         >
-          <Diamond size={15} aria-hidden /> <span className="tl-label">Key</span>
+          <Diamond size={16} aria-hidden /> <span className="tl-label">Key</span>
         </button>
         {!compact && (
           <>
             <CommandButton id="timeline.deleteKey" ctx={c} tipSide="top" disabled={!onKey || activeKeys.length <= 1} />
             <button type="button" className="btn ghost tl-btn" aria-label={titleOf(command('timeline.cut'), c)} data-tip={tipOf('timeline.cut')} data-tip-side="top" onClick={() => command('timeline.cut').run!(c)}>
-              <Scissors size={15} aria-hidden /> <span className="tl-label">Cut</span>
+              <Scissors size={16} aria-hidden /> <span className="tl-label">Cut</span>
             </button>
           </>
         )}
         <CommandButton id="timeline.cameraPoint" ctx={c} tipSide="top" />
         {/* The director: cameras and cuts made from what they do, kept up to date (or by hand). */}
         <Menu label="Director" className="btn ghost tl-btn" tip={tipOf('timeline.director', 'Director')} items={() => choices('timeline.director', c)}>
-          <Clapperboard size={15} aria-hidden /> <span className="tl-label">{scene.coverage?.live ? DIRECTOR_STYLES.find((d) => d.id === scene.coverage!.id)?.label ?? 'Director' : 'By hand'}</span>
+          <Clapperboard size={16} aria-hidden /> <span className="tl-label">{scene.coverage?.live ? DIRECTOR_STYLES.find((d) => d.id === scene.coverage!.id)?.label ?? 'Director' : 'By hand'}</span>
         </Menu>
         <span className="tl-sep" />
         <div className="tl-duration" data-tip="Length (seconds)" data-tip-side="top">
@@ -731,7 +731,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               data-tip="Check for sliding feet, collisions, joints bent too far and pops"
               data-tip-side="top"
             >
-              {issues?.length ? <TriangleAlert size={15} aria-hidden /> : <Activity size={15} aria-hidden />}
+              {issues?.length ? <TriangleAlert size={16} aria-hidden /> : <Activity size={16} aria-hidden />}
               <span className="tl-label">{qaLabel}</span>
             </button>
           </>
@@ -752,7 +752,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           className="ibtn"
           items={() => menuItems([...(compact ? ['timeline.deleteKey', 'timeline.cut', '-'] : []), 'timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'], c)}
         >
-          <Ellipsis size={16} aria-hidden />
+          <Ellipsis size={17} aria-hidden />
         </Menu>
         <CommandButton id="timeline.fold" ctx={c} tipSide="top" />
       </div>
@@ -807,7 +807,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               onContextMenu={(e) => openContextMenu(e, menu('camera', { store, camera: rowCam.id }), rowCam.name)}
               data-tip={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
             >
-              <Camera size={11} aria-hidden /> {rowCam.name}
+              <Camera size={12} aria-hidden /> {rowCam.name}
             </button>}
           </div>
           <div className="tl-lanes" ref={track} onPointerDown={scrub} style={{ gridTemplateRows: rows }}>
@@ -863,7 +863,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       </>
                     )}
                     {/* Taken over by hand: the director keeps it as it is. */}
-                    {sp.shot.pinned && scene.coverage?.live && <Pin size={10} aria-label="Taken over by hand" />}
+                    {sp.shot.pinned && scene.coverage?.live && <Pin size={11} aria-label="Taken over by hand" />}
                     <span style={inSight(sp.start, sp.end)}>{sp.shot.name}{cameraById(scene, sp.shot.camera) ? ` · ${cameraById(scene, sp.shot.camera)!.name}` : ''}</span>
                     <em>{(sp.end - sp.start).toFixed(1)}s</em>
                   </button>
@@ -923,7 +923,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => openPicker(f.id, e.currentTarget)}
                     >
-                      <Plus size={11} aria-hidden />
+                      <Plus size={12} aria-hidden />
                     </button>
                   )}
                   {/* What it does next after all it does: the playhead goes there first. */}
@@ -941,7 +941,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => { pause(); store.setTime(last); openPicker(f.id, e.currentTarget); }}
                       >
-                        <Plus size={11} aria-hidden />
+                        <Plus size={12} aria-hidden />
                       </button>
                     );
                   })()}
@@ -971,7 +971,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                             openContextMenu(e, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
                           }}
                         >
-                          {group && <Users size={10} aria-hidden />}
+                          {group && <Users size={11} aria-hidden />}
                           <span style={inSight(x.start, x.start + x.duration)}>{label}{x.layer === 'upper' ? ' · upper body' : ''}</span>
                           <i className="tl-edge" aria-hidden onPointerDown={dragAction(x, f.id, 'end')} />
                         </span>
@@ -981,7 +981,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   {/* Nothing to do yet: where to start. */}
                   {!actionsOf(a, f.id).some((x) => x.source.kind !== 'keys') && times.length <= 1 && !f.proxy && (
                     <button type="button" className="tl-empty" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => openPicker(f.id, e.currentTarget)}>
-                      <Plus size={12} aria-hidden /> Add an action
+                      <Plus size={13} aria-hidden /> Add an action
                     </button>
                   )}
                   {box?.figure === f.id && <span className="tl-box" style={{ left: pct(Math.min(box.t0, box.t1)), width: `${(Math.abs(box.t1 - box.t0) / span) * 100}%` }} aria-hidden />}
@@ -1161,7 +1161,7 @@ function MotionIssues({ issues, goTo, fixOf, onFix, onClose }: { issues: Issue[]
     <div className="qa-card" role="dialog" aria-label="Motion check" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="shot-editor-head">
         <strong>Motion check · {issues.length} {issues.length === 1 ? 'issue' : 'issues'}</strong>
-        <IconButton icon={X} label="Close" onClick={onClose} size={14} />
+        <IconButton icon={X} label="Close" onClick={onClose} size={15} />
       </div>
       <ul>
         {issues.map((i, n) => {

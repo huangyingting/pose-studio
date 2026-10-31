@@ -21,7 +21,7 @@ export function CameraHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
   const cam = t.camera!;
   const through = useStudio((st) => st.through?.camera === cam.id);
   return (
-    <NameHeader chrome={chrome} lead={<CameraIcon size={15} aria-hidden />} name={cam.name} label="Camera name" onRename={(name) => editCamera(t.store, cam.id, { name })} menu={() => menu('camera', { store: t.store, camera: cam.id })}>
+    <NameHeader chrome={chrome} lead={<CameraIcon size={16} aria-hidden />} name={cam.name} label="Camera name" onRename={(name) => editCamera(t.store, cam.id, { name })} menu={() => menu('camera', { store: t.store, camera: cam.id })}>
       <IconButton icon={Eye} label="Look through this camera" active={through} pressed={through} onClick={() => t.store.lookThrough(through ? null : { camera: cam.id })} />
     </NameHeader>
   );
@@ -245,7 +245,7 @@ export function MovesPanel({ t }: { t: Target }) {
       <div className="move-grid" role="radiogroup" aria-label="Camera move">
         {MOVES.map((m) => (
           <button key={m.id} type="button" role="radio" aria-checked={m.id === now} className={m.id === now ? 'on' : ''} data-tip={m.tip} onClick={() => pick(m.id)}>
-            <m.icon size={15} strokeWidth={1.75} aria-hidden />
+            <m.icon size={16} strokeWidth={1.75} aria-hidden />
             <span>{m.label}</span>
           </button>
         ))}
@@ -256,7 +256,7 @@ export function MovesPanel({ t }: { t: Target }) {
         className="btn subtle camera-presets"
         items={() => CAMERA_GROUPS.flatMap((g) => [{ group: g }, ...CAMERA_MOVES.filter((m) => m.group === g).map((m) => ({ label: m.name, onSelect: () => applyCameraMove(t.store, m.id, cam.id) }))])}
       >
-        <Clapperboard size={14} aria-hidden /> Ready-made…
+        <Clapperboard size={15} aria-hidden /> Ready-made…
       </Menu>
       {cam.kind === 'rig' ? <MoveSettings t={t} cam={cam} /> : <PathSettings t={t} cam={cam} set={set} />}
       <Slider label="Hand-held" value={cam.shake ?? 0} min={0} max={1} step={0.05} display={(cam.shake ?? 0) > 0 ? `${Math.round((cam.shake ?? 0) * 100)}%` : 'Off'} onChange={(v) => set({ shake: v })} />
@@ -427,11 +427,11 @@ function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: 
           {cam.points.map((p) => (
             <li key={p.t}>
               <button type="button" className={Math.abs(p.t - time) < 0.02 ? 'on' : ''} onClick={() => t.store.setTime(p.t)}>
-                <CameraIcon size={13} aria-hidden />
+                <CameraIcon size={14} aria-hidden />
                 <span className="side-list-name">{p.t.toFixed(2)} s{p.stop ? ' · stops' : ''}</span>
                 <em>{Math.round(p.lens)} mm</em>
               </button>
-              <IconButton icon={Trash2} label={`Delete the camera point at ${p.t.toFixed(2)} s`} className="row-delete" size={13} onClick={() => deleteCameraPoint(t.store, p.t, cam.id)} />
+              <IconButton icon={Trash2} label={`Delete the camera point at ${p.t.toFixed(2)} s`} className="row-delete" size={14} onClick={() => deleteCameraPoint(t.store, p.t, cam.id)} />
             </li>
           ))}
         </ul>
@@ -445,7 +445,7 @@ function PathSettings({ t, cam, set }: { t: Target; cam: PathCamera; set(patch: 
           data-tip="The camera as it is now; then move it there (drag it, or look through it)"
           onClick={() => addCameraPoint(t.store, cam.id, time)}
         >
-          <Plus size={14} aria-hidden /> A point at {time.toFixed(2)} s
+          <Plus size={15} aria-hidden /> A point at {time.toFixed(2)} s
         </button>
       )}
     </>

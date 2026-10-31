@@ -99,7 +99,7 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
       onKeyDown={keys}
     >
       <label className="action-picker-search">
-        <Search size={14} aria-hidden />
+        <Search size={15} aria-hidden />
         <input autoFocus type="text" placeholder={`What ${name} does next…`} aria-label="Find an action" value={query} onChange={(e) => setQuery(e.target.value)} />
       </label>
       <div className="action-picker-list" role="menu" aria-label="Actions">
@@ -119,10 +119,10 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
                   onClick={() => choose(r)}
                 >
                   {p.grid ? (
-                    <Thumbnail thumb={r.thumb} fallback={r.icon ? <r.icon size={18} aria-hidden /> : null} />
+                    <Thumbnail thumb={r.thumb} fallback={r.icon ? <r.icon size={19} aria-hidden /> : null} />
                   ) : (
                     <>
-                      <span className="menu-icon">{r.icon && <r.icon size={15} strokeWidth={1.75} aria-hidden />}</span>
+                      <span className="menu-icon">{r.icon && <r.icon size={16} strokeWidth={1.75} aria-hidden />}</span>
                       <span className="menu-label">{r.label}</span>
                       {r.meta && <kbd>{r.meta}</kbd>}
                     </>

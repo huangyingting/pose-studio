@@ -24,7 +24,7 @@ import type { Target } from './target';
 
 export function SceneHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   const index = t.store.getState().sceneIndex;
-  return <NameHeader chrome={chrome} lead={<Clapperboard size={16} strokeWidth={1.75} aria-hidden />} name={t.scene.name} label="Scene name" onRename={(name) => renameScene(t.store, name)} menu={() => menu('scene', { store: t.store, scene: index })} />;
+  return <NameHeader chrome={chrome} lead={<Clapperboard size={17} strokeWidth={1.75} aria-hidden />} name={t.scene.name} label="Scene name" onRename={(name) => renameScene(t.store, name)} menu={() => menu('scene', { store: t.store, scene: index })} />;
 }
 
 export function SceneOverview({ t }: { t: Target }) {
@@ -82,10 +82,10 @@ function Line({ icon: Icon, label, value, go, items, tip, children }: {
 }) {
   const inner = (
     <>
-      <Icon size={15} strokeWidth={1.75} aria-hidden />
+      <Icon size={16} strokeWidth={1.75} aria-hidden />
       <span className="scene-line-label">{label}</span>
       <span className="scene-line-value">{value}</span>
-      {(go || items) && <ChevronRight size={14} className="scene-line-go" aria-hidden />}
+      {(go || items) && <ChevronRight size={15} className="scene-line-go" aria-hidden />}
     </>
   );
   return (

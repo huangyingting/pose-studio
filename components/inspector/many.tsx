@@ -9,7 +9,7 @@ const ctx = (t: Target) => ({ store: t.store, many: { figures: t.many!.figures.m
 const count = (t: Target) => t.many!.figures.length + t.many!.props.length;
 
 export function ManyHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
-  return <NameHeader chrome={chrome} lead={<Layers size={16} strokeWidth={1.75} aria-hidden />} name={`${count(t)} selected`} label="Selection" menu={() => menu('many', ctx(t))} />;
+  return <NameHeader chrome={chrome} lead={<Layers size={17} strokeWidth={1.75} aria-hidden />} name={`${count(t)} selected`} label="Selection" menu={() => menu('many', ctx(t))} />;
 }
 
 export const manySummary = (t: Target) => [...t.many!.figures, ...t.many!.props].map((x) => x.name).join(', ');
@@ -23,7 +23,7 @@ export function ManyPanel({ t }: { t: Target }) {
       <div className="many-actions">
         {items.map((it) => (typeof it === 'object' && 'label' in it ? (
           <button key={it.label} type="button" className={`btn subtle${it.danger ? ' danger' : ''}`} disabled={it.disabled} onClick={it.onSelect}>
-            {it.icon && <it.icon size={14} aria-hidden />} {it.label}
+            {it.icon && <it.icon size={15} aria-hidden />} {it.label}
           </button>
         ) : null))}
       </div>

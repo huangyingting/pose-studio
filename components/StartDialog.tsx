@@ -102,7 +102,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
                     <span className="start-actions">
                       {tile.actions.map((a) => (
                         <button key={a.label} type="button" className="ibtn" aria-label={a.label} data-tip={a.label} onClick={a.run}>
-                          <a.icon size={14} aria-hidden />
+                          <a.icon size={15} aria-hidden />
                         </button>
                       ))}
                     </span>

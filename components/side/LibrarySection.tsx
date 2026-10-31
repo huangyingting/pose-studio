@@ -48,7 +48,7 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
       <div className="side-head"><h2>{open.label}</h2></div>
       <div className="library-row">
         <label className="search">
-          <Search size={14} aria-hidden />
+          <Search size={15} aria-hidden />
           <input
             type="search"
             placeholder={`Search ${open.label.toLowerCase()}`}
@@ -98,7 +98,7 @@ function Group({ id, title, count, children }: { id: string; title: string; coun
     <div className="lib-group">
       <h3 className="lib-group-head">
         <button type="button" aria-expanded={open} onClick={toggle}>
-          {open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+          {open ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
           {title}<span className="count">{count}</span>
         </button>
       </h3>
@@ -131,17 +131,17 @@ function List({ category, title, items, preview }: { category: LibraryCategory; 
               <>
                 <Thumbnail thumb={it.thumb} fallback={<it.icon size={22} strokeWidth={1.5} aria-hidden />} />
                 <span className="lib-tile-name">{it.name}</span>
-                {it.on && <Check size={12} className="lib-tile-on" aria-hidden />}
+                {it.on && <Check size={13} className="lib-tile-on" aria-hidden />}
               </>
             ) : (
               <>
-                {it.thumb ? <Thumbnail thumb={it.thumb} small fallback={<it.icon size={14} aria-hidden />} /> : <it.icon size={14} aria-hidden />}
+                {it.thumb ? <Thumbnail thumb={it.thumb} small fallback={<it.icon size={15} aria-hidden />} /> : <it.icon size={15} aria-hidden />}
                 <span className="side-list-name">{it.name}</span>
                 {it.meta && <em>{it.meta}</em>}
               </>
             )}
           </button>
-          {it.actions?.map((a) => <IconButton key={a.label} icon={a.icon} label={a.label} className="row-action" size={13} onClick={a.run} />)}
+          {it.actions?.map((a) => <IconButton key={a.label} icon={a.icon} label={a.label} className="row-action" size={14} onClick={a.run} />)}
         </li>
       ))}
     </ul>

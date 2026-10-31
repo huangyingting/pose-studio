@@ -433,7 +433,7 @@ function App() {
           <Menu label="Main menu" className="brand" items={() => menu('main', cx)}>
             <Logo />
             <span className="brand-name">Pose Studio</span>
-            <ChevronDown size={14} className="brand-chevron" aria-hidden />
+            <ChevronDown size={15} className="brand-chevron" aria-hidden />
           </Menu>
           <span className="tb-sep hide-mobile" />
           <div className="toolbar" role="toolbar" aria-label="Canvas tools">
@@ -443,11 +443,11 @@ function App() {
               tip="Look through, and what the canvas shows"
               items={() => menu('view', cx)}
             >
-              <Eye size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={13} aria-hidden />
+              <Eye size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={14} aria-hidden />
             </Menu>
             <span className="tb-sep" />
             <Menu label="Frame" className="btn ghost" tip="The frame every scene is filmed in" items={() => choices('view.aspect', cx)}>
-              <RectangleHorizontal size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{look.frame}</span> <ChevronDown size={13} aria-hidden />
+              <RectangleHorizontal size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{look.frame}</span> <ChevronDown size={14} aria-hidden />
             </Menu>
             <Menu
               label="Render style"
@@ -455,7 +455,7 @@ function App() {
               tip={tipOf('view.nextStyle', 'Render style')}
               items={() => choices('view.style', cx)}
             >
-              <StyleIcon size={15} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={13} aria-hidden />
+              <StyleIcon size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={14} aria-hidden />
             </Menu>
           </div>
         </div>
@@ -478,7 +478,7 @@ function App() {
           <CommandButton id="app.palette" ctx={cx} className="hide-mobile" />
           {Account && <Account />}
           <button type="button" className="btn primary" onClick={() => command('app.export').run!(cx)} data-tip={tipOf('app.export')}>
-            <Download size={15} strokeWidth={2} aria-hidden /> <span>Export</span>
+            <Download size={16} strokeWidth={2} aria-hidden /> <span>Export</span>
           </button>
           <IconButton
             icon={settings.inspector ? PanelRightClose : PanelRightOpen}
@@ -496,7 +496,7 @@ function App() {
             tip="More"
             items={() => menuItems(['app.redo', 'app.inspector'], cx)}
           >
-            <Ellipsis size={16} aria-hidden />
+            <Ellipsis size={17} aria-hidden />
           </Menu>
           <IconButton icon={SlidersHorizontal} label="Inspector" className="only-mobile" onClick={() => setDrawer(drawer === 'inspector' ? null : 'inspector')} />
         </div>
@@ -674,7 +674,7 @@ function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: {
         <button key={a.label} type="button" className="hint-action" onClick={() => a.run()}>{a.label}</button>
       ))}
       <button type="button" className="hint-dismiss" aria-label="Not now" data-tip="Not now" onClick={() => stepDone(store.scene.id, step.id)}>
-        <X size={13} aria-hidden />
+        <X size={14} aria-hidden />
       </button>
     </Pill>
   );
@@ -685,7 +685,7 @@ function Pill({ tone, icon: Icon, label, children }: { tone: 'plain' | 'note' | 
   const [text, ...rest] = Array.isArray(children) ? children : [children];
   return (
     <div className={`bar-hint ${tone}`} role="status" aria-label={label}>
-      <Icon size={14} strokeWidth={2} className="bar-hint-icon" aria-hidden />
+      <Icon size={15} strokeWidth={2} className="bar-hint-icon" aria-hidden />
       <span className="bar-hint-text">{typeof text === 'string' ? <Keys text={text} /> : text}</span>
       {rest}
     </div>
@@ -705,7 +705,7 @@ function StageOnlyButton({ on, toggle }: { on: boolean; toggle(): void }) {
   const keys = on ? 'Esc' : shortcutOf('view.stageOnly');
   return (
     <button type="button" className="stage-pop" aria-label={label} aria-pressed={on} data-tip={keys ? `${label} · ${keys}` : label} onClick={toggle}>
-      {on ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}
+      {on ? <Minimize2 size={16} aria-hidden /> : <Maximize2 size={16} aria-hidden />}
     </button>
   );
 }

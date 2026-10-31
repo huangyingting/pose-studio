@@ -48,7 +48,7 @@ export function LightHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) 
   return (
     <NameHeader
       chrome={chrome}
-      lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
+      lead={<Icon size={17} strokeWidth={1.75} aria-hidden />}
       name={l.name}
       label="Light name"
       onRename={(name) => editLight(t.store, l.id, { name })}
@@ -59,7 +59,7 @@ export function LightHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) 
 
 export function LightingHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   return (
-    <NameHeader chrome={chrome} lead={<SunMedium size={16} strokeWidth={1.75} aria-hidden />} name="Lighting" label="Lighting" menu={() => menu('lighting', { store: t.store })}>
+    <NameHeader chrome={chrome} lead={<SunMedium size={17} strokeWidth={1.75} aria-hidden />} name="Lighting" label="Lighting" menu={() => menu('lighting', { store: t.store })}>
       <span className="name-header-note">{lightingName(lightingOf(t.scene))}</span>
     </NameHeader>
   );

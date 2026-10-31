@@ -17,7 +17,7 @@ export function PropHeader({ t, chrome }: { t: Target; chrome: HeaderChrome }) {
   return (
     <NameHeader
       chrome={chrome}
-      lead={<Icon size={16} strokeWidth={1.75} aria-hidden />}
+      lead={<Icon size={17} strokeWidth={1.75} aria-hidden />}
       name={prop.name}
       label={`${PROP_LABELS[prop.kind]} name`}
       onRename={(name) => renameProp(t.store, prop.id, name)}
