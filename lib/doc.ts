@@ -407,7 +407,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   let source: Action['source'];
   if (o.kind === 'clip' && typeof o.clip === 'string') {
     const speed = num(o.speed, 1);
-    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to), ...(typeof o.seam === 'number' && Number.isFinite(o.seam) ? { seam: Math.min(2, Math.max(0, Math.round(o.seam * 100) / 100)) } : {}), ...(o.alternate === true ? { alternate: true } : {}) };
+    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to), ...(typeof o.seam === 'number' && Number.isFinite(o.seam) ? { seam: Math.min(2, Math.max(0, Math.round(o.seam * 100) / 100)) } : {}), ...(o.alternate === true ? { alternate: true } : {}), ...(o.inPlace === true ? { inPlace: true } : {}), ...(typeof o.lead === 'number' && o.lead > 0 ? { lead: Math.min(MAX_DURATION, Math.round(o.lead * 1000) / 1000) } : {}) };
   } else if (o.kind === 'keys') {
     const clip = parseClip(o.clip);
     if (!clip) return null;
@@ -427,6 +427,8 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
     duration: Math.min(MAX_DURATION - start, Math.max(0, num(v.duration, 0))),
     ...(blendIn > 0 ? { blendIn: Math.min(10, blendIn) } : {}),
     ...(v.blendCurve === 'linear' || v.blendCurve === 'in' || v.blendCurve === 'out' ? { blendCurve: v.blendCurve } : {}),
+    ...(typeof v.strength === 'number' && v.strength >= 0 && v.strength < 1 ? { strength: Math.round(v.strength * 100) / 100 } : {}),
+    ...(v.mask === 'arms' || v.mask === 'head' || v.mask === 'legs' ? { mask: v.mask } : {}),
     ...(v.layer === 'correction' || v.layer === 'upper' ? { layer: v.layer } : {}),
     roles,
     source,

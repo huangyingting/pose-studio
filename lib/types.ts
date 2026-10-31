@@ -235,7 +235,8 @@ export type ActionSource =
    * (Repeated (#23): `seam`, seconds each repeat blends in from the last over (0: a cut; none: a short
    * blend where a repeat ends far from how the next starts); `alternate`, every other one mirrored.)
    */
-  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean; repeat?: number; from?: number; to?: number; seam?: number; alternate?: boolean }
+  /** (`inPlace`, #23: its travel taken out: it stays where it starts. `lead`: seconds its first pose is held before it plays.) */
+  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean; repeat?: number; from?: number; to?: number; seam?: number; alternate?: boolean; inPlace?: boolean; lead?: number }
   /** Poses keyed by hand: a one-part Clip of the action's own, in world space. One key: a held pose. */
   | { kind: 'keys'; clip: Clip }
   /** Walking, running or jumping to the role's end mark (via other marks), its steps generated. */
@@ -250,6 +251,13 @@ export interface Role {
 /** The upper body: what an upper-body action plays over the base (waving while walking). */
 export const UPPER_BODY: readonly JointName[] = ['spine', 'chest', 'neck', 'head', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand'];
 
+/** The body parts an action over another plays on (#23: its `mask`; the upper body when it has none). */
+export const MASKS: Record<NonNullable<Action['mask']>, readonly JointName[]> = {
+  arms: ['leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand'],
+  head: ['neck', 'head'],
+  legs: ['leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot'],
+};
+
 /**
  * Something done over a span of time by one or more figures. Actions on the base layer follow
  * one another; an upper-body action plays over them from the waist up, and a correction action
@@ -263,6 +271,10 @@ export interface Action {
   blendIn?: number;
   /** How that blend goes (#23): evenly, easing in (slow, then quicker) or out; smoothly (easing both) when not given. */
   blendCurve?: 'linear' | 'in' | 'out';
+  /** How much of it shows (#23, 0–1): an action over another (a subtler wave), a correction (half of it). All when not given. */
+  strength?: number;
+  /** What an action over another plays on (#23): the upper body when not given, the arms, the head and neck, or the legs. */
+  mask?: 'arms' | 'head' | 'legs';
   layer?: 'upper' | 'correction';
   roles: Role[];
   source: ActionSource;

@@ -1,15 +1,15 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setPlayRange, setBlendCurve, setTravel } from '@/lib/actions';
+import { clearMark, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
-import { clipById, playedClip } from '@/lib/assets';
+import { clipById } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
 import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
 import { actionLabel } from '@/lib/track';
 import type { Action, Travel } from '@/lib/types';
 import { applies, command, menu, menuItems, type Ctx } from '../commands';
-import { Hint, Menu, NumberField, PropertyRow, Segmented, Select, Toggle, type HeaderChrome } from '../ui';
+import { Hint, Menu, NumberField, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
 
 /*
@@ -96,14 +96,20 @@ export const posedInfo = (t: Target) => (t.action!.layer === 'correction'
   ? 'Changes made over a motion or a walk: pose the figure at a time inside it to add one.'
   : 'Posed by hand: pose the figure at a key to change it; Move to… in the figure inspector (or right-click the floor) walks, runs or jumps between keys.');
 export function PosedPanel({ t }: { t: Target }) {
-  return <Hint>{posedSummary(t)}</Hint>;
+  const act = t.action!;
+  return (
+    <>
+      <Hint>{posedSummary(t)}</Hint>
+      {/* (A correction: as much of it as shows, #23.) */}
+      {act.layer === 'correction' && (
+        <Slider label="Strength" min={0} max={1} step={0.05} value={act.strength ?? 1} display={`${Math.round((act.strength ?? 1) * 100)}%`} onChange={(v) => setActionLook(t.store, act.id, { strength: v }, `act:${act.id}:strength`)} />
+      )}
+    </>
+  );
 }
 
-const speedOf = (act: Action) => {
-  if (act.source.kind !== 'clip') return 1;
-  const clip = playedClip(act.source);
-  return act.source.speed ?? (clip && !clip.loop ? (clip.duration * (act.source.repeat ?? 1)) / act.duration : 1);
-};
+/** How fast it plays its motion (as the evaluator plays it: a block longer than its motion holds its last pose). */
+const speedOf = (act: Action) => (act.source.kind === 'clip' ? act.source.speed ?? 1 : 1);
 /** How far its mark pulls a motion from where it ends by itself, if noticeably (#18). */
 const pull = (t: Target) => {
   const act = t.action!;
@@ -141,6 +147,23 @@ export function MotionPanel({ t }: { t: Target }) {
         <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(t.store, act.id, { speed: v }, `act:${act.id}:speed`)} />
       </label>
       <Toggle label="Mirrored" hint="Left for right" checked={!!src.mirror} onChange={(mirror) => setClipOptions(t.store, act.id, { mirror })} />
+      {/* (#23: in place; over another, what it plays on and how much of it shows.) */}
+      {!act.layer && (
+        <Toggle label="In place" hint="Its travel taken out: it stays where it starts (its mark goes)" checked={!!src.inPlace} onChange={(inPlace) => setClipOptions(t.store, act.id, { inPlace })} />
+      )}
+      {act.layer === 'upper' && (
+        <>
+          <PropertyRow label="Plays on">
+            <Select<'upper' | 'arms' | 'head' | 'legs'>
+              label="What it plays on"
+              value={act.mask ?? 'upper'}
+              onChange={(v) => setActionLook(t.store, act.id, { mask: v === 'upper' ? null : v })}
+              options={[{ value: 'upper', label: 'The upper body' }, { value: 'arms', label: 'The arms' }, { value: 'head', label: 'The head and neck' }, { value: 'legs', label: 'The legs' }]}
+            />
+          </PropertyRow>
+          <Slider label="Strength" min={0} max={1} step={0.05} value={act.strength ?? 1} display={`${Math.round((act.strength ?? 1) * 100)}%`} onChange={(v) => setActionLook(t.store, act.id, { strength: v }, `act:${act.id}:strength`)} />
+        </>
+      )}
       {(src.repeat ?? 1) > 1 && whole && !whole.loop && (
         <>
           {/* Between repeats (#23): each blends in from the one before, or cuts to it. */}

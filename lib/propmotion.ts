@@ -218,7 +218,7 @@ function happenings(a: Animation, id: string): Happening[] {
     const laps = clip.loop && clip.duration > 1e-6 ? Math.max(1, Math.round((act.duration * speed) / clip.duration)) : (act.source.repeat ?? 1);
     for (let lap = 0; lap < laps; lap++) {
       for (const e of clip.events) {
-        const t = act.start + (e.t + lap * clip.duration) / speed;
+        const t = act.start + ((act.source as { lead?: number }).lead ?? 0) + (e.t + lap * clip.duration) / speed;
         const figure = act.roles[e.part]?.figure;
         if (!figure || t > act.start + act.duration + 1e-6) continue;
         const hand: Side = act.source.mirror ? (e.hand === 'L' ? 'R' : 'L') : e.hand;

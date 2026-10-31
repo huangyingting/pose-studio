@@ -14,7 +14,7 @@ import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
 import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
 import { HZ, physicsReady } from './physics';
-import { UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
+import { MASKS, UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
 
 /*
  * Evaluation: where everything is at a time. For each figure, its actions on the base layer give
@@ -214,21 +214,24 @@ class Evaluator {
       if (t < x.start - UPPER_EASE || t > end(x) + UPPER_EASE) continue;
       const clip = clipOf(x);
       if (!clip) continue;
-      const src = x.source as { speed?: number; mirror?: boolean };
-      let u = (Math.min(end(x), Math.max(x.start, t)) - x.start) * (src.speed ?? 1);
+      const src = x.source as { speed?: number; mirror?: boolean; lead?: number };
+      let u = Math.max(0, Math.min(end(x), Math.max(x.start, t)) - x.start - (src.lead ?? 0)) * (src.speed ?? 1);
       if (clip.loop && clip.duration > EPS && u > EPS) u = u % clip.duration || (u > EPS ? clip.duration : 0);
       const raw = samplePart(clip.parts[0], Math.min(clip.duration, u), clip.duration, clip.loop);
       const over = src.mirror ? mirrorPose(raw) : raw;
-      const w = smooth(1 - Math.max(x.start - t, t - end(x), 0) / UPPER_EASE);
+      // (As much of it as it shows, #23.)
+      const w = smooth(1 - Math.max(x.start - t, t - end(x), 0) / UPPER_EASE) * (x.strength ?? 1);
       // Eased in joint angles, so an arm swings within its range on the way.
       const bones = { ...pose.bones };
-      for (const j of UPPER_BODY) {
+      // (On what it plays on, #23.)
+      const parts = x.mask ? MASKS[x.mask] : UPPER_BODY;
+      for (const j of parts) {
         if (w >= 1) { bones[j] = over.bones[j]; continue; }
         const from = quatToAngle(j, pose.bones[j]);
         const to = quatToAngle(j, over.bones[j], from);
         bones[j] = angleToQuat(j, from.map((v, i) => v + wrapDeg(to[i] - v) * w) as Vec3);
       }
-      pose = { ...pose, bones, hands: blend(pose, over, w).hands };
+      pose = { ...pose, bones, hands: x.mask === 'head' || x.mask === 'legs' ? pose.hands : blend(pose, over, w).hands };
     }
     return pose;
   }
@@ -300,12 +303,12 @@ class Evaluator {
         if (!c.on) {
           const side = bone === 'leftFoot' ? 'L' : 'R';
           // (Each time round a clip played again, where the foot lands then.)
-          const repeat = (act.source as { repeat?: number }).repeat;
-          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? MAX_LAPS : repeat! - 1, lapOf((t - act.start) * speed, clip.duration)) : 0;
+          const { repeat, lead = 0 } = act.source as { repeat?: number; lead?: number };
+          const lap = (clip.loop || repeat) && clip.duration > EPS ? Math.min(clip.loop ? MAX_LAPS : repeat! - 1, lapOf(Math.max(0, t - act.start - lead) * speed, clip.duration)) : 0;
           const key = `${act.id}:${f.id}:${n}:${lap}`;
           let at = this.anchors.get(key);
           if (!at) {
-            const landed = this.placed(f, act, act.start + (lap * clip.duration + c.start) / speed).pose;
+            const landed = this.placed(f, act, act.start + lead + (lap * clip.duration + c.start) / speed).pose;
             at = feetOf(this.rig, { ...f, ...landed }, [side]);
             this.anchors.set(key, at);
           }
@@ -608,8 +611,9 @@ class Evaluator {
     const alternate = !!src.alternate && !!src.repeat && !clip.loop;
     const mirrorOf = (lap: number) => !!src.mirror !== (alternate && lap % 2 === 1);
     const sample = (u: number, loop = clip.loop, lap = 0) => (mirrorOf(lap) ? mirrorPose(samplePart(part, u, clip.duration, loop)) : samplePart(part, u, clip.duration, loop));
-    // Time in the clip; a loop played longer than once goes round again from where it got to.
-    let u = (t - act.start) * (src.speed ?? 1);
+    // Time in the clip (after its first pose held for its lead, #23); a loop played longer than
+    // once goes round again from where it got to.
+    let u = Math.max(0, t - act.start - (src.lead ?? 0)) * (src.speed ?? 1);
     let laps = 0;
     if ((clip.loop || src.repeat) && clip.duration > EPS) {
       // (On a lap's end exactly — the action's own end — the end of that lap, not the start of the
@@ -637,6 +641,8 @@ class Evaluator {
       return raw;
     };
     let raw = lapPose(laps, u);
+    // (In place, #23: where it starts, however it travels.)
+    if (src.inPlace) raw = { ...raw, position: [first.position[0], raw.position[1], first.position[2]] };
     // Into a repeat from the one before, over its seam (#23).
     const seam = laps && !clip.loop ? seamOf(src, clip, part) * (src.speed ?? 1) : 0;
     if (seam > EPS && u < seam) raw = blend(lapPose(laps - 1, clip.duration), raw, smooth(u / seam));
@@ -768,8 +774,11 @@ class Evaluator {
       if (!clip) continue;
       const d = samplePart(clip.parts[0], t - x.start, clip.duration, false);
       const bones: Pose['bones'] = { ...pose.bones };
-      for (const [j, q] of Object.entries(d.bones) as [keyof Pose['bones'], [number, number, number, number]][]) bones[j] = toQuat(fromQuat(pose.bones[j]).multiply(fromQuat(q)));
-      pose = { ...pose, bones, position: pose.position.map((v, i) => Math.round((v + d.position[i]) * 1000) / 1000 || 0) as Vec3 };
+      // (As much of it as it shows, #23.)
+      const k = x.strength ?? 1;
+      const none = new THREE.Quaternion();
+      for (const [j, q] of Object.entries(d.bones) as [keyof Pose['bones'], [number, number, number, number]][]) bones[j] = toQuat(fromQuat(pose.bones[j]).multiply(k >= 1 ? fromQuat(q) : none.clone().slerp(fromQuat(q), k)));
+      pose = { ...pose, bones, position: pose.position.map((v, i) => Math.round((v + d.position[i] * k) * 1000) / 1000 || 0) as Vec3 };
     }
     return pose;
   }

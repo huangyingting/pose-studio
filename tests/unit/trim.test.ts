@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addKeyframe, addMarker, copyKeys, deleteKeys, pasteKeys, retimeKeys, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
+import { moveAction, addFigure, addKeyframe, addMarker, copyKeys, deleteKeys, pasteKeys, retimeKeys, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
@@ -59,10 +59,11 @@ describe('trimming a motion (#22)', () => {
     expect((now.source as { speed?: number }).speed ?? 1).toBeCloseTo(1, 3);
     expect(apart(figurePoseAt(store.scene, a, before.start + 0.5)!, was)).toBeLessThan(1);
     expect(next().start).toBeCloseTo(followed - 0.6, 1);
-    // Not past the motion's own end.
-    trim(store, id, 'end', before.start + before.duration + 3);
-    expect(act().duration).toBeCloseTo(before.duration, 2);
+    // Past the motion's own end (#23): its last pose held there.
+    trim(store, id, 'end', before.start + before.duration + 1);
+    expect(act().duration).toBeCloseTo(before.duration + 1, 2);
     expect((act().source as { to?: number }).to).toBeUndefined();
+    expect(apart(figurePoseAt(store.scene, a, before.start + before.duration + 0.8)!, figurePoseAt(store.scene, a, before.start + before.duration)!, true)).toBeLessThan(1);
   });
 
   it('the start: the block starts later, what it plays where it was (from where the person is: facing their way), its end where it was', () => {
@@ -75,10 +76,12 @@ describe('trimming a motion (#22)', () => {
     expect(now.start + now.duration).toBeCloseTo(before.start + before.duration, 3);
     expect((now.source as { from?: number }).from).toBeCloseTo(0.5, 1);
     expect(apart(figurePoseAt(store.scene, a, before.start + 1.2)!, was, true)).toBeLessThan(1);
-    // Back to its first frame at most.
-    trim(store, id, 'start', before.start - 2);
-    expect(act().start).toBeCloseTo(before.start, 3);
+    // Before its first frame (#23): that pose held from there.
+    moveAction(store, id, 1);
+    trim(store, id, 'start', 0.2);
+    expect(act().start).toBeCloseTo(0.2, 1);
     expect((act().source as { from?: number }).from).toBeUndefined();
+    expect((act().source as { lead?: number }).lead).toBeCloseTo(0.3, 1);
   });
 
   it('Alt: stretched, the part it plays kept, its speed changed', () => {

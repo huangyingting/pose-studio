@@ -1126,7 +1126,7 @@ export function reactTo(store: Store, id: string, strikeId: string): number | nu
   const src = strike?.source;
   const clip = src?.kind === 'clip' ? playedClip(src) : undefined;
   if (!act || !strike || !src || src.kind !== 'clip' || !clip) return null;
-  const lands = strike.start + strikeTime(clip) / (src.speed ?? 1);
+  const lands = strike.start + (src.lead ?? 0) + strikeTime(clip) / (src.speed ?? 1);
   moveAction(store, id, Math.max(0, lands - REACT_LEAD));
   const scene = store.scene;
   const striker = figurePoseAt(scene, strike.roles[0].figure, lands);
@@ -1245,6 +1245,24 @@ export function setCorrectionThroughout(store: Store, id: string, throughout: bo
   store.setTime(store.getState().time);
 }
 
+/** How much of an action over another (or a correction) shows, and what an action over another plays on (#23). */
+export function setActionLook(store: Store, id: string, patch: { strength?: number; mask?: Action['mask'] | null }, key = '') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
+    if (x.id !== id) return x;
+    const next = { ...x };
+    if (patch.strength !== undefined) {
+      const k = Math.round(Math.min(1, Math.max(0, patch.strength)) * 100) / 100;
+      if (k >= 1) delete next.strength;
+      else next.strength = k;
+    }
+    if (patch.mask !== undefined) {
+      if (patch.mask) next.mask = patch.mask;
+      else delete next.mask;
+    }
+    return next;
+  }) } } : s), key);
+}
+
 /** How an action's blend in goes (#23): smoothly (null), evenly, easing in or out. */
 export function setBlendCurve(store: Store, id: string, curve: Action['blendCurve'] | null) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
@@ -1264,7 +1282,7 @@ export function setBlend(store: Store, id: string, blendIn: number, key = '') {
  * A clip action's speed (a clip that does not loop takes longer or shorter for it) and whether it
  * is mirrored (left for right).
  */
-export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean; seam?: number | null; alternate?: boolean }, key = '') {
+export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean; seam?: number | null; alternate?: boolean; inPlace?: boolean }, key = '') {
   const act = actionById(store, id);
   if (act?.source.kind !== 'clip') return;
   const clip = playedClip(act.source);
@@ -1287,6 +1305,11 @@ export function setClipOptions(store: Store, id: string, patch: { speed?: number
       if (patch.alternate !== undefined) {
         if (patch.alternate) source.alternate = true;
         else delete source.alternate;
+      }
+      // (In place, #23: nowhere to be pulled to, its marks go.)
+      if (patch.inPlace !== undefined) {
+        if (!patch.inPlace) delete source.inPlace;
+        else return { ...x, source: { ...source, inPlace: true }, roles: x.roles.map((r) => ({ figure: r.figure })) };
       }
       return { ...x, source };
     });

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { applyMotion, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
+import { applyMotion, applyUpperBody, setActionLook, travelTo, duplicateBlocks, editAsKeys, issueFix, setCorrectionThroughout, slip, trim, repeatAction, setBlend, setBlendCurve, setClipOptions, splitIntoRepeats, startAnimation } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { mirrorPose } from '@/lib/clip';
 import { withAngles } from '@/lib/pose';
@@ -173,5 +173,43 @@ describe('keys and motions (#23)', () => {
     const keys = (posed.source as { clip: { parts: { tracks: { times: number[] }[] }[] } }).clip.parts[0].tracks[0].times.length;
     expect(keys).toBeLessThan(act.duration * 24);
     times.forEach((t, i) => expect(apart(figurePoseAt(store.scene, a, t)!, was[i])).toBeLessThan(6));
+  });
+});
+
+describe('motion options (#23)', () => {
+  it('in place: its travel taken out, it stays where it starts', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(0);
+    applyMotion(store, a, SWING);
+    const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    setClipOptions(store, act.id, { inPlace: true });
+    const at = (t: number) => figurePoseAt(store.scene, a, t)!.position;
+    const [p0, p1] = [at(act.start), at(act.start + act.duration * 0.7)];
+    expect(Math.hypot(p1[0] - p0[0], p1[2] - p0[2])).toBeLessThan(0.02);
+  });
+
+  it('an action over another plays on what it is asked to, as much of it as asked', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(0);
+    travelTo(store, a, [0, 4], 'walk');
+    store.setTime(0.5);
+    applyUpperBody(store, a, 'wave');
+    const up = actionsOf(store.scene.animation!, a, 'upper')[0];
+    const t = up.start + 1;
+    const all = figurePoseAt(store.scene, a, t)!;
+    setActionLook(store, up.id, { mask: 'arms' });
+    const arms = figurePoseAt(store.scene, a, t)!;
+    // Arms only: the arms as they were, not the spine.
+    expect(turnOf(arms, all, 'leftLowerArm')).toBeLessThan(1);
+    expect(Math.max(...(['spine', 'chest', 'neck', 'head'] as const).map((j) => turnOf(arms, all, j)))).toBeGreaterThan(0.5);
+    setActionLook(store, up.id, { mask: null, strength: 0.5 });
+    const half = figurePoseAt(store.scene, a, t)!;
+    setActionLook(store, up.id, { strength: 0 });
+    const none = figurePoseAt(store.scene, a, t)!;
+    // Half of it: between none of it and all of it.
+    expect(turnOf(half, all, 'rightUpperArm')).toBeLessThan(turnOf(none, all, 'rightUpperArm'));
+    expect(turnOf(half, none, 'rightUpperArm')).toBeGreaterThan(1);
   });
 });

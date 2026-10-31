@@ -598,9 +598,9 @@ export function trimAction(a: Animation, id: string, side: 'start' | 'end', t: n
         void _r;
         source = n > 1 ? { ...rest, repeat: n } : rest;
       } else {
-        // (Within the motion: not past its end, nor before where it starts.)
-        const to = Math.min(whole.duration, from + d * speed);
-        d = (to - from) / speed;
+        // (Within the motion; past its end, its last pose held there, #23.)
+        const lead = src.lead ?? 0;
+        const to = Math.min(whole.duration, from + Math.max(0, d - lead) * speed);
         source = { ...src, to: Math.round(to * 1000) / 1000 };
         if (source.to! >= whole.duration - 1e-3) delete source.to;
       }
@@ -637,11 +637,12 @@ export function trimAction(a: Animation, id: string, side: 'start' | 'end', t: n
       void _r;
       source = Math.round((end(act) - start) / once) > 1 ? { ...rest, repeat: Math.round((end(act) - start) / once) } : rest;
     } else {
-      // (Not before the motion's first frame: what it plays stays where it was.)
-      const from = Math.max(0, (src.from ?? 0) + (start - act.start) * speed);
-      start = act.start + (from - (src.from ?? 0)) / speed;
-      source = { ...src, from: Math.round(from * 1000) / 1000 };
+      // (What it plays stays where it was; before the motion's first frame, that pose held from
+      // there, #23: its lead.)
+      const at = (src.from ?? 0) - (src.lead ?? 0) * speed + (start - act.start) * speed;
+      source = { ...src, from: Math.round(Math.max(0, at) * 1000) / 1000, lead: Math.round((Math.max(0, -at) / speed) * 1000) / 1000 };
       if (source.from! <= 1e-3) delete source.from;
+      if (!source.lead) delete source.lead;
     }
   } else if (src.kind === 'keys') {
     // Keys before it go; the pose there is keyed (later); earlier, its first pose held from there.
