@@ -765,6 +765,42 @@ export function setBlocks(id: string | undefined, from: THREE.Vector3, to: THREE
   return nearest;
 }
 
+let blob: THREE.MeshBasicMaterial | null = null;
+/**
+ * Soft dark patches on the floor under what stands there (#25): what it is darker where it meets
+ * the floor, as an object casts on what it stands on (the key's shadows only reach round the people).
+ */
+function contactShadows(grounded: { at: Vec3; yaw: number; w: number; d: number }[]): THREE.Object3D {
+  if (!blob) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    r.addColorStop(0, 'rgba(0,0,0,0.85)');
+    r.addColorStop(0.55, 'rgba(0,0,0,0.45)');
+    r.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = r;
+    g.fillRect(0, 0, 64, 64);
+    blob = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, opacity: 0.5, polygonOffset: true, polygonOffsetFactor: -2 });
+  }
+  const out = new THREE.Group();
+  const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  for (const x of grounded) {
+    const m = new THREE.Mesh(plane, blob);
+    // (Just over the paths and pavements laid on the floor.)
+    m.position.set(x.at[0], 0.024, x.at[2]);
+    m.rotation.y = (x.yaw * Math.PI) / 180;
+    m.scale.set(x.w * 1.3, 1, x.d * 1.3);
+    m.raycast = () => {};
+    m.renderOrder = 1;
+    m.updateMatrix();
+    m.matrixAutoUpdate = false;
+    out.add(m);
+  }
+  out.raycast = () => {};
+  return out;
+}
+
 export class SetObject {
   readonly object = new THREE.Group();
   readonly parts: InkedParts;
@@ -773,6 +809,9 @@ export class SetObject {
   private pieces: THREE.Mesh[] = [];
   /** Its models not yet here (put in as they come). */
   private waiting: Piece[] = [];
+  /** Its models standing on the floor (where, turned, their footprint), and their contact shadows. */
+  private grounded: { at: Vec3; yaw: number; w: number; d: number }[] = [];
+  private blobs: THREE.Object3D | null = null;
   private style: Style = 'line';
   private off: () => void;
   private shadows = false;
@@ -826,7 +865,14 @@ export class SetObject {
         mesh.castShadow = this.shadows;
         this.pieces.push(mesh);
       });
+      // (Standing on the floor: its contact shadow, in the styles lit as 3D is.)
+      if (p.at[1] < 0.05) {
+        const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).multiplyScalar(scale);
+        this.grounded.push({ at: p.at, yaw: p.rot?.[1] ?? 0, w: size.x, d: size.z });
+      }
     }
+    this.blobs?.removeFromParent();
+    this.blobs = null;
     if (this.waiting.length < was.length) {
       this.box = null;
       this.setStyle(this.style);
@@ -836,6 +882,10 @@ export class SetObject {
   setStyle(style: Style) {
     this.style = style;
     this.parts.refresh(style, () => false);
+    // (Contact shadows under what stands on the floor: darker where it meets it, in 3D and Clay.)
+    const blobs = (style === 'render' || style === 'shaded') && typeof document !== 'undefined';
+    if (blobs && !this.blobs && this.grounded.length) this.object.add((this.blobs = contactShadows(this.grounded)));
+    if (this.blobs) this.blobs.visible = blobs;
     // (In 3D, in its own materials: textured.)
     if (style === 'render') {
       for (const mesh of this.pieces) {
