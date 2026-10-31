@@ -280,8 +280,7 @@ export const SETS: SetDef[] = [
         ...[-4.6, -2.2, 0.2].flatMap((x, i) => [
           ...desk(x, -4.75, 0, i === 1 ? [M('laptop', 0.55, -0.1, 0, 0.787, 0.6)] : [M('stationery', -0.7, -0.25, 0, 0.787)]),
           ...desk(x, -2.65, 180, i === 0 ? [M('small-plant', 0.8, -0.3, 0, 0.787)] : [M('notepads', 0.55, -0.05, 0, 0.787, 0.5)]),
-          { ...B(2.1, 1.25, 0.05, x, 0, -3.7), look: { color: '#5f6b75', rough: 0.95 } },
-          { ...B(2.12, 0.03, 0.07, x, 1.25, -3.7), look: METAL },
+          ...open([{ ...B(2.1, 1.25, 0.05, x, 0, -3.7), look: { color: '#5f6b75', rough: 0.95 } }, { ...B(2.12, 0.03, 0.07, x, 1.25, -3.7), look: METAL }]),
         ]),
         // The meeting corner.
         M('meeting-table', 4.4, -3.6, 90),
@@ -314,7 +313,7 @@ export const SETS: SetDef[] = [
         { ...B(4.5, 1.05, 0.7, 1.5, 0, -4.4), look: { surface: 'dark-wood', color: '#c9b7a5' } },
         { ...B(4.7, 0.05, 0.85, 1.5, 1.05, -4.4), look: { color: '#e6e2db', rough: 0.25 } },
         M('cash-register', 2.9, -4.45, 0, 1.1, 0.7),
-        ...made(METAL, [B(0.6, 0.45, 0.45, 0.3, 1.1, -4.55)]), { ...B(0.5, 0.06, 0.05, 0.3, 1.38, -4.32), look: SCREEN },
+        ...open([...made(METAL, [B(0.6, 0.45, 0.45, 0.3, 1.1, -4.55)]), { ...B(0.5, 0.06, 0.05, 0.3, 1.38, -4.32), look: SCREEN }]),
         // Shelves behind it, bottles on them.
         M('display-shelves', 0.4, -5.75), M('display-shelves', 2.6, -5.75), M('wine-bottles', 0.4, -5.8, 0, 1.56), M('vase', 2.4, -5.8, 0, 1.56),
         ...[-0.3, 0.8, 1.9, 3].map((x) => M('bar-stool', x, -3.6)),
@@ -472,7 +471,7 @@ export const SETS: SetDef[] = [
         // (The altar behind the acting area, before the steps: the front is left open.)
         { ...B(2, 1, 1.2, 0, 0, -2.6), look: { surface: 'marble', color: '#ece6da' } },
         ...made(marble, [{ shape: ['cyl', 0.5, 0.5, 1.4, 20], at: [-5, 0.5, 1], rot: [0, 30, 90] }, C(0.5, 0.8, 5.5, 0, 0, 0.5, 20)]),
-        { ...B(0.6, 1.2, 0.6, 7, 0, -3), look: marble }, M('marble-bust', 7, -3, -30, 1.2, 1.4),
+        { ...B(0.6, 1.2, 0.6, 7, 0, -3), look: marble, open: true }, M('marble-bust', 7, -3, -30, 1.2, 1.4),
         M('clay-pot', -2.2, -2.2, 20), M('clay-pot', 2.4, -2.4, 160),
         M('oak', -11, -6, 0, 0, 0.55), M('oak', 12, -9, 120, 0, 0.6),
       ];
@@ -511,7 +510,7 @@ export const SETS: SetDef[] = [
         M('wine-barrel', 6.5, -10.5), M('wine-barrel', 6.3, -11.4, 40), M('gothic-cabinet', -7, -16.5, 90), M('gothic-commode', -7.2, -10, 90),
         // Banners on the end wall, and the chandelier over the table.
         ...[-5, -1.5, 1.5, 5].flatMap((x) => [{ ...B(1.2, 3, 0.05, x, 4.5, -17.45), look: { color: '#7d1a1a', rough: 0.9 } as Look }, { ...B(1.3, 0.08, 0.08, x, 7.5, -17.42), look: { color: '#b8902f', rough: 0.4, metal: 1 } as Look }]),
-        M('chandelier', 0, -7, 0, 4.4, 2), ...made({ color: '#2b2b2b', rough: 0.6, metal: 1 }, [C(0.015, 3, 0, 6, -7, 0.015, 6)]),
+        M('chandelier', 0, -7, 0, 4.4, 2), ...open(made({ color: '#2b2b2b', rough: 0.6, metal: 1 }, [C(0.015, 3, 0, 6, -7, 0.015, 6)])),
       ];
     },
   },

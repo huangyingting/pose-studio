@@ -3,7 +3,7 @@ import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, turnTo, strikeFigure, lookAtFigure,
   holdProp, moveAction, moveMark, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
-  carryProblem, setPlayRange, setActionLook, splitAt, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, setGait, setPlayRange, setActionLook, splitAt, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { LIGHTING_PRESETS, MAX_LIGHTS, kelvinColor, keyLight, lightFrom, lightText, lightingName, lightingOf, towards, type Place } from '../lighting';
@@ -11,7 +11,8 @@ import { newFigure, newProp, newScene, nextName, withPosture } from '../doc';
 import { projectSettingsOf } from '../project';
 import { HAND_PRESETS, cloneHand } from '../hands';
 import { actionsOf, figurePoseAt, marksOf, missedCatchesOf, overWarp } from '../evaluate';
-import { actionLabel } from '../track';
+import { actionLabel, travelInto } from '../track';
+import { GAITS } from '../locomotion';
 import { clampRotation } from '../joints';
 import { MOTIONS } from '../motions';
 import { allPoses, builtInPoses } from '../poses';
@@ -205,6 +206,7 @@ export const TOOLS: AgentTool[] = [
       height: opt(num('Jump height in metres (default 0.45)')),
       spin: opt(num('Jump: turns about the vertical (0.5, 1, 2)')),
       flip: opt(num('Jump: 1 front flip, -1 back flip')),
+      steps: opt(str('Walk or run: a real person\'s captured steps instead of generated ones (it takes their pace)', [...GAITS.walk, ...GAITS.run])),
     }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
@@ -215,6 +217,16 @@ export const TOOLS: AgentTool[] = [
       });
       if (!span) throw new Error(`No figure "${i.figure}"`);
       if (how === 'jump' && (i.spin || i.flip)) setTravel(store, f.id, span.to, 'jump', { spin: Number(i.spin) || 0, flip: Number(i.flip) || 0 });
+      // (Its steps a captured cycle of its kind, at that person's pace: the arrival moves with it.)
+      if (how !== 'jump' && typeof i.steps === 'string' && GAITS[how].includes(i.steps)) {
+        const act = travelInto(store.scene.animation!, f.id, span.to);
+        if (act) {
+          setGait(store, act.id, i.steps);
+          const now = store.scene.animation!.actions.find((x) => x.id === act.id)!;
+          store.setTime(now.start + now.duration);
+          span.to = now.start + now.duration;
+        }
+      }
       return `${f.name} ${how === 'walk' ? 'walks' : how === 'run' ? 'runs' : 'jumps'} to (${r2(Number(i.x))}, ${r2(Number(i.z))}) from ${r2(span.from)} s to ${r2(span.to)} s.`;
     },
   },

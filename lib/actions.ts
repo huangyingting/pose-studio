@@ -22,6 +22,7 @@ import {
 import { GAITS, JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
 import { bodyFor } from './model';
+import { DEFAULT_BODY } from './body';
 import { HANDLING, MOTIONS } from './motions';
 import { allPoses, poseFromFigure, withPose } from './poses';
 import {
@@ -1073,12 +1074,25 @@ export function setTravel(store: Store, figureId: string, t: number, kind: Trave
 
 /** A walk or run's steps: one of the Library's captured cycles (#26), or (null) generated. */
 export function setGait(store: Store, id: string, gait: string | null) {
-  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
-    if (x.id !== id || x.source.kind !== 'travel' || x.source.mode === 'jump') return x;
-    const { gait: _g, ...rest } = x.source;
-    void _g;
-    return { ...x, source: gait && GAITS[x.source.mode].includes(gait) ? { ...rest, gait } : rest };
-  }) } } : s));
+  store.group(() => {
+    store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
+      if (x.id !== id || x.source.kind !== 'travel' || x.source.mode === 'jump') return x;
+      const { gait: _g, ...rest } = x.source;
+      void _g;
+      return { ...x, source: gait && GAITS[x.source.mode].includes(gait) ? { ...rest, gait } : rest };
+    }) } } : s));
+    // (At the cycle's own pace: as far as the way goes, at the speed its person walked it, scaled to the figure's legs.)
+    const act = store.scene.animation?.actions.find((x) => x.id === id);
+    const m = (LIBRARY_INDEX as unknown as { id: string; duration: number; move: [number, number] }[]).find((x) => x.id === gait);
+    const f = act && store.scene.figures.find((x) => x.id === act.roles[0].figure);
+    if (act?.source.kind === 'travel' && act.source.gait && m && f) {
+      const from = figurePoseAt(store.scene, f.id, act.start)!.position;
+      const marks = [[from[0], from[2]], ...(act.source.via ?? []).map((v) => v.at), act.roles[0].end?.at ?? [from[0], from[2]]];
+      const way = marks.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - marks[i][0], p[1] - marks[i][1]), 0);
+      const speed = (Math.hypot(...m.move) / m.duration) * (legsOf(f.body).rootY / legsOf(DEFAULT_BODY).rootY);
+      if (way > 0.05 && speed > 0.1) retime(store, id, Math.round((way / speed) * 24) / 24);
+    }
+  });
   store.setTime(store.getState().time);
 }
 

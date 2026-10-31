@@ -670,9 +670,17 @@ export function makeCycle(at: (u: number) => AnglePose, duration: number, body: 
   const yaws = poses.map((p) => (p.joints.hips?.[1] ?? 0) * D2R);
   const facing = Math.atan2(yaws.reduce((x, y) => x + Math.sin(y), 0), yaws.reduce((x, y) => x + Math.cos(y), 0)) * R2D;
   const contacts: Cycle['contacts'] = [];
+  // (Each sample's ankle heights, the root where it is, on one rig.)
+  const rig = new Rig();
+  const heights = poses.map((p) => {
+    const m = rig.model({ id: 'cycle', name: '', body, bones: bonesOf(p.joints), position: [0, p.position[1], 0], hands: p.hands, grounded: false });
+    const y = (j: 'leftFoot' | 'rightFoot') => m.joints[j].getWorldPosition(new THREE.Vector3()).y;
+    return { L: y('leftFoot'), R: y('rightFoot') };
+  });
+  rig.dispose();
   for (const side of ['L', 'R'] as const) {
-    // (Each sample's ankle height, the root where it is: lowest within 2.5 cm is down.)
-    const ys = poses.map((p) => keyedFeet(body, { ...p, position: [0, p.position[1], 0] })[side][1]);
+    // (Lowest within 2.5 cm is down.)
+    const ys = heights.map((h) => h[side]);
     const low = Math.min(...ys);
     const down = ys.map((y) => y < low + 0.025);
     if (down.every(Boolean) || !down.some(Boolean)) continue;

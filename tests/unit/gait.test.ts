@@ -58,8 +58,11 @@ describe('a walk with a captured cycle (#26)', () => {
     expect(now().gait).toBeUndefined();
     setGait(store, act.id, WALK);
     expect(now().gait).toBe(WALK);
+    // At the captured walk's own pace (1.59 m a 1 s lap): 6 m in about 3.8 s.
+    expect(store.scene.animation!.actions.find((x) => x.id === act.id)!.duration).toBeCloseTo(6 / 1.594, 1);
     expect((parseScene(JSON.parse(JSON.stringify(store.scene)))!.animation!.actions.find((x) => x.id === act.id)!.source as { gait?: string }).gait).toBe(WALK);
-    setTravel(store, a, act.start + act.duration, 'run');
+    const walk = store.scene.animation!.actions.find((x) => x.id === act.id)!;
+    setTravel(store, a, walk.start + walk.duration, 'run');
     expect(now()).toMatchObject({ mode: 'run' });
     expect(now().gait).toBeUndefined();
   });

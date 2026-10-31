@@ -1844,6 +1844,19 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   expect(actionsOf(s.scene.animation!, s.active)[1].source).toMatchObject({ mode: 'jump', spin: 1 });
 });
 
+test('a walk with a real person\'s steps: chosen in its inspector, at their pace (#26)', async ({ page }) => {
+  await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
+  const walk = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'travel')!);
+  const before = await walk();
+  await page.locator('.tl-travel.walk').first().click({ position: { x: 12, y: 5 } });
+  await choose(page, 'Steps', /^Walk$/);
+  await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBe('library:walk');
+  // At the captured walk's pace (a little quicker than the generated one).
+  expect((await walk()).duration).toBeLessThan(before.duration);
+  await choose(page, 'Steps', 'Generated');
+  await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBeUndefined();
+});
+
 test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots stay as its rows scroll; a drag at the edge of a zoomed view scrolls on', async ({ page }) => {
   test.setTimeout(150_000);
   await templateScene(page, 'House party');
