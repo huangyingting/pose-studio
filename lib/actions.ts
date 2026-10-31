@@ -1492,6 +1492,46 @@ export function editMarker(store: Store, id: string, patch: { t?: number; name?:
   }, key);
 }
 
+/* In and out, locked and muted rows (#22) */
+
+/** The range's in (`'in'`) or out at t, the other kept if it can be (else the start or the end). */
+export function setRangeAt(store: Store, which: 'in' | 'out', t: number) {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a) return s;
+    const at = snapTime(a, t);
+    const was = a.range ?? { from: 0, to: a.duration };
+    let range = which === 'in' ? { from: at, to: was.to } : { from: was.from, to: at };
+    if (range.to - range.from < 0.1) range = which === 'in' ? { from: at, to: a.duration } : { from: 0, to: at };
+    if (range.to - range.from < 0.1) return s;
+    return { ...s, animation: { ...a, range } };
+  }, 'range');
+}
+
+/** The range moved (both ends given), or (null) gone: the whole animation plays again. */
+export function setRange(store: Store, range: { from: number; to: number } | null, key = 'range') {
+  store.updateScene((s) => {
+    const a = s.animation;
+    if (!a) return s;
+    const { range: _r, ...rest } = a;
+    void _r;
+    if (!range) return { ...s, animation: rest };
+    const from = Math.max(0, Math.min(snapTime(a, range.from), a.duration - 0.1));
+    const to = Math.max(from + 0.1, Math.min(snapTime(a, range.to), a.duration));
+    return { ...s, animation: { ...rest, range: { from, to } } };
+  }, key);
+}
+
+/** A person's row locked (nothing it does can be changed) or muted (what it does doesn't play), or not. */
+export function setTrack(store: Store, figure: string, patch: { locked?: boolean; muted?: boolean }) {
+  store.updateFigure(figure, (f) => {
+    const next = { ...f, ...patch };
+    if (!next.locked) delete next.locked;
+    if (!next.muted) delete next.muted;
+    return next;
+  }, '');
+}
+
 export function cutAnimation(store: Store, duration: number) {
   store.updateScene((s) => cutTo(s, Math.max(0.2, duration)), 'anim-options');
   store.setTime(store.getState().time);

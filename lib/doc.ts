@@ -224,6 +224,8 @@ function parseFigure(v: unknown, i: number): Figure {
     grounded: o.grounded !== false,
     ...(o.hidden === true ? { hidden: true } : {}),
     ...(o.still === true ? { still: true } : {}),
+    ...(o.locked === true ? { locked: true } : {}),
+    ...(o.muted === true ? { muted: true } : {}),
     ...(POSTURES.includes(o.proxy as Posture) ? { proxy: o.proxy as Posture } : {}),
     ...(isObj(o.gaze) && typeof o.gaze.figure === 'string' ? { gaze: { figure: o.gaze.figure } }
       : isObj(o.gaze) && typeof o.gaze.prop === 'string' ? { gaze: { prop: o.gaze.prop } } : {}),
@@ -473,6 +475,11 @@ export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<st
     return typeof m.t === 'number' && Number.isFinite(m.t) ? [{ id, t: Math.round(Math.min(duration, Math.max(0, m.t)) * 1000) / 1000, name: str(m.name, '').slice(0, 60) }] : [];
   }).sort((p, q) => p.t - q.t);
   if (markers.length) anim.markers = markers;
+  const r = isObj(v.range) ? v.range : null;
+  if (r && typeof r.from === 'number' && typeof r.to === 'number' && Number.isFinite(r.from) && Number.isFinite(r.to) && r.to - r.from >= 0.1) {
+    anim.range = { from: Math.max(0, Math.min(duration, r.from)), to: Math.max(0, Math.min(duration, r.to)) };
+    if (anim.range.to - anim.range.from < 0.1) delete anim.range;
+  }
   return anim;
 }
 

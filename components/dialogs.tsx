@@ -77,6 +77,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
     || (!story.length && (o.scope === 'board' || o.scope === 'story-video' || o.scope === 'story-pack')) ? 'current' : o.scope;
   const whole = scope === 'board' || scope === 'story-video' || scope === 'story-pack';
   const video = scope === 'video' || scope === 'story-video';
+  // (A scene with an in and out, #22: the video films just it, unless asked not to.)
+  const ranged = scope === 'video' && !!scene.animation?.range && o.videoRange;
   const pack = scope === 'pack' || scope === 'story-pack';
   const model = scope === 'model';
   // Videos and keyframe packs are framed by the shot cameras at a video size.
@@ -168,7 +170,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         const look = { width, height, style, lineWidth: o.lineWidth * (height / 640), pass };
         const { blob, ext } = whole
           ? await recordStory(story, { ...look, captions: o.labels }, setProgress, abort.current.signal)
-          : await recordVideo(scene, { ...look, loops: o.videoLoops }, setProgress, abort.current.signal);
+          : await recordVideo(scene, { ...look, loops: o.videoLoops, ...(ranged ? { range: [scene.animation!.range!.from, scene.animation!.range!.to] as [number, number] } : {}) }, setProgress, abort.current.signal);
         const name = `${title}.${ext}`;
         downloadBlob(blob, name);
         notify(`Saved ${name} (${width} × ${height})`);
@@ -240,7 +242,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         <>
           <span className={tooBig ? 'error-text' : 'muted'}>
             {model ? '.glb' : `${width} × ${height} px`}{tooBig ? ' — too large for most browsers' : ''}
-            {video && (whole ? ` · ${storyLength(story).toFixed(1)} s at 24 fps` : scene.animation && ` · ${(scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`)}
+            {video && (whole ? ` · ${storyLength(story).toFixed(1)} s at 24 fps` : scene.animation && ` · ${(ranged ? scene.animation.range!.to - scene.animation.range!.from : scene.animation.duration * o.videoLoops).toFixed(1)} s at ${scene.animation.fps} fps`)}
           </span>
           {!filmed && !model && scope !== 'current' && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT, scope })} data-tip="4 columns of 600 × 640 cells">Reset layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
@@ -369,14 +371,19 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
             </>
           ) : video ? (
             <>
-              <Field label="Plays">
-                <Segmented<string>
-                  label="Play the animation"
-                  value={String(o.videoLoops)}
-                  onChange={(v) => set({ videoLoops: Number(v) })}
-                  options={[{ value: '1', label: 'Once' }, { value: '2', label: 'Twice' }, { value: '3', label: '3 times' }]}
-                />
-              </Field>
+              {scene.animation?.range && (
+                <Toggle label="Just the in and out" hint={`${scene.animation.range.from.toFixed(2)}–${scene.animation.range.to.toFixed(2)} s, as the timeline plays it`} checked={o.videoRange} onChange={(videoRange) => set({ videoRange })} />
+              )}
+              {!ranged && (
+                <Field label="Plays">
+                  <Segmented<string>
+                    label="Play the animation"
+                    value={String(o.videoLoops)}
+                    onChange={(v) => set({ videoLoops: Number(v) })}
+                    options={[{ value: '1', label: 'Once' }, { value: '2', label: 'Twice' }, { value: '3', label: '3 times' }]}
+                  />
+                </Field>
+              )}
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
               {!canRecord && <Hint>This browser cannot record video</Hint>}
             </>

@@ -103,6 +103,8 @@ export function startPlayback(clock: Clock, store: Store) {
       return { start: shot.start, end: shot.end, loop: true };
     }
     shot = null;
+    // (In and out, #22: round that stretch.)
+    if (a.range) return { start: a.range.from, end: a.range.to, loop: true };
     return { start: 0, end: a.duration, loop: a.loop };
   }, (t) => store.setTime(t));
   // Playing plays the film (#14): through its cuts, unless a camera is being looked through or

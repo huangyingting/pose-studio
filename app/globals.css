@@ -1169,6 +1169,27 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 }
 .tl-marker span { overflow: hidden; text-overflow: ellipsis; }
 .tl-marker:hover { background: color-mix(in srgb, var(--accent) 26%, var(--panel)); }
+/* In and out (#22): the stretch playback goes round, its ends dragged. */
+.tl-range { position: absolute; top: 0; height: 100%; z-index: 1; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 -2px 0 var(--accent); pointer-events: none; }
+.tl-range-end { position: absolute; top: 0; bottom: 0; left: -3px; width: 6px; cursor: ew-resize; pointer-events: auto; background: var(--accent); border-radius: 2px; }
+.tl-range-end.out { left: auto; right: -3px; }
+/* A person's row locked or muted (#22): a flag by the name (a click lets go of it); muted, it fades. */
+.tl-flag { flex: none; margin-left: 4px; color: var(--text-3); cursor: pointer; }
+.tl-flag:hover { color: var(--text); }
+.tl-row.muted { opacity: 0.45; }
+.tl-row.locked .tl-travel { cursor: not-allowed; }
+/* A row unfolded into its layers (#22): the base on top, the upper body and corrections each in a lane below. */
+.tl-unfold { flex: none; margin-right: 3px; color: var(--text-3); cursor: pointer; transition: transform 120ms; }
+.tl-unfold.open { transform: rotate(90deg); }
+.tl-layer-names { position: absolute; left: 4px; top: 36px; display: grid; grid-template-rows: 15px 15px; color: var(--text-3); font-size: var(--fs-2xs); font-style: normal; line-height: 15px; pointer-events: none; z-index: 0; }
+.tl-layer-names em { font-style: normal; }
+.tl-row.unfolded { background-image: linear-gradient(to bottom, transparent 35px, var(--border) 35px, var(--border) 36px, transparent 36px, transparent 50px, color-mix(in srgb, var(--border) 60%, transparent) 50px, color-mix(in srgb, var(--border) 60%, transparent) 51px, transparent 51px); }
+.tl-row.unfolded .tl-travel:not(.upper) { bottom: calc(5px + 30px); }
+.tl-row.unfolded .tl-travel.upper { top: 37px; bottom: auto; height: 12px; }
+.tl-row.unfolded .tl-fixband { bottom: 2px; height: 11px; }
+.tl-row.unfolded .tl-key.fix { top: calc(100% - 7px); }
+.tl-row.unfolded .tl-key:not(.fix) { top: 18px; }
+.tl-row.unfolded .tl-ramp, .tl-row.unfolded .tl-idle { bottom: 35px; }
 /* Where a drag snapped to (#22). */
 .tl-snapline { position: absolute; top: 0; bottom: 0; z-index: 4; width: 0; margin-left: -0.5px; border-left: 1px dashed var(--accent); pointer-events: none; }
 .tl-playhead { position: absolute; top: 0; bottom: 0; z-index: 5; width: 2px; margin-left: -1px; background: var(--danger); pointer-events: none; }

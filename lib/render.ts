@@ -93,6 +93,8 @@ export interface ExportOptions {
   /** Video frame size and how many times to play the animation. */
   videoSize: VideoSize;
   videoLoops: number;
+  /** A video of a scene with an in and out (#22) films just that stretch. */
+  videoRange: boolean;
   columns: number;
   cellWidth: number;
   cellHeight: number;
@@ -124,7 +126,7 @@ export const VIDEO_SIZES: VideoSize[] = ['720p', '1080p'];
 
 /** Matches the layout of the original Pose.jpg: 4 × 5 cells of 600 × 640. */
 export const DEFAULT_EXPORT: ExportOptions = {
-  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg',
+  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, videoRange: true, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
 
@@ -144,6 +146,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
     frames: int(o.frames, d.frames, 2, 48),
     videoSize: VIDEO_SIZES.includes(o.videoSize as VideoSize) ? (o.videoSize as VideoSize) : d.videoSize,
     videoLoops: int(o.videoLoops, d.videoLoops, 1, 5),
+    videoRange: o.videoRange !== false,
     columns: int(o.columns, d.columns, 1, 12),
     cellWidth: int(o.cellWidth, d.cellWidth, 100, 4000),
     cellHeight: int(o.cellHeight, d.cellHeight, 100, 4000),

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addKeyframe, addMarker, editMarker, setAnimationOptions, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
+import { addFigure, addKeyframe, addMarker, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
@@ -271,6 +271,57 @@ describe('markers (#22)', () => {
     expect(store.scene.animation!.markers!.map((m) => m.t)).toEqual([5, 6]);
     editMarker(store, two, null);
     expect(store.scene.animation!.markers!.map((m) => m.name)).toEqual(['She turns']);
+  });
+});
+
+describe('in and out, locked and muted rows (#22)', () => {
+  it('in and out at the playhead, the other end kept; scaled and cut with the animation; gone again', () => {
+    const { store } = fresh();
+    startAnimation(store, 4);
+    setRangeAt(store, 'in', 1);
+    expect(store.scene.animation!.range).toEqual({ from: 1, to: 4 });
+    setRangeAt(store, 'out', 3);
+    expect(store.scene.animation!.range).toEqual({ from: 1, to: 3 });
+    // An out before the in: from the start to there.
+    setRangeAt(store, 'out', 0.5);
+    expect(store.scene.animation!.range).toEqual({ from: 0, to: 0.5 });
+    setRange(store, { from: 1, to: 3 });
+    expect(parseScene(JSON.parse(JSON.stringify(store.scene)))!.animation!.range).toEqual({ from: 1, to: 3 });
+    setAnimationOptions(store, { duration: 8 });
+    expect(store.scene.animation!.range).toEqual({ from: 2, to: 6 });
+    setRange(store, null);
+    expect(store.scene.animation!.range).toBeUndefined();
+  });
+
+  it('a locked row refuses changes to what that person does (said); unlocked, they go through', () => {
+    const { store, a, id, act } = jabbed();
+    setTrack(store, a, { locked: true });
+    const before = JSON.stringify(store.scene.animation!.actions);
+    trim(store, id, 'end', act().start + 0.5);
+    deleteAction(store, id);
+    expect(JSON.stringify(store.scene.animation!.actions)).toBe(before);
+    expect(store.getState().refused?.text).toMatch(/row is locked/);
+    // Posing them on the canvas (auto-key) is refused too.
+    store.setTime(0.5);
+    store.updateFigure(a, (f) => ({ ...f, position: [f.position[0] + 1, f.position[1], f.position[2]] }));
+    expect(JSON.stringify(store.scene.animation!.actions)).toBe(before);
+    setTrack(store, a, { locked: false });
+    deleteAction(store, id);
+    expect(store.scene.animation!.actions.some((x) => x.id === id)).toBe(false);
+  });
+
+  it('a muted row doesn\'t play: the person stands as posed', () => {
+    const { store, a, act } = jabbed();
+    const mid = act().start + 1;
+    const playing = figurePoseAt(store.scene, a, mid)!;
+    store.setTime(0);
+    const posed = store.scene.figures.find((f) => f.id === a)!;
+    setTrack(store, a, { muted: true });
+    const muted = figurePoseAt(store.scene, a, mid)!;
+    expect(apart(muted, { bones: posed.bones, position: posed.position, hands: posed.hands, grounded: posed.grounded })).toBeLessThan(1);
+    expect(apart(muted, playing)).toBeGreaterThan(5);
+    setTrack(store, a, { muted: false });
+    expect(apart(figurePoseAt(store.scene, a, mid)!, playing)).toBeLessThan(1);
   });
 });
 

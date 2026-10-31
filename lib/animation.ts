@@ -94,7 +94,8 @@ export function setDuration(scene: Scene, duration: number): Scene {
   const shots = a.shots.map((x) => ({ ...x, start: snap(x.start) }));
   const cameras = scene.cameras.map((c) => (c.kind === 'path' ? { ...c, points: c.points.map((p) => ({ ...p, t: Math.round(p.t * s * 1000) / 1000 })) } : c));
   const markers = a.markers?.map((m) => ({ ...m, t: snap(m.t) }));
-  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots, ...(markers ? { markers } : {}) } };
+  const range = a.range && { from: snap(a.range.from), to: snap(a.range.to) };
+  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots, ...(markers ? { markers } : {}), ...(range ? { range } : {}) } };
 }
 
 /** Times of evenly spaced frames, for frame sheets and video. */

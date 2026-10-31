@@ -98,6 +98,9 @@ function clipOf(act: Action): Clip | null {
   return act.source.kind === 'keys' ? act.source.clip : act.source.kind === 'clip' ? playedClip(act.source) : null;
 }
 
+/** A figure's own pose (as posed, not animated). */
+const own = (f: Figure): Pose => ({ bones: f.bones, position: f.position, hands: f.hands, grounded: f.grounded });
+
 class Evaluator {
   private readonly a: Animation;
   private readonly ground: Ground;
@@ -128,6 +131,8 @@ class Evaluator {
   pose(id: string, t: number): Pose | null {
     const f = this.figures.get(id);
     if (!f) return null;
+    // (Muted, #22: as posed, what it does not played.)
+    if (f.muted) return own(f);
     const key = `${id}@${t}`;
     let p = this.poses.get(key);
     if (!p) {
@@ -154,6 +159,7 @@ class Evaluator {
 
   /** A figure's pose at t before contacts are held (what others' holds on it are measured on). */
   free(f: Figure, t: number): Pose {
+    if (f.muted) return own(f);
     const key = `free:${f.id}@${t}`;
     let p = this.poses.get(key);
     if (!p) {
@@ -748,7 +754,7 @@ function evaluator(scene: Scene): Evaluator {
   // props (their places, those that do not move by themselves), whether physics is loaded, and
   // the imported clips at hand.
   const props = scene.props.map((p) => (animated(a, p.id) ? [p.id, p.kind, p.scale, p.physics] : [p.id, p.kind, p.scale, p.position, p.rotation, p.hold]));
-  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body]), surfacesKey(scene.props), props, physicsReady(), clipsVersion()]);
+  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body, !!f.muted]), surfacesKey(scene.props), props, physicsReady(), clipsVersion()]);
   const hit = cache.get(a);
   if (hit && hit.key === key) {
     // (In use again: the last to give its mannequins back; one that gave them back already, among
@@ -906,7 +912,7 @@ export function sceneAt(scene: Scene, t: number, live = false): Scene {
     const p = ev.figureAt(f.id, t)!;
     // (A character's face too, from what it does: lib/face.ts.)
     const posed = { ...f, bones: p.bones, position: p.position, hands: p.hands, grounded: p.grounded, ...(f.model && !f.proxy ? { face: faceAt(scene.animation!, f.id, t), t } : {}) };
-    return live && !f.proxy && !f.hidden && !f.still ? ev.lived(posed, t, scene) : posed;
+    return live && !f.proxy && !f.hidden && !f.still && !f.muted ? ev.lived(posed, t, scene) : posed;
   });
   // A ribbon trails where its stick's tip has just been.
   const props = scene.props.map((p) => {

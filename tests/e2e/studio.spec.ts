@@ -2001,6 +2001,24 @@ test('markers on the ruler (M); drags snap to them, the magnet turns it off (#22
   await expect(snap).toHaveAttribute('aria-pressed', 'true');
   await snap.click();
   await expect(snap).toHaveAttribute('aria-pressed', 'false');
+  // I and O: the stretch playback goes round.
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
+  await page.locator('.tl-tracks').focus();
+  await page.keyboard.press('i');
+  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1.5));
+  await page.locator('.tl-tracks').focus();
+  await page.keyboard.press('o');
+  expect((await anim()).range).toEqual({ from: 0.5, to: 1.5 });
+  await expect(page.locator('.tl-range')).toHaveCount(1);
+  // The person's row locked (its menu): their motion can't be taken away until unlocked.
+  await openSection(page, 'Scene');
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click({ button: 'right' });
+  await page.getByRole('menuitemcheckbox', { name: 'Lock the row' }).click();
+  await page.locator('.tl-travel.clip').first().click({ position: { x: 30, y: 4 } });
+  await page.locator('.stage canvas').hover({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.toast', { hasText: 'row is locked' })).toHaveCount(1);
+  expect((await anim()).actions.some((a) => a.source.kind === 'clip')).toBe(true);
 });
 
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {

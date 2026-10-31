@@ -1,11 +1,11 @@
 import {
-  Activity, Aperture, Magnet, Flag, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, Magnet, Flag, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, addMarker, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  addCamera, addFigure, addMarker, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
@@ -1213,13 +1213,15 @@ export const COMMANDS: Command[] = [
     run: (c) => {
       const act = actionOf(c)!;
       c.store.group(() => blocks(c).forEach((id) => deleteAction(c.store, id)));
+      // (Not if refused: a locked row says so itself.)
+      if (actionOf(c)) return;
       App().notifyUndo(c.also?.length ? `Deleted ${blocks(c).length} blocks` : `Deleted ${actionLabel(act)}`);
     },
   },
   {
     id: 'action.rippleDelete', title: (c) => (c.also?.length ? `Remove ${c.also.length + 1} blocks, closing the gaps` : 'Remove, closing the gap'), help: 'Remove the block: what that person does after moves up', icon: Trash2, keys: ['shift+delete', 'shift+backspace'], danger: true,
     when: (c) => !!actionOf(c),
-    run: (c) => { const n = blocks(c).length; rippleDeleteActions(c.store, blocks(c)); App().notifyUndo(n > 1 ? `Deleted ${n} blocks` : 'Deleted, the gap closed'); },
+    run: (c) => { const n = blocks(c).length; rippleDeleteActions(c.store, blocks(c)); if (!actionOf(c)) App().notifyUndo(n > 1 ? `Deleted ${n} blocks` : 'Deleted, the gap closed'); },
   },
   {
     id: 'action.duplicate', title: 'Duplicate', help: 'The block again right after itself (what follows moves along)', icon: Copy, keys: ['mod+d'],
@@ -1345,6 +1347,20 @@ export const COMMANDS: Command[] = [
   {
     id: 'shot.unpin', title: 'Hand back to the director', help: 'A shot taken over by hand: let the director cut it again', icon: Clapperboard,
     when: (c) => !!spanOf(c)?.shot.pinned && !!sceneOf(c).coverage?.live, run: (c) => unpinShot(c.store, spanOf(c)!.shot.id),
+  },
+  {
+    id: 'figure.lockTrack', title: 'Lock the row', help: 'Lock the person\'s row on the timeline: what they do can\'t be changed until unlocked', icon: Lock,
+    when: (c) => animated(c) && !!c.figure, checked: (c) => !!figureOf(c)?.locked, run: (c) => setTrack(c.store, c.figure!, { locked: !figureOf(c)?.locked }),
+  },
+  {
+    id: 'figure.muteTrack', title: 'Mute the row', help: 'Mute the person\'s row: what they do doesn\'t play (they stand as posed)', icon: VolumeX,
+    when: (c) => animated(c) && !!c.figure, checked: (c) => !!figureOf(c)?.muted, run: (c) => setTrack(c.store, c.figure!, { muted: !figureOf(c)?.muted }),
+  },
+  { id: 'timeline.rangeIn', title: 'In here', help: 'The playback range starts at the playhead (I with the timeline focused)', when: animated, run: (c) => setRangeAt(c.store, 'in', c.store.getState().time) },
+  { id: 'timeline.rangeOut', title: 'Out here', help: 'The playback range ends at the playhead (O with the timeline focused)', when: animated, run: (c) => setRangeAt(c.store, 'out', c.store.getState().time) },
+  {
+    id: 'timeline.clearRange', title: 'Play all of it', help: 'No in and out: the whole animation plays (X with the timeline focused)', when: (c) => animated(c) && !!c.store.scene.animation?.range,
+    run: (c) => setRange(c.store, null),
   },
   {
     id: 'timeline.snap', title: 'Snap', help: 'Drags on the timeline snap to the playhead, blocks\' edges, keys, cuts and markers', icon: Magnet, when: animated,
@@ -1507,7 +1523,7 @@ export const MENUS = {
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
     { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', 'figure.standUp',
-    'figure.strike', 'figure.eyes', 'figure.holdOn', 'figure.copyMoves', '-', 'figure.delete',
+    'figure.strike', 'figure.eyes', 'figure.holdOn', 'figure.copyMoves', { group: 'Timeline' }, 'figure.lockTrack', 'figure.muteTrack', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
   joint: ['hand.letGo', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
@@ -1530,7 +1546,7 @@ export const MENUS = {
     { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', '-',
     'floor.figure', 'floor.standIn', 'floor.prop', 'light.add', '-', 'view.frameAll',
   ],
-  timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],
+  timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.rangeIn', 'timeline.rangeOut', 'timeline.clearRange', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],
 } satisfies Record<string, MenuEntry[]>;
 
 export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name], c);

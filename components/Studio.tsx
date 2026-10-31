@@ -154,6 +154,18 @@ function App() {
   // A newer build opened in another tab has the browser's storage: this one says so, once.
   useEffect(() => onOutdated(() => notify('Pose Studio was updated in another tab: reload this one to keep saving', 'error', { label: 'Reload', run: () => location.reload() })), [notify]);
 
+  // A change refused (a locked row, #22): said once each time.
+  useEffect(() => {
+    let seen = store.getState().refused?.n ?? 0;
+    const off = store.subscribe(() => {
+      const r = store.getState().refused;
+      if (!r || r.n === seen) return;
+      seen = r.n;
+      notify(r.text, 'error');
+    });
+    return () => { off(); };
+  }, [store, notify]);
+
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
   const projectChest = useCallback((figure: string) => apiRef.current?.project(figure, 'chest') ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);

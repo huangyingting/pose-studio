@@ -68,6 +68,10 @@ export interface Figure {
   proxy?: Posture;
   /** Holds still in the gaps of a film (no idle life: breathing, shifting, glances). */
   still?: boolean;
+  /** Its row on the timeline is locked (#22): what it does can't be changed until unlocked. */
+  locked?: boolean;
+  /** Its row is muted (#22): what it does doesn't play; it stands as it is posed. */
+  muted?: boolean;
   /** Keeps its eyes on another figure or a prop: the head and neck turn to it, all the time. */
   gaze?: { figure: string } | { prop: string };
   /** A tint to tell figures apart (teams, sides), as a CSS colour. */
@@ -324,6 +328,8 @@ export interface Animation {
   shots: Shot[];
   /** Beats to time things to (#22): named moments on the ruler, which drags snap to. */
   markers?: Marker[];
+  /** In and out (#22): playback goes round this stretch; a video may film just it. */
+  range?: { from: number; to: number };
 }
 
 /** Frame shapes the shots can be filmed in. */

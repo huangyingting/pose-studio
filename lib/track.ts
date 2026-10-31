@@ -950,7 +950,9 @@ export function cutTo(scene: Scene, d: number): Scene {
   const constraints = a.constraints?.filter((c) => c.start < d - EPS).map((c) => ({ ...c, end: Math.min(c.end, d) }));
   const cameras = scene.cameras.map((c) => (c.kind === 'path' ? { ...c, points: c.points.filter((p, i) => i === 0 || p.t <= d + EPS) } : c));
   const markers = a.markers?.filter((m) => m.t <= d + EPS);
-  return { ...scene, cameras, animation: { ...a, duration: d, actions, ...(props ? { props } : {}), shots, ...(constraints ? { constraints } : {}), ...(a.markers ? { markers } : {}) } };
+  const { range: was, ...rest } = a;
+  const range = was && was.from < d - 0.1 ? { from: was.from, to: Math.min(was.to, d) } : undefined;
+  return { ...scene, cameras, animation: { ...rest, duration: d, actions, ...(props ? { props } : {}), shots, ...(constraints ? { constraints } : {}), ...(a.markers ? { markers } : {}), ...(range ? { range } : {}) } };
 }
 
 /**

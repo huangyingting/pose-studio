@@ -76,6 +76,22 @@ export interface State {
   through: Through;
   /** The figure, prop or camera under the pointer in the outline or on the canvas: the other one shows it too. */
   linked: string | null;
+  /** A change refused (#22: a locked row's track), to say so: its words, and a count to tell one from the next. */
+  refused?: { text: string; n: number };
+}
+
+/** The name of a locked figure whose track a change would change (#22), if any. */
+function lockedChange(before: Scene | undefined, after: Scene | undefined): string | null {
+  if (!before || !after || before.id !== after.id || before.animation === after.animation) return null;
+  for (const f of after.figures) {
+    if (!f.locked || !before.figures.some((x) => x.id === f.id && x.locked)) continue;
+    const track = (s: Scene) => JSON.stringify([
+      (s.animation?.actions ?? []).filter((x) => x.roles.some((r) => r.figure === f.id)),
+      (s.animation?.constraints ?? []).filter((c) => c.figure === f.id),
+    ]);
+    if (track(before) !== track(after)) return f.name;
+  }
+  return null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -297,6 +313,12 @@ export class Store {
     let next = update(prev);
     if (next === prev) return;
     next = this.directed(prev, this.grown(this.autoKey(prev, next)));
+    // (A locked row's track stays as it is, #22: the change is refused, and said.)
+    const locked = lockedChange(prev.scenes[prevIndex], next.scenes[this.state.sceneIndex]);
+    if (locked) {
+      this.set({ refused: { text: `${locked}'s row is locked: unlock it on the timeline to change what they do`, n: (this.state.refused?.n ?? 0) + 1 } });
+      return;
+    }
     const now = Date.now();
     const merge = (this.grouped === true && this.past.length > 0) || (key && key === this.lastKey && now - this.lastTime < MERGE_MS && this.past.length > 0);
     if (this.grouped === false) this.grouped = true;

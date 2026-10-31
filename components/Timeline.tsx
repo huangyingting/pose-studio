@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker,
+  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
@@ -26,7 +26,7 @@ import { useScene, useStore, useStudio } from './store-context';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
 /** Row heights (px): the time ruler, the shots, each figure, each prop moving, the path camera. */
-const ROW = { ruler: 20, shots: 30, figure: 36, prop: 28, camera: 30 };
+const ROW = { ruler: 20, shots: 30, figure: 36, prop: 28, camera: 30, layers: 30 };
 
 /** Current playhead: the clock while playing, the document time otherwise. */
 export function usePlayhead(clock: Clock) {
@@ -231,6 +231,9 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   // (Blocks picked with it, #22.)
   const also = useStudio((st) => (st.selection?.kind === 'action' ? st.selection.also : undefined));
   const isPicked = (id: string) => selected === id || !!also?.includes(id);
+  // People whose rows are unfolded into their layers (#22): the base, then the upper body and corrections in lanes of their own.
+  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
+  const unfold = (id: string) => setUnfolded((was) => { const next = new Set(was); if (!next.delete(id)) next.add(id); return next; });
   // Auto-key: posing the selected figure keys it at the playhead (shown in red on its row and the playhead).
   const keying = useStudio((st) => (st.selection?.kind === 'figure' || st.selection?.kind === 'joint' ? st.selection.figure : null));
   // A Library item dragged over a row: where (and for how long) it would go.
@@ -608,6 +611,23 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  /** Drag an end of the in / out range along the ruler (#22). */
+  const dragRange = (end: 'from' | 'to') => (e: ReactPointerEvent) => {
+    if (e.button !== 0 || !a.range) return;
+    e.stopPropagation();
+    pause();
+    const snap = snapper();
+    const move = (ev: { clientX: number }) => {
+      const now = store.scene.animation?.range;
+      if (!now) return;
+      const t = snap.at(timeAt(ev.clientX));
+      setRange(store, end === 'from' ? { from: Math.min(t, now.to - 0.1), to: now.to } : { from: now.from, to: Math.max(t, now.from + 0.1) }, 'range-drag');
+    };
+    const stop = follow(e.clientX, move);
+    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const renameMarker = (id: string, name: string) => {
     const next = window.prompt('Marker name', name)?.trim();
     if (next) editMarker(store, id, { name: next });
@@ -687,6 +707,10 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       // (A marker at the playhead, #22.)
       m: () => addMarker(store, at),
       M: () => addMarker(store, at),
+      // (In and out, #22.)
+      i: () => setRangeAt(store, 'in', at),
+      o: () => setRangeAt(store, 'out', at),
+      x: () => setRange(store, null),
       Escape: () => (e.currentTarget as HTMLElement).blur(),
     };
     const run = keys[e.key];
@@ -754,7 +778,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   // The camera row only for a camera on a path (selected, or filming at the playhead): its points to
   // retime; a camera on a rule places itself, with nothing to edit here.
   const cameraRow = rowCam.kind === 'path';
-  const rows = [ROW.ruler, ROW.shots, ...figures.map(() => ROW.figure), ...moving.map(() => ROW.prop), ...(cameraRow ? [ROW.camera] : [])].map((h) => `${h}px`).join(' ');
+  const rows = [ROW.ruler, ROW.shots, ...figures.map((f) => ROW.figure + (unfolded.has(f.id) ? ROW.layers : 0)), ...moving.map(() => ROW.prop), ...(cameraRow ? [ROW.camera] : [])].map((h) => `${h}px`).join(' ');
   const step = TICKS.find((x) => x * pxPerSecond >= 10) ?? 60;
   const labelStep = LABELS.find((x) => x * pxPerSecond >= 56) ?? 120;
   const ticks: number[] = [];
@@ -889,7 +913,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('input, textarea, select')) e.currentTarget.focus({ preventScroll: true }); }}
           onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
         >
-          {keysHere && <span className="tl-keys" aria-hidden><kbd>←</kbd><kbd>→</kbd> frame · <kbd>Shift</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> person · <kbd>Home</kbd><kbd>End</kbd> · <kbd>=</kbd><kbd>−</kbd> zoom · <kbd>M</kbd> marker · <kbd>Esc</kbd></span>}
+          {keysHere && <span className="tl-keys" aria-hidden><kbd>←</kbd><kbd>→</kbd> frame · <kbd>Shift</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> person · <kbd>Home</kbd><kbd>End</kbd> · <kbd>=</kbd><kbd>−</kbd> zoom · <kbd>M</kbd> marker · <kbd>I</kbd><kbd>O</kbd> in, out · <kbd>Esc</kbd></span>}
           <div className="tl-labels" style={{ gridTemplateRows: rows }}>
             <span className="tl-head ruler" aria-hidden />
             <span className="tl-head shots" aria-hidden>Shots</span>
@@ -905,6 +929,11 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               >
                 {f.color && <span className="tl-dot" style={{ background: f.color }} aria-hidden />}
                 {f.name}
+                {/* (Its layers in lanes of their own, #22.) */}
+                <ChevronRight size={11} className={`tl-unfold${unfolded.has(f.id) ? ' open' : ''}`} aria-label={unfolded.has(f.id) ? 'Fold the layers' : 'Unfold the layers'} onClick={(e) => { e.stopPropagation(); unfold(f.id); }} />
+                {/* (Locked, muted, #22: a click lets go of it.) */}
+                {f.locked && <Lock size={11} className="tl-flag" aria-label="Locked" onClick={(e) => { e.stopPropagation(); setTrack(store, f.id, { locked: false }); }} />}
+                {f.muted && <VolumeX size={11} className="tl-flag" aria-label="Muted" onClick={(e) => { e.stopPropagation(); setTrack(store, f.id, { muted: false }); }} />}
               </button>
             )) : (
               <span aria-hidden>
@@ -937,6 +966,12 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   </span>
                 );
               })}
+              {a.range && (
+                <span className="tl-range" style={{ left: pct(a.range.from), width: `${((a.range.to - a.range.from) / span) * 100}%` }} data-tip="Playback goes round this stretch: drag its ends; X (timeline focused) or the timeline's menu plays all of it">
+                  <i className="tl-range-end" onPointerDown={(e) => dragRange('from')(e)} />
+                  <i className="tl-range-end out" onPointerDown={(e) => dragRange('to')(e)} />
+                </span>
+              )}
               {markers.map((m) => (
                 <button
                   key={m.id}
@@ -1017,7 +1052,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 <div
                   key={f.id}
                   data-row={f.id}
-                  className={`tl-row${multi && f.id === active?.id ? ' active' : ''}${keying === f.id && !f.proxy ? ' autokey' : ''}`}
+                  className={`tl-row${multi && f.id === active?.id ? ' active' : ''}${keying === f.id && !f.proxy ? ' autokey' : ''}${f.muted ? ' muted' : ''}${f.locked ? ' locked' : ''}${unfolded.has(f.id) ? ' unfolded' : ''}`}
                   aria-label={multi ? `${f.name} keys` : 'Pose keys'}
                   onPointerDown={boxKeys(f.id)}
                   // A pose or a motion from the Library: onto this figure, at the time it is dropped at.
@@ -1118,6 +1153,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                       </span>
                     );
                   })}
+                  {unfolded.has(f.id) && <span className="tl-layer-names" aria-hidden><em>Upper body</em><em>Corrections</em></span>}
                   {/* Nothing to do yet: where to start. */}
                   {!actionsOf(a, f.id).some((x) => x.source.kind !== 'keys') && times.length <= 1 && !f.proxy && (
                     <button type="button" className="tl-empty" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => openPicker(f.id, e.currentTarget)}>
