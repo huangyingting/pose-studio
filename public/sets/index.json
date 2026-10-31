@@ -320,16 +320,6 @@
     0.203
    ]
   },
-  "apartments": {
-   "file": "models/apartments.glb",
-   "tris": 49726,
-   "bytes": 1747960,
-   "size": [
-    51.53,
-    17.001,
-    6.665
-   ]
-  },
   "street-lamp": {
    "file": "models/street-lamp.glb",
    "tris": 5997,
@@ -348,16 +338,6 @@
     0.385,
     1.674,
     0.806
-   ]
-  },
-  "street-bench": {
-   "file": "models/street-bench.glb",
-   "tris": 8975,
-   "bytes": 916064,
-   "size": [
-    4.34,
-    0.95,
-    0.77
    ]
   },
   "bench": {
@@ -1040,10 +1020,8 @@
   "model:wine-bottles": "{\"ph\":\"wine_bottles_01\",\"tris\":5000,\"tex\":512}",
   "model:tea-set": "{\"ph\":\"tea_set_01\",\"tris\":6000,\"tex\":1024}",
   "model:vase": "{\"ph\":\"ceramic_vase_01\",\"tris\":5000,\"tex\":512}",
-  "model:apartments": "{\"ph\":\"modular_urban_apartments_facade\",\"tris\":50000,\"tex\":1024}",
   "model:street-lamp": "{\"ph\":\"street_lamp_01\",\"tris\":6000,\"tex\":1024}",
   "model:park-lamp": "{\"ph\":\"street_lamp_02\",\"tris\":5000,\"tex\":512}",
-  "model:street-bench": "{\"ph\":\"modular_street_seating\",\"tris\":9000,\"tex\":1024}",
   "model:bench": "{\"ph\":\"painted_wooden_bench\",\"tris\":5000,\"tex\":512}",
   "model:trash-can": "{\"ph\":\"metal_trash_can\",\"tris\":5000,\"tex\":512}",
   "model:hydrant": "{\"ph\":\"fire_hydrant\",\"tris\":5000,\"tex\":512}",

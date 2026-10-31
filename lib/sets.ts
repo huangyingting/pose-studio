@@ -153,6 +153,32 @@ const waterCooler = (x: number, z: number): Piece[] => [
   { ...C(0.14, 0.45, x, 0.95, z, 0.14, 20), look: { color: '#7fb3d6', rough: 0.1, glass: true } },
 ];
 
+/**
+ * A city block `w` wide and `h` high, its front on the pavement (z = -3): its walls of `look`, a
+ * window in each bay of each floor (framed, dark glass), and shops below: a glazed front, a
+ * shutter half down, an awning.
+ */
+function cityBlock(x: number, w: number, h: number, look: Look): Piece[] {
+  const front = -3;
+  const out: Piece[] = [{ ...B(w, h, 8, x, 0, front - 4), look }];
+  const bays = Math.max(2, Math.round(w / 2.4));
+  const bay = w / bays;
+  for (let f = 1; f < Math.floor(h / 3); f++) {
+    for (let i = 0; i < bays; i++) {
+      const cx = x - w / 2 + bay * (i + 0.5);
+      out.push(...made(WHITE, [B(1.3, 1.65, 0.08, cx, f * 3 + 0.65, front + 0.02)]));
+      out.push({ ...B(1.16, 1.5, 0.1, cx, f * 3 + 0.72, front + 0.03), look: { color: '#26303a', rough: 0.08, metal: 0.4 } });
+      out.push(...made({ color: '#b9b5ae', rough: 0.7 }, [B(1.45, 0.08, 0.2, cx, f * 3 + 0.6, front + 0.08)]));
+    }
+  }
+  // (The shops: a glazed front, its frame dark, a shutter half down over one half; an awning.)
+  out.push({ ...B(w - 0.6, 2.6, 0.1, x, 0.3, front + 0.04), look: { color: '#1e2328', rough: 0.1, metal: 0.5 } });
+  out.push(...made({ color: '#2a2d31', rough: 0.4, metal: 0.8 }, [B(w - 0.4, 0.12, 0.14, x, 2.9, front + 0.06), B(0.12, 2.9, 0.14, x - w / 2 + 0.25, 0, front + 0.06), B(0.12, 2.9, 0.14, x + w / 2 - 0.25, 0, front + 0.06)]));
+  out.push({ ...B(w + 0.2, 0.06, 1.2, x, 3.2, front + 0.6, [-12, 0, 0]), look: { color: ['#7a2a24', '#2f4f6b', '#3d5a3a'][Math.abs(Math.round(x)) % 3], rough: 0.85 } });
+  out.push(M('shutter', x + w / 4, front + 0.2, 0, 0.6, Math.min(1, (w / 2 - 0.4) / 3.08)));
+  return out;
+}
+
 /** Red lacquer (Chinese columns), stone, painted beams. */
 const LACQUER: Look = { color: '#8a1d16', rough: 0.35 };
 const STONE: Look = { surface: 'stone-blocks', color: '#c9c5bd' };
@@ -301,17 +327,18 @@ export const SETS: SetDef[] = [
     name: 'City street',
     group: 'Outdoor',
     place: 'Downtown, today',
-    description: 'A city street: a pavement in front of an apartment block with shops, street lamps, a bench and a bin, a road with a zebra crossing and parked cars.',
+    description: 'A city street: a pavement in front of shops and tall blocks, street lamps, a bench and a bin, a road with a zebra crossing and parked cars.',
     lights: [bulb('Street lamp', [-4.5, 4.4, 1.6], { color: '#ffd09e', kelvin: undefined, spot: 80, aim: { point: [-4.5, 0, 0.6] }, intensity: 0.9, range: 12 })],
     build: () => [
       { ...floor(40, 30, -2), look: 'asphalt' },
       // (The pavement flush with the road: people stand on the stage's floor.)
       { ...B(52, 0.02, 7, 0, 0, -1.5), look: 'paving' },
       { ...B(52, 0.03, 0.3, 0, 0, 2), look: 'concrete' },
-      M('apartments', 0, -8.4),
-      ...[-12, 3, 14].map((x) => M('shutter', x, -5.05)),
+      // The blocks behind it: brick or tiled, a window to each bay of each floor, shops below.
+      ...cityBlock(-14, 7, 14, { surface: 'red-brick' }), ...cityBlock(-6.5, 8, 9, { surface: 'facade-tiles', color: '#d8d4cc' }), ...cityBlock(1.5, 8, 18, { surface: 'brick', color: '#cbb8a8' }),
+      ...cityBlock(9.5, 8, 7, { surface: 'facade-tiles', color: '#c9cfd4' }), ...cityBlock(17, 7, 12, { surface: 'red-brick', color: '#c8b0a0' }),
       ...[-10, -4.5, 6, 12].map((x) => M('street-lamp', x, 1.6, 180)),
-      M('street-bench', -2.5, -2), M('trash-can', 2.6, -2.6), M('hydrant', 8.2, 1.4), M('utility-box', -7.5, -4.7),
+      M('bench', -2.5, -2.2, 0, 0, 1.3), M('trash-can', 2.6, -2.6), M('hydrant', 8.2, 1.4), M('utility-box', -7.5, -4.7),
       M('planter', -14.5, -1.2), M('planter', 16.5, -1.2), M('aspen', -18, -0.6), M('aspen', 19, -0.6),
       // The road: a dashed middle line, a zebra crossing, a manhole; cars parked by the kerb.
       ...made({ color: '#f1f0ea', rough: 0.7 }, [

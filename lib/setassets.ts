@@ -4,7 +4,7 @@
  * leaves) with Poly Haven's bark. `npm run sets` (scripts/sets.ts)
  * fetches each, fits it to its budget and writes it to public/sets/, with an index of what each
  * came to (triangles, bytes); lib/sets.ts places them. Within budget: a model ≤ 20 k triangles
- * (a small one 5 k, a tree 40 k, a building 50 k), a texture ≤ 1K; a set ≤ 250 k triangles and 15 MB in all.
+ * (a small one 5 k, a tree 40 k), a texture ≤ 1K; a set ≤ 250 k triangles and 15 MB in all.
  */
 
 export interface ModelAsset {
@@ -28,7 +28,7 @@ export interface TreeAsset {
 export type SurfaceAsset = ({ ph: string } | { acg: string }) & { tex: 512 | 1024 };
 
 /** A model's budget by its kind (most triangles). */
-export const MODEL_BUDGET = { small: 5_000, model: 20_000, tree: 40_000, building: 50_000 } as const;
+export const MODEL_BUDGET = { small: 5_000, model: 20_000, tree: 40_000 } as const;
 /** A set's budget, all in. */
 export const SET_BUDGET = { tris: 250_000, bytes: 15 * 1024 * 1024 } as const;
 
@@ -73,10 +73,8 @@ export const MODELS = {
   'tea-set': model('tea_set_01', 6_000),
   'vase': small('ceramic_vase_01'),
   // Street and park
-  'apartments': model('modular_urban_apartments_facade', MODEL_BUDGET.building),
   'street-lamp': model('street_lamp_01', 6_000),
   'park-lamp': small('street_lamp_02'),
-  'street-bench': model('modular_street_seating', 9_000),
   'bench': small('painted_wooden_bench'),
   'trash-can': small('metal_trash_can'),
   'hydrant': small('fire_hydrant'),

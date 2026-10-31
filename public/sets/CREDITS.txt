@@ -31,10 +31,8 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
   wine-bottles: https://polyhaven.com/a/wine_bottles_01
   tea-set: https://polyhaven.com/a/tea_set_01
   vase: https://polyhaven.com/a/ceramic_vase_01
-  apartments: https://polyhaven.com/a/modular_urban_apartments_facade
   street-lamp: https://polyhaven.com/a/street_lamp_01
   park-lamp: https://polyhaven.com/a/street_lamp_02
-  street-bench: https://polyhaven.com/a/modular_street_seating
   bench: https://polyhaven.com/a/painted_wooden_bench
   trash-can: https://polyhaven.com/a/metal_trash_can
   hydrant: https://polyhaven.com/a/fire_hydrant
