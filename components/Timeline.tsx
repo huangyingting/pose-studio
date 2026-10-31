@@ -6,7 +6,7 @@ import {
   deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, correctEveryRepeat, deleteAction,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
-import { clipById } from '@/lib/assets';
+import { clipById, loopsOf } from '@/lib/assets';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
 import { actionLabel, correctionHeld, correctionTimesOf, repeatedUnder, keyAtTime, keyEasesOf, keyTimesOf, moments, travelInto } from '@/lib/track';
@@ -519,7 +519,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const t = part === 'start' || part === 'move' ? now.start : part === 'end' ? now.start + now.duration : now.start - (now.blendIn ?? 0);
     if (part === 'blend') return { t, text: `Blend in · ${s2(now.blendIn ?? 0)}` };
     const whole = src.kind === 'clip' ? clipById(src.clip) : null;
-    if (src.kind === 'clip' && whole && !whole.loop && (slipping || (part !== 'move' && !stretch && !now.layer))) {
+    if (src.kind === 'clip' && whole && !loopsOf(src) && (slipping || (part !== 'move' && !stretch && !now.layer))) {
       const verb = slipping ? 'Slip' : part === 'start' ? 'Trim start' : 'Trim end';
       return { t, text: `${verb} · plays ${(src.from ?? 0).toFixed(2)}–${s2(src.to ?? whole.duration)} of ${whole.name}` };
     }

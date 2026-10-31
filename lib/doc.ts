@@ -407,7 +407,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   let source: Action['source'];
   if (o.kind === 'clip' && typeof o.clip === 'string') {
     const speed = num(o.speed, 1);
-    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to), ...(typeof o.seam === 'number' && Number.isFinite(o.seam) ? { seam: Math.min(2, Math.max(0, Math.round(o.seam * 100) / 100)) } : {}), ...(o.alternate === true ? { alternate: true } : {}), ...(o.inPlace === true ? { inPlace: true } : {}), ...(typeof o.lead === 'number' && o.lead > 0 ? { lead: Math.min(MAX_DURATION, Math.round(o.lead * 1000) / 1000) } : {}) };
+    source = { kind: 'clip', clip: o.clip.slice(0, 80), ...(speed !== 1 ? { speed: Math.min(20, Math.max(0.05, speed)) } : {}), ...(o.mirror === true ? { mirror: true } : {}), ...(typeof o.repeat === 'number' && o.repeat >= 2 ? { repeat: Math.min(50, Math.round(o.repeat)) } : {}), ...range(o.from, o.to), ...(typeof o.seam === 'number' && Number.isFinite(o.seam) ? { seam: Math.min(2, Math.max(0, Math.round(o.seam * 100) / 100)) } : {}), ...(o.alternate === true ? { alternate: true } : {}), ...(o.inPlace === true ? { inPlace: true } : {}), ...(typeof o.loops === 'boolean' ? { loops: o.loops } : {}), ...(typeof o.lead === 'number' && o.lead > 0 ? { lead: Math.min(MAX_DURATION, Math.round(o.lead * 1000) / 1000) } : {}) };
   } else if (o.kind === 'keys') {
     const clip = parseClip(o.clip);
     if (!clip) return null;
@@ -415,7 +415,7 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   } else if (o.kind === 'travel' && TRAVELS.includes(o.mode as Travel)) {
     const via = Array.isArray(o.via) ? o.via.slice(0, 50).map(parseMark).filter((m): m is Mark => !!m) : [];
     const [spin, flip] = [turns(o.spin), turns(o.flip)];
-    source = { kind: 'travel', mode: o.mode as Travel, ...(o.strafe === true ? { strafe: true } : {}), ...(spin ? { spin } : {}), ...(flip ? { flip } : {}), ...(via.length ? { via } : {}) };
+    source = { kind: 'travel', mode: o.mode as Travel, ...(o.strafe === true ? { strafe: true } : {}), ...(spin ? { spin } : {}), ...(flip ? { flip } : {}), ...(via.length ? { via } : {}), ...(o.mode !== 'jump' && typeof o.gait === 'string' && o.gait ? { gait: o.gait.slice(0, 80) } : {}) };
   } else return null;
   if (source.kind !== 'keys' && roles.length > 1 && source.kind === 'travel') return null;
   const start = Math.min(duration, Math.max(0, num(v.start, 0)));

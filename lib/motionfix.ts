@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { jointLimits, wrapDeg } from './joints';
 import { angleToQuat, fromQuat, quatToAngle, toQuat } from './pose';
+import { samplePart } from './clip';
+import { facingOf } from './pose';
 import type { Clip, ClipPart, JointName } from './types';
 
 /*
@@ -65,4 +67,24 @@ export function wristsToForearms(part: ClipPart): ClipPart {
 /** A captured clip made ready: each part's facing where they look, the wrists' roll the forearms'. */
 export function refineClip(clip: Clip): Clip {
   return { ...clip, parts: clip.parts.map((p) => ({ ...wristsToForearms(p), facing: lookFacing(p) })) };
+}
+
+/** A walk, run or the like (not a turn), by its name: going round carries on from where it got to. */
+export const isCycle = (name: string) => /walk|run|jog|sprint|strafe/i.test(name) && !/turn/i.test(name);
+const quatAngle = (a: number[], b: number[]) => (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
+
+/**
+ * Whether a clip can go round: it ends as it starts (each joint within 3°, the hips' height within
+ * 2 cm) and where it starts (a dodge, a turn does not: done once), or goes on from there as a walk
+ * does. The Library's motions are told so (with those done once though they end as they start),
+ * and an imported one.
+ */
+export function goesRound(clip: Clip): boolean {
+  return clip.parts.every((p) => {
+    const a = samplePart(p, 0, clip.duration, false), b = samplePart(p, clip.duration, clip.duration, false);
+    if (Math.abs(a.position[1] - b.position[1]) > 0.02) return false;
+    const there = Math.hypot(b.position[0] - a.position[0], b.position[2] - a.position[2]) < 0.05 && Math.abs(facingOf(b.bones) - facingOf(a.bones)) < 5;
+    if (!there && !isCycle(clip.name)) return false;
+    return Object.entries(a.bones).every(([j, q]) => j === 'hips' || !q || !b.bones[j as JointName] || quatAngle(q, b.bones[j as JointName]!) < 3);
+  });
 }

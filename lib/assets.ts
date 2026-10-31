@@ -40,9 +40,19 @@ export function putClips(clips: Clip[]) {
 
 export const hasClip = (id: string) => id.startsWith(BUILT_IN) || loaded.has(id);
 
-/** The clip an action plays (#22): the part of it from `from` to `to`, or all of it (a loop is played whole). */
-export function playedClip(src: { clip: string; from?: number; to?: number }): Clip | null {
-  const c = clipById(src.clip);
+/** Whether an action's motion goes round: as its block says (its Loops), else as the motion does. */
+export const loopsOf = (src: { clip: string; loops?: boolean }) => src.loops ?? !!clipById(src.clip)?.loop;
+
+// (A motion made to go round, or not, by its block: the same one each time.)
+const relooped = new WeakMap<Clip, Clip>();
+/** The clip an action plays (#22): the part of it from `from` to `to`, or all of it (a loop is played whole); going round as its block says. */
+export function playedClip(src: { clip: string; from?: number; to?: number; loops?: boolean }): Clip | null {
+  let c = clipById(src.clip);
+  if (c && src.loops !== undefined && src.loops !== c.loop) {
+    let other = relooped.get(c);
+    if (!other) relooped.set(c, (other = { ...c, loop: src.loops }));
+    c = other;
+  }
   return c && !c.loop && (src.from !== undefined || src.to !== undefined) ? clipRange(c, src.from ?? 0, src.to ?? c.duration) : c;
 }
 
@@ -64,7 +74,8 @@ export function clipIdsOf(lib: Library): string[] {
 
 /** The ids of the clips a library's scenes play. */
 export function playedClips(lib: Library): string[] {
-  return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : []))))];
+  // (A walk or run with a captured cycle plays it too, #26.)
+  return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : x.source.kind === 'travel' && x.source.gait ? [x.source.gait] : []))))];
 }
 
 /** A clip playing on its own people, where it has them. */

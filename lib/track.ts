@@ -1,9 +1,9 @@
 import { keyPose, keyTimes, keysClip, partKeys, placeClip, samplePart, setPartKey, startFacing, type Key } from './clip';
-import { clipById, playedClip } from './assets';
+import { clipById, loopsOf, playedClip } from './assets';
 import { REACT_LEAD, strikeTime } from './strike';
 import { MAX_DURATION, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf, seamOf } from './evaluate';
-import { JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
+import { GAITS, JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
 import { uid } from './uid';
 import { wrapDeg } from './joints';
@@ -533,6 +533,8 @@ export function setTravelMode(scene: Scene, figure: string, t: number, mode: Tra
     const src = { ...tr.source, mode, ...patch };
     for (const k of ['strafe', 'spin', 'flip'] as const) if (!src[k]) delete src[k];
     if (mode !== 'jump') { delete src.spin; delete src.flip; } else delete src.via;
+    // (A captured cycle only of its kind: a walk's not for a run.)
+    if (src.gait && (mode === 'jump' || !GAITS[mode].includes(src.gait))) delete src.gait;
     return replace(a, tr, [{ ...tr, source: src }]);
   }
   if (!mode) return a;
@@ -639,7 +641,7 @@ export function trimAction(a: Animation, id: string, side: 'start' | 'end', t: n
       if (!whole) return a;
       const speed = src.speed ?? 1;
       const from = src.from ?? 0;
-      if (whole.loop) source = src;
+      if (loopsOf(src)) source = src;
       else if ((src.repeat ?? 1) > 1) {
         // (Whole repeats: as many as reach there.)
         const once = ((src.to ?? whole.duration) - from) / speed;
@@ -678,7 +680,7 @@ export function trimAction(a: Animation, id: string, side: 'start' | 'end', t: n
     const whole = clipById(src.clip);
     if (!whole) return a;
     const speed = src.speed ?? 1;
-    if (whole.loop) source = src;
+    if (loopsOf(src)) source = src;
     else if ((src.repeat ?? 1) > 1) {
       const once = ((src.to ?? whole.duration) - (src.from ?? 0)) / speed;
       const n = Math.max(1, Math.min(50, Math.round((end(act) - start) / once)));
@@ -718,7 +720,7 @@ export function playRange(a: Animation, id: string, from: number, to: number): A
   const src = act?.source;
   if (!act || src?.kind !== 'clip') return a;
   const whole = clipById(src.clip);
-  if (!whole || whole.loop) return a;
+  if (!whole || loopsOf(src)) return a;
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   const least = Math.max(MIN_BLOCK, 1 / a.fps) * (src.speed ?? 1);
   const f = r3(Math.max(0, Math.min(whole.duration - least, from)));
@@ -804,7 +806,7 @@ export function splitAction(a: Animation, id: string, t: number): Animation {
   if (src.kind === 'clip') {
     const whole = clipById(src.clip);
     if (!whole) return a;
-    if (!whole.loop) {
+    if (!loopsOf(src)) {
       const speed = src.speed ?? 1;
       const cut = Math.round(((src.from ?? 0) + (time - act.start) * speed) * 1000) / 1000;
       first.source = { ...src, to: cut };
@@ -910,7 +912,7 @@ export function slipAction(a: Animation, id: string, by: number): Animation {
   const src = act?.source;
   if (!act || src?.kind !== 'clip' || (src.repeat ?? 1) > 1) return a;
   const whole = clipById(src.clip);
-  if (!whole || whole.loop) return a;
+  if (!whole || loopsOf(src)) return a;
   const speed = src.speed ?? 1;
   const length = act.duration * speed;
   const from = Math.max(0, Math.min(whole.duration - length, (src.from ?? 0) + by * speed));
@@ -1011,7 +1013,7 @@ function turn(x: number, z: number, deg: number): [number, number] {
 function cutShort(x: Action, t: number): Action {
   const src = x.source;
   const whole = src.kind === 'clip' ? clipById(src.clip) : null;
-  if (src.kind !== 'clip' || !whole || whole.loop || (src.repeat ?? 1) > 1) return { ...x, duration: t - x.start };
+  if (src.kind !== 'clip' || !whole || loopsOf(src) || (src.repeat ?? 1) > 1) return { ...x, duration: t - x.start };
   const to = Math.round(((src.from ?? 0) + (t - x.start) * (src.speed ?? 1)) * 1000) / 1000;
   return { ...x, duration: t - x.start, source: { ...src, to: Math.min(whole.duration, to) } };
 }
@@ -1042,7 +1044,7 @@ export function fitted(scene: Scene, length: number): Scene {
   if (!a) return scene;
   if (length < a.duration - EPS) return cutTo(scene, length);
   // (A looping motion: a Library clip, or keys made to go round, as the built-in templates' are.)
-  const loops = (x: Action) => (x.source.kind === 'clip' ? !!clipById(x.source.clip)?.loop : x.source.kind === 'keys' && x.source.clip.loop);
+  const loops = (x: Action) => (x.source.kind === 'clip' ? loopsOf(x.source) : x.source.kind === 'keys' && x.source.clip.loop);
   const actions = a.actions.map((x) => {
     if (x.layer || !loops(x) || end(x) < a.duration - 0.05 || !x.roles.every((r) => actionsOf(a, r.figure).at(-1) === x)) return x;
     return x.source.kind === 'clip' ? { ...x, duration: length - x.start } : unrolled(x, length - x.start, a.fps);

@@ -115,6 +115,14 @@ describe('importing motions from other tools', () => {
     await expect(importMotion('x.json', other)).rejects.toThrow(/Pose Studio motion/);
   });
 
+  it('an import that ends as it starts, where it starts, goes round; a step forward does not', async () => {
+    const lines = bvh(CMU).trim().split('\n');
+    const [f0, f1] = [lines[lines.length - 3], lines[lines.length - 2].replace(/^0 89\.7 20/, '0 89.7 0')];
+    const text = [...lines.slice(0, -5), 'Frames: 3', 'Frame Time: 0.1', f0, f1, f0].join('\n') + '\n';
+    expect((await importMotion('Sway.bvh', new TextEncoder().encode(text).buffer as ArrayBuffer)).loop).toBe(true);
+    expect((await importMotion('Step_forward.bvh', file(CMU))).loop).toBe(false);
+  });
+
   it('grounds Mixamo-prefixed BVH clips with curved spines and outlier dips on short figures too', async () => {
     const mixamo = {
       hips: 'mixamorig:Hips', spine: 'mixamorig:Spine', neck: 'mixamorig:Neck', head: 'mixamorig:Head',

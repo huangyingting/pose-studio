@@ -275,3 +275,25 @@ describe('linked reactions (#23)', () => {
     expect(clip(b).reactsTo).toBeUndefined();
   });
 });
+
+describe('a block that goes round, or not (its Loops)', () => {
+  it('made to go round, a motion plays again as its block is made longer; made not to, it holds its last pose', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 2);
+    store.setTime(0);
+    applyMotion(store, a, SWING);
+    const act = () => actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    const once = act().duration;
+    const at = (u: number) => figurePoseAt(store.scene, a, act().start + u)!;
+    setClipOptions(store, act().id, { loops: true });
+    expect(act().source).toMatchObject({ loops: true });
+    trim(store, act().id, 'end', act().start + once * 2);
+    expect(act().duration).toBeCloseTo(once * 2, 2);
+    // The second time round as the first.
+    expect(apart(at(once * 1.3), at(once * 0.3))).toBeLessThan(3);
+    // Back as the motion is by itself (it does not go round): nothing kept; past its end, its last pose.
+    setClipOptions(store, act().id, { loops: false });
+    expect('loops' in act().source).toBe(false);
+    expect(apart(at(once * 1.3), at(once - 0.02))).toBeLessThan(3);
+  });
+});

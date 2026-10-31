@@ -164,7 +164,7 @@ class Stage {
    * it plays (a stance turning to someone, a step into range); `blend`: seconds it eases in over
    * (going down on one knee, slowly). The time it ends.
    */
-  play(who: string, slug: string, t: number, o: { seconds?: number; mirror?: boolean; at?: Spot; face?: Facing; blend?: number } = {}): number {
+  play(who: string, slug: string, t: number, o: { seconds?: number; mirror?: boolean; at?: Spot; face?: Facing; blend?: number; inPlace?: boolean } = {}): number {
     t = frame(t);
     this.wait(who, t);
     const m = motion(slug);
@@ -184,7 +184,8 @@ class Stage {
     const from = this.where(who);
     const seconds = frame(o.seconds ?? m.duration);
     let end: Mark;
-    if (o.at || o.face !== undefined) {
+    if (o.inPlace) end = from;
+    else if (o.at || o.face !== undefined) {
       const at = o.at ?? from.at;
       end = { at, facing: o.face !== undefined ? this.yaw(at, o.face) : from.facing };
     } else {
@@ -198,7 +199,7 @@ class Stage {
     this.moved(who, t, t + seconds, from.at, [], end);
     return this.add({
       id: uid('act'), start: t, duration: seconds, blendIn: o.blend ?? 0.25, roles: [{ figure: this.id(who), end }],
-      source: { kind: 'clip', clip: m.id, ...(o.mirror ? { mirror: true } : {}) },
+      source: { kind: 'clip', clip: m.id, ...(o.mirror ? { mirror: true } : {}), ...(o.inPlace ? { inPlace: true } : {}) },
     });
   }
 
@@ -534,7 +535,7 @@ export function standOff(): Scene {
  * the fan at the side feeding them new balls; the defender's own drive and miss; the last play,
  * and the cheering.
  */
-export /** How long the Library's Jump crouches before it leaves the floor (s): a defender's starts that much before the shot. */
+export /** How long the Library's Jump forward crouches before it leaves the floor (s): a defender's (in place) starts that much before the shot. */
 const JUMP_CROUCH = 0.8;
 
 function streetBasketball(): Scene {
@@ -570,7 +571,7 @@ function streetBasketball(): Scene {
   s.face('Jay', [0, 8.5], caught + 0.2, 0.5);
   let shot = s.until('Jay') + 0.2;
   let end = s.handle('Jay', a, 'shoot', shot, { hoop });
-  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot - JUMP_CROUCH));
+  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot - JUMP_CROUCH), { inPlace: true });
   t = Math.max(end, s.until('Rico')) + 0.6;
   s.play('Fan', 'standing-thumbs-up', t);
   s.play('Kofi', 'happy-idle', t, { seconds: 3, face: 'Jay' });
@@ -592,7 +593,7 @@ function streetBasketball(): Scene {
   // His shot: off the rim.
   shot = s.until('Rico') + 0.1;
   end = s.handle('Rico', b, 'shoot', shot, { hoop, miss: true });
-  s.play('Jay', 'jump', Math.max(s.until('Jay'), shot - JUMP_CROUCH));
+  s.play('Jay', 'jump', Math.max(s.until('Jay'), shot - JUMP_CROUCH), { inPlace: true });
   t = Math.max(end, s.until('Jay')) + 1.2;
   s.play('Rico', 'disappointed', t, { seconds: 4 });
   s.play('Fan', 'shaking-head-no', Math.max(s.until('Fan'), t));
@@ -615,7 +616,7 @@ function streetBasketball(): Scene {
   s.face('Jay', [0, 8.5], Math.max(s.until('Jay'), caught + 0.2), 0.5);
   shot = s.until('Jay') + 0.2;
   end = s.handle('Jay', c, 'shoot', shot, { hoop });
-  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot - JUMP_CROUCH));
+  s.play('Rico', 'jump', Math.max(s.until('Rico'), shot - JUMP_CROUCH), { inPlace: true });
   // In: they cheer, the fan waves, the defender hangs his head.
   t = Math.max(end, s.until('Rico')) + 0.8;
   s.play('Jay', 'standing-thumbs-up', t, { face: 'Kofi' });

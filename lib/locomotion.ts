@@ -146,6 +146,28 @@ export interface Chain {
   /** A jump's turns in the air: about the vertical (spin) and head over heels (flip, + forwards). */
   spin?: number;
   flip?: number;
+  /** A captured cycle it goes with, instead of generated steps (#26). */
+  cycle?: Cycle;
+}
+
+/** The Library's captured cycles a walk or a run can go with (#26), the first the usual one. */
+export const GAITS: Record<'walk' | 'run', readonly string[]> = {
+  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward'],
+  run: ['library:jog-forward', 'library:run-forward', 'library:sprint'],
+};
+
+/**
+ * A captured walk or run cycle (one lap of a Library motion that goes round): its pose at a time
+ * of the lap (in joint angles), the lap's length (s), how far a lap goes and which way it faces
+ * (for its own body), its body, and when each foot is on the floor.
+ */
+export interface Cycle {
+  at(u: number): AnglePose;
+  duration: number;
+  stride: number;
+  facing: number;
+  body: BodyParams;
+  contacts: { side: 'L' | 'R'; start: number; end: number }[];
 }
 
 /* ---------- geometry helpers ---------- */
@@ -228,7 +250,8 @@ export function locomote(chain: Chain, body: BodyParams, t: number, pose: AngleP
   if (Math.abs(t - chain.t0) < 1e-6 || Math.abs(t - chain.t1) < 1e-6) return pose;
   const legs = legsOf(body);
   if (chain.kind === 'jump') return jump(chain, legs, t, pose, ground, body);
-  return pivots(chain) ? pivot(chain, legs, t, pose, ground, body) : gait(chain, legs, t, pose, ground, body);
+  if (pivots(chain)) return pivot(chain, legs, t, pose, ground, body);
+  return chain.cycle ? cycleGait(chain, legs, t, pose, ground, body) : gait(chain, legs, t, pose, ground, body);
 }
 
 /** How far a travel turns from its start to its end (degrees, + to the left). */
@@ -420,9 +443,12 @@ function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const distance = (tau: number) => (tau < ramp ? (v * tau * tau) / (2 * ramp) : tau > dur - ramp ? D - (v * (dur - tau) ** 2) / (2 * ramp) : v * (tau - ramp / 2));
   // Longer steps at higher speed, as people do.
   const scale = leg / 0.85;
-  const step = run
-    ? clamp(1.15 * leg * Math.sqrt(v / (SPEED.run * scale)), 0.6 * leg, 2 * leg)
-    : clamp(0.72 * leg * Math.sqrt(v / (SPEED.walk * scale)), 0.25 * leg, 1 * leg);
+  // (With a captured cycle, its own steps: half its lap's stride, scaled to the legs, #26.)
+  const step = c.cycle
+    ? (c.cycle.stride * (legs.rootY / legsOf(c.cycle.body).rootY)) / 2
+    : run
+      ? clamp(1.15 * leg * Math.sqrt(v / (SPEED.run * scale)), 0.6 * leg, 2 * leg)
+      : clamp(0.72 * leg * Math.sqrt(v / (SPEED.walk * scale)), 0.25 * leg, 1 * leg);
   const stance = run ? 0.38 : 0.62;
   const startYaw = c.yaws[0];
   const endYaw = c.yaws[c.yaws.length - 1];
@@ -516,6 +542,11 @@ export function footprints(chains: Chain[], body: BodyParams, ground: Ground = F
 
 /** Walking or running along the chain's path. */
 function gait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, body: BodyParams): AnglePose {
+  return walking(c, legs, t, pose, ground, body).pose;
+}
+
+/** The walk's pose, and where its feet are (world) and how far through a swing each is (0 planted). */
+function walking(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, body: BodyParams) {
   const plan = planGait(c, legs, ground, body);
   const { line, D, dur, run, ramp, scale, step, len, half, width, steps, spot, yawAt, startYaw, endYaw } = plan;
   const tau = clamp(t - c.t0, 0, dur);
@@ -621,7 +652,96 @@ function gait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
       out.joints[j] = g.map((v, i) => r1(v + wrapDeg(k[i] - v) * keyed)) as Vec3;
     }
   }
-  return out;
+  return { pose: out, feet, plan, s, w };
+}
+
+/**
+ * A captured cycle from one lap of a motion that goes round (its pose at a time of the lap), or
+ * null if it goes nowhere (not a walk or a run): how far a lap goes, which way it faces on the
+ * whole, and when each foot is down — near its lowest, found round the lap (a contact may run on
+ * past the lap's end into its start).
+ */
+export function makeCycle(at: (u: number) => AnglePose, duration: number, body: BodyParams): Cycle | null {
+  const [a, b] = [at(0), at(duration)];
+  const stride = Math.hypot(b.position[0] - a.position[0], b.position[2] - a.position[2]);
+  if (stride < 0.2 || duration < 0.2) return null;
+  const n = 48;
+  const poses = Array.from({ length: n }, (_, i) => at((duration * i) / n));
+  const yaws = poses.map((p) => (p.joints.hips?.[1] ?? 0) * D2R);
+  const facing = Math.atan2(yaws.reduce((x, y) => x + Math.sin(y), 0), yaws.reduce((x, y) => x + Math.cos(y), 0)) * R2D;
+  const contacts: Cycle['contacts'] = [];
+  for (const side of ['L', 'R'] as const) {
+    // (Each sample's ankle height, the root where it is: lowest within 2.5 cm is down.)
+    const ys = poses.map((p) => keyedFeet(body, { ...p, position: [0, p.position[1], 0] })[side][1]);
+    const low = Math.min(...ys);
+    const down = ys.map((y) => y < low + 0.025);
+    if (down.every(Boolean) || !down.some(Boolean)) continue;
+    // (From where a run of down samples begins after an up one, round the lap.)
+    for (let i = 0; i < n; i++) {
+      if (!down[i] || down[(i - 1 + n) % n]) continue;
+      let j = i;
+      while (down[(j + 1) % n] && j - i < n) j++;
+      contacts.push({ side, start: (duration * i) / n, end: (duration * (j + 1)) / n });
+    }
+  }
+  return { at, duration, stride, facing, body, contacts };
+}
+
+/**
+ * Walking or running along the chain's path with a captured cycle (#26), as games drive one: the
+ * walk's plan as generated (the path, how fast along it, and where every foot comes down: the
+ * cycle's own steps, scaled to the figure), the body the cycle's, played in place at the phase
+ * the distance covered gives (its feet coming down as the plan's do), turned along the path with
+ * its own sway. A planted foot is held by IK where the plan has it (round a turn too: it does not
+ * slide); a swinging leg is the cycle's. Setting off and coming to rest, it blends from and into
+ * the generated walk, which starts and ends on the keyed poses.
+ */
+function cycleGait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, body: BodyParams): AnglePose {
+  const cyc = c.cycle!;
+  const { pose: generated, feet, plan, s, w } = walking(c, legs, t, pose, ground, body);
+  if (plan.D < 0.05 || w <= 0) return generated;
+  const k = legs.rootY / legsOf(cyc.body).rootY;
+  const stride = 2 * plan.step;
+  // The phase: the cycle's right foot comes down where the plan's does (its first, `half` along).
+  const right = cyc.contacts.find((x) => x.side === 'R');
+  const offset = (right ? right.start / cyc.duration : 0) - plan.half / stride;
+  const laps = s / stride + offset;
+  const q = cyc.at((laps - Math.floor(laps)) * cyc.duration);
+  const hips = q.joints.hips ?? [0, 0, 0];
+  const yaw = generated.joints.hips?.[1] ?? 0;
+  // (Its root where the generated walk has it, at the cycle's height: the legs reach the floor.)
+  const out: AnglePose = { ...q, joints: { ...q.joints, hips: [hips[0], wrapDeg(yaw + hips[1] - cyc.facing), hips[2]] }, position: [generated.position[0], Math.min(generated.position[1], q.position[1] * k + (generated.position[1] - legs.rootY * 0.975)), generated.position[2]], hands: pose.hands, grounded: false };
+  const mixed = mixPoses(generated, out, w);
+  // Planted feet held where the plan has them; swinging, the cycle's legs (eased onto the hold as they come down).
+  for (const side of ['L', 'R'] as const) plantLeg(mixed, legs, side, feet[side].world, 1 - smooth(feet[side].swing * 2.5));
+  return mixed;
+}
+
+/** A leg's angles turned towards reaching `world` with its ankle (two-bone IK), by `weight`. */
+function plantLeg(p: AnglePose, legs: Legs, side: 'L' | 'R', world: [number, number, number], weight: number) {
+  if (weight <= 0) return;
+  const hips = p.joints.hips ?? [0, 0, 0];
+  const s = side === 'L' ? 1 : -1;
+  const off = toPelvis([world[0] - p.position[0], world[1] - p.position[1], world[2] - p.position[2]], hips[1], hips[0], hips[2]);
+  const ik = legAngles(legs, [off[0] - s * legs.hipX, off[1] + legs.hipDrop, off[2]], hips[0]);
+  const mix = (j: JointName, to: Vec3) => {
+    const from = p.joints[j] ?? [0, 0, 0];
+    p.joints[j] = from.map((v, i) => r1(v + wrapDeg(to[i] - v) * weight)) as Vec3;
+  };
+  mix(sided('UpperLeg', side), ik.hip);
+  mix(sided('LowerLeg', side), [ik.knee, 0, 0]);
+  mix(sided('Foot', side), [clamp(ik.ankle[0], -40, 60), 0, clamp(ik.ankle[2], -35, 35)]);
+}
+
+/** Two poses mixed (joint angles the short way round, the root in between): `w` of the second. */
+function mixPoses(a: AnglePose, b: AnglePose, w: number): AnglePose {
+  if (w >= 1) return b;
+  const joints: Record<string, Vec3> = {};
+  for (const j of new Set([...Object.keys(a.joints), ...Object.keys(b.joints)])) {
+    const [p, q] = [(a.joints as Record<string, Vec3>)[j] ?? [0, 0, 0], (b.joints as Record<string, Vec3>)[j] ?? [0, 0, 0]];
+    joints[j] = p.map((v, i) => r1(v + wrapDeg(q[i] - v) * w)) as Vec3;
+  }
+  return { ...b, joints: joints as Angles, position: a.position.map((v, i) => v + (b.position[i] - v) * w) as Vec3 };
 }
 
 /**

@@ -1,11 +1,12 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, correctEveryRepeat, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
+import { clearMark, correctEveryRepeat, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
-import { clipById } from '@/lib/assets';
+import { clipById, loopsOf } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
-import { JUMP_PREP, jumpHeight } from '@/lib/locomotion';
+import { GAITS, JUMP_PREP, jumpHeight } from '@/lib/locomotion';
+import LIBRARY_INDEX from '@/public/motions/index.json';
 import { actionLabel, correctionHeld, reachOf, repeatedUnder } from '@/lib/track';
 import type { Action, Travel } from '@/lib/types';
 import { applies, command, menu, menuItems, type Ctx } from '../commands';
@@ -157,7 +158,7 @@ export function MotionPanel({ t }: { t: Target }) {
   const whole = clipById(src.clip);
   return (
     <>
-      {whole && !whole.loop && (
+      {whole && !loopsOf(src) && (
         <PropertyRow label="Plays" info={`The part of ${whole.name} it plays (seconds of it, ${whole.duration.toFixed(2)} s in all): drag the block's edges to trim it`}>
           <div className="lens-row">
             <NumberField prefix="s" label="Plays from" value={src.from ?? 0} step={1 / 24} min={0} max={whole.duration} onChange={(v) => setPlayRange(t.store, act.id, v, src.to ?? whole.duration, `act:${act.id}:range`)} />
@@ -170,6 +171,8 @@ export function MotionPanel({ t }: { t: Target }) {
         <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(t.store, act.id, { speed: v }, `act:${act.id}:speed`)} />
       </label>
       <Toggle label="Mirrored" hint="Left for right" checked={!!src.mirror} onChange={(mirror) => setClipOptions(t.store, act.id, { mirror })} />
+      {/* (Whether it goes round: lengthened, a walk walks on lap after lap; or done once, holding its last pose.) */}
+      {whole && <Toggle label="Loops" hint={`Goes round: made longer, it plays again and again${whole.loop ? '' : ' (made to go round here: it does not by itself)'}; off, it plays once and holds its last pose`} checked={loopsOf(src)} onChange={(loops) => setClipOptions(t.store, act.id, { loops })} />}
       {/* (#23: in place; over another, what it plays on and how much of it shows.) */}
       {!act.layer && (
         <Toggle label="In place" hint="Its travel taken out: it stays where it starts (its mark goes)" checked={!!src.inPlace} onChange={(inPlace) => setClipOptions(t.store, act.id, { inPlace })} />
@@ -187,7 +190,7 @@ export function MotionPanel({ t }: { t: Target }) {
           <Slider label="Strength" min={0} max={1} step={0.05} value={act.strength ?? 1} display={`${Math.round((act.strength ?? 1) * 100)}%`} onChange={(v) => setActionLook(t.store, act.id, { strength: v }, `act:${act.id}:strength`)} />
         </>
       )}
-      {(src.repeat ?? 1) > 1 && whole && !whole.loop && (
+      {(src.repeat ?? 1) > 1 && whole && !loopsOf(src) && (
         <>
           {/* Between repeats (#23): each blends in from the one before, or cuts to it. */}
           <PropertyRow label="Between" info="How each repeat follows the one before: blended over a time, or a cut (as it suits: a short blend where a repeat ends far from how the next starts)">
@@ -307,6 +310,17 @@ export function GettingPanel({ t }: { t: Target }) {
       />
       {(src.mode === 'walk' || src.mode === 'run') && (
         <Toggle label="Keep facing" hint="Side steps and backing up instead of turning to the way it goes" checked={!!src.strafe} onChange={(strafe) => set(src.mode, { strafe })} />
+      )}
+      {/* (Its steps: generated, or a real person's from the Library's Mocap, #26.) */}
+      {(src.mode === 'walk' || src.mode === 'run') && !src.strafe && (
+        <PropertyRow label="Steps" info="Generated steps, or a real person's walk or run from the Library's Mocap, going where this one goes (round turns, to its mark)">
+          <Select<string>
+            label="Steps"
+            value={src.gait ?? ''}
+            onChange={(v) => setGait(t.store, act.id, v || null)}
+            options={[{ value: '', label: 'Generated' }, ...GAITS[src.mode].map((id) => ({ value: id, label: (LIBRARY_INDEX as { id: string; name: string }[]).find((m) => m.id === id)?.name ?? id }))]}
+          />
+        </PropertyRow>
       )}
       {src.mode === 'jump' && (
         <>

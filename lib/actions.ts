@@ -19,7 +19,7 @@ import { handlesOf, localBounds } from './props';
 import {
   actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, correctionThroughout, correctionEveryRepeat, keysAction, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
-import { JUMP_PREP, flightTime, legsOf } from './locomotion';
+import { GAITS, JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
 import { bodyFor } from './model';
 import { HANDLING, MOTIONS } from './motions';
@@ -1071,6 +1071,17 @@ export function setTravel(store: Store, figureId: string, t: number, kind: Trave
   store.updateScene((s) => (s.animation ? { ...s, animation: setTravelMode(s, figureId, t, kind, patch) } : s));
 }
 
+/** A walk or run's steps: one of the Library's captured cycles (#26), or (null) generated. */
+export function setGait(store: Store, id: string, gait: string | null) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
+    if (x.id !== id || x.source.kind !== 'travel' || x.source.mode === 'jump') return x;
+    const { gait: _g, ...rest } = x.source;
+    void _g;
+    return { ...x, source: gait && GAITS[x.source.mode].includes(gait) ? { ...rest, gait } : rest };
+  }) } } : s));
+  store.setTime(store.getState().time);
+}
+
 /** Set a jump's height: its time in the air changes (gravity), the figure's later actions move with it. */
 export function setJumpHeight(store: Store, figureId: string, t: number, height: number) {
   const a = store.scene.animation;
@@ -1303,7 +1314,7 @@ export function setBlend(store: Store, id: string, blendIn: number, key = '') {
  * A clip action's speed (a clip that does not loop takes longer or shorter for it) and whether it
  * is mirrored (left for right).
  */
-export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean; seam?: number | null; alternate?: boolean; inPlace?: boolean }, key = '') {
+export function setClipOptions(store: Store, id: string, patch: { speed?: number; mirror?: boolean; seam?: number | null; alternate?: boolean; inPlace?: boolean; loops?: boolean }, key = '') {
   const act = actionById(store, id);
   if (act?.source.kind !== 'clip') return;
   const clip = playedClip(act.source);
@@ -1326,6 +1337,12 @@ export function setClipOptions(store: Store, id: string, patch: { speed?: number
       if (patch.alternate !== undefined) {
         if (patch.alternate) source.alternate = true;
         else delete source.alternate;
+      }
+      // (Going round, or done once: as the motion does by itself, nothing kept; going round, played whole, its repeats its laps.)
+      if (patch.loops !== undefined) {
+        if (patch.loops === !!clipById(x.source.clip)?.loop) delete source.loops;
+        else source.loops = patch.loops;
+        if (patch.loops) { delete source.repeat; delete source.seam; delete source.alternate; delete source.from; delete source.to; }
       }
       // (In place, #23: nowhere to be pulled to, its marks go.)
       if (patch.inPlace !== undefined) {

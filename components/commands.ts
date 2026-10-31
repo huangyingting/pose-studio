@@ -26,7 +26,7 @@ import { shotSpans } from '@/lib/shots';
 import { THEMES, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
-import { clipById } from '@/lib/assets';
+import { clipById, loopsOf } from '@/lib/assets';
 import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, LIGHT_ROLES, PROP_KINDS, PROP_LABELS, STYLES, type Figure, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
@@ -1157,7 +1157,7 @@ export const COMMANDS: Command[] = [
     items: (c) => {
       const act = actionOf(c)!;
       const src = act.source;
-      const now = src.kind === 'clip' ? (src.repeat ?? (clipById(src.clip)?.loop ? Math.round(act.duration / (clipById(src.clip)!.duration / (src.speed ?? 1))) : 1)) : 1;
+      const now = src.kind === 'clip' ? (src.repeat ?? (loopsOf(src) ? Math.round(act.duration / (clipById(src.clip)!.duration / (src.speed ?? 1))) : 1)) : 1;
       return (src.kind === 'clip' ? [1, 2, 3, 4] : [2, 3, 4]).map((n) => ({
         title: n === 1 ? 'Once' : src.kind === 'keys' ? `${n} times in all (its keys copied)` : `${n} times`, checked: src.kind === 'clip' ? now === n : undefined, run: () => repeatAction(c.store, act.id, n),
       }));

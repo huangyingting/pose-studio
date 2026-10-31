@@ -37,7 +37,8 @@ type Shape =
  * colour over it or alone, how rough and metal it is; or glass.
  */
 type Look = SurfaceId | { surface?: SurfaceId; color?: string; rough?: number; metal?: number; glass?: true };
-interface Piece { shape: Shape; at: Vec3; rot?: Vec3; look?: Look }
+/** `open`: a detail a camera may pass through (a window's frame, a door, a chair): not a wall. */
+interface Piece { shape: Shape; at: Vec3; rot?: Vec3; look?: Look; open?: true }
 
 export interface SetDef {
   id: string;
@@ -66,6 +67,8 @@ const C = (r: number, h: number, x: number, y: number, z: number, top = r, sides
 const M = (id: ModelId, x: number, z: number, yaw = 0, y = 0, scale?: number): Piece => ({ shape: scale ? ['model', id, scale] : ['model', id], at: [x, y, z], rot: yaw ? [0, yaw, 0] : undefined });
 /** Pieces made of a look. */
 const made = (look: Look, pieces: Piece[]): Piece[] => pieces.map((p) => ({ ...p, look }));
+/** Details a camera may pass through (see Piece). */
+const open = (pieces: Piece[]): Piece[] => pieces.map((p) => ({ ...p, open: true }));
 
 /** Pieces moved by (x, y, z) and turned `yaw` degrees about their origin. */
 function place(pieces: Piece[], x: number, y: number, z: number, yaw = 0): Piece[] {
@@ -119,39 +122,39 @@ const SCREEN: Look = { color: '#0d0f12', rough: 0.15 };
 /** A window in a wall along x at z (an opening from a to b, sill to top): its frame (a bar across the middle) and its glass. */
 function windowIn(a: number, b: number, sill: number, top: number, z: number, t = 0.2): Piece[] {
   const f = 0.06;
-  return [
+  return open([
     ...made(WHITE, [B(b - a, f, t + 0.04, (a + b) / 2, sill, z), B(b - a, f, t + 0.04, (a + b) / 2, top - f, z), B(f, top - sill, t + 0.04, a + f / 2, sill, z), B(f, top - sill, t + 0.04, b - f / 2, sill, z), B(0.04, top - sill, 0.08, (a + b) / 2, sill, z)]),
     { ...B(b - a - 2 * f, top - sill - 2 * f, 0.012, (a + b) / 2, sill + f, z), look: { glass: true } },
-  ];
+  ]);
 }
 /** A door in a wall along x at z (an opening from a to b, `h` high): its frame and its leaf. */
 function doorIn(a: number, b: number, h: number, z: number, t = 0.2, wood: Look = { color: '#e9e4dc', rough: 0.5 }): Piece[] {
   const f = 0.07;
-  return [
+  return open([
     ...made(WHITE, [B(f, h, t + 0.05, a + f / 2, 0, z), B(f, h, t + 0.05, b - f / 2, 0, z), B(b - a, f, t + 0.05, (a + b) / 2, h - f, z)]),
     { ...B(b - a - 2 * f, h - f, 0.045, (a + b) / 2, 0, z), look: wood },
     { ...B(0.12, 0.025, 0.06, b - f - 0.12, 1.02, z + 0.04), look: METAL },
-  ];
+  ]);
 }
 /** Skirting along a wall's inner face (x from x0 to x1 at z). */
-const skirting = (x0: number, x1: number, z: number): Piece => ({ ...B(x1 - x0, 0.1, 0.02, (x0 + x1) / 2, 0, z), look: WHITE });
+const skirting = (x0: number, x1: number, z: number): Piece => ({ ...B(x1 - x0, 0.1, 0.02, (x0 + x1) / 2, 0, z), look: WHITE, open: true });
 
 /** A monitor on a desk top at y, its screen facing +z. */
-const monitor = (x: number, z: number, y: number): Piece[] => [
+const monitor = (x: number, z: number, y: number): Piece[] => open([
   { ...B(0.62, 0.37, 0.025, x, y + 0.14, z), look: SCREEN },
   ...made({ color: '#2a2c30', rough: 0.4 }, [B(0.04, 0.16, 0.04, x, y, z - 0.03), B(0.22, 0.015, 0.16, x, y, z - 0.03)]),
-];
+]);
 /** An office chair facing +z: a padded seat and back on a gas column and five castors. */
-const officeChair = (x: number, z: number, yaw = 0): Piece[] => place([
+const officeChair = (x: number, z: number, yaw = 0): Piece[] => open(place([
   ...made({ color: '#2d3136', rough: 0.9 }, [B(0.5, 0.08, 0.48, 0, 0.44, 0), B(0.46, 0.55, 0.07, 0, 0.58, -0.24, [-8, 0, 0])]),
   ...made({ color: '#1d1f22', rough: 0.4 }, [C(0.025, 0.36, 0, 0.08, 0, 0.025, 12), B(0.05, 0.25, 0.03, 0, 0.36, -0.22)]),
   ...made({ color: '#1d1f22', rough: 0.4 }, [0, 72, 144, 216, 288].flatMap((a) => place([B(0.03, 0.03, 0.3, 0, 0.06, 0.15), C(0.03, 0.05, 0, 0.01, 0.3, 0.03, 10)], 0, 0, 0, a))),
-], x, 0, z, yaw);
+], x, 0, z, yaw));
 /** A water cooler: its cabinet and the blue bottle upside down on it. */
-const waterCooler = (x: number, z: number): Piece[] => [
+const waterCooler = (x: number, z: number): Piece[] => open([
   { ...B(0.32, 0.95, 0.32, x, 0, z), look: { color: '#e8e8e6', rough: 0.5 } },
   { ...C(0.14, 0.45, x, 0.95, z, 0.14, 20), look: { color: '#7fb3d6', rough: 0.1, glass: true } },
-];
+]);
 
 /**
  * A city block `w` wide and `h` high, its front on the pavement (z = -3): its walls of `look`, a
@@ -176,7 +179,8 @@ function cityBlock(x: number, w: number, h: number, look: Look): Piece[] {
   out.push(...made({ color: '#2a2d31', rough: 0.4, metal: 0.8 }, [B(w - 0.4, 0.12, 0.14, x, 2.9, front + 0.06), B(0.12, 2.9, 0.14, x - w / 2 + 0.25, 0, front + 0.06), B(0.12, 2.9, 0.14, x + w / 2 - 0.25, 0, front + 0.06)]));
   out.push({ ...B(w + 0.2, 0.06, 1.2, x, 3.2, front + 0.6, [-12, 0, 0]), look: { color: ['#7a2a24', '#2f4f6b', '#3d5a3a'][Math.abs(Math.round(x)) % 3], rough: 0.85 } });
   out.push(M('shutter', x + w / 4, front + 0.2, 0, 0.6, Math.min(1, (w / 2 - 0.4) / 3.08)));
-  return out;
+  // (Its windows, shopfront and awning on its face: details, not walls.)
+  return [out[0], ...open(out.slice(1))];
 }
 
 /** Red lacquer (Chinese columns), stone, painted beams. */
@@ -184,12 +188,12 @@ const LACQUER: Look = { color: '#8a1d16', rough: 0.35 };
 const STONE: Look = { surface: 'stone-blocks', color: '#c9c5bd' };
 const TEAL: Look = { color: '#2f5c58', rough: 0.6 };
 /** A red silk lantern hanging with its bottom at y: its cord, gold caps and tassel. */
-const lantern = (x: number, y: number, z: number): Piece[] => [
+const lantern = (x: number, y: number, z: number): Piece[] => open([
   { ...C(0.21, 0.42, x, y, z, 0.17, 16), look: { color: '#c0261c', rough: 0.75 } },
   ...made({ color: '#b8902f', rough: 0.4, metal: 1 }, [C(0.12, 0.04, x, y + 0.42, z, 0.12, 12), C(0.12, 0.04, x, y - 0.03, z, 0.12, 12)]),
   ...made({ color: '#3a2a1c', rough: 0.8 }, [C(0.008, 0.5, x, y + 0.46, z, 0.008, 6)]),
   { ...C(0.03, 0.22, x, y - 0.25, z, 0.01, 8), look: { color: '#c0261c', rough: 0.9 } },
-];
+]);
 /** A Chinese hall: a stone plinth with steps, red columns, walls behind them, a lattice front, a painted beam and a tiled roof. */
 function hall(w: number, d: number, h: number, plinth = 0.6, cols = 6): Piece[] {
   const out: Piece[] = made(STONE, [B(w + 1.2, plinth, d + 1.2, 0, 0, 0), ...steps(3, plinth, 3, 0.35, 0, d / 2 + 0.6 + 1.05)]);
@@ -241,12 +245,12 @@ export const SETS: SetDef[] = [
       // The sofa, its back to the window; an armchair turned to the table; the TV on the right wall.
       M('sofa', 0, -3.75), M('armchair', -2.4, -2.1, 60), M('ottoman', -1.6, -0.9, 20),
       M('coffee-table', 0, -2.35, 90),
-      M('tv-unit', 4.12, -2.2, -90), { ...B(0.05, 0.72, 1.28, 4.35, 1.05, -2.2), look: SCREEN },
+      M('tv-unit', 4.12, -2.2, -90), { ...B(0.05, 0.72, 1.28, 4.35, 1.05, -2.2), look: SCREEN, open: true },
       M('bookshelf', -4.1, -3.5, 90),
       M('side-table', 1.85, -3.8), M('potted-plant', 3.7, -3.95),
       M('picture', -2.8, -4.39, 0, 1.25), M('wall-clock', 4.39, -3.9, -90, 1.8),
       // A floor lamp by the sofa.
-      ...made(METAL, [C(0.015, 1.55, 2, 0, -3.9), C(0.16, 0.025, 2, 0, -3.9)]), { ...C(0.21, 0.3, 2, 1.55, -3.9, 0.13, 24), look: { color: '#efe6d2', rough: 0.9 } },
+      ...open([...made(METAL, [C(0.015, 1.55, 2, 0, -3.9), C(0.16, 0.025, 2, 0, -3.9)]), { ...C(0.21, 0.3, 2, 1.55, -3.9, 0.13, 24), look: { color: '#efe6d2', rough: 0.9 } }]),
     ],
   },
   {
@@ -723,12 +727,12 @@ export function setBlocks(id: string | undefined, from: THREE.Vector3, to: THREE
     boxes = [];
     for (const p of setById(id)?.build() ?? []) {
       const [kind] = p.shape;
-      // (A model: the box round it, as it came out of `npm run sets`, scaled; its bottom where it stands.)
-      const fit = p.shape[0] === 'model' ? INDEX.models[p.shape[1]]?.size.map((v) => v * ((p.shape as ['model', ModelId, number?])[2] ?? 1)) : null;
-      const size = kind === 'box' ? [p.shape[1], p.shape[2], p.shape[3]] as number[] : kind === 'cyl' ? [2 * Math.max(p.shape[1], p.shape[2]), p.shape[3], 2 * Math.max(p.shape[1], p.shape[2])] : fit;
+      // (Its architecture: not what furnishes it, a model, which a camera can pass by or see through, a tree's leaves; nor glass.)
+      if (p.open || (typeof p.look === 'object' && p.look.glass)) continue;
+      const size = kind === 'box' ? [p.shape[1], p.shape[2], p.shape[3]] as number[] : kind === 'cyl' ? [2 * Math.max(p.shape[1], p.shape[2]), p.shape[3], 2 * Math.max(p.shape[1], p.shape[2])] : null;
       if (!size) continue;
       const half = new THREE.Vector3(size[0] / 2, size[1] / 2, size[2] / 2);
-      const at = new THREE.Vector3(...p.at).add(new THREE.Vector3(0, fit ? half.y : 0, 0));
+      const at = new THREE.Vector3(...p.at);
       // (A floor: what lies on the ground, flat.)
       if (at.y + half.y <= 0.05) continue;
       const turn = p.rot ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ')) : new THREE.Quaternion();

@@ -13,12 +13,11 @@ import { samplePart } from '../lib/clip';
 import { newFigure, parseClip } from '../lib/doc';
 import { DEFAULT_BODY } from '../lib/body';
 import { legsOf } from '../lib/locomotion';
-import { refineClip } from '../lib/motionfix';
+import { goesRound, isCycle, refineClip } from '../lib/motionfix';
 import { clipCourse, strikeTime } from '../lib/strike';
-import { facingOf } from '../lib/pose';
 import { Rig } from '../lib/relations';
 import type { MOTION_GROUPS } from '../lib/motions';
-import type { Clip, JointName } from '../lib/types';
+import type { Clip } from '../lib/types';
 
 type MotionGroup = (typeof MOTION_GROUPS)[number];
 
@@ -125,7 +124,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Receive Punch To The Face': ['Punched in the face', 'Fighting'],
   'Death From The Front': ['Hit, fall forward', 'Fighting'],
   'Falling Back Death': ['Hit, fall back', 'Fighting'],
-  'Jump': ['Jump', 'Sport & acrobatics'],
+  'Jump': ['Jump forward', 'Sport & acrobatics'],
   'Standing Jump': ['Jump on the spot', 'Sport & acrobatics'],
   'Jump Over': ['Jump over', 'Sport & acrobatics'],
   'Landing': ['Land from a jump', 'Sport & acrobatics'],
@@ -150,7 +149,6 @@ const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^
 const rig = new Rig();
 const round = (v: number) => Math.round(v * 1000) / 1000;
 
-const quatAngle = (a: number[], b: number[]) => (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
 
 /**
  * Done once, though they end as they start: a gesture, a blow, a reaction, using something (a
@@ -161,23 +159,8 @@ const ONCE = [
   'Jump', 'Hit Reaction', 'Hook Punch', 'Jab Cross', 'Receive Punch To The Face', 'Roundhouse Kick', 'Uppercut', 'Lifting Object', 'Button Pushing', 'Pulling Lever', 'Throw Object',
 ];
 
-/** A walk, run or the like (not a turn): going round carries on from where it got to. */
-const isCycle = (name: string) => /walk|run|jog|sprint|strafe/i.test(name) && !/turn/i.test(name);
-
-/**
- * Whether a clip ends as it starts (each joint within 3°, the hips' height within 2 cm) and where
- * it starts (a dodge, a turn does not: done once), or goes on from there as a walk does: it can go round.
- */
-function loops(clip: Clip): boolean {
-  if (ONCE.includes(clip.name)) return false;
-  return clip.parts.every((p) => {
-    const a = samplePart(p, 0, clip.duration, false), b = samplePart(p, clip.duration, clip.duration, false);
-    if (Math.abs(a.position[1] - b.position[1]) > 0.02) return false;
-    const there = Math.hypot(b.position[0] - a.position[0], b.position[2] - a.position[2]) < 0.05 && Math.abs(facingOf(b.bones) - facingOf(a.bones)) < 5;
-    if (!there && !isCycle(clip.name)) return false;
-    return Object.entries(a.bones).every(([j, q]) => j === 'hips' || !q || !b.bones[j as JointName] || quatAngle(q, b.bones[j as JointName]!) < 3);
-  });
-}
+/** Whether a clip goes round (lib/motionfix.ts), unless it is done once. */
+const loops = (clip: Clip) => !ONCE.includes(clip.name) && goesRound(clip);
 
 /**
  * A walk or run cycle level: captured, its hips often sink or rise a few centimetres over a cycle

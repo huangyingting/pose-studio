@@ -236,11 +236,12 @@ export type ActionSource =
    * blend where a repeat ends far from how the next starts); `alternate`, every other one mirrored.)
    */
   /** (`inPlace`, #23: its travel taken out: it stays where it starts. `lead`: seconds its first pose is held before it plays.) */
-  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean; repeat?: number; from?: number; to?: number; seam?: number; alternate?: boolean; inPlace?: boolean; lead?: number }
+  | { kind: 'clip'; clip: string; speed?: number; mirror?: boolean; repeat?: number; from?: number; to?: number; seam?: number; alternate?: boolean; inPlace?: boolean; lead?: number; loops?: boolean }
   /** Poses keyed by hand: a one-part Clip of the action's own, in world space. One key: a held pose. */
   | { kind: 'keys'; clip: Clip }
   /** Walking, running or jumping to the role's end mark (via other marks), its steps generated. */
-  | { kind: 'travel'; mode: Travel; strafe?: boolean; spin?: number; flip?: number; via?: Mark[] };
+  /** `gait`: a Library cycle (a captured walk or run) it goes with, instead of generated steps (#26). */
+  | { kind: 'travel'; mode: Travel; strafe?: boolean; spin?: number; flip?: number; via?: Mark[]; gait?: string };
 
 /** A figure taking part in an Action, and where the action leaves it (world). */
 export interface Role {

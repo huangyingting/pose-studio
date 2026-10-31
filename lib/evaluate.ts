@@ -4,7 +4,7 @@ import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart, startFacing }
 import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
-import { feetOf, legsOf, locomote, footprints as stepsOf, type AnglePose, type Chain, type Ground } from './locomotion';
+import { feetOf, legsOf, locomote, makeCycle, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
@@ -65,6 +65,19 @@ const markOf = (p: Pose): Mark => ({ at: [p.position[0], p.position[2]], facing:
 const toAngles = (p: Pose): AnglePose => ({ joints: anglesOf(p.bones), position: p.position, hands: p.hands, grounded: p.grounded });
 const fromAngles = (p: AnglePose): Pose => ({ bones: bonesOf(p.joints), position: p.position, hands: p.hands, grounded: p.grounded });
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };
+
+// (Each captured cycle worked out once, #26: a clip's first person's lap.)
+const cycles = new WeakMap<Clip, Cycle | null>();
+/** The captured cycle a walk or run goes with: a Library motion that goes round and goes somewhere (null till it is at hand, or if not). */
+function cycleOf(id: string): Cycle | null {
+  const clip = playedClip({ clip: id });
+  if (!clip?.loop || !clip.parts[0]) return null;
+  if (!cycles.has(clip)) {
+    const part = clip.parts[0];
+    cycles.set(clip, makeCycle((u) => toAngles(samplePart(part, u, clip.duration, u < clip.duration)), clip.duration, part.body ?? DEFAULT_BODY));
+  }
+  return cycles.get(clip)!;
+}
 
 /** A floor offset turned by `deg` about the vertical (the same sense as turning a figure). */
 function turn(x: number, z: number, deg: number): [number, number] {
@@ -745,6 +758,7 @@ class Evaluator {
       ...(src.strafe ? { strafe: true } : {}),
       ...(src.spin ? { spin: src.spin } : {}),
       ...(src.flip ? { flip: src.flip } : {}),
+      ...(src.gait && src.mode !== 'jump' && cycleOf(src.gait) ? { cycle: cycleOf(src.gait)! } : {}),
     };
     this.chains.set(key, c);
     return c;
