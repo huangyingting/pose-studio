@@ -608,7 +608,7 @@ class Evaluator {
         if (w > 0) {
           // (The model is lifted out of the floor, if it went in: measured from where it was put.)
           const m = this.rig.model({ ...f, ...raw, position: [0, y, 0] });
-          fix = w * (m.lowest() - (m.joints.hips.position.y - y) - touch);
+          fix = w * (m.lowest() - (m.joints.hips.position.y - y) - touch * size);
         }
         fixes.set(key, fix);
       }

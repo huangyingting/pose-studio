@@ -4,12 +4,13 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DEFAULT_BODY } from './body';
 import { partFromPoses } from './clip';
-import { parseClip } from './doc';
+import { newFigure, parseClip } from './doc';
 import { detectContacts } from './constraints';
 import { RELAXED_HAND, cloneHand } from './hands';
 import { legsOf } from './locomotion';
 import { Fitted, MissingBones, mapBones, missingBones, rigBones, type BoneMap } from './model';
 import { toQuat, type Bones } from './pose';
+import { Rig } from './relations';
 import { PARENT } from './skeleton';
 import { uid } from './uid';
 import { BONES, type Bone, type Clip, type Pose, type Vec3 } from './types';
@@ -40,6 +41,8 @@ export async function readMotionFile(name: string, data: ArrayBuffer): Promise<M
   const title = name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Motion';
   if (ext === 'bvh') {
     const r = new BVHLoader().parse(new TextDecoder().decode(data));
+    for (const b of r.skeleton.bones) b.name = b.name.replace(/:/g, '');
+    for (const t of r.clip.tracks) t.name = t.name.replace(/:/g, '');
     const root = new THREE.Group();
     root.add(r.skeleton.bones[0]);
     return { name: title, root, clip: r.clip };
@@ -92,7 +95,11 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
   const from = setUpFrame(mixer, src.clip, first);
   const duration = Math.min(MAX_SECONDS, src.clip.duration - from || 1 / RATE);
   const count = Math.max(2, Math.round(duration * RATE) + 1);
-  const frames: { bones: Bones; hips: THREE.Vector3; ankle: number }[][] = [];
+  const rig = new Rig();
+  const fig = { ...newFigure(), body: DEFAULT_BODY, grounded: false };
+  const m = rig.model(fig);
+  m.groundLock = true;
+  const frames: { bones: Bones; hips: THREE.Vector3; low: number; lf: THREE.Vector3; rf: THREE.Vector3 }[][] = [];
   try {
     for (let i = 0; i < count; i++) {
       mixer.setTime(from + (duration * i) / (count - 1));
@@ -104,22 +111,32 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
           const local = b === 'hips' ? world.get(b)! : world.get(PARENT[b as Exclude<Bone, 'hips'>])!.clone().invert().multiply(world.get(b)!);
           bones[b] = toQuat(local);
         }
-        return { bones, hips: p.at('hips')!, ankle: Math.min(p.at('leftFoot')!.y, p.at('rightFoot')!.y) };
+        const hips = p.at('hips')!;
+        m.apply({ ...fig, bones, position: [hips.x * scale, hips.y * scale, hips.z * scale] });
+        const lf = m.joints.leftFoot.getWorldPosition(new THREE.Vector3());
+        const rf = m.joints.rightFoot.getWorldPosition(new THREE.Vector3());
+        return { bones, hips, low: m.lowest(), lf, rf };
       }));
     }
   } finally {
+    m.groundLock = false;
+    rig.dispose();
     mixer.stopAllAction();
     first.frame.remove(src.root);
   }
-  // Feet on the floor: the lowest the ankles go over the clip is ankle height.
-  const ground = Math.min(...frames.flat().map((f) => f.ankle));
+  // Feet on the floor: the planted feet's height (or the lowest point reached, if none stay put).
+  const minLow = Math.min(...frames.flat().map((f) => f.low));
+  const planted = people.flatMap((_, n) =>
+    frames.filter((f, i) => i > 0 && f[n].low <= minLow + 0.15 && (f[n].lf.distanceTo(frames[i - 1][n].lf) < 0.02 || f[n].rf.distanceTo(frames[i - 1][n].rf) < 0.02)).map((f) => f[n].low),
+  ).sort((a, b) => a - b);
+  const ground = planted.length >= 3 ? planted[Math.floor((planted.length - 1) * 0.5)] : minLow;
   const start = frames[0][0].hips.clone();
   const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
   const name = src.name.slice(0, 80);
   const parts = people.map((_, n) => {
     const keys = frames.map((frame, i): { t: number; pose: Pose } => {
       const { bones, hips } = frame[n];
-      const position: Vec3 = [r3((hips.x - start.x) * scale), r3((hips.y - ground) * scale + legs.ankleY), r3((hips.z - start.z) * scale)];
+      const position: Vec3 = [r3((hips.x - start.x) * scale), r3(hips.y * scale - ground), r3((hips.z - start.z) * scale)];
       return { t: r3((duration * i) / (count - 1)), pose: { bones, position, hands: { L: cloneHand(RELAXED_HAND), R: cloneHand(RELAXED_HAND) }, grounded: false } };
     });
     return partFromPoses(people.length > 1 ? `${name} ${n + 1}` : name, keys, 'linear', DEFAULT_BODY);

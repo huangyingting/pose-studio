@@ -114,4 +114,31 @@ describe('importing motions from other tools', () => {
     const other = new TextEncoder().encode('{"parts":[]}').buffer as ArrayBuffer;
     await expect(importMotion('x.json', other)).rejects.toThrow(/Pose Studio motion/);
   });
+
+  it('grounds Mixamo-prefixed BVH clips with curved spines and outlier dips on short figures too', async () => {
+    const mixamo = {
+      hips: 'mixamorig:Hips', spine: 'mixamorig:Spine', neck: 'mixamorig:Neck', head: 'mixamorig:Head',
+      upLeg: (s: string) => `mixamorig:${s}UpLeg`, leg: (s: string) => `mixamorig:${s}Leg`, foot: (s: string) => `mixamorig:${s}Foot`, toe: (s: string) => `mixamorig:${s}ToeBase`,
+      clav: (s: string) => `mixamorig:${s}Shoulder`, arm: (s: string) => `mixamorig:${s}Arm`, fore: (s: string) => `mixamorig:${s}ForeArm`, hand: (s: string) => `mixamorig:${s}Hand`,
+      side: { L: 'Left', R: 'Right' },
+    };
+    // Neck sits 3.5 cm behind Hips (as in Mixamo's Y Bot / X Bot), and one frame dips 8 cm below the floor.
+    const curved = bvh(mixamo).replace('JOINT mixamorig:Neck\n{\nOFFSET 0 45 0', 'JOINT mixamorig:Neck\n{\nOFFSET 0 45 -3.5');
+    const lines = curved.trim().split('\n');
+    const f0 = lines[lines.length - 3];
+    const dip = f0.replace(/^0 92 0/, '0 84 0');
+    const text = [...lines.slice(0, -5), 'Frames: 6', 'Frame Time: 0.1', f0, f0, f0, f0, dip, lines[lines.length - 1]].join('\n') + '\n';
+    const clip = await importMotion('Mixamo_step.bvh', new TextEncoder().encode(text).buffer as ArrayBuffer);
+    putClips([clip]);
+    const scene = clipScene(clip);
+    scene.figures[0].body = { sex: 0, height: 1.25 };
+    const rig = new Rig();
+    const start = rig.model(sceneAt(scene, 0).figures[0]);
+    expect(start.lowest()).toBeLessThan(0.01);
+    const end = rig.model(sceneAt(scene, clip.duration).figures[0]);
+    expect(end.lowest()).toBeLessThan(0.01);
+    const z = (j: 'leftFoot' | 'rightFoot') => end.joints[j].getWorldPosition(new THREE.Vector3()).z;
+    expect(z('leftFoot') - z('rightFoot')).toBeGreaterThan(0.15);
+    rig.dispose();
+  });
 });
