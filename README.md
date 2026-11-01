@@ -215,7 +215,8 @@ lib/
   assets.ts, assetstore.ts  Clips by id (built-in and imported); imported clips and characters kept in IndexedDB
   model.ts              Rigs from other tools fitted to the skeleton; characters drawn as figures
   store.ts              App state, undo/redo history, persistence
-  actions.ts            All document operations used by the UI and shortcuts
+  actions/              All document operations (the UI, the commands and the assistant), by part: scenes, figures,
+                        lights, props, motion, timeline, cameras, library, selection
   doc.ts                Factories, mirror/symmetrize, validation of untrusted JSON
   mannequin.ts          Procedural figure: male/female anatomy, fingers, IK, swivel, joint limits, grounding
   props.ts, hold.ts     Prop geometry; props held in a hand (grips, letting go)

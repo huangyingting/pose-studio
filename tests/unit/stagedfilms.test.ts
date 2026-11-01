@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { startFilm } from '@/lib/actions';
+import { startAnimatedScene } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { cameraAt, viewOf } from '@/lib/cameras';
 import { parseClip } from '@/lib/doc';
@@ -101,18 +101,18 @@ describe('films: templates staged as a director would', () => {
 
   it('opens as a film cast as it says: the officer and the man with the hostage', () => {
     const store = new Store(new MemoryStorage());
-    expect(startFilm(store, { shoot: 'shoot-film-standoff' }, 15)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-film-standoff' }, 15)).toBe(true);
     const name = (id: string) => store.scene.figures.find((f) => f.id === id)!.name;
     expect(store.scene.coverage).toMatchObject({ id: 'dialogue', live: true });
     expect([name(store.scene.coverage!.roles.A), name(store.scene.coverage!.roles.B)]).toEqual(['Officer Diaz', 'Vince']);
-    expect(startFilm(store, { shoot: 'shoot-film-wuxia' }, 15)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-film-wuxia' }, 15)).toBe(true);
     expect(store.scene.coverage).toMatchObject({ id: 'fight', live: true });
   });
 
   it("keeps every preset's cameras out of anyone, moving smoothly within a shot", () => {
     for (const p of SHOOT_PRESETS) {
       const store = new Store(new MemoryStorage());
-      expect(startFilm(store, { shoot: p.id }, 15), p.name).toBe(true);
+      expect(startAnimatedScene(store, { shoot: p.id }, 15), p.name).toBe(true);
       const scene = store.scene;
       load(scene);
       let last = null as { at: THREE.Vector3; shot: string } | null;
@@ -133,7 +133,7 @@ describe('films: templates staged as a director would', () => {
 
   it('works a camera out again when what it films changes: its subject, the motions coming in', () => {
     const store = new Store(new MemoryStorage());
-    expect(startFilm(store, { shoot: 'shoot-film-wuxia' }, 15)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-film-wuxia' }, 15)).toBe(true);
     const fresh = (s: Scene) => structuredClone(s);
     const t = 6;
     // Worked out before the Library's motions are at hand (everyone standing), then as they come.

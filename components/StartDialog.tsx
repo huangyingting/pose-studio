@@ -3,7 +3,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { rovingKey, useRoving, type Roving } from './roving';
 import { Clapperboard, FilePlus2, Layers, PersonStanding, Trash2, UsersRound, type LucideIcon } from 'lucide-react';
-import { addScene, deleteShoot, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, startFilm } from '@/lib/actions';
+import { addScene, deleteShoot, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, startAnimatedScene } from '@/lib/actions';
 import { COVERAGES } from '@/lib/coverage';
 import { templateThumb } from '@/lib/previews';
 import { SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf, templatesOf } from '@/lib/templates';
@@ -49,14 +49,14 @@ export function StartDialog({ onClose }: { onClose(): void }) {
   };
   const empty: Tile = {
     key: 'empty', name: 'Empty', meta: 'One figure', icon: FilePlus2,
-    open: () => (seconds ? startFilm(store, {}, seconds) : (addScene(store), true)),
+    open: () => (seconds ? startAnimatedScene(store, {}, seconds) : (addScene(store), true)),
   };
   const presets = shoots.map((p): Tile => {
     const t = templates.find((x) => x.id === p.template)!;
     const mine = !SHOOT_PRESETS.includes(p);
     return {
       key: `shoot:${p.id}`, name: p.name, meta: COVERAGES.find((c) => c.id === p.coverage)!.name, icon: Clapperboard, thumb: templateThumb(t.id, t.build),
-      open: () => (seconds ? startFilm(store, { shoot: p.id }, seconds) : !!newShoot(store, p.id)),
+      open: () => (seconds ? startAnimatedScene(store, { shoot: p.id }, seconds) : !!newShoot(store, p.id)),
       actions: mine ? [{ icon: Trash2, label: `Delete the shoot preset ${p.name}`, run: () => deleteShoot(store, p.id) }] : undefined,
     };
   });
@@ -64,7 +64,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
   const filmed = new Set(shoots.filter((p) => templates.find((t) => t.id === p.template)?.name === p.name).map((p) => p.template));
   const scenes = (group: string) => templates.filter((t) => t.group === group && !filmed.has(t.id)).map((t): Tile => ({
     key: `template:${t.id}`, name: t.name, meta: t.people === 1 ? '1 person' : `${t.people} people`, icon: t.people > 1 ? UsersRound : PersonStanding, thumb: templateThumb(t.id, t.build),
-    open: () => (seconds ? startFilm(store, { template: t.id }, seconds) : sceneFromTemplate(store, t.id)),
+    open: () => (seconds ? startAnimatedScene(store, { template: t.id }, seconds) : sceneFromTemplate(store, t.id)),
     actions: [
       {
         icon: Layers,

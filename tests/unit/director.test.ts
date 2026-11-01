@@ -53,10 +53,10 @@ describe('the director (#14)', () => {
 
 describe('a new film (#14)', () => {
   it('starts from a result: a shoot preset or an empty scene, as long as asked, the director filming it', async () => {
-    const { startFilm } = await import('@/lib/actions');
+    const { startAnimatedScene } = await import('@/lib/actions');
     const store = new Store(new MemoryStorage());
     const scenes = store.getState().library.scenes.length;
-    expect(startFilm(store, { shoot: 'shoot-interview' }, 30)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-interview' }, 30)).toBe(true);
     expect(store.getState().library.scenes.length).toBe(scenes + 1);
     expect(store.scene.animation!.duration).toBe(30);
     expect(store.scene.coverage).toMatchObject({ id: 'dialogue', live: true });
@@ -64,7 +64,7 @@ describe('a new film (#14)', () => {
     // (Only the director's cameras: the one the scene came with, filming none of it, went.)
     expect(store.scene.cameras.every((c) => c.made)).toBe(true);
 
-    expect(startFilm(store, {}, 15)).toBe(true);
+    expect(startAnimatedScene(store, {}, 15)).toBe(true);
     expect(store.scene.animation!.duration).toBe(15);
     expect(store.scene.coverage).toMatchObject({ id: 'follow', live: true });
   });
@@ -72,9 +72,9 @@ describe('a new film (#14)', () => {
 
 describe('the director, by hand', () => {
   it('a cut by hand in the first shot stays; a shot renamed keeps its name; a deleted camera of its own turns it off', async () => {
-    const { cutShot, editShot, deleteCamera, startFilm } = await import('@/lib/actions');
+    const { cutShot, editShot, deleteCamera, startAnimatedScene } = await import('@/lib/actions');
     const store = new Store(new MemoryStorage());
-    startFilm(store, {}, 15);
+    startAnimatedScene(store, {}, 15);
     const first = shots(store)[0];
     store.setTime(Math.min(0.6, (shots(store)[1]?.start ?? 15) / 2));
     cutShot(store);
@@ -95,11 +95,11 @@ describe('the director, by hand', () => {
 describe('a film of a chosen length', () => {
   it('plays the film through its cuts, and gives the free view back when it stops', async () => {
     const { Clock, startPlayback } = await import('@/components/clock');
-    const { startFilm } = await import('@/lib/actions');
+    const { startAnimatedScene } = await import('@/lib/actions');
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
     const store = new Store(new MemoryStorage());
-    expect(startFilm(store, { shoot: 'shoot-interview' }, 15)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-interview' }, 15)).toBe(true);
     const clock = new Clock();
     startPlayback(clock, store);
     expect(store.getState().through).toEqual({});

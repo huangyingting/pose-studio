@@ -9,7 +9,7 @@ import type { Clip } from './types';
 /*
  * When a motion's strike lands: its hand or foot as far out from the hips as it goes. Someone
  * struck reacts then (the Library's index keeps it for its strikes, scripts/library-motions.ts;
- * a reaction is timed to it in a scene, lib/actions.ts reactTo, and in the films, lib/films.ts).
+ * a reaction is timed to it in a scene, lib/actions/timeline.ts reactTo, and in the films, lib/films.ts).
  */
 
 /** How long before a strike lands someone struck starts to react (s). */
