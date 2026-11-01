@@ -5,7 +5,7 @@ export type Vec3 = [number, number, number];
 /**
  * The joints a pose is made of and edited by (22, #30): the spine (an upper chest above the chest),
  * the neck and head, each arm from its shoulder (the collarbone) to its hand, each leg from its hip
- * to its toes. Each comes after its parent (lib/skeleton.ts RIG_PARENT).
+ * to its toes. Each comes after its parent (lib/skeleton.ts PARENT).
  */
 export const JOINTS = [
   'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
@@ -254,13 +254,13 @@ export interface Role {
 }
 
 /** The upper body: what an upper-body action plays over the base (waving while walking). */
-export const UPPER_BODY: readonly JointName[] = ['spine', 'chest', 'neck', 'head', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand'];
+export const UPPER_BODY: readonly JointName[] = ['spine', 'chest', 'upperChest', 'neck', 'head', 'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'];
 
 /** The body parts an action over another plays on (#23: its `mask`; the upper body when it has none). */
 export const MASKS: Record<NonNullable<Action['mask']>, readonly JointName[]> = {
-  arms: ['leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand'],
+  arms: ['leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'],
   head: ['neck', 'head'],
-  legs: ['leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot'],
+  legs: ['leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'leftToes', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot', 'rightToes'],
 };
 
 /**

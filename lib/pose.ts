@@ -85,64 +85,11 @@ export function nearer(j: JointName, v: Vec3, near: Vec3): Vec3 {
   return dist(b) < dist(a) ? b : a;
 }
 
-/* ---------- the joints as the body hangs together (#30) ---------- */
-
-/**
- * Each joint's parent in the body (the mannequin's hierarchy): the neck and the shoulders hang
- * from the upper chest, each upper arm from its shoulder. A pose's stored turns keep their older
- * parents (lib/skeleton.ts PARENT: the neck, shoulders and upper arms turned from the chest), so
- * what was saved and shipped means what it did; a joint's own turn in the body (what its angles,
- * its sliders and the mannequin's rig hold) is from its parent here. These two convert.
- */
-export const RIG_PARENT: Record<Exclude<JointName, 'hips'>, JointName> = {
-  spine: 'hips', chest: 'spine', upperChest: 'chest', neck: 'upperChest', head: 'neck',
-  leftShoulder: 'upperChest', leftUpperArm: 'leftShoulder', leftLowerArm: 'leftUpperArm', leftHand: 'leftLowerArm',
-  rightShoulder: 'upperChest', rightUpperArm: 'rightShoulder', rightLowerArm: 'rightUpperArm', rightHand: 'rightLowerArm',
-  leftUpperLeg: 'hips', leftLowerLeg: 'leftUpperLeg', leftFoot: 'leftLowerLeg', leftToes: 'leftFoot',
-  rightUpperLeg: 'hips', rightLowerLeg: 'rightUpperLeg', rightFoot: 'rightLowerLeg', rightToes: 'rightFoot',
-};
-
-/** The joints whose stored turn is from another than their parent in the body: from what (the chest) instead. */
-const STORED_FROM: Partial<Record<JointName, JointName>> = {
-  neck: 'chest', leftShoulder: 'chest', rightShoulder: 'chest', leftUpperArm: 'chest', rightUpperArm: 'chest',
-};
-
-/** The joints whose own turn and stored turn can differ, or whose turn moves those that can. */
-const FAMILY = new Set<JointName>(['upperChest', 'neck', 'leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm']);
-
-/** The chest-relative turn of a joint stored from the chest, as stored (rest when absent). */
-const stored = (bones: Bones, j: JointName) => fromQuat(bones[j]);
-
-/** A joint's own turn in the body (from its parent there), from a pose's stored turns. */
-export function rigTurn(bones: Bones, j: JointName): THREE.Quaternion {
-  if (!STORED_FROM[j]) return stored(bones, j);
-  // (Both from the chest: the parent's taken out. The upper chest is turned from the chest as stored.)
-  const parent = RIG_PARENT[j as Exclude<JointName, 'hips'>];
-  return stored(bones, parent).invert().multiply(stored(bones, j));
-}
-
-/** Every joint's own turn in the body, from a pose's stored turns. */
-export function rigTurns(bones: Bones): Record<JointName, THREE.Quaternion> {
-  return Object.fromEntries(JOINTS.map((j) => [j, rigTurn(bones, j)])) as Record<JointName, THREE.Quaternion>;
-}
-
-/** Stored turns from the joints' own turns in the body (every joint). */
-export function storedTurns(rig: Record<JointName, THREE.Quaternion>): Bones {
-  const out: Bones = {};
-  // (Each from the chest: its parent's chest-relative turn, then its own.)
-  const fromChest = (j: JointName): THREE.Quaternion => (j === 'upperChest' ? rig.upperChest.clone() : fromChest(RIG_PARENT[j as Exclude<JointName, 'hips'>]).multiply(rig[j]));
-  for (const j of JOINTS) out[j] = toQuat(STORED_FROM[j] ? fromChest(j) : rig[j]);
-  return out;
-}
-
-/** A joint's own turn in the body as stored values (its stored one, where they are the same). */
-const ownQuat = (bones: Bones, j: JointName): Quat | undefined => (STORED_FROM[j] ? toQuat(rigTurn(bones, j)) : bones[j]);
-
-/** A pose's angles (only joints away from rest): each joint's own, in the body. */
+/** A pose's angles (only joints away from rest). */
 export function anglesOf(bones: Bones, near: Angles = {}): Angles {
   const out: Angles = {};
   for (const j of JOINTS) {
-    const v = quatToAngle(j, ownQuat(bones, j), near[j]);
+    const v = quatToAngle(j, bones[j], near[j]);
     if (v.some((x) => x !== 0)) out[j] = v;
   }
   return out;
@@ -152,32 +99,19 @@ export function anglesOf(bones: Bones, near: Angles = {}): Angles {
 export function bonesOf(angles: Angles): Bones {
   const out: Bones = {};
   for (const j of JOINTS) out[j] = angleToQuat(j, angles[j] ?? [0, 0, 0]);
-  // (Where the upper chest or a shoulder is turned, those hanging from them are stored from the chest.)
-  if (!angles.upperChest && !angles.leftShoulder && !angles.rightShoulder) return out;
-  return storedTurns(Object.fromEntries(JOINTS.map((j) => [j, fromQuat(out[j])])) as Record<JointName, THREE.Quaternion>);
+  return out;
 }
 
-/** One joint's angles in a pose (its own, in the body). */
-export const angle = (bones: Bones, j: JointName, near?: Vec3): Vec3 => quatToAngle(j, ownQuat(bones, j), near);
+/** One joint's angles in a pose. */
+export const angle = (bones: Bones, j: JointName, near?: Vec3): Vec3 => quatToAngle(j, bones[j], near);
 
 /**
- * A pose with some joints set by angles (the others as they were in the body: raising a shoulder
- * raises its arm, twisting the upper chest turns the neck and the arms with it). Bones beyond the
- * joints (the fingers) kept.
+ * A pose with some joints set by angles (the others as they were: raising a shoulder raises its
+ * arm, twisting the upper chest turns the neck and the arms with it).
  */
 export function withAngles(bones: Bones, angles: Angles): Bones {
-  const entries = Object.entries(angles) as [JointName, Vec3][];
-  // (Most set none of the five's family: as stored, joint by joint.)
-  if (!entries.some(([j]) => FAMILY.has(j))) {
-    const out: Bones = { ...bones };
-    for (const [j, v] of entries) out[j] = angleToQuat(j, v);
-    return out;
-  }
-  const rig = rigTurns(bones);
-  for (const [j, v] of entries) rig[j] = fromQuat(angleToQuat(j, v));
-  const out = { ...bones, ...storedTurns(rig) };
-  // (A joint at rest that was not in the pose stays out of it.)
-  for (const j of JOINTS) if (!bones[j] && !angles[j] && out[j]?.every((x, i) => x === REST[i])) delete out[j];
+  const out: Bones = { ...bones };
+  for (const [j, v] of Object.entries(angles) as [JointName, Vec3][]) out[j] = angleToQuat(j, v);
   return out;
 }
 

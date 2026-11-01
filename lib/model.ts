@@ -27,9 +27,9 @@ import { CUTOFF, cutoutMaterial, featureMaterial, weighHead } from './features';
 export type BoneMap = Partial<Record<Bone, string>>;
 
 /**
- * The bones a rig must have to be posed or read: the mannequin's first 17 joints but the spine's
- * middle (which can be missed). The upper chest, the shoulders and the toes (#30) a rig may well
- * not have: left at rest, their turn in the bones below them.
+ * The bones a rig must have to be posed or read: the hips, neck and head, and each limb's three
+ * bones. The spine, chest, upper chest, shoulders and toes it may not have: posed as they turn in
+ * the bones below them.
  */
 export const NEEDED: JointName[] = [
   'hips', 'neck', 'head', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand',

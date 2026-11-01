@@ -1,27 +1,30 @@
 import * as THREE from 'three';
 import { fromQuat, toQuat, type Bones } from './pose';
-import { BONES, type Bone, type ExtraBone, type Hand, type Side } from './types';
+import { BONES, type Bone, type ExtraBone, type Hand, type JointName, type Side } from './types';
 
 /*
  * The standard skeleton: the VRM 1.0 humanoid's bones, each rotation local to its parent and
  * relative to the T-pose (every bone's rest is no turn; the figure faces +Z, its left is +X).
  *
- * The mannequin moves the core bones (types JOINTS) and draws its fingers from the hand presets.
- * The rest (the upper chest, shoulders, toes and finger bones) are detail for models and motions
- * that have them, kept so the core bones still say it all: each bone's turn is from its parent
- * here (below), so a shoulder's turn is in the upper arm's too and the mannequin, which has no
- * shoulder, shows the arm where it is. Models are posed from the bones' turns in the world.
+ * The mannequin moves the 22 joints (types JOINTS) and draws its fingers from the hand presets
+ * (the finger bones are for models and motions that have them). Each bone's turn is from its
+ * parent in the body (below): the neck and the shoulders hang from the upper chest, each upper
+ * arm from its shoulder, the toes from their foot. Models are posed from the bones' turns in the
+ * world.
  */
 
-/** Each bone's parent here: the mannequin's joint above it (the extras hang off those). */
+/** Each bone's parent in the body. */
 export const PARENT: Record<Exclude<Bone, 'hips'>, Bone> = {
   ...fingers('left'), ...fingers('right'),
-  spine: 'hips', chest: 'spine', upperChest: 'chest', neck: 'chest', head: 'neck',
-  leftShoulder: 'chest', leftUpperArm: 'chest', leftLowerArm: 'leftUpperArm', leftHand: 'leftLowerArm',
-  rightShoulder: 'chest', rightUpperArm: 'chest', rightLowerArm: 'rightUpperArm', rightHand: 'rightLowerArm',
+  spine: 'hips', chest: 'spine', upperChest: 'chest', neck: 'upperChest', head: 'neck',
+  leftShoulder: 'upperChest', leftUpperArm: 'leftShoulder', leftLowerArm: 'leftUpperArm', leftHand: 'leftLowerArm',
+  rightShoulder: 'upperChest', rightUpperArm: 'rightShoulder', rightLowerArm: 'rightUpperArm', rightHand: 'rightLowerArm',
   leftUpperLeg: 'hips', leftLowerLeg: 'leftUpperLeg', leftFoot: 'leftLowerLeg', leftToes: 'leftFoot',
   rightUpperLeg: 'hips', rightLowerLeg: 'rightUpperLeg', rightFoot: 'rightLowerLeg', rightToes: 'rightFoot',
 } as Record<Exclude<Bone, 'hips'>, Bone>;
+
+/** Each joint's parent (a joint too). */
+export const JOINT_PARENT = PARENT as Record<Exclude<JointName, 'hips'>, JointName>;
 
 function fingers(side: 'left' | 'right') {
   const out: Record<string, Bone> = {};
