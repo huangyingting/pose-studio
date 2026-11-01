@@ -306,7 +306,9 @@ export function FigureRow({ tl, f }: { tl: TrackView; f: Figure }) {
               onDoubleClick={() => { pause(); store.select({ kind: 'action', action: x.id, figure: f.id }); }}
               onContextMenu={(e) => {
                 e.stopPropagation();
+                // (Selected, as the canvas's and a shot's right-click select theirs: the inspector shows it.)
                 store.setActiveFigure(f.id);
+                store.select({ kind: 'action', action: x.id, figure: f.id });
                 openContextMenu(e, menu('action', { store, action: x.id, figure: f.id }), `${f.name} · ${label}`);
               }}
             >

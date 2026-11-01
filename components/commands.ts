@@ -1219,7 +1219,6 @@ export const COMMANDS: Command[] = [
       };
     }),
   },
-  { id: 'action.edit', title: 'Edit in the inspector', icon: Pencil, when: (c) => !!actionOf(c), run: (c) => c.store.select({ kind: 'action', action: c.action!, figure: c.figure! }) },
   {
     id: 'action.split', title: 'Split at the playhead', help: 'Split the action at the playhead: two blocks, the second going on from where the first leaves off', icon: SquareSplitHorizontal, keys: ['s'],
     when: (c) => { const x = splitting(c); return !!x && x.source.kind !== 'travel'; },
@@ -1578,7 +1577,7 @@ const MENUS = {
     'camera.size', 'camera.lens', '-', 'camera.delete',
   ],
   scene: ['scene.rename', 'scene.duplicate', 'scene.share', 'scene.board', 'scene.template', 'scene.shoot', '-', 'scene.delete'],
-  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.copy', 'action.paste', 'action.duplicate', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.unlink', 'action.saveMotion', 'action.editAsKeys', '-', 'action.edit', 'action.remove', 'action.rippleDelete'],
+  action: ['travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'action.copy', 'action.paste', 'action.duplicate', '-', 'action.split', 'action.splitRepeats', 'action.trimStart', 'action.trimEnd', '-', 'action.mirror', 'action.repeat', 'action.reactTo', 'action.unlink', 'action.saveMotion', 'action.editAsKeys', '-', 'action.remove', 'action.rippleDelete'],
   key: ['key.ease', 'key.hold', '-', 'travel.how', 'travel.facing', 'travel.height', 'travel.turns', '-', 'key.delete'],
   light: ['light.clay', 'light.preset', '-', 'light.fromView', 'light.place', 'light.shadows', 'light.add', '-', 'light.delete'],
   lighting: ['light.preset', 'light.add'],

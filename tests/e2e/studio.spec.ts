@@ -2111,6 +2111,12 @@ test('actions are blocks on the timeline: picked for the inspector, retimed by t
   let s = await live(page);
   const walk = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'travel' && a.source.mode === 'walk')!);
   const before = await walk();
+  // Right-clicked, as on the canvas: picked too, its menu beside it.
+  await page.locator('.tl-travel.walk').click({ button: 'right' });
+  await expect(page.getByRole('complementary', { name: 'Inspector' }).getByLabel('Action')).toHaveText('Walk');
+  await expect(page.getByRole('menuitem', { name: 'Remove Walk' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
   // Picked: the inspector shows how it gets there and its timing.
   await page.locator('.tl-travel.walk').click();
   const inspector = page.getByRole('complementary', { name: 'Inspector' });

@@ -92,6 +92,7 @@ first, then everywhere it applies.
 
 - **Everything on the canvas, in the outline and on the timeline has a right-click menu** (a
   long press on touch; Shift + F10 or the menu key from the keyboard). Its items are commands.
+  A right-click selects what it is on, as a click would, so the inspector shows what the menu is for.
   Menus scroll with the wheel and show ▲ ▼ when they do not fit. A menu closes on a choice, a
   click elsewhere, Escape, or the focus gone elsewhere (a dialog a key opened is never under one).
 - **A set is the floor where it stands**: its furniture or a wall right-clicked has the floor's
