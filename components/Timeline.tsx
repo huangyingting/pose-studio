@@ -709,7 +709,7 @@ function ScrollBar({ start, size, onScroll }: { start: number; size: number; onS
 function MotionIssues({ issues, goTo, fixOf, onFix, onClose }: { issues: Issue[]; goTo(i: Issue): void; fixOf(i: Issue): { label: string; run(): void } | null; onFix(run: () => void): void; onClose(): void }) {
   return (
     <div className="qa-card" role="dialog" aria-label="Motion check" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
-      <div className="shot-editor-head">
+      <div className="qa-head">
         <strong>Motion check · {issues.length} {issues.length === 1 ? 'issue' : 'issues'}</strong>
         <IconButton icon={X} label="Close" onClick={onClose} size={15} />
       </div>

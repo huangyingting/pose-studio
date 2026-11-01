@@ -1079,23 +1079,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-shot.over { box-shadow: inset 0 0 0 1.5px var(--danger); }
 .tl-shot.over svg { color: var(--danger); flex: none; }
 .tl-shot.on.over svg { color: var(--danger); }
-.shot-editor {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  /* (translate, not transform: the pop it opens with animates transform.) */
-  translate: -50% 0;
-  z-index: var(--z-float);
-  width: 320px;
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  background: var(--panel);
-  border-radius: var(--radius-l);
-  box-shadow: var(--shadow-pop);
-  animation: pop 0.12s ease-out;
-}
-.shot-editor-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-2); }
 .tl-qa.warn { color: var(--warn); }
 .tl-qa.warn:hover:not(:disabled) { background: var(--warn-soft); }
 .tl-issue {
@@ -1126,7 +1109,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   box-shadow: var(--shadow-pop);
   animation: pop 0.12s ease-out;
 }
-.qa-card .shot-editor-head { padding-right: 6px; }
+.qa-head { display: flex; align-items: center; justify-content: space-between; padding-right: 6px; color: var(--text-2); }
 .qa-card ul { list-style: none; margin: 0; padding: 0 6px 0 0; overflow-y: auto; }
 .qa-card li button {
   display: grid;
@@ -1148,16 +1131,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .qa-card em { justify-self: end; font-size: var(--fs-s); font-weight: 540; font-style: normal; color: var(--text-3); }
 .qa-msg { grid-column: 1 / -1; color: var(--text); }
 .qa-hint { grid-column: 1 / -1; color: var(--text-2); }
-.shot-editor textarea {
-  font: inherit;
-  resize: none;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: var(--panel-2);
-  color: var(--text);
-}
-.shot-editor textarea:focus { outline: none; background: var(--raised); box-shadow: var(--focus); }
 .tl-past { position: absolute; top: 0; bottom: 0; pointer-events: none; border-left: 1px dashed var(--border-strong); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--text-3) 9%, transparent) 6px 7px); }
 /* Markers on the ruler (#22): a flag and its name; dragged along it. */
 .tl-marker {

@@ -25,9 +25,9 @@ const EDGE_SPEED = 1.5;
 /** Keys picked to move together (on one figure's row). */
 export type KeyPick = { figure: string; times: number[] };
 /** The stretch of time on show (for what runs between renders: a drag, its auto-scroll). */
-export type Shown = { v0: number; span: number; zoomed: boolean; total: number };
+type Shown = { v0: number; span: number; zoomed: boolean; total: number };
 
-export interface DragsOf {
+interface DragsOf {
   store: Store;
   a: Animation;
   figures: Figure[];
