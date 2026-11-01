@@ -3,7 +3,7 @@ import { buildOf, widthOf } from './body';
 import { BOTS, BOT_TARGETS } from './bots';
 import { Ink, InkedParts, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
-import { boneToRig, fromQuat, rigToBone, toQuat } from './pose';
+import { RIG_PARENT, boneToRig, rigToBone, rigTurns, storedTurns } from './pose';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
 } from './types';
@@ -140,14 +140,8 @@ interface FingerRig {
   side: 1 | -1;
 }
 
-/** Each joint's parent (the hips: the root). */
-const PARENT: Record<Exclude<JointName, 'hips'>, JointName> = {
-  spine: 'hips', chest: 'spine', neck: 'chest', head: 'neck',
-  leftUpperArm: 'chest', leftLowerArm: 'leftUpperArm', leftHand: 'leftLowerArm',
-  rightUpperArm: 'chest', rightLowerArm: 'rightUpperArm', rightHand: 'rightLowerArm',
-  leftUpperLeg: 'hips', leftLowerLeg: 'leftUpperLeg', leftFoot: 'leftLowerLeg',
-  rightUpperLeg: 'hips', rightLowerLeg: 'rightUpperLeg', rightFoot: 'rightLowerLeg',
-};
+/** Each joint's parent in the body (the hips: the root), #30: lib/pose.ts. */
+const PARENT = RIG_PARENT;
 
 /** The joint a part of the bot belongs to (a finger's segment: its hand's). */
 const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle|Ring|Little)/.test(target) ? (`${target.startsWith('left') ? 'left' : 'right'}Hand` as JointName) : (target as JointName));
@@ -193,7 +187,7 @@ function shaped(bot: Bot, k: number, build: number, fx: number, J0: (name: strin
     for (let i = 0; i < P.length; i++) P[i] = bot.positions[i] * k;
     return P;
   }
-  const kind = (t: string) => (/^(hips|spine|chest|neck)$/.test(t) ? 'trunk' : /(UpperArm|LowerArm|UpperLeg|LowerLeg)$/.test(t) ? 'limb' : 'end');
+  const kind = (t: string) => (/^(hips|spine|chest|upperChest|neck|leftShoulder|rightShoulder)$/.test(t) ? 'trunk' : /(UpperArm|LowerArm|UpperLeg|LowerLeg)$/.test(t) ? 'limb' : 'end');
   const axes = BOT_TARGETS.map((t) => {
     const name = t in bot.joints ? t : 'hips';
     const [a, b] = [J0(name), J(name)];
@@ -400,7 +394,8 @@ export class Mannequin {
       geo.setIndex(index);
       geo.userData.pieces = hand ? 12 : 2;
       // (The trunk one form: its parts share their IDs, no line where one joint takes over from the next.)
-      const form = part === 'hips' || part === 'spine' || part === 'chest' ? { form: 'trunk' } : {};
+      // (And the upper chest and shoulders with it; the toes one with their foot.)
+      const form = ['hips', 'spine', 'chest', 'upperChest', 'leftShoulder', 'rightShoulder'].includes(part) ? { form: 'trunk' } : /(Foot|Toes)$/.test(part) ? { form: part.replace('Toes', 'Foot') } : {};
       const mesh = this.parts.add(this.object, geo, { joint: part, figure: this.id, ...form }) as THREE.SkinnedMesh;
       // Picked where it is as posed (three keeps a skinned mesh's bounds from when it was first
       // asked, its arm still down after it is raised); drawn wherever it goes.
@@ -436,7 +431,9 @@ export class Mannequin {
   /** Pose the figure from document state. */
   apply(fig: Figure) {
     this.setBody(fig.body);
-    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fromQuat(fig.bones[name])));
+    // (Each joint's own turn in the body: the stored turns of the neck, shoulders and arms are from the chest.)
+    const own = rigTurns(fig.bones);
+    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, own[name]));
     this.setHand('L', fig.hands.L);
     this.setHand('R', fig.hands.R);
     this.grounded = fig.grounded;
@@ -447,7 +444,7 @@ export class Mannequin {
   /** Read the bone rotations and the hips' position back out. */
   read(): Pick<Figure, 'bones' | 'position'> {
     const bones: Figure['bones'] = {};
-    for (const name of JOINTS) bones[name] = toQuat(rigToBone(name, this.joints[name].quaternion));
+    Object.assign(bones, storedTurns(Object.fromEntries(JOINTS.map((name) => [name, rigToBone(name, this.joints[name].quaternion)])) as Record<JointName, THREE.Quaternion>));
     const p = this.joints.hips.position;
     const r = (x: number) => Math.round(x * 1000) / 1000 || 0;
     return { bones, position: [r(p.x), r(p.y), r(p.z)] };

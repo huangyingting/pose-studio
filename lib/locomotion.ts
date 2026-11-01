@@ -412,6 +412,8 @@ function compose(pose: AnglePose, legs: Legs, g: Generated): AnglePose {
       const ankle = 'world' in foot ? lerp(ik.ankle[0] + tiptoe, 12, foot.swing) : foot.point;
       // (Rolled to stay flat on the floor no further than an ankle rolls.)
       joints[sided('Foot', side)] = [r1(clamp(ankle, -40, 60)), 0, r1('world' in foot ? clamp(ik.ankle[2] * (1 - foot.swing), -35, 35) : 0)];
+      // Up on its toes, they bend back at the ball of the foot, flat on the floor (#30).
+      if (tiptoe > 0 && 'world' in foot) joints[sided('Toes', side)] = [r1(-clamp(tiptoe * (1 - foot.swing), 0, 50)), 0, 0];
     }
     const sh = joints[sided('UpperArm', side)] ?? [0, 0, 0];
     joints[sided('UpperArm', side)] = [r1(sh[0] + s * g.swing + g.raise), sh[1], sh[2]];

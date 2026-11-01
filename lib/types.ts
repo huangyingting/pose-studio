@@ -2,19 +2,23 @@ import type { Bones } from './pose';
 
 export type Vec3 = [number, number, number];
 
+/**
+ * The joints a pose is made of and edited by (22, #30): the spine (an upper chest above the chest),
+ * the neck and head, each arm from its shoulder (the collarbone) to its hand, each leg from its hip
+ * to its toes. Each comes after its parent (lib/skeleton.ts RIG_PARENT).
+ */
 export const JOINTS = [
-  'hips', 'spine', 'chest', 'neck', 'head',
-  'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand',
-  'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
+  'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
+  'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+  'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'leftToes', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot', 'rightToes',
 ] as const;
 export type JointName = (typeof JOINTS)[number];
 
 /**
- * The rest of the VRM 1.0 humanoid skeleton (but the eyes and jaw): bones the mannequin does not
- * move by itself, which an imported model or motion may have (lib/skeleton.ts).
+ * The rest of the VRM 1.0 humanoid skeleton (but the eyes and jaw): the fingers' bones, which the
+ * mannequin draws from its hands' presets and an imported model or motion may have (lib/skeleton.ts).
  */
 export const EXTRA_BONES = [
-  'upperChest', 'leftShoulder', 'rightShoulder', 'leftToes', 'rightToes',
   'leftThumbMetacarpal', 'leftThumbProximal', 'leftThumbDistal', 'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
   'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal', 'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
   'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',

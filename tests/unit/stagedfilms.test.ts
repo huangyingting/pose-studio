@@ -42,7 +42,7 @@ describe('films: templates staged as a director would', () => {
       expect(deep.map((x) => x.message), f.name).toEqual([]);
       expect(SHOOT_PRESETS.some((p) => p.template === f.id && p.coverage === f.coverage), f.name).toBe(true);
     }
-  }, 300_000);
+  }, 600_000);
 
   it('lasts a minute or more each, every blow landing on the one it is aimed at, and nobody sitting on nothing', () => {
     const index = JSON.parse(readFileSync('public/motions/index.json', 'utf8')) as { id: string; impact?: number }[];

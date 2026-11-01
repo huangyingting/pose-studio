@@ -993,7 +993,8 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
   if (!a) return null;
   const mine = actionsOf(a, issue.figure);
   if (issue.kind === 'slide') {
-    const act = mine.find((x) => x.source.kind === 'clip' && x.start <= issue.start + 1e-6 && issue.start < x.start + x.duration);
+    // (Its motion, or the one it ends as its last frames are drawn: a frame or two after it, its feet still on it.)
+    const act = mine.find((x) => x.source.kind === 'clip' && x.start <= issue.start + 1e-6 && issue.start < x.start + x.duration + 2 / a.fps);
     const w = act && warpOf(store.scene, act, issue.figure);
     if (!act || !w || w.angle < 10) return null;
     return {

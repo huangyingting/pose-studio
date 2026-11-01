@@ -1,7 +1,7 @@
 import type { Bone, JointName, Side, Vec3 } from './types';
 
 /** The parts of a limb, as in VRM bone names (`leftUpperArm`, `rightFoot`, …). */
-export type LimbPart = 'UpperArm' | 'LowerArm' | 'Hand' | 'UpperLeg' | 'LowerLeg' | 'Foot';
+export type LimbPart = 'Shoulder' | 'UpperArm' | 'LowerArm' | 'Hand' | 'UpperLeg' | 'LowerLeg' | 'Foot' | 'Toes';
 
 /** A limb's bone on one side: `sided('UpperArm', 'L')` is `leftUpperArm`. */
 export const sided = (part: LimbPart, side: Side) => `${side === 'L' ? 'left' : 'right'}${part}` as JointName;
@@ -15,25 +15,28 @@ export const partOf = (j: JointName): LimbPart | null => (sideOf(j) ? (j.replace
 /*
  * Rotation conventions (figure faces +Z, its left side is +X):
  *   root                    X+ pitch forward, Y+ turn to own left, Z+ lean to own right
- *   spine/chest/neck/head   X+ bend forward, Y+ twist left, Z+ tilt right
- *   shoulder / hip          X− swing forward, X+ swing back, Z spreads out (+ for L, − for R), Y twists
- *   elbow X− bends · knee X+ bends · ankle X+ points the toes
+ *   spine/chest/upper chest/neck/head   X+ bend forward, Y+ twist left, Z+ tilt right
+ *   collarbone (shoulder)   Z raises it (a shrug: + for L, − for R), Y takes it forward (− for L, + for R), X rolls
+ *   upper arm / hip         X− swing forward, X+ swing back, Z spreads out (+ for L, − for R), Y twists
+ *   elbow X− bends · knee X+ bends · ankle X+ points the toes · toes X+ curl down, X− bend up
  */
 
 export const JOINT_LABELS: Record<JointName, string> = {
-  hips: 'Pelvis', spine: 'Waist', chest: 'Chest', neck: 'Neck', head: 'Head',
-  leftUpperArm: 'Left upper arm', leftLowerArm: 'Left forearm', leftHand: 'Left hand',
-  rightUpperArm: 'Right upper arm', rightLowerArm: 'Right forearm', rightHand: 'Right hand',
-  leftUpperLeg: 'Left thigh', leftLowerLeg: 'Left shin', leftFoot: 'Left foot',
-  rightUpperLeg: 'Right thigh', rightLowerLeg: 'Right shin', rightFoot: 'Right foot',
+  hips: 'Pelvis', spine: 'Waist', chest: 'Chest', upperChest: 'Upper chest', neck: 'Neck', head: 'Head',
+  leftShoulder: 'Left shoulder', leftUpperArm: 'Left upper arm', leftLowerArm: 'Left forearm', leftHand: 'Left hand',
+  rightShoulder: 'Right shoulder', rightUpperArm: 'Right upper arm', rightLowerArm: 'Right forearm', rightHand: 'Right hand',
+  leftUpperLeg: 'Left thigh', leftLowerLeg: 'Left shin', leftFoot: 'Left foot', leftToes: 'Left toes',
+  rightUpperLeg: 'Right thigh', rightLowerLeg: 'Right shin', rightFoot: 'Right foot', rightToes: 'Right toes',
 };
 
 
 export function axisLabels(j: JointName): [string, string, string] {
   if (j === 'hips') return ['Pitch (+ forward)', 'Turn (+ left)', 'Roll (+ right)'];
-  if (j === 'spine' || j === 'chest' || j === 'neck' || j === 'head') return ['Bend (+ forward)', 'Twist (+ left)', 'Tilt (+ right)'];
+  if (j === 'spine' || j === 'chest' || j === 'upperChest' || j === 'neck' || j === 'head') return ['Bend (+ forward)', 'Twist (+ left)', 'Tilt (+ right)'];
   const out = sideOf(j) === 'L' ? '+' : '−';
   switch (partOf(j)) {
+    case 'Shoulder': return ['Roll', `Forward (${sideOf(j) === 'L' ? '−' : '+'})`, `Raise (${out} up)`];
+    case 'Toes': return ['Curl (+ down)', 'Twist', 'Side'];
     case 'UpperArm': return ['Swing (− forward)', 'Twist', `Raise (${out} out)`];
     case 'UpperLeg': return ['Swing (− forward)', 'Twist', `Spread (${out} out)`];
     case 'LowerArm': return ['Bend (−)', 'Twist', 'Side'];
@@ -46,9 +49,11 @@ export function axisLabels(j: JointName): [string, string, string] {
 
 /** What turning each slider of a joint down (−) and up (+) does, in a word ('' where no word says it). */
 export function axisEnds(j: JointName): [[string, string], [string, string], [string, string]] {
-  if (j === 'hips' || j === 'spine' || j === 'chest' || j === 'neck' || j === 'head') return [['back', 'forward'], ['right', 'left'], ['left', 'right']];
+  if (j === 'hips' || j === 'spine' || j === 'chest' || j === 'upperChest' || j === 'neck' || j === 'head') return [['back', 'forward'], ['right', 'left'], ['left', 'right']];
   const out: [string, string] = sideOf(j) === 'L' ? ['in', 'out'] : ['out', 'in'];
   switch (partOf(j)) {
+    case 'Shoulder': return [['', ''], sideOf(j) === 'L' ? ['forward', 'back'] : ['back', 'forward'], sideOf(j) === 'L' ? ['down', 'up'] : ['up', 'down']];
+    case 'Toes': return [['up', 'down'], ['', ''], ['', '']];
     case 'UpperArm': case 'UpperLeg': return [['forward', 'back'], ['', ''], out];
     case 'LowerArm': return [['bend', 'straight'], ['', ''], ['', '']];
     case 'LowerLeg': return [['straight', 'bend'], ['', ''], ['', '']];
@@ -67,6 +72,9 @@ const sym = (a: number): Range => [-a, a];
 const LEFT_LIMITS: Partial<Record<JointName, Limits>> = {
   spine: [[-35, 50], sym(35), sym(30)],
   chest: [[-35, 45], sym(40), sym(30)],
+  upperChest: [[-20, 25], sym(25), sym(20)],
+  // (Down far enough for a captured shoulder's: a hanging arm's collarbone drops a little.)
+  leftShoulder: [sym(15), sym(30), [-35, 40]],
   neck: [[-45, 55], sym(65), sym(40)],
   head: [[-45, 45], sym(55), sym(35)],
   leftUpperArm: [[-180, 75], sym(100), [-35, 180]],
@@ -75,6 +83,7 @@ const LEFT_LIMITS: Partial<Record<JointName, Limits>> = {
   leftUpperLeg: [[-155, 50], sym(75), [-40, 95]],
   leftLowerLeg: [[0, 165], sym(35), sym(8)],
   leftFoot: [[-45, 85], sym(35), sym(35)],
+  leftToes: [[-60, 40], sym(10), sym(10)],
 };
 
 export function jointLimits(j: JointName): Limits {

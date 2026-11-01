@@ -464,6 +464,24 @@ test('a selected joint: its rows in the inspector, − and + either side steppin
   await expect.poll(bend).toBeCloseTo(-40, 0);
 });
 
+test('the upper chest, the shoulders and the toes are joints (#30): picked on the body map, a shoulder raised takes its arm with it', async ({ page }) => {
+  await page.keyboard.press('1');
+  await unfold(page, 'Joints');
+  for (const name of ['Upper chest', 'Left shoulder', 'Right shoulder', 'Left toes', 'Right toes']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  const bones = () => state(page).then((s) => s.scene.figures[0].bones);
+  const arm = (await bones()).leftUpperArm;
+  await page.getByRole('button', { name: 'Left shoulder', exact: true }).click();
+  await page.getByRole('button', { name: 'Raise +5°' }).click({ modifiers: ['Shift'] });
+  await expect.poll(async () => angle(await bones(), 'leftShoulder')[2]).toBeCloseTo(15, 0);
+  // The arm went up with it: its own angles as they were, its turn from the chest not.
+  const after = await bones();
+  expect(angle(after, 'leftUpperArm')).toEqual(angle({ leftUpperArm: arm }, 'leftUpperArm'));
+  expect(after.leftUpperArm).not.toEqual(arm);
+  await page.getByRole('button', { name: 'Left toes', exact: true }).click();
+  await page.getByRole('button', { name: 'Curl −5°' }).click();
+  await expect.poll(async () => angle(await bones(), 'leftToes')[0]).toBeCloseTo(-5, 0);
+});
+
 test('Shift-drag twists a part; handheld props go in the hand; the scene exports as a 3D model', async ({ page }) => {
   await page.keyboard.press('1');
   await page.waitForTimeout(400);

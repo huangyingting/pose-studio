@@ -30,8 +30,7 @@ import { clipById, loopsOf } from '@/lib/assets';
 import { FRAME_SHAPES, HANDHELD, JOINTS, LIGHT_KINDS, LIGHT_ROLES, PROP_KINDS, PROP_LABELS, STYLES, type Figure, type JointName, type PathCamera, type RigCamera, type Selection, type Travel, type Vec3 } from '@/lib/types';
 import { CONTACT_LABELS, facing, type Contact } from '@/lib/relations';
 import { JOINT_LABELS, mirrorJointName, wrapDeg } from '@/lib/joints';
-import { PARENT } from '@/lib/skeleton';
-import { angle, mirrorBones } from '@/lib/pose';
+import { RIG_PARENT as PARENT, angle, mirrorBones } from '@/lib/pose';
 import { LENSES, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import { VIEW_PRESETS } from '@/lib/views';
 import { PROP_ICONS, STYLE_ICONS } from './icons';
@@ -1406,7 +1405,7 @@ export const COMMANDS: Command[] = [
   { id: 'timeline.remove', title: 'Remove animation', icon: Trash2, danger: true, when: animated, run: (c) => { App().stopPlayback(); removeAnimation(c.store); } },
 ];
 
-/** The joint below another (the first, where it branches: the chest's is the neck). */
+/** The joint below another in the body (the first, where it branches: the upper chest's is the neck). */
 function childOf(j: JointName): JointName | undefined {
   return JOINTS.find((x) => x !== 'hips' && PARENT[x as Exclude<JointName, 'hips'>] === j);
 }
