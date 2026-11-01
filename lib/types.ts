@@ -626,7 +626,7 @@ export type Expression = (typeof EXPRESSIONS)[number];
 /** How far each expression shows, 0–1. */
 export type Face = Partial<Record<Expression, number>>;
 
-export const STYLES = ['line', 'sketch', 'ink', 'anime', 'pixel', 'render', 'shaded', 'minimal'] as const;
+export const STYLES = ['line', 'sketch', 'ink', 'watercolor', 'anime', 'pixel', 'render', 'shaded', 'minimal'] as const;
 export type Style = (typeof STYLES)[number];
 /** What a selected prop's gizmo does: move it, or (R) scale it. */
 export type GizmoMode = 'translate' | 'scale';

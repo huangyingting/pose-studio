@@ -720,8 +720,9 @@ function DragReadout() {
 }
 
 /**
- * Behind everything: the style's background colour, or its paper; in 3D round a set, its sky and
- * the light from all round (#25), as they come (in the toon styles, its sky).
+ * Behind everything: the style's background colour, or its paper; round a set, what is round it
+ * as the style shows it (lib/sets.ts surroundings: in 3D its sky and the light from all round, #25;
+ * a painted sky, #28), as they come.
  */
 function Backdrop({ style, scene }: { style: Style; scene: Scene }) {
   const get = useThree((s) => s.get);
@@ -731,11 +732,11 @@ function Backdrop({ style, scene }: { style: Style; scene: Scene }) {
   useEffect(() => {
     const def = styleDef(style);
     const three = get();
-    const round = style === 'render' || def.toon ? surroundings(scene.set, lighting, three.gl) : null;
+    const round = surroundings(scene.set, lighting, style, three.gl);
     three.scene.background = round?.background ?? ((def.paper && paperTexture()) || new THREE.Color(def.background));
-    three.scene.environment = style === 'render' ? round?.environment ?? null : null;
+    three.scene.environment = round?.environment ?? null;
     three.scene.environmentIntensity = round?.intensity ?? 1;
-    three.scene.backgroundIntensity = round?.background ? Math.max(0.25, round.intensity * 1.6) : 1;
+    three.scene.backgroundIntensity = round?.backgroundIntensity ?? 1;
     wake();
   }, [get, style, scene.set, lighting, came]);
   return null;

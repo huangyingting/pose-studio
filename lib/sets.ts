@@ -9,6 +9,7 @@ import { MAX_LIGHTS, clampLight, newLight, skyOf } from './lighting';
 import { withBase } from './paths';
 import { styleDef } from './styles';
 import { paintedLook, toonMaterial } from './toon';
+import { paintedSky } from './paintedsky';
 import { SCENES, type ModelId, type SceneId, type SetIndex, type Sky, type SurfaceId } from './setassets';
 import { uid } from './uid';
 import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
@@ -767,18 +768,24 @@ function prefilter(renderer: THREE.WebGLRenderer, key: string, make: (pmrem: THR
 const SKY_LIGHT: Record<Sky, number> = { day: 0.55, overcast: 0.5, dusk: 0.4, night: 0.15 };
 
 /**
- * What is round a set in 3D: outdoors its sky (seen behind it, and the light from all round), by
- * its lighting's time of day; indoors, a room's light from all round. Null without a set, or
- * until its sky has come.
+ * What is round a set, as a style shows it: in 3D outdoors its sky (seen behind it, and the light
+ * from all round), by its lighting's time of day, and indoors a room's light from all round; in
+ * the styles that paint one (Anime, Pixel, Watercolour, #28), that sky painted their way, behind
+ * an outdoor set only. Null without a set, in the other styles, or until its sky has come.
  */
-export function surroundings(id: string | undefined, lighting: Lighting, renderer: THREE.WebGLRenderer): { background: THREE.Texture | null; environment: THREE.Texture; intensity: number } | null {
+export function surroundings(id: string | undefined, lighting: Lighting, style: Style, renderer: THREE.WebGLRenderer): { background: THREE.Texture | null; backgroundIntensity: number; environment: THREE.Texture | null; intensity: number } | null {
   const set = setById(id);
-  if (!set) return null;
-  if (set.indoors) return { background: null, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
+  const paint = styleDef(style).sky;
+  if (!set || !paint) return null;
   const sky = skyOf(lighting);
+  if (paint !== 'photo') {
+    const t = set.indoors ? null : paintedSky(sky, paint);
+    return t && { background: t, backgroundIntensity: 1, environment: null, intensity: 1 };
+  }
+  if (set.indoors) return { background: null, backgroundIntensity: 1, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
   const t = skyTexture(sky);
   if (!t) return null;
-  return { background: t, environment: prefilter(renderer, sky, (pmrem) => pmrem.fromEquirectangular(t).texture), intensity: SKY_LIGHT[sky] };
+  return { background: t, backgroundIntensity: Math.max(0.25, SKY_LIGHT[sky] * 1.6), environment: prefilter(renderer, sky, (pmrem) => pmrem.fromEquirectangular(t).texture), intensity: SKY_LIGHT[sky] };
 }
 
 /** Whether all a set's models (or its scene) are here to be drawn (fetching those not yet). */

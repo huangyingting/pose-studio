@@ -211,6 +211,8 @@ export class Ink {
     extraPlaces: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
     extraSpots: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, -1, 0, -2)) },
     extraCount: { value: 0 },
+    /** Toon-shaded as watercolour (1) or not (0). */
+    wash: { value: 0 },
   };
   readonly outline = createOutlineMaterial(this.uniforms);
   /** The outline of a whole object linked to the pointer elsewhere (its row in the outline): the accent, thicker. */
@@ -296,6 +298,7 @@ export class Ink {
       this.applyThickness();
       return;
     }
+    this.uniforms.wash.value = def.wash ? 1 : 0;
     if (def.outline) {
       this.uniforms.color.value.set(def.outline.color);
       this.uniforms.jitter.value = def.outline.jitter;
@@ -383,6 +386,17 @@ export class Ink {
           prop: shader('ink', '#e8e1d0', '#1d1b18'),
           propSel: shader('ink', '#dde4f2', '#1d1b18'),
         };
+      case 'watercolor': {
+        // (Pale washes: the paper shows through.)
+        const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms);
+        return {
+          body: toon(body('#f8ece0'), '#c9aaa0'),
+          bodySel: toon('#dfe8fb', '#a9bbe2'),
+          hover: toon('#eef0f7', '#c3c7dc'),
+          prop: toon('#f2efe8', '#c2bcb0'),
+          propSel: toon('#dfe8fb', '#a9bbe2'),
+        };
+      }
       case 'anime':
       case 'pixel': {
         const toon = (base: string, shade: string) => toonMaterial(flatLook(base, shade), this.uniforms);

@@ -196,6 +196,8 @@ export interface SharedUniforms {
   extraSpots: { value: THREE.Vector4[] };
   extraCount: { value: number };
   resolution: { value: THREE.Vector2 };
+  /** Toon-shaded as watercolour (1) or not (0). */
+  wash: { value: number };
 }
 
 /**

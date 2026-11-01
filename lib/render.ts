@@ -264,12 +264,12 @@ export class SceneRenderer {
     const size = this.renderer.getSize(new THREE.Vector2());
     if (size.x !== w || size.y !== h) this.renderer.setSize(w, h, false);
     this.background.set(styleDef(style).background);
-    // (In 3D round a set: its sky, and the light from all round, #25; in the toon styles, its sky.)
-    const round = style === 'render' || styleDef(style).toon ? surroundings(doc.set, lightingOf(doc), this.renderer) : null;
+    // (Round a set, what is round it as the style shows it: a sky, the light from all round.)
+    const round = surroundings(doc.set, lightingOf(doc), style, this.renderer);
     this.scene.background = opts.transparent ? null : round?.background ?? ((styleDef(style).paper && paperTexture()) || this.background);
-    this.scene.environment = style === 'render' ? round?.environment ?? null : null;
+    this.scene.environment = round?.environment ?? null;
     this.scene.environmentIntensity = round?.intensity ?? 1;
-    this.scene.backgroundIntensity = round?.background ? Math.max(0.25, round.intensity * 1.6) : 1;
+    this.scene.backgroundIntensity = round?.backgroundIntensity ?? 1;
     this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
     this.view.sync(doc);
     this.view.setStyle(style);

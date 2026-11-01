@@ -732,6 +732,9 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   await page.getByRole('menuitemradio', { name: 'Ink wash' }).click();
   expect(await style()).toBe('ink');
   await page.getByRole('button', { name: 'Render style' }).click();
+  await page.getByRole('menuitemradio', { name: 'Watercolour' }).click();
+  expect(await style()).toBe('watercolor');
+  await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Anime' }).click();
   expect(await style()).toBe('anime');
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
@@ -2107,7 +2110,7 @@ test('posing over a motion makes a correction around that moment: how long it fa
   await expect(page.getByLabel('Fades over')).toHaveCount(0);
 });
 
-test('a set is furnished with its models; in Anime (toon-shaded) and 3D textured and under its sky, fetched only then (#25)', async ({ page }) => {
+test('a set is furnished with its models; in Anime toon-shaded under a painted sky, in 3D textured under its photographed one, fetched only then (#25, #28)', async ({ page }) => {
   const fetched: string[] = [];
   page.on('requestfinished', (r) => { const m = /\/sets\/(models|surfaces|skies)\//.exec(r.url()); if (m) fetched.push(m[1]); });
   await libraryShows(page, 'Sets');
@@ -2115,15 +2118,15 @@ test('a set is furnished with its models; in Anime (toon-shaded) and 3D textured
   // In line art: its models, outlined; none of its textures.
   await expect.poll(() => fetched.filter((x) => x === 'models').length).toBeGreaterThan(2);
   expect(fetched).not.toContain('surfaces');
-  // In Anime: its textures and its sky.
+  // In Anime: its textures, its sky painted (no photograph fetched).
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: /^Anime/ }).click();
   await expect.poll(() => fetched.filter((x) => x === 'surfaces').length, { timeout: 30_000 }).toBeGreaterThan(2);
-  await expect.poll(() => fetched.includes('skies'), { timeout: 30_000 }).toBe(true);
-  // And in 3D, lit by it.
+  expect(fetched).not.toContain('skies');
+  // In 3D: its photographed sky, lit by it.
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: /^3D/ }).click();
-  await expect(page.getByRole('button', { name: 'Render style' })).toContainText('3D');
+  await expect.poll(() => fetched.includes('skies'), { timeout: 30_000 }).toBe(true);
 });
 
 test('a ready-made scene is a set: its author credited, fetched when shown (#27)', async ({ page }) => {

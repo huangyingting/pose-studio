@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EXTRA_GLSL, type SharedUniforms } from './shaders';
+import { EXTRA_GLSL, NOISE_GLSL, type SharedUniforms } from './shaders';
 
 /*
  * The Anime style's surface (#15): a material in the manner of MToon (the VRM toon material, an
@@ -94,6 +94,7 @@ const FRAG = /* glsl */ `
   uniform vec3 lightDir;
   uniform vec3 lightColor;
   ${EXTRA_GLSL}
+  ${NOISE_GLSL}
   uniform vec3 color;
   uniform float opacity;
   uniform sampler2D map;
@@ -118,6 +119,8 @@ const FRAG = /* glsl */ `
   // clean shadow across it, not blots round the nose and the eyes.)
   uniform vec3 faceFront;
   uniform float faceSmooth;
+  uniform float wash;
+  uniform vec2 resolution;
   varying vec3 vNormal;
   varying vec3 vWorld;
   varying vec2 vUv;
@@ -135,11 +138,24 @@ const FRAG = /* glsl */ `
     vec3 v = normalize(cameraPosition - vWorld);
     // Lit or in shade, by the key light: the edge where the material puts it, as crisp as it says.
     float soft = max(1e-3, 1.0 - toony);
+    // (In watercolour the edge between them a soft wash's.)
+    if (wash > 0.5) soft = max(soft, 0.45);
     float lit = clamp((dot(n, lightDir) + shift + soft) / (2.0 * soft), 0.0, 1.0);
     vec3 col = mix(shaded, base.rgb, lit);
     col += rim * pow(clamp(1.0 - max(dot(n, v), 0.0) + rimLift, 0.0, 1.0), max(rimPower, 1e-3));
     // The other lights: a fill's colour on its side, a light from behind as a rim along the edge.
     col += extraLight(n, v, 4.0, vWorld) * mix(base.rgb, vec3(1.0), 0.5);
+    if (wash > 0.5) {
+      // Watercolour: paler and uneven, as a wash lies; the pigment pooled where it dried (the edge
+      // between light and shade) and along the edges of the form; the paper's tooth through it all.
+      vec3 px = vec3(gl_FragCoord.xy / max(1.0, resolution.y) * 600.0, 0.0);
+      float tooth = fbm3(px * 0.5);
+      float bloom = fbm3(vWorld * 3.0 + 5.0);
+      float dried = lit * (1.0 - lit) * 4.0;
+      float rimmed = smoothstep(0.55, 0.95, 1.0 - abs(dot(n, v)));
+      col = mix(col, vec3(1.0, 0.985, 0.95), clamp(0.22 + (bloom - 0.5) * 0.3, 0.0, 1.0));
+      col *= (1.0 - 0.12 * dried - 0.16 * rimmed) * (0.94 + 0.12 * tooth);
+    }
     vec3 glow = emissive;
     if (useEmissiveMap) glow *= texture2D(emissiveMap, placed(emissiveMapTransform)).rgb;
     gl_FragColor = vec4(col * lightColor + glow, alphaMode == 2 ? base.a : 1.0);
@@ -148,7 +164,7 @@ const FRAG = /* glsl */ `
 `;
 
 /** The material for a look, lit by the key light (`lightDir`: towards it, and `lightColor`) and the others (`extra…`); shared. */
-export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount'>): THREE.ShaderMaterial {
+export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount, resolution, wash }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount' | 'resolution' | 'wash'>): THREE.ShaderMaterial {
   const placing = (t: THREE.Texture | null) => {
     t?.updateMatrix();
     return { value: t ? t.matrix : new THREE.Matrix3() };
@@ -162,6 +178,8 @@ export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, 
       extraPlaces,
       extraSpots,
       extraCount,
+      resolution,
+      wash,
       color: { value: look.color },
       opacity: { value: look.opacity },
       map: { value: look.map },

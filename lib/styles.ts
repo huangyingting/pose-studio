@@ -1,3 +1,4 @@
+import type { SkyPaint } from './paintedsky';
 import { STYLES, type Style } from './types';
 
 /**
@@ -22,8 +23,12 @@ export interface StyleDef {
   paper?: true;
   /** Toon-shaded, each character in its own colours and textures (as Anime). */
   toon?: true;
+  /** Toon-shaded as watercolour washes are (#28): soft edges, pigment pooling at the edges, paler, the paper's grain. */
+  wash?: true;
   /** Drawn in big pixels: so many screen pixels each, in a few colours (lib/pixel.ts). */
   pixel?: number;
+  /** Behind an outdoor set: its sky as photographed (3D), or painted in the style's way (#28); none: the background. */
+  sky?: 'photo' | SkyPaint;
   /** The key light casts shadows onto the floor. */
   shadows: boolean;
   /** The light direction controls affect this style. */
@@ -62,6 +67,20 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     shadows: false,
     lit: true,
   },
+  watercolor: {
+    id: 'watercolor',
+    label: 'Watercolour',
+    description: 'Watercolour: soft washes in each thing’s own colours, pooling at their edges, a light pencil line, the paper’s grain, a washed sky',
+    background: '#f7f2e8',
+    outline: { color: '#6e6052', scale: 0.55, jitter: 0.6, dry: 0.55 },
+    interior: null,
+    paper: true,
+    toon: true,
+    wash: true,
+    sky: 'wash',
+    shadows: true,
+    lit: true,
+  },
   anime: {
     id: 'anime',
     label: 'Anime',
@@ -71,6 +90,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     // (Outlines only: lines between parts would box a VRM's see-through cards, its lashes and hair.)
     interior: null,
     toon: true,
+    sky: 'painted',
     shadows: true,
     lit: true,
   },
@@ -84,6 +104,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     interior: null,
     toon: true,
     pixel: 4,
+    sky: 'painted',
     shadows: true,
     lit: true,
   },
@@ -94,6 +115,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     background: '#eef0f3',
     outline: null,
     interior: null,
+    sky: 'photo',
     shadows: true,
     lit: true,
   },
