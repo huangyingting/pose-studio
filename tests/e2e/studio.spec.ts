@@ -860,6 +860,19 @@ test('figures can be hidden without deleting them', async ({ page }) => {
   expect((s.figures[1] as { hidden?: boolean }).hidden).toBeUndefined();
 });
 
+test('when the browser refuses to save, the indicator says so and Save still downloads the project; saving resumes after', async ({ page }) => {
+  const status = page.locator('.save-status');
+  await page.evaluate(() => { (window as unknown as { setItem: Storage['setItem'] }).setItem = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; });
+  await page.keyboard.press('m');
+  await expect(status).toHaveText('Not saved');
+  await expect(status).toHaveAttribute('data-tip', /Use Save in the main menu/);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Control+s')]);
+  expect(JSON.parse(readFileSync(await download.path(), 'utf8')).scenes).toHaveLength(20);
+  await page.evaluate(() => { Storage.prototype.setItem = (window as unknown as { setItem: Storage['setItem'] }).setItem; });
+  await page.keyboard.press('m');
+  await expect(status).toHaveText('Saved');
+});
+
 test('changes made in another tab are picked up', async ({ page, context }) => {
   // Two pages rendering 3D in software (CI has no GPU) share the CPU: the second one loads slowly.
   test.setTimeout(240_000);
