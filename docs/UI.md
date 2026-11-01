@@ -133,7 +133,8 @@ first, then everywhere it applies.
 ## 9. The canvas
 
 - A hint for what is selected sits at the foot of the canvas (what a click and a drag do, a
-  button for the next step). The selected thing has a label above it; dragging it is the main way to change it; its inspector has the exact values.
+  button for the next step); only its buttons take the pointer, so a handle under its words is
+  still dragged. The selected thing has a label above it; dragging it is the main way to change it; its inspector has the exact values.
 - Handles and gizmos are sized with the model (they shrink as the view zooms out), with thick
   lines; lines use `components/Line.tsx` (never drei's `<Line>`).
 - **Tools** (#38): what a drag on a figure does is the tool's, shown in the bar at the canvas's top

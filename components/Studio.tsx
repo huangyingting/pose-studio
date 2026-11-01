@@ -774,10 +774,6 @@ function Pill({ tone, icon: Icon, label, children }: { tone: 'plain' | 'note' | 
 /** A gesture or a key, as written in a hint (Drag, Right-click, Alt, ←, H…). */
 const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|Esc|Enter|Space|Page|Up|Down|Arrows|Del|F2|[A-Z]|[←→↑↓]|←→|(Shift|Ctrl|Alt)-(drag|click))$/;
 
-/**
- * A hint's words with its gestures and keys as key caps: in each part (between the · ), what comes
- * before the colon, where it is keys ("Alt ← →: turn"). The words themselves unchanged.
- */
 /** In the canvas's corner: the scene alone, filling the window, or back with its panels. */
 function StageOnlyButton({ on, toggle }: { on: boolean; toggle(): void }) {
   const label = on ? 'Back to the panels' : 'Scene only';
@@ -789,6 +785,10 @@ function StageOnlyButton({ on, toggle }: { on: boolean; toggle(): void }) {
   );
 }
 
+/**
+ * A hint's words with its gestures and keys as key caps: in each part (between the · ), what comes
+ * before the colon, where it is keys ("Alt ← →: turn"). The words themselves unchanged.
+ */
 function Keys({ text }: { text: string }) {
   const parts = text.split(' · ');
   return parts.map((part, i) => {

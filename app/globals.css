@@ -779,14 +779,15 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* (Beside the selected camera's picture, not over it: centred in the canvas left of it.) */
 .stage:has(> .camera-pip) > .stage-hint { right: 264px; }
 .stage-hint .bar-hint, .stage-hint .bar-hint.plain, .stage-hint .bar-hint.note, .stage-hint .bar-hint.accent, .stage-hint .bar-hint.warn {
-  pointer-events: auto; height: auto; min-height: 32px; padding: 4px; background: none; box-shadow: none; font-size: var(--fs-m); font-weight: 540; line-height: 20px; color: var(--stage-text);
+  pointer-events: none; height: auto; min-height: 32px; padding: 4px; background: none; box-shadow: none; font-size: var(--fs-m); font-weight: 540; line-height: 20px; color: var(--stage-text);
   text-shadow: 0 0 3px var(--stage-halo), 0 0 8px var(--stage-halo), 0 0 14px var(--stage-halo);
 }
 .stage-hint .bar-hint-icon { align-self: flex-start; margin-top: 3px; filter: drop-shadow(0 0 3px var(--stage-halo)); }
 /* (A long hint goes on to more lines, not cut off.) */
 .stage-hint .bar-hint-text { white-space: normal; overflow: visible; text-overflow: clip; }
 .stage-hint .hint-part { white-space: nowrap; }
-.stage-hint .hint-action, .stage-hint .hint-dismiss { align-self: center; }
+/* (Only its buttons take the pointer: a handle under its words is still dragged.) */
+.stage-hint .hint-action, .stage-hint .hint-dismiss { align-self: center; pointer-events: auto; }
 .stage-hint .hint-action { text-shadow: none; box-shadow: var(--shadow-float); }
 .stage-hint .hint-dismiss { text-shadow: none; }
 .bar-hint kbd { margin: 0 1px 0 0; padding: 1px 5px; font-size: var(--fs-xs); color: var(--text); background: var(--panel); box-shadow: 0 1px 0 var(--border); text-shadow: none; }
