@@ -1280,6 +1280,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     }
     const id = frame({ ...latestView.current, fov: 35 });
     return () => cancelAnimationFrame(id);
+    // (When another scene opens, or the controls come: not as the view or the scene's contents change.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId, controls]);
 
@@ -1310,6 +1311,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     orbit?.target.copy(was.target);
     orbit?.update();
     wake();
+    // (As looking through begins or ends: the free view kept, and given back, then only.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shotMode, get]);
 
@@ -1317,6 +1319,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     if (frameRequest.n === 0) return;
     const id = frame(frameRequest.view, frameRequest.only);
     return () => cancelAnimationFrame(id);
+    // (Each new request, framed as the scene is then.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameRequest]);
 
@@ -1350,6 +1353,7 @@ function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: 
     const view = viewOf(scene, c, p.t);
     placeCamera(three, view, frameAspect());
     return { t: p.t, cam: c, position: three.position.clone(), quaternion: three.quaternion.clone(), target: view.target.clone(), aimed: c.kind === 'path' && c.aim === 'point' };
+    // (Its points move only with the cameras: not again as the playhead poses the figures.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [cameras, three]);
   const lastDot = useRef(NaN);
