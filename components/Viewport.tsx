@@ -110,20 +110,24 @@ function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3)
   return hits.length > 0;
 }
 
-/** A set's parts in the view's way cut away, as the view moves (SetObject.cutaway). */
+/** A set's parts in the way of the view, or of the people in it, cut away as they move (SetObject.cutaway). */
 function SetCutaway({ sv }: { sv: SceneView }) {
   const get = useThree((s) => s.get);
-  const was = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3(), set: null as unknown });
+  const was = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3(), set: null as unknown, people: [] as THREE.Vector3[] });
   useFrame(() => {
     const { camera, controls } = get() as unknown as { camera: THREE.Camera; controls: { target: THREE.Vector3 } | null };
     const set = sv.set;
     if (!set || !controls) return;
     const w = was.current;
-    if (w.set === set && w.eye.distanceToSquared(camera.position) < 1e-6 && w.target.distanceToSquared(controls.target) < 1e-6) return;
+    const people = sv.chests();
+    // (Again when the view has moved a millimetre, or someone in it a couple of centimetres.)
+    const moved = people.length !== w.people.length || people.some((p, i) => p.distanceToSquared(w.people[i]) > 4e-4);
+    if (w.set === set && !moved && w.eye.distanceToSquared(camera.position) < 1e-6 && w.target.distanceToSquared(controls.target) < 1e-6) return;
     w.set = set;
     w.eye.copy(camera.position);
     w.target.copy(controls.target);
-    set.cutaway(camera.position, controls.target);
+    w.people = people;
+    set.cutaway(camera.position, controls.target, people);
   });
   return null;
 }

@@ -1335,30 +1335,39 @@ export class SetObject {
    * what it looks at, is not drawn (its shadow still cast, by its group's twin), so the view never
    * shows the inside of a wall and looks into a room past the wall in front. The rest drawn again.
    * (A ready-made scene's pieces are a cell's worth of it each: one whose bounds the line of sight
-   * crosses.) Its triangles are left out of its group's mesh, and put back.
+   * crosses.) The lines of sight are to what it looks at and to `people` (their chests): a counter
+   * or a pillar between the view and someone in it goes too. Its triangles are left out of its
+   * group's mesh, and put back.
    */
-  cutaway(eye: THREE.Vector3, target: THREE.Vector3) {
-    const dir = target.clone().sub(eye);
-    const reach = Math.max(0, dir.length() - 0.3);
-    const ray = new THREE.Raycaster(eye, dir.clone().normalize(), 0, reach);
+  cutaway(eye: THREE.Vector3, target: THREE.Vector3, people: THREE.Vector3[] = []) {
+    const rays = [target, ...people].map((at) => {
+      const dir = at.clone().sub(eye);
+      const reach = Math.max(0, dir.length() - 0.3);
+      return { ray: new THREE.Raycaster(eye, dir.normalize(), 0, reach), reach };
+    }).filter((r) => r.reach > 0);
     const [local, from, to, crossed] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
     const changed = new Set<Group>();
+    const hits: THREE.Intersection[] = [];
     for (const g of this.groups.values()) {
       for (const p of g.parts) {
         const inside = p.box.containsPoint(local.copy(eye).applyMatrix4(p.inverse));
         let cut = inside;
         if (!inside && p.scene) {
-          // (The line of sight in the piece's own space, against its bounds.)
+          // (A line of sight in the piece's own space, against its bounds.)
           from.copy(eye).applyMatrix4(p.inverse);
-          ray.ray.at(reach, to).applyMatrix4(p.inverse);
-          const hit = new THREE.Ray(from, to.clone().sub(from).normalize()).intersectBox(p.box, crossed);
-          cut = !!hit && hit.distanceTo(from) < to.distanceTo(from);
+          cut = rays.some(({ ray, reach }) => {
+            ray.ray.at(reach, to).applyMatrix4(p.inverse);
+            const hit = new THREE.Ray(from, to.clone().sub(from).normalize()).intersectBox(p.box, crossed);
+            return !!hit && hit.distanceTo(from) < to.distanceTo(from);
+          });
         } else if (!inside && !p.ground) {
-          const hits: THREE.Intersection[] = [];
           probe.geometry = p.geometry;
           probe.matrixWorld.copy(p.matrix);
-          THREE.Mesh.prototype.raycast.call(probe, ray, hits);
-          cut = hits.length > 0;
+          cut = rays.some(({ ray }) => {
+            hits.length = 0;
+            THREE.Mesh.prototype.raycast.call(probe, ray, hits);
+            return hits.length > 0;
+          });
         }
         if (cut === p.cut) continue;
         p.cut = cut;

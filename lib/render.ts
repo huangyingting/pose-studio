@@ -347,7 +347,7 @@ export class SceneRenderer {
     if (set) {
       const box = new THREE.Box3();
       what.forEachPoint((p) => box.expandByPoint(p));
-      set.cutaway(this.camera.position, box.getCenter(new THREE.Vector3()));
+      set.cutaway(this.camera.position, box.getCenter(new THREE.Vector3()), this.view.chests());
     }
     return this.draw(line, opts);
   }
@@ -356,7 +356,7 @@ export class SceneRenderer {
   renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { camera: CameraView }) {
     this.setup(doc, w, h, line, opts);
     placeCamera(this.camera, opts.camera, w / h);
-    this.view.set?.cutaway(opts.camera.position, opts.camera.target);
+    this.view.set?.cutaway(opts.camera.position, opts.camera.target, this.view.chests());
     return this.draw(line, opts);
   }
 

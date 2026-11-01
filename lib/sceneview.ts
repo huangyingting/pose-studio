@@ -254,6 +254,11 @@ export class SceneView {
     if (!figuresOnly) for (const p of this.props.values()) p.forEachPoint(cb);
   }
 
+  /** Where the chests of the figures shown are (what a set's cutaway keeps in sight). */
+  chests() {
+    return [...this.figures.values()].filter((m) => m.object.visible).map((m) => m.joints.chest.getWorldPosition(new THREE.Vector3()));
+  }
+
   bounds(figuresOnly = false) {
     const box = new THREE.Box3();
     this.forEachPoint((p) => box.expandByPoint(p), figuresOnly);
