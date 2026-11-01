@@ -55,6 +55,13 @@ function usePointer() {
         const controls = get().controls as unknown as Controls;
         if (controls) controls.enabled = enabled;
       },
+      /** Where a point is on screen (client coordinates). */
+      screen(p: THREE.Vector3) {
+        const { camera, gl } = get();
+        const r = gl.domElement.getBoundingClientRect();
+        const v = p.clone().project(camera);
+        return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+      },
       camera: () => get().camera,
       size: () => get().size,
     };
@@ -309,8 +316,22 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
   const plan = (t: Target, point: THREE.Vector3, twist: boolean, axis?: number): Plan | null => {
     const camera = pointer.camera();
     const facingPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), point);
-    const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -point.y);
     const hit = (ray: THREE.Ray, plane: THREE.Plane) => ray.intersectPlane(plane, new THREE.Vector3());
+    // Across the floor (#38): the spot it stands on goes where the floor is under the pointer, kept
+    // as far from it on screen as at the press. The spot is on the floor, below the horizon from
+    // any view above it: a plane at the grabbed point's height ran away as the view came level with
+    // it (a few pixels were hundreds of metres), and pushed away from a view below it. Not followed
+    // near the horizon.
+    const eye = camera.getWorldPosition(new THREE.Vector3());
+    const across = (spot: THREE.Vector3) => {
+      const at = pointer.screen(spot);
+      const level = new THREE.Plane(new THREE.Vector3(0, 1, 0), -spot.y);
+      const far = 6 * Math.max(1, eye.distanceTo(spot));
+      return (dx: number, dy: number): { x: number; z: number } | null => {
+        const h = hit(pointer.ray(at.x + dx, at.y + dy), level);
+        return h && h.distanceTo(eye) <= far ? { x: h.x - spot.x, z: h.z - spot.z } : null;
+      };
+    };
 
     // One of several selected: they all move (or, Shift-dragged, turn about their middle) together.
     const sel = store.getState().selection;
@@ -321,11 +342,12 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
         ...sel.props.filter((id) => !scene.props.find((x) => x.id === id)?.hold).flatMap((id) => { const p = sv.props.get(id); return p ? [{ obj: p.object, top: p.object, commit: () => store.updateProp(id, (doc) => ({ ...doc, ...p.read() })) }] : []; }),
       ].map((x) => ({ ...x, p: x.obj.position.clone(), q: x.obj.quaternion.clone() }));
       const middle = things.reduce((m, x) => m.add(x.p), new THREE.Vector3()).divideScalar(Math.max(1, things.length));
+      const slide = across(new THREE.Vector3(middle.x, 0, middle.z));
       const up = new THREE.Vector3(0, 1, 0);
       return {
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => {},
-        move: (ray, dx, _dy, e) => {
+        move: (_ray, dx, dy, e) => {
           if (twist) {
             const turn = new THREE.Quaternion().setFromAxisAngle(up, dx * TWIST * D2R);
             for (const x of things) {
@@ -335,10 +357,10 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
             }
             setReadout(turnedText(dx * TWIST));
           } else {
-            const h = hit(ray, floorPlane);
-            if (!h) return;
+            const d = slide(dx, dy);
+            if (!d) return;
             // (Ctrl: by the 25 cm grid.)
-            const [mx, mz] = snapping(e) ? [snap(h.x - point.x, STEPS.move), snap(h.z - point.z, STEPS.move)] : [h.x - point.x, h.z - point.z];
+            const [mx, mz] = snapping(e) ? [snap(d.x, STEPS.move), snap(d.z, STEPS.move)] : [d.x, d.z];
             for (const x of things) x.obj.position.set(x.p.x + mx, x.p.y, x.p.z + mz);
             setReadout(movedText(mx, mz, middle.x + mx, middle.z + mz));
           }
@@ -354,17 +376,19 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
       if (!p) return null;
       const start = p.object.position.clone();
       const yaw = p.object.rotation.y;
+      // (Its base, where it stands.)
+      const slide = across(p.object.getWorldPosition(new THREE.Vector3()));
       return {
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => store.select({ kind: 'prop', prop: t.prop }),
-        move: (ray, dx, _dy, e) => {
+        move: (_ray, dx, dy, e) => {
           if (twist) {
             p.object.rotation.y = yaw + dx * TWIST * D2R;
             setReadout(turnedText(dx * TWIST));
           } else {
-            const h = hit(ray, floorPlane);
-            if (!h) return;
-            const [x, z] = [start.x + h.x - point.x, start.z + h.z - point.z];
+            const d = slide(dx, dy);
+            if (!d) return;
+            const [x, z] = [start.x + d.x, start.z + d.z];
             // (Ctrl: on the 25 cm grid.)
             p.object.position.set(snapping(e) ? snap(x, STEPS.move) : x, start.y, snapping(e) ? snap(z, STEPS.move) : z);
             propReadout(start, p.object.position);
@@ -386,6 +410,9 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
       const root = m.joints.hips;
       const start = root.position.clone();
       const yaw = root.rotation.y;
+      // (The spot under its hips, at its feet.)
+      const hips = root.getWorldPosition(new THREE.Vector3());
+      const slide = across(new THREE.Vector3(hips.x, Math.max(0, m.lowest()), hips.z));
       return {
         cursor: twist ? 'ew-resize' : 'move',
         begin: () => {
@@ -393,14 +420,14 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
           const sel = store.getState().selection;
           if (!(sel?.kind === 'many' && sel.figures.includes(t.figure))) store.select({ kind: 'figure', figure: t.figure });
         },
-        move: (ray, dx, _dy, e) => {
+        move: (_ray, dx, dy, e) => {
           if (twist) {
             root.rotation.y = yaw + dx * TWIST * D2R;
             setReadout(turnedText(dx * TWIST));
           } else {
-            const h = hit(ray, floorPlane);
-            if (!h) return;
-            const [x, z] = [start.x + h.x - point.x, start.z + h.z - point.z];
+            const d = slide(dx, dy);
+            if (!d) return;
+            const [x, z] = [start.x + d.x, start.z + d.z];
             // (Ctrl: on the 25 cm grid.)
             root.position.set(snapping(e) ? snap(x, STEPS.move) : x, start.y, snapping(e) ? snap(z, STEPS.move) : z);
             const r = root.position;
