@@ -633,8 +633,8 @@ function App() {
           <Hint
             clock={clock}
             pick={pick}
-            // (Posing's note while a figure or a part of it is what is picked: not over a camera's, a light's.)
-            note={(scene.animation && !through && (selection?.kind === 'figure' || selection?.kind === 'joint') ? correction(scene, activeFigure, time) : null)
+            // (Posing's note while posing is what a drag does: nothing picked, the figure, a part or a block of it; not over a camera, a light, a prop.)
+            note={(scene.animation && !through && (!selection || selection.kind === 'figure' || selection.kind === 'joint' || selection.kind === 'action') ? correction(scene, activeFigure, time) : null)
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}
