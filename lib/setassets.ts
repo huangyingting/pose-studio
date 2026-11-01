@@ -182,7 +182,7 @@ const scene = (sf: string, title: string, author: string, fit?: SceneAsset['fit'
 
 export const SCENES = {
   'bedroom': scene('4f3db3cb57bd4bce886f7b9a13273a2f', 'Minimalistic Modern Bedroom', 'dylanheyes'),
-  'kitchen': scene('9843a830b96142a9a53f45f25304d93c', 'Modern Kitchen', 'dylanheyes', { at: [-2.7, 0, 0] }),
+  'kitchen': scene('9843a830b96142a9a53f45f25304d93c', 'Modern Kitchen', 'dylanheyes', { scale: 0.5, at: [-1.35, 0, 0] }),
   'classroom': scene('d4553cc2008242849214e4cbf8ad8551', 'Classroom', 'Pino_156', { scale: 0.01 }),
   'hospital-ward': scene('907ac12c61744803b22a49efd74ec40a', 'Kidman Room', 'Veterock', { at: [0, -0.752, 0] }),
   'pub': scene('a6534141c33343b382dd23d519c3de73', 'Pub interior', 'Kidney_02'),
