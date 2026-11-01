@@ -1844,7 +1844,7 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   expect(actionsOf(s.scene.animation!, s.active)[1].source).toMatchObject({ mode: 'jump', spin: 1 });
 });
 
-test('a walk with a real person\'s steps: chosen in its inspector, at their pace (#26)', async ({ page }) => {
+test('a walk with a real person\'s steps: chosen in its inspector, at their pace, then taken by Walk here (#26)', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   const walk = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'travel')!);
   const before = await walk();
@@ -1855,6 +1855,11 @@ test('a walk with a real person\'s steps: chosen in its inspector, at their pace
   expect((await walk()).duration).toBeLessThan(before.duration);
   await choose(page, 'Steps', 'Generated');
   await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBeUndefined();
+  // Walk here takes the Steps last chosen.
+  await choose(page, 'Steps', /^Walk$/);
+  await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBe('library:walk');
+  await floorMenu(page, [-0.6, 0, -0.4], 'Walk here');
+  await expect.poll(async () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'travel').map((a) => (a.source as { gait?: string }).gait))).toEqual(['library:walk', 'library:walk']);
 });
 
 test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots stay as its rows scroll; a drag at the edge of a zoomed view scrolls on', async ({ page }) => {

@@ -8,7 +8,7 @@ import {
   addCamera, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
   deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
-  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
+  setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
@@ -288,7 +288,17 @@ const stops = (c: Ctx) => { const a = c.store.scene.animation!; const f = active
 const goTo = (c: Ctx, kind: Travel, opts: { strafe?: boolean } = {}) => {
   const f = c.figure ? figureOf(c) : activeFigure(c);
   if (!f) return;
-  const go = (at: Vec3) => travelTo(c.store, f.id, [Math.round(at[0] * 100) / 100, Math.round(at[2] * 100) / 100], kind, opts);
+  // (A walk or run with the Steps last chosen for one, #26.)
+  const steps = kind === 'walk' || kind === 'run' ? lastSteps(kind) : null;
+  const go = (at: Vec3) => c.store.group(() => {
+    const done = travelTo(c.store, f.id, [Math.round(at[0] * 100) / 100, Math.round(at[2] * 100) / 100], kind, opts);
+    const act = done && steps && actionsOf(c.store.scene.animation!, f.id).find((x) => x.source.kind === 'travel' && Math.abs(x.start + x.duration - done.to) < 1e-3);
+    if (!act) return;
+    setGait(c.store, act.id, steps);
+    // (At its pace, it arrives at another time: the playhead there.)
+    const now = c.store.scene.animation!.actions.find((x) => x.id === act.id)!;
+    c.store.setTime(now.start + now.duration);
+  });
   if (c.floor) go(c.floor);
   else App().pickFloor?.(`Click the floor where ${f.name} should ${opts.strafe ? 'step' : kind} · Esc to cancel`, go);
 };

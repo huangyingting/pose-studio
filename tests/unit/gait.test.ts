@@ -4,6 +4,7 @@ import { setGait, setTravel, startAnimation, travelTo } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
+import { facingOf } from '@/lib/pose';
 import { checkMotion } from '@/lib/qa';
 import type { Pose } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
@@ -11,7 +12,8 @@ import { fresh } from '../fixtures/scenes';
 /* Walks and runs to a mark with a captured cycle (#26). */
 
 const WALK = 'library:walk';
-putClips([{ ...parseClip(JSON.parse(readFileSync('public/motions/walk.json', 'utf8')))!, id: WALK }]);
+const clip = (id: string) => ({ ...parseClip(JSON.parse(readFileSync(`public/motions/${id}.json`, 'utf8')))!, id: `library:${id}` });
+putClips([clip('walk'), clip('walk-backward'), clip('walk-left')]);
 
 const turnOf = (p: Pose, q: Pose, j: keyof Pose['bones']) => {
   const [a, b] = [p.bones[j]!, q.bones[j]!];
@@ -19,13 +21,13 @@ const turnOf = (p: Pose, q: Pose, j: keyof Pose['bones']) => {
 };
 
 /** A figure walking to (x, z) from the stage's middle, generated or with the captured Walk. */
-function walked(to: [number, number], gait?: string, via?: [number, number]) {
+function walked(to: [number, number], gait?: string, via?: [number, number], strafe?: boolean) {
   const { store, a } = fresh();
   startAnimation(store, 2);
   store.setTime(0);
   // (Played once: going round, the end back to the start is no slide.)
   store.updateScene((s) => ({ ...s, animation: { ...s.animation!, loop: false } }));
-  travelTo(store, a, to, 'walk');
+  travelTo(store, a, to, 'walk', strafe ? { strafe } : {});
   const extra = { ...(gait ? { gait } : {}), ...(via ? { via: [{ at: via, facing: 0 }] } : {}) };
   store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.source.kind === 'travel' ? { ...x, source: { ...x.source, ...extra } } : x)) } }));
   const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'travel')!;
@@ -49,6 +51,21 @@ describe('a walk with a captured cycle (#26)', () => {
     const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
     expect(Math.hypot(end.position[0] - 4, end.position[2] - 5)).toBeLessThan(0.1);
     expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
+  });
+
+  it('keeping its facing, it backs up and steps sideways with the captured ones (to the right, mirrored)', () => {
+    for (const to of [[0, -4], [3, 0], [-3, 0]] as [number, number][]) {
+      const { store, a, act } = walked(to, WALK, undefined, true);
+      const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
+      expect(Math.hypot(end.position[0] - to[0], end.position[2] - to[1]), `${to}`).toBeLessThan(0.1);
+      expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop'), `${to}`).toEqual([]);
+      // Facing as it was all the way; its body the captured one, not the generated side steps.
+      const mid = act.start + act.duration / 2;
+      const pose = figurePoseAt(store.scene, a, mid)!;
+      expect(Math.abs(facingOf(pose.bones)), `${to}`).toBeLessThan(15);
+      const g = walked(to, undefined, undefined, true);
+      expect(turnOf(pose, figurePoseAt(g.store.scene, g.a, mid)!, 'spine'), `${to}`).toBeGreaterThan(1);
+    }
   });
 
   it('chosen in its inspector (a walk\'s cycles for a walk), kept with the scene; made a run, a walk\'s cycle goes', () => {

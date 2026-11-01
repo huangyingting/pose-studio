@@ -4,7 +4,7 @@ import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart, startFacing }
 import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { mirrorJointName, wrapDeg } from './joints';
-import { feetOf, legsOf, locomote, makeCycle, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
+import { GAIT_WAYS, feetOf, legsOf, locomote, makeCycle, wayOf, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
@@ -66,17 +66,28 @@ const toAngles = (p: Pose): AnglePose => ({ joints: anglesOf(p.bones), position:
 const fromAngles = (p: AnglePose): Pose => ({ bones: bonesOf(p.joints), position: p.position, hands: p.hands, grounded: p.grounded });
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };
 
-// (Each captured cycle worked out once, #26: a clip's first person's lap.)
-const cycles = new WeakMap<Clip, Cycle | null>();
+// (Each captured cycle worked out once, #26: a clip's first person's lap, as captured and mirrored.)
+const cycles = new WeakMap<Clip, Map<boolean, Cycle | null>>();
 /** The captured cycle a walk or run goes with: a Library motion that goes round and goes somewhere (null till it is at hand, or if not). */
-function cycleOf(id: string): Cycle | null {
+function cycleOf(id: string, mirror = false): Cycle | null {
   const clip = playedClip({ clip: id });
   if (!clip?.loop || !clip.parts[0]) return null;
-  if (!cycles.has(clip)) {
+  let made = cycles.get(clip);
+  if (!made) cycles.set(clip, (made = new Map()));
+  if (!made.has(mirror)) {
     const part = clip.parts[0];
-    cycles.set(clip, makeCycle((u) => toAngles(samplePart(part, u, clip.duration, u < clip.duration)), clip.duration, part.body ?? DEFAULT_BODY));
+    const at = (u: number) => samplePart(part, u, clip.duration, u < clip.duration);
+    made.set(mirror, makeCycle((u) => toAngles(mirror ? mirrorPose(at(u)) : at(u)), clip.duration, part.body ?? DEFAULT_BODY));
   }
-  return cycles.get(clip)!;
+  return made.get(mirror)!;
+}
+
+/** The cycle a travel with captured steps goes with: its own, or keeping its facing, one that backs up or steps sideways. */
+function gaitCycle(src: Extract<Action['source'], { kind: 'travel' }>, path: [number, number][], yaws: number[]): Cycle | null {
+  if (!src.gait || src.mode === 'jump') return null;
+  const way = src.strafe ? wayOf(path, yaws) : 'forward';
+  const ways = GAIT_WAYS[src.mode];
+  return way === 'forward' ? cycleOf(src.gait) : way === 'back' ? cycleOf(ways.back) : cycleOf(ways.side, way === 'right');
 }
 
 /** A floor offset turned by `deg` about the vertical (the same sense as turning a figure). */
@@ -747,18 +758,21 @@ class Evaluator {
       ? this.at(f, next, next.start)
       : turned({ ...from, position: [to.at[0], from.position[1], to.at[1]] }, wrapDeg(to.facing - facingOf(from.bones)));
     const via = src.mode === 'jump' ? [] : src.via ?? [];
+    const path: [number, number][] = [start.at, ...via.map((m) => m.at), to.at];
+    const yaws = [start.facing, ...via.map((m) => m.facing), to.facing];
+    const cycle = gaitCycle(src, path, yaws);
     c = {
       kind: src.mode,
       t0: act.start,
       t1: end(act),
       start: toAngles(from),
       end: toAngles(arrive),
-      path: [start.at, ...via.map((m) => m.at), to.at],
-      yaws: [start.facing, ...via.map((m) => m.facing), to.facing],
+      path,
+      yaws,
       ...(src.strafe ? { strafe: true } : {}),
       ...(src.spin ? { spin: src.spin } : {}),
       ...(src.flip ? { flip: src.flip } : {}),
-      ...(src.gait && src.mode !== 'jump' && cycleOf(src.gait) ? { cycle: cycleOf(src.gait)! } : {}),
+      ...(cycle ? { cycle } : {}),
     };
     this.chains.set(key, c);
     return c;

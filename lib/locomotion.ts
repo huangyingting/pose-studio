@@ -157,6 +157,24 @@ export const GAITS: Record<'walk' | 'run', readonly string[]> = {
 };
 
 /**
+ * The cycles a walk or run with captured steps goes with where it keeps its facing (#26): backing
+ * up, and stepping sideways (to the left as captured; to the right, mirrored).
+ */
+export const GAIT_WAYS: Record<'walk' | 'run', { back: string; side: string }> = {
+  walk: { back: 'library:walk-backward', side: 'library:walk-left' },
+  run: { back: 'library:run-backward', side: 'library:strafe-left' },
+};
+
+/** Which way a travel keeping its facing goes, from start to end, against that facing (on the whole). */
+export function wayOf(path: [number, number][], yaws: number[]): 'forward' | 'back' | 'left' | 'right' {
+  const [a, b] = [path[0], path[path.length - 1]];
+  if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-6) return 'forward';
+  const facing = Math.atan2(yaws.reduce((n, y) => n + Math.sin(y * D2R), 0), yaws.reduce((n, y) => n + Math.cos(y * D2R), 0)) * R2D;
+  const off = wrapDeg(yawOf([b[0] - a[0], b[1] - a[1]]) - facing);
+  return Math.abs(off) <= 45 ? 'forward' : Math.abs(off) >= 135 ? 'back' : off > 0 ? 'left' : 'right';
+}
+
+/**
  * A captured walk or run cycle (one lap of a Library motion that goes round): its pose at a time
  * of the lap (in joint angles), the lap's length (s), how far a lap goes and which way it faces
  * (for its own body), its body, and when each foot is on the floor.

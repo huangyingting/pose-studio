@@ -2,6 +2,7 @@ import { newAnimation } from './animation';
 import { clipRange, keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
+import { GAIT_WAYS } from './locomotion';
 import { HANDLING, MOTIONS } from './motions';
 import { uid } from './uid';
 import type { Action, Clip, Library, Scene } from './types';
@@ -74,8 +75,9 @@ export function clipIdsOf(lib: Library): string[] {
 
 /** The ids of the clips a library's scenes play. */
 export function playedClips(lib: Library): string[] {
-  // (A walk or run with a captured cycle plays it too, #26.)
-  return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : x.source.kind === 'travel' && x.source.gait ? [x.source.gait] : []))))];
+  // (A walk or run with a captured cycle plays it too, #26, and keeping its facing, those that back up and step sideways.)
+  const gaits = (x: Action['source']) => (x.kind === 'travel' && x.gait && x.mode !== 'jump' ? [x.gait, ...(x.strafe ? Object.values(GAIT_WAYS[x.mode]) : [])] : []);
+  return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : gaits(x.source)))))];
 }
 
 /** A clip playing on its own people, where it has them. */

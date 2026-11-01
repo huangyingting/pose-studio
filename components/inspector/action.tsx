@@ -1,7 +1,7 @@
 'use client';
 
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, correctEveryRepeat, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
+import { clearMark, correctEveryRepeat, rememberSteps, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById, loopsOf } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
@@ -312,12 +312,12 @@ export function GettingPanel({ t }: { t: Target }) {
         <Toggle label="Keep facing" hint="Side steps and backing up instead of turning to the way it goes" checked={!!src.strafe} onChange={(strafe) => set(src.mode, { strafe })} />
       )}
       {/* (Its steps: generated, or a real person's from the Library's Mocap, #26.) */}
-      {(src.mode === 'walk' || src.mode === 'run') && !src.strafe && (
-        <PropertyRow label="Steps" info="Generated steps, or a real person's walk or run from the Library's Mocap, going where this one goes (round turns, to its mark)">
+      {(src.mode === 'walk' || src.mode === 'run') && (
+        <PropertyRow label="Steps" info="Generated steps, or a real person's walk or run from the Library's Mocap, going where this one goes (round turns, to its mark); keeping its facing, it backs up or steps sideways as they did. Walk here and Run here take the last chosen">
           <Select<string>
             label="Steps"
             value={src.gait ?? ''}
-            onChange={(v) => setGait(t.store, act.id, v || null)}
+            onChange={(v) => { setGait(t.store, act.id, v || null); rememberSteps(src.mode as 'walk' | 'run', v || null); }}
             options={[{ value: '', label: 'Generated' }, ...GAITS[src.mode].map((id) => ({ value: id, label: (LIBRARY_INDEX as { id: string; name: string }[]).find((m) => m.id === id)?.name ?? id }))]}
           />
         </PropertyRow>
