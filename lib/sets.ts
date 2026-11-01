@@ -4,7 +4,7 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import SET_INDEX from '../public/sets/index.json';
-import { CUTAWAY_LAYER, InkedParts, LINES_LAYER, type Ink } from './ink';
+import { CUTAWAY_LAYER, InkedParts, type Ink } from './ink';
 import { MAX_LIGHTS, clampLight, newLight, skyOf } from './lighting';
 import { withBase } from './paths';
 import { styleDef } from './styles';
@@ -932,12 +932,106 @@ function contactShadows(grounded: { at: Vec3; yaw: number; w: number; d: number 
   return out;
 }
 
+/** A part of a set as drawn (#29): its geometry where it stands, what it is made of, how it is treated, and where it is in its group. */
+interface Part {
+  geometry: THREE.BufferGeometry;
+  matrix: THREE.Matrix4;
+  inverse: THREE.Matrix4;
+  /** Its own bounds (in its geometry's space). */
+  box: THREE.Box3;
+  own?: THREE.Material;
+  look?: Look;
+  /** Casts no shadow (a floor, glass); a ready-made scene's (cut by its bounds, drawn from both sides); ground laid round one. */
+  floor: boolean;
+  scene: boolean;
+  ground: boolean;
+  /** Its triangles' indices in its group's (where they start, how many); cut away now. */
+  start: number;
+  count: number;
+  cut: boolean;
+}
+
+/** The parts of a set made of the same, drawn as one (#29): one mesh and one outline, a twin that only casts their shadows. */
+interface Group {
+  parts: Part[];
+  mesh: THREE.Mesh | null;
+  twin: THREE.Mesh | null;
+  /** All its triangles' indices (what is cut away is left out of the mesh's own). */
+  full: Uint32Array | Uint16Array | null;
+  dirty: boolean;
+}
+
+const keyOf = (p: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground'>) =>
+  `${p.own ? p.own.uuid : `look:${JSON.stringify(p.look ?? null)}`}|${p.floor ? 'f' : ''}${p.scene ? 's' : ''}${p.ground ? 'g' : ''}`;
+
+/** Parts merged into one geometry, each its own piece number (its inner lines and its ID in the line art's pass). */
+function mergeParts(parts: Part[]) {
+  let vertices = 0;
+  let indices = 0;
+  for (const p of parts) {
+    vertices += p.geometry.attributes.position.count;
+    indices += p.geometry.index ? p.geometry.index.count : p.geometry.attributes.position.count;
+  }
+  const position = new Float32Array(vertices * 3);
+  const normal = new Float32Array(vertices * 3);
+  const uv = new Float32Array(vertices * 2);
+  // (A second set of texture places, where a model has one (its baked shading's).)
+  const uv1 = parts.some((p) => p.geometry.attributes.uv1) ? new Float32Array(vertices * 2) : null;
+  const piece = new Float32Array(vertices);
+  const colors = parts.some((p) => p.geometry.attributes.color) ? new Float32Array(vertices * 3).fill(1) : null;
+  const index = vertices > 65535 ? new Uint32Array(indices) : new Uint16Array(indices);
+  const v = new THREE.Vector3();
+  const nm = new THREE.Matrix3();
+  let base = 0;
+  let at = 0;
+  parts.forEach((p, n) => {
+    const g = p.geometry;
+    const pos = g.attributes.position;
+    const nor = g.attributes.normal;
+    const tex = g.attributes.uv;
+    const tex1 = g.attributes.uv1;
+    const col = g.attributes.color;
+    nm.getNormalMatrix(p.matrix);
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(p.matrix).toArray(position, (base + i) * 3);
+      if (nor) v.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize().toArray(normal, (base + i) * 3);
+      if (tex) { uv[(base + i) * 2] = tex.getX(i); uv[(base + i) * 2 + 1] = tex.getY(i); }
+      if (tex1 && uv1) { uv1[(base + i) * 2] = tex1.getX(i); uv1[(base + i) * 2 + 1] = tex1.getY(i); }
+      if (col && colors) { colors[(base + i) * 3] = col.getX(i); colors[(base + i) * 3 + 1] = col.getY(i); colors[(base + i) * 3 + 2] = col.getZ(i); }
+      piece[base + i] = n;
+    }
+    p.start = at;
+    const count = g.index ? g.index.count : pos.count;
+    for (let i = 0; i < count; i++) index[at + i] = base + (g.index ? g.index.getX(i) : i);
+    p.count = count;
+    at += count;
+    base += pos.count;
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  if (uv1) geometry.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2));
+  geometry.setAttribute('piece', new THREE.BufferAttribute(piece, 1));
+  if (colors) geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(new THREE.BufferAttribute(index.slice(), 1));
+  geometry.userData.pieces = parts.length;
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return { geometry, full: index };
+}
+
+const shadowOnly = new THREE.MeshBasicMaterial();
+// (For the line of sight against one part, where it stands.)
+const probe = new THREE.Mesh(undefined, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+
 export class SetObject {
   readonly object = new THREE.Group();
   readonly parts: InkedParts;
 
-  /** Its parts (each with its outline), to cut away those in the view's way. */
-  private pieces: THREE.Mesh[] = [];
+  /** Its parts, grouped by what they are made of: each group drawn as one (#29). */
+  private groups = new Map<string, Group>();
+  private all: Part[] = [];
   /** Its models not yet here (put in as they come). */
   private waiting: Piece[] = [];
   /** Its models standing on the floor (where, turned, their footprint), and their contact shadows. */
@@ -951,29 +1045,32 @@ export class SetObject {
     this.parts = new InkedParts(ink, 'prop');
     for (const p of setById(id)?.build() ?? []) {
       if (p.shape[0] === 'model' || p.shape[0] === 'scene') { this.waiting.push(p); continue; }
-      const mesh = this.parts.add(this.object, geometryOf(p.shape), { set: id }, p.at);
-      this.pieces.push(mesh);
-      if (p.rot) mesh.rotation.set(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ');
+      const matrix = new THREE.Matrix4().compose(new THREE.Vector3(...p.at), new THREE.Quaternion().setFromEuler(new THREE.Euler(...((p.rot ?? [0, 0, 0]).map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ')), new THREE.Vector3(1, 1, 1));
       // (A floor casts no shadow, only takes them: nothing is under it, and a broad surface that
-      // shades itself shows stripes of shadow that crawl as the view turns.)
-      if (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) { mesh.castShadow = false; mesh.userData.floor = true; }
-      if (p.ground) mesh.userData.ground = true;
-      if (p.look) {
-        // (Its material made, and its textures fetched, when it is first drawn in 3D.)
-        mesh.userData.look = p.look;
-        // (Glass casts no shadow.)
-        if (typeof p.look === 'object' && p.look.glass) mesh.userData.floor = true;
-      }
+      // shades itself shows stripes of shadow that crawl as the view turns. Nor does glass.)
+      const floor = (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) || (typeof p.look === 'object' && !!p.look.glass);
+      // (Its material made, and its textures fetched, when it is first drawn in 3D.)
+      this.addPart(geometryOf(p.shape), matrix, { look: p.look, floor, scene: false, ground: !!p.ground });
     }
-    // (A set stands still: its parts placed once, not worked out again every frame.)
-    this.object.traverse((o) => { o.raycast = () => {}; o.updateMatrix(); o.matrixAutoUpdate = false; });
     this.furnish();
-    this.off = onSetAssets(() => this.furnish());
+    this.build();
+    this.off = onSetAssets(() => { if (this.furnish()) { this.build(); this.setStyle(this.style); } });
   }
 
-  /** Its models that have come put in, each of its meshes a part (outlined in the styles with lines; in 3D in its own materials). */
+  private addPart(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4, o: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground'>) {
+    const box = (geometry.boundingBox ??= (geometry.computeBoundingBox(), geometry.boundingBox!)).clone();
+    const part: Part = { geometry, matrix, inverse: matrix.clone().invert(), box, ...o, start: 0, count: 0, cut: false };
+    const key = keyOf(part);
+    let g = this.groups.get(key);
+    if (!g) this.groups.set(key, (g = { parts: [], mesh: null, twin: null, full: null, dirty: true }));
+    g.parts.push(part);
+    g.dirty = true;
+    this.all.push(part);
+  }
+
+  /** Its models that have come put in, each of their meshes a part (whether any came). */
   private furnish() {
-    if (!this.waiting.length) return;
+    if (!this.waiting.length) return false;
     const was = this.waiting;
     this.waiting = [];
     for (const p of was) {
@@ -989,15 +1086,7 @@ export class SetObject {
       model.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
-        const mesh = this.parts.add(this.object, m.geometry, { set: this.id });
-        mesh.matrixAutoUpdate = false;
-        mesh.matrix.multiplyMatrices(place, m.matrixWorld);
-        mesh.raycast = () => {};
-        for (const child of mesh.children) { child.raycast = () => {}; child.matrixAutoUpdate = false; child.updateMatrix(); }
-        mesh.userData.own = m.material;
-        if (isScene) Object.assign(mesh.userData, { scene: true, twoSided: true });
-        mesh.castShadow = this.shadows;
-        this.pieces.push(mesh);
+        this.addPart(m.geometry, new THREE.Matrix4().multiplyMatrices(place, m.matrixWorld), { own: m.material as THREE.Material, floor: false, scene: isScene, ground: false });
       });
       // (Standing on the floor: its contact shadow, in the styles lit as 3D is; a scene has its own.)
       if (!isScene && p.at[1] < 0.05) {
@@ -1007,10 +1096,38 @@ export class SetObject {
     }
     this.blobs?.removeFromParent();
     this.blobs = null;
-    if (this.waiting.length < was.length) {
-      this.box = null;
-      this.setStyle(this.style);
+    return this.waiting.length < was.length;
+  }
+
+  /** Each group that changed drawn again as one: its mesh (outlined), and its twin that casts its shadows. */
+  private build() {
+    for (const g of this.groups.values()) {
+      if (!g.dirty) continue;
+      g.dirty = false;
+      if (g.mesh) this.parts.remove(g.mesh);
+      if (g.twin) { g.twin.removeFromParent(); g.twin.geometry.dispose(); }
+      const { geometry, full } = mergeParts(g.parts);
+      g.full = full;
+      const first = g.parts[0];
+      const mesh = this.parts.add(this.object, geometry, { set: this.id });
+      Object.assign(mesh.userData, { own: first.own, look: first.look, scene: first.scene, twoSided: first.scene, floor: first.floor, ground: first.ground });
+      mesh.castShadow = false;
+      mesh.raycast = () => {};
+      const twin = new THREE.Mesh(new THREE.BufferGeometry(), shadowOnly);
+      twin.geometry.setAttribute('position', geometry.attributes.position);
+      twin.geometry.setIndex(new THREE.BufferAttribute(full, 1));
+      twin.layers.set(CUTAWAY_LAYER);
+      twin.castShadow = this.shadows && !first.floor;
+      twin.raycast = () => {};
+      this.object.add(twin);
+      g.mesh = mesh;
+      g.twin = twin;
+      for (const p of g.parts) p.cut = false;
     }
+    // (A set stands still: its parts placed once, not worked out again every frame.)
+    this.object.traverse((o) => { o.updateMatrix(); o.matrixAutoUpdate = false; });
+    this.object.updateMatrixWorld(true);
+    this.box = null;
   }
 
   setStyle(style: Style) {
@@ -1020,10 +1137,12 @@ export class SetObject {
     const blobs = (style === 'render' || style === 'shaded') && typeof document !== 'undefined';
     if (blobs && !this.blobs && this.grounded.length) this.object.add((this.blobs = contactShadows(this.grounded)));
     if (this.blobs) this.blobs.visible = blobs;
-    // (In 3D, in its own materials: textured; in the toon styles (Anime, Pixel), its own colours and textures toon-shaded, as a character's are.)
+    // (In 3D, in its own materials: textured; in the toon styles, its own colours and textures toon-shaded, as a character's are.)
     const toon = !!styleDef(style).toon;
     if (style === 'render' || toon) {
-      for (const mesh of this.pieces) {
+      for (const g of this.groups.values()) {
+        const mesh = g.mesh;
+        if (!mesh) continue;
         const own = mesh.userData.own ?? (mesh.userData.look ? materialOf(mesh.userData.look) : null);
         if (own) mesh.material = toon ? toonOf(this.ink, own, !!mesh.userData.twoSided) : own;
       }
@@ -1037,60 +1156,80 @@ export class SetObject {
    */
   castShadows(on: boolean) {
     this.shadows = on;
-    for (const mesh of this.pieces) mesh.castShadow = on && !mesh.userData.floor;
+    for (const g of this.groups.values()) if (g.twin) g.twin.castShadow = on && !g.parts[0].floor;
   }
 
   /**
    * Cut away what stands in the view's way: a part the eye is inside, or one between the eye and
-   * what it looks at, is not drawn (its shadow still cast), so the view never shows the inside of
-   * a wall and looks into a room past the wall in front. The rest drawn again. (A ready-made
-   * scene's pieces are a cell's worth of it each: one whose bounds the line of sight crosses.)
+   * what it looks at, is not drawn (its shadow still cast, by its group's twin), so the view never
+   * shows the inside of a wall and looks into a room past the wall in front. The rest drawn again.
+   * (A ready-made scene's pieces are a cell's worth of it each: one whose bounds the line of sight
+   * crosses.) Its triangles are left out of its group's mesh, and put back.
    */
   cutaway(eye: THREE.Vector3, target: THREE.Vector3) {
     const dir = target.clone().sub(eye);
     const reach = Math.max(0, dir.length() - 0.3);
     const ray = new THREE.Raycaster(eye, dir.clone().normalize(), 0, reach);
-    const local = new THREE.Vector3();
-    const [from, to, crossed] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
-    for (const mesh of this.pieces) {
-      const geo = mesh.geometry;
-      const box = (geo.boundingBox ??= (geo.computeBoundingBox(), geo.boundingBox!));
-      const inside = box.containsPoint(mesh.worldToLocal(local.copy(eye)));
-      const hits: THREE.Intersection[] = [];
-      let across = false;
-      if (!inside && mesh.userData.scene) {
-        // (The line of sight in the piece's own space, against its bounds.)
-        mesh.worldToLocal(from.copy(eye));
-        mesh.worldToLocal(ray.ray.at(reach, to));
-        const hit = new THREE.Ray(from, to.clone().sub(from).normalize()).intersectBox(box, crossed);
-        across = !!hit && hit.distanceTo(from) < to.distanceTo(from);
-      } else if (!inside) THREE.Mesh.prototype.raycast.call(mesh, ray, hits);
-      const cut = inside || across || hits.length > 0;
-      if (cut === (mesh.layers.mask === 1 << CUTAWAY_LAYER)) continue;
-      mesh.layers.set(cut ? CUTAWAY_LAYER : 0);
-      // (Its outline too: on no layer while cut away.)
-      for (const child of mesh.children) child.layers.set(cut ? 31 : LINES_LAYER);
+    const [local, from, to, crossed] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    const changed = new Set<Group>();
+    for (const g of this.groups.values()) {
+      for (const p of g.parts) {
+        const inside = p.box.containsPoint(local.copy(eye).applyMatrix4(p.inverse));
+        let cut = inside;
+        if (!inside && p.scene) {
+          // (The line of sight in the piece's own space, against its bounds.)
+          from.copy(eye).applyMatrix4(p.inverse);
+          ray.ray.at(reach, to).applyMatrix4(p.inverse);
+          const hit = new THREE.Ray(from, to.clone().sub(from).normalize()).intersectBox(p.box, crossed);
+          cut = !!hit && hit.distanceTo(from) < to.distanceTo(from);
+        } else if (!inside && !p.ground) {
+          const hits: THREE.Intersection[] = [];
+          probe.geometry = p.geometry;
+          probe.matrixWorld.copy(p.matrix);
+          THREE.Mesh.prototype.raycast.call(probe, ray, hits);
+          cut = hits.length > 0;
+        }
+        if (cut === p.cut) continue;
+        p.cut = cut;
+        changed.add(g);
+      }
+    }
+    for (const g of changed) {
+      const index = g.mesh?.geometry.index;
+      if (!index || !g.full) continue;
+      const out = index.array as Uint32Array | Uint16Array;
+      for (const p of g.parts) {
+        if (p.cut) out.fill(0, p.start, p.start + p.count);
+        else out.set(g.full.subarray(p.start, p.start + p.count), p.start);
+      }
+      index.needsUpdate = true;
     }
   }
 
   private box: THREE.Box3 | null = null;
   /** What it takes up (it never moves). */
   bounds() {
-    return (this.box ??= new THREE.Box3().setFromObject(this.object)).clone();
+    if (!this.box) {
+      this.box = new THREE.Box3();
+      for (const p of this.all) this.box.union(p.box.clone().applyMatrix4(p.matrix));
+    }
+    return this.box.clone();
   }
 
   /** Every corner of it (a thumbnail of the set frames it all). */
   forEachPoint(cb: (p: THREE.Vector3) => void) {
     // (Not the ground laid round a ready-made scene: the place itself.)
     const box = new THREE.Box3();
-    for (const o of this.object.children) if (!o.userData.ground) box.expandByObject(o);
+    for (const p of this.all) if (!p.ground) box.union(p.box.clone().applyMatrix4(p.matrix));
     if (box.isEmpty()) return;
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) cb(new THREE.Vector3(x, y, z));
   }
 
   dispose() {
-    // (Its geometries are shared by every view of the set: kept.)
+    // (Its merged geometries its own; what they were made of shared by every view of the set: kept.)
     this.off();
+    for (const g of this.groups.values()) g.twin?.geometry.dispose();
+    this.parts.dispose();
     this.object.clear();
   }
 }

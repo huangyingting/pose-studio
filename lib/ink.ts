@@ -487,7 +487,20 @@ export class InkedParts {
     return mesh;
   }
 
-  /** Swap to flat per-part colours for the ID pass; returns the next free id. */
+  /** A part taken out again (with its outline), its geometry let go. */
+  remove(mesh: THREE.Mesh) {
+    const i = this.bodies.indexOf(mesh);
+    if (i < 0) return;
+    this.bodies.splice(i, 1);
+    for (const child of mesh.children) {
+      const j = this.hulls.indexOf(child as THREE.Mesh);
+      if (j >= 0) this.hulls.splice(j, 1);
+    }
+    mesh.removeFromParent();
+    this.geometries.delete(mesh.geometry);
+    mesh.geometry.dispose();
+  }
+
   /**
    * Its parts in flat ID colours for the inner-line pass (on), or back as they were (off): only
    * their materials swapped (its lines, on their own layer, are left out by the pass). Returns the

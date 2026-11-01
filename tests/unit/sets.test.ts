@@ -41,6 +41,24 @@ describe('sets', () => {
     expect(sv.set).toBeNull();
   });
 
+  it('drawn as one mesh per material, each part still cut away alone when it is in the view\'s way (#29)', () => {
+    const sv = new SceneView();
+    sv.sync({ ...newScene('In'), set: 'living-room' });
+    const set = sv.set!;
+    const parts = SETS.find((s) => s.id === 'living-room')!.build().filter((p) => p.shape[0] !== 'model').length;
+    // (Its walls, floor, frames and the rest: far fewer meshes than parts.)
+    expect(set.parts.bodies.length).toBeLessThan(parts / 3);
+    const drawn = () => set.parts.bodies.reduce((n, m) => n + Array.from(m.geometry.index!.array).filter((i, k, a) => k % 3 === 0 && !(i === 0 && a[k + 1] === 0 && a[k + 2] === 0)).length, 0);
+    const all = drawn();
+    // The eye behind the back wall, looking in: that wall (and only what is in the way) is left out; then back.
+    set.cutaway(new THREE.Vector3(0, 1.5, -7), new THREE.Vector3(0, 1, 0));
+    const cut = drawn();
+    expect(cut).toBeLessThan(all);
+    expect(cut).toBeGreaterThan(all * 0.5);
+    set.cutaway(new THREE.Vector3(0, 1.5, 6), new THREE.Vector3(0, 1, 0));
+    expect(drawn()).toBe(all);
+  });
+
   it('made of models and surfaces that npm run sets made, each within its budget; each set within its own (#25)', () => {
     for (const [id, a] of Object.entries(MODELS)) {
       expect(index.models[id], id).toBeDefined();
