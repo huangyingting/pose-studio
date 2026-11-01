@@ -22,7 +22,7 @@
 import { writeFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 import { legsOf } from '../../lib/locomotion';
 import { Fitted, mapBones } from '../../lib/model';
 import { BONES, type BodyParams } from '../../lib/types';

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "app/api/**/route.server.ts",
+    "components/server/none.ts",
+    "public/sw.js",
+    "scripts/**/*.{ts,mjs}",
+    "tests/e2e/mock-ai.mjs"
+  ]
+}

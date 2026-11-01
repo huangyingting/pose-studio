@@ -530,14 +530,14 @@ function standOff(): Scene {
   return s.done(1);
 }
 
+/** How long the Library's Jump forward crouches before it leaves the floor (s): a defender's (in place) starts that much before the shot. */
+const JUMP_CROUCH = 0.8;
+
 /**
  * Street basketball in the park: two on one, the drive and the pass and the shot that goes in;
  * the fan at the side feeding them new balls; the defender's own drive and miss; the last play,
  * and the cheering.
  */
-export /** How long the Library's Jump forward crouches before it leaves the floor (s): a defender's (in place) starts that much before the shot. */
-const JUMP_CROUCH = 0.8;
-
 function streetBasketball(): Scene {
   const s = new Stage('Street basketball', [
     { name: 'Jay', body: 'Tall man', at: [-0.6, 0], facing: 0 },

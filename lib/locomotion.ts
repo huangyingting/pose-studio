@@ -23,9 +23,10 @@ const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
 export const GRAVITY = 9.81;
 
-/** Typical speeds (m/s for a 1.8 m figure), used to time a new walk or run. */
-export /** The highest step up a walk or run takes onto a prop, as a share of the leg's length. */
+/** The highest step up a walk or run takes onto a prop, as a share of the leg's length. */
 const MAX_STEP_UP = 0.55;
+
+/** Typical speeds (m/s for a 1.8 m figure), used to time a new walk or run. */
 const SPEED: Record<Exclude<Travel, 'jump'>, number> = { walk: 1.35, run: 3.6 };
 
 /** Time a jump spends in the air to rise `h` metres (and back to the same height). */
