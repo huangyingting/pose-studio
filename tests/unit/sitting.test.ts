@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, moveProp, sitOn, sittingAt, standUp } from '@/lib/actions';
+import { addFigure, addProp, moveProp, setSceneSet, sitAt, sitOn, sittingAt, standUp } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { parseClip } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
@@ -71,5 +71,30 @@ describe('sitting on a chair or a stool (#14)', () => {
     const sat = hipsAt(store, a, store.getState().time + 0.5);
     expect(Math.hypot(sat.x, sat.z - 2.9)).toBeLessThan(0.15);
     expect(Math.abs(Math.abs(sat.facing) - 180)).toBeLessThan(10);
+  });
+
+  it('sits on a set\'s own seat: a café chair facing its table, a park bench away from its back', () => {
+    const store = new Store(new MemoryStorage());
+    setSceneSet(store, 'cafe');
+    addFigure(store, [-5.5, 0, -1.5]);
+    const a = store.getState().activeFigure!;
+    store.setTime(0);
+    // (The chair west of its table, at x −4.35: sat on facing east, +X, towards the table.)
+    expect(sitAt(store, a, -4.35, -2.6)).toBe(true);
+    const t = store.getState().time;
+    expect(sittingAt(store.scene, a, t + 0.5)).toBe(true);
+    const sat = hipsAt(store, a, t + 0.5);
+    expect(Math.hypot(sat.x + 4.25, sat.z + 2.6)).toBeLessThan(0.15);
+    expect(Math.abs(sat.facing - 90)).toBeLessThan(10);
+    // Not where there is no seat (the floor between the tables).
+    expect(sitAt(store, a, -2, 1)).toBe(false);
+
+    const park = new Store(new MemoryStorage());
+    setSceneSet(park, 'park');
+    addFigure(park, [0, 0, 2]);
+    const b = park.getState().activeFigure!;
+    park.setTime(0);
+    expect(sitAt(park, b, -1.8, -0.55)).toBe(true);
+    expect(Math.abs(hipsAt(park, b, park.getState().time + 0.5).facing)).toBeLessThan(10);
   });
 });

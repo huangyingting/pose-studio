@@ -19,7 +19,7 @@ import { PixelPass } from '@/lib/pixel';
 import { RealPass } from '@/lib/realpass';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
-import { onSetAssets, surroundings } from '@/lib/sets';
+import { onSetAssets, surroundings, topUnder } from '@/lib/sets';
 import { awake, setDrawer, wake } from './frames';
 import { LINES_LAYER } from '@/lib/ink';
 import SelectionTag from './SelectionTag';
@@ -63,7 +63,7 @@ export interface ViewportApi {
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
 /** What is under a point of the canvas: a figure (and the point of its body a hand would hold), a prop, a camera (and its path's point), the floor there. */
-export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; light?: string };
+export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; top?: Vec3; light?: string };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -1181,6 +1181,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const hit: CanvasHit = lamp ? { light: lamp.name.slice('light-lamp:'.length) } : {};
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (floor) hit.floor = [floor.x, 0, floor.z];
+        // (A set's top under it, a dais, a table, a seat: stood or sat on there.)
+        const top = topUnder(sv.set?.id, ray.ray);
+        if (top) hit.top = top;
         // A camera (or one of its points) in front of everything: it is drawn over the scene.
         for (const { object } of rigRef.current ? ray.intersectObject(rigRef.current, true) : []) {
           let o: THREE.Object3D | null = object;

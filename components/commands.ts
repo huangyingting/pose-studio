@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   addCamera, stepRig, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKey, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
-  deleteKey, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
+  deleteKey, sitAt, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
   holdKey, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
@@ -34,6 +34,7 @@ import { angle, mirrorBones } from '@/lib/pose';
 import { JOINT_PARENT as PARENT } from '@/lib/skeleton';
 import { LENSES, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import { VIEW_PRESETS } from '@/lib/views';
+import { seatAt } from '@/lib/sets';
 import { PROP_ICONS, STYLE_ICONS } from './icons';
 import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
@@ -129,6 +130,8 @@ export interface Ctx {
   scene?: number;
   /** A spot on the floor. */
   floor?: Vec3;
+  /** Where on a set's top (a dais, a table, a seat) the spot is, if it is on one. */
+  top?: Vec3;
   /** A time on a track (a key, a camera's point). */
   at?: number;
   /** One of the scene's lights. */
@@ -811,6 +814,12 @@ export const COMMANDS: Command[] = [
       if (c.floor) turn(c.floor);
       else App().pickFloor?.(`Click the floor where ${f.name} should face · Esc to cancel`, turn);
     },
+  },
+  {
+    // (A set's own seat, a café's chair, a bench: as a chair prop is sat on, facing its table if it is at one.)
+    id: 'figure.sitHere', title: 'Sit here', icon: Armchair,
+    when: (c) => movable(c) && !!c.top && !!seatAt(sceneOf(c).set, c.top[0], c.top[2]),
+    run: (c) => { const f = c.figure ? figureOf(c) : activeFigure(c); if (f && !sitAt(c.store, f.id, c.top![0], c.top![2])) App().notify(`${f.name} cannot get there`); },
   },
   { id: 'figure.walk', title: (c) => (c.floor ? 'Walk here' : 'Walk to…'), icon: Footprints, when: (c) => movable(c), run: (c) => goTo(c, 'walk') },
   { id: 'figure.run', title: (c) => (c.floor ? 'Run here' : 'Run to…'), icon: Wind, when: (c) => movable(c), run: (c) => goTo(c, 'run') },
@@ -1561,7 +1570,7 @@ const MENUS = {
   lighting: ['light.preset', 'light.add'],
   many: ['many.duplicate', 'many.hide', '-', 'many.delete'],
   floor: [
-    { group: 'Move here' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', '-',
+    { group: 'Move here' }, 'figure.sitHere', 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', '-',
     'floor.figure', 'floor.standIn', 'floor.prop', 'light.add', '-', 'view.frameAll',
   ],
   timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.rangeIn', 'timeline.rangeOut', 'timeline.clearRange', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],

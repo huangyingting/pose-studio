@@ -465,8 +465,10 @@ function App() {
       if (!joint) store.select({ kind: 'figure', figure: hit.figure });
       openContextMenu(e, figureMenu(store, hit.figure, joint), store.scene.figures.find((f) => f.id === hit.figure)?.name);
     } else {
-      const floor = hit.floor && ([Math.round(hit.floor[0] * 100) / 100, 0, Math.round(hit.floor[2] * 100) / 100] as Vec3);
-      openContextMenu(e, menu('floor', { store, floor }));
+      // (On a set's top, a dais, a table, a seat: the spot on it under the pointer, not the floor's behind it.)
+      const spot = hit.top ?? hit.floor;
+      const floor = spot && ([Math.round(spot[0] * 100) / 100, 0, Math.round(spot[2] * 100) / 100] as Vec3);
+      openContextMenu(e, menu('floor', { store, floor, ...(hit.top ? { top: hit.top } : {}) }));
     }
   };
   // The commands' context in the top bar and menus here: the selection.
@@ -605,7 +607,8 @@ function App() {
               pick.ghost.drop(hit);
             }
             else if (pick.take) pick.take(hit);
-            else if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.floor);
+            // (On a set's top, the spot on it under the pointer.)
+            else if (hit.floor && !hit.figure && !hit.prop && !hit.camera) pick.done(hit.top ? [hit.top[0], 0, hit.top[2]] : hit.floor);
             setPick(null);
           })}
           placing={pick?.ghost ?? null}

@@ -917,6 +917,88 @@ export function setTops(id: string | undefined): StandTop[] {
   return tops;
 }
 
+/** In a top's own axes: how far along its width (hx) and its depth (hz) a point is from its middle. */
+const across = (t: StandTop, x: number, z: number) => { const [dx, dz] = [x - t.cx, z - t.cz]; return [dx * t.c - dz * t.s, dx * t.s + dz * t.c] as const; };
+
+/** The point of a set's top (#29) a ray meets first, if any (what is under the pointer to stand or sit on). */
+export function topUnder(id: string | undefined, ray: THREE.Ray): Vec3 | null {
+  let best: Vec3 | null = null;
+  let near = Infinity;
+  for (const t of setTops(id)) {
+    if (Math.abs(ray.direction.y) < 1e-6) break;
+    const d = (t.y - ray.origin.y) / ray.direction.y;
+    if (d <= 0 || d >= near) continue;
+    const [x, z] = [ray.origin.x + ray.direction.x * d, ray.origin.z + ray.direction.z * d];
+    const [u, w] = across(t, x, z);
+    if (Math.abs(u) <= t.hx && Math.abs(w) <= t.hz) { near = d; best = [x, t.y, z]; }
+  }
+  return best;
+}
+
+/** What is sat on (a chair's seat, a bench, a stool, a low wall) and what is eaten at, by the height of its top. */
+const SEAT: [number, number] = [0.35, 0.65];
+const TABLE: [number, number] = [0.65, 0.85];
+
+/**
+ * Where to sit on a set's seat under (x, z), null if there is none: the spot (on a bench, the point
+ * itself, kept a little in from its ends; on a chair, its middle) and which way to face, square to
+ * the seat: towards the nearest table within reach, as chairs round a table are set; else away from
+ * its back; else, a bench or a pew, across it to the side the figure comes `from`; else null (with
+ * its back to the seat from wherever the figure comes, as on a stool).
+ */
+export function seatAt(id: string | undefined, x: number, z: number, from?: [number, number]): { at: [number, number]; facing: number | null } | null {
+  const tops = setTops(id);
+  // (Within a few centimetres: a bench's seat is slats with gaps between them.)
+  const seats = tops.filter((t) => {
+    if (t.y < SEAT[0] || t.y > SEAT[1]) return false;
+    const [u, w] = across(t, x, z);
+    return Math.abs(u) <= t.hx + 0.06 && Math.abs(w) <= t.hz + 0.06;
+  });
+  if (!seats.length) return null;
+  const seat = seats[0];
+  // All of it: the slats beside it, as turned and as high (their middle is the seat's).
+  const slats = tops.filter((t) => Math.abs(t.y - seat.y) < 0.1 && Math.abs(t.c * seat.c + t.s * seat.s) > 0.99 && Math.hypot(t.cx - seat.cx, t.cz - seat.cz) < 0.35);
+  const [mu, mw] = slats.map((t) => across(seat, t.cx, t.cz)).reduce(([a, b], [u, w]) => [a + u / slats.length, b + w / slats.length], [0, 0]);
+  const [hx, hz] = slats.reduce(([a, b], t) => { const [u, w] = across(seat, t.cx, t.cz); return [Math.max(a, Math.abs(u - mu) + t.hx), Math.max(b, Math.abs(w - mw) + t.hz)]; }, [0, 0]);
+  const inFrom = (v: number, mid: number, half: number) => (half > 0.45 ? THREE.MathUtils.clamp(v, mid - half + 0.25, mid + half - 0.25) : mid);
+  const [u0, w0] = across(seat, x, z);
+  const [u, w] = [inFrom(u0, mu, hx), inFrom(w0, mw, hz)];
+  const at: [number, number] = [seat.cx + u * seat.c + w * seat.s, seat.cz - u * seat.s + w * seat.c];
+  /** The nearest point of the nearest top that `is`, within `reach` of the spot (in the set's axes). */
+  const nearest = (is: (t: StandTop) => boolean, reach: number) => {
+    let found: [number, number] | null = null;
+    for (const t of tops) {
+      if (!is(t)) continue;
+      const [tu, tw] = across(t, at[0], at[1]);
+      const [cu, cw] = [THREE.MathUtils.clamp(tu, -t.hx, t.hx), THREE.MathUtils.clamp(tw, -t.hz, t.hz)];
+      const d = Math.hypot(tu - cu, tw - cw);
+      if (d >= reach || d < 1e-3) continue;
+      reach = d;
+      found = [t.cx + cu * t.c + cw * t.s, t.cz - cu * t.s + cw * t.c];
+    }
+    return found;
+  };
+  // (Square to the seat: the one of its four ways nearest the way given, degrees.)
+  const square = (x1: number, z1: number) => {
+    const to = Math.atan2(x1 - at[0], z1 - at[1]);
+    const base = Math.atan2(seat.s, seat.c);
+    return Math.round(THREE.MathUtils.radToDeg(base + Math.round((to - base) / (Math.PI / 2)) * (Math.PI / 2)) * 10) / 10;
+  };
+  // Towards a table: a top at a table's height deep enough to eat at (not a chair's arm or back), its edge within 0.9 m.
+  const table = nearest((t) => t.y >= TABLE[0] && t.y <= TABLE[1] && Math.min(t.hx, t.hz) >= 0.15, 0.9);
+  if (table) return { at, facing: square(table[0], table[1]) };
+  // Else away from its back: a thin top a little higher, close behind (a bench's, a pew's, a booth's).
+  const back = nearest((t) => t.y > seat.y + 0.2 && t.y < seat.y + 0.7 && Math.min(t.hx, t.hz) < 0.12, 0.45);
+  if (back) return { at, facing: square(2 * at[0] - back[0], 2 * at[1] - back[1]) };
+  // Else a long seat (a bench, a pew) is sat on across it, facing the side the figure comes from.
+  if (from && Math.max(hx, hz) > 0.45) {
+    const [fu, fw] = across(seat, from[0], from[1]);
+    const [lu, lw] = hx > hz ? [0, Math.sign(fw - mw) || 1] : [Math.sign(fu - mu) || 1, 0];
+    return { at, facing: square(at[0] + lu * seat.c + lw * seat.s, at[1] - lu * seat.s + lw * seat.c) };
+  }
+  return { at, facing: null };
+}
+
 /**
  * How far from `from` towards `to` a set's first solid part is (a wall, a roof, a pillar; not its
  * floor), or null if nothing of it is in between (#16: a camera stops at a wall).

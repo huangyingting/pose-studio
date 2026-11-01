@@ -9,6 +9,7 @@ import { handlesOf, localBounds } from '../props';
 import { restage, addTravel } from '../track';
 import { legsOf } from '../locomotion';
 import LIBRARY_INDEX from '../../public/motions/index.json';
+import { seatAt } from '../sets';
 import { withFacing, facing, withPosition, turnTowards, faceEachOther, besides, backToBack, inFrontOf, distance, atDistance, Rig, headPoint, lookAt, type Contact, contactPoint, reach, contactSpot } from '../relations';
 import { bonesOf, withAngles } from '../pose';
 import type { Store } from '../store';
@@ -334,16 +335,31 @@ function course(id: string) {
  */
 export function sitOn(store: Store, figureId: string, propId: string) {
   const chair = store.scene.props.find((p) => p.id === propId);
-  const f = store.scene.figures.find((x) => x.id === figureId);
-  if (!chair || !f || chair.hold || (chair.kind !== 'chair' && chair.kind !== 'stool')) return false;
-  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
+  if (!chair || chair.hold || (chair.kind !== 'chair' && chair.kind !== 'stool')) return false;
   // (A chair is sat on facing the way it does; a stool, with the back to it from where the figure is.)
+  return sitDown(store, figureId, [chair.position[0], chair.position[2]], chair.kind === 'chair' ? chair.rotation[1] : null);
+}
+
+/** Sit on a set's seat under (x, z) (lib/sets.ts seatAt: a chair at a table faces it), as on a chair. Whether there was one, and it could. */
+export function sitAt(store: Store, figureId: string, x: number, z: number) {
+  const f = figurePoseAt(store.scene, figureId, store.getState().time) ?? store.scene.figures.find((g) => g.id === figureId);
+  const seat = f && seatAt(store.scene.set, x, z, [f.position[0], f.position[2]]);
+  return !!seat && sitDown(store, figureId, seat.at, seat.facing);
+}
+
+/**
+ * Walk to the front of a seat (its middle `seat`), turn and sit down onto it facing `facing`
+ * (null: with the back to it from where the figure is), then sit there.
+ */
+function sitDown(store: Store, figureId: string, middle: [number, number], facing: number | null) {
+  const f = store.scene.figures.find((x) => x.id === figureId);
+  if (!f) return false;
+  if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const here = figurePoseAt(store.scene, figureId, store.getState().time) ?? f;
-  const away = (Math.atan2(here.position[0] - chair.position[0], here.position[2] - chair.position[2]) * 180) / Math.PI;
-  const facing = chair.kind === 'chair' ? chair.rotation[1] : away;
-  const r = (facing * Math.PI) / 180;
+  const way = facing ?? (Math.atan2(here.position[0] - middle[0], here.position[2] - middle[1]) * 180) / Math.PI;
+  const r = (way * Math.PI) / 180;
   const ahead: [number, number] = [Math.sin(r), Math.cos(r)];
-  const seat: [number, number] = [chair.position[0] + ahead[0] * 0.1, chair.position[2] + ahead[1] * 0.1];
+  const seat: [number, number] = [middle[0] + ahead[0] * 0.1, middle[1] + ahead[1] * 0.1];
   const legs = legsOf(f.body).rootY;
   const down = course(SIT.down);
   // (Where it stands to sit down: as far in front of the seat as sitting down takes it back.)
@@ -353,7 +369,7 @@ export function sitOn(store: Store, figureId: string, propId: string) {
   const walked = addTravel(store.scene, figureId, store.getState().time, front, 'walk');
   if (!walked) return false;
   const a = walked.animation;
-  const at = (x: [number, number]) => ({ at: [r3(x[0]), r3(x[1])] as [number, number], facing: Math.round(facing * 10) / 10 || 0 });
+  const at = (x: [number, number]) => ({ at: [r3(x[0]), r3(x[1])] as [number, number], facing: Math.round(way * 10) / 10 || 0 });
   const clipAction = (clip: string, start: number, duration: number, end: [number, number]): Action => ({
     id: uid('act'), start, duration, blendIn: 0.25, roles: [{ figure: figureId, end: at(end) }], source: { kind: 'clip', clip },
   });
