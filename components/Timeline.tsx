@@ -94,16 +94,7 @@ function Still({ openPicker }: { openPicker(figure: string, el: Element): void }
       <div className="tl-bar">
         <span className="tl-still">Still image</span>
         <span className="tl-sep" />
-        <button
-          type="button"
-          className="btn ghost tl-btn"
-          aria-label={titleOf(command('timeline.key'), c)}
-          data-tip={tipOf('timeline.key', titleOf(command('timeline.key'), c))}
-          data-tip-side="top"
-          onClick={() => command('timeline.key').run!(c)}
-        >
-          <Diamond size={16} aria-hidden /> <span className="tl-label">Key</span>
-        </button>
+        <KeyButton c={c} />
         {active && (
           <button
             type="button"
@@ -293,10 +284,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     return () => el.removeEventListener('wheel', wheel);
   }, [v0, span, zoom, total, folded]);
 
-  const check = () => {
-    stepDone(scene.id, 'check');
-    if (issues) { setQaOpen(!qaOpen); return; }
-    pause();
+  // The motion check run, its card open on what it found (`none`: what it says when nothing is).
+  const runCheck = (none: string) => {
     setChecking(true);
     // Let the button show that it is working before the (synchronous) check runs.
     setTimeout(() => {
@@ -305,21 +294,19 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       setQa(scene.animation ? { animation: scene.animation, issues: found } : null);
       setChecking(false);
       setQaOpen(found.length > 0);
-      if (!found.length) notify('Motion check: no problems found');
+      if (!found.length) notify(`Motion check: ${none}`);
     }, 30);
+  };
+  const check = () => {
+    stepDone(scene.id, 'check');
+    if (issues) { setQaOpen(!qaOpen); return; }
+    pause();
+    runCheck('no problems found');
   };
   // (A fix taken: checked again straight after, the card staying open on what is left.)
   const fix = (run: () => void) => {
     run();
-    setChecking(true);
-    setTimeout(() => {
-      const scene = store.scene;
-      const found = scene.animation ? checkMotion(scene) : [];
-      setQa(scene.animation ? { animation: scene.animation, issues: found } : null);
-      setChecking(false);
-      setQaOpen(found.length > 0);
-      if (!found.length) notify('Motion check: no problems left');
-    }, 30);
+    runCheck('no problems left');
   };
   const goTo = (i: Issue) => {
     seek(i.start);
@@ -505,16 +492,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           </Menu>
         </div>
         <span className="tl-sep" />
-        <button
-          type="button"
-          className={`btn ghost tl-btn${onKey ? ' on' : ''}`}
-          aria-label={titleOf(command('timeline.key'), c)}
-          data-tip={tipOf('timeline.key', titleOf(command('timeline.key'), c))}
-          data-tip-side="top"
-          onClick={() => command('timeline.key').run!(c)}
-        >
-          <Diamond size={16} aria-hidden /> <span className="tl-label">Key</span>
-        </button>
+        <KeyButton c={c} on={onKey} />
         {!compact && (
           <>
             <CommandButton id="timeline.deleteKey" ctx={c} tipSide="top" disabled={!onKey || activeKeys.length <= 1} />
@@ -701,6 +679,16 @@ function ScrollBar({ start, size, onScroll }: { start: number; size: number; onS
     <div className="tl-scroll" ref={bar} aria-hidden>
       <div className="tl-scroll-thumb" style={{ left: `${start * 100}%`, width: `${size * 100}%` }} onPointerDown={drag} />
     </div>
+  );
+}
+
+/** The Key button (K): a key at the playhead for the active figure, lit when there is one. */
+function KeyButton({ c, on }: { c: Ctx; on?: boolean }) {
+  const title = titleOf(command('timeline.key'), c);
+  return (
+    <button type="button" className={`btn ghost tl-btn${on ? ' on' : ''}`} aria-label={title} data-tip={tipOf('timeline.key', title)} data-tip-side="top" onClick={() => command('timeline.key').run!(c)}>
+      <Diamond size={16} aria-hidden /> <span className="tl-label">Key</span>
+    </button>
   );
 }
 
