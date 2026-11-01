@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newFigure } from '@/lib/doc';
+import { handPosition } from '@/lib/propmotion';
 import { Rig, reach } from '@/lib/relations';
 import { RIG_PARENT, angle, anglesOf, bonesOf, fromQuat, rigTurns, storedTurns, withAngles, type Bones } from '@/lib/pose';
 import { worldTurns } from '@/lib/skeleton';
@@ -59,6 +60,16 @@ describe('the 22 joints (#30)', () => {
     const hand = rig.model({ ...f, bones }).joints.leftHand.getWorldPosition(new THREE.Vector3());
     expect(hand.distanceTo(target)).toBeLessThan(0.12);
     rig.dispose();
+  });
+
+  it('a held prop goes with the hand when the shoulder or upper chest moves (it is held at the hand, wherever the hand is)', () => {
+    const f = { ...newFigure(), bones: bonesOf({ leftUpperArm: [-60, 0, 10], leftLowerArm: [-40, 0, 0] }), position: [0, 1, 0] as [number, number, number], grounded: false };
+    const before = new THREE.Vector3(...handPosition(f, 'L'));
+    const shrugged = new THREE.Vector3(...handPosition({ ...f, bones: withAngles(f.bones, { leftShoulder: [0, -15, 20] }) }, 'L'));
+    expect(shrugged.y - before.y).toBeGreaterThan(0.01);
+    expect(shrugged.distanceTo(before)).toBeGreaterThan(0.05);
+    // The right hand stays where it was.
+    expect(new THREE.Vector3(...handPosition({ ...f, bones: withAngles(f.bones, { leftShoulder: [0, -15, 20] }) }, 'R')).distanceTo(new THREE.Vector3(...handPosition(f, 'R')))).toBeLessThan(0.001);
   });
 
   it('on the mannequin: a shrug lifts the arm and hand, the upper chest leans the shoulders and head, the toes bend at the ball of the foot', () => {
