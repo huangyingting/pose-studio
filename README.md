@@ -190,6 +190,7 @@ components/
   Studio.tsx            Layout, top bar, canvas toolbar, share-link import, cross-tab sync, dialogs, toasts
   shortcuts.ts          The keyboard's routing: a key to what has the focus when it uses it, else to its command
   Viewport.tsx          React Three Fiber canvas: selection, gizmo, line-art render loop
+  CameraRig.tsx, CameraHandles.tsx  The cameras on the canvas: their paths and points; the selected one's handles (framing, a rig's angle and move)
   Manipulators.tsx      Direct manipulation: drag figures, props and body parts (IK hands and feet, the hips on planted feet), floor rings to turn
   Inspector.tsx         The inspector: what is selected (a figure, prop, shot, camera or action) or the scene itself
   inspector/            Its sections, one list (sections.tsx: a new group of properties is one entry), and their panels
