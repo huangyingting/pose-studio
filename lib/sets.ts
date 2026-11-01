@@ -493,6 +493,13 @@ export const SETS: SetDef[] = [
           { ...B(0.08, 1.4, 0.5, -side * 2.75, 1.6, 1.2), look: { color: '#2b1d14', rough: 0.4 } },
         ], side * 6, 0, z),
         ...(i % 2 ? [M('barrel', side * 3.2, z - 1.1), M('basket', side * 3.3, z + 0.2, 0, 0.88)] : [M('crate', side * 3.2, z - 0.8, 90), M('bucket', side * 3.3, z + 0.6)]),
+        // Its cloth banner hanging from the eave, and a stall of goods by its door.
+        ...open([
+          { ...B(0.03, 1.3, 0.55, side * 3.4, 1.35, z + 0.95), look: { color: ['#8c1d18', '#1f4e79', '#c99a1a', '#2e6b3a', '#5a2a5e'][i % 5], rough: 0.95 } },
+          { ...B(0.04, 0.04, 0.7, side * 3.4, 2.66, z + 0.95), look: { color: '#3a2618', rough: 0.6 } },
+          ...made(wood, [B(0.6, 0.06, 1.1, side * 3.05, 0.7, z - 2.0), B(0.05, 0.7, 0.05, side * 2.8, 0, z - 2.5), B(0.05, 0.7, 0.05, side * 2.8, 0, z - 1.5), B(0.05, 0.7, 0.05, side * 3.3, 0, z - 2.5), B(0.05, 0.7, 0.05, side * 3.3, 0, z - 1.5)]),
+          ...[-2.3, -2.0, -1.7].map((dz, k): Piece => ({ ...C(0.09, 0.07, side * 3.05, 0.76, z + dz), look: { color: ['#c8642a', '#e2b33c', '#7a9a3a'][(i + k) % 3], rough: 0.8 } })),
+        ]),
       ];
       const gate: Piece[] = [
         ...made(STONE, [C(0.3, 6, -3, 0, -22, 0.28, 16), C(0.3, 6, 3, 0, -22, 0.28, 16), B(7, 0.6, 0.6, 0, 4.4, -22), B(7.6, 0.5, 0.7, 0, 5.6, -22), B(1, 0.5, 1, -3, 0, -22), B(1, 0.5, 1, 3, 0, -22)]),
