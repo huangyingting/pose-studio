@@ -935,6 +935,26 @@ export function topUnder(id: string | undefined, ray: THREE.Ray): Vec3 | null {
   return best;
 }
 
+/**
+ * The seat of a set nearest a point on its furniture, as a view from about eye level meets it (a
+ * sofa's back, its cushions' front, a chair's legs): within `reach` of it across the floor and not
+ * far below it, the point on the seat nearest; null if there is none.
+ */
+export function seatNear(id: string | undefined, p: Vec3, reach = 0.4): Vec3 | null {
+  let best: Vec3 | null = null;
+  let near = reach;
+  for (const t of setTops(id)) {
+    if (t.y < SEAT[0] || t.y > SEAT[1] || p[1] > t.y + 0.6) continue;
+    const [u, w] = across(t, p[0], p[2]);
+    const [cu, cw] = [THREE.MathUtils.clamp(u, -t.hx, t.hx), THREE.MathUtils.clamp(w, -t.hz, t.hz)];
+    const d = Math.hypot(u - cu, w - cw);
+    if (d > near) continue;
+    near = d;
+    best = [t.cx + cu * t.c + cw * t.s, t.y, t.cz - cu * t.s + cw * t.c];
+  }
+  return best;
+}
+
 /** What is sat on (a chair's seat, a bench, a stool, a low wall) and what is eaten at, by the height of its top. */
 const SEAT: [number, number] = [0.35, 0.65];
 const TABLE: [number, number] = [0.65, 0.85];
@@ -1328,6 +1348,25 @@ export class SetObject {
   castShadows(on: boolean) {
     this.shadows = on;
     for (const g of this.groups.values()) if (g.twin) g.twin.castShadow = on && !g.parts[0].floor;
+  }
+
+  /**
+   * Where a ray first meets the set as drawn (what is cut away, its floors and the ground round it
+   * not counted), null if nowhere: its parts are not picked as the scene is, so they are met here.
+   */
+  meet(ray: THREE.Raycaster): THREE.Intersection | null {
+    const local = new THREE.Ray();
+    const hits: THREE.Intersection[] = [];
+    let best: THREE.Intersection | null = null;
+    for (const p of this.all) {
+      if (p.cut || p.floor || p.ground || !local.copy(ray.ray).applyMatrix4(p.inverse).intersectsBox(p.box)) continue;
+      probe.geometry = p.geometry;
+      probe.matrixWorld.copy(p.matrix);
+      hits.length = 0;
+      THREE.Mesh.prototype.raycast.call(probe, ray, hits);
+      for (const h of hits) if (!best || h.distance < best.distance) best = h;
+    }
+    return best;
   }
 
   /**

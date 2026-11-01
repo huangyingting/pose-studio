@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
 import { SceneView } from '@/lib/sceneview';
-import { SETS, SET_GROUPS, setModels, setTops } from '@/lib/sets';
+import { SETS, SET_GROUPS, seatNear, setModels, setTops } from '@/lib/sets';
 import { groundOf } from '@/lib/surfaces';
 import { MODELS, SET_BUDGET, SKIES, SURFACES, type SetIndex } from '@/lib/setassets';
 import INDEX from '../../public/sets/index.json';
@@ -90,6 +90,26 @@ describe('sets', () => {
     expect(Math.max(...tops.map((t) => t.y))).toBeLessThanOrEqual(1.2);
     // With no set, the floor.
     expect(groundOf([])(0, -15.2)).toBe(0);
+  });
+
+  it('what a view from about eye level meets of it: its walls where they are drawn (not its floor); the seat nearest a sofa\'s back', () => {
+    const sv = new SceneView();
+    sv.sync({ ...newScene('In'), set: 'living-room' });
+    const set = sv.set!;
+    const look = (from: THREE.Vector3, to: THREE.Vector3) => new THREE.Raycaster(from, to.clone().sub(from).normalize());
+    const eye = new THREE.Vector3(3, 1.2, 0);
+    // The back wall's face, half its thickness in from its middle; the floor below not met.
+    expect(set.meet(look(eye, new THREE.Vector3(3, 1.2, -9)))!.point.z).toBeCloseTo(-4.4, 2);
+    expect(set.meet(look(eye, new THREE.Vector3(3, 0, -1)))).toBeNull();
+    // The sofa (its back to the window, at z -3.75): its back met at sitting height, the seat in front of it.
+    const seat = seatNear('living-room', [-0.6, 0.75, -4.05])!;
+    expect(seat[1]).toBeGreaterThan(0.5);
+    expect(seat[1]).toBeLessThan(0.6);
+    expect(seat[2]).toBeGreaterThan(-3.9);
+    expect(seat[2]).toBeLessThan(-3.3);
+    // High over it, or out on the floor: no seat.
+    expect(seatNear('living-room', [-0.6, 1.6, -4.05])).toBeNull();
+    expect(seatNear('living-room', [3, 0.1, 0])).toBeNull();
   });
 
   it('made of models and surfaces that npm run sets made, each within its budget; each set within its own (#25)', () => {

@@ -2307,6 +2307,23 @@ test('a set is furnished with its models; in Anime toon-shaded under a painted s
   await expect.poll(() => fetched.includes('skies'), { timeout: 30_000 }).toBe(true);
 });
 
+test('in a set, a right-click on a sofa seen from about eye level sits the figure on it (Sit here)', async ({ page }) => {
+  await libraryShows(page, 'Sets');
+  await page.locator('.lib-grid button.lib-tile', { hasText: 'Living room' }).first().click();
+  // (The sofa's back at sitting height, where a level view meets it; once its model is in, the menu says Sit here.)
+  const sit = page.getByRole('menuitem', { name: 'Sit here' });
+  await expect.poll(async () => {
+    await page.keyboard.press('Escape');
+    const p = await projectPoint(page, [0.8, 0.75, -4.05]);
+    await page.mouse.click(p.x, p.y, { button: 'right' });
+    return sit.count();
+  }, { timeout: 30_000 }).toBe(1);
+  await sit.click();
+  const s = await live(page);
+  const did = actionsOf(s.scene.animation!, s.active).map((a) => (a.source.kind === 'clip' ? a.source.clip : a.source.kind));
+  expect(did).toContain('library:stand-to-sit');
+});
+
 test('a ready-made scene is a set: its author credited, fetched when shown (#27)', async ({ page }) => {
   const fetched: string[] = [];
   page.on('requestfinished', (r) => { const m = /\/sets\/scenes\/([\w-]+)\.glb/.exec(r.url()); if (m) fetched.push(m[1]); });

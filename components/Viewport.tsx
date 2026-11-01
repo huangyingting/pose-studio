@@ -19,7 +19,7 @@ import { PixelPass } from '@/lib/pixel';
 import { RealPass } from '@/lib/realpass';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
-import { onSetAssets, surroundings, topUnder } from '@/lib/sets';
+import { onSetAssets, seatNear, surroundings, topUnder } from '@/lib/sets';
 import { awake, setDrawer, wake } from './frames';
 import { LINES_LAYER } from '@/lib/ink';
 import SelectionTag from './SelectionTag';
@@ -1194,8 +1194,11 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         const hit: CanvasHit = lamp ? { light: lamp.name.slice('light-lamp:'.length) } : {};
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (floor) hit.floor = [floor.x, 0, floor.z];
-        // (A set's top under it, a dais, a table, a seat: stood or sat on there.)
-        const top = topUnder(sv.set?.id, ray.ray);
+        // (A set's top under it, a dais, a table, a seat: stood or sat on there. Its furniture met first, as
+        // a view from about eye level meets a sofa's back or its cushions' front: the seat nearest there.)
+        let top = topUnder(sv.set?.id, ray.ray);
+        const met = sv.set?.meet(ray);
+        if (met && met.point.y > 0.05 && (!top || met.distance < ray.ray.origin.distanceTo(new THREE.Vector3(...top)) - 0.05)) top = seatNear(sv.set!.id, met.point.toArray());
         if (top) hit.top = top;
         // A camera (or one of its points) in front of everything: it is drawn over the scene.
         for (const { object } of rigRef.current ? ray.intersectObject(rigRef.current, true) : []) {
