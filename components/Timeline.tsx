@@ -1148,6 +1148,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               const times = keyTimesOf(a, f.id);
               const eases = keyEasesOf(a, f.id);
               const tight = dense(times);
+              // Nothing to do yet: a button where to start (and no idle label under it).
+              const empty = !f.proxy && times.length <= 1 && !actionsOf(a, f.id).some((x) => x.source.kind !== 'keys');
               return (
                 <div
                   key={f.id}
@@ -1270,8 +1272,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                     );
                   })}
                   {unfolded.has(f.id) && <span className="tl-layer-names" aria-hidden><em>Upper body</em><em>Corrections</em></span>}
-                  {/* Nothing to do yet: where to start. */}
-                  {!actionsOf(a, f.id).some((x) => x.source.kind !== 'keys') && times.length <= 1 && !f.proxy && (
+                  {empty && (
                     <button type="button" className="tl-empty" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => openPicker(f.id, e.currentTarget)}>
                       <Plus size={13} aria-hidden /> Add an action
                     </button>
@@ -1294,7 +1295,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   {/* The gaps where it has idle life as the scene plays (breathing, a look round). */}
                   {!f.proxy && !f.still && idleGaps(a, f.id).map(([t0, t1]) => (
                     <span key={`idle${t0}`} className="tl-idle" style={{ left: pct(t0), width: `${((t1 - t0) / span) * 100}%` }} aria-hidden>
-                      <span style={inSight(t0, t1)}>idle</span>
+                      {!empty && <span style={inSight(t0, t1)}>idle</span>}
                     </span>
                   ))}
                   {actionsOf(a, f.id, 'correction').filter((x) => x.duration > 1e-6).map((x) => (

@@ -774,7 +774,10 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 /* The hint in the header bar: what a gesture does, what a pick wants, or a next step with its buttons. */
 /* The hint over the canvas's foot, above the timeline: its words on the scene itself (no box),
    a soft glow behind them so they read over anything. Its buttons keep their own fill. */
-.stage-hint { position: absolute; left: 50%; bottom: calc(var(--tl-h, 44px) + 12px); z-index: 4; display: flex; justify-content: center; max-width: min(760px, calc(100% - 32px)); transform: translateX(-50%); pointer-events: none; }
+.stage-hint { position: absolute; left: 16px; right: 16px; bottom: calc(var(--tl-h, 44px) + 12px); z-index: 4; display: flex; justify-content: center; pointer-events: none; }
+.stage-hint > * { max-width: 760px; }
+/* (Beside the selected camera's picture, not over it: centred in the canvas left of it.) */
+.stage:has(> .camera-pip) > .stage-hint { right: 264px; }
 .stage-hint .bar-hint, .stage-hint .bar-hint.plain, .stage-hint .bar-hint.note, .stage-hint .bar-hint.accent, .stage-hint .bar-hint.warn {
   pointer-events: auto; height: auto; min-height: 32px; padding: 4px; background: none; box-shadow: none; font-size: var(--fs-m); font-weight: 540; line-height: 20px; color: var(--stage-text);
   text-shadow: 0 0 3px var(--stage-halo), 0 0 8px var(--stage-halo), 0 0 14px var(--stage-halo);

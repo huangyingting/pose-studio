@@ -9,7 +9,7 @@ import {
 } from '@/lib/actions';
 import { BUILD, HEIGHT, buildOf } from '@/lib/body';
 import { BUILT_IN_CHARACTERS } from '@/lib/characters';
-import { figurePoseAt, travelAt } from '@/lib/evaluate';
+import { actionsOf, figurePoseAt, travelAt } from '@/lib/evaluate';
 import { HAND_PRESETS } from '@/lib/hands';
 import { JOINT_LABELS, axisEnds, axisLabels, jointLimits, wrapDeg } from '@/lib/joints';
 import { modelTrouble, onModels } from '@/lib/model';
@@ -186,6 +186,8 @@ export function PlacementPanel({ t }: { t: Target }) {
   // Between two marks of a walk, run or jump the generated steps place the figure.
   const travel = animation ? travelAt(animation, figure.id, time) : null;
   const moving = travel && time > travel.start + 1e-6 && time < travel.start + travel.duration - 1e-6;
+  // (A motion playing sets its own height: whether it is on the floor is the motion's then.)
+  const playing = animation && actionsOf(animation, figure.id).some((x) => x.source.kind === 'clip' && time >= x.start - 1e-6 && time <= x.start + x.duration + 1e-6);
   const start = animation ? figurePoseAt(t.scene, figure.id, 0) : null;
   return (
     <>
@@ -214,7 +216,7 @@ export function PlacementPanel({ t }: { t: Target }) {
         // In the gaps of what it does: breathing, small shifts, a look at someone now and then.
         <Toggle label="Idle life" checked={!figure.still} hint="Between what it does, it breathes and looks around (as the scene plays)" onChange={(on) => setIdleLife(store, figure.id, on)} />
       )}
-      {!moving && (
+      {!moving && !playing && (
         <Toggle
           label="On the floor"
           checked={figure.grounded}
