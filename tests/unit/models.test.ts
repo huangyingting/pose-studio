@@ -9,6 +9,7 @@ import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
 import { setFigureModel } from '@/lib/actions';
 import { withAngles } from '@/lib/pose';
+import { worldTurns } from '@/lib/skeleton';
 import { Rig } from '@/lib/relations';
 import { newFigure } from '@/lib/doc';
 import type { ModelInfo } from '@/lib/types';
@@ -28,6 +29,30 @@ describe('models: characters from other tools fitted to the skeleton', () => {
       rightUpperLeg: 'mixamorig:RightUpLeg', rightLowerLeg: 'mixamorig:RightLeg', rightFoot: 'mixamorig:RightFoot', rightToes: 'mixamorig:RightToeBase',
       leftThumbMetacarpal: 'mixamorig:LeftHandThumb1', leftIndexProximal: 'mixamorig:LeftHandIndex1', leftLittleDistal: 'mixamorig:LeftHandPinky3',
     });
+  });
+
+  it('a rig without an upper chest, shoulders or toes (#30): none needed; posed, its arms point as the pose has them, a shrug and all', () => {
+    const rig = mixamoRig();
+    // Their children moved up to their parents, kept where they are; the five gone.
+    for (const name of ['Spine2', 'LeftShoulder', 'RightShoulder', 'LeftToeBase', 'RightToeBase']) {
+      const b = rig.getObjectByName(`mixamorig:${name}`)!;
+      for (const c of [...b.children]) b.parent!.attach(c);
+      b.removeFromParent();
+    }
+    rig.updateMatrixWorld(true);
+    const map = mapBones(rig);
+    expect(missingBones(map)).toEqual([]);
+    for (const b of ['upperChest', 'leftShoulder', 'rightShoulder', 'leftToes', 'rightToes'] as const) expect(map[b]).toBeUndefined();
+    const fitted = new Fitted(rig, map);
+    const bones = withAngles({}, { leftShoulder: [0, 0, 20], upperChest: [15, 0, 0], leftUpperArm: [-30, 0, 20] });
+    const world = worldTurns(bones);
+    fitted.pose(world);
+    rig.updateMatrixWorld(true);
+    const read = fitted.read();
+    for (const b of ['leftUpperArm', 'leftLowerArm', 'neck', 'head'] as const) {
+      const want = new THREE.Vector3(1, 1, 1).applyQuaternion(world.get(b)!);
+      expect(angleBetween(new THREE.Vector3(1, 1, 1).applyQuaternion(read.get(b)!), want), b).toBeLessThan(1);
+    }
   });
 
   it('follows a finger to its next joint past an empty bone of the same name where it is (as some of Mixamo\'s FBX have)', () => {
