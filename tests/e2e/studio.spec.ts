@@ -6,6 +6,7 @@ import { STAGINGS } from '../../lib/stagings';
 import { MAX_DURATION, PAST_END } from '../../lib/animation';
 import { actionsOf } from '../../lib/evaluate';
 import { angle, anglesOf, facingOf, type Bones } from '../../lib/pose';
+import { worldTurns } from '../../lib/skeleton';
 import { correctionTimesOf, keyTimesOf, moments } from '../../lib/track';
 import type { Animation, Camera, PathCamera, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
@@ -473,10 +474,11 @@ test('the upper chest, the shoulders and the toes are joints (#30): picked on th
   await page.getByRole('button', { name: 'Left shoulder', exact: true }).click();
   await page.getByRole('button', { name: 'Raise +5°' }).click({ modifiers: ['Shift'] });
   await expect.poll(async () => angle(await bones(), 'leftShoulder')[2]).toBeCloseTo(15, 0);
-  // The arm went up with it: its own angles as they were, its turn from the chest not.
+  // The arm went up with it: its own turn (from the shoulder) as it was, its turn in the world raised.
   const after = await bones();
-  expect(angle(after, 'leftUpperArm')).toEqual(angle({ leftUpperArm: arm }, 'leftUpperArm'));
-  expect(after.leftUpperArm).not.toEqual(arm);
+  expect(after.leftUpperArm).toEqual(arm);
+  const raised = worldTurns(after).get('leftUpperArm')!.angleTo(worldTurns({ ...after, leftShoulder: [0, 0, 0, 1] }).get('leftUpperArm')!);
+  expect((raised * 180) / Math.PI).toBeCloseTo(15, 0);
   await page.getByRole('button', { name: 'Left toes', exact: true }).click();
   await page.getByRole('button', { name: 'Curl −5°' }).click();
   await expect.poll(async () => angle(await bones(), 'leftToes')[0]).toBeCloseTo(-5, 0);
