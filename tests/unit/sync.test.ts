@@ -10,7 +10,7 @@ import type { Library, Scene } from '@/lib/types';
 import { withAngles } from '../../lib/pose';
 import { setPoseAt } from '@/lib/track';
 
-const lib = (scenes: Scene[]): Library => ({ version: 3, scenes });
+const lib = (scenes: Scene[]): Library => ({ scenes });
 const named = (l: Library) => l.scenes.map((s) => s.name);
 const renamed = (s: Scene, name: string): Scene => ({ ...s, name });
 

@@ -209,7 +209,7 @@ async function templateScene(page: Page, template: string) {
 }
 
 // The tests work in a project of the 20 reference scenes (a new project has one blank scene).
-const SEEDED = JSON.stringify({ version: 3, scenes: refScenes() });
+const SEEDED = JSON.stringify({ scenes: refScenes() });
 
 const errors: string[] = [];
 

@@ -59,7 +59,7 @@ export async function readVrm(gltf: GLTF): Promise<VrmInfo | null> {
   }
 
   // Each mesh's look, from its material's MToon settings (1.0 on the material; 0.x by its name).
-  const old = new Map<string, Json>(((v0.materialProperties as unknown[] | undefined) ?? []).map((m) => [String(obj(m).name), obj(m)]));
+  const v0Looks = new Map<string, Json>(((v0.materialProperties as unknown[] | undefined) ?? []).map((m) => [String(obj(m).name), obj(m)]));
   // (A colour texture, as sRGB: the loader says so only of those it puts on a material itself.
   // One it does not have, or that does not load: none; the rest of its look still is.)
   const texture = async (info: unknown) => {
@@ -78,8 +78,8 @@ export async function readVrm(gltf: GLTF): Promise<VrmInfo | null> {
     const m = mesh.material as THREE.MeshStandardMaterial;
     if (Array.isArray(mesh.material) || !m) continue;
     const mtoon = obj(obj(m.userData.gltfExtensions).VRMC_materials_mtoon);
-    const legacy = old.get(m.name);
-    const look = Object.keys(mtoon).length ? await fromMtoon(m, mtoon, texture) : legacy && legacy.shader === 'VRM/MToon' ? await fromLegacy(m, legacy, texture) : null;
+    const vrm0 = v0Looks.get(m.name);
+    const look = Object.keys(mtoon).length ? await fromMtoon(m, mtoon, texture) : vrm0 && vrm0.shader === 'VRM/MToon' ? await fromVrm0(m, vrm0, texture) : null;
     if (look) ownLooks.set(mesh, look);
   }
 
@@ -227,7 +227,7 @@ async function fromMtoon(m: THREE.MeshStandardMaterial, x: Json, texture: (info:
 }
 
 /** A look from VRM 0.x MToon properties (by name, as Unity's shader has them). */
-async function fromLegacy(m: THREE.MeshStandardMaterial, x: Json, texture: (info: unknown) => Promise<THREE.Texture | null>): Promise<ToonLook> {
+async function fromVrm0(m: THREE.MeshStandardMaterial, x: Json, texture: (info: unknown) => Promise<THREE.Texture | null>): Promise<ToonLook> {
   const f = obj(x.floatProperties), v = obj(x.vectorProperties), t = obj(x.textureProperties);
   // (0.x keeps its colours as Unity shows them: sRGB.)
   const vec = (k: string, d: [number, number, number]) => { const c = rgb(v[k], d); return new THREE.Color().setRGB(c.r, c.g, c.b, THREE.SRGBColorSpace); };

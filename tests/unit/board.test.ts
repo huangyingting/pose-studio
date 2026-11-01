@@ -78,7 +78,7 @@ describe('storyboard', () => {
     expect(storyScenes(lib).map((s) => [s.id, s.hold])).toEqual([[id, 3.5]]);
     // The project settings travel with the project.
     expect(lib.settings).toEqual({ frame: '9:16', style: 'sketch' });
-    const bad = parseLibrary({ version: 3, scenes: [{ ...lib.scenes[0], hold: 1e9, offStory: 'yes' }] });
+    const bad = parseLibrary({ scenes: [{ ...lib.scenes[0], hold: 1e9, offStory: 'yes' }] });
     expect([bad.scenes[0].hold, bad.scenes[0].offStory]).toEqual([60, undefined]);
   });
 });

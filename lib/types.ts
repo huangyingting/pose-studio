@@ -510,7 +510,6 @@ export const MARKER_COLORS = ['red', 'yellow', 'green', 'grey'] as const;
 export type MarkerColor = (typeof MARKER_COLORS)[number];
 
 export interface Library {
-  version: 3;
   /** The project's scenes: each a set, a cast and their animation and shots. */
   scenes: Scene[];
   /** The project's settings: its frame and its render style (lib/project.ts). */

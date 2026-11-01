@@ -94,7 +94,7 @@ describe('library assets applied to the scene', () => {
   it('syncs saved poses, keeping deletions from either side', () => {
     const scene = newScene('A');
     const p = (id: string) => ({ ...builtInPoses()[0], id, name: id });
-    const base: Library = { version: 3, scenes: [scene], poses: [p('kept'), p('gone-here'), p('gone-there')] };
+    const base: Library = { scenes: [scene], poses: [p('kept'), p('gone-here'), p('gone-there')] };
     const server: Library = { ...base, poses: [p('kept'), p('gone-here'), p('new-there')] };
     const local: Library = { ...base, poses: [p('kept'), p('gone-there'), p('new-here')] };
     expect(mergeLibraries(server, local, syncBase(base)).poses!.map((x) => x.id)).toEqual(['kept', 'new-there', 'new-here']);
@@ -129,7 +129,7 @@ describe('library assets applied to the scene', () => {
   it('reads a saved library file with its clips\' frames: listed in the library, the frames apart', () => {
     const f = newFigure();
     const clip = { ...keysClip([{ t: 0, pose: f }, { t: 1, pose: { ...f, position: [1, f.position[1], 0] as [number, number, number] } }]), id: 'a-clip', name: 'Mine' };
-    const data = { version: 3, scenes: [newScene('A')], clips: [clip] };
+    const data = { scenes: [newScene('A')], clips: [clip] };
     expect(parseLibrary(data).clips).toEqual([{ id: 'a-clip', name: 'Mine', duration: 1, loop: false, people: ['Keys'] }]);
     expect(clipsIn(data).map((c) => c.id)).toEqual(['a-clip']);
   });

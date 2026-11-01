@@ -527,7 +527,7 @@ export function parseLibrary(data: unknown): Library {
       ...(typeof p.duration === 'number' && Number.isFinite(p.duration) ? { duration: Math.min(60, Math.max(1, p.duration)) } : {}),
     }));
   return {
-    version: 3, scenes, ...(settings ? { settings } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
+    scenes, ...(settings ? { settings } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
     ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}),
   };
 }

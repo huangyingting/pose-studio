@@ -124,7 +124,7 @@ function loadLibrary(storage: Storage | null): Library {
     // Corrupt entry: start a new project.
   }
   // A new project: one empty scene (the built-in poses live in the pose library).
-  return { version: 3, scenes: [newScene('Scene 1')] };
+  return { scenes: [newScene('Scene 1')] };
 }
 
 function loadSettings(storage: Storage | null): Settings {

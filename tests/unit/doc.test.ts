@@ -10,7 +10,7 @@ import { angle, anglesOf, bonesOf } from '@/lib/pose';
 
 describe('parseLibrary', () => {
   it('round-trips the format unchanged', () => {
-    const lib = { version: 3 as const, scenes: refScenes() };
+    const lib = { scenes: refScenes() };
     expect(parseLibrary(JSON.parse(JSON.stringify(lib)))).toEqual(lib);
   });
 
