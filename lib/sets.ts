@@ -907,7 +907,7 @@ export class SetObject {
         mesh.raycast = () => {};
         for (const child of mesh.children) { child.raycast = () => {}; child.matrixAutoUpdate = false; child.updateMatrix(); }
         mesh.userData.own = m.material;
-        if (isScene) mesh.userData.scene = true;
+        if (isScene) Object.assign(mesh.userData, { scene: true, twoSided: true });
         mesh.castShadow = this.shadows;
         this.pieces.push(mesh);
       });

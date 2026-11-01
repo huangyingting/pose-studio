@@ -224,6 +224,7 @@ export class Ink {
   /** Outlines of their own width and colour (a VRM character's materials': outlineAs). */
   private ownOutlines = new Map<string, { material: THREE.ShaderMaterial; width: number; thickness: { value: number } }>();
   private idMats = new Map<string, THREE.ShaderMaterial>();
+  private twoSidedMats = new Map<THREE.Material, THREE.Material>();
 
   constructor(readonly ghost: Ghost | null = null) {
     if (ghost) {
@@ -337,6 +338,21 @@ export class Ink {
     return m;
   }
 
+  /**
+   * A material drawn from both sides too (sharing its uniforms): for a ready-made scene's walls,
+   * often one face thick, whose backs would otherwise show the outline's ink.
+   */
+  twoSided(m: THREE.Material): THREE.Material {
+    let two = this.twoSidedMats.get(m);
+    if (!two) {
+      two = m.clone();
+      two.side = THREE.DoubleSide;
+      if (m instanceof THREE.ShaderMaterial) (two as THREE.ShaderMaterial).uniforms = m.uniforms;
+      this.twoSidedMats.set(m, two);
+    }
+    return two;
+  }
+
   /** Materials for a style; `tint` mixes a figure's colour into its body (selection looks the same). */
   private createMaterials(style: Style, tint?: string): StyleMaterials {
     const body = (c: string) => (tint ? `#${new THREE.Color(c).lerp(new THREE.Color(tint), 0.42).getHexString()}` : c);
@@ -396,6 +412,8 @@ export class Ink {
     this.faded.dispose();
     for (const m of this.idMats.values()) m.dispose();
     this.idMats.clear();
+    for (const m of this.twoSidedMats.values()) m.dispose();
+    this.twoSidedMats.clear();
     this.outline.dispose();
     for (const own of this.ownOutlines.values()) own.material.dispose();
     this.ownOutlines.clear();
@@ -422,6 +440,11 @@ export class InkedParts {
 
   /** `bare`: its parts only, without outlines or lines (one only worked out with, never drawn). */
   constructor(private ink: Ink, private kind: 'figure' | 'prop', private bare = false) {}
+
+  /** As drawn: from both sides too, where the part says so (`userData.twoSided`). */
+  private sided(mesh: THREE.Mesh, m: THREE.Material) {
+    return mesh.userData.twoSided ? this.ink.twoSided(m) : m;
+  }
 
   /**
    * A part and its outline: skinned (moving with several joints, bound by bindSkins) when its
@@ -465,7 +488,7 @@ export class InkedParts {
       const pieces = (mesh.geometry.userData.pieces as number | undefined) ?? 0;
       const group = mesh.userData.form as string | undefined;
       const first = group && shared.has(group) ? shared.get(group)! : id;
-      idMaterialOf(mesh, on ? this.ink.idMaterial(first, pieces > 0) : null);
+      idMaterialOf(mesh, on ? this.sided(mesh, this.ink.idMaterial(first, pieces > 0)) : null);
       if (first !== id) continue;
       if (group) shared.set(group, id);
       id += Math.max(1, pieces);
@@ -478,7 +501,7 @@ export class InkedParts {
     const prop = this.kind === 'prop';
     for (const mesh of this.bodies) {
       const state = isSelected(mesh);
-      mesh.material = this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body;
+      mesh.material = this.sided(mesh, this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body);
     }
     this.style = style;
     if (this.faded) for (const h of this.hulls) h.visible = false;
