@@ -366,6 +366,7 @@ export function FigureRow({ tl, f }: { tl: TrackView; f: Figure }) {
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            store.select({ kind: 'action', action: x.id, figure: f.id });
             const whole = correctionHeld(x);
             openContextMenu(e, [
               { label: 'Over the whole motion', checked: whole, onSelect: () => setCorrectionThroughout(store, x.id, !whole) },
@@ -389,6 +390,7 @@ export function FigureRow({ tl, f }: { tl: TrackView; f: Figure }) {
           onContextMenu={(e) => {
             e.stopPropagation();
             seek(t);
+            store.setActiveFigure(f.id);
             openContextMenu(e, [{ label: 'Delete correction', icon: Trash2, danger: true, onSelect: () => deleteCorrection(store, f.id, t) }], `${f.name} · ${t.toFixed(2)} s`);
           }}
         />

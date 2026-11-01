@@ -610,7 +610,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                 tabIndex={-1}
                 className={`tl-figure${f.id === active?.id ? ' on' : ''}`}
                 onClick={() => store.setActiveFigure(f.id)}
-                onContextMenu={(e) => openContextMenu(e, menu('figure', { store, figure: f.id }), f.name)}
+                onContextMenu={(e) => { store.setActiveFigure(f.id); openContextMenu(e, menu('figure', { store, figure: f.id }), f.name); }}
                 data-tip={`${f.name}: keys and retiming apply to this figure\nRight-click for more`}
               >
                 {f.color && <span className="tl-dot" style={{ background: f.color }} aria-hidden />}
@@ -636,7 +636,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               type="button"
               className={`tl-figure tl-camera${picked ? ' on' : ''}`}
               onClick={() => store.select({ kind: 'camera', camera: rowCam.id })}
-              onContextMenu={(e) => openContextMenu(e, menu('camera', { store, camera: rowCam.id }), rowCam.name)}
+              onContextMenu={(e) => { store.select({ kind: 'camera', camera: rowCam.id }); openContextMenu(e, menu('camera', { store, camera: rowCam.id }), rowCam.name); }}
               data-tip={`${rowCam.name}: ${picked ? 'the camera selected' : 'the camera filming at the playhead'}`}
             >
               <Camera size={12} aria-hidden /> {rowCam.name}
