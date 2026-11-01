@@ -187,7 +187,8 @@ The interface follows [docs/UI.md](docs/UI.md): where things go, the words, the 
 ```
 app/                    Next.js App Router shell (page loads the studio client-side only)
 components/
-  Studio.tsx            Layout, top bar, canvas toolbar, shortcuts, share-link import, cross-tab sync, dialogs, toasts
+  Studio.tsx            Layout, top bar, canvas toolbar, share-link import, cross-tab sync, dialogs, toasts
+  shortcuts.ts          The keyboard's routing: a key to what has the focus when it uses it, else to its command
   Viewport.tsx          React Three Fiber canvas: selection, gizmo, line-art render loop
   Manipulators.tsx      Direct manipulation: drag figures, props and body parts (IK hands and feet, the hips on planted feet), floor rings to turn
   Inspector.tsx         The inspector: what is selected (a figure, prop, shot, camera or action) or the scene itself
