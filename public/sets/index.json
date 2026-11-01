@@ -350,6 +350,26 @@
     0.496
    ]
   },
+  "park-bench": {
+   "file": "models/park-bench.glb",
+   "tris": 1640,
+   "bytes": 338320,
+   "size": [
+    1.85,
+    0.82,
+    0.884
+   ],
+   "min": [
+    -0.925,
+    0,
+    -0.442
+   ],
+   "max": [
+    0.925,
+    0.82,
+    0.442
+   ]
+  },
   "trash-can": {
    "file": "models/trash-can.glb",
    "tris": 3718,
@@ -987,6 +1007,158 @@
    "bytes": 1174053
   }
  },
+ "scenes": {
+  "bedroom": {
+   "file": "scenes/bedroom.glb",
+   "tris": 83902,
+   "bytes": 1018208,
+   "size": [
+    10.828,
+    6.188,
+    7.865
+   ]
+  },
+  "kitchen": {
+   "file": "scenes/kitchen.glb",
+   "tris": 72561,
+   "bytes": 1844612,
+   "size": [
+    22.588,
+    7.674,
+    12.893
+   ]
+  },
+  "classroom": {
+   "file": "scenes/classroom.glb",
+   "tris": 72930,
+   "bytes": 1319732,
+   "size": [
+    8.115,
+    3.416,
+    10.043
+   ]
+  },
+  "hospital-ward": {
+   "file": "scenes/hospital-ward.glb",
+   "tris": 82987,
+   "bytes": 7251184,
+   "size": [
+    18.603,
+    6.55,
+    40.211
+   ]
+  },
+  "pub": {
+   "file": "scenes/pub.glb",
+   "tris": 145078,
+   "bytes": 3183332,
+   "size": [
+    9.316,
+    4.713,
+    8.094
+   ]
+  },
+  "theatre-stage": {
+   "file": "scenes/theatre-stage.glb",
+   "tris": 21179,
+   "bytes": 620944,
+   "size": [
+    18.056,
+    16.211,
+    23.642
+   ]
+  },
+  "warehouse": {
+   "file": "scenes/warehouse.glb",
+   "tris": 11106,
+   "bytes": 631016,
+   "size": [
+    16.001,
+    5.024,
+    46.27
+   ]
+  },
+  "subway-station": {
+   "file": "scenes/subway-station.glb",
+   "tris": 56087,
+   "bytes": 1246704,
+   "size": [
+    17.919,
+    5.257,
+    11.627
+   ]
+  },
+  "subway-car": {
+   "file": "scenes/subway-car.glb",
+   "tris": 35066,
+   "bytes": 418736,
+   "size": [
+    17.06,
+    3.2,
+    3.4
+   ]
+  },
+  "hotel-lobby": {
+   "file": "scenes/hotel-lobby.glb",
+   "tris": 102786,
+   "bytes": 2397324,
+   "size": [
+    18.165,
+    3.248,
+    23.465
+   ]
+  },
+  "indoor-pool": {
+   "file": "scenes/indoor-pool.glb",
+   "tris": 157910,
+   "bytes": 1742512,
+   "size": [
+    21.702,
+    6.686,
+    8.942
+   ]
+  },
+  "outdoor-pool": {
+   "file": "scenes/outdoor-pool.glb",
+   "tris": 44794,
+   "bytes": 2257328,
+   "size": [
+    11,
+    1.84,
+    15
+   ]
+  },
+  "parking-garage": {
+   "file": "scenes/parking-garage.glb",
+   "tris": 5370,
+   "bytes": 568124,
+   "size": [
+    19.515,
+    3.883,
+    17.218
+   ]
+  },
+  "western-town": {
+   "file": "scenes/western-town.glb",
+   "tris": 199230,
+   "bytes": 2485300,
+   "size": [
+    55.077,
+    19.553,
+    80.387
+   ]
+  },
+  "newsroom": {
+   "file": "scenes/newsroom.glb",
+   "tris": 151364,
+   "bytes": 1859460,
+   "size": [
+    8.776,
+    8.776,
+    8.433
+   ]
+  }
+ },
  "made": {
   "model:sofa": "{\"ph\":\"sofa_03\",\"tris\":8000,\"tex\":1024}",
   "model:armchair": "{\"ph\":\"ArmChair_01\",\"tris\":6000,\"tex\":1024}",
@@ -1023,6 +1195,7 @@
   "model:street-lamp": "{\"ph\":\"street_lamp_01\",\"tris\":6000,\"tex\":1024}",
   "model:park-lamp": "{\"ph\":\"street_lamp_02\",\"tris\":5000,\"tex\":512}",
   "model:bench": "{\"ph\":\"painted_wooden_bench\",\"tris\":5000,\"tex\":512}",
+  "model:park-bench": "{\"sf\":{\"uid\":\"d9014318124c4013a3bd49cfd69e8b77\",\"title\":\"Park Bech Low-poly\",\"author\":\"MaX3Dd\"},\"height\":0.82,\"tris\":5000,\"tex\":1024}",
   "model:trash-can": "{\"ph\":\"metal_trash_can\",\"tris\":5000,\"tex\":512}",
   "model:hydrant": "{\"ph\":\"fire_hydrant\",\"tris\":5000,\"tex\":512}",
   "model:utility-box": "{\"ph\":\"utility_box_02\",\"tris\":5000,\"tex\":512}",
@@ -1093,6 +1266,21 @@
   "surface:stone-blocks": "{\"ph\":\"medieval_blocks_03\",\"tex\":1024}",
   "surface:flagstones": "{\"ph\":\"precast_stone_paving\",\"tex\":1024}",
   "surface:old-planks": "{\"ph\":\"old_planks_02\",\"tex\":1024}",
+  "scene:bedroom": "{\"sf\":\"4f3db3cb57bd4bce886f7b9a13273a2f\",\"title\":\"Minimalistic Modern Bedroom\",\"author\":\"dylanheyes\",\"tris\":230000,\"tex\":1024}",
+  "scene:kitchen": "{\"sf\":\"9843a830b96142a9a53f45f25304d93c\",\"title\":\"Modern Kitchen\",\"author\":\"dylanheyes\",\"tris\":230000,\"tex\":1024,\"fit\":{\"at\":[-2.7,0,0]}}",
+  "scene:classroom": "{\"sf\":\"d4553cc2008242849214e4cbf8ad8551\",\"title\":\"Classroom\",\"author\":\"Pino_156\",\"tris\":230000,\"tex\":1024,\"fit\":{\"scale\":0.01}}",
+  "scene:hospital-ward": "{\"sf\":\"907ac12c61744803b22a49efd74ec40a\",\"title\":\"Kidman Room\",\"author\":\"Veterock\",\"tris\":230000,\"tex\":1024,\"fit\":{\"at\":[0,-0.752,0]}}",
+  "scene:pub": "{\"sf\":\"a6534141c33343b382dd23d519c3de73\",\"title\":\"Pub interior\",\"author\":\"Kidney_02\",\"tris\":230000,\"tex\":1024}",
+  "scene:theatre-stage": "{\"sf\":\"5c53624a0a334242ad04d7a11a2dcf8e\",\"title\":\"Theatre stage\",\"author\":\"mynameismary\",\"tris\":230000,\"tex\":1024}",
+  "scene:warehouse": "{\"sf\":\"daa7fd3ff88945298d00045ca40a4c03\",\"title\":\"Warehouse FBX Model Free\",\"author\":\"Nicholas-3D\",\"tris\":230000,\"tex\":1024}",
+  "scene:subway-station": "{\"sf\":\"14f5a6534607450d82583e0aa0ed345b\",\"title\":\"Metro/Subway Station Interior\",\"author\":\"shhiiii\",\"tris\":230000,\"tex\":1024}",
+  "scene:subway-car": "{\"sf\":\"b7f25426ac674a9291ba092fb9fe8406\",\"title\":\"Subway_[interior]\",\"author\":\"Comicaroid\",\"tris\":230000,\"tex\":1024}",
+  "scene:hotel-lobby": "{\"sf\":\"7876a45f11dc4059a6872fd63e793f11\",\"title\":\"ArtDeco hotel lobby low poly\",\"author\":\"Pasha\",\"tris\":230000,\"tex\":1024,\"fit\":{\"scale\":0.01}}",
+  "scene:indoor-pool": "{\"sf\":\"aca612273c874155afddeb15a6574b12\",\"title\":\"Bathhouse\",\"author\":\"dylanheyes\",\"tris\":230000,\"tex\":1024,\"fit\":{\"at\":[0,-0.12,-3.3]}}",
+  "scene:outdoor-pool": "{\"sf\":\"f69f7b35f6134688befdbbe495756f81\",\"title\":\"Swimming Pool\",\"author\":\"CN Entertainment\",\"tris\":230000,\"tex\":1024,\"fit\":{\"at\":[0,-0.14,-5.5]}}",
+  "scene:parking-garage": "{\"sf\":\"5310b7d77b70427d936ec4253fff679c\",\"title\":\"Parking garage\",\"author\":\"Idmenthal\",\"tris\":230000,\"tex\":1024}",
+  "scene:western-town": "{\"sf\":\"2c6b404ab51a4fdeb47b991a936f29dd\",\"title\":\"Western City\",\"author\":\"daspanjo\",\"tris\":230000,\"tex\":1024}",
+  "scene:newsroom": "{\"sf\":\"e39f8d2ac3bb464e866eb21fc9a736ba\",\"title\":\"William Peace University News Room\",\"author\":\"GEFernandez\",\"tris\":230000,\"tex\":1024,\"fit\":{\"scale\":11}}",
   "sky:day": "\"kloofendal_48d_partly_cloudy_puresky\"",
   "sky:dusk": "\"qwantani_dusk_2_puresky\"",
   "sky:night": "\"qwantani_night_puresky\"",

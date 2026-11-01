@@ -108,6 +108,24 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
 From ambientCG (https://ambientcg.com), CC0 1.0 (public domain):
   grass: https://ambientcg.com/view?id=Grass001
 
+Ready-made scenes from Sketchfab (https://sketchfab.com), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), fitted to the stage, simplified and their textures resized:
+  bedroom: "Minimalistic Modern Bedroom" by dylanheyes, https://sketchfab.com/3d-models/4f3db3cb57bd4bce886f7b9a13273a2f
+  kitchen: "Modern Kitchen" by dylanheyes, https://sketchfab.com/3d-models/9843a830b96142a9a53f45f25304d93c
+  classroom: "Classroom" by Pino_156, https://sketchfab.com/3d-models/d4553cc2008242849214e4cbf8ad8551
+  hospital-ward: "Kidman Room" by Veterock, https://sketchfab.com/3d-models/907ac12c61744803b22a49efd74ec40a
+  pub: "Pub interior" by Kidney_02, https://sketchfab.com/3d-models/a6534141c33343b382dd23d519c3de73
+  theatre-stage: "Theatre stage" by mynameismary, https://sketchfab.com/3d-models/5c53624a0a334242ad04d7a11a2dcf8e
+  warehouse: "Warehouse FBX Model Free" by Nicholas-3D, https://sketchfab.com/3d-models/daa7fd3ff88945298d00045ca40a4c03
+  subway-station: "Metro/Subway Station Interior" by shhiiii, https://sketchfab.com/3d-models/14f5a6534607450d82583e0aa0ed345b
+  subway-car: "Subway_[interior]" by Comicaroid, https://sketchfab.com/3d-models/b7f25426ac674a9291ba092fb9fe8406
+  hotel-lobby: "ArtDeco hotel lobby low poly" by Pasha, https://sketchfab.com/3d-models/7876a45f11dc4059a6872fd63e793f11
+  indoor-pool: "Bathhouse" by dylanheyes, https://sketchfab.com/3d-models/aca612273c874155afddeb15a6574b12
+  outdoor-pool: "Swimming Pool" by CN Entertainment, https://sketchfab.com/3d-models/f69f7b35f6134688befdbbe495756f81
+  parking-garage: "Parking garage" by Idmenthal, https://sketchfab.com/3d-models/5310b7d77b70427d936ec4253fff679c
+  western-town: "Western City" by daspanjo, https://sketchfab.com/3d-models/2c6b404ab51a4fdeb47b991a936f29dd
+  newsroom: "William Peace University News Room" by GEFernandez, https://sketchfab.com/3d-models/e39f8d2ac3bb464e866eb21fc9a736ba
+  park-bench: "Park Bech Low-poly" by MaX3Dd, https://sketchfab.com/3d-models/d9014318124c4013a3bd49cfd69e8b77
+
 The trees (ash, oak, aspen, bush) are grown by ez-tree (https://github.com/dgreenheck/ez-tree), whose leaves they use:
 
 MIT License

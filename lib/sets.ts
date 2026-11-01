@@ -7,7 +7,7 @@ import SET_INDEX from '../public/sets/index.json';
 import { CUTAWAY_LAYER, InkedParts, LINES_LAYER, type Ink } from './ink';
 import { MAX_LIGHTS, clampLight, newLight, skyOf } from './lighting';
 import { withBase } from './paths';
-import type { ModelId, SetIndex, Sky, SurfaceId } from './setassets';
+import { SCENES, type ModelId, type SceneId, type SetIndex, type Sky, type SurfaceId } from './setassets';
 import { uid } from './uid';
 import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
 
@@ -31,7 +31,12 @@ type Shape =
   /** Radius of the ring, of its tube, how much of a circle (degrees). */
   | ['ring', number, number, number?]
   /** A model (its middle at the bottom where it is put), scaled. */
-  | ['model', ModelId, number?];
+  | ['model', ModelId, number?]
+  /** A ready-made scene, as fitted to the stage (#27). */
+  | ['scene', SceneId];
+/** A shape drawn as itself (not a model or a scene loaded from a file). */
+type Primitive = Exclude<Shape, ['model', ...unknown[]] | ['scene', ...unknown[]]>;
+
 /**
  * What a piece is made of in 3D (#25): a surface (textured, its texture at its real size), a
  * colour over it or alone, how rough and metal it is; or glass.
@@ -50,6 +55,8 @@ export interface SetDef {
   build(): Piece[];
   /** Its own lights (its lamps, its windows: practicals), which come with it into a scene. */
   lights?: (Partial<Omit<Light, 'id' | 'kind'>> & { kind: LightKind; name: string })[];
+  /** Who made it, if someone else did (a ready-made scene's credit, #27). */
+  credit?: string;
 }
 
 /** A lamp of the set: warm, reaching a few metres. */
@@ -83,6 +90,14 @@ function place(pieces: Piece[], x: number, y: number, z: number, yaw = 0): Piece
 
 /** The floor: its top at the stage's floor. */
 const floor = (w: number, d: number, z = 0, x = 0): Piece => B(w, 0.1, d, x, -0.102, z);
+
+/** Ground round a ready-made scene out of doors (its plan from x0 to x1, z0 to z1), out to `r`: no edge to see under. */
+function around(look: Look, [x0, x1, z0, z1]: number[], r: number): Piece[] {
+  return [
+    floor(2 * r, z0 + r, (z0 - r) / 2), floor(2 * r, r - z1, (z1 + r) / 2),
+    floor(x0 + r, z1 - z0, (z0 + z1) / 2, (x0 - r) / 2), floor(r - x1, z1 - z0, (z0 + z1) / 2, (x1 + r) / 2),
+  ].map((p) => ({ ...p, look }));
+}
 
 /** A gable roof over a `w` × `d` plan (ridge along z), its eaves at y, rising `pitch` degrees, overhanging. */
 function roof(w: number, d: number, y: number, pitch: number, over = 0.4, thick = 0.18): Piece[] {
@@ -364,7 +379,7 @@ export const SETS: SetDef[] = [
       { ...B(40, 0.02, 3, 0, 0, 1.2), look: 'gravel' },
       M('ash', -6, -4), M('oak', -10, -9, 40), M('aspen', 5, -8, 120), M('ash', 10.5, -3.5, 200), M('oak', -3, -13, 300), M('aspen', 13, -11, 60),
       M('bush', -4.4, -1.4), M('bush', 7.6, -1.6, 90), M('bush', -13, -2, 30), M('fern', -6.8, -2.4), M('fern', 11.8, -1.5, 70),
-      M('bench', -1.8, -0.55, 0, 0, 1.25), M('bench', 4.2, -0.55, 0, 0, 1.25), M('trash-can', 1.2, -0.7, 0, 0, 0.6),
+      M('park-bench', -1.8, -0.55), M('park-bench', 4.2, -0.55), M('trash-can', 1.2, -0.7, 0, 0, 0.6),
       ...fountain(2, -5.5),
       M('street-lamp', -8, 0, 180), M('street-lamp', 9, 0, 180),
       M('rocks', 15, -16), M('rocks', -16, -15, 120),
@@ -514,6 +529,32 @@ export const SETS: SetDef[] = [
       ];
     },
   },
+  // Ready-made scenes (#27: Sketchfab, CC BY), fitted to the stage.
+  ...([
+    ['bedroom', 'Bedroom', 'Indoor', 'Home, today', 'A modern bedroom: a double bed between bedside tables and lamps, tall windows, a rug.'],
+    ['kitchen', 'Kitchen', 'Indoor', 'Home, today', 'A modern open kitchen: an island with bar stools, fitted cupboards, an oven and a hob, pendant lights.'],
+    ['classroom', 'Classroom', 'Indoor', 'School, today', 'A classroom: rows of desks and chairs, lockers along the back wall.'],
+    ['hospital-ward', 'Hospital', 'Indoor', 'Hospital, today', 'A hospital: a long corridor with seats for visitors along it, and a room off it.'],
+    ['pub', 'Pub', 'Indoor', 'Pub, today', 'A pub: a wooden bar with stools and taps, booths and tables, panelled walls and old windows.'],
+    ['theatre-stage', 'Theatre stage', 'Indoor', 'Theatre', 'A theatre\'s stage: its boards, the curtains, the dark walls of the wings.'],
+    ['warehouse', 'Warehouse', 'Indoor', 'Industrial, today', 'A long empty warehouse: concrete floor, steel walls and roof, strip lights.'],
+    ['subway-station', 'Subway station', 'Indoor', 'City, today', 'A subway station: a tiled platform, benches, signs and the track.'],
+    ['subway-car', 'Subway car', 'Indoor', 'City, today', 'Inside a subway car: benches along both sides, poles and straps, doors and windows.'],
+    ['hotel-lobby', 'Hotel lobby', 'Indoor', 'Hotel, 1930s', 'An Art Deco hotel lobby: armchairs and tables, panelled walls, wall lights.'],
+    ['indoor-pool', 'Indoor pool', 'Indoor', 'Bathhouse', 'An indoor pool: a long pool in a hall of columns, a tiled deck round it.'],
+    ['outdoor-pool', 'Swimming pool', 'Outdoor', 'Garden, today', 'An outdoor swimming pool: the water, its tiled edge and the deck round it, a lawn beyond.', [{ surface: 'grass', rough: 1, metal: 0 }, [-5.75, 5.25, -13, 2], 40]],
+    ['parking-garage', 'Parking garage', 'Indoor', 'City, today', 'An underground parking garage: concrete columns and ceiling, painted bays, strip lights.'],
+    ['western-town', 'Western town', 'Outdoor', 'Wild West, 1880s', 'A Wild West town: a dusty main street between wooden saloons, stores and the bank, a water tower.', ['dry-ground', [-27.6, 27.4, -40.4, 40], 120]],
+    ['newsroom', 'Newsroom', 'Indoor', 'TV studio, today', 'A television newsroom: the anchors\' desk, columns and windows behind, studio lights.'],
+  ] as [SceneId, string, (typeof SET_GROUPS)[number], string, string, [Look, number[], number]?][]).map(([id, name, group, place, description, ground]): SetDef => {
+    const s = SCENES[id];
+    return {
+      id, name, group, place, description,
+      credit: `“${s.title}” by ${s.author} (Sketchfab, CC BY 4.0)`,
+      ...(group === 'Indoor' ? { lights: [bulb('Ceiling light', [0, 2.6, 0], { kelvin: 3500, intensity: 0.6, range: 8 })] } : {}),
+      build: () => [{ shape: ['scene', id], at: [0, 0, 0] }, ...(ground ? around(...ground) : [])],
+    };
+  }),
 ];
 
 /** A set's own lights for a scene (new ids each time). */
@@ -536,7 +577,7 @@ export function lightingForSet(l: Lighting, id: string | null): Lighting {
 export const setById = (id: string | undefined) => SETS.find((s) => s.id === id);
 
 const geometries = new Map<string, THREE.BufferGeometry>();
-function geometryOf(shape: Exclude<Shape, ['model', ...unknown[]]>): THREE.BufferGeometry {
+function geometryOf(shape: Primitive): THREE.BufferGeometry {
   const key = JSON.stringify(shape);
   let g = geometries.get(key);
   if (!g) {
@@ -557,7 +598,7 @@ function geometryOf(shape: Exclude<Shape, ['model', ...unknown[]]>): THREE.Buffe
  * box's faces by where they are (across and up), a column round and up, a ball and a ring by their
  * own, stretched to their size.
  */
-function metricUVs(g: THREE.BufferGeometry, shape: Exclude<Shape, ['model', ...unknown[]]>) {
+function metricUVs(g: THREE.BufferGeometry, shape: Primitive) {
   const uv = g.attributes.uv as THREE.BufferAttribute;
   const pos = g.attributes.position as THREE.BufferAttribute;
   const nor = g.attributes.normal as THREE.BufferAttribute;
@@ -579,7 +620,7 @@ function metricUVs(g: THREE.BufferGeometry, shape: Exclude<Shape, ['model', ...u
 const INDEX = SET_INDEX as unknown as SetIndex;
 const RETRY_MS = 30_000;
 /** Each model as read, its bottom's middle at its origin. */
-const models = new Map<ModelId, THREE.Object3D>();
+const models = new Map<string, THREE.Object3D>();
 const fetching = new Set<string>();
 const listeners = new Set<() => void>();
 const arrived = () => listeners.forEach((f) => f());
@@ -592,24 +633,28 @@ export function onSetAssets(f: () => void) {
 
 let gltf: GLTFLoader | null = null;
 /** A model, as read (null until it has been: fetching starts now; not got, asked for again later). */
-function modelOf(id: ModelId): THREE.Object3D | null {
-  const hit = models.get(id);
-  const file = INDEX.models[id]?.file;
+function modelOf(id: ModelId | SceneId, scene = false): THREE.Object3D | null {
+  const key = scene ? `scene:${id}` : id;
+  const hit = models.get(key);
+  const file = scene ? INDEX.scenes?.[id as SceneId]?.file : INDEX.models[id as ModelId]?.file;
   // (Not where nothing is drawn: in Node, the tests'.)
-  if (hit || !file || fetching.has(id) || typeof document === 'undefined') return hit ?? null;
-  fetching.add(id);
+  if (hit || !file || fetching.has(key) || typeof document === 'undefined') return hit ?? null;
+  fetching.add(key);
   (gltf ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)).loadAsync(withBase(`/sets/${file}`)).then((g) => {
     const root = g.scene;
     root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(root);
-    const c = box.getCenter(new THREE.Vector3());
-    root.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
-    root.updateMatrixWorld(true);
-    models.set(id, root);
+    // (A model's bottom's middle at its origin; a scene where it was fitted.)
+    if (!scene) {
+      const box = new THREE.Box3().setFromObject(root);
+      const c = box.getCenter(new THREE.Vector3());
+      root.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
+      root.updateMatrixWorld(true);
+    }
+    models.set(key, root);
     arrived();
   }, (err) => {
     console.warn(`Could not get the set's ${id}:`, err);
-    setTimeout(() => { fetching.delete(id); arrived(); }, RETRY_MS);
+    setTimeout(() => { fetching.delete(key); arrived(); }, RETRY_MS);
   });
   return null;
 }
@@ -818,7 +863,7 @@ export class SetObject {
   constructor(ink: Ink, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
     for (const p of setById(id)?.build() ?? []) {
-      if (p.shape[0] === 'model') { this.waiting.push(p); continue; }
+      if (p.shape[0] === 'model' || p.shape[0] === 'scene') { this.waiting.push(p); continue; }
       const mesh = this.parts.add(this.object, geometryOf(p.shape), { set: id }, p.at);
       this.pieces.push(mesh);
       if (p.rot) mesh.rotation.set(...(p.rot.map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ');
@@ -844,8 +889,9 @@ export class SetObject {
     const was = this.waiting;
     this.waiting = [];
     for (const p of was) {
+      const isScene = p.shape[0] === 'scene';
       const [, id, scale = 1] = p.shape as ['model', ModelId, number?];
-      const model = modelOf(id);
+      const model = modelOf(id, isScene);
       if (!model) { this.waiting.push(p); continue; }
       const place = new THREE.Matrix4().compose(
         new THREE.Vector3(...p.at),
@@ -861,11 +907,12 @@ export class SetObject {
         mesh.raycast = () => {};
         for (const child of mesh.children) { child.raycast = () => {}; child.matrixAutoUpdate = false; child.updateMatrix(); }
         mesh.userData.own = m.material;
+        if (isScene) mesh.userData.scene = true;
         mesh.castShadow = this.shadows;
         this.pieces.push(mesh);
       });
-      // (Standing on the floor: its contact shadow, in the styles lit as 3D is.)
-      if (p.at[1] < 0.05) {
+      // (Standing on the floor: its contact shadow, in the styles lit as 3D is; a scene has its own.)
+      if (!isScene && p.at[1] < 0.05) {
         const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).multiplyScalar(scale);
         this.grounded.push({ at: p.at, yaw: p.rot?.[1] ?? 0, w: size.x, d: size.z });
       }
@@ -907,19 +954,29 @@ export class SetObject {
   /**
    * Cut away what stands in the view's way: a part the eye is inside, or one between the eye and
    * what it looks at, is not drawn (its shadow still cast), so the view never shows the inside of
-   * a wall and looks into a room past the wall in front. The rest drawn again.
+   * a wall and looks into a room past the wall in front. The rest drawn again. (A ready-made
+   * scene's pieces are a cell's worth of it each: one whose bounds the line of sight crosses.)
    */
   cutaway(eye: THREE.Vector3, target: THREE.Vector3) {
     const dir = target.clone().sub(eye);
-    const ray = new THREE.Raycaster(eye, dir.clone().normalize(), 0, Math.max(0, dir.length() - 0.3));
+    const reach = Math.max(0, dir.length() - 0.3);
+    const ray = new THREE.Raycaster(eye, dir.clone().normalize(), 0, reach);
     const local = new THREE.Vector3();
+    const [from, to, crossed] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
     for (const mesh of this.pieces) {
       const geo = mesh.geometry;
       const box = (geo.boundingBox ??= (geo.computeBoundingBox(), geo.boundingBox!));
       const inside = box.containsPoint(mesh.worldToLocal(local.copy(eye)));
       const hits: THREE.Intersection[] = [];
-      if (!inside) THREE.Mesh.prototype.raycast.call(mesh, ray, hits);
-      const cut = inside || hits.length > 0;
+      let across = false;
+      if (!inside && mesh.userData.scene) {
+        // (The line of sight in the piece's own space, against its bounds.)
+        mesh.worldToLocal(from.copy(eye));
+        mesh.worldToLocal(ray.ray.at(reach, to));
+        const hit = new THREE.Ray(from, to.clone().sub(from).normalize()).intersectBox(box, crossed);
+        across = !!hit && hit.distanceTo(from) < to.distanceTo(from);
+      } else if (!inside) THREE.Mesh.prototype.raycast.call(mesh, ray, hits);
+      const cut = inside || across || hits.length > 0;
       if (cut === (mesh.layers.mask === 1 << CUTAWAY_LAYER)) continue;
       mesh.layers.set(cut ? CUTAWAY_LAYER : 0);
       // (Its outline too: on no layer while cut away.)

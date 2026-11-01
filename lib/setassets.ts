@@ -8,8 +8,11 @@
  */
 
 export interface ModelAsset {
-  /** Its Poly Haven id. */
-  ph: string;
+  /** Its Poly Haven id; or (`sf`) a Sketchfab model's, CC BY, its title and author credited. */
+  ph?: string;
+  sf?: { uid: string; title: string; author: string };
+  /** Its real height (m), where its file is at another scale and its source does not say. */
+  height?: number;
   /** The most triangles it may have (simplified down to it). */
   tris: number;
   /** Its textures' size (px, square at most). */
@@ -76,6 +79,7 @@ export const MODELS = {
   'street-lamp': model('street_lamp_01', 6_000),
   'park-lamp': small('street_lamp_02'),
   'bench': small('painted_wooden_bench'),
+  'park-bench': { sf: { uid: 'd9014318124c4013a3bd49cfd69e8b77', title: 'Park Bech Low-poly', author: 'MaX3Dd' }, height: 0.82, tris: MODEL_BUDGET.small, tex: 1024 },
   'trash-can': small('metal_trash_can'),
   'hydrant': small('fire_hydrant'),
   'utility-box': small('utility_box_02'),
@@ -159,6 +163,42 @@ export const SURFACES = {
 } satisfies Record<string, SurfaceAsset>;
 export type SurfaceId = keyof typeof SURFACES;
 
+/**
+ * A ready-made scene (#27: Sketchfab, CC BY, its author credited), fitted to the stage as it is
+ * made: scaled (to metres), turned (degrees about the vertical), its floor put at 0 and its middle
+ * at the origin, then moved by `at` (where its floor or its acting area is not what was found).
+ * Within a set's budget (simplified to `tris`).
+ */
+export interface SceneAsset {
+  sf: string;
+  title: string;
+  author: string;
+  tris: number;
+  tex: 512 | 1024;
+  fit?: { scale?: number; yaw?: number; at?: [number, number, number] };
+}
+
+const scene = (sf: string, title: string, author: string, fit?: SceneAsset['fit'], tris = SET_BUDGET.tris - 20_000): SceneAsset => ({ sf, title, author, tris, tex: 1024, ...(fit ? { fit } : {}) });
+
+export const SCENES = {
+  'bedroom': scene('4f3db3cb57bd4bce886f7b9a13273a2f', 'Minimalistic Modern Bedroom', 'dylanheyes'),
+  'kitchen': scene('9843a830b96142a9a53f45f25304d93c', 'Modern Kitchen', 'dylanheyes', { at: [-2.7, 0, 0] }),
+  'classroom': scene('d4553cc2008242849214e4cbf8ad8551', 'Classroom', 'Pino_156', { scale: 0.01 }),
+  'hospital-ward': scene('907ac12c61744803b22a49efd74ec40a', 'Kidman Room', 'Veterock', { at: [0, -0.752, 0] }),
+  'pub': scene('a6534141c33343b382dd23d519c3de73', 'Pub interior', 'Kidney_02'),
+  'theatre-stage': scene('5c53624a0a334242ad04d7a11a2dcf8e', 'Theatre stage', 'mynameismary'),
+  'warehouse': scene('daa7fd3ff88945298d00045ca40a4c03', 'Warehouse FBX Model Free', 'Nicholas-3D'),
+  'subway-station': scene('14f5a6534607450d82583e0aa0ed345b', 'Metro/Subway Station Interior', 'shhiiii'),
+  'subway-car': scene('b7f25426ac674a9291ba092fb9fe8406', 'Subway_[interior]', 'Comicaroid'),
+  'hotel-lobby': scene('7876a45f11dc4059a6872fd63e793f11', 'ArtDeco hotel lobby low poly', 'Pasha', { scale: 0.01 }),
+  'indoor-pool': scene('aca612273c874155afddeb15a6574b12', 'Bathhouse', 'dylanheyes', { at: [0, -0.12, -3.3] }),
+  'outdoor-pool': scene('f69f7b35f6134688befdbbe495756f81', 'Swimming Pool', 'CN Entertainment', { at: [0, -0.14, -5.5] }),
+  'parking-garage': scene('5310b7d77b70427d936ec4253fff679c', 'Parking garage', 'Idmenthal'),
+  'western-town': scene('2c6b404ab51a4fdeb47b991a936f29dd', 'Western City', 'daspanjo'),
+  'newsroom': scene('e39f8d2ac3bb464e866eb21fc9a736ba', 'William Peace University News Room', 'GEFernandez', { scale: 11 }),
+} satisfies Record<string, SceneAsset>;
+export type SceneId = keyof typeof SCENES;
+
 /** The skies round the outdoor sets in 3D (Poly Haven's skies without ground, 1K HDR), by the light's time of day. */
 export const SKIES = {
   day: 'kloofendal_48d_partly_cloudy_puresky',
@@ -176,4 +216,5 @@ export interface SetIndex {
   models: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
   surfaces: Record<string, { color: string; normal: string; orm: string; bytes: number; tile: number }>;
   skies: Record<string, { file: string; bytes: number }>;
+  scenes: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
 }

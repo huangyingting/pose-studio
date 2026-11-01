@@ -244,6 +244,7 @@ function sets(store: Store, ui: LibraryUi): LibraryItem[] {
     name: s.name,
     meta: s.place,
     about: s.description,
+    ...(s.credit ? { note: s.credit } : {}),
     icon: Castle,
     on: now === s.id,
     run: () => { if (now !== s.id) { setSceneSet(store, s.id); ui.onPick?.(); } },

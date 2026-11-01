@@ -2117,6 +2117,19 @@ test('a set is furnished with its models; in 3D textured and under its sky, fetc
   await expect.poll(() => fetched.includes('skies')).toBe(true);
 });
 
+test('a ready-made scene is a set: its author credited, fetched when shown (#27)', async ({ page }) => {
+  const fetched: string[] = [];
+  page.on('requestfinished', (r) => { const m = /\/sets\/scenes\/([\w-]+)\.glb/.exec(r.url()); if (m) fetched.push(m[1]); });
+  await libraryShows(page, 'Sets');
+  expect(fetched).toEqual([]);
+  const tile = page.locator('.lib-grid button.lib-tile', { hasText: 'Bedroom' }).first();
+  await tile.hover();
+  await expect(page.locator('.lib-preview')).toContainText('“Minimalistic Modern Bedroom” by dylanheyes (Sketchfab, CC BY 4.0)');
+  await tile.click();
+  await expect.poll(async () => (await live(page)).scene.set).toBe('bedroom');
+  await expect.poll(() => fetched).toContain('bedroom');
+});
+
 test('a held prop is thrown to a spot on the floor, keyed over time', async ({ page }) => {
   await addLayer(page, 'Stick');
   let s = await live(page);

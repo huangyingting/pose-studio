@@ -11,12 +11,12 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { Document, Logger, NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS, EXTMeshoptCompression } from '@gltf-transform/extensions';
-import { dedup, flatten, getBounds, join as joinMeshes, prune, quantize, reorder, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { Document, Logger, NodeIO, Primitive } from '@gltf-transform/core';
+import { ALL_EXTENSIONS, EXTMeshoptCompression, type Transmission } from '@gltf-transform/extensions';
+import { compactPrimitive, dedup, flatten, getBounds, join as joinMeshes, joinPrimitives, metalRough, prune, quantize, reorder, simplify, textureCompress, transformPrimitive, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
-import { BARK, MODELS, SKIES, SURFACES, type ModelAsset, type SetIndex, type SurfaceAsset, type TreeAsset } from '../lib/setassets';
+import { BARK, MODELS, SCENES, SKIES, SURFACES, type ModelAsset, type SceneAsset, type SetIndex, type SurfaceAsset, type TreeAsset } from '../lib/setassets';
 
 const CACHE = 'data/sets';
 const OUT = 'public/sets';
@@ -52,7 +52,7 @@ async function fetchModel(ph: string) {
   return main;
 }
 
-const triangles = (doc: Document) => doc.getRoot().listMeshes().reduce((n, m) => n + m.listPrimitives().reduce((k, p) => k + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION')!.getCount()) / 3, 0), 0);
+const triangles = (doc: Document) => doc.getRoot().listMeshes().reduce((n, m) => n + m.listPrimitives().reduce((k, p) => k + (p.getMode() === Primitive.Mode.TRIANGLES ? (p.getIndices()?.getCount() ?? p.getAttribute('POSITION')!.getCount()) / 3 : 0), 0), 0);
 
 const io = new NodeIO()
   .setLogger(new Logger(Logger.Verbosity.WARN))
@@ -115,14 +115,226 @@ async function growTree(a: TreeAsset) {
   return doc;
 }
 
+/**
+ * A ready-made scene's file from Sketchfab (#27), fetched once into the cache: its GLB, or its glTF
+ * (a zip, unpacked). Fetched as the site gives it to a signed-in visitor, with the session kept in
+ * ~/.sketchfab_token (cookies exported from a browser: never printed, never in the repo).
+ */
+async function fetchScene(sf: string): Promise<string> {
+  const dir = join(CACHE, 'sketchfab');
+  await mkdir(dir, { recursive: true });
+  const have = (await readdir(dir)).find((f) => f.startsWith(`${sf}-`) && /\.(glb|zip)$/.test(f));
+  let file = have ? join(dir, have) : null;
+  if (!file) {
+    const { chromium } = await import('playwright');
+    const raw = JSON.parse(await readFile(join(process.env.HOME ?? '', '.sketchfab_token'), 'utf8')) as { name: string; value: string; domain: string; path?: string; expirationDate?: number; httpOnly?: boolean; secure?: boolean; sameSite?: string }[];
+    const same: Record<string, 'None' | 'Lax' | 'Strict'> = { no_restriction: 'None', lax: 'Lax', strict: 'Strict' };
+    const browser = await chromium.launch();
+    try {
+      const ctx = await browser.newContext({ acceptDownloads: true });
+      await ctx.addCookies(raw.map((c) => ({ name: c.name, value: c.value, domain: c.domain, path: c.path || '/', expires: Math.round(c.expirationDate ?? -1), httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: same[c.sameSite ?? ''] ?? 'Lax' })));
+      const page = await ctx.newPage();
+      await page.goto(`https://sketchfab.com/3d-models/${sf}`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+      await page.getByRole('button', { name: /download 3d model/i }).first().click({ timeout: 60_000 });
+      const buttons = page.getByRole('button', { name: /^download$/i });
+      await buttons.first().waitFor({ timeout: 30_000 });
+      // (Each button's row says its kind of file: the GLB, else the glTF.)
+      const kinds = await buttons.evaluateAll((els) => els.map((el) => {
+        let e = el.parentElement;
+        for (let k = 0; e && k < 6; k++, e = e.parentElement) if (/\.(glb|gltf|fbx|usdz|zip|obj|blend)\b/i.test(e.innerText) && e.querySelectorAll('button').length === 1) return e.innerText;
+        return '';
+      }));
+      const pick = [/\.glb\b/i, /\.gltf\b/i].map((re) => kinds.findIndex((t) => re.test(t))).find((i) => i >= 0);
+      if (pick === undefined) throw new Error(`${sf}: no GLB or glTF to download`);
+      const [download] = await Promise.all([page.waitForEvent('download', { timeout: 600_000 }), buttons.nth(pick).click()]);
+      file = join(dir, `${sf}-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+    } finally {
+      await browser.close();
+    }
+  }
+  if (file.endsWith('.glb')) return file;
+  const out = join(dir, sf);
+  if (!existsSync(out)) execFileSync('unzip', ['-o', '-q', file, '-d', out]);
+  const find = async (d: string): Promise<string | null> => {
+    for (const f of await readdir(d, { withFileTypes: true })) {
+      if (f.isFile() && /\.(gltf|glb)$/.test(f.name)) return join(d, f.name);
+      if (f.isDirectory()) { const x = await find(join(d, f.name)); if (x) return x; }
+    }
+    return null;
+  };
+  const gltf = await find(out);
+  if (!gltf) throw new Error(`${sf}: no glTF in its download`);
+  return gltf;
+}
+
+/**
+ * Where a scene's floor is and the middle of it (after its scale and turn): the level with the
+ * most floor facing up (in 5 cm bands), and the middle of what lies at that level — the acting
+ * area round the origin, its floor at 0.
+ */
+function floorOf(doc: Document): { y: number; x: number; z: number } {
+  const bands = new Map<number, { area: number; x: number; z: number; y: number }>();
+  const [a, b, c] = [new Float64Array(3), new Float64Array(3), new Float64Array(3)];
+  const at = (m: number[], pos: { getElement(i: number, t: number[]): number[] }, i: number, out: Float64Array) => {
+    const p = pos.getElement(i, [0, 0, 0]);
+    for (let r = 0; r < 3; r++) out[r] = m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r];
+  };
+  for (const node of doc.getRoot().listNodes()) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    const m = node.getWorldMatrix() as unknown as number[];
+    for (const prim of mesh.listPrimitives()) {
+      const pos = prim.getAttribute('POSITION');
+      if (!pos) continue;
+      const idx = prim.getIndices();
+      const n = idx ? idx.getCount() : pos.getCount();
+      for (let t = 0; t + 2 < n; t += 3) {
+        const [i0, i1, i2] = idx ? [idx.getScalar(t), idx.getScalar(t + 1), idx.getScalar(t + 2)] : [t, t + 1, t + 2];
+        at(m, pos, i0, a); at(m, pos, i1, b); at(m, pos, i2, c);
+        const [ux, uy, uz, vx, vy, vz] = [b[0] - a[0], b[1] - a[1], b[2] - a[2], c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        const [nx, ny, nz] = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+        const len = Math.hypot(nx, ny, nz);
+        // (Facing up: a floor, a seat, a table; 2 × the triangle's area.)
+        if (len < 1e-9 || ny / len < 0.95) continue;
+        const y = (a[1] + b[1] + c[1]) / 3;
+        const key = Math.round(y / 0.05);
+        const band = bands.get(key) ?? { area: 0, x: 0, z: 0, y: 0 };
+        band.area += len;
+        band.x += len * (a[0] + b[0] + c[0]) / 3;
+        band.z += len * (a[2] + b[2] + c[2]) / 3;
+        band.y += len * y;
+        bands.set(key, band);
+      }
+    }
+  }
+  // (The lowest of the big ones: a roof or a ceiling's top faces up too, over the floor.)
+  const most = Math.max(0, ...[...bands.values()].map((x) => x.area));
+  const top = [...bands.values()].filter((x) => x.area >= 0.35 * most).reduce((p, q) => (q.y / q.area < p.y / p.area ? q : p), { area: 1, x: 0, z: 0, y: Infinity });
+  return Number.isFinite(top.y) ? { y: top.y / top.area, x: top.x / top.area, z: top.z / top.area } : { y: 0, x: 0, z: 0 };
+}
+
+/**
+ * A scene cut into pieces where it stands (#27), so that the view cuts away only what is in its way
+ * (lib/sets.ts: a piece the eye is in, or one between it and what it looks at), not the whole
+ * scene: its floor, its ceiling and the rest, each in cells of the ground (a few dozen of them);
+ * one piece per cell and material.
+ */
+function cutUp(doc: Document) {
+  const sc = doc.getRoot().listScenes()[0];
+  const { min, max } = getBounds(sc);
+  const cell = Math.min(12, Math.max(3, Math.sqrt(((max[0] - min[0]) * (max[2] - min[2])) / 40)));
+  const pieces = new Map<string, Primitive[]>();
+  const [a, b, c] = [new Float64Array(3), new Float64Array(3), new Float64Array(3)];
+  for (const node of sc.listChildren()) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    const m = node.getWorldMatrix() as unknown as number[];
+    for (const prim of mesh.listPrimitives()) {
+      const pos = prim.getAttribute('POSITION')!;
+      const idx = prim.getIndices();
+      const n = idx ? idx.getCount() : pos.getCount();
+      const at = (i: number, out: Float64Array) => {
+        const p = pos.getElement(i, [0, 0, 0]);
+        for (let r = 0; r < 3; r++) out[r] = m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r];
+      };
+      const into = new Map<string, number[]>();
+      for (let t = 0; t + 2 < n; t += 3) {
+        const v = idx ? [idx.getScalar(t), idx.getScalar(t + 1), idx.getScalar(t + 2)] : [t, t + 1, t + 2];
+        at(v[0], a); at(v[1], b); at(v[2], c);
+        const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+        const len = Math.hypot((b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny, (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+        const y = (a[1] + b[1] + c[1]) / 3;
+        const flat = len > 1e-12 && Math.abs(ny) / len > 0.95;
+        const part = flat && y < 0.25 ? 'floor' : flat && y > 2.2 ? 'ceiling' : 'rest';
+        const key = `${part} ${Math.floor((a[0] + b[0] + c[0]) / 3 / cell)} ${Math.floor((a[2] + b[2] + c[2]) / 3 / cell)}`;
+        let list = into.get(key);
+        if (!list) into.set(key, (list = []));
+        list.push(...v);
+      }
+      for (const [key, list] of into) {
+        const part = prim.clone().setIndices(doc.createAccessor().setType('SCALAR').setArray(pos.getCount() > 65535 ? new Uint32Array(list) : new Uint16Array(list)));
+        compactPrimitive(part);
+        transformPrimitive(part, m as unknown as Parameters<typeof transformPrimitive>[1]);
+        pieces.set(key, [...(pieces.get(key) ?? []), part]);
+      }
+    }
+    node.dispose();
+  }
+  for (const [key, prims] of pieces) {
+    const mesh = doc.createMesh(key);
+    // (One per material: those of the same (and with the same attributes) joined.)
+    const alike = Map.groupBy(prims, (p) => `${doc.getRoot().listMaterials().indexOf(p.getMaterial()!)} ${p.listSemantics().sort()}`);
+    for (const same of alike.values()) mesh.addPrimitive(same.length > 1 ? joinPrimitives(same) : same[0]);
+    for (const p of prims) if (!mesh.listPrimitives().includes(p)) p.dispose();
+    sc.addChild(doc.createNode(key).setMesh(mesh));
+  }
+}
+
+/** A ready-made scene made into a set's (#27): fitted to the stage, simplified to its budget, its textures resized, compressed. */
+async function makeScene(id: string, a: SceneAsset) {
+  const src = await fetchScene(a.sf);
+  let doc: Document | null = null;
+  let ratio = 1;
+  for (const error of [0.001, 0.004, 0.01, 0.02, 0.04, 0.08]) {
+    doc = await io.read(src);
+    doc.setLogger(new Logger(Logger.Verbosity.WARN));
+    // (Fitted to the stage first: scaled, turned, moved.)
+    const sc = doc.getRoot().listScenes()[0];
+    const k = a.fit?.scale ?? 1;
+    const yaw = ((a.fit?.yaw ?? 0) * Math.PI) / 180;
+    const holder = doc.createNode('fitted').setScale([k, k, k]).setRotation([0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)]);
+    for (const n of sc.listChildren()) { sc.removeChild(n); holder.addChild(n); }
+    sc.addChild(holder);
+    // (Only its faces: a scene's lines and points are its author's guides.)
+    for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) if (p.getMode() !== Primitive.Mode.TRIANGLES) p.dispose();
+    // (Moved so that its floor is at 0 and its middle at the origin, then as asked.)
+    const f = floorOf(doc);
+    const at = a.fit?.at ?? [0, 0, 0];
+    holder.setTranslation([at[0] - f.x, at[1] - f.y, at[2] - f.z]);
+    await doc.transform(dedup(), flatten(), joinMeshes(), weld());
+    const before = triangles(doc);
+    if (before <= a.tris) break;
+    ratio = Math.min(ratio, a.tris / before);
+    await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio, error }));
+    const got = triangles(doc);
+    if (got <= a.tris) break;
+    ratio *= (a.tris / got) * 0.95;
+  }
+  if (triangles(doc!) > a.tris) throw new Error(`${id}: ${triangles(doc!)} triangles, over its ${a.tris}`);
+  // (Its materials as the rest are: metal and roughness (not the old specular-glossiness), glass
+  // see-through as a blend, not as transmission, which draws the whole scene again behind it.)
+  await doc!.transform(metalRough());
+  for (const m of doc!.getRoot().listMaterials()) {
+    const glass = m.getExtension<Transmission>('KHR_materials_transmission');
+    if (!glass) continue;
+    const [r, g, b] = m.getBaseColorFactor();
+    m.setBaseColorFactor([r, g, b, Math.min(m.getBaseColorFactor()[3], 1 - 0.75 * glass.getTransmissionFactor())]).setAlphaMode('BLEND');
+    m.setExtension('KHR_materials_transmission', null);
+  }
+  // (A blend only where it is see-through: a floor or a wall blended for nothing is drawn out of
+  // order, the ground showing through it; one with holes in it cut out.)
+  for (const m of doc!.getRoot().listMaterials()) {
+    const image = m.getBaseColorTexture()?.getImage();
+    if (m.getAlphaMode() !== 'BLEND' || !image || m.getBaseColorFactor()[3] < 0.99) continue;
+    const alpha = await sharp(image).ensureAlpha().extractChannel(3).raw().toBuffer();
+    let [clear, between] = [0, 0];
+    for (const v of alpha) if (v < 10) clear++; else if (v < 245) between++;
+    if (between > 0.05 * alpha.length) continue;
+    m.setAlphaMode(clear ? 'MASK' : 'OPAQUE');
+  }
+  cutUp(doc!);
+  return finish(`scenes/${id}.glb`, doc!, a.tex);
+}
+
 /** A model fitted to its budget: simplified (allowing more error until it fits), textures resized, compressed. */
 async function makeModel(id: string, a: ModelAsset | TreeAsset) {
   if ('tree' in a) {
     const doc = await growTree(a);
     if (triangles(doc) > a.tris) throw new Error(`${id}: ${triangles(doc)} triangles, over its ${a.tris}`);
-    return finish(id, doc, a.tex);
+    return finish(`models/${id}.glb`, doc, a.tex);
   }
-  const src = await fetchModel(a.ph);
+  const src = a.sf ? await fetchScene(a.sf.uid) : await fetchModel(a.ph!);
   let doc: Document | null = null;
   // (Asked for fewer each time it comes out over, with more error allowed: some parts give way less.)
   let ratio = 1;
@@ -140,11 +352,11 @@ async function makeModel(id: string, a: ModelAsset | TreeAsset) {
   }
   if (triangles(doc!) > a.tris) throw new Error(`${id}: ${triangles(doc!)} triangles, over its ${a.tris}`);
   // (Its real size, as Poly Haven gives it (mm): a file made at another scale brought to it.)
-  const real = (await json<{ dimensions?: number[] }>(`${API}/info/${a.ph}`)).dimensions;
+  const real = a.ph ? (await json<{ dimensions?: number[] }>(`${API}/info/${a.ph}`)).dimensions : undefined;
   const scene = doc!.getRoot().listScenes()[0];
   const { min, max } = getBounds(scene);
-  const made = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
-  const want = real ? Math.max(...real) / 1000 : made;
+  const made = a.height ? max[1] - min[1] : Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+  const want = a.height ?? (real ? Math.max(...real) / 1000 : made);
   if (Math.abs(want / made - 1) > 0.25) {
     const k = want / made;
     const holder = doc!.createNode('scaled').setScale([k, k, k]);
@@ -152,11 +364,11 @@ async function makeModel(id: string, a: ModelAsset | TreeAsset) {
     scene.addChild(holder);
     console.log(`${id}: made ${made.toFixed(2)} m across, really ${want.toFixed(2)} m: scaled ×${k.toFixed(3)}`);
   }
-  return finish(id, doc!, a.tex);
+  return finish(`models/${id}.glb`, doc!, a.tex);
 }
 
 /** A model's textures resized and made WebP, its geometry compressed; written, and what it came to. */
-async function finish(id: string, doc: Document, tex: number) {
+async function finish(file: string, doc: Document, tex: number) {
   await doc.transform(
     prune(),
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [tex, tex], quality: 82 }),
@@ -164,13 +376,12 @@ async function finish(id: string, doc: Document, tex: number) {
     quantize(),
   );
   doc.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.FILTER });
-  const file = `models/${id}.glb`;
   const bytes = await io.writeBinary(doc);
-  await mkdir(join(OUT, 'models'), { recursive: true });
+  await mkdir(dirname(join(OUT, file)), { recursive: true });
   await writeFile(join(OUT, file), bytes);
   const { min, max } = getBounds(doc.getRoot().listScenes()[0]);
   const r = (v: number) => Math.round(v * 1000) / 1000;
-  return { file, tris: triangles(doc), bytes: bytes.byteLength, size: [r(max[0] - min[0]), r(max[1] - min[1]), r(max[2] - min[2])] as [number, number, number] };
+  return { file, tris: triangles(doc), bytes: bytes.byteLength, size: [r(max[0] - min[0]), r(max[1] - min[1]), r(max[2] - min[2])] as [number, number, number], min: min.map(r), max: max.map(r) };
 }
 
 /**
@@ -215,9 +426,9 @@ async function makeSurface(id: string, a: SurfaceAsset) {
 async function main() {
   await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready, MeshoptSimplifier.ready]);
   const indexFile = join(OUT, 'index.json');
-  const before: SetIndex & { made?: Record<string, string> } = existsSync(indexFile) ? JSON.parse(await readFile(indexFile, 'utf8')) : { models: {}, surfaces: {}, skies: {} };
+  const before: SetIndex & { made?: Record<string, string> } = existsSync(indexFile) ? JSON.parse(await readFile(indexFile, 'utf8')) : { models: {}, surfaces: {}, skies: {}, scenes: {} };
   const made = before.made ?? {};
-  const index: SetIndex & { made: Record<string, string> } = { models: {}, surfaces: {}, skies: {}, made: {} };
+  const index: SetIndex & { made: Record<string, string> } = { models: {}, surfaces: {}, skies: {}, scenes: {}, made: {} };
   // (What each was made from: made again only if that changed.)
   const fresh = (key: string, recipe: unknown, file?: string) => !all && made[key] === JSON.stringify(recipe) && !!file && existsSync(join(OUT, file));
   const failed: string[] = [];
@@ -245,6 +456,21 @@ async function main() {
     const s = index.surfaces[id];
     console.log(`${id.padEnd(16)} surface ${(s.bytes / 1024).toFixed(0).padStart(6)} KB  tile ${s.tile} m`);
   }
+  // The ready-made scenes (#27): where each one's bounds came to, to fit it.
+  for (const [id, a] of Object.entries(SCENES) as [string, SceneAsset][]) {
+    const key = `scene:${id}`;
+    const was = before.scenes?.[id];
+    try {
+      const made = fresh(key, a, was?.file) ? was! : await makeScene(id, a);
+      index.scenes[id] = { file: made.file, tris: made.tris, bytes: made.bytes, size: made.size };
+      index.made[key] = JSON.stringify(a);
+      const b = made as { min?: number[]; max?: number[] };
+      console.log(`${id.padEnd(16)} scene ${String(made.tris).padStart(7)} tris ${(made.bytes / 1048576).toFixed(1).padStart(5)} MB  ${made.size.join(' × ')} m${b.min ? `  from ${b.min.join(',')} to ${b.max!.join(',')}` : ''}`);
+    } catch (e) {
+      failed.push(String((e as Error).message));
+      if (was) index.scenes[id] = was;
+    }
+  }
   // The skies: Poly Haven's 1K HDR as it is.
   await mkdir(join(OUT, 'skies'), { recursive: true });
   for (const [id, ph] of Object.entries(SKIES)) {
@@ -259,8 +485,8 @@ async function main() {
   }
   await writeFile(indexFile, `${JSON.stringify(index, null, 1)}\n`);
   // (What is no longer listed goes.)
-  const kept = new Set([...Object.values(index.models).map((m) => m.file), ...Object.values(index.surfaces).flatMap((x) => [x.color, x.normal, x.orm]), ...Object.values(index.skies).map((x) => x.file)]);
-  for (const dir of ['models', 'surfaces', 'skies']) {
+  const kept = new Set([...Object.values(index.models).map((m) => m.file), ...Object.values(index.surfaces).flatMap((x) => [x.color, x.normal, x.orm]), ...Object.values(index.skies).map((x) => x.file), ...Object.values(index.scenes).map((x) => x.file)]);
+  for (const dir of ['models', 'surfaces', 'skies', 'scenes']) {
     for (const f of await readdir(join(OUT, dir)).catch(() => [] as string[])) if (!kept.has(`${dir}/${f}`)) await rm(join(OUT, dir, f));
   }
   const total = [...kept].length;
@@ -268,13 +494,17 @@ async function main() {
   const ph = (id: string, kind: 'a') => `https://polyhaven.com/${kind}/${id}`;
   const credits = [
     'The sets\' models, surfaces and bark (public/sets) are from Poly Haven (https://polyhaven.com), CC0 1.0 (public domain):',
-    ...Object.entries(MODELS).flatMap(([id, x]) => ('ph' in x ? [`  ${id}: ${ph(x.ph, 'a')}`] : [])),
+    ...Object.entries(MODELS).flatMap(([id, x]) => ('ph' in x && x.ph ? [`  ${id}: ${ph(x.ph, 'a')}`] : [])),
     ...Object.entries(SURFACES).flatMap(([id, x]) => ('ph' in x ? [`  ${id}: ${ph(x.ph, 'a')}`] : [])),
     `  bark: ${ph(BARK, 'a')}`,
     ...Object.entries(SKIES).map(([id, x]) => `  ${id} sky: ${ph(x, 'a')}`),
     '',
     'From ambientCG (https://ambientcg.com), CC0 1.0 (public domain):',
     ...Object.entries(SURFACES).flatMap(([id, x]) => ('acg' in x ? [`  ${id}: https://ambientcg.com/view?id=${x.acg}`] : [])),
+    '',
+    'Ready-made scenes from Sketchfab (https://sketchfab.com), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), fitted to the stage, simplified and their textures resized:',
+    ...(Object.entries(SCENES) as [string, SceneAsset][]).map(([id, x]) => `  ${id}: "${x.title}" by ${x.author}, https://sketchfab.com/3d-models/${x.sf}`),
+    ...Object.entries(MODELS).flatMap(([id, x]) => ('sf' in x && x.sf ? [`  ${id}: "${x.sf.title}" by ${x.sf.author}, https://sketchfab.com/3d-models/${x.sf.uid}`] : [])),
     '',
     'The trees (' + Object.entries(MODELS).filter(([, x]) => 'tree' in x).map(([id]) => id).join(', ') + ') are grown by ez-tree (https://github.com/dgreenheck/ez-tree), whose leaves they use:',
     '',
