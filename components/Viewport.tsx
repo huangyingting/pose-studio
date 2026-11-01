@@ -24,7 +24,7 @@ import SelectionTag from './SelectionTag';
 import { GLYPH, GLYPH_LINKED } from './glyphs';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, LENSES, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
-import { styleDef } from '@/lib/styles';
+import { styleDef, TONE_MAPPING } from '@/lib/styles';
 import type { Settings, Store, Through } from '@/lib/store';
 import type { Figure, JointName, Lighting, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
@@ -737,6 +737,7 @@ function Backdrop({ style, scene }: { style: Style; scene: Scene }) {
     three.scene.environment = round?.environment ?? null;
     three.scene.environmentIntensity = round?.intensity ?? 1;
     three.scene.backgroundIntensity = round?.backgroundIntensity ?? 1;
+    three.gl.toneMapping = def.filmic ? TONE_MAPPING : THREE.NoToneMapping;
     wake();
   }, [get, style, scene.set, lighting, came]);
   return null;

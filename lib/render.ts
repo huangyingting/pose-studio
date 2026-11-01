@@ -9,7 +9,7 @@ import { LineArtPass } from './lineart';
 import { PixelPass } from './pixel';
 import { paperTexture } from './shaders';
 import { SceneView } from './sceneview';
-import { styleDef } from './styles';
+import { styleDef, TONE_MAPPING } from './styles';
 import { angleAt, angleOf, cameraAt, cameraById, frameAspect, placeCamera, viewOf, type CameraView } from './cameras';
 import type { Scene, Style, View } from './types';
 
@@ -270,6 +270,7 @@ export class SceneRenderer {
     this.scene.environment = round?.environment ?? null;
     this.scene.environmentIntensity = round?.intensity ?? 1;
     this.scene.backgroundIntensity = round?.backgroundIntensity ?? 1;
+    this.renderer.toneMapping = styleDef(style).filmic ? TONE_MAPPING : THREE.NoToneMapping;
     this.renderer.setClearColor(this.background, opts.transparent ? 0 : 1);
     this.view.sync(doc);
     this.view.setStyle(style);

@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { SkyPaint } from './paintedsky';
 import { STYLES, type Style } from './types';
 
@@ -29,6 +30,8 @@ export interface StyleDef {
   pixel?: number;
   /** Behind an outdoor set: its sky as photographed (3D), or painted in the style's way (#28); none: the background. */
   sky?: 'photo' | SkyPaint;
+  /** Its light mapped to the picture as film takes it (tone mapping: highlights roll off, no flat clipping), #28. */
+  filmic?: true;
   /** The key light casts shadows onto the floor. */
   shadows: boolean;
   /** The light direction controls affect this style. */
@@ -116,6 +119,7 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
     outline: null,
     interior: null,
     sky: 'photo',
+    filmic: true,
     shadows: true,
     lit: true,
   },
@@ -142,6 +146,9 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
 };
 
 export const STYLE_LIST = STYLES.map((s) => STYLE_DEFS[s]);
+
+/** How a filmic style maps its light to the picture (Khronos PBR Neutral: bright light rolls off instead of clipping, colours as they are). */
+export const TONE_MAPPING = THREE.NeutralToneMapping;
 
 export function styleDef(style: Style): StyleDef {
   return STYLE_DEFS[style] ?? STYLE_DEFS.line;
