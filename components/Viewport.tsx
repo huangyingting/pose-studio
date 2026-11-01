@@ -14,6 +14,7 @@ import { moments } from '@/lib/track';
 import { paperTexture } from '@/lib/shaders';
 import { LightRig, handleAt, keyLight, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
+import { groundOf } from '@/lib/surfaces';
 import { PixelPass } from '@/lib/pixel';
 import { RealPass } from '@/lib/realpass';
 import { fitCamera, viewFromCamera } from '@/lib/render';
@@ -270,7 +271,8 @@ export default function Viewport({
   useLayoutEffect(() => {
     if (gizmoBusy.current === Infinity) return;
     const hips = gizmoFigure ? sv.figures.get(gizmoFigure)?.joints.hips.getWorldPosition(new THREE.Vector3()) : undefined;
-    if (hips) stand.position.set(hips.x, 0, hips.z);
+    // (On what it stands on: the floor, or a table's top, #29.)
+    if (hips) stand.position.set(hips.x, groundOf(scene.props, undefined, scene.set)(hips.x, hips.z), hips.z);
     else if (gizmoLight) stand.position.set(...gizmoLight.position);
     else if (gizmoCamera) stand.position.copy(viewOf(scene, scene.cameras.find((c) => c.id === gizmoCamera.id)!, gizmoCamera.t).position);
   }, [stand, sv, scene, gizmoFigure, gizmoLight, gizmoCamera]);

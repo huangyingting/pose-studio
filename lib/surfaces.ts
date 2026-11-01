@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Ink } from './ink';
 import { PropObject } from './props';
+import { setTops } from './sets';
 import { HANDHELD, type Prop, type PropKind } from './types';
 
 const NOT_STOOD_ON: PropKind[] = ['sphere', 'hoop', 'bar'];
@@ -46,13 +47,23 @@ export function surfacesKey(props: Prop[]) {
   return JSON.stringify(props.filter(standable).map((p) => [p.id, p.kind, p.position, p.rotation, p.scale]));
 }
 
-/** Height of what stands under a floor point: the highest prop top there (but `except`), or the floor (0). */
-export function groundOf(props: Prop[], except?: string) {
-  if (!props.some(standable)) return () => 0;
+/**
+ * Height of what stands under a floor point: the highest prop top there (but `except`), or of the
+ * set's low furniture and steps (`set`, #29: a table, a bench, a dais), or the floor (0).
+ */
+export function groundOf(props: Prop[], except?: string, set?: string) {
+  const stands = setTops(set);
+  if (!props.some(standable) && !stands.length) return () => 0;
   const tops = topsOf(props);
   return (x: number, z: number) => {
     let y = 0;
     for (const t of tops) if (t.id !== except && x >= t.minX && x <= t.maxX && z >= t.minZ && z <= t.maxZ && t.y > y) y = t.y;
+    for (const t of stands) {
+      if (t.y <= y) continue;
+      // (In the top's own axes.)
+      const [dx, dz] = [x - t.cx, z - t.cz];
+      if (Math.abs(dx * t.c - dz * t.s) <= t.hx && Math.abs(dx * t.s + dz * t.c) <= t.hz) y = t.y;
+    }
     return y;
   };
 }

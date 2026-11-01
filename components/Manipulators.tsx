@@ -838,7 +838,7 @@ function numberTexture(n: number): THREE.CanvasTexture | null {
 export function RouteOverlay({ store, scene, figureId, time }: { store: Store; scene: Scene; figureId: string; time: number }) {
   const pointer = usePointer();
   const a = scene.animation!;
-  const ground = useMemo(() => groundOf(scene.props), [scene.props]);
+  const ground = useMemo(() => groundOf(scene.props, undefined, scene.set), [scene.props, scene.set]);
   // The path and footprints are sampled over the whole animation: worked out once a drag rests
   // (the marks, which are dragged, follow at once).
   const settled = useSettled(scene);

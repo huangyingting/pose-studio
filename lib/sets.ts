@@ -462,6 +462,9 @@ export const SETS: SetDef[] = [
       ...made(STONE, [C(0.5, 0.75, -3.5, 0, -2.5, 0.45, 28), ...[0, 1, 2, 3].map((i) => { const a = (i * Math.PI) / 2 + 0.6; return C(0.2, 0.42, -3.5 + Math.cos(a) * 0.9, 0, -2.5 + Math.sin(a) * 0.9, 0.17, 20); })]),
       M('oak', 4.5, -4.5, 0, 0, 0.7), M('clay-pot', 6, -6.5), M('clay-pot', -6, 1.5, 40),
       ...lantern(-3, 3.2, -7.2), ...lantern(3, 3.2, -7.2),
+      // A name board over the hall's door, red lacquer framed in gold; plants in pots by the side halls.
+      ...open([{ ...B(1.8, 0.6, 0.06, 0, 2.55, -7.42), look: { color: '#7a1612', rough: 0.35 } }, { ...B(1.95, 0.72, 0.04, 0, 2.49, -7.45), look: { color: '#b8902f', rough: 0.35, metal: 1 } }]),
+      M('tall-plant', -5.6, -5.4), M('tall-plant', 5.6, -1.2), M('potted-plant', -5.7, 0.4), M('potted-plant', 5.7, -5.6),
     ],
   },
   {
@@ -865,6 +868,47 @@ export const setModels = (id: string) => [...new Set((setById(id)?.build() ?? []
  */
 // Each set's solid parts as boxes (a pillar as the box round it; not its floors), once worked out.
 const solids = new Map<string, { at: THREE.Vector3; half: THREE.Vector3; turn: THREE.Quaternion }[]>();
+
+/** A box a figure can stand on: its middle, half its size along its own axes, turned (cos, sin of its yaw), its top (m). */
+export interface StandTop { cx: number; cz: number; hx: number; hz: number; c: number; s: number; y: number }
+/** The highest a figure climbs onto in a set (a counter, a dais; not a bookcase's top). */
+const TOP_MAX = 1.2;
+const standTops = new Map<string, StandTop[]>();
+/**
+ * Where a figure can stand in a set (#29), besides its floor: the tops of its low parts (a dais,
+ * steps, a table made of boxes, a fountain's rim), of its models (a table, a bench, a chair's seat,
+ * as npm run sets found them) and of a ready-made scene's furniture, up to TOP_MAX.
+ */
+export function setTops(id: string | undefined): StandTop[] {
+  if (!id) return [];
+  let tops = standTops.get(id);
+  if (tops) return tops;
+  tops = [];
+  const add = (cx: number, cz: number, hx: number, hz: number, yaw: number, y: number) => {
+    if (y > 0.05 && y <= TOP_MAX && hx >= 0.05 && hz >= 0.05) tops!.push({ cx, cz, hx, hz, c: Math.cos((yaw * Math.PI) / 180), s: Math.sin((yaw * Math.PI) / 180), y });
+  };
+  for (const p of setById(id)?.build() ?? []) {
+    const [kind] = p.shape;
+    if (p.ground || (typeof p.look === 'object' && p.look.glass)) continue;
+    // (Only turned about the vertical: a sloping roof is not stood on.)
+    if (p.rot && (Math.abs(p.rot[0]) > 1 || Math.abs(p.rot[2]) > 1)) continue;
+    const yaw = p.rot?.[1] ?? 0;
+    if (kind === 'box') add(p.at[0], p.at[2], p.shape[1] / 2, p.shape[3] / 2, yaw, p.at[1] + p.shape[2] / 2);
+    else if (kind === 'cyl') { const r = Math.max(p.shape[1], p.shape[2]) * 0.7; add(p.at[0], p.at[2], r, r, 0, p.at[1] + p.shape[3] / 2); }
+    else if (kind === 'model' || kind === 'scene') {
+      const scale = kind === 'model' ? p.shape[2] ?? 1 : 1;
+      const boxes = kind === 'model' ? INDEX.models[p.shape[1]]?.tops : INDEX.scenes[p.shape[1]]?.tops;
+      const [c, s] = [Math.cos((yaw * Math.PI) / 180), Math.sin((yaw * Math.PI) / 180)];
+      for (const [x0, z0, x1, z1, top] of boxes ?? []) {
+        // (Its own middle turned and moved to where the model stands.)
+        const [mx, mz] = [((x0 + x1) / 2) * scale, ((z0 + z1) / 2) * scale];
+        add(p.at[0] + mx * c + mz * s, p.at[2] - mx * s + mz * c, ((x1 - x0) / 2) * scale, ((z1 - z0) / 2) * scale, yaw, p.at[1] + top * scale);
+      }
+    }
+  }
+  standTops.set(id, tops);
+  return tops;
+}
 
 /**
  * How far from `from` towards `to` a set's first solid part is (a wall, a roof, a pillar; not its

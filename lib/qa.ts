@@ -284,7 +284,7 @@ export function checkMotion(scene: Scene): Issue[] {
   // Floor level of each foot: its lowest point over the clip.
   const frames = times.map((t) => sceneAt(scene, t));
   for (const s of frames) {
-    rig.ground = groundOf(s.props);
+    rig.ground = groundOf(s.props, undefined, s.set);
     for (const f of s.figures) {
       if (!figures.some((x) => x.id === f.id)) continue;
       const m = rig.model(f);
@@ -310,7 +310,7 @@ export function checkMotion(scene: Scene): Issue[] {
       const lift = new THREE.Vector3(0, 0.5 * p.scale[1], 0).applyEuler(new THREE.Euler(rx, ry, rz, 'XYZ'));
       return { id: p.id, c: new THREE.Vector3(...p.position).add(lift), r: 0.5 * Math.min(...p.scale) };
     });
-    rig.ground = groundOf(s.props);
+    rig.ground = groundOf(s.props, undefined, s.set);
     for (const f of visible) {
       const m = rig.model(f);
       // Foot slide: a planted foot (at its floor level and slow) should not drift, and a figure

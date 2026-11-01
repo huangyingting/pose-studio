@@ -230,10 +230,11 @@ export const BARK = 'bark_brown_02';
 
 /** What `npm run sets` made: each asset's file(s), triangles and bytes, and a surface's tile size (m). */
 export interface SetIndex {
-  models: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
+  /** `tops`: where a figure can stand on it (#29), boxes on the floor in its own frame, [x0, z0, x1, z1, top]. */
+  models: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number]; tops?: number[][] }>;
   surfaces: Record<string, { color: string; normal: string; orm: string; bytes: number; tile: number }>;
   skies: Record<string, { file: string; bytes: number }>;
   views: Record<string, { file: string; bytes: number }>;
   /** A ready-made scene's, with its walls (boxes on the floor, [x0, z0, x1, z1, top], m): what stops a camera. */
-  scenes: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number]; walls: number[][] }>;
+  scenes: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number]; walls: number[][]; tops?: number[][] }>;
 }

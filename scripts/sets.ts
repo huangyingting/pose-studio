@@ -329,6 +329,96 @@ async function makeScene(id: string, a: SceneAsset) {
 }
 
 /**
+ * Where a figure can stand on what an asset is made of (#29: a table's top, a bench's seat, steps, a
+ * dais, a stage): its faces turned up, from a hand's breadth over its floor to TOP_MAX, in 10 cm cells
+ * joined into boxes on the floor, [x0, z0, x1, z1, top] (m). A model's in its own frame (its
+ * bottom's middle at the origin, as the app places it); a scene's where it stands.
+ */
+/** The highest a figure climbs onto (a counter, not a bookcase's top). */
+const TOP_MAX = 1.2;
+async function topsOfFile(file: string, model: boolean): Promise<number[][]> {
+  const doc = await io.read(join(OUT, file));
+  const { min, max } = getBounds(doc.getRoot().listScenes()[0]);
+  const [ox, oy, oz] = model ? [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2] : [0, 0, 0];
+  const cell = 0.1;
+  const [gx, gz] = [Math.floor((min[0] - ox) / cell) - 1, Math.floor((min[2] - oz) / cell) - 1];
+  const [W, D] = [Math.ceil((max[0] - min[0]) / cell) + 3, Math.ceil((max[2] - min[2]) / cell) + 3];
+  const top = new Float32Array(W * D);
+  for (const node of doc.getRoot().listNodes()) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    const m = node.getWorldMatrix() as unknown as number[];
+    for (const prim of mesh.listPrimitives()) {
+      if (prim.getMode() !== Primitive.Mode.TRIANGLES || prim.getMaterial()?.getAlphaMode() === 'BLEND') continue;
+      const pos = prim.getAttribute('POSITION')!;
+      const idx = prim.getIndices();
+      const n = idx ? idx.getCount() : pos.getCount();
+      const at = (i: number) => { const p = pos.getElement(i, [0, 0, 0]); return [0, 1, 2].map((r) => m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r] - [ox, oy, oz][r]); };
+      for (let t = 0; t + 2 < n; t += 3) {
+        const [a, b, c] = (idx ? [idx.getScalar(t), idx.getScalar(t + 1), idx.getScalar(t + 2)] : [t, t + 1, t + 2]).map(at);
+        if (Math.max(a[1], b[1], c[1]) < 0.05 || Math.min(a[1], b[1], c[1]) > TOP_MAX) continue;
+        const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        const ny = u[2] * v[0] - u[0] * v[2];
+        const len = Math.hypot(u[1] * v[2] - u[2] * v[1], ny, u[0] * v[1] - u[1] * v[0]);
+        if (len < 1e-9 || ny / len < 0.7) continue;
+        const d = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
+        if (Math.abs(d) < 1e-12) continue;
+        for (let k = Math.floor(Math.min(a[2], b[2], c[2]) / cell); k <= Math.ceil(Math.max(a[2], b[2], c[2]) / cell); k++) {
+          for (let i = Math.floor(Math.min(a[0], b[0], c[0]) / cell); i <= Math.ceil(Math.max(a[0], b[0], c[0]) / cell); i++) {
+            const [px, pz] = [(i + 0.5) * cell, (k + 0.5) * cell];
+            const w1 = ((b[0] - px) * (c[2] - pz) - (c[0] - px) * (b[2] - pz)) / d, w2 = ((c[0] - px) * (a[2] - pz) - (a[0] - px) * (c[2] - pz)) / d, w3 = 1 - w1 - w2;
+            if (w1 < 0 || w2 < 0 || w3 < 0) continue;
+            const h = w1 * a[1] + w2 * b[1] + w3 * c[1];
+            const [ci, ck] = [i - gx, k - gz];
+            if (h < 0.05 || h > TOP_MAX || ci < 0 || ck < 0 || ci >= W || ck >= D) continue;
+            if (h > top[ck * W + ci]) top[ck * W + ci] = h;
+          }
+        }
+      }
+    }
+  }
+  // Cells of one height (to 2 cm); a patch of them too small for a foot (under 5 cells, 0.05 m²) left out.
+  const lv = Int32Array.from(top, (v) => (v > 0 ? Math.round(v / 0.02) : 0));
+  const seen = new Uint8Array(W * D);
+  for (let c0 = 0; c0 < W * D; c0++) {
+    if (!lv[c0] || seen[c0]) continue;
+    const patch = [c0];
+    seen[c0] = 1;
+    for (let q = 0; q < patch.length; q++) {
+      const c = patch[q];
+      const [ci, ck] = [c % W, Math.floor(c / W)];
+      for (const [di, dk] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const [ni, nk] = [ci + di, ck + dk];
+        const nc = nk * W + ni;
+        if (ni < 0 || nk < 0 || ni >= W || nk >= D || seen[nc] || lv[nc] !== lv[c0]) continue;
+        seen[nc] = 1;
+        patch.push(nc);
+      }
+    }
+    if (patch.length < 5) for (const c of patch) lv[c] = 0;
+  }
+  // Joined along x, then rows alike along z.
+  const open = new Map<string, number[]>();
+  const boxes: number[][] = [];
+  for (let k = 0; k < D; k++) {
+    for (let i = 0; i < W;) {
+      const h = lv[k * W + i];
+      if (!h) { i++; continue; }
+      let j = i;
+      while (j + 1 < W && lv[k * W + j + 1] === h) j++;
+      const key = `${i} ${j} ${h}`;
+      const run = open.get(key);
+      if (run && run[3] === k) run[3] = k + 1;
+      else { const b = [i, k, j + 1, k + 1, h]; open.set(key, b); boxes.push(b); }
+      i = j + 1;
+    }
+  }
+  const r = (v: number) => Math.round(v * 100) / 100;
+  return boxes
+    .map(([i0, k0, i1, k1, h]) => [r((i0 + gx) * cell), r((k0 + gz) * cell), r((i1 + gx) * cell), r((k1 + gz) * cell), r(h * 0.02)]);
+}
+
+/**
  * A scene's walls (#27), what stops a camera as a built set's do: where upright faces stand from
  * the floor to over a person's head (a wall, a pillar, a tall cupboard; not a table, a chair, a
  * window's opening, glass), in 25 cm cells of the floor joined into boxes: [x0, z0, x1, z1, top].
@@ -533,13 +623,21 @@ async function main() {
     const was = before.scenes?.[id];
     try {
       const made = fresh(key, a, was?.file) ? was! : await makeScene(id, a);
-      index.scenes[id] = { file: made.file, tris: made.tris, bytes: made.bytes, size: made.size, walls: made.walls };
+      index.scenes[id] = { file: made.file, tris: made.tris, bytes: made.bytes, size: made.size, walls: made.walls, ...(was?.tops && made === was ? { tops: was.tops } : {}) };
       index.made[key] = JSON.stringify(a);
       const b = made as { min?: number[]; max?: number[] };
       console.log(`${id.padEnd(16)} scene ${String(made.tris).padStart(7)} tris ${(made.bytes / 1048576).toFixed(1).padStart(5)} MB  ${made.size.join(' × ')} m${b.min ? `  from ${b.min.join(',')} to ${b.max!.join(',')}` : ''}`);
     } catch (e) {
       failed.push(String((e as Error).message));
       if (was) index.scenes[id] = was;
+    }
+  }
+  // Where a figure can stand on each model and scene (#29), worked out from what was made.
+  for (const [kind, list] of [['models', index.models], ['scenes', index.scenes]] as const) {
+    for (const [id, x] of Object.entries(list) as [string, { file: string; tops?: number[][] }][]) {
+      // (Again only for what was made again.)
+      const key = `${kind === 'models' ? 'model' : 'scene'}:${id}`;
+      if (!x.tops || index.made[key] !== made[key]) x.tops = await topsOfFile(x.file, kind === 'models');
     }
   }
   // The skies and the views out of windows: Poly Haven's 1K HDR as it is.

@@ -177,7 +177,7 @@ class Evaluator {
 
   constructor(private readonly scene: Scene) {
     this.a = scene.animation!;
-    this.ground = groundOf(scene.props);
+    this.ground = groundOf(scene.props, undefined, scene.set);
     this.rig.ground = this.ground;
     this.figures = new Map(scene.figures.map((f) => [f.id, f]));
   }
@@ -839,7 +839,7 @@ function evaluator(scene: Scene): Evaluator {
   // props (their places, those that do not move by themselves), whether physics is loaded, and
   // the imported clips at hand.
   const props = scene.props.map((p) => (animated(a, p.id) ? [p.id, p.kind, p.scale, p.physics] : [p.id, p.kind, p.scale, p.position, p.rotation, p.hold]));
-  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body, !!f.muted]), surfacesKey(scene.props), props, physicsReady(), clipsVersion()]);
+  const key = JSON.stringify([scene.figures.map((f) => [f.id, f.body, !!f.muted]), surfacesKey(scene.props), scene.set ?? null, props, physicsReady(), clipsVersion()]);
   const hit = cache.get(a);
   if (hit && hit.key === key) {
     // (In use again: the last to give its mannequins back; one that gave them back already, among
@@ -1054,7 +1054,7 @@ export function footprints(scene: Scene, id: string) {
   if (!f || !scene.animation) return [];
   const ev = evaluator(scene);
   const chains = actionsOf(scene.animation, id).filter((x) => x.source.kind === 'travel').map((x) => ev.chain(f, x));
-  return stepsOf(chains, f.body, groundOf(scene.props));
+  return stepsOf(chains, f.body, groundOf(scene.props, undefined, scene.set));
 }
 
 /**

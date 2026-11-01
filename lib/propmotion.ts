@@ -363,7 +363,7 @@ export class PropTimeline {
       return { velocity: aimBounce(p0, into.toArray() as Vec3, grab.t - e.t, low, (shape.body.bounce + FLOOR_BOUNCE) / 2), arrive: grab.t };
     }
     if ('at' in target) {
-      const ground = groundOf(this.scene.props, this.prop.id);
+      const ground = groundOf(this.scene.props, this.prop.id, this.scene.set);
       const to: Vec3 = [target.at[0], ground(target.at[0], target.at[1]) + low, target.at[1]];
       const T = onFrame(e.t + throwTime(p0, to));
       return { velocity: aim(p0, to, T - e.t), arrive: T };
@@ -537,7 +537,7 @@ export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: Figur
   const grid = Math.floor(t / DT) * DT;
   const path = [start];
   for (let k = 0; k < 16 && grid - k * DT >= 0; k++) path.push(tip(grid - k * DT)!.add(new THREE.Vector3(0, -0.25 * GRAVITY * (t - grid + k * DT) ** 2, 0)));
-  const ground = groundOf(scene.props, id);
+  const ground = groundOf(scene.props, id, scene.set);
   const seg = RIBBON.length / RIBBON.segments;
   const pts = [start];
   // Walk the path a segment at a time.

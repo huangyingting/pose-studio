@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
 import { SceneView } from '@/lib/sceneview';
-import { SETS, SET_GROUPS, setModels } from '@/lib/sets';
+import { SETS, SET_GROUPS, setModels, setTops } from '@/lib/sets';
+import { groundOf } from '@/lib/surfaces';
 import { MODELS, SET_BUDGET, SKIES, SURFACES, type SetIndex } from '@/lib/setassets';
 import INDEX from '../../public/sets/index.json';
 
@@ -57,6 +58,23 @@ describe('sets', () => {
     expect(cut).toBeGreaterThan(all * 0.5);
     set.cutaway(new THREE.Vector3(0, 1.5, 6), new THREE.Vector3(0, 1, 0));
     expect(drawn()).toBe(all);
+  });
+
+  it('its low furniture and steps stood on, as props are (#29): a dais, a table, a scene\'s counter; not a wall or a roof', () => {
+    const castle = groundOf([], undefined, 'castle-hall');
+    // The dais the throne is on (0.5 m), the floor beside it, nothing on top of a wall.
+    expect(castle(0, -15.2)).toBeCloseTo(0.5, 2);
+    expect(castle(4, -10)).toBe(0);
+    expect(castle(-7.8, -7)).toBe(0);
+    // A café table (a model): its top, where it stands.
+    expect(groundOf([], undefined, 'cafe')(-3.6, -2.6)).toBeGreaterThan(0.7);
+    expect(groundOf([], undefined, 'cafe')(0, 1)).toBe(0);
+    // In a ready-made scene: something stood on, nothing higher than a counter.
+    const tops = setTops('diner');
+    expect(tops.length).toBeGreaterThan(5);
+    expect(Math.max(...tops.map((t) => t.y))).toBeLessThanOrEqual(1.2);
+    // With no set, the floor.
+    expect(groundOf([])(0, -15.2)).toBe(0);
   });
 
   it('made of models and surfaces that npm run sets made, each within its budget; each set within its own (#25)', () => {

@@ -56,7 +56,7 @@ export class SceneView {
     this.docs = new Map(scene.figures.map((f) => [f.id, f]));
 
     const shown = scene.figures.filter((f) => !f.hidden);
-    const ground = groundOf(scene.props);
+    const ground = groundOf(scene.props, undefined, scene.set);
     const figureIds = new Set(shown.map((f) => f.id));
     for (const [id, m] of this.figures) {
       if (figureIds.has(id)) continue;
