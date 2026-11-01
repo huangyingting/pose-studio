@@ -217,8 +217,13 @@ export function solveHolds(rig: Rig, f: Figure, holds: Hold[], limits = true): P
     const bones = { ...fig.bones };
     for (const j of chain) {
       let q = toQuat(fromQuat(fig.bones[j]).slerp(fromQuat(solved[j]), Math.min(1, h.weight)));
-      // A knee or elbow does not bend backwards to reach.
-      if (limits && j === chain[1]) q = angleToQuat(j, clampRotation(j, quatToAngle(j, q)));
+      // A knee or elbow does not bend backwards to reach. (Holding a clip's own limb, only its bend:
+      // its twist and side as the clip has them, or the limb would swing as the hold starts and ends.)
+      if (limits && j === chain[1]) {
+        const v = quatToAngle(j, q);
+        const c = clampRotation(j, v);
+        q = angleToQuat(j, h.relative ? [c[0], v[1], v[2]] : c);
+      }
       bones[j] = q;
     }
     fig = { ...fig, bones };
