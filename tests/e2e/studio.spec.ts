@@ -635,6 +635,68 @@ test('keyboard shortcuts navigate, mirror and undo', async ({ page }) => {
   expect((await state(page)).scene.figures[0].bones).toEqual(before);
 });
 
+test('the shortcuts dialog lists each key once, from the commands, then what is selected and the gestures', async ({ page }) => {
+  await page.keyboard.press('?');
+  const help = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await expect(help).toBeVisible();
+  // The tools' keys, as the commands have them.
+  for (const [what, key] of [['Pose:', 'Q'], ['Move:', 'W'], ['Rotate:', 'E']]) await expect(help.locator('.shortcut', { hasText: what }).locator('kbd')).toHaveText(key);
+  // No key twice in the first table (commands on different things share one row).
+  const keys = await help.locator('.shortcuts').first().locator('kbd').allTextContents();
+  expect(keys.length).toBeGreaterThan(20);
+  expect(new Set(keys).size).toBe(keys.length);
+  await expect(help.getByRole('heading', { name: 'For what is selected' })).toBeVisible();
+  await expect(help.getByRole('heading', { name: 'Gestures' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(help).toBeHidden();
+});
+
+test('what is selected is named above it, in its colour; with nothing picked, no tag', async ({ page }) => {
+  type Tagged = { __poseStudio: { store: { getState(): { activeFigure: string }; select(s: unknown): void }; viewport: { current: { labelPoint(s: unknown): { x: number; y: number } | null } } } };
+  // (The figure's tag: where it goes, and how much of the figure's blue is drawn just above that point.)
+  const at = await page.evaluate(() => { const h = (window as unknown as Tagged).__poseStudio; return h.viewport.current.labelPoint({ kind: 'figure', figure: h.store.getState().activeFigure }); });
+  expect(at).not.toBeNull();
+  const blue = async () => {
+    const png = await page.screenshot({ clip: { x: at!.x - 40, y: at!.y - 45, width: 80, height: 45 } });
+    return page.evaluate(async (src) => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const c = document.createElement('canvas');
+      [c.width, c.height] = [img.width, img.height];
+      const g = c.getContext('2d')!;
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 0x3b) < 30 && Math.abs(d[i + 1] - 0x6c) < 30 && Math.abs(d[i + 2] - 0xff) < 30) n++;
+      return n;
+    }, `data:image/png;base64,${png.toString('base64')}`);
+  };
+  const pick = (s: 'figure' | null) => page.evaluate((s) => { const h = (window as unknown as Tagged).__poseStudio; h.store.select(s && { kind: s, figure: h.store.getState().activeFigure }); }, s);
+  await pick('figure');
+  await expect.poll(blue).toBeGreaterThan(150);
+  await pick(null);
+  await expect.poll(blue).toBeLessThan(10);
+});
+
+test('a rendering bug shows the crash screen: the project downloads as kept, and Reset starts fresh', async ({ page }) => {
+  type Crashable = { __poseStudio: { store: { getState(): { activeFigure: string }; updateFigure(id: string, fn: (f: object) => object): void } } };
+  // (A name that is not text: rendering it throws.)
+  await page.evaluate(() => { const s = (window as unknown as Crashable).__poseStudio.store; s.updateFigure(s.getState().activeFigure, (f) => ({ ...f, name: { not: 'text' } })); });
+  const fatal = page.getByRole('alert').filter({ hasText: 'Something went wrong' });
+  await expect(fatal).toBeVisible();
+  // (Saved as it was: a reload would crash again, which is why the screen offers the download and the reset.)
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('pose-studio-library')?.includes('"not":"text"'))).toBe(true);
+  errors.length = 0; // the crash's own report
+  const [download] = await Promise.all([page.waitForEvent('download'), fatal.getByRole('button', { name: 'Download the project' }).click()]);
+  expect(download.suggestedFilename()).toBe('pose-studio.json');
+  expect(JSON.parse(readFileSync(await download.path(), 'utf8')).scenes).toHaveLength(20);
+  page.once('dialog', (d) => d.accept());
+  await fatal.getByRole('button', { name: 'Reset saved data' }).click();
+  await page.locator('.stage canvas').waitFor();
+  await expect(page.getByLabel('Scene name')).toHaveValue('Scene 1');
+});
+
 test('poses a figure from a photo', async ({ page }) => {
   test.setTimeout(180_000);
   await openSection(page, 'Scene');
