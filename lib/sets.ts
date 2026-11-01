@@ -45,7 +45,8 @@ type Primitive = Exclude<Shape, ['model', ...unknown[]] | ['scene', ...unknown[]
  * What a piece is made of in 3D (#25): a surface (textured, its texture at its real size), a
  * colour over it or alone, how rough and metal it is; or glass.
  */
-type Look = SurfaceId | { surface?: SurfaceId; color?: string; rough?: number; metal?: number; glass?: true };
+/** `glow`: it gives light (a flame, a fire), in that colour. */
+type Look = SurfaceId | { surface?: SurfaceId; color?: string; rough?: number; metal?: number; glass?: true; glow?: string };
 /** `open`: a detail a camera may pass through (a window's frame, a door, a chair): not a wall. */
 interface Piece { shape: Shape; at: Vec3; rot?: Vec3; look?: Look; open?: true; ground?: true }
 
@@ -566,7 +567,14 @@ export const SETS: SetDef[] = [
         // The fireplace, its fire glowing.
         ...made(stone, [B(0.8, 3.2, 3.2, 7.2, 0, -7), B(1.4, 0.3, 3.8, 7.1, 3.2, -7)]),
         { ...B(0.62, 1.7, 1.8, 6.8, 0, -7), look: { color: '#1b1612', rough: 0.95 } },
-        { ...B(0.3, 0.35, 1.2, 6.85, 0, -7), look: { color: '#ff8a3a', rough: 1 } },
+        { ...B(0.3, 0.35, 1.2, 6.85, 0, -7), look: { color: '#ff8a3a', rough: 1, glow: '#ff7a24' } },
+        // Candles down the table and on iron stands by the dais, lit.
+        ...open([-10, -8, -6, -4].flatMap((z): Piece[] => [{ ...C(0.03, 0.22, 0, 0.8, z), look: { color: '#efe6cf', rough: 0.8 } }, { ...C(0.014, 0.05, 0, 1.02, z, 0.002, 8), look: { color: '#ffc46b', glow: '#ffb347' } }])),
+        ...open([-2.4, 2.4].flatMap((x): Piece[] => [
+          ...made({ color: '#2b2b2b', rough: 0.6, metal: 1 }, [C(0.03, 1.6, x, 0.5, -14.2), C(0.18, 0.03, x, 2.1, -14.2), C(0.2, 0.04, x, 0.5, -14.2)]),
+          { ...C(0.04, 0.3, x, 2.13, -14.2), look: { color: '#efe6cf', rough: 0.8 } },
+          { ...C(0.02, 0.07, x, 2.43, -14.2, 0.003, 8), look: { color: '#ffc46b', glow: '#ffb347' } },
+        ])),
         M('wine-barrel', 6.5, -10.5), M('wine-barrel', 6.3, -11.4, 40), M('gothic-cabinet', -7, -16.5, 90), M('gothic-commode', -7.2, -10, 90),
         // Banners on the end wall, and the chandelier over the table.
         ...[-5, -1.5, 1.5, 5].flatMap((x) => [{ ...B(1.2, 3, 0.05, x, 4.5, -17.45), look: { color: '#7d1a1a', rough: 0.9 } as Look }, { ...B(1.3, 0.08, 0.08, x, 7.5, -17.42), look: { color: '#b8902f', rough: 0.4, metal: 1 } as Look }]),
@@ -741,6 +749,7 @@ function materialOf(look: Look): THREE.Material {
   } else {
     const m = o.surface ? mapsOf(o.surface) : null;
     mat = new THREE.MeshStandardMaterial({
+      ...(o.glow ? { emissive: o.glow, emissiveIntensity: 1.6 } : {}),
       color: o.color ?? '#ffffff',
       roughness: o.rough ?? (m ? 1 : 0.8),
       metalness: o.metal ?? (m ? 1 : 0),
