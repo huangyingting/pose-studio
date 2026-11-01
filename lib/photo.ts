@@ -1,11 +1,8 @@
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
 import { withBase } from './paths';
 
+/** The detector's runtime and model, served by the app itself (scripts/setup-mediapipe.mjs puts them there): nothing fetched from elsewhere. */
 const LOCAL = { wasm: withBase('/mediapipe/wasm'), model: withBase('/mediapipe/pose_landmarker_full.task') };
-const CDN = {
-  wasm: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm',
-  model: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task',
-};
 
 export interface DetectedPerson {
   /** World landmarks in metres (MediaPipe frame: x right, y down, z away). */
@@ -47,8 +44,8 @@ function blockTelemetry() {
 async function create(): Promise<PoseLandmarker> {
   blockTelemetry();
   const { FilesetResolver, PoseLandmarker } = await import('@mediapipe/tasks-vision');
-  const local = (await exists(`${LOCAL.wasm}/vision_wasm_internal.wasm`)) && (await exists(LOCAL.model));
-  const src = local ? LOCAL : CDN;
+  if (!(await exists(`${LOCAL.wasm}/vision_wasm_internal.wasm`)) || !(await exists(LOCAL.model))) throw new Error('The pose detector is not installed (npm run setup:mediapipe)');
+  const src = LOCAL;
   const fileset = await FilesetResolver.forVisionTasks(src.wasm);
   const options = (delegate: 'GPU' | 'CPU') => ({
     baseOptions: { modelAssetPath: src.model, delegate },

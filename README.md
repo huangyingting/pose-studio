@@ -167,7 +167,7 @@ docker build -t pose-studio .
 docker run -p 3000:3000 --env-file .env -v pose-studio-data:/data pose-studio
 ```
 
-The image is the server edition. It applies pending database migrations on start (`scripts/migrate.mjs`, no Prisma CLI needed), keeps the SQLite database on the `/data` volume, uses Next.js standalone output, runs as a non-root user and has a `HEALTHCHECK` against `GET /api/health` (also usable as a liveness probe elsewhere). The pose model and WASM runtime are served from the app itself, so photo detection makes no third-party requests. If they are missing, it falls back to the jsDelivr / Google CDN. Responses carry a Content-Security-Policy and other security headers (see `next.config.ts`).
+The image is the server edition. It applies pending database migrations on start (`scripts/migrate.mjs`, no Prisma CLI needed), keeps the SQLite database on the `/data` volume, uses Next.js standalone output, runs as a non-root user and has a `HEALTHCHECK` against `GET /api/health` (also usable as a liveness probe elsewhere). The pose model and WASM runtime are served from the app itself (put there by `npm run setup:mediapipe`, run on install), so photo detection makes no third-party requests; the app fetches nothing from other hosts. Responses carry a Content-Security-Policy and other security headers (see `next.config.ts`).
 
 ### Static hosting / GitHub Pages
 

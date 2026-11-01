@@ -1,6 +1,7 @@
 // Copies the MediaPipe WASM runtime into public/ and downloads the pose model, so
 // "Pose from photo" works without third-party requests at runtime.
-// Runs on `npm install` (postinstall). Failures are non-fatal: the app falls back to the CDN.
+// Runs on `npm install` (postinstall). Failures are reported, not fatal: until it has run, the
+// app's "Pose from photo" says the detector is not installed.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +31,6 @@ if (existsSync(modelPath) && !process.argv.includes('--force')) {
     writeFileSync(modelPath, Buffer.from(await res.arrayBuffer()));
     console.log('[mediapipe] downloaded pose model');
   } catch (err) {
-    console.warn(`[mediapipe] could not download pose model (${err.message}); the app will use the CDN copy`);
+    console.warn(`[mediapipe] could not download pose model (${err.message}); run npm run setup:mediapipe once online`);
   }
 }
