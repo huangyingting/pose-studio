@@ -123,6 +123,8 @@ Ready-made scenes from Sketchfab (https://sketchfab.com), CC BY 4.0 (https://cre
   outdoor-pool: "Swimming Pool" by CN Entertainment, https://sketchfab.com/3d-models/f69f7b35f6134688befdbbe495756f81
   parking-garage: "Parking garage" by Idmenthal, https://sketchfab.com/3d-models/5310b7d77b70427d936ec4253fff679c
   western-town: "Western City" by daspanjo, https://sketchfab.com/3d-models/2c6b404ab51a4fdeb47b991a936f29dd
+  church: "Old church modeling - Interior Scene" by Aurélien Martel, https://sketchfab.com/3d-models/eb6cf543aa7d45e3acee49887ae3135c
+  alley: "Dark_Alley" by Eder Etxaide, https://sketchfab.com/3d-models/d170fdcc362e4300b9c1ed064e59753f
   newsroom: "William Peace University News Room" by GEFernandez, https://sketchfab.com/3d-models/e39f8d2ac3bb464e866eb21fc9a736ba
   park-bench: "Park Bech Low-poly" by MaX3Dd, https://sketchfab.com/3d-models/d9014318124c4013a3bd49cfd69e8b77
 

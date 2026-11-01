@@ -547,6 +547,8 @@ export const SETS: SetDef[] = [
     ['outdoor-pool', 'Swimming pool', 'Outdoor', 'Garden, today', 'An outdoor swimming pool: the water, its tiled edge and the deck round it, a lawn beyond.', [{ surface: 'grass', rough: 1, metal: 0 }, [-5.75, 5.25, -13, 2], 40]],
     ['parking-garage', 'Parking garage', 'Indoor', 'City, today', 'An underground parking garage: concrete columns and ceiling, painted bays, strip lights.'],
     ['western-town', 'Western town', 'Outdoor', 'Wild West, 1880s', 'A Wild West town: a dusty main street between wooden saloons, stores and the bank, a water tower.', ['dry-ground', [-27.6, 27.4, -40.4, 40], 120]],
+    ['church', 'Church', 'Indoor', 'Church, old', 'An old Gothic church: the nave between its columns, rows of pews either side of the aisle, the altar under tall windows.'],
+    ['alley', 'Back alley', 'Outdoor', 'City, today', 'A dark back alley between brick walls: a fire escape, bins and crates, pipes and puddles.', ['asphalt', [-8.2, 8.3, -4.05, 4.05], 40]],
     ['newsroom', 'Newsroom', 'Indoor', 'TV studio, today', 'A television newsroom: the anchors\' desk, columns and windows behind, studio lights.'],
   ] as [SceneId, string, (typeof SET_GROUPS)[number], string, string, [Look, number[], number]?][]).map(([id, name, group, place, description, ground]): SetDef => {
     const s = SCENES[id];
