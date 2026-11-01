@@ -60,6 +60,21 @@ describe('sets', () => {
     expect(drawn()).toBe(all);
   });
 
+  it('what lies flat on the ground (a path, the paving, a road\'s markings) casts no shadow outdoors: it would shade itself and lose the people\'s', () => {
+    for (const id of ['street', 'park', 'old-street', 'temple']) {
+      const sv = new SceneView();
+      sv.sync({ ...newScene('Out'), set: id });
+      sv.set!.castShadows(true);
+      const casters: THREE.Mesh[] = [];
+      sv.set!.object.traverse((o) => { if ((o as THREE.Mesh).isMesh && o.castShadow) casters.push(o as THREE.Mesh); });
+      expect(casters.length, id).toBeGreaterThan(0);
+      for (const m of casters) {
+        m.geometry.computeBoundingBox();
+        expect(m.geometry.boundingBox!.max.y, id).toBeGreaterThan(0.06);
+      }
+    }
+  });
+
   it('its low furniture and steps stood on, as props are (#29): a dais, a table, a scene\'s counter; not a wall or a roof', () => {
     const castle = groundOf([], undefined, 'castle-hall');
     // The dais the throne is on (0.5 m), the floor beside it, nothing on top of a wall.

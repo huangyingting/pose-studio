@@ -225,7 +225,7 @@ lib/
   styles.ts             Render style definitions (outline, rings, interior lines, background, lighting)
   ink.ts, shaders.ts    Outline hulls with brush jitter, per-style materials, pencil / ink-wash / anime shaders
   lineart.ts            Part-ID edge pass for the lines where body parts meet
-  lighting.ts           Key light + shadow-catching floor for the lit styles (editor and export)
+  lighting.ts           Key light, and a shadow-catching floor on the bare stage (a set takes its own shadows)
   render.ts             Camera fitting, off-screen rendering, sheet / turnaround export
   practice.ts           Gesture-practice session building
   relations.ts          Spatial relations between figures: facing, spacing, look-at, reach

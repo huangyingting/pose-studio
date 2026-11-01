@@ -643,7 +643,10 @@ export class LightRig {
         p.distance = l.range;
       }
     }
-    this.floor.visible = shadowed;
+    // (Only on the bare stage: a set's own surfaces take the shadows, its floor, its paths, its
+    // tables and steps, in every style; the catcher would lay a second shadow over its floor, at
+    // or under the same height, the two fighting as the view moves.)
+    this.floor.visible = shadowed && !(set && !set.isEmpty());
     const a = lighting.ambient;
     this.ambient.color.set(a.sky);
     this.ambient.groundColor.set(a.ground);

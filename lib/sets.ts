@@ -805,7 +805,7 @@ function toonOf(ink: Ink, m: THREE.Material, twoSided: boolean): THREE.Material 
   if (!made) toons.set(ink, (made = new Map()));
   const key = `${m.uuid}${twoSided ? '|2' : ''}`;
   let t = made.get(key);
-  if (!t) made.set(key, (t = toonMaterial({ ...paintedLook(m), ...(twoSided ? { doubleSided: true } : {}) }, ink.uniforms)));
+  if (!t) made.set(key, (t = toonMaterial({ ...paintedLook(m), ...(twoSided ? { doubleSided: true } : {}) }, ink.uniforms, true)));
   return t;
 }
 
@@ -1098,6 +1098,16 @@ function mergeParts(parts: Part[]) {
   return { geometry, full: index };
 }
 
+/** A box or a disc at most FLAT thick whose top is at most FLAT above the floor, lying level: the floor, or what lies on it. */
+const FLAT = 0.06;
+function liesFlat(p: Piece) {
+  const [kind] = p.shape;
+  const height = kind === 'box' ? p.shape[2] : kind === 'cyl' ? p.shape[3] : Infinity;
+  const level = !p.rot || (Math.abs(p.rot[0]) <= 1 && Math.abs(p.rot[2]) <= 1);
+  const top = p.at[1] + height / 2;
+  return level && (top <= 0.001 || (height <= FLAT && top <= FLAT));
+}
+
 const shadowOnly = new THREE.MeshBasicMaterial();
 // (For the line of sight against one part, where it stands.)
 const probe = new THREE.Mesh(undefined, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
@@ -1124,8 +1134,10 @@ export class SetObject {
       if (p.shape[0] === 'model' || p.shape[0] === 'scene') { this.waiting.push(p); continue; }
       const matrix = new THREE.Matrix4().compose(new THREE.Vector3(...p.at), new THREE.Quaternion().setFromEuler(new THREE.Euler(...((p.rot ?? [0, 0, 0]).map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ')), new THREE.Vector3(1, 1, 1));
       // (A floor casts no shadow, only takes them: nothing is under it, and a broad surface that
-      // shades itself shows stripes of shadow that crawl as the view turns. Nor does glass.)
-      const floor = (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) || (typeof p.look === 'object' && !!p.look.glass);
+      // shades itself shows stripes of shadow that crawl as the view turns. Nor does what lies flat
+      // on it, a path, a rug, a road's markings: a few centimetres thick, the people stand on it and
+      // it shaded itself, their own shadows lost in it. Nor does glass.)
+      const floor = liesFlat(p) || (typeof p.look === 'object' && !!p.look.glass);
       // (Its material made, and its textures fetched, when it is first drawn in 3D.)
       this.addPart(geometryOf(p.shape), matrix, { look: p.look, floor, scene: false, ground: !!p.ground });
     }

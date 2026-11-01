@@ -69,6 +69,10 @@ export function paintedLook(m: THREE.MeshStandardMaterial): ToonLook {
 // (The skinning chunks do nothing for plain meshes; for a skinned one, an imported character,
 // three.js defines USE_SKINNING and they pose the vertices.)
 const VERT = /* glsl */ `
+  #ifdef TOON_SHADOWS
+    #include <common>
+    #include <shadowmap_pars_vertex>
+  #endif
   #include <morphtarget_pars_vertex>
   #include <skinning_pars_vertex>
   varying vec3 vNormal;
@@ -87,10 +91,23 @@ const VERT = /* glsl */ `
     vNormal = normalize(mat3(modelMatrix) * objectNormal);
     vUv = uv;
     gl_Position = projectionMatrix * viewMatrix * world;
+    #ifdef TOON_SHADOWS
+      // (Where it is in the key's shadow map, as three's own materials work it out.)
+      vec3 transformedNormal = normalMatrix * objectNormal;
+      vec4 worldPosition = world;
+      vec4 mvPosition = viewMatrix * world;
+      #include <shadowmap_vertex>
+    #endif
   }
 `;
 
 const FRAG = /* glsl */ `
+  #ifdef TOON_SHADOWS
+    #include <common>
+    #include <packing>
+    #include <lights_pars_begin>
+    #include <shadowmap_pars_fragment>
+  #endif
   uniform vec3 lightDir;
   uniform vec3 lightColor;
   ${EXTRA_GLSL}
@@ -141,6 +158,11 @@ const FRAG = /* glsl */ `
     // (In watercolour the edge between them a soft wash's.)
     if (wash > 0.5) soft = max(soft, 0.45);
     float lit = clamp((dot(n, lightDir) + shift + soft) / (2.0 * soft), 0.0, 1.0);
+    #if defined(TOON_SHADOWS) && defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+      // In the key's shadow (another thing's, cast on it): in shade, as a cel shadow is.
+      DirectionalLightShadow keyShadow = directionalLightShadows[0];
+      if (receiveShadow) lit = min(lit, getShadow(directionalShadowMap[0], keyShadow.shadowMapSize, keyShadow.shadowIntensity, keyShadow.shadowBias, keyShadow.shadowRadius, vDirectionalShadowCoord[0]));
+    #endif
     vec3 col = mix(shaded, base.rgb, lit);
     col += rim * pow(clamp(1.0 - max(dot(n, v), 0.0) + rimLift, 0.0, 1.0), max(rimPower, 1e-3));
     // The other lights: a fill's colour on its side, a light from behind as a rim along the edge.
@@ -163,14 +185,21 @@ const FRAG = /* glsl */ `
   }
 `;
 
-/** The material for a look, lit by the key light (`lightDir`: towards it, and `lightColor`) and the others (`extra…`); shared. */
-export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount, resolution, wash }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount' | 'resolution' | 'wash'>): THREE.ShaderMaterial {
+/**
+ * The material for a look, lit by the key light (`lightDir`: towards it, and `lightColor`) and the
+ * others (`extra…`); shared. `shadows`: the key's shadows cast on it are its shade (a set's
+ * surfaces: what the people's shadows fall on).
+ */
+export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount, resolution, wash }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount' | 'resolution' | 'wash'>, shadows = false): THREE.ShaderMaterial {
   const placing = (t: THREE.Texture | null) => {
     t?.updateMatrix();
     return { value: t ? t.matrix : new THREE.Matrix3() };
   };
   return new THREE.ShaderMaterial({
+    // (Taking shadows, it is given the scene's lights as three's own materials are: their shadow maps.)
+    ...(shadows ? { lights: true, defines: { TOON_SHADOWS: '' } } : {}),
     uniforms: {
+      ...(shadows ? THREE.UniformsUtils.clone(THREE.UniformsLib.lights) : {}),
       lightDir,
       lightColor,
       extraDirs,
