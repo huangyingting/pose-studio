@@ -129,6 +129,36 @@ function SetCutaway({ sv }: { sv: SceneView }) {
 }
 
 /**
+ * The view comes to rest. Easing after a drag takes a share of what is left of the move on each
+ * frame drawn, never all of it: the view crept on, a hair a frame, whenever anything woke the
+ * canvas (the pointer passing over it), and a set's part cut away and back or a shadow flickered
+ * as it did. Under half a pixel a frame it eases out faster; under a fiftieth, the little left is
+ * taken at once and the view stands still.
+ */
+const EASE = { factor: 0.05, finish: 0.25 };
+function SettleView() {
+  const get = useThree((s) => s.get);
+  const last = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3() });
+  useFrame(() => {
+    const { camera, controls } = get() as unknown as { camera: THREE.Camera; controls: { enableDamping: boolean; dampingFactor: number; target: THREE.Vector3; update(): void } | null };
+    if (!controls?.enableDamping) return;
+    const w = last.current;
+    const step = Math.max(w.eye.distanceTo(camera.position), w.target.distanceTo(controls.target));
+    // (A pixel is about a thousandth of the way to what the view looks at.)
+    const far = camera.position.distanceTo(controls.target);
+    if (step > 0 && step < far * 2e-5) {
+      controls.enableDamping = false;
+      controls.update();
+      controls.enableDamping = true;
+      controls.dampingFactor = EASE.factor;
+    } else if (step > 0) controls.dampingFactor = step < far * 5e-4 ? EASE.finish : EASE.factor;
+    w.eye.copy(camera.position);
+    w.target.copy(controls.target);
+  });
+  return null;
+}
+
+/**
  * The view's near plane a hundredth of the way to what it looks at (a centimetre at the closest,
  * half a metre at most): close up it keeps room to zoom, from afar the depth it can tell apart is
  * fine enough that a set's floor, the grid and what stands far off do not flicker as it turns.
@@ -530,6 +560,7 @@ export default function Viewport({
             from the view once, and the view then follows it; easing on, the two pulled against each
             other and the view flickered between them.) */}
         <OrbitControls makeDefault onChange={keepCameraAboveFloor} enableDamping={!through} />
+        <SettleView />
         <DepthRange />
         <SetCutaway sv={sv} />
         {scene.animation && <Playback sv={sv} scene={scene} clock={clock} />}
