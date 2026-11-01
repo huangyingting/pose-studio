@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
 import { SceneView } from '@/lib/sceneview';
-import { SETS, SET_GROUPS, seatNear, setModels, setTops } from '@/lib/sets';
+import { SETS, SET_GROUPS, isEffect, seatNear, setModels, setTops } from '@/lib/sets';
 import { groundOf } from '@/lib/surfaces';
 import { MODELS, SET_BUDGET, SKIES, SURFACES, type SetIndex } from '@/lib/setassets';
 import INDEX from '../../public/sets/index.json';
@@ -110,6 +110,14 @@ describe('sets', () => {
     // High over it, or out on the floor: no seat.
     expect(seatNear('living-room', [-0.6, 1.6, -4.05])).toBeNull();
     expect(seatNear('living-room', [3, 0.1, 0])).toBeNull();
+  });
+
+  it('a ready-made scene\'s light effect (a sunbeam\'s shaft: see-through, glowing) is told from its glass and its things', () => {
+    const material = (o: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(o);
+    // (The classroom's godray: a fifth opaque, glowing; its window glass: a quarter opaque, not glowing.)
+    expect(isEffect(material({ transparent: true, opacity: 0.19, emissive: new THREE.Color(0.94, 0.94, 0.94) }))).toBe(true);
+    expect(isEffect(material({ transparent: true, opacity: 0.25 }))).toBe(false);
+    expect(isEffect(material({ emissive: new THREE.Color(1, 1, 1) }))).toBe(false);
   });
 
   it('made of models and surfaces that npm run sets made, each within its budget; each set within its own (#25)', () => {

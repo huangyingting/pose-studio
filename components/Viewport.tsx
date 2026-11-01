@@ -106,7 +106,8 @@ function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3)
   const hits: THREE.Intersection[] = [];
   set.traverse((o) => {
     const m = o as THREE.Mesh;
-    if (m.isMesh && m.userData.set !== undefined) THREE.Mesh.prototype.raycast.call(m, ray, hits);
+    // (Not a light effect, a sunbeam's shaft: nothing solid.)
+    if (m.isMesh && m.userData.set !== undefined && !m.userData.effect) THREE.Mesh.prototype.raycast.call(m, ray, hits);
   });
   return hits.length > 0;
 }

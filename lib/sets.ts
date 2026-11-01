@@ -1124,6 +1124,8 @@ interface Part {
   floor: boolean;
   scene: boolean;
   ground: boolean;
+  /** A light effect a ready-made scene draws (a sunbeam's shaft): shown in 3D only, as it was made; nothing solid. */
+  effect: boolean;
   /** Its triangles' indices in its group's (where they start, how many); cut away now. */
   start: number;
   count: number;
@@ -1140,8 +1142,18 @@ interface Group {
   dirty: boolean;
 }
 
-const keyOf = (p: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground'>) =>
+const keyOf = (p: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground' | 'effect'>) =>
   `${p.own ? p.own.uuid : `look:${JSON.stringify(p.look ?? null)}`}|${p.floor ? 'f' : ''}${p.scene ? 's' : ''}${p.ground ? 'g' : ''}`;
+
+/**
+ * Whether a model's material is a light effect, not a thing: see-through and glowing (a sunbeam's
+ * shaft through a window, a haze). Drawn as a surface in a style of lines or paint, it would be a
+ * slab across the room.
+ */
+export function isEffect(m: THREE.Material) {
+  const s = m as THREE.MeshStandardMaterial;
+  return s.transparent && s.opacity < 0.5 && !!s.emissive && Math.max(s.emissive.r, s.emissive.g, s.emissive.b) > 0.5;
+}
 
 /** Parts merged into one geometry, each its own piece number (its inner lines and its ID in the line art's pass). */
 function mergeParts(parts: Part[]) {
@@ -1241,14 +1253,14 @@ export class SetObject {
       // it shaded itself, their own shadows lost in it. Nor does glass.)
       const floor = liesFlat(p) || (typeof p.look === 'object' && !!p.look.glass);
       // (Its material made, and its textures fetched, when it is first drawn in 3D.)
-      this.addPart(geometryOf(p.shape), matrix, { look: p.look, floor, scene: false, ground: !!p.ground });
+      this.addPart(geometryOf(p.shape), matrix, { look: p.look, floor, scene: false, ground: !!p.ground, effect: false });
     }
     this.furnish();
     this.build();
     this.off = onSetAssets(() => { if (this.furnish()) { this.build(); this.setStyle(this.style); } });
   }
 
-  private addPart(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4, o: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground'>) {
+  private addPart(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4, o: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground' | 'effect'>) {
     const box = (geometry.boundingBox ??= (geometry.computeBoundingBox(), geometry.boundingBox!)).clone();
     const part: Part = { geometry, matrix, inverse: matrix.clone().invert(), box, ...o, start: 0, count: 0, cut: false };
     const key = keyOf(part);
@@ -1277,7 +1289,7 @@ export class SetObject {
       model.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
-        this.addPart(m.geometry, new THREE.Matrix4().multiplyMatrices(place, m.matrixWorld), { own: m.material as THREE.Material, floor: false, scene: isScene, ground: false });
+        this.addPart(m.geometry, new THREE.Matrix4().multiplyMatrices(place, m.matrixWorld), { own: m.material as THREE.Material, floor: false, scene: isScene, ground: false, effect: isEffect(m.material as THREE.Material) });
       });
       // (Standing on the floor: its contact shadow, in the styles lit as 3D is; a scene has its own.)
       if (!isScene && p.at[1] < 0.05) {
@@ -1301,14 +1313,15 @@ export class SetObject {
       g.full = full;
       const first = g.parts[0];
       const mesh = this.parts.add(this.object, geometry, { set: this.id });
-      Object.assign(mesh.userData, { own: first.own, look: first.look, scene: first.scene, twoSided: first.scene, floor: first.floor, ground: first.ground });
+      Object.assign(mesh.userData, { own: first.own, look: first.look, scene: first.scene, twoSided: first.scene, floor: first.floor, ground: first.ground, effect: first.effect });
       mesh.castShadow = false;
+      mesh.visible = !first.effect || this.style === 'render';
       mesh.raycast = () => {};
       const twin = new THREE.Mesh(new THREE.BufferGeometry(), shadowOnly);
       twin.geometry.setAttribute('position', geometry.attributes.position);
       twin.geometry.setIndex(new THREE.BufferAttribute(full, 1));
       twin.layers.set(CUTAWAY_LAYER);
-      twin.castShadow = this.shadows && !first.floor;
+      twin.castShadow = this.shadows && !first.floor && !first.effect;
       twin.raycast = () => {};
       this.object.add(twin);
       g.mesh = mesh;
@@ -1328,6 +1341,8 @@ export class SetObject {
     const blobs = (style === 'render' || style === 'shaded') && typeof document !== 'undefined';
     if (blobs && !this.blobs && this.grounded.length) this.object.add((this.blobs = contactShadows(this.grounded)));
     if (this.blobs) this.blobs.visible = blobs;
+    // (A scene's light effects, a sunbeam's shaft, only in 3D: in its own see-through glow.)
+    for (const g of this.groups.values()) if (g.mesh && g.parts[0].effect) g.mesh.visible = style === 'render';
     // (In 3D, in its own materials: textured; in the toon styles, its own colours and textures toon-shaded, as a character's are.)
     const toon = !!styleDef(style).toon;
     if (style === 'render' || toon) {
@@ -1347,19 +1362,20 @@ export class SetObject {
    */
   castShadows(on: boolean) {
     this.shadows = on;
-    for (const g of this.groups.values()) if (g.twin) g.twin.castShadow = on && !g.parts[0].floor;
+    for (const g of this.groups.values()) if (g.twin) g.twin.castShadow = on && !g.parts[0].floor && !g.parts[0].effect;
   }
 
   /**
-   * Where a ray first meets the set as drawn (what is cut away, its floors and the ground round it
-   * not counted), null if nowhere: its parts are not picked as the scene is, so they are met here.
+   * Where a ray first meets the set as drawn (what is cut away, its floors, the ground round it and
+   * its light effects not counted), null if nowhere: its parts are not picked as the scene is, so
+   * they are met here.
    */
   meet(ray: THREE.Raycaster): THREE.Intersection | null {
     const local = new THREE.Ray();
     const hits: THREE.Intersection[] = [];
     let best: THREE.Intersection | null = null;
     for (const p of this.all) {
-      if (p.cut || p.floor || p.ground || !local.copy(ray.ray).applyMatrix4(p.inverse).intersectsBox(p.box)) continue;
+      if (p.cut || p.floor || p.ground || p.effect || !local.copy(ray.ray).applyMatrix4(p.inverse).intersectsBox(p.box)) continue;
       probe.geometry = p.geometry;
       probe.matrixWorld.copy(p.matrix);
       hits.length = 0;
