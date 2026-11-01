@@ -411,6 +411,9 @@ export const SETS: SetDef[] = [
       ]),
       M('manhole', 3.5, 9.5), M('covered-car', -9, 3.6, 90), M('covered-car', 7, 3.6, 90),
       ...made(METAL, [C(0.04, 3, 4.6, 0, 2.4)]), { ...B(0.6, 0.6, 0.03, 4.6, 2.5, 2.4), look: { color: '#1f5fa8', rough: 0.5 } },
+      // Street trees in their pits by the kerb; bollards at the crossing.
+      ...[-13, 15].flatMap((x): Piece[] => [M('aspen', x, 1.0, x * 7, 0, 0.6), { ...B(1.2, 0.025, 1.2, x, 0, 1.0), look: { color: '#3b2f25', rough: 1 }, open: true }]),
+      ...open(made({ color: '#2d3034', rough: 0.5, metal: 1 }, [-3.4, 3.4].map((x) => C(0.08, 0.9, x, 0, 1.75, 0.07, 12)))),
     ],
   },
   {
@@ -558,6 +561,10 @@ export const SETS: SetDef[] = [
         { ...B(0.6, 1.2, 0.6, 7, 0, -3), look: marble, open: true }, M('marble-bust', 7, -3, -30, 1.2, 1.4),
         M('clay-pot', -2.2, -2.2, 20), M('clay-pot', 2.4, -2.4, 160),
         M('oak', -11, -6, 0, 0, 0.55), M('oak', 12, -9, 120, 0, 0.6),
+        // Weathered stones and more fallen drums about the forecourt, scrub at its edges.
+        ...made(marble, [{ shape: ['cyl', 0.5, 0.5, 0.9, 20], at: [-7.5, 0.5, -3.8], rot: [0, -50, 90] }, C(0.5, 0.45, 8.6, 0, 1.6, 0.48, 20), C(0.48, 0.4, 9.3, 0, 0.9, 0.46, 20)]),
+        M('rocks', -13, 2, 40, 0, 0.5), M('rocks', 14, 1, 200, 0, 0.45),
+        M('fern', -9.5, -1.2, 10), M('fern', 10.5, -5, 80), M('fern', -12.5, -10, 200),
       ];
     },
   },
