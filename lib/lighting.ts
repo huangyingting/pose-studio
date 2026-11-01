@@ -475,13 +475,34 @@ export const MAX_EXTRA = 4;
  * the line-art and minimal materials ignore it. A window is a soft panel of light in Clay (lamps
  * across its pane) and a light from its direction in the painterly styles.
  */
+/**
+ * A shadow receiver whose soft shadow does not shimmer as the view moves (#31): three's soft
+ * shadows turn their few samples by a noise of the screen's pixel, so a still shadow's grain
+ * moves with the camera; here by the shadow map's own texel instead, which stays where it is on
+ * the floor. (Directional and spot lights' shadows: the ones cast on the floor.)
+ */
+// (Drawn a hair nearer than what lies at the floor's height (a ready-made scene's floor is at 0): over
+// it, not fighting it for the same depth as the view moves; anything standing on it still hides it.)
+function steadyShadows<M extends THREE.Material>(m: M): M {
+  const from = 'float phi = interleavedGradientNoise( gl_FragCoord.xy ) * PI2;';
+  const chunk = THREE.ShaderChunk.shadowmap_pars_fragment;
+  const i = chunk.indexOf(from);
+  if (i < 0) throw new Error('three.js shadow sampling changed: steadyShadows needs updating');
+  const steady = chunk.slice(0, i) + 'float phi = interleavedGradientNoise( floor( shadowCoord.xy * shadowMapSize * 2.0 ) ) * PI2;' + chunk.slice(i + from.length);
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <shadowmap_pars_fragment>', steady);
+  };
+  m.customProgramCacheKey = () => 'steady-shadows';
+  return m;
+}
+
 export class LightRig {
   readonly object = new THREE.Group();
   private ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.05);
   private suns: THREE.DirectionalLight[] = [];
   private points: THREE.PointLight[] = [];
   private spots: THREE.SpotLight[] = [];
-  private floor = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.ShadowMaterial({ opacity: 0.16, depthWrite: false }));
+  private floor = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), steadyShadows(new THREE.ShadowMaterial({ opacity: 0.16, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })));
   /** The key light's colour and brightness, for the painterly styles (white at 1: as they are). */
   readonly tint = new THREE.Color(1, 1, 1);
   /** The other lights, for the painterly styles. */
