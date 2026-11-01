@@ -27,10 +27,11 @@ import { GLYPH, GLYPH_LINKED } from './glyphs';
 import { SceneView } from '@/lib/sceneview';
 import { angleAt, cameraAt, cameraById, trailTimes, fovLens, frameAspect, LENSES, liveCamera, placeCamera, viewOf, type CameraView } from '@/lib/cameras';
 import { styleDef, TONE_MAPPING } from '@/lib/styles';
-import type { Settings, Store, Through } from '@/lib/store';
+import type { PinEnd, Settings, Store, Through } from '@/lib/store';
+import { IK_CHAINS } from '@/lib/mannequin';
 import type { Figure, JointName, Lighting, Scene, Selection, Style, Vec3, View } from '@/lib/types';
 import type { Clock } from './clock';
-import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
+import { FigureMarkers, HoldPins, PosePins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
 import type { Contact } from '@/lib/relations';
 import CameraHandles from './CameraHandles';
 import LightHandles, { LightingCircle } from './LightHandles';
@@ -204,6 +205,8 @@ export default function Viewport({
   const gizmoFrom = useRef<THREE.Vector3 | null>(null);
   // A joint's slider values as a rotate-gizmo drag began (for its readout).
   const jointFrom = useRef<Vec3 | null>(null);
+  // (A joint's gizmo turning it: the figure's pinned hands and feet where they were, held there, #38.)
+  const pinsFrom = useRef<{ end: PinEnd; at: THREE.Vector3; q: THREE.Quaternion }[]>([]);
   // Ctrl (Cmd) held: the gizmo snaps.
   const [snapKey, setSnapKey] = useState(false);
   useEffect(() => {
@@ -350,6 +353,7 @@ export default function Viewport({
       gizmoWorld = 0.16 * (doc.body.height / 1.8);
       onGizmoChange = () => {
         if (settings.limits) m.constrain([joint]);
+        for (const x of pinsFrom.current) m.solveIK(IK_CHAINS[x.end], x.at.clone(), x.q, settings.limits);
         store.updateFigure(doc.id, (f) => ({ ...f, ...m.read() }), `gizmo:${doc.id}:${joint}`);
       };
       readout = () => setReadout(jointText(joint, jointFrom.current ?? angle(doc.bones, joint), angle(m.read().bones, joint)));
@@ -525,8 +529,12 @@ export default function Viewport({
               const m = gizmoFigure ? sv.figures.get(gizmoFigure) : undefined;
               hipsFrom.current = m ? { hips: m.joints.hips.getWorldPosition(new THREE.Vector3()), stand: stand.position.clone() } : null;
               jointFrom.current = selection?.kind === 'joint' ? angle(figureDoc(selection.figure)!.bones, selection.joint) : null;
+              const pm = selection?.kind === 'joint' ? sv.figures.get(selection.figure) : undefined;
+              pinsFrom.current = pm && selection?.kind === 'joint'
+                ? (store.getState().pins[selection.figure] ?? []).filter((e) => e !== selection.joint).map((end) => ({ end, at: pm.joints[end].getWorldPosition(new THREE.Vector3()), q: pm.joints[end].getWorldQuaternion(new THREE.Quaternion()) }))
+                : [];
             }}
-            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; setReadout(null); }}
+            onMouseUp={() => { gizmoBusy.current = performance.now(); gizmoFrom.current = null; jointFrom.current = null; pinsFrom.current = []; setReadout(null); }}
             onObjectChange={() => {
               onGizmoChange();
               if (gizmoFrom.current) readout(gizmoFrom.current);
@@ -549,6 +557,7 @@ export default function Viewport({
           <RouteOverlay store={store} scene={scene} figureId={activeFigure} time={time} />
         )}
         {handles && scene.animation?.constraints && <HoldPins sv={sv} scene={scene} time={time} />}
+        {handles && <PosePins sv={sv} store={store} />}
         {handles && selection?.kind === 'prop' && !scene.props.find((p) => p.id === selection.prop)?.hold && (
           <PropRing
             sv={sv}

@@ -137,7 +137,8 @@ first, then everywhere it applies.
   **Body follows** the shoulder and chest too; any other part swings from its joint; the hips sink or
   shift on planted feet), **Move** (W: any part places the whole figure on the floor; Shift turns it),
   **Rotate** (E: any part turns at its joint, hands and feet too). Props move in every tool. A new
-  gesture goes into a tool, not into a new modifier.
+  gesture goes into a tool, not into a new modifier. A hand or foot can be **Pinned** (its menu, its
+  joint card): it stays where it is while the rest is posed, a blue mark on it.
 - Picking something opens the inspector (a wide screen; on a phone it is a drawer, opened by hand).
 - What is not picked through the canvas (sets) does not take clicks.
 - Styles: a new render style is one entry in `lib/styles.ts`; what is drawn reads `styleDef`.

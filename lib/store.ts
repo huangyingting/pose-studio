@@ -65,6 +65,8 @@ export const openingSelection = (scene: Scene | undefined): Selection => {
  * part places the whole figure), or rotate it (any part turns at its joint). Props move in each.
  */
 export type Tool = 'pose' | 'move' | 'rotate';
+/** A hand or foot that can be pinned (#38): held where it is while the rest of the figure is posed. */
+export type PinEnd = 'leftHand' | 'rightHand' | 'leftFoot' | 'rightFoot';
 
 /** What the canvas looks through: the editor's own view (null), the cut (what the shots show), or one camera. */
 export type Through = { camera?: string } | null;
@@ -84,6 +86,8 @@ export interface State {
   through: Through;
   /** The canvas's tool (not kept: each visit starts posing). */
   tool: Tool;
+  /** Each figure's pinned hands and feet (#38; not kept). */
+  pins: Record<string, PinEnd[]>;
   /** The figure, prop or camera under the pointer in the outline or on the canvas: the other one shows it too. */
   linked: string | null;
   /** A change refused (#22: a locked row's track), to say so: its words, and a count to tell one from the next. */
@@ -191,7 +195,7 @@ export class Store {
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
-      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null, tool: 'pose', linked: null,
+      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null, tool: 'pose', pins: {}, linked: null,
     });
     // An animated pose opens at its first frame.
     this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
@@ -530,6 +534,13 @@ export class Store {
 
   setTool(tool: Tool) {
     if (tool !== this.state.tool) this.set({ tool }, false);
+  }
+
+  /** Pin a figure's hand or foot where it is, or let it go. */
+  togglePin(figure: string, end: PinEnd) {
+    const now = this.state.pins[figure] ?? [];
+    const next = now.includes(end) ? now.filter((e) => e !== end) : [...now, end];
+    this.set({ pins: { ...this.state.pins, [figure]: next } }, false);
   }
 
   /** What the pointer rests on, in the outline or on the canvas (the other shows it too). */

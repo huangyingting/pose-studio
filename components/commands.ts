@@ -2,7 +2,7 @@ import {
   Activity, Aperture, Magnet, Flag, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
-  Lightbulb, Spline, Bone, Move, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
+  Lightbulb, Spline, Bone, Move, Pin, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, stepRig, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKey, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
@@ -23,7 +23,7 @@ import { handlesOf } from '@/lib/props';
 import { describeSpan } from '@/lib/prompt';
 import { shareUrl } from '@/lib/share';
 import { shotSpans } from '@/lib/shots';
-import { THEMES, type Store } from '@/lib/store';
+import { THEMES, type PinEnd, type Store } from '@/lib/store';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { actionLabel, keyAtTime, keyEaseAt, keyTimesOf, moments, travelInto } from '@/lib/track';
 import { clipById, loopsOf } from '@/lib/assets';
@@ -168,6 +168,8 @@ interface Command {
 const sceneOf = (c: Ctx) => c.store.scene;
 const figureOf = (c: Ctx) => c.store.scene.figures.find((f) => f.id === c.figure);
 const activeFigure = (c: Ctx) => c.store.figure;
+const PIN_ENDS: PinEnd[] = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'];
+const pinned = (c: Ctx) => !!c.figure && !!c.joint && (c.store.getState().pins[c.figure] ?? []).includes(c.joint as PinEnd);
 /** "3 things" (several selected). */
 const count = (c: Ctx) => { const n = (c.many?.figures.length ?? 0) + (c.many?.props.length ?? 0); return `${n} things`; };
 /** The light of the context (the key light, the scene's). */
@@ -750,6 +752,11 @@ export const COMMANDS: Command[] = [
     // What a selected hand holds: let go of it here (at the playhead; it falls).
     id: 'hand.letGo', title: (c) => `Let go of ${heldIn(c)?.name ?? 'it'} here`, icon: ArrowDownToLine, when: (c) => !!heldIn(c),
     run: (c) => holdProp(c.store, heldIn(c)!.id, null),
+  },
+  {
+    // (#38: held where it is while the rest of the figure is posed.)
+    id: 'joint.pin', title: 'Pinned', help: 'Pinned, the hand or foot stays where it is while the rest of the figure is posed', icon: Pin,
+    when: (c) => !!c.joint && PIN_ENDS.includes(c.joint as PinEnd), checked: (c) => pinned(c), run: (c) => c.store.togglePin(c.figure!, c.joint as PinEnd),
   },
   { id: 'joint.reset', title: 'Reset the joint', icon: RotateCcw, when: (c) => !!c.joint, run: (c) => setJoint(c.store, c.figure!, c.joint!, [0, 0, 0], '') },
   {
@@ -1560,7 +1567,7 @@ const MENUS = {
     'figure.strike', 'figure.eyes', 'figure.holdOn', 'figure.copyMoves', { group: 'Timeline' }, 'figure.lockTrack', 'figure.muteTrack', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
-  joint: ['hand.letGo', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
+  joint: ['hand.letGo', 'joint.pin', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],
   prop: [
     'rename', 'duplicate', '-', 'prop.hold', 'prop.give', 'prop.take', 'prop.letGo', 'prop.drop', 'prop.throwTo', 'prop.toss', 'prop.carry', 'prop.dribble', 'prop.shoot',
     '-', 'prop.otherEnd', 'prop.sitOn', 'prop.lieOn', '-', 'prop.delete',

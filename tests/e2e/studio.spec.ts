@@ -20,7 +20,7 @@ const refScenes = () => referencePoses().map((p) => poseScene(p));
 type Hook = {
   store: {
     getState(): {
-      library: { scenes: { id: string; name: string; figures: { id: string; name: string; bones: Bones; body: { sex: number; height: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[]; cameras: { name: string }[] }[] };
+      library: { scenes: { id: string; name: string; figures: { id: string; name: string; bones: Bones; position: number[]; body: { sex: number; height: number }; hands: Record<string, { curl: number[] }> }[]; props: unknown[]; cameras: { name: string }[] }[] };
       sceneIndex: number;
       activeFigure: string;
       selection: unknown;
@@ -350,6 +350,40 @@ test('dragging a hand moves the arm with IK', async ({ page }) => {
   await drag(page, wrist, target);
   const now = await project(page, 'rightHand');
   expect(Math.hypot(now.x - target.x, now.y - target.y)).toBeLessThan(12);
+});
+
+test('the tools (#38): Move places the whole figure from any part, Rotate turns a hand at its wrist; a pinned hand stays as the chest is posed', async ({ page }) => {
+  await page.keyboard.press('1');
+  const figure = () => page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().library.scenes[0].figures[0]);
+  const tools = page.getByRole('toolbar', { name: 'Tools', exact: true });
+  await expect(tools.getByRole('button', { name: 'Pose' })).toHaveAttribute('aria-pressed', 'true');
+  // Move: a drag on the forearm moves the figure, the arm as it was.
+  await tools.getByRole('button', { name: 'Move' }).click();
+  const f0 = await figure();
+  const arm = await project(page, 'rightLowerArm');
+  await drag(page, arm, { x: arm.x + 80, y: arm.y });
+  const f1 = await figure();
+  expect(Math.abs(f1.position[0] - f0.position[0])).toBeGreaterThan(0.1);
+  expect(f1.bones.rightLowerArm).toEqual(f0.bones.rightLowerArm);
+  // Rotate (E): a drag on the hand turns the wrist, not the arm.
+  await page.keyboard.press('e');
+  const hand = await project(page, 'rightHand');
+  await drag(page, { x: hand.x, y: hand.y + 8 }, { x: hand.x + 30, y: hand.y - 40 });
+  const f2 = await figure();
+  expect(f2.bones.rightHand).not.toEqual(f1.bones.rightHand);
+  expect(f2.bones.rightUpperArm).toEqual(f1.bones.rightUpperArm);
+  // Pose (Q): the left hand pinned from its menu stays where it is as the chest swings; the right goes with it.
+  await page.keyboard.press('q');
+  const left = await project(page, 'leftHand');
+  await pickPart(page, { x: left.x, y: left.y + 8 });
+  await page.mouse.click(left.x, left.y + 8, { button: 'right' });
+  await page.getByRole('menuitemcheckbox', { name: 'Pinned' }).click();
+  const [l0, r0] = [await project(page, 'leftHand'), await project(page, 'rightHand')];
+  const chest = await project(page, 'chest');
+  await drag(page, chest, { x: chest.x + 80, y: chest.y + 40 });
+  const [l1, r1] = [await project(page, 'leftHand'), await project(page, 'rightHand')];
+  expect(Math.hypot(l1.x - l0.x, l1.y - l0.y)).toBeLessThan(4);
+  expect(Math.hypot(r1.x - r0.x, r1.y - r0.y)).toBeGreaterThan(10);
 });
 
 test('dragging the hips down bends the knees and keeps the feet planted', async ({ page }) => {

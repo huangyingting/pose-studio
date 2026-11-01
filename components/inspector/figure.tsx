@@ -146,8 +146,12 @@ export function JointPanel({ t }: { t: Target }) {
 }
 
 export function JointActions({ t }: { t: Target }) {
+  // (A hand or foot: pinned where it is while the rest is posed, #38.)
+  useStudio((s) => s.pins);
+  const pinnable = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'].includes(t.joint!);
   return (
     <>
+      {pinnable && <CommandButton id="joint.pin" ctx={{ store: t.store, figure: t.figure!.id, joint: t.joint! }} />}
       <IconButton icon={RotateCcw} label="Reset joint" onClick={() => setJoint(t.store, t.figure!.id, t.joint!, [0, 0, 0], '')} />
       <IconButton icon={X} label="Deselect" shortcut={shortcutOf('app.deselect')} onClick={() => t.store.select(null)} />
     </>

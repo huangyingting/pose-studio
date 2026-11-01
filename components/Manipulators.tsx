@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Check, Footprints, Undo2 } from 'lucide-react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
@@ -580,6 +580,12 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
       if (started) p.begin();
     };
     window.addEventListener('keydown', lockKey, true);
+    // Its pinned hands and feet (#38) held where they are as the rest is posed (not the one dragged;
+    // not when the figure is moved whole).
+    const fm = t.kind === 'prop' || t.kind === 'body' ? undefined : sv.figures.get(t.figure);
+    const draggedEnd = t.kind === 'held' ? t.wrist : t.kind === 'end' ? ENDS[t.joint] : undefined;
+    let pinned: { end: keyof typeof IK_CHAINS; at: THREE.Vector3; q: THREE.Quaternion }[] = [];
+    const holdPins = () => { for (const x of pinned) fm!.solveIK(IK_CHAINS[x.end], x.at.clone(), x.q, limits); };
     follow(
       (ev) => {
         if (cancelled) return;
@@ -590,9 +596,15 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
           started = true;
           document.body.style.cursor = p.cursor === 'grab' ? 'grabbing' : p.cursor;
           sv.setHover(hover(t, twist));
+          if (fm && t.kind !== 'prop' && t.kind !== 'body') {
+            pinned = (store.getState().pins[t.figure] ?? []).filter((e) => e !== draggedEnd).map((end) => ({
+              end, at: fm.joints[end].getWorldPosition(new THREE.Vector3()), q: fm.joints[end].getWorldQuaternion(new THREE.Quaternion()),
+            }));
+          }
           p.begin();
         }
         p.move(pointer.ray(ev.clientX, ev.clientY), ev.clientX - x0, ev.clientY - y0, ev);
+        if (pinned.length) holdPins();
         sv.followMannequins();
       },
       () => {
@@ -1009,6 +1021,33 @@ export function HoldPins({ sv, scene, time }: { sv: SceneView; scene: Scene; tim
           <mesh renderOrder={7}>
             <sphereGeometry args={[0.028, 12, 8]} />
             <meshBasicMaterial color="#e5484d" transparent opacity={0.85} depthTest={false} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** The hands and feet pinned while posing (#38): a blue pin on each, where it is held. */
+export function PosePins({ sv, store }: { sv: SceneView; store: Store }) {
+  // (The canvas's own renderer: the store read directly, not through the app's context.)
+  const pins = useSyncExternalStore((f) => store.subscribe(f), () => store.getState().pins);
+  const list = Object.entries(pins).flatMap(([figure, ends]) => ends.map((end) => ({ figure, end })));
+  const marks = useRef<(THREE.Group | null)[]>([]);
+  useFrame(() => {
+    list.forEach((x, i) => {
+      const m = sv.figures.get(x.figure);
+      const g = marks.current[i];
+      if (g && m) { m.joints[x.end].getWorldPosition(g.position); g.visible = m.object.visible; }
+    });
+  });
+  return (
+    <>
+      {list.map((x, i) => (
+        <group key={`${x.figure}:${x.end}`} ref={(el) => { marks.current[i] = el; }}>
+          <mesh renderOrder={7}>
+            <sphereGeometry args={[0.03, 12, 8]} />
+            <meshBasicMaterial color="#3b6cff" transparent opacity={0.85} depthTest={false} />
           </mesh>
         </group>
       ))}
