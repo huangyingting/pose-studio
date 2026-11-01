@@ -1192,12 +1192,14 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         r3fScene.traverse((o) => { if (o.visible && o.name.startsWith('light-lamp:')) lamps.push(o); });
         const lamp = lamps.find((o) => ray.intersectObject(o, true).length);
         const hit: CanvasHit = lamp ? { light: lamp.name.slice('light-lamp:'.length) } : {};
+        // (The floor under the set where it is met first, a wall, a sofa: not the floor beyond it.)
+        const met = sv.set?.meet(ray);
         const floor = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
-        if (floor) hit.floor = [floor.x, 0, floor.z];
+        if (met && (!floor || met.distance < ray.ray.origin.distanceTo(floor))) hit.floor = [met.point.x, 0, met.point.z];
+        else if (floor) hit.floor = [floor.x, 0, floor.z];
         // (A set's top under it, a dais, a table, a seat: stood or sat on there. Its furniture met first, as
         // a view from about eye level meets a sofa's back or its cushions' front: the seat nearest there.)
         let top = topUnder(sv.set?.id, ray.ray);
-        const met = sv.set?.meet(ray);
         if (met && met.point.y > 0.05 && (!top || met.distance < ray.ray.origin.distanceTo(new THREE.Vector3(...top)) - 0.05)) top = seatNear(sv.set!.id, met.point.toArray());
         if (top) hit.top = top;
         // A camera (or one of its points) in front of everything: it is drawn over the scene.

@@ -94,9 +94,9 @@ first, then everywhere it applies.
   long press on touch; Shift + F10 or the menu key from the keyboard). Its items are commands.
   Menus scroll with the wheel and show ▲ ▼ when they do not fit. A menu closes on a choice, a
   click elsewhere, Escape, or the focus gone elsewhere (a dialog a key opened is never under one).
-- **A set's furniture is the floor where it stands**: right-clicked, it has the floor's menu for
-  the spot on it, and a seat (met from any view, its back or its front as much as its top) has
-  Sit here.
+- **A set is the floor where it stands**: its furniture or a wall right-clicked has the floor's
+  menu for the spot at its foot, never the floor beyond it; a seat (met from any view, its back or
+  its front as much as its top) has Sit here.
 - **Tooltips** come from `data-tip` (with `data-tip-side`), shown by `components/Tooltip.tsx`; a
   command's tooltip is `tipOf(id)` (its title and its key). Every icon-only control has one; a
   disabled control's tooltip says why.

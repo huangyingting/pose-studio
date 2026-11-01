@@ -2307,7 +2307,7 @@ test('a set is furnished with its models; in Anime toon-shaded under a painted s
   await expect.poll(() => fetched.includes('skies'), { timeout: 30_000 }).toBe(true);
 });
 
-test('in a set, a right-click on a sofa seen from about eye level sits the figure on it (Sit here)', async ({ page }) => {
+test('in a set, a right-click on a sofa seen from about eye level sits the figure on it (Sit here); a wall clicked is the floor at its foot', async ({ page }) => {
   await libraryShows(page, 'Sets');
   await page.locator('.lib-grid button.lib-tile', { hasText: 'Living room' }).first().click();
   // (The sofa's back at sitting height, where a level view meets it; once its model is in, the menu says Sit here.)
@@ -2322,6 +2322,10 @@ test('in a set, a right-click on a sofa seen from about eye level sits the figur
   const s = await live(page);
   const did = actionsOf(s.scene.animation!, s.active).map((a) => (a.source.kind === 'clip' ? a.source.clip : a.source.kind));
   expect(did).toContain('library:stand-to-sit');
+  // The back wall clicked: the floor at its foot, in the room, not the floor beyond it.
+  const wall = await projectPoint(page, [2.8, 1.6, -4.4]);
+  const hit = await page.evaluate(([x, y]) => (window as unknown as { __poseStudio: { viewport: { current: { pick(x: number, y: number): { floor?: number[] } } } } }).__poseStudio.viewport.current.pick(x, y), [wall.x, wall.y]);
+  expect(hit.floor![2]).toBeGreaterThan(-4.5);
 });
 
 test('a ready-made scene is a set: its author credited, fetched when shown (#27)', async ({ page }) => {
