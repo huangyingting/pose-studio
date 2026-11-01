@@ -582,6 +582,37 @@ test('figures, props, body and hands', async ({ page }) => {
   expect(s.props).toHaveLength(0);
 });
 
+test('a prop\'s inspector: exact place, turn and size, its physics and back to the default; several picked act from their panel', async ({ page }) => {
+  type Box = { position: number[]; rotation: number[]; scale: number[]; physics?: { bounce: number } };
+  const box = async () => (await state(page)).scene.props[0] as unknown as Box;
+  const insp = page.getByRole('complementary', { name: 'Inspector' });
+  await addLayer(page, 'Box');
+  const type = async (field: string, v: string) => { const f = insp.getByRole('textbox', { name: field }); await f.fill(v); await f.press('Enter'); };
+  await type('Position X', '1');
+  await type('Rotation Y', '45');
+  // (Never smaller than 2 cm: still there to pick.)
+  await type('Size Y', '0');
+  expect(await box()).toMatchObject({ position: [1, expect.any(Number), expect.any(Number)], rotation: [expect.any(Number), 45, expect.any(Number)], scale: [expect.any(Number), 0.02, expect.any(Number)] });
+  await unfold(page, 'Physics');
+  await insp.getByRole('slider', { name: 'Bounce' }).fill('0.9');
+  expect((await box()).physics?.bounce).toBe(0.9);
+  await insp.getByRole('button', { name: 'Reset the physics to the default' }).click();
+  expect((await box()).physics).toBeUndefined();
+
+  // The box and the figure: the panel names both and acts on both.
+  await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure$/ }).click({ modifiers: ['Shift'] });
+  await expect(insp).toContainText('2 selected');
+  await expect(insp.locator('.hint').first()).toHaveText(/Figure.*Box|Box.*Figure/);
+  await insp.getByRole('button', { name: 'Hide the figures' }).click();
+  expect((await state(page)).scene.figures[0]).toMatchObject({ hidden: true });
+  await insp.getByRole('button', { name: 'Duplicate 2' }).click();
+  let s = (await state(page)).scene;
+  expect([s.figures.length, s.props.length]).toEqual([2, 2]);
+  await insp.getByRole('button', { name: 'Delete 2' }).click();
+  s = (await state(page)).scene;
+  expect([s.figures.length, s.props.length]).toEqual([1, 1]);
+});
+
 test('exports all scenes as a 2400×3200 sheet', async ({ page }) => {
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'All scenes' }).click();

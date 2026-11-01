@@ -95,5 +95,5 @@ export function PhysicsPanel({ t }: { t: Target }) {
 
 export function PhysicsActions({ t }: { t: Target }) {
   const prop = t.prop!;
-  return prop.physics ? <IconButton icon={RotateCcw} label={`Reset to the default for ${PROP_LABELS[prop.kind].toLowerCase()}s`} onClick={() => setPropPhysics(t.store, prop.id, null)} /> : null;
+  return prop.physics ? <IconButton icon={RotateCcw} label="Reset the physics to the default" onClick={() => setPropPhysics(t.store, prop.id, null)} /> : null;
 }
