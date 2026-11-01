@@ -203,7 +203,8 @@ components/
   Board.tsx             Storyboard workspace
   server/               Server edition only (imported as '@edition/server'; static builds get server/none.ts): account menu, sync, AI assistant
   Practice.tsx          Gesture-practice slideshow
-  Timeline.tsx, clock.ts  Timeline of action blocks per figure, props' rows, shots, camera; playback clock
+  Timeline.tsx, clock.ts  Timeline (its bar, zoom, picks, keys); playback clock
+  timeline/             Its rows (ruler, shots, people, props, path camera) and its drags
 lib/
   types.ts              Document model: Library → Scene → Figure / Prop / Animation (actions on tracks, constraints, prop keys)
   skeleton.ts, pose.ts  The VRM humanoid skeleton (bone turns as quaternions on the T-pose); joint angles for people
