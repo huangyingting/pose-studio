@@ -332,6 +332,18 @@ function App() {
     chosenBefore.current = chosen;
     if (chosen && !stageOnly && !store.getState().settings.inspector && window.matchMedia('(min-width: 861px)').matches) store.setSettings({ inspector: true });
   }, [chosen, stageOnly, store]);
+  // A Library section opened by a command (the hint's Poses, a figure's Choose a motion…): on a
+  // phone, where the side panel is a drawer, the drawer opens on it.
+  useEffect(() => {
+    let side = store.getState().settings.side;
+    const off = store.subscribe(() => {
+      const now = store.getState().settings.side;
+      if (now === side) return;
+      side = now;
+      if (window.matchMedia('(max-width: 860px)').matches) setDrawer('library');
+    });
+    return () => { off(); };
+  }, [store]);
   // Esc goes back (first, before it clears the selection; a menu or a dialog open: it closes that).
   useEffect(() => {
     if (!stageOnly) return;
@@ -632,7 +644,7 @@ function App() {
         <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
         {!through && <CanvasTools />}
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
-        <div className="stage-hint hide-mobile">
+        <div className="stage-hint">
           <Hint
             clock={clock}
             pick={pick}

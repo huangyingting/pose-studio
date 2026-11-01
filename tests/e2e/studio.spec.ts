@@ -756,6 +756,14 @@ test('mobile layout uses drawers', async ({ page }) => {
   await expect(page.getByRole('list', { name: 'Cast' })).toBeVisible();
   await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
   await expect(page.locator('.side')).not.toBeInViewport();
+  // The next step shows on a phone too (not what the mouse and keys do): its Motions opens the side drawer on them.
+  const step = page.getByRole('status', { name: 'Next step' });
+  await expect(step).toBeInViewport();
+  await step.getByRole('button', { name: 'Motions' }).click();
+  await expect(page.locator('.side')).toBeInViewport();
+  await expect(page.getByLabel('Search motions')).toBeVisible();
+  await page.locator('.scrim').click({ position: { x: 370, y: 400 } });
+  await expect(page.locator('.side')).not.toBeInViewport();
   // Scenes switch from the top bar.
   await (await openScenes(page)).locator('.thumbs li').nth(2).locator('button').click();
   expect((await state(page)).sceneIndex).toBe(2);

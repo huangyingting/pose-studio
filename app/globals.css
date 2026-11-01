@@ -1710,6 +1710,10 @@ button.psec-title svg { color: var(--text-3); }
     box-shadow: var(--shadow-float);
   }
   .studio .toolbar { bottom: calc(var(--tl-h, 44px) + 10px); }
+  /* (The canvas's hint above them, not behind them: its next step, a spot to pick, a warning or a
+     note; not what the mouse and the keys do, which a touch screen has neither of.) */
+  .stage-hint { bottom: calc(var(--tl-h, 44px) + 62px); }
+  .stage-hint .bar-hint.plain { display: none; }
   .export-grid, .photo-grid { grid-template-columns: 1fr; min-height: 0; }
   .export-outputs { border-right: 0; padding-right: 0; }
   .shortcuts { grid-template-columns: 1fr; }
