@@ -51,6 +51,23 @@ describe('the director (#14)', () => {
   });
 });
 
+describe('the director taking a scene over', () => {
+  it('drops the camera the scene came with when it films none of it and was never changed; one changed by hand stays', () => {
+    const store = new Store(new MemoryStorage());
+    startAnimation(store, 6);
+    expect(store.scene.cameras.map((c) => c.name)).toEqual(['Camera 1']);
+    setDirector(store, 'follow');
+    expect(store.scene.cameras.some((c) => c.name === 'Camera 1')).toBe(false);
+    expect(store.scene.cameras.length).toBeGreaterThan(0);
+    // Changed by hand first (its lens): kept, though it films nothing then.
+    const other = new Store(new MemoryStorage());
+    startAnimation(other, 6);
+    other.updateScene((sc) => ({ ...sc, cameras: sc.cameras.map((c) => (c.kind === 'rig' ? { ...c, rig: { ...c.rig, lens: 85 } } : c)) }));
+    setDirector(other, 'follow');
+    expect(other.scene.cameras.some((c) => c.name === 'Camera 1')).toBe(true);
+  });
+});
+
 describe('a new film (#14)', () => {
   it('starts from a result: a shoot preset or an empty scene, as long as asked, the director filming it', async () => {
     const { startAnimatedScene } = await import('@/lib/actions');

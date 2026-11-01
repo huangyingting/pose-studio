@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { wrapDeg } from '../joints';
-import { uid, nextName } from '../doc';
+import { defaultCamera, uid, nextName } from '../doc';
 import { snapTime, newAnimation } from '../animation';
 import { coverageById, castCoverage, applyCoverage } from '../coverage';
 import { liveCamera, firstFilmed, viewOf, rigFrom, standing, cameraById, withCamera, fovLens, frameAspect, capturePoint, lensFov, type ShotSize, type Placement, framePoint, angleOf, restate, subjectPlace, pointIn, reform, TRIPOD_MOVES, type CameraView, cameraAt, newCamera, LENSES, SHOT_SIZES, reshapeCamera, filmWith } from '../cameras';
@@ -519,6 +519,13 @@ export function moveShotCut(store: Store, id: string, t: number, key = '') {
  * The director (#14): the scene filmed in a style (a coverage, cast from who is in it) and cut
  * again as what they do changes; null: by hand from now on (its cameras and cuts stay as they are).
  */
+/** A camera as a new scene has it: the default, never changed (its id aside). */
+function untouched(c: Camera) {
+  const { id: _, ...now } = c;
+  const { id: __, ...made } = defaultCamera(c.name);
+  return JSON.stringify(now) === JSON.stringify(made);
+}
+
 export function setDirector(store: Store, style: string | null, roles?: Record<string, string>): boolean {
   return store.group(() => {
     if (!style) {
@@ -529,6 +536,15 @@ export function setDirector(store: Store, style: string | null, roles?: Record<s
     if (store.scene.coverage?.live && store.scene.coverage.id === style) return true;
     const cast = cover(store, style, roles);
     if (cast) store.updateScene((s) => (s.coverage ? { ...s, coverage: { ...s.coverage, live: true } } : s));
+    // (The camera the scene came with, filming none of it now and never changed: it goes, not left
+    // in the outline beside the director's. One changed by hand stays.)
+    if (cast) {
+      store.updateScene((s) => {
+        const shots = s.animation?.shots ?? [];
+        const idle = (c: Camera) => !c.made && !shots.some((x) => x.camera === c.id) && untouched(c);
+        return s.cameras.some(idle) && s.cameras.some((c) => !idle(c)) ? { ...s, cameras: s.cameras.filter((c) => !idle(c)) } : s;
+      }, '');
+    }
     return !!cast;
   });
 }

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
-import { fitWarp, moveMark } from '@/lib/actions';
+import { fitWarp, moveMark, offsetPerformance } from '@/lib/actions';
 import { actionsOf, figureRootAt, footprints, marksOf, overWarp } from '@/lib/evaluate';
 import { angle, facingOf, nearer } from '@/lib/pose';
 import { CONTACT_LABELS, contactPoint, type Contact } from '@/lib/relations';
@@ -408,7 +408,14 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
           }
           m.object.updateMatrixWorld(true);
         },
-        end: commit,
+        // (The Move tool in an animated scene places the whole performance, as Starts at does,
+        // its partners in a shared motion with it; a key or a correction is Pose's.)
+        end: () => {
+          if (!store.scene.animation || store.getState().tool !== 'move') return commit();
+          m.setGroundLock(false);
+          const r = root.position;
+          offsetPerformance(store, [t.figure], { dx: r.x - start.x, dz: r.z - start.z, turn: (root.rotation.y - yaw) * R2D, about: [start.x, start.z] });
+        },
       };
     }
 
@@ -637,7 +644,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
       const sel = store.getState().selection;
       const picked = (sel?.kind === 'figure' || sel?.kind === 'joint') && sel.figure === t.figure;
       const proxy = !!scene.figures.find((f) => f.id === t.figure)?.proxy;
-      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked && !proxy, store.getState().settings.bodyFollows);
+      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked && !proxy, store.getState().settings.bodyFollows, !!scene.animation && store.getState().tool === 'move');
       setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the gizmo`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';

@@ -135,7 +135,8 @@ first, then everywhere it applies.
 - **Tools** (#38): what a drag on a figure does is the tool's, shown in the bar at the canvas's top
   left and in the hint: **Pose** (Q, the default: a hand or foot reaches, the limb following, and with
   **Body follows** the shoulder and chest too; any other part swings from its joint; the hips sink or
-  shift on planted feet), **Move** (W: any part places the whole figure on the floor; Shift turns it),
+  shift on planted feet), **Move** (W: any part places the whole figure on the floor, in an animated
+  scene all it does, as Starts at; Shift turns it),
   **Rotate** (E: any part turns at its joint, hands and feet too). Props move in every tool. A new
   gesture goes into a tool, not into a new modifier. A hand or foot can be **Pinned** (its menu, its
   joint card): it stays where it is while the rest is posed, a blue mark on it.

@@ -41,8 +41,8 @@ const part = (j: JointName) => JOINT_LABELS[j].toLowerCase();
  * On a figure's body: what a click picks (the figure first, then, it picked, the part there) and
  * what a drag of the part under the pointer does (a stand-in's, or several figures': they move).
  */
-export function bodyHint(name: string, kind: 'body' | 'pelvis' | 'end' | 'swing', joint?: JointName, picked = true, follows = false) {
-  if (kind === 'body') return `${picked ? 'Click: a part · ' : ''}Drag: move ${name} · Shift-drag: turn · Right-click: more`;
+export function bodyHint(name: string, kind: 'body' | 'pelvis' | 'end' | 'swing', joint?: JointName, picked = true, follows = false, whole = false) {
+  if (kind === 'body') return `${picked && !whole ? 'Click: a part · ' : ''}Drag: move ${name}${whole ? ', all it does' : ''} · Shift-drag: turn · Right-click: more`;
   const p = kind === 'pelvis' ? 'hips' : part(joint!);
   const click = picked ? `Click: the ${p}` : `Click: pick ${name}`;
   if (kind === 'pelvis') return `${click} · Drag: squat or shift, feet stay · Shift-drag: turn`;
