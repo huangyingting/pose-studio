@@ -14,7 +14,8 @@ import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
 import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
 import { HZ, physicsReady } from './physics';
-import { MASKS, UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
+import { FINGER_BONES, MASKS, UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
+import { fingerBones } from './skeleton';
 
 /*
  * Evaluation: where everything is at a time. For each figure, its actions on the base layer give
@@ -106,7 +107,10 @@ function blend(a: Pose, b: Pose, u: number): Pose {
   if (u <= 0) return a;
   if (u >= 1) return b;
   const bones: Pose['bones'] = {};
-  for (const j of new Set([...Object.keys(a.bones), ...Object.keys(b.bones)]) as Set<keyof Pose['bones']>) bones[j] = toQuat(fromQuat(a.bones[j]).slerp(fromQuat(b.bones[j]), u));
+  // (Fingers posed bone by bone on one side only, a captured motion's: the other's from its hands' presets, not straight.)
+  const fingered = (p: Pose) => FINGER_BONES.some((f) => p.bones[f]);
+  const [ab, bb] = fingered(a) !== fingered(b) ? [{ ...fingerBones(a.hands), ...a.bones }, { ...fingerBones(b.hands), ...b.bones }] : [a.bones, b.bones];
+  for (const j of new Set([...Object.keys(ab), ...Object.keys(bb)]) as Set<keyof Pose['bones']>) bones[j] = toQuat(fromQuat(ab[j]).slerp(fromQuat(bb[j]), u));
   const mix = (x: number, y: number) => x + (y - x) * u;
   const hand = (s: 'L' | 'R') => ({ curl: a.hands[s].curl.map((c, i) => mix(c, b.hands[s].curl[i])) as Pose['hands']['L']['curl'], spread: mix(a.hands[s].spread, b.hands[s].spread) });
   return { bones, position: a.position.map((v, i) => mix(v, b.position[i])) as Vec3, hands: { L: hand('L'), R: hand('R') }, grounded: u < 0.5 ? a.grounded : b.grounded };

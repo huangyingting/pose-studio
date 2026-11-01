@@ -14,7 +14,7 @@ import { withFacing, facing, withPosition, turnTowards, faceEachOther, besides, 
 import { bonesOf, withAngles } from '../pose';
 import type { Store } from '../store';
 import { released } from '../hold';
-import type { Vec3, Posture, Figure, Animation, Action, Side, JointName, Hand, Constraint, Scene } from '../types';
+import { FINGER_BONES, type Vec3, type Posture, type Figure, type Animation, type Action, type Side, type JointName, type Hand, type Constraint, type Scene } from '../types';
 import { here } from './timeline';
 
 /* Figures: posing, placing and naming them, how they stand to each other, and holding on (lib/constraints.ts). */
@@ -173,8 +173,10 @@ export function setGrounded(store: Store, figure: string, grounded: boolean, cur
   store.updateFigure(figure, (f) => ({ ...f, grounded, position: currentPosition ?? f.position }));
 }
 
+/** A hand's preset (its curl and spread): its fingers posed by it, not bone by bone any more (a captured motion's). */
 export function setHand(store: Store, side: Side, hand: Hand, key = '') {
-  store.updateActiveFigure((f) => ({ ...f, hands: { ...f.hands, [side]: cloneHand(hand) } }), key);
+  const fingers = (b: string) => b.startsWith(side === 'L' ? 'left' : 'right') && (FINGER_BONES as readonly string[]).includes(b);
+  store.updateActiveFigure((f) => ({ ...f, hands: { ...f.hands, [side]: cloneHand(hand) }, bones: Object.fromEntries(Object.entries(f.bones).filter(([b]) => !fingers(b))) }), key);
 }
 
 export function copyPose(store: Store) {

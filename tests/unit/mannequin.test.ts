@@ -6,6 +6,7 @@ import { Ink } from '@/lib/ink';
 import { IK_CHAINS, Mannequin, POLE_CHAINS, worldPos } from '@/lib/mannequin';
 import { poseScene, referencePoses } from '@/lib/poses';
 import { angle, anglesOf, bonesOf, fromQuat } from '@/lib/pose';
+import { fingerBones } from '@/lib/skeleton';
 import { JOINTS } from '@/lib/types';
 
 /** The 20 reference poses as scenes. */
@@ -185,5 +186,26 @@ describe('sex characteristics', () => {
     };
     expect(hips(female)).toBeGreaterThan(hips(male));
     for (const m of [male, female]) m.dispose();
+  });
+});
+
+describe('the mannequin\'s fingers', () => {
+  it('posed bone by bone (a captured motion\'s) as its presets pose them: the same hand either way', () => {
+    const tips = (m: Mannequin) => {
+      m.object.updateMatrixWorld(true);
+      const out: Record<string, THREE.Vector3> = {};
+      m.object.traverse((o) => { if (/^(left|right)(Thumb|Index|Middle|Ring|Little)2$/.test(o.name)) out[o.name] = o.getWorldPosition(new THREE.Vector3()); });
+      return out;
+    };
+    const hands = { L: { curl: [0.4, 0.8, 0.7, 0.9, 1] as [number, number, number, number, number], spread: 0.6 }, R: { curl: [0.2, 0.3, 0.9, 0.5, 0.6] as [number, number, number, number, number], spread: -0.4 } };
+    const pose = bonesOf({ leftUpperArm: [-30, 20, 10], leftLowerArm: [-50, 30, 0], leftHand: [10, -20, 15], rightUpperArm: [-60, -10, 0], rightLowerArm: [-20, 0, 0] });
+    const [a, b] = [make(), make()];
+    a.apply({ ...newFigure(), bones: pose, hands });
+    // (The same hands, given as the skeleton's finger bones, and nothing for the presets to do.)
+    const flat = { curl: [0, 0, 0, 0, 0] as [number, number, number, number, number], spread: 0 };
+    b.apply({ ...newFigure(), bones: { ...pose, ...fingerBones(hands) }, hands: { L: flat, R: flat } });
+    const [ta, tb] = [tips(a), tips(b)];
+    expect(Object.keys(ta)).toHaveLength(10);
+    for (const [name, p] of Object.entries(ta)) expect(p.distanceTo(tb[name]), name).toBeLessThan(/Thumb/.test(name) ? 0.012 : 0.002);
   });
 });

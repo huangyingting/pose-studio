@@ -49,6 +49,12 @@ export function boneToRig(j: JointName, q: THREE.Quaternion): THREE.Quaternion {
   return partOf(j) === 'UpperArm' ? q.clone().multiply(c) : c.clone().invert().multiply(q).multiply(c);
 }
 
+/** A finger bone's stored rotation → as the mannequin's rig holds it (in the hand's arms-down frame, as the forearm and hand are). */
+export function fingerToRig(side: 'L' | 'R', q: THREE.Quaternion): THREE.Quaternion {
+  const c = ARM_DOWN[side];
+  return c.clone().invert().multiply(q).multiply(c);
+}
+
 const r5 = (v: number) => Math.round(v * 1e5) / 1e5 || 0;
 export const toQuat = (q: THREE.Quaternion): Quat => {
   // One sign for the same rotation (w ≥ 0), so equal poses compare equal.

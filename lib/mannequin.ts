@@ -3,10 +3,10 @@ import { buildOf, widthOf } from './body';
 import { BOTS, BOT_TARGETS } from './bots';
 import { Ink, InkedParts, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
-import { boneToRig, fromQuat, rigToBone, toQuat } from './pose';
+import { boneToRig, fingerToRig, fromQuat, rigToBone, toQuat } from './pose';
 import { JOINT_PARENT } from './skeleton';
 import {
-  JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
+  JOINTS, type BodyParams, type Bone, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
 } from './types';
 
 const D2R = Math.PI / 180;
@@ -134,6 +134,9 @@ const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'] as const;
 /** How far each finger turns out as the hand spreads (index → little). */
 const SPREAD = [-0.28, -0.08, 0.1, 0.28];
 const CURL_ANGLES = [75, 95, 65].map((a) => a * D2R);
+/** Each finger's three segments by the skeleton's names (lib/types.ts FINGER_BONES). */
+const SEGMENTS = ['Proximal', 'Intermediate', 'Distal'] as const;
+const THUMB_SEGMENTS = ['Metacarpal', 'Proximal', 'Distal'] as const;
 
 interface FingerRig {
   /** [thumb, index, middle, ring, little] × 3 segment groups */
@@ -429,12 +432,24 @@ export class Mannequin {
     });
   }
 
+  /** A hand's finger bones where the pose has them (a captured motion's): they, not its preset, place its fingers. */
+  private setFingers(bones: Figure['bones']) {
+    for (const side of ['L', 'R'] as const) {
+      const s = side === 'L' ? 'left' : 'right';
+      this.hands[side].segments.forEach((segs, fi) => segs.forEach((g, si) => {
+        const q = bones[`${s}${FINGERS[fi]}${fi === 0 ? THUMB_SEGMENTS[si] : SEGMENTS[si]}` as Bone];
+        if (q) g.quaternion.copy(fingerToRig(side, fromQuat(q)));
+      }));
+    }
+  }
+
   /** Pose the figure from document state. */
   apply(fig: Figure) {
     this.setBody(fig.body);
     for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fromQuat(fig.bones[name])));
     this.setHand('L', fig.hands.L);
     this.setHand('R', fig.hands.R);
+    this.setFingers(fig.bones);
     this.grounded = fig.grounded;
     this.joints.hips.position.set(...fig.position);
     this.ground();
