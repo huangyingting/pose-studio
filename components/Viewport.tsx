@@ -15,6 +15,7 @@ import { paperTexture } from '@/lib/shaders';
 import { LightRig, handleAt, keyLight, lightDome, lightFrom, lightingOf } from '@/lib/lighting';
 import { LineArtPass } from '@/lib/lineart';
 import { PixelPass } from '@/lib/pixel';
+import { RealPass } from '@/lib/realpass';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { onSetAssets, surroundings } from '@/lib/sets';
@@ -1006,6 +1007,8 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
   const pass = useMemo(() => new LineArtPass(), []);
   const pixels = useMemo(() => new PixelPass(), []);
   useEffect(() => () => pixels.dispose(), [pixels]);
+  const real = useMemo(() => new RealPass(), []);
+  useEffect(() => () => real.dispose(), [real]);
   useEffect(() => pass.setStyle(style), [pass, style]);
   const size = useThree((s) => s.size);
   useEffect(() => {
@@ -1016,8 +1019,8 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     // (Its outlines and lines are on a layer of their own: seen too.)
     camera.layers.enable(LINES_LAYER);
     pass.prepare(gl, sv, camera, lineWidth * 0.8);
-    const pixel = styleDef(style).pixel;
-    if (!pixel) {
+    const { pixel, filmic } = styleDef(style);
+    if (!pixel && !filmic) {
       gl.render(scene, camera);
       pass.overlay(gl);
       return;
@@ -1025,10 +1028,13 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     const drawn = scene.children.filter((o) => o.userData.drawn && o.visible);
     const over = scene.children.filter((o) => !o.userData.drawn && o.visible);
     for (const o of over) o.visible = false;
-    pixels.begin(gl, pixel);
-    gl.render(scene, camera);
-    pass.overlay(gl);
-    pixels.end(gl);
+    if (filmic) real.render(gl, scene, camera);
+    else {
+      pixels.begin(gl, pixel!);
+      gl.render(scene, camera);
+      pass.overlay(gl);
+      pixels.end(gl);
+    }
     for (const o of over) o.visible = true;
     for (const o of drawn) o.visible = false;
     const background = scene.background;

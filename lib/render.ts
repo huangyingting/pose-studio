@@ -7,6 +7,7 @@ import { surroundings } from './sets';
 import { LINES_LAYER } from './ink';
 import { LineArtPass } from './lineart';
 import { PixelPass } from './pixel';
+import { RealPass } from './realpass';
 import { paperTexture } from './shaders';
 import { SceneView } from './sceneview';
 import { styleDef, TONE_MAPPING } from './styles';
@@ -227,6 +228,7 @@ export class SceneRenderer {
   private lights = new LightRig();
   private lines = new LineArtPass();
   private pixels = new PixelPass();
+  private real = new RealPass();
   private style: Style = 'line';
   private depth = new THREE.ShaderMaterial({
     uniforms: { near: { value: 1 }, far: { value: 10 } },
@@ -290,7 +292,12 @@ export class SceneRenderer {
     if (pass === 'beauty') {
       this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
       // (In Pixel, so many of the picture's pixels each: as on the canvas, at the export's size.)
-      const pixel = styleDef(this.style).pixel;
+      const { pixel, filmic } = styleDef(this.style);
+      // (In 3D, as a camera takes it: shaded where things meet, the brightest blooming, #29.)
+      if (filmic) {
+        this.real.render(this.renderer, this.scene, this.camera);
+        return this.renderer.domElement;
+      }
       if (pixel) this.pixels.begin(this.renderer, Math.max(2, Math.round((pixel * this.renderer.domElement.height) / 800)));
       this.renderer.render(this.scene, this.camera);
       this.lines.overlay(this.renderer);

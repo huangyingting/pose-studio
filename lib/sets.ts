@@ -700,6 +700,11 @@ function modelOf(id: ModelId | SceneId, scene = false): THREE.Object3D | null {
   (gltf ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)).loadAsync(withBase(`/sets/${file}`)).then((g) => {
     const root = g.scene;
     root.updateMatrixWorld(true);
+    // (Its glowing things no brighter than a lamp: some come as bright as the sun, and would bloom over everything.)
+    root.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m?.emissiveIntensity !== undefined) m.emissiveIntensity = Math.min(m.emissiveIntensity, 2);
+    });
     // (A model's bottom's middle at its origin; a scene where it was fitted.)
     if (!scene) {
       const box = new THREE.Box3().setFromObject(root);
