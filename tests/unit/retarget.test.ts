@@ -61,6 +61,14 @@ describe('retarget', () => {
     }
   });
 
+  it('leaves what landmarks do not see at rest: the upper chest, the shoulders and the toes (#30)', () => {
+    const source = new Mannequin(new Ink(), DEFAULT_BODY);
+    const target = new Mannequin(new Ink(), DEFAULT_BODY);
+    source.apply(refScenes()[3].figures[0]);
+    const { bones } = retarget(target, fromMediaPipe(landmarksFrom(source)));
+    for (const j of ['upperChest', 'leftShoulder', 'rightShoulder', 'leftToes', 'rightToes'] as const) expect(angle(bones, j), j).toEqual([0, 0, 0]);
+  });
+
   it('keeps elbows and knees as pure hinges', () => {
     const source = new Mannequin(new Ink(), DEFAULT_BODY);
     const target = new Mannequin(new Ink(), DEFAULT_BODY);
