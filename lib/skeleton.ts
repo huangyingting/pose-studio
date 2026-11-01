@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { fromQuat, toQuat, type Bones } from './pose';
-import { BONES, type Bone, type ExtraBone, type Hand, type JointName, type Side } from './types';
+import { BONES, type Bone, type FingerBone, type Hand, type JointName, type Side } from './types';
 
 /*
  * The standard skeleton: the VRM 1.0 humanoid's bones, each rotation local to its parent and
@@ -31,7 +31,7 @@ function fingers(side: 'left' | 'right') {
   const chain = (names: string[]) => names.forEach((n, i) => { out[`${side}${n}`] = (i ? `${side}${names[i - 1]}` : `${side}Hand`) as Bone; });
   chain(['ThumbMetacarpal', 'ThumbProximal', 'ThumbDistal']);
   for (const f of ['Index', 'Middle', 'Ring', 'Little']) chain([`${f}Proximal`, `${f}Intermediate`, `${f}Distal`]);
-  return out as Partial<Record<ExtraBone, Bone>>;
+  return out as Partial<Record<FingerBone, Bone>>;
 }
 
 /** Bones in an order where each comes after its parent. */
@@ -72,14 +72,14 @@ export function fingerBones(hands: Record<Side, Hand>): Bones {
     const h = hands[s];
     FINGER_NAMES.forEach((f, i) => SEGMENTS.forEach((seg, n) => {
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, n === 0 ? -k * FINGER_SPREAD[i] * h.spread : 0, k * FINGER_CURL[n] * h.curl[i + 1]));
-      out[`${side}${f}${seg}` as ExtraBone] = toQuat(q);
+      out[`${side}${f}${seg}` as FingerBone] = toQuat(q);
     }));
     // The thumb folds down under the palm and across it (in the T-pose it points forward, the
     // palm down: about X), a little in towards the wrist.
     const c = h.curl[0];
-    out[`${side}ThumbMetacarpal` as ExtraBone] = toQuat(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.5 * c, k * 0.15 * c, 0)));
-    out[`${side}ThumbProximal` as ExtraBone] = toQuat(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.6 * c, 0, 0)));
-    out[`${side}ThumbDistal` as ExtraBone] = toQuat(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.7 * c, 0, 0)));
+    out[`${side}ThumbMetacarpal` as FingerBone] = toQuat(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.5 * c, k * 0.15 * c, 0)));
+    out[`${side}ThumbProximal` as FingerBone] = toQuat(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.6 * c, 0, 0)));
+    out[`${side}ThumbDistal` as FingerBone] = toQuat(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.7 * c, 0, 0)));
   }
   return out;
 }

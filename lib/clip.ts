@@ -1,7 +1,7 @@
 import { jointLimits, wrapDeg } from './joints';
 import { angleToQuat, facingOf, fromQuat, mirrorBones, nearer, quatToAngle, toQuat } from './pose';
 import { uid } from './uid';
-import { EXTRA_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
+import { FINGER_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Hand, type JointName, type Pose, type Side, type Vec3 } from './types';
 
 /*
  * Clips: motion on the standard skeleton, stored as three.js AnimationClip / glTF tracks (one
@@ -34,8 +34,8 @@ export function partFromPoses(name: string, keys: Key[], interpolation: Exclude<
     tracks: [
       track(ROOT, (p) => p.position.map((v) => Math.round(v * 1e4) / 1e4 || 0)),
       ...JOINTS.map((j) => track(boneTrack(j), (p) => [...(p.bones[j] ?? [0, 0, 0, 1])])),
-      // The bones beyond the mannequin's, where the poses have them (an imported motion's fingers, say).
-      ...EXTRA_BONES.filter((b) => keys.some((k) => k.pose.bones[b])).map((b) => track(boneTrack(b), (p) => [...(p.bones[b] ?? [0, 0, 0, 1])], 'linear')),
+      // The finger bones, where the poses have them (an imported motion's).
+      ...FINGER_BONES.filter((b) => keys.some((k) => k.pose.bones[b])).map((b) => track(boneTrack(b), (p) => [...(p.bones[b] ?? [0, 0, 0, 1])], 'linear')),
       track(handTrack('L'), hand('L')),
       track(handTrack('R'), hand('R')),
       track(GROUNDED, (p) => [p.grounded ? 1 : 0], 'step'),
@@ -184,14 +184,14 @@ function sampleTrack(track: ClipTrack, size: number, t: number, duration: number
   return angleToQuat(bone, out);
 }
 
-/** A part's tracks of the bones beyond the mannequin's (most parts have none). */
+/** A part's tracks of the finger bones (most parts have none). */
 const extraTracks = new WeakMap<ClipPart, [Bone, ClipTrack][]>();
 function extrasOf(part: ClipPart) {
   let out = extraTracks.get(part);
   if (!out) {
     out = part.tracks.flatMap((tr): [Bone, ClipTrack][] => {
       const b = tr.name.endsWith('.quaternion') ? (tr.name.slice(0, -'.quaternion'.length) as Bone) : null;
-      return b && (EXTRA_BONES as readonly string[]).includes(b) ? [[b, tr]] : [];
+      return b && (FINGER_BONES as readonly string[]).includes(b) ? [[b, tr]] : [];
     });
     extraTracks.set(part, out);
   }
@@ -209,7 +209,7 @@ export function samplePart(part: ClipPart, t: number, duration: number, loop: bo
     const q = get(boneTrack(j), 4, j);
     if (q) bones[j] = q as [number, number, number, number];
   }
-  // The bones beyond the mannequin's: turned the short way between keys.
+  // The finger bones: turned the short way between keys.
   for (const [b, tr] of extrasOf(part)) bones[b] = slerpTrack(tr, t, duration, loop, part.eases);
   const hand = (s: Side): Hand => {
     const v = get(handTrack(s), 6) ?? [0, 0, 0, 0, 0, 0];

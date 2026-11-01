@@ -18,7 +18,7 @@ export type JointName = (typeof JOINTS)[number];
  * The rest of the VRM 1.0 humanoid skeleton (but the eyes and jaw): the fingers' bones, which the
  * mannequin draws from its hands' presets and an imported model or motion may have (lib/skeleton.ts).
  */
-export const EXTRA_BONES = [
+export const FINGER_BONES = [
   'leftThumbMetacarpal', 'leftThumbProximal', 'leftThumbDistal', 'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
   'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal', 'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
   'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
@@ -26,10 +26,10 @@ export const EXTRA_BONES = [
   'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal', 'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
   'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal',
 ] as const;
-export type ExtraBone = (typeof EXTRA_BONES)[number];
-/** A bone of the skeleton: the mannequin's joints, and the rest of the humanoid's. */
-export type Bone = JointName | ExtraBone;
-export const BONES: readonly Bone[] = [...JOINTS, ...EXTRA_BONES];
+export type FingerBone = (typeof FINGER_BONES)[number];
+/** A bone of the skeleton: the 22 joints and the 30 finger bones. */
+export type Bone = JointName | FingerBone;
+export const BONES: readonly Bone[] = [...JOINTS, ...FINGER_BONES];
 
 export type Side = 'L' | 'R';
 

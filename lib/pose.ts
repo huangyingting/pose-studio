@@ -12,7 +12,7 @@ import { JOINTS, type Bone, type JointName, type Vec3 } from './types';
  */
 
 export type Quat = [number, number, number, number];
-/** Bone rotations of a pose (bones left out are at rest; see lib/skeleton.ts for the bones beyond the mannequin's). */
+/** Bone rotations of a pose: its 22 joints and, where it has them, the finger bones (bones left out are at rest; lib/skeleton.ts). */
 export type Bones = Partial<Record<Bone, Quat>>;
 /** The same pose as joint angles in degrees (see lib/joints.ts). */
 export type Angles = Partial<Record<JointName, Vec3>>;
