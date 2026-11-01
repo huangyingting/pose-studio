@@ -1,7 +1,7 @@
 import type { Bone, JointName, Side, Vec3 } from './types';
 
 /** The parts of a limb, as in VRM bone names (`leftUpperArm`, `rightFoot`, …). */
-export type LimbPart = 'Shoulder' | 'UpperArm' | 'LowerArm' | 'Hand' | 'UpperLeg' | 'LowerLeg' | 'Foot' | 'Toes';
+type LimbPart = 'Shoulder' | 'UpperArm' | 'LowerArm' | 'Hand' | 'UpperLeg' | 'LowerLeg' | 'Foot' | 'Toes';
 
 /** A limb's bone on one side: `sided('UpperArm', 'L')` is `leftUpperArm`. */
 export const sided = (part: LimbPart, side: Side) => `${side === 'L' ? 'left' : 'right'}${part}` as JointName;

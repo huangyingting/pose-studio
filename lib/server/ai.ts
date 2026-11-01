@@ -5,7 +5,7 @@ import 'server-only';
  * key. The browser only sends the conversation; the instructions, tools and model are set here.
  */
 
-export interface Upstream {
+interface Upstream {
   url: string;
   headers: Record<string, string>;
   model: string;

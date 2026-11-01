@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
 import { Line } from './Line';
 import { aimCamera, editRig, setCameraMove } from '@/lib/actions';
-import { cameraById, frameAspect, LENSES, MOVE_NAMES, moveRun, placeCamera, SHOT_SIZES, viewOf } from '@/lib/cameras';
+import { cameraById, frameAspect, MOVE_NAMES, moveRun, placeCamera, rigAngle, rigPitch, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import type { Store } from '@/lib/store';
 import type { CameraMove, RigCamera, Scene, ShotSize, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
@@ -23,32 +23,7 @@ const ACCENT = '#3b6cff';
 type Controls = { enabled: boolean; enableZoom: boolean } | null;
 let drags = 0;
 
-/** A rig camera's angle round its subject, as said ("from the front, 30° left"). */
-export function rigAngle(yaw: number) {
-  const a = Math.round(Math.abs(yaw));
-  const side = yaw > 0 ? 'left' : 'right';
-  if (a <= 2) return 'from the front';
-  if (a >= 178) return 'from behind';
-  return a <= 90 ? `from the front, ${a}° ${side}` : `from behind, ${180 - a}° ${side}`;
-}
 const heightText = (pitch: number) => (Math.abs(pitch) < 1 ? 'level with the subject' : `${Math.round(Math.abs(pitch))}° ${pitch > 0 ? 'above' : 'below'}`);
-
-/** A rig camera's shot size or lens a step closer (+1) or wider (−1): the wheel over it. */
-export function stepRig(store: Store, cam: RigCamera, by: number, lens: boolean): string {
-  if (lens) {
-    const i = LENSES.reduce((b, mm, j) => (Math.abs(mm - cam.rig.lens) < Math.abs(LENSES[b] - cam.rig.lens) ? j : b), 0);
-    const mm = LENSES[Math.min(LENSES.length - 1, Math.max(0, i + by))];
-    editRig(store, cam.id, { lens: mm }, `wheel:${cam.id}`);
-    return `${cam.name}: ${mm} mm lens`;
-  }
-  const i = SHOT_SIZES.findIndex((x) => x.id === cam.rig.size);
-  const size = SHOT_SIZES[Math.min(SHOT_SIZES.length - 1, Math.max(0, i + by))];
-  editRig(store, cam.id, { size: size.id }, `wheel:${cam.id}`);
-  return `${cam.name}: ${size.name.toLowerCase()} shot`;
-}
-
-/** A rig camera's height as its handle allows it (degrees above the subject; below as far as the floor allows). */
-export const rigPitch = (pitch: number) => Math.min(80, Math.max(-60, pitch));
 
 export default function CameraHandles({ store, scene, time, picked, hovered }: { store: Store; scene: Scene; time: number; picked: string | null; hovered: string | null }) {
   const get = useThree((s) => s.get);

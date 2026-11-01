@@ -10,7 +10,7 @@ import { videoRenderer } from './thumbnails';
  * captions underneath) and a video of every scene's shots in story order (captions as subtitles).
  */
 
-export interface StoryOptions {
+interface StoryOptions {
   style: Style;
   /** Captions under the panels, or as subtitles. */
   captions: boolean;

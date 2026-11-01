@@ -103,7 +103,7 @@ export interface ExportOptions {
   /** Outline width in pixels at the exported size. */
   lineWidth: number;
   format: 'jpeg' | 'png';
-  /** Another style than the film's, for this export only (not remembered). */
+  /** Another style than the project's, for this export only (not remembered). */
   style?: Style;
   /** PNG only. */
   transparent: boolean;
@@ -167,7 +167,7 @@ const TURNAROUND_NAMES: Record<4 | 8, string[]> = {
 };
 
 /** A cell of a sheet: a scene drawn fitted to the cell from an angle, or (`camera`) as a camera films it. */
-export interface Cell {
+interface Cell {
   scene: Scene;
   caption: string;
   angle: View;
@@ -204,7 +204,7 @@ export function sheetSize(cells: number, o: Pick<ExportOptions, 'columns' | 'cel
   return { cols, rows, width: cols * o.cellWidth, height: rows * (o.cellHeight + (o.labels ? LABEL_HEIGHT : 0)) };
 }
 
-export interface RenderOptions {
+interface RenderOptions {
   transparent?: boolean;
   margin?: number;
   style?: Style;

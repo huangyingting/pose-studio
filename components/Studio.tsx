@@ -706,7 +706,7 @@ interface Alert { icon: LucideIcon; text: string; action?: { label: string; run(
  */
 function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: Alert | null; keys: string | null }) {
   const store = useStore();
-  // (Nothing while the film plays, whatever the pointer passes over: followed from the clock itself.)
+  // (Nothing while the scene plays, whatever the pointer passes over: followed from the clock itself.)
   const playing = useSyncExternalStore(clock.subscribe, () => clock.playing, () => false);
   useScene();
   const pointerHint = usePointerHint();

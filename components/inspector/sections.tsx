@@ -26,7 +26,7 @@ import type { Target } from './target';
  * its header says while folded. The primary ones start open.
  */
 
-export interface InspectorSection {
+interface InspectorSection {
   id: string;
   title: string | ((t: Target) => string);
   when(t: Target): boolean;

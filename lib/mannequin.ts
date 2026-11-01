@@ -55,7 +55,7 @@ export function worldPos(obj: THREE.Object3D) {
  * three.js always returns the twin with the middle angle in [-90°, 90°], which makes values
  * jump (e.g. a raised arm at Z=150°). Pick whichever twin is closest to the previous value.
  */
-export function stableEuler(e: THREE.Euler, prev: Vec3): Vec3 {
+function stableEuler(e: THREE.Euler, prev: Vec3): Vec3 {
   const a: Vec3 = [e.x * R2D, e.y * R2D, e.z * R2D];
   const b: Vec3 = [...a];
   const mid = e.order === 'YXZ' ? 0 : 2; // middle axis of the rotation order

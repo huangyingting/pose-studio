@@ -18,7 +18,7 @@ export const validId = (id: string) => /^[\w-]{1,80}$/.test(id);
 const dir = (user: string) => join(/*turbopackIgnore: true*/ ROOT, user.replace(/[^\w-]/g, '_'));
 const file = (user: string, name: string) => join(/*turbopackIgnore: true*/ dir(user), name);
 const KINDS = { json: 'application/json', bin: 'application/octet-stream' } as const;
-export type AssetKind = keyof typeof KINDS;
+type AssetKind = keyof typeof KINDS;
 
 export async function listAssets(user: string): Promise<string[]> {
   try {

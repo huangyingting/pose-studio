@@ -29,7 +29,7 @@ import { goesRound, refineClip } from './motionfix';
 const RATE = 30;
 const MAX_SECONDS = 30;
 
-export interface MotionSource {
+interface MotionSource {
   name: string;
   root: THREE.Object3D;
   clip: THREE.AnimationClip;

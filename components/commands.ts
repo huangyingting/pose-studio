@@ -5,15 +5,15 @@ import {
   Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
-  addCamera, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKeyframe, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
-  deleteKeyframe, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
-  holdKeyframe, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyframeEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
+  addCamera, stepRig, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKey, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
+  deleteKey, deleteProp, deleteScene, dribbleProp, duplicateCamera, duplicateCurrentScene, duplicateFigure, duplicateProp, editProjectSettings, editShot, holdHandle, holdProp, lieOn, sitOn, sittingAt, standUp, turnTo, STRIKES, strikeFigure,
+  holdKey, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
-import { cameraById, liveCamera, type CameraView } from '@/lib/cameras';
+import { cameraById, liveCamera, rigAngle, rigPitch, type CameraView } from '@/lib/cameras';
 import { actionsOf, sceneAt } from '@/lib/evaluate';
 import { fetchLibraryClip } from '@/lib/librarymotions';
 import { FRAME_LABELS, projectSettingsOf } from '@/lib/project';
@@ -39,7 +39,6 @@ import { startRename } from './rename';
 import type { MenuItem, Notify } from './ui';
 import { placingFigure, placingProp, type Placing } from './placing';
 import type { CanvasHit } from './Viewport';
-import { rigAngle, rigPitch, stepRig } from './CameraHandles';
 import { flashReadout, metres, sliderText, viaPointer } from './hints';
 import { heldAxis } from './modifiers';
 import { DIRECTOR_STYLES, coverageById } from '@/lib/coverage';
@@ -139,9 +138,9 @@ export interface Ctx {
 }
 
 /** A choice of a command that takes one ("Copy moves to: Kai"). */
-export interface Choice { title: string; icon?: LucideIcon; checked?: boolean; disabled?: boolean; run(): void }
+interface Choice { title: string; icon?: LucideIcon; checked?: boolean; disabled?: boolean; run(): void }
 
-export interface Command {
+interface Command {
   id: string;
   title: string | ((c: Ctx) => string);
   icon?: LucideIcon;
@@ -192,13 +191,13 @@ export function selectionCtx(store: Store): Ctx {
 }
 
 /** Rename in the scene outline (opening it if another section is showing). */
-export function renameInOutline(store: Store, id: string) {
+function renameInOutline(store: Store, id: string) {
   if (store.getState().settings.side !== 'scene') store.setSettings({ side: 'scene' });
   startRename(id);
 }
 
 /** Save the open scene as a template of my own, under a name asked for. */
-export function saveAsTemplate(store: Store, { notifyUndo }: { notifyUndo(text: string): void }) {
+function saveAsTemplate(store: Store, { notifyUndo }: { notifyUndo(text: string): void }) {
   const name = window.prompt('Template name', store.scene.name)?.trim();
   if (!name) return;
   saveTemplate(store, name);
@@ -1269,16 +1268,16 @@ export const COMMANDS: Command[] = [
     items: (c) => {
       const now = keyEaseAt(sceneOf(c).animation!, c.figure!, c.at!);
       return ([['smooth', 'Smoothly'], ['linear', 'At an even speed (linear)'], ['step', 'Not at all: held until the next (stepped)']] as const)
-        .map(([ease, title]) => ({ title, checked: now === ease, run: () => setKeyframeEase(c.store, c.figure!, c.at!, ease) }));
+        .map(([ease, title]) => ({ title, checked: now === ease, run: () => setKeyEase(c.store, c.figure!, c.at!, ease) }));
     },
   },
   {
     id: 'key.hold', title: 'Hold this pose for', icon: Pause, when: (c) => !!c.figure && c.at !== undefined && !c.action && !!keyEaseAt(sceneOf(c).animation!, c.figure, c.at),
-    items: (c) => [0.5, 1, 2].map((s) => ({ title: `${s} s (what follows moves on)`, run: () => holdKeyframe(c.store, c.figure!, c.at!, s) })),
+    items: (c) => [0.5, 1, 2].map((s) => ({ title: `${s} s (what follows moves on)`, run: () => holdKey(c.store, c.figure!, c.at!, s) })),
   },
   {
     id: 'key.delete', title: 'Delete key', icon: Trash2, danger: true, when: (c) => !!c.figure && c.at !== undefined && !c.action,
-    enabled: (c) => keyTimesOf(sceneOf(c).animation!, c.figure!).length > 1, run: (c) => deleteKeyframe(c.store, c.figure!),
+    enabled: (c) => keyTimesOf(sceneOf(c).animation!, c.figure!).length > 1, run: (c) => deleteKey(c.store, c.figure!),
   },
 
   // Empty floor: add things there.
@@ -1310,12 +1309,12 @@ export const COMMANDS: Command[] = [
       if (!animated(c)) {
         startAnimation(c.store);
         App().notify('Animated: move the playhead and pose the figures for the next key');
-      } else addKeyframe(c.store);
+      } else addKey(c.store);
     },
   },
   {
     id: 'timeline.deleteKey', title: (c) => `Delete ${keyName(c)}`, icon: Trash2, when: animated,
-    enabled: (c) => keysHere(c).on && keysHere(c).times.length > 1, run: (c) => deleteKeyframe(c.store),
+    enabled: (c) => keysHere(c).on && keysHere(c).times.length > 1, run: (c) => deleteKey(c.store),
   },
   {
     id: 'timeline.cut', title: (c) => (c.store.getState().through ? 'Cut here, from this view' : 'Cut: start a new shot here'),
@@ -1496,7 +1495,7 @@ export function commandForKey(e: KeyboardEvent, c: Ctx) {
 /* ---------------- menus ---------------- */
 
 /** A menu: commands by id, dividers, and group titles. A command with choices shows them under its title. */
-export type MenuEntry = string | '-' | { group: string };
+type MenuEntry = string | '-' | { group: string };
 
 /** (`keys`: the context the keys act in, when it is not the menu's: a command's key is shown only if it acts on this there.) */
 export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem[] {
@@ -1531,7 +1530,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
   return tidy;
 }
 
-export const MENUS = {
+const MENUS = {
   main: ['app.newFilm', '-', 'app.save', 'app.import', 'app.open', '-', 'app.practice', 'app.help', 'app.theme'],
   view: [
     'view.frameAll', 'view.isolate', 'view.through', 'view.stageOnly',

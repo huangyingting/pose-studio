@@ -3,6 +3,6 @@
  * (set NEXT_PUBLIC_BASE_PATH at build time). Next.js prefixes its own routes and assets;
  * hand-written URLs to files in public/ need this.
  */
-export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
 export const withBase = (path: string) => `${BASE_PATH}${path}`;

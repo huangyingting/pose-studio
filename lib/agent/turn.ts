@@ -10,7 +10,7 @@ import { fetchLibraryClips } from '../librarymotions';
  * go back until the model answers. The conversation lives on the provider (previous response id).
  */
 
-export interface TurnEvents {
+interface TurnEvents {
   onText(text: string): void;
   onTool(name: string, input: unknown, result: string, ok: boolean): void;
 }

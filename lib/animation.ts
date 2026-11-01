@@ -3,8 +3,6 @@ import { wrapDeg } from './joints';
 import { uid } from './uid';
 import { MOVE_KINDS, type Action, type Animation, type Camera, type CameraMove, type CameraPoint, type CameraRig, type Figure, type Mark, type MoveKind, type Prop, type PropKey, type PropTarget, type Scene, type Shot, type ShotSize, type Vec3 } from './types';
 
-export type { Animation };
-
 /*
  * An animated scene's timing: every figure's actions (lib/types.ts Action; evaluated in
  * lib/evaluate.ts, edited in lib/track.ts), props' keys, and the shots cutting between the scene's
@@ -14,7 +12,7 @@ export type { Animation };
 export const DEFAULT_FPS = 24;
 
 /** A figure holding its pose from time t: an action with one key. */
-export function holdAction(f: Pick<Figure, 'id' | 'bones' | 'position' | 'hands' | 'grounded'>, t: number): Action {
+function holdAction(f: Pick<Figure, 'id' | 'bones' | 'position' | 'hands' | 'grounded'>, t: number): Action {
   const pose = { bones: { ...f.bones }, position: [...f.position] as Figure['position'], hands: structuredClone(f.hands), grounded: f.grounded };
   return { id: uid('act'), start: t, duration: 0, roles: [{ figure: f.id }], source: { kind: 'keys', clip: keysClip([{ t: 0, pose }]) } };
 }

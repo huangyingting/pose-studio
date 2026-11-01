@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, applyMotion, holdKeyframe, moveKeyframes, travelTo, repeatAction, saveKeysAsMotion, setJoint, setKeyframeEase, startAnimation, stepFigure } from '@/lib/actions';
+import { addFigure, applyMotion, holdKey, moveKeys, travelTo, repeatAction, saveKeysAsMotion, setJoint, setKeyEase, startAnimation, stepFigure } from '@/lib/actions';
 import { clipById } from '@/lib/assets';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { angle } from '@/lib/pose';
@@ -32,14 +32,14 @@ function keyed() {
   return { store, id, arm };
 }
 
-describe('keyframes: pose to pose (#13)', () => {
+describe('keys: pose to pose (#13)', () => {
   it('sets how a key goes on: held until the next, at an even speed, and keeps it through edits', () => {
     const { store, id, arm } = keyed();
     expect(arm(0.5)).toBeGreaterThan(5);
-    setKeyframeEase(store, id, 0, 'step');
+    setKeyEase(store, id, 0, 'step');
     expect(keyEaseAt(store.scene.animation!, id, 0)).toBe('step');
     expect(arm(0.9)).toBeCloseTo(0, 1);
-    setKeyframeEase(store, id, 1, 'linear');
+    setKeyEase(store, id, 1, 'linear');
     expect(arm(1.5)).toBeCloseTo(30, 0);
     // Posing at a key keeps how it goes on.
     store.setTime(1);
@@ -50,7 +50,7 @@ describe('keyframes: pose to pose (#13)', () => {
 
   it('holds a pose for a time: a copy of the key, what follows moved on', () => {
     const { store, id, arm } = keyed();
-    holdKeyframe(store, id, 1, 1);
+    holdKey(store, id, 1, 1);
     expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1, 2, 3]);
     expect(arm(1.5)).toBeCloseTo(60, 0);
     expect(arm(3)).toBeCloseTo(0, 0);
@@ -96,11 +96,11 @@ describe('keyframes: pose to pose (#13)', () => {
 
   it('moves several keys together, and refuses to put one onto another', () => {
     const { store, id } = keyed();
-    expect(moveKeyframes(store, id, [1, 2], 0.5)).toBe(true);
+    expect(moveKeys(store, id, [1, 2], 0.5)).toBe(true);
     expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1.5, 2.5]);
-    expect(moveKeyframes(store, id, [1.5], -1.5)).toBe(false);
+    expect(moveKeys(store, id, [1.5], -1.5)).toBe(false);
     // None goes past the start (the others do not go on without it).
-    expect(moveKeyframes(store, id, [0, 1.5], -0.5)).toBe(false);
+    expect(moveKeys(store, id, [0, 1.5], -0.5)).toBe(false);
     expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1.5, 2.5]);
   });
 
@@ -109,13 +109,13 @@ describe('keyframes: pose to pose (#13)', () => {
     store.setTime(2);
     const walk = travelTo(store, id, [0, -2], 'walk')!;
     expect(walk.from).toBeCloseTo(2, 3);
-    holdKeyframe(store, id, 2, 1);
+    holdKey(store, id, 2, 1);
     const travel = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'travel')!;
     expect(travel.start).toBeCloseTo(3, 3);
     expect(keyTimesOf(store.scene.animation!, id)).toEqual([0, 1, 2, 3]);
 
     const k = keyed();
-    setKeyframeEase(k.store, k.id, 0, 'step');
+    setKeyEase(k.store, k.id, 0, 'step');
     const block = actionsOf(k.store.scene.animation!, k.id).find((x) => x.source.kind === 'keys')!;
     repeatAction(k.store, block.id, 2);
     expect(keyEaseAt(k.store.scene.animation!, k.id, 2)).toBe('step');

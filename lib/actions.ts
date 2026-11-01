@@ -17,7 +17,7 @@ import { CATCH_LEAD, UPPER_EASE, actionPoseAt, actionsOf, arrivalAt, figurePoseA
 import { physicsOf, putPropKey, setPropKey } from './propmotion';
 import { handlesOf, localBounds } from './props';
 import {
-  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, correctionThroughout, correctionEveryRepeat, keysAction, setPoseAt, setTravelMode, travelInto, turnArriving,
+  actionLabel, addTravel, addUpper, cutTo, fitted, holdKeyFor, moveKeysBy, insertClip, repeatAction as repeatTrack, setKeyEase as setTrackKeyEase, partnersOf, recast, removeCorrectionAt, keyAtTime, moments, moveKeyTo, moveMarkTo, removeKeyAt, restage, retimeAction, ripple, rippleInStep, setBlendIn, slipAction, trimAction, playRange, splitAction, splitRepeats, unsplittable, rippleDelete, duplicateActions, clear, correctionThroughout, correctionEveryRepeat, keysAction, setPoseAt, setTravelMode, travelInto, turnArriving,
 } from './track';
 import { GAITS, JUMP_PREP, flightTime, legsOf } from './locomotion';
 import LIBRARY_INDEX from '../public/motions/index.json';
@@ -29,7 +29,7 @@ import {
   Rig, atDistance, backToBack, besides, contactPoint, contactSpot, distance, faceEachOther, headPoint, inFrontOf, lookAt, reach, turnTowards,
   facing, forward, withFacing, withPosition, type Contact,
 } from './relations';
-import { TRIPOD_MOVES, angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, firstFilmed, reshapeCamera, standing, fovLens, frameAspect, framePoint, lensFov, liveCamera, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
+import { TRIPOD_MOVES, angleAt, angleOf, cameraAt, cameraById, capturePoint, filmWith, firstFilmed, reshapeCamera, standing, fovLens, frameAspect, framePoint, lensFov, liveCamera, LENSES, SHOT_SIZES, newCamera, reform, restate, rigFrom, viewOf, withCamera, type CameraView, type Placement, type ShotSize, pointIn, subjectPlace } from './cameras';
 import { angle, bonesOf, facingOf, fromQuat, toQuat, withAngles } from './pose';
 import { cutAt, moveCut, movePoint, pinShots, removeCamera, removeCut, removePointAt, setPointAt, shotSpans, spanAt, unpinShot as unpin, updateShot } from './shots';
 import { openingSelection, type Store } from './store';
@@ -202,7 +202,7 @@ export function subjectOf(scene: Scene): Vec3 {
  * Light the open scene: all its lights at once. Changed by hand, it is no longer its scheme. The
  * light selected, gone, gives way to the key light.
  */
-export function setLighting(store: Store, lighting: Lighting, key = '') {
+function setLighting(store: Store, lighting: Lighting, key = '') {
   const { scheme: _, ...mine } = lighting;
   void _;
   store.updateScene((s) => ({ ...s, lighting: mine }), key);
@@ -372,7 +372,7 @@ export function deleteFigure(store: Store, id: string) {
   return true;
 }
 
-/** Whether a figure has idle life in the gaps of a film (breathing, shifting, glances), or holds still. */
+/** Whether a figure has idle life in the gaps of an animated scene (breathing, shifting, glances), or holds still. */
 export function setIdleLife(store: Store, id: string, on: boolean) {
   store.updateFigure(id, (f) => {
     const next = { ...f, still: true };
@@ -680,7 +680,7 @@ export function setPlacement(store: Store, id: string, p: { x?: number; z?: numb
   }, key);
 }
 
-export type Arrangement = 'face' | 'faceEachOther' | 'besideL' | 'besideR' | 'backToBack' | 'inFront';
+type Arrangement = 'face' | 'faceEachOther' | 'besideL' | 'besideR' | 'backToBack' | 'inFront';
 
 /** Arrange figure `a` relative to figure `b` (only `faceEachOther` also turns `b`). */
 export function arrange(store: Store, a: string, b: string, how: Arrangement) {
@@ -902,7 +902,7 @@ export function letGo(store: Store, id: string) {
 
 /* Animation */
 
-/** Turn the open pose into an animation (its current pose becomes the first keyframe). */
+/** Turn the open pose into an animation (its current pose becomes the first key). */
 export function startAnimation(store: Store, duration = 2) {
   store.updateScene((s) => (s.animation ? s : { ...s, animation: newAnimation(s, duration) }));
   store.setTime(0);
@@ -1535,7 +1535,7 @@ export function removeAnimation(store: Store) {
 }
 
 /** Key the active figure's pose at the playhead (or `figureIds`'). */
-export function addKeyframe(store: Store, figureIds?: string[]) {
+export function addKey(store: Store, figureIds?: string[]) {
   const t = store.getState().time;
   const ids = figureIds ?? (store.getState().activeFigure ? [store.getState().activeFigure!] : store.scene.figures.map((f) => f.id));
   store.updateScene((s) => {
@@ -1547,7 +1547,7 @@ export function addKeyframe(store: Store, figureIds?: string[]) {
 }
 
 /** Delete the active figure's key at the playhead (it keeps at least one). */
-export function deleteKeyframe(store: Store, figureId = store.getState().activeFigure ?? undefined) {
+export function deleteKey(store: Store, figureId = store.getState().activeFigure ?? undefined) {
   const t = store.getState().time;
   if (!figureId) return;
   store.updateScene((s) => (s.animation ? { ...s, animation: removeKeyAt(s.animation, figureId, t) } : s));
@@ -1627,7 +1627,7 @@ export function retimeKeys(store: Store, figure: string, from: number[], to: num
 }
 
 /** Move several of a figure's keys in time together; returns whether they moved. */
-export function moveKeyframes(store: Store, figure: string, times: number[], by: number, key = '') {
+export function moveKeys(store: Store, figure: string, times: number[], by: number, key = '') {
   const before = store.scene.animation;
   store.updateScene((s) => {
     const a = s.animation && moveKeysBy(s.animation, figure, times, by);
@@ -1638,13 +1638,13 @@ export function moveKeyframes(store: Store, figure: string, times: number[], by:
 }
 
 /** How a figure's key at t goes on to the next: smoothly, at an even speed, or held until the next (`step`). */
-export function setKeyframeEase(store: Store, figure: string, t: number, ease: 'smooth' | 'linear' | 'step') {
-  store.updateScene((s) => (s.animation ? { ...s, animation: setKeyEase(s.animation, figure, t, ease) } : s));
+export function setKeyEase(store: Store, figure: string, t: number, ease: 'smooth' | 'linear' | 'step') {
+  store.updateScene((s) => (s.animation ? { ...s, animation: setTrackKeyEase(s.animation, figure, t, ease) } : s));
   store.setTime(store.getState().time);
 }
 
 /** Hold a figure's key at t for `seconds` (a copy of it then; what comes after moves on). */
-export function holdKeyframe(store: Store, figure: string, t: number, seconds: number) {
+export function holdKey(store: Store, figure: string, t: number, seconds: number) {
   store.updateScene((s) => (s.animation ? { ...s, animation: holdKeyFor(s.animation, figure, t, seconds) } : s));
   store.setTime(store.getState().time);
 }
@@ -1670,7 +1670,7 @@ export function saveKeysAsMotion(store: Store, id: string): string | null {
 }
 
 /** Retime one figure's key (or, without `figureId`, every figure's key at that time). */
-export function moveKeyframe(store: Store, from: number, to: number, figureId?: string) {
+export function moveKey(store: Store, from: number, to: number, figureId?: string) {
   store.updateScene((s) => {
     if (!s.animation) return s;
     const ids = figureId ? [figureId] : s.figures.map((f) => f.id).filter((id) => keyAtTime(s.animation!, id, from));
@@ -2158,6 +2158,20 @@ export function addCamera(store: Store, view?: CameraView, film = true): string 
   return cam.id;
 }
 
+/** A rig camera's shot size or lens a step closer (+1) or wider (−1): the wheel over it. */
+export function stepRig(store: Store, cam: RigCamera, by: number, lens: boolean): string {
+  if (lens) {
+    const i = LENSES.reduce((b, mm, j) => (Math.abs(mm - cam.rig.lens) < Math.abs(LENSES[b] - cam.rig.lens) ? j : b), 0);
+    const mm = LENSES[Math.min(LENSES.length - 1, Math.max(0, i + by))];
+    editRig(store, cam.id, { lens: mm }, `wheel:${cam.id}`);
+    return `${cam.name}: ${mm} mm lens`;
+  }
+  const i = SHOT_SIZES.findIndex((x) => x.id === cam.rig.size);
+  const size = SHOT_SIZES[Math.min(SHOT_SIZES.length - 1, Math.max(0, i + by))];
+  editRig(store, cam.id, { size: size.id }, `wheel:${cam.id}`);
+  return `${cam.name}: ${size.name.toLowerCase()} shot`;
+}
+
 /** A camera of a shot's own to change (its id): the one it films with if no other shot does, or else a copy of it for it. */
 export function ownCamera(store: Store, shotId: string): string | null {
   const s = store.scene;
@@ -2415,7 +2429,7 @@ export function sceneFromTemplate(store: Store, id: string) {
 }
 
 /**
- * A new scene that is a film from the start (#14): empty, a template, or a shoot preset (a template
+ * A new scene animated from the start (#14): empty, a template, or a shoot preset (a template
  * and how to film it), `length` seconds long, filmed by the director (the preset's way, else one
  * that suits who is in it). Whether it was made.
  */
@@ -2456,7 +2470,7 @@ function shoot(store: Store, id: string) {
   return done;
 }
 
-/** A new film's cameras are the coverage's: the camera the scene came with, filming none of it, goes. */
+/** A new animated scene's cameras are the coverage's: the camera the scene came with, filming none of it, goes. */
 function dropIdleCamera(store: Store) {
   store.updateScene((s) => {
     const shots = s.animation?.shots ?? [];
@@ -2587,7 +2601,7 @@ export function deleteMotion(store: Store, id: string) {
 }
 
 /** The figures nearest to one (posable ones, shown), nearest first: the cast of a template around it. */
-export function nearestPartners(store: Store, figureId: string, count: number) {
+function nearestPartners(store: Store, figureId: string, count: number) {
   const f = store.scene.figures.find((x) => x.id === figureId);
   if (!f) return [];
   return store.scene.figures
@@ -2652,7 +2666,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
 /* Several things at once (a selection of many) */
 
 /** What is selected, as lists of whole figures and props (a joint: its figure). */
-export function selectedThings(sel: Selection): { figures: string[]; props: string[] } {
+function selectedThings(sel: Selection): { figures: string[]; props: string[] } {
   if (sel?.kind === 'many') return { figures: sel.figures, props: sel.props };
   if (sel?.kind === 'figure' || sel?.kind === 'joint') return { figures: [sel.figure], props: [] };
   if (sel?.kind === 'prop') return { figures: [], props: [sel.prop] };

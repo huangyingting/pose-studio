@@ -107,7 +107,7 @@ export function startPlayback(clock: Clock, store: Store) {
     if (a.range) return { start: a.range.from, end: a.range.to, loop: true };
     return { start: 0, end: a.duration, loop: a.loop };
   }, (t) => store.setTime(t));
-  // Playing plays the film (#14): through its cuts, unless a camera is being looked through or
+  // Playing plays the scene (#14): through its cuts, unless a camera is being looked through or
   // edited; the editor's view comes back when it stops.
   const s = store.getState();
   if (clock.playing && store.scene.cameras.length && !s.through && s.selection?.kind !== 'camera') {

@@ -4,8 +4,8 @@ import type { JointName, Vec3 } from './types';
  * Idle life (#14): what a figure does in the gaps between what it is given to do, so no one in a
  * film stands frozen: breathing, small shifts of weight, the arms hanging loose, and now and then
  * a look at someone nearby. It is worked out from the time and the figure alone (the same every
- * time: a film plays and exports the same), as small turns added to the pose it holds, never a
- * step away from its place. It shows when a film plays or is exported, not while posing.
+ * time: a scene plays and exports the same), as small turns added to the pose it holds, never a
+ * step away from its place. It shows when a scene plays or is exported, not while posing.
  */
 
 /** A number in 0…1 from a figure's id and a salt: its own phases and periods. */

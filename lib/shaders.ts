@@ -183,7 +183,7 @@ const CONTOUR_FRAG = /* glsl */ `
   }
 `;
 
-export type ShaderStyle = 'ink' | 'sketch' | 'contour';
+type ShaderStyle = 'ink' | 'sketch' | 'contour';
 
 const FRAGMENTS: Record<ShaderStyle, string> = { ink: INK_FRAG, sketch: SKETCH_FRAG, contour: CONTOUR_FRAG };
 

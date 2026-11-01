@@ -50,7 +50,7 @@ type Look = SurfaceId | { surface?: SurfaceId; color?: string; rough?: number; m
 /** `open`: a detail a camera may pass through (a window's frame, a door, a chair): not a wall. */
 interface Piece { shape: Shape; at: Vec3; rot?: Vec3; look?: Look; open?: true; ground?: true }
 
-export interface SetDef {
+interface SetDef {
   id: string;
   name: string;
   group: (typeof SET_GROUPS)[number];
@@ -646,7 +646,7 @@ export const SETS: SetDef[] = [
 ];
 
 /** A set's own lights for a scene (new ids each time). */
-export const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).map((l) => clampLight({ ...newLight(l.kind, l), id: uid('light'), role: 'practical', ofSet: true }));
+const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).map((l) => clampLight({ ...newLight(l.kind, l), id: uid('light'), role: 'practical', ofSet: true }));
 
 /**
  * A lighting for a set (none: null): the last set's own lights given way to this one's, and lit
@@ -877,7 +877,7 @@ export const setModels = (id: string) => [...new Set((setById(id)?.build() ?? []
 const solids = new Map<string, { at: THREE.Vector3; half: THREE.Vector3; turn: THREE.Quaternion }[]>();
 
 /** A box a figure can stand on: its middle, half its size along its own axes, turned (cos, sin of its yaw), its top (m). */
-export interface StandTop { cx: number; cz: number; hx: number; hz: number; c: number; s: number; y: number }
+interface StandTop { cx: number; cz: number; hx: number; hz: number; c: number; s: number; y: number }
 /** The highest a figure climbs onto in a set (a counter, a dais; not a bookcase's top). */
 const TOP_MAX = 1.2;
 const standTops = new Map<string, StandTop[]>();

@@ -22,13 +22,7 @@ export function useScene() {
   return useStudio((s) => s.library.scenes[s.sceneIndex]);
 }
 
-export function useActiveFigure() {
-  const scene = useScene();
-  const id = useStudio((s) => s.activeFigure);
-  return scene.figures.find((f) => f.id === id) ?? null;
-}
-
-/** The project's film settings: its frame, the model it is cut for, and its style. */
+/** The project's settings: its frame, the model it is cut for, and its style. */
 export function useProjectSettings() {
   return useStudio((s) => s.library.settings) ?? DEFAULT_PROJECT_SETTINGS;
 }

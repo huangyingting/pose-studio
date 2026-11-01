@@ -9,10 +9,10 @@ import { FINGER_BONES, JOINTS, type Bone, type Clip, type ClipInfo, type ClipPar
  * time and edits the keys of hand-keyed clips. Placing a clip in the world is lib/evaluate.ts.
  */
 
-export const ROOT = 'hips.position';
-export const GROUNDED = 'grounded';
-export const boneTrack = (j: Bone) => `${j}.quaternion`;
-export const handTrack = (s: Side) => `hands.${s}`;
+const ROOT = 'hips.position';
+const GROUNDED = 'grounded';
+const boneTrack = (j: Bone) => `${j}.quaternion`;
+const handTrack = (s: Side) => `hands.${s}`;
 
 type Interpolation = ClipTrack['interpolation'];
 
@@ -80,7 +80,7 @@ export function keyPose(part: ClipPart, i: number): Pose {
 /* ---------- sampling ---------- */
 
 /** Cubic Hermite through p1→p2 with Catmull-Rom tangents from the neighbours (non-uniform times). */
-export function hermite(p0: number, p1: number, p2: number, p3: number, t0: number, t1: number, t2: number, t3: number, t: number) {
+function hermite(p0: number, p1: number, p2: number, p3: number, t0: number, t1: number, t2: number, t3: number, t: number) {
   const h = t2 - t1;
   // A value held between two keys stays put (not drawn off by the keys around them).
   if (h <= 1e-9 || Math.abs(p2 - p1) < 1e-9) return p1;
@@ -96,7 +96,7 @@ export function hermite(p0: number, p1: number, p2: number, p3: number, t0: numb
  * The keys around time t: i1 → i2 is the segment containing t, i0 and i3 its neighbours, with
  * their times (shifted by the duration when wrapping a loop; mirrored at the ends otherwise).
  */
-export function segment(times: number[], t: number, duration: number, loop: boolean) {
+function segment(times: number[], t: number, duration: number, loop: boolean) {
   const n = times.length;
   if (n === 1) return { i: [0, 0, 0, 0], t: [times[0], times[0], times[0], times[0]], time: t };
   if (loop && duration > 1e-9) {

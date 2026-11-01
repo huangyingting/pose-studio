@@ -31,7 +31,7 @@ export interface TreeAsset {
 export type SurfaceAsset = ({ ph: string } | { acg: string }) & { tex: 512 | 1024 };
 
 /** A model's budget by its kind (most triangles). */
-export const MODEL_BUDGET = { small: 5_000, model: 20_000, tree: 40_000 } as const;
+const MODEL_BUDGET = { small: 5_000, model: 20_000, tree: 40_000 } as const;
 /** A set's budget, all in. */
 export const SET_BUDGET = { tris: 250_000, bytes: 15 * 1024 * 1024 } as const;
 

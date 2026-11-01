@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { moveAction, addFigure, addKeyframe, addMarker, copyKeys, deleteKeys, pasteKeys, retimeKeys, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
+import { moveAction, addFigure, addKey, addMarker, copyKeys, deleteKeys, pasteKeys, retimeKeys, editMarker, setAnimationOptions, setRange, setRangeAt, setTrack, deleteAction, applyMotion, copyActions, duplicateBlocks, giveAction, pasteActions, repeatAction, retime, rippleDeleteActions, setPlayRange, slip, splitAt, startAnimation, travelTo, trim } from '@/lib/actions';
 import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
@@ -146,10 +146,10 @@ describe('trimming a motion (#22)', () => {
     const { store, a } = fresh();
     startAnimation(store, 4);
     store.setTime(0);
-    addKeyframe(store);
+    addKey(store);
     store.setTime(1);
     store.updateFigure(a, (f) => ({ ...f, position: [1, f.position[1], f.position[2]] }));
-    addKeyframe(store);
+    addKey(store);
     const posed = actionsOf(store.scene.animation!, a)[0];
     trim(store, posed.id, 'end', 2.5);
     const held = actionsOf(store.scene.animation!, a)[0];
@@ -198,10 +198,10 @@ describe('splitting at the playhead (#22)', () => {
     const { store, a } = fresh();
     startAnimation(store, 4);
     store.setTime(0);
-    addKeyframe(store);
+    addKey(store);
     store.setTime(2);
     store.updateFigure(a, (f) => ({ ...f, position: [2, f.position[1], f.position[2]] }));
-    addKeyframe(store);
+    addKey(store);
     const posed = actionsOf(store.scene.animation!, a)[0];
     const mid = figurePoseAt(store.scene, a, 1)!.position[0];
     store.setTime(1);
@@ -341,10 +341,10 @@ describe('picked keys (#22)', () => {
     const { store, a } = fresh();
     startAnimation(store, 4);
     store.setTime(0);
-    addKeyframe(store);
+    addKey(store);
     store.setTime(1);
     store.updateFigure(a, (f) => ({ ...f, position: [f.position[0] - 0.5, f.position[1], f.position[2]], bones: withAngles(f.bones, { rightUpperArm: [0, 0, 80] }) }));
-    addKeyframe(store);
+    addKey(store);
     return { store, a };
   }
 
@@ -372,7 +372,7 @@ describe('picked keys (#22)', () => {
     const { store, a } = keyed();
     store.setTime(2);
     store.updateFigure(a, (f) => ({ ...f, position: [f.position[0], f.position[1], f.position[2] + 1] }));
-    addKeyframe(store);
+    addKey(store);
     expect(retimeKeys(store, a, [0, 1, 2], [0, 2, 4])).toEqual([0, 2, 4]);
     expect(keyTimesOf(store.scene.animation!, a)).toEqual([0, 2, 4]);
     deleteKeys(store, a, [2, 4]);

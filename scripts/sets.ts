@@ -126,7 +126,7 @@ async function fetchScene(sf: string): Promise<string> {
   const have = (await readdir(dir)).find((f) => f.startsWith(`${sf}-`) && /\.(glb|zip)$/.test(f));
   let file = have ? join(dir, have) : null;
   if (!file) {
-    const { chromium } = await import('playwright');
+    const { chromium } = await import('@playwright/test');
     const raw = JSON.parse(await readFile(join(process.env.HOME ?? '', '.sketchfab_token'), 'utf8')) as { name: string; value: string; domain: string; path?: string; expirationDate?: number; httpOnly?: boolean; secure?: boolean; sameSite?: string }[];
     const same: Record<string, 'None' | 'Lax' | 'Strict'> = { no_restriction: 'None', lax: 'Lax', strict: 'Strict' };
     const browser = await chromium.launch();

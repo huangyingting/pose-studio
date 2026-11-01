@@ -10,7 +10,7 @@ import { App, command, type Ctx } from './commands';
  * (kept on this device).
  */
 
-export interface Suggestion {
+interface Suggestion {
   id: string;
   text: string;
   actions: { label: string; run(): void }[];

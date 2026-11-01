@@ -59,7 +59,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const animated = !!scene.animation;
   const story = useMemo(() => storyShots(library), [library]);
   const [o, setO] = useState<ExportOptions>(() => ({ ...loadExportOptions(), ...(initial ? { scope: initial } : {}) }));
-  // The film's style, unless another is picked for this export.
+  // the project's style, unless another is picked for this export.
   const style = o.style ?? look.style;
   // The camera stills are taken through: '' is the one filming at the playhead (a still scene: its first).
   const [picked, setPicked] = useState('');

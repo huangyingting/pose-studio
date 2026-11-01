@@ -10,7 +10,7 @@ import { withBase } from './paths';
  * too big to come with the page). They come with the app: never kept with a project or synced.
  */
 
-export interface LibraryMotion {
+interface LibraryMotion {
   id: string;
   name: string;
   duration: number;

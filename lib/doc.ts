@@ -38,7 +38,7 @@ export function newFigure(partial: Partial<Figure> = {}): Figure {
 }
 
 /** Joint angles of each stand-in posture (the hips' turn is kept). */
-export const POSTURE_ANGLES: Record<Posture, Angles> = {
+const POSTURE_ANGLES: Record<Posture, Angles> = {
   stand: { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8] },
   sit: {
     leftUpperLeg: [-88, 0, 4], rightUpperLeg: [-88, 0, -4], leftLowerLeg: [88, 0, 0], rightLowerLeg: [88, 0, 0],
@@ -285,7 +285,7 @@ export function parseScene(v: unknown, i = 0): Scene {
 }
 
 /** Saved poses from storage or a file. */
-export function parsePoses(v: unknown): PoseAsset[] | undefined {
+function parsePoses(v: unknown): PoseAsset[] | undefined {
   if (!Array.isArray(v)) return undefined;
   const poses = v.slice(0, 500).filter(isObj).map((o, i) => ({
     id: str(o.id, uid('pose')),
@@ -449,7 +449,7 @@ function parseConstraint(v: unknown, figures: Set<string>, props: Set<string>, d
   return { id: str(v.id, uid('hold')).slice(0, 40), figure: v.figure as string, bone: v.bone as Holder, target, start, end: Math.min(MAX_DURATION, Math.max(start, num(v.end, start))) };
 }
 
-export function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>, cameras: string[]): Animation | undefined {
+function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>, cameras: string[]): Animation | undefined {
   if (!isObj(v)) return undefined;
   const duration = Math.min(MAX_DURATION, Math.max(0.2, num(v.duration, 2)));
   const fps = Math.round(Math.min(60, Math.max(4, num(v.fps, DEFAULT_FPS))));

@@ -24,7 +24,7 @@ import type { Animation, Figure, Library, Scene, ShootPreset, TemplateAsset, Vec
 
 export const TEMPLATE_GROUPS = ['Staged', 'Standing together', 'Set-ups'] as const;
 
-export interface SceneTemplate {
+interface SceneTemplate {
   id: string;
   name: string;
   group: (typeof TEMPLATE_GROUPS)[number] | 'Mine';

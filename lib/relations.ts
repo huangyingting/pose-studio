@@ -46,7 +46,7 @@ export function leftward(f: Figure): [number, number] {
 }
 
 /** Yaw that makes a figure at `from` face the point `to` (x, z). */
-export function yawTowards(from: Vec3, to: Vec3) {
+function yawTowards(from: Vec3, to: Vec3) {
   const dx = to[0] - from[0];
   const dz = to[2] - from[2];
   if (Math.hypot(dx, dz) < 1e-6) return null;
@@ -215,7 +215,7 @@ export function contactPoint(m: Mannequin, f: Figure, c: Contact) {
 }
 
 /** The bone a contact point moves with (to hold on to it as the figure moves). */
-export const CONTACT_BONES: Record<Contact, JointName> = {
+const CONTACT_BONES: Record<Contact, JointName> = {
   head: 'head', leftUpperArm: 'chest', rightUpperArm: 'chest', chest: 'chest', back: 'chest', waist: 'spine',
   leftUpperLeg: 'hips', rightUpperLeg: 'hips', leftLowerLeg: 'leftLowerLeg', rightLowerLeg: 'rightLowerLeg', leftHand: 'leftHand', rightHand: 'rightHand',
 };

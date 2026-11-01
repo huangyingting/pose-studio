@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { Activity, Camera, Clapperboard, Diamond, Pin, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Trash2, Users, Pencil, Lock, VolumeX, ChevronRight, Link as LinkIcon, Repeat } from 'lucide-react';
 import {
-  deleteCorrection, moveAction, moveKeyframe, moveKeyframes, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, correctEveryRepeat, deleteAction,
+  deleteCorrection, moveAction, moveKey, moveKeys, retime, retimeCameraPoint, rippleKeys, setAnimationOptions, cutAnimation, editShot, moveShotCut, setBlend, issueFix, slip, trim, giveAction, editMarker, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, retimeKeys, setBlendCurve, setCorrectionThroughout, correctEveryRepeat, deleteAction,
 } from '@/lib/actions';
 import { MAX_DURATION, PAST_END, snapTime } from '@/lib/animation';
 import { clipById, loopsOf } from '@/lib/assets';
@@ -36,7 +36,7 @@ export function usePlayhead(clock: Clock) {
   return clock.playing ? clock.time : time;
 }
 
-/** The stretches a figure does nothing (idle life fills them as the film plays), of a third of a second or more. */
+/** The stretches a figure does nothing (idle life fills them as the scene plays), of a third of a second or more. */
 function idleGaps(a: Animation, id: string): [number, number][] {
   const out: [number, number][] = [];
   let at = 0;
@@ -140,7 +140,7 @@ function Still({ openPicker }: { openPicker(figure: string, el: Element): void }
 }
 
 /**
- * Keyframe timeline under the canvas: transport, the shots (the cuts between cameras), a key track
+ * The timeline under the canvas: transport, the shots (the cuts between cameras), a key track
  * per figure (and per prop that moves), and one camera's track: the selected camera's, or the one
  * filming at the playhead. Editing a figure at any time records a key there
  * (auto-key). It zooms (Ctrl + wheel, the buttons) and scrolls (Shift + wheel, the bar under it),
@@ -307,7 +307,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const prevKey = [...stops].reverse().find((t) => t < time - 1e-3);
   const nextKey = stops.find((t) => t > time + 1e-3);
 
-  // (While dragging, the scale the drag began with: what is dragged past the end lengthens the film,
+  // (While dragging, the scale the drag began with: what is dragged past the end lengthens the scene,
   // and the window shown rescales, but the drag keeps to its own; only its auto-scroll moves it on.)
   const dragView = useRef<{ v0: number; span: number } | null>(null);
   const timeAt = (clientX: number) => {
@@ -418,7 +418,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       dragged = true;
       if (group) {
         const by = to - from;
-        if (moveKeyframes(store, figureId, group.map((x) => x + (from - t)), by, `keys:${figureId}`)) {
+        if (moveKeys(store, figureId, group.map((x) => x + (from - t)), by, `keys:${figureId}`)) {
           from = to;
           store.setTime(to);
           setPicked({ figure: figureId, times: group.map((x) => x + (to - t)) });
@@ -426,7 +426,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
         return;
       }
       if (ripple) rippleKeys(store, figureId, from, to - from, `ripple:${figureId}`);
-      else moveKeyframe(store, from, to, figureId);
+      else moveKey(store, from, to, figureId);
       const now = moments(store.scene.animation!, figureId).find((k) => Math.abs(k - to) < 0.5 / a.fps);
       if (now !== undefined) {
         from = now;
@@ -1291,7 +1291,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
                   {events.filter((ev) => ev.figure === f.id).map((ev, n) => (
                     <span key={`ev${n}`} className={`tl-event ${ev.kind}`} style={{ left: pct(ev.t) }} data-tip={ev.title} aria-hidden />
                   ))}
-                  {/* The gaps where it has idle life as the film plays (breathing, a look round). */}
+                  {/* The gaps where it has idle life as the scene plays (breathing, a look round). */}
                   {!f.proxy && !f.still && idleGaps(a, f.id).map(([t0, t1]) => (
                     <span key={`idle${t0}`} className="tl-idle" style={{ left: pct(t0), width: `${((t1 - t0) / span) * 100}%` }} aria-hidden>
                       <span style={inSight(t0, t1)}>idle</span>

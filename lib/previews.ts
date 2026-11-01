@@ -113,7 +113,7 @@ export function templatePreview(id: string, build: () => Scene, style: Style): P
   const key = `template:${style}:${id}`;
   const scene = build();
   if (scene.animation) {
-    // (The Library's motions it plays, fetched first: a film's.)
+    // (The Library's motions it plays, fetched first: a staged one's.)
     const clips = [...new Set(scene.animation.actions.flatMap((x) => (x.source.kind === 'clip' && x.source.clip.startsWith(LIBRARY) ? [x.source.clip] : [])))];
     void fetchLibraryClips(clips);
     return { ...filmed(key, () => filmWith(scene, 'static', { follow: true }), style), ready: () => clips.every(hasClip) };
@@ -155,7 +155,7 @@ export function motionPreview(id: string, build: () => Scene, style: Style): Pre
 /*
  * Thumbnails: small stills for the library's grids and rows (a pose, a template, a character), in
  * one neutral line style on a transparent background so they read in either theme and whatever
- * the film's style. Rendered when the page is idle, one at a time, and kept.
+ * the project's style. Rendered when the page is idle, one at a time, and kept.
  */
 
 const THUMB = 144;
@@ -205,7 +205,7 @@ export function requestThumb(key: string, make: () => string, onUrl: (url: strin
 }
 
 /** A scene as a thumbnail, from an angle. */
-export function drawThumb(scene: Scene, angle: View) {
+function drawThumb(scene: Scene, angle: View) {
   return sharedRenderer().render(scene, THUMB, THUMB, 1.2, { style: 'line', transparent: true, margin: 0.08, angle }).toDataURL('image/png');
 }
 

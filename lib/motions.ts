@@ -25,7 +25,7 @@ export const MOTION_GROUPS = [
   'Moving', 'Standing & waiting', 'Sitting & lying', 'Talking & gestures', 'Feelings', 'Using things', 'Weapons', 'Fighting', 'Sport & acrobatics', 'Dance',
 ] as const;
 
-export interface Motion {
+interface Motion {
   id: string;
   name: string;
   group: (typeof MOTION_GROUPS)[number];

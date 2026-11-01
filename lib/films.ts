@@ -415,7 +415,7 @@ class Stage {
  * A wuxia duel down an old market street at dusk: a salute, the rush, kicks and blocks, a dodge,
  * blows that land both ways, a fall and a getting up, the last kick, a bow to the fallen.
  */
-export function wuxiaDuel(): Scene {
+function wuxiaDuel(): Scene {
   const s = new Stage('Wuxia duel', [
     { name: 'Lin', body: 'Tall man', at: [0, 3.5], facing: 'Mei', idle: 'fight-idle' },
     { name: 'Mei', body: 'Tall woman', at: [0, -3.5], facing: 'Lin', idle: 'fight-idle' },
@@ -480,7 +480,7 @@ export function wuxiaDuel(): Scene {
  * talks him down while a passer-by hides behind a car; she breaks free and runs, he gives up and
  * kneels, the officer goes to him.
  */
-export function standOff(): Scene {
+function standOff(): Scene {
   const s = new Stage('Stand-off', [
     { name: 'Vince', body: 'Big man', at: [0, -0.4], facing: 0, idle: 'angry' },
     { name: 'Ana', body: 'Tall woman', at: [0, 0.35], facing: 0, idle: 'scared' },
@@ -644,7 +644,7 @@ function streetBasketball(): Scene {
  * the sofa; a late guest comes in through the door waving and joins them, then goes to dance; the
  * host gets a drink; one friend gets up to dance too, the other stays chatting.
  */
-export function houseParty(): Scene {
+function houseParty(): Scene {
   const s = new Stage('House party', [
     { name: 'Rosa', body: 'Woman', at: [-0.7, -0.4], facing: 'Leo', idle: 'salsa-dancing' },
     { name: 'Leo', body: 'Man', at: [0.7, -0.4], facing: 'Rosa', idle: 'salsa-dancing' },
@@ -693,7 +693,7 @@ export function houseParty(): Scene {
  * window, a colleague comes in and gets water, the boss walks the floor on his phone and calls a
  * briefing; they sit and talk it over, it is agreed, thumbs up, back to work.
  */
-export function officeDeadline(): Scene {
+function officeDeadline(): Scene {
   const s = new Stage('Office deadline', [
     { name: 'Maya', body: 'Woman', at: [-1.6, -1.6], facing: 180 },
     { name: 'Tom', body: 'Man', at: [7.6, 0.5], facing: -90 },
@@ -755,7 +755,7 @@ export function officeDeadline(): Scene {
  * waving and sits down across from her; they talk over coffee while the barista works the
  * counter; then they get up, laugh, say goodbye, and one leaves.
  */
-export function cafeMeeting(): Scene {
+function cafeMeeting(): Scene {
   const s = new Stage('Café meeting', [
     { name: 'Lea', body: 'Woman', at: [-3.4, 2.6], facing: 0 },
     { name: 'Ben', body: 'Man', at: [6.8, 1.1], facing: -90 },
@@ -806,7 +806,7 @@ export function cafeMeeting(): Scene {
  * A kung fu school in a courtyard at noon: the master's salute, the warm-up, drills on the bags,
  * sparring with blows that land, the acrobatics, the master's own demonstration, the bow.
  */
-export function kungFuSchool(): Scene {
+function kungFuSchool(): Scene {
   const s = new Stage('Kung fu school', [
     { name: 'Master Wu', body: 'Man', at: [0, -1.8], facing: 0 },
     { name: 'Hua', body: 'Woman', at: [-2, 1.6], facing: 180 },
@@ -895,7 +895,7 @@ export function kungFuSchool(): Scene {
  * over the bench, across the road between the cars, hiding behind one, found; a last sprint, the
  * officer's tackle-punch, the thief down and giving up.
  */
-export function streetChase(): Scene {
+function streetChase(): Scene {
   const s = new Stage('Street chase', [
     { name: 'Thief', body: 'Man', at: [-14, -1.2], facing: 90 },
     { name: 'Officer Park', body: 'Tall woman', at: [-17, 0.4], facing: 90, idle: 'look-around' },

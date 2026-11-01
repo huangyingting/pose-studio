@@ -26,7 +26,7 @@ export const SHOT_ASPECT = 16 / 9;
 /** The width over height of a frame shape. */
 export const ASPECTS: Record<FrameShape, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '2.39:1': 2.39 };
 
-/** The width over the height of the project's frame (lib/film.ts). */
+/** The width over the height of the project's frame (lib/project.ts). */
 export const frameAspect = () => ASPECTS[projectSettings().frame];
 
 const D2R = Math.PI / 180;
@@ -51,7 +51,7 @@ export function fovLens(fov: number, aspect = SHOT_ASPECT) {
 }
 
 /** The figure a camera films, if it has one and the figure is there. */
-export function cameraSubject(scene: Scene, cam: Camera): string | undefined {
+function cameraSubject(scene: Scene, cam: Camera): string | undefined {
   return cam.subject && scene.figures.some((f) => f.id === cam.subject && !f.hidden) ? cam.subject : undefined;
 }
 
@@ -70,11 +70,6 @@ export const cameraById = (scene: Pick<Scene, 'cameras'>, id: string | undefined
 export function liveCamera(scene: Scene, t: number): Camera {
   const a = scene.animation;
   return (a && cameraById(scene, spanAt(a, t).shot.camera)) || scene.cameras[0];
-}
-
-/** The figure the camera live at t films, if it has one (and the figure is there). */
-export function subjectAt(scene: Scene, t: number): string | undefined {
-  return cameraSubject(scene, liveCamera(scene, t));
 }
 
 /** Where a camera's subject is at t, on the floor under its hips (several, or everyone: the middle of them). */
@@ -540,7 +535,7 @@ export function moveRun(scene: Scene, cam: Camera, t: number): { start: number; 
  * another camera plays the move again), the last run between its runs; before its first, not yet;
  * filming none, over the whole animation; at its pace. A still scene does not move.
  */
-export function moveProgress(scene: Scene, cam: Camera, t: number, m: Pick<CameraMove, 'pace' | 'wait' | 'hold'>): number {
+function moveProgress(scene: Scene, cam: Camera, t: number, m: Pick<CameraMove, 'pace' | 'wait' | 'hold'>): number {
   const span = moveRun(scene, cam, t);
   if (!span) return 0;
   const pace = m.pace;
@@ -959,7 +954,7 @@ export function angleOf(view: CameraView): { yaw: number; pitch: number } {
 export const CAMERA_GROUPS = ['Fixed', 'Pan & tilt', 'Towards & away', 'Around & up', 'Following', 'Classic shots'] as const;
 
 /** What a move works from: the camera, the time it films over, and the angle and lens to start from. */
-export interface MoveContext {
+interface MoveContext {
   scene: Scene;
   camera: Camera;
   start: number;
@@ -968,9 +963,9 @@ export interface MoveContext {
 }
 
 /** What a camera is, apart from who it is: a path (where, looking at what, its points) or a rig; and its shake. */
-export type CameraForm = (Pick<PathCamera, 'kind' | 'anchor' | 'aim' | 'points' | 'ease'> | Pick<RigCamera, 'kind' | 'rig'>) & { shake?: number };
+type CameraForm = (Pick<PathCamera, 'kind' | 'anchor' | 'aim' | 'points' | 'ease'> | Pick<RigCamera, 'kind' | 'rig'>) & { shake?: number };
 
-export interface MovePreset {
+interface MovePreset {
   id: string;
   name: string;
   group: (typeof CAMERA_GROUPS)[number];
@@ -1178,3 +1173,15 @@ export function trailTimes(scene: Scene, cam: Camera): number[] {
   const n = Math.max(2, Math.ceil((to - from) * (cam.kind === 'rig' ? 4 : 10)));
   return Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 }
+
+/** A rig camera's angle round its subject, as said ("from the front, 30° left"). */
+export function rigAngle(yaw: number) {
+  const a = Math.round(Math.abs(yaw));
+  const side = yaw > 0 ? 'left' : 'right';
+  if (a <= 2) return 'from the front';
+  if (a >= 178) return 'from behind';
+  return a <= 90 ? `from the front, ${a}° ${side}` : `from behind, ${180 - a}° ${side}`;
+}
+
+/** A rig camera's height as its handle allows it (degrees above the subject; below as far as the floor allows). */
+export const rigPitch = (pitch: number) => Math.min(80, Math.max(-60, pitch));

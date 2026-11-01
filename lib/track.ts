@@ -88,7 +88,7 @@ export function setPoseAt(scene: Scene, figure: string, time: number, pose: Pose
 }
 
 /** How far an edit over a motion reaches either side of its moment (s, #23): it fades in and out over that. */
-export const FALLOFF = 0.5;
+const FALLOFF = 0.5;
 
 /**
  * A hand edit over a clip or a travel: a key on the figure's correction there (#23: local, fading in
@@ -490,7 +490,7 @@ export function addTravel(scene: Scene, figure: string, t: number, to: [number, 
 }
 
 /** The most a walk or run turns as it arrives to face what comes next (degrees): further, its last steps would cross the legs. */
-export const ARRIVE_TURN = 90;
+const ARRIVE_TURN = 90;
 
 /**
  * The animation with the walk or run a figure arrives by at t (going somewhere, not stepping aside)
@@ -868,7 +868,7 @@ export function duplicateActions(a: Animation, ids: string[]): Animation {
 }
 
 /** When a strike's blow lands (s), if it is a motion at hand. */
-export function landsAt(strike: Action): number | null {
+function landsAt(strike: Action): number | null {
   const src = strike.source;
   const clip = src.kind === 'clip' ? playedClip(src) : null;
   return src.kind === 'clip' && clip ? strike.start + (src.lead ?? 0) + strikeTime(clip) / (src.speed ?? 1) : null;
@@ -1035,7 +1035,7 @@ export function clear(scene: Scene, figure: string, t0: number, t1: number): Ani
 }
 
 /**
- * A scene's animation made `length` seconds long, keeping its timing (#14, a film of a chosen
+ * A scene's animation made `length` seconds long, keeping its timing (#14, a scene of a chosen
  * length): longer, a motion that loops and is the last of what its figures do goes on (a dance
  * keeps dancing; the rest is idle life); shorter, what is past the end is cut.
  */
@@ -1175,7 +1175,7 @@ function goTo(scene: Scene, figure: string, spot: Mark, t: number): Animation {
  * A move of whole performances across the floor (a track offset): turned by `turn` degrees about
  * `about` (x, z), then moved by (dx, dz).
  */
-export interface Offset {
+interface Offset {
   dx: number;
   dz: number;
   turn: number;

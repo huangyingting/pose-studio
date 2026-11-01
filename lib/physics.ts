@@ -58,7 +58,7 @@ export interface Body {
 }
 
 /** How it is let go: its centre, velocity and turn at a time. */
-export interface Launch {
+interface Launch {
   t: number;
   position: Vec3;
   velocity: Vec3;

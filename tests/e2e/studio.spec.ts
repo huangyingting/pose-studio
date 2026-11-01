@@ -1077,7 +1077,7 @@ test('the timeline grows: the playhead goes past the end and a key there lengthe
   expect(keyTimesOf(s.scene.animation!, s.active)).toEqual([0, 1]);
 });
 
-test('keyframes pose to pose: a key held until the next, a pose held for a time, a keyed block repeated and kept as a motion', async ({ page }) => {
+test('keys pose to pose: a key held until the next, a pose held for a time, a keyed block repeated and kept as a motion', async ({ page }) => {
   await animate(page);
   await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure/ }).first().click();
   for (let i = 0; i < 24; i++) await page.keyboard.press('.');

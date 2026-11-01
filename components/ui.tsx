@@ -439,11 +439,6 @@ export function PropertyRow({ label, info, children }: { label: string; info?: s
   );
 }
 
-/** Properties that belong together. */
-export function PropertyGroup({ children }: { children: ReactNode }) {
-  return <div className="pgroup">{children}</div>;
-}
-
 /** One line of secondary text: an empty state, a note under a row. */
 export function Hint({ children }: { children: ReactNode }) {
   return <p className="hint">{children}</p>;
@@ -619,7 +614,7 @@ export function Field({ label, info, children }: { label: string; info?: string;
   );
 }
 
-export interface SegmentOption<T extends string> {
+interface SegmentOption<T extends string> {
   value: T;
   label: string;
   icon?: LucideIcon;

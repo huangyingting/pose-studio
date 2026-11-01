@@ -15,7 +15,7 @@ import { zip, type ZipEntry } from './zip';
  * the camera path, and a prompt that describes the real framing — plus the cut list.
  */
 
-export interface PackOptions {
+interface PackOptions {
   width: number;
   height: number;
   style: Style;

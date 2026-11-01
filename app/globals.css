@@ -218,8 +218,6 @@ button { font: inherit; color: inherit; }
 /* Stays marked on while hovered. */
 .ibtn.on, .ibtn.on:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .ibtn.text { width: auto; padding: 0 8px; font-size: var(--fs-s); font-weight: 600; letter-spacing: 0.02em; }
-.file-button { position: relative; }
-.file-button input { display: none; }
 
 /* Tooltips (components/Tooltip.tsx draws them for any [data-tip], above everything). */
 [data-tip] { position: relative; }
@@ -266,7 +264,7 @@ kbd {
 
 /* ---------- inputs ---------- */
 
-input[type='text'], input[type='search'], input[type='number'], .text-input {
+input[type='text'], input[type='search'], input[type='number'] {
   font: inherit;
   width: 100%;
   height: var(--control-m);
@@ -640,9 +638,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .side-section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .side-section > .search { margin: 0 10px 8px; flex: none; }
 .side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
-.side-group { display: grid; gap: 8px; padding: 4px 14px 14px; }
-.side-group + .side-group { border-top: 1px solid var(--border); padding-top: 12px; }
-.side-group h3 { margin: 0; font-size: var(--fs-s); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
 .side-list { list-style: none; margin: 0 -8px; padding: 0; }
 .side-list button {
   display: flex;
@@ -669,9 +664,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .library-list .side-list-name { flex: 1 0 auto; max-width: 70%; }
 .library-list em { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 .library-list li:hover:has(.row-action, .row-delete) em, .library-list li:focus-within:has(.row-action, .row-delete) em { visibility: hidden; }
-.side-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.side-chips .chip { display: inline-flex; align-items: center; gap: 4px; }
-.side-field { display: grid; gap: 4px; color: var(--text-2); }
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 40px; padding: 0 6px 0 14px; flex: none; }
 .side-head h2 { margin: 0; font-size: var(--fs-m); font-weight: 600; }
 .side-actions { display: flex; align-items: center; gap: 2px; }
@@ -953,7 +945,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-travel.sel { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--accent-ring); }
 .tl-block { display: contents; }
 /* Its right edge retimes it; the ramp before it is how long it blends in (drag it out). */
-/* Where a figure has idle life as the film plays: faint, under what it does. */
+/* Where a figure has idle life as the scene plays: faint, under what it does. */
 .tl-idle { position: absolute; top: 4px; bottom: 4px; display: flex; align-items: center; border-radius: var(--radius-xs); background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text-3) 10%, transparent) 0 2px, transparent 2px 6px); color: var(--text-3); font-size: var(--fs-xs); pointer-events: none; overflow: hidden; }
 .tl-idle span { padding-left: 4px; }
 /* A correction's band, low on its row over what it corrects. */
@@ -1263,12 +1255,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .many-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 /* The light's inspector: a header without a name to change, presets with a thumbnail each, a note in unlit styles. */
 .panel-name { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-l); font-weight: 600; }
-.light-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.light-presets button { display: grid; grid-template-rows: auto auto; justify-items: stretch; gap: 3px; padding: 4px 4px 3px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); color: var(--text-2); font-size: var(--fs-s); cursor: pointer; }
-.light-presets button span { overflow: hidden; line-height: 1.3; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.light-presets button:hover { box-shadow: inset 0 0 0 1px var(--border-strong); }
-.light-presets button.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
-.light-presets .lib-thumb { width: 100%; height: auto; aspect-ratio: 1; border-radius: var(--radius-s); background: var(--panel); overflow: hidden; }
 .light-dot { width: 9px; height: 9px; margin-left: auto; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shade) 25%, transparent); flex: none; }
 .ambient-colours { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ambient-colours input[type='color'] { width: 100%; height: 26px; padding: 0 2px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--panel); cursor: pointer; }
@@ -1346,13 +1332,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .assistant-setup .field input { height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--border); font: inherit; color: var(--text); }
 .assistant-setup .field input:focus { outline: none; background: var(--raised); box-shadow: var(--focus); }
 .assistant-setup .row { display: flex; align-items: center; gap: 8px; }
-.panel-row { padding: 12px 14px 0; }
 .panel-title { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
 /* The header stays while the sections scroll: the way back to the scene, what is selected, the panel's own buttons. */
 .panel-scroll > .panel-title { position: sticky; top: 0; z-index: 2; background: var(--panel); }
 .crumb { display: inline-flex; align-items: center; gap: 2px; flex: none; height: 24px; margin-left: -6px; padding: 0 2px 0 6px; border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text-3); font: inherit; font-weight: 540; cursor: pointer; }
 .crumb:hover { background: var(--hover); color: var(--text); }
-.panel-hide { flex: none; width: 28px; height: 28px; color: var(--text-3); }
 /* A picked part: a small map to pick another, beside its sliders. */
 .joint-edit { display: grid; gap: 12px; }
 .joint-edit .bodymap { max-width: 136px; }
@@ -1615,22 +1599,6 @@ button.psec-title svg { color: var(--text-3); }
   cursor: text;
 }
 .panel-caption:focus { outline: none; background: var(--raised); box-shadow: var(--focus); }
-.panel-add button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 100%;
-  min-height: 180px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-l);
-  background: transparent;
-  color: var(--text-2);
-  cursor: pointer;
-}
-.panel-add button:hover { background: var(--panel); color: var(--text); }
 .board-empty { display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; max-width: 420px; margin: 0 auto; text-align: center; color: var(--text-2); }
 .board-empty h3 { margin: 6px 0 0; color: var(--text); font-size: var(--fs-xl); font-weight: 600; }
 @media (max-width: 720px) {
@@ -1843,8 +1811,6 @@ button.psec-title svg { color: var(--text-3); }
 .side-section .thumbs li { position: relative; }
 .thumb:disabled { cursor: default; }
 .thumb:disabled img { opacity: 0.55; }
-.thumb-delete { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
-.thumbs li:hover .thumb-delete, .thumb-delete:focus-visible { opacity: 1; }
 .library-list { margin: 0 6px; }
 .library-list li { position: relative; }
 .library-list .row-delete, .library-list .row-action { position: absolute; top: 50%; right: 4px; width: 24px; height: 24px; transform: translateY(-50%); background: var(--panel); box-shadow: var(--shadow-float); opacity: 0; }
@@ -1892,9 +1858,6 @@ button.psec-title svg { color: var(--text-3); }
 }
 
 /* Search results: a header per category (click: only its matches). */
-.lib-results { padding-bottom: 6px; }
-.lib-result-head { display: flex; align-items: center; gap: 5px; width: calc(100% - 16px); height: 26px; margin: 2px 8px; padding: 0 6px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font-size: var(--fs-s); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; }
-.lib-result-head:hover { background: var(--hover); }
 /* What a library item does, beside the panel while the pointer rests on it. */
 .lib-preview {
   position: fixed;
@@ -1971,14 +1934,13 @@ button.psec-title svg { color: var(--text-3); }
 .hint { margin: 0; color: var(--text-3); font-size: var(--fs-s); line-height: 1.45; }
 
 /* A property: its label on the left, its control on the right, one row of about 28 px. */
-.panel .field, .form .field, .prow {
+.panel .field, .form .field {
   display: grid; grid-template-columns: var(--label-w, 76px) minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 4px;
   min-height: 28px; color: var(--text-2); font-size: var(--fs-m); font-weight: 540;
 }
-.panel .field > :not(:first-child), .form .field > :not(:first-child), .prow > :not(:first-child) { grid-column: 2; min-width: 0; }
+.panel .field > :not(:first-child), .form .field > :not(:first-child) { grid-column: 2; min-width: 0; }
 .panel .field > :first-child, .form .field > :first-child { display: flex; align-items: center; gap: 2px; min-width: 0; color: var(--text-2); }
 .form .field > .segmented:not(.full) { justify-self: start; }
-.pgroup { display: grid; gap: 2px; }
 
 /* A slider as a property: label, track, value on one row. */
 :is(.panel, .form) .slider { grid-template-columns: var(--label-w, 76px) minmax(0, 1fr) auto; align-items: center; column-gap: 8px; min-height: 28px; }

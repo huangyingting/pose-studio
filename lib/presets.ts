@@ -219,7 +219,7 @@ const hand = (name: string): Hand => {
 
 /** Groups of the pose library, by what the body rests on (and the stretches: bridges, splits). */
 export const POSE_GROUPS = ['Standing', 'Sitting & squatting', 'Kneeling & all fours', 'Lying', 'Stretches & bends'] as const;
-export type PoseGroup = (typeof POSE_GROUPS)[number];
+type PoseGroup = (typeof POSE_GROUPS)[number];
 
 const GROUP: Record<string, PoseGroup> = {
   'Hand on head': 'Standing', 'Hands behind head': 'Standing', 'Back view, hand on hip': 'Standing', 'Leaning, hands on knees': 'Standing',

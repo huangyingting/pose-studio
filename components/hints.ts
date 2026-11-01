@@ -74,7 +74,7 @@ export const viaPointer = () => pointerLast;
  * The readout beside the pointer while something is dragged: how far it has moved, how far it has
  * turned, a joint's value, a prop's height (with `drop`, the point a dashed line goes down from).
  */
-export interface Readout { text: string; x: number; y: number; drop?: Vec3; axis?: number }
+interface Readout { text: string; x: number; y: number; drop?: Vec3; axis?: number }
 let readout: Readout | null = null;
 const readers = new Set<() => void>();
 

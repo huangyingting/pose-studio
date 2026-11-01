@@ -3,7 +3,11 @@
 import { useEffect, useLayoutEffect, useState, type ComponentProps } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Line2, LineGeometry, LineMaterial, LineSegments2, LineSegmentsGeometry } from 'three-stdlib';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 
 type Point = THREE.Vector3 | [number, number, number];
 
@@ -11,7 +15,6 @@ type Point = THREE.Vector3 | [number, number, number];
 class Strip {
   readonly material = new LineMaterial();
   readonly line: Line2 | LineSegments2;
-  private dashed: boolean | null = null;
   constructor(readonly segments: boolean) {
     this.line = segments ? new LineSegments2(new LineSegmentsGeometry(), this.material) : new Line2(new LineGeometry(), this.material);
   }
@@ -21,14 +24,6 @@ class Strip {
     this.line.geometry.dispose();
     this.line.geometry = g;
     this.line.computeLineDistances();
-  }
-  // (Dashes are a define: the shader changes only when they are turned on or off.)
-  setDashed(dashed: boolean) {
-    if (dashed === this.dashed) return;
-    this.dashed = dashed;
-    if (dashed) this.material.defines.USE_DASH = '';
-    else delete this.material.defines.USE_DASH;
-    this.material.needsUpdate = true;
   }
   dispose() {
     this.line.geometry.dispose();
@@ -56,7 +51,6 @@ export function Line({ points, segments = false, color, lineWidth = 1, dashed = 
   const size = useThree((s) => s.size);
   const [strip] = useState(() => new Strip(segments));
   useLayoutEffect(() => strip.setPoints(points), [strip, points]);
-  useLayoutEffect(() => strip.setDashed(dashed), [strip, dashed]);
   useEffect(() => () => strip.dispose(), [strip]);
   return (
     <primitive object={strip.line} {...rest}>
@@ -66,6 +60,7 @@ export function Line({ points, segments = false, color, lineWidth = 1, dashed = 
         color={color}
         resolution={[size.width, size.height]}
         linewidth={lineWidth}
+        dashed={dashed}
         dashSize={dashSize}
         gapSize={gapSize}
         transparent={transparent}

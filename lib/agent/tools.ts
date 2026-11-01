@@ -35,7 +35,7 @@ import { type Action, FIGURE_COLORS, JOINTS, MOVE_KINDS, type MoveKind, POSTURES
 
 type Schema = Record<string, unknown>;
 
-export interface AgentTool {
+interface AgentTool {
   name: string;
   description: string;
   /** JSON Schema for the input: strict (every property required, nullable when optional). */

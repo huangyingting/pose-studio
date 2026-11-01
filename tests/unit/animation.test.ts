@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { setDuration, frameTimes } from '@/lib/animation';
 import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
-import { addFigure, addKeyframe, applyCameraMove, deleteFigure, deleteKeyframe, moveKeyframe, startAnimation } from '@/lib/actions';
+import { addFigure, addKey, applyCameraMove, deleteFigure, deleteKey, moveKey, startAnimation } from '@/lib/actions';
 import { duplicateScene, newFigure, newScene, parseScene } from '@/lib/doc';
 import { jointLimits } from '@/lib/joints';
 import { MOTIONS } from '@/lib/motions';
@@ -40,7 +40,7 @@ function twoKeyScene(loop = false) {
 
 const kneeAt = (s: Scene, t: number) => angle(figurePoseAt(s, s.figures[0].id, t)!.bones, 'leftLowerLeg')[0];
 
-describe('keyframe sampling', () => {
+describe('key sampling', () => {
   it('passes exactly through the keys and in between', () => {
     const s = twoKeyScene();
     expect(kneeAt(s, 0)).toBe(0);
@@ -104,7 +104,7 @@ describe('animation in the store', () => {
     store.undo();
     expect(keyTimesOf(store.scene.animation!, id)).toHaveLength(1);
     expect(angle(store.scene.figures[0].bones, 'leftLowerLeg')[0]).toBe(knee0);
-    addKeyframe(store);
+    addKey(store);
     expect(keyTimesOf(store.scene.animation!, id)).toHaveLength(2);
   });
 
@@ -203,21 +203,21 @@ describe('per-figure tracks', () => {
     bend(store, b, 40);
     expect([...keys(store, a), ...keys(store, b)]).toEqual([0, 1, 0, 1]);
     // A's punch later; B's reaction stays at 1 s.
-    moveKeyframe(store, 1, 1.5, a);
+    moveKey(store, 1, 1.5, a);
     expect(keys(store, a)).toEqual([0, 1.5]);
     expect(keys(store, b)).toEqual([0, 1]);
     expect(knee(store, b, 1)).toBe(40);
     // Moving onto a time where the figure already has a key is refused.
-    moveKeyframe(store, 1.5, 0, a);
+    moveKey(store, 1.5, 0, a);
     expect(keys(store, a)).toEqual([0, 1.5]);
     store.setTime(1.5);
     store.setActiveFigure(a);
-    deleteKeyframe(store);
+    deleteKey(store);
     expect(keys(store, a)).toEqual([0]);
     expect(keys(store, b)).toEqual([0, 1]);
     // A figure keeps its last key.
     store.setTime(0);
-    deleteKeyframe(store, a);
+    deleteKey(store, a);
     expect(keys(store, a)).toEqual([0]);
   });
 
@@ -225,10 +225,10 @@ describe('per-figure tracks', () => {
     const { store, a, b } = duo();
     store.setTime(0.5);
     store.setActiveFigure(b);
-    addKeyframe(store);
+    addKey(store);
     expect(keys(store, b)).toEqual([0, 0.5]);
     expect(keys(store, a)).toEqual([0]);
-    addKeyframe(store, [a, b]);
+    addKey(store, [a, b]);
     expect(keys(store, a)).toEqual([0, 0.5]);
     deleteFigure(store, b);
     expect(store.scene.animation!.actions.every((x) => x.roles.every((r) => r.figure !== b))).toBe(true);

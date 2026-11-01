@@ -107,7 +107,7 @@ export const LINES_LAYER = 1;
 export const CUTAWAY_LAYER = 3;
 
 /** Encode a part id as a colour with 16 levels per channel (robust to 8-bit precision). */
-export function encodeId(id: number) {
+function encodeId(id: number) {
   const n = id + 1;
   return new THREE.Vector3((n % 16) / 15, (Math.floor(n / 16) % 16) / 15, (Math.floor(n / 256) % 16) / 15);
 }

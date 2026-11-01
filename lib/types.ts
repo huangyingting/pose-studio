@@ -67,7 +67,7 @@ export interface Figure {
   hidden?: boolean;
   /** A capsule stand-in for blocking (no joints to pose), in the given posture. */
   proxy?: Posture;
-  /** Holds still in the gaps of a film (no idle life: breathing, shifting, glances). */
+  /** Holds still in the gaps of an animated scene (no idle life: breathing, shifting, glances). */
   still?: boolean;
   /** Its row on the timeline is locked (#22): what it does can't be changed until unlocked. */
   locked?: boolean;
@@ -149,7 +149,7 @@ export interface Scene {
   offStory?: boolean;
   /** How long a still scene is on screen in the story (s; DEFAULT_HOLD if not set). */
   hold?: number;
-  /** Optional keyframe animation (see lib/animation.ts). */
+  /** Optional animation (see lib/animation.ts). */
   animation?: Animation;
 }
 

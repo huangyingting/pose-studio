@@ -35,7 +35,7 @@ export const jumpHeight = (t: number) => (GRAVITY * t * t) / 8;
 /** Crouch before and absorb after a jump, at most (s). */
 export const JUMP_PREP = 0.3;
 /** Default jump height (metres the body rises). */
-export const JUMP_HEIGHT = 0.45;
+const JUMP_HEIGHT = 0.45;
 
 /** How long a figure takes to walk or run `distance` metres, or to jump `height` high. */
 export function travelTime(kind: Travel, distance: number, body: BodyParams, height = JUMP_HEIGHT, sideways = 0) {
@@ -52,7 +52,7 @@ export type Ground = (x: number, z: number) => number;
 const FLOOR: Ground = () => 0;
 
 /** The lengths a figure moves with, measured once per body. */
-export interface Legs {
+interface Legs {
   thigh: number;
   shin: number;
   /** Pelvis (root) height when standing. */
@@ -201,7 +201,7 @@ const lerpAngle = (a: number, b: number, u: number) => wrapDeg(a + wrapDeg(b - a
 const r1 = (v: number) => Math.round(v * 10) / 10 || 0;
 
 /** A polyline on the floor, walked by arc length (and extrapolated past its ends). */
-export function polyline(points: [number, number][]) {
+function polyline(points: [number, number][]) {
   const segs = points.slice(1).map((p, i) => {
     const q = points[i];
     const len = Math.hypot(p[0] - q[0], p[1] - q[1]);

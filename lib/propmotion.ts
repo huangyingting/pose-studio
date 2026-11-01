@@ -43,7 +43,7 @@ function decompose(m: THREE.Matrix4): { position: Vec3; rotation: Vec3 } {
 }
 
 /** The keys of one prop, in time order. */
-export function propTrack(a: Animation, id: string): PropKey[] {
+function propTrack(a: Animation, id: string): PropKey[] {
   return a.props?.[id] ?? [];
 }
 
@@ -109,7 +109,7 @@ export function keepProps(a: Animation, ids: Set<string>): Animation {
 }
 
 /** A figure's pose at a time (the hands, for what they hold; the bodies, for what flies into them). */
-export type FigureAt = (id: string, t: number) => Figure | null;
+type FigureAt = (id: string, t: number) => Figure | null;
 
 /** The longest a prop flies free before it is left where it is (s). */
 const FLIGHT = 6;
@@ -130,10 +130,10 @@ type ByHand = { t: number; kind: 'release' | 'grab'; figure: string; hand: Side;
 type Happening = { t: number; kind: 'key'; key: PropKey } | ByHand;
 
 /** A catch: who, with which hand, when, and how far the hand has to go to meet the prop then. */
-export interface Catch { t: number; figure: string; hand: Side; reach: Vec3 }
+interface Catch { t: number; figure: string; hand: Side; reach: Vec3 }
 
 /** How a prop of a kind bounces and grips, unless set for it. */
-export const defaultPhysics = (kind: Prop['kind']) => (kind === 'sphere' ? { bounce: 0.7, friction: 0.15 } : { bounce: 0.3, friction: 0.6 });
+const defaultPhysics = (kind: Prop['kind']) => (kind === 'sphere' ? { bounce: 0.7, friction: 0.15 } : { bounce: 0.3, friction: 0.6 });
 
 /** How a prop bounces and grips when it flies free (0–1). */
 export const physicsOf = (p: Prop) => p.physics ?? defaultPhysics(p.kind);
@@ -490,7 +490,7 @@ function lerpPlace(a: { position: Vec3; rotation: Vec3 }, b: { position: Vec3; r
 }
 
 /** How long a throw from `from` to `to` takes, rising a little over the higher end, or by `rise` metres (s). */
-export function throwTime(from: Vec3, to: Vec3, rise?: number) {
+function throwTime(from: Vec3, to: Vec3, rise?: number) {
   const d = Math.hypot(to[0] - from[0], to[2] - from[2]);
   const top = Math.max(from[1], to[1]) + (rise ?? 0.25 + 0.12 * d);
   return Math.sqrt((2 * (top - from[1])) / GRAVITY) + Math.sqrt((2 * (top - to[1])) / GRAVITY);

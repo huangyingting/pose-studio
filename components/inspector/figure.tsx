@@ -211,7 +211,7 @@ export function PlacementPanel({ t }: { t: Target }) {
         </Menu>
       )}
       {animation && !figure.proxy && (
-        // In the gaps of the film: breathing, small shifts, a look at someone now and then.
+        // In the gaps of what it does: breathing, small shifts, a look at someone now and then.
         <Toggle label="Idle life" checked={!figure.still} hint="Between what it does, it breathes and looks around (as the scene plays)" onChange={(on) => setIdleLife(store, figure.id, on)} />
       )}
       {!moving && (

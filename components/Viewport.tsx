@@ -7,7 +7,7 @@ import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
 import { useSettled } from './useSettled';
-import { addCameraPoint, aimCamera, editLight, moveCameraLook, moveCameraPoint, setCameraLens, setCameraPoint, toggleSelected } from '@/lib/actions';
+import { addCameraPoint, aimCamera, stepRig, editLight, moveCameraLook, moveCameraPoint, setCameraLens, setCameraPoint, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
 import { moments } from '@/lib/track';
@@ -32,7 +32,7 @@ import type { Figure, JointName, Lighting, Scene, Selection, Style, Vec3, View }
 import type { Clock } from './clock';
 import { FigureMarkers, HoldPins, PropRing, RouteOverlay, SceneObjects, SeeThrough, nearestContact, nearestText, partUnder } from './Manipulators';
 import type { Contact } from '@/lib/relations';
-import CameraHandles, { stepRig } from './CameraHandles';
+import CameraHandles from './CameraHandles';
 import LightHandles, { LightingCircle } from './LightHandles';
 import { STEPS, snapping } from './modifiers';
 import { useProjectSettings, useStudio } from './store-context';
@@ -773,7 +773,7 @@ function Lights({ sv, style, scene, time, clock }: { sv: SceneView; style: Style
 /** While playing, pose the figures for the clock's time on every frame (without touching the document). */
 function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Clock }) {
   useFrame(() => {
-    // (Playing: as the film plays, idle life in the gaps.)
+    // (Playing: as the scene plays, idle life in the gaps.)
     if (clock.playing) sv.sync(sceneAt(scene, clock.time, true));
   }, -2);
   return null;
@@ -858,7 +858,7 @@ class Ghost {
   }
 }
 
-/** Translucent ghosts of the previous (blue) and next (orange) keyframes. */
+/** Translucent ghosts of the previous (blue) and next (orange) keys. */
 function OnionSkin({ scene, time, clock }: { scene: Scene; time: number; clock: Clock }) {
   const views = useMemo(() => [
     new SceneView({ color: '#3b6cff', opacity: 0.1 }),

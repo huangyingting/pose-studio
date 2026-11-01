@@ -8,7 +8,7 @@ import { useStore, useStudio } from '../store-context';
 import { IconButton, PanelEdge } from '../ui';
 import { SECTIONS, type SectionProps } from './sections';
 
-export interface RailAction {
+interface RailAction {
   label: string;
   icon: LucideIcon;
   shortcut?: string;

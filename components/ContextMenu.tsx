@@ -19,7 +19,7 @@ export function openContextMenu(e: { clientX: number; clientY: number; preventDe
   emit();
 }
 
-export function closeContextMenu() {
+function closeContextMenu() {
   if (!current) return;
   current = null;
   emit();

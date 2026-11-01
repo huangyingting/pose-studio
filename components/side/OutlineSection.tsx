@@ -39,7 +39,7 @@ const OUTLINE_KEYS: Roving = {
 export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto' | 'notify' | 'notifyUndo'>) {
   const store = useStore();
   const scene = useScene();
-  // Shots are flagged as longer than the film's video model allows: follow it.
+  // Shots are flagged as longer than the project's video model allows: follow it.
   useProjectSettings();
   const active = useStudio((s) => s.activeFigure);
   const selection = useStudio((s) => s.selection);

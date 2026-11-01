@@ -16,7 +16,7 @@ import type { BodyParams, Figure, Hand, JointName, Scene, Side, Vec3, View } fro
  * for a point on another figure, so hands really land on shoulders, backs and each other.
  */
 
-export interface Staging {
+interface Staging {
   id: string;
   name: string;
   people: number;

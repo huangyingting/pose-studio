@@ -7,7 +7,7 @@ import { STYLES, type Style } from './types';
  * lines, background and whether the key light casts shadows. Materials are built
  * from this description in ink.ts / shaders.ts.
  */
-export interface StyleDef {
+interface StyleDef {
   id: Style;
   label: string;
   description: string;

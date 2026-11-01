@@ -9,7 +9,7 @@ import * as THREE from 'three';
  */
 
 /** The per-vertex attribute: how much it goes with the head (0–1). */
-export const HEAD = 'headWeight';
+const HEAD = 'headWeight';
 
 /**
  * Give a mesh's geometry how much each vertex goes with the head: the sum of its skin weights on

@@ -17,7 +17,7 @@ export function videoSupported() {
 }
 
 /** A video being written: draw on `ctx`, then `add` the frame with its time and duration. */
-export interface Encoder {
+interface Encoder {
   ctx: CanvasRenderingContext2D;
   add(time: number, duration: number): Promise<void>;
   finish(): Promise<{ blob: Blob; ext: string }>;
@@ -51,7 +51,7 @@ export async function createEncoder(width: number, height: number, fps: number):
   };
 }
 
-export interface VideoOptions {
+interface VideoOptions {
   width: number;
   height: number;
   style: Style;

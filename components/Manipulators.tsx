@@ -191,10 +191,10 @@ function propReadout(start: THREE.Vector3, now: THREE.Vector3) {
 }
 
 /** A joint's slider values as its rig holds them now (the angles nearest `near`). */
-export const valuesOf = (obj: THREE.Object3D, joint: JointName, near: Vec3 = [0, 0, 0]) => nearer(joint, [obj.rotation.x * R2D, obj.rotation.y * R2D, obj.rotation.z * R2D], near);
+const valuesOf = (obj: THREE.Object3D, joint: JointName, near: Vec3 = [0, 0, 0]) => nearer(joint, [obj.rotation.x * R2D, obj.rotation.y * R2D, obj.rotation.z * R2D], near);
 
 /** The world axis a joint's slider turns it about, with the joint at `v`. */
-export function sliderAxis(obj: THREE.Object3D, v: Vec3, axis: number) {
+function sliderAxis(obj: THREE.Object3D, v: Vec3, axis: number) {
   const e = new THREE.Euler(v[0] * D2R, v[1] * D2R, v[2] * D2R, obj.rotation.order);
   const q0 = new THREE.Quaternion().setFromEuler(e);
   e[(['x', 'y', 'z'] as const)[axis]] += 1e-3;
@@ -264,7 +264,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
   handles: boolean;
   /** Whether the gizmo is being dragged (a press on it also lands on the objects behind). */
   gizmoActive(): boolean;
-  /** Whether the film is playing: nothing under the pointer is tinted or hinted at then. */
+  /** Whether the scene is playing: nothing under the pointer is tinted or hinted at then. */
   playing(): boolean;
   onClick(e: ThreeEvent<MouseEvent>): void;
 }) {

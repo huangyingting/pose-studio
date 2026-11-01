@@ -12,7 +12,7 @@ import { relink, setPoseAt } from './track';
 import { shotSpans } from './shots';
 import type { Figure, GizmoMode, Library, Pose, Prop, Scene, Selection } from './types';
 
-/** The device's preferences (the project's look is its film's: lib/film.ts). */
+/** The device's preferences (the project's look is its own: lib/project.ts). */
 export interface Settings {
   showHandles: boolean;
   showGrid: boolean;
@@ -94,7 +94,7 @@ function lockedChange(before: Scene | undefined, after: Scene | undefined): stri
   return null;
 }
 
-export const DEFAULT_SETTINGS: Settings = {
+const DEFAULT_SETTINGS: Settings = {
   showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', inspector: true, timelineFolded: false, timelineHeight: 0, timelineSnap: true, guides: false, widths: {}, theme: 'system',
 };
 

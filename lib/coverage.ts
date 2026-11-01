@@ -12,7 +12,7 @@ import type { Camera, CameraRig, RigCamera, Scene, Shot } from './types';
  * or starting a motion, a prop let go of or caught, or on a beat when nothing does.
  */
 
-export type CoverageRole = 'A' | 'B';
+type CoverageRole = 'A' | 'B';
 
 /** A camera of a coverage: on a role (with the other in frame, for a two-shot), placed by a rig. */
 interface CoverageCamera {
@@ -33,7 +33,7 @@ type CutRule =
   | { on: 'release' | 'catch'; role: CoverageRole; camera: string }
   | { on: 'beat'; every: number; cameras: string[] };
 
-export interface Coverage {
+interface Coverage {
   id: string;
   name: string;
   description: string;

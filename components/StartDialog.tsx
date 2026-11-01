@@ -14,7 +14,7 @@ import type { Thumb } from './side/libraryItems';
 import { useStore, useStudio } from './store-context';
 import { Modal, Segmented } from './ui';
 
-/** How long it is: as made (a still one still, a film as long as it is), or a film this long (s). */
+/** How long it is: as made (a still one still, an animated one as long as it is), or animated this long (s). */
 const LENGTHS = [{ value: '0', label: 'As made' }, { value: '15', label: '15 s' }, { value: '30', label: '30 s' }, { value: '60', label: '1 min' }];
 
 interface Tile {
@@ -29,9 +29,9 @@ interface Tile {
 }
 
 /**
- * A new scene (the one way to start one, #14): empty, a scene template (a film, people standing
- * together, a set-up, one of mine) or a shoot preset (a template filmed a way). As made, or a film
- * of a length that the director films.
+ * A new scene (the one way to start one, #14): empty, a scene template (a staged one, people standing
+ * together, a set-up, one of mine) or a shoot preset (a template filmed a way). As made, or animated to
+ * a length, filmed by the director.
  */
 export function StartDialog({ onClose }: { onClose(): void }) {
   const store = useStore();
@@ -60,7 +60,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
       actions: mine ? [{ icon: Trash2, label: `Delete the shoot preset ${p.name}`, run: () => deleteShoot(store, p.id) }] : undefined,
     };
   });
-  // (A template once: as the preset of the same name that films it, where there is one: a film.)
+  // (A template once: as the preset of the same name that films it, where there is one: a staged one.)
   const filmed = new Set(shoots.filter((p) => templates.find((t) => t.id === p.template)?.name === p.name).map((p) => p.template));
   const scenes = (group: string) => templates.filter((t) => t.group === group && !filmed.has(t.id)).map((t): Tile => ({
     key: `template:${t.id}`, name: t.name, meta: t.people === 1 ? '1 person' : `${t.people} people`, icon: t.people > 1 ? UsersRound : PersonStanding, thumb: templateThumb(t.id, t.build),

@@ -22,7 +22,7 @@ export const KIND_NAMES: Record<LightKind, string> = { sun: 'Sun', lamp: 'Lamp',
 /** Where a light can be put for what it does (placeLight). */
 export const PLACES = ['key', 'fill', 'rim'] as const;
 export type Place = (typeof PLACES)[number];
-export const PLACE_NAMES: Record<Place, string> = { key: 'Key light', fill: 'Fill light', rim: 'Rim light' };
+const PLACE_NAMES: Record<Place, string> = { key: 'Key light', fill: 'Fill light', rim: 'Rim light' };
 
 /**
  * A colour temperature (K) as a colour, daylight (6500 K) white, as a camera balanced for daylight
@@ -459,7 +459,7 @@ export function lightText(light: Light) {
 }
 
 /** The point a light aims at now (its figure's chest, its point), or null. */
-export type AimAt = (aim: NonNullable<Light['aim']>) => THREE.Vector3 | null;
+type AimAt = (aim: NonNullable<Light['aim']>) => THREE.Vector3 | null;
 
 /**
  * One of the other lights for the painterly styles: the direction towards it from the people, and
@@ -467,7 +467,7 @@ export type AimAt = (aim: NonNullable<Light['aim']>) => THREE.Vector3 | null;
  * there at each point, #17), a spot its axis and the cosine of its half cone.
  */
 export interface ExtraLight { dir: THREE.Vector3; color: THREE.Color; at?: THREE.Vector3; range?: number; spot?: { axis: THREE.Vector3; cos: number } }
-export const MAX_EXTRA = 4;
+const MAX_EXTRA = 4;
 
 /**
  * The ambient light (from the sky and the ground), the lights and a shadow-catching floor under

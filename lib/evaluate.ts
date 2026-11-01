@@ -926,7 +926,7 @@ export function marksOf(scene: Scene, act: Action, id: string): { start: Mark; e
 const lapOf = (u: number, duration: number) => Math.max(0, Math.ceil(u / duration - EPS) - 1);
 
 /** How far a clip may be warped to its end mark: in distance (a fraction of its own) and direction (degrees). */
-export const WARP = { distance: 0.25, angle: 30 };
+const WARP = { distance: 0.25, angle: 30 };
 /** A clip done in place is warped no further than this (m). */
 const IN_PLACE = 0.3;
 
@@ -984,7 +984,7 @@ export function overWarp(scene: Scene, act: Action, id: string): boolean {
 
 /**
  * The scene as it looks at time t: every figure posed by its actions, the props where they are
- * then. `live`: as a film plays (idle life in the gaps); not while posing, where the pose shown is
+ * then. `live`: as a scene plays (idle life in the gaps); not while posing, where the pose shown is
  * the one keyed.
  */
 export function sceneAt(scene: Scene, t: number, live = false): Scene {

@@ -13,7 +13,7 @@ export const LM = {
   heelL: 29, heelR: 30, toeL: 31, toeR: 32,
 } as const;
 
-export interface Landmark3D {
+interface Landmark3D {
   /** Metres, in the editor's frame: +X = subject's left when facing the camera, +Y up, +Z towards the camera. */
   p: THREE.Vector3;
   visibility: number;
