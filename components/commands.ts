@@ -532,7 +532,7 @@ export const COMMANDS: Command[] = [
   { id: 'app.undo', title: 'Undo', icon: Undo2, keys: ['mod+z'], enabled: (c) => c.store.getState().canUndo, run: (c) => c.store.undo() },
   { id: 'app.redo', title: 'Redo', icon: Redo2, keys: ['mod+shift+z', 'mod+y'], enabled: (c) => c.store.getState().canRedo, run: (c) => c.store.redo() },
   { id: 'app.save', title: 'Save', help: 'Save the project to a file', icon: Save, keys: ['mod+s'], run: () => App().saveFile() },
-  { id: 'app.newFilm', title: 'New scene…', help: 'A new scene: empty or from a template', icon: FilePlus2, run: () => App().dialog('start') },
+  { id: 'app.newScene', title: 'New scene…', help: 'A new scene: empty or from a template', icon: FilePlus2, run: () => App().dialog('start') },
   { id: 'app.exportVideo', title: 'Export video', icon: Film, when: animated, run: () => App().dialog('export-video') },
   { id: 'app.import', title: 'Add scenes…', help: 'Add the scenes of a project file to this one', icon: FileUp, run: () => App().openFile('append') },
   { id: 'app.open', title: 'Open…', help: 'Open a project in place of this one', icon: FolderOpen, run: () => App().openFile('replace') },
@@ -1468,7 +1468,7 @@ export const enabled = (cmd: Command, c: Ctx) => !cmd.enabled || cmd.enabled(c);
 
 /** A key as shown ("Ctrl Shift Z", "Del", "?"). */
 export function keyLabel(spec: string) {
-  const names: Record<string, string> = { mod: 'Ctrl', shift: 'Shift', alt: 'Alt', space: 'Space', delete: 'Del', backspace: 'Backspace', escape: 'Esc' };
+  const names: Record<string, string> = { mod: 'Ctrl', shift: 'Shift', alt: 'Alt', space: 'Space', delete: 'Del', backspace: 'Backspace', escape: 'Esc', tab: 'Tab', arrowleft: '←', arrowright: '→', arrowup: '↑', arrowdown: '↓' };
   const parts = spec.split('+');
   const key = parts.pop()!;
   // A symbol typed with Shift ('?') shows as itself.
@@ -1540,7 +1540,7 @@ export function menuItems(entries: MenuEntry[], c: Ctx, keys: Ctx = c): MenuItem
 }
 
 const MENUS = {
-  main: ['app.newFilm', '-', 'app.save', 'app.import', 'app.open', '-', 'app.practice', 'app.help', 'app.theme'],
+  main: ['app.newScene', '-', 'app.save', 'app.import', 'app.open', '-', 'app.practice', 'app.help', 'app.theme'],
   view: [
     'view.frameAll', 'view.isolate', 'view.through', 'view.stageOnly',
     { group: 'Show' }, 'view.handles', 'view.grid', 'view.onion', 'view.guides', 'view.line',

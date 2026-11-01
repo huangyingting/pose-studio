@@ -6,7 +6,7 @@ import {
   ActionHeader, ActionPropPanel, GettingPanel, MotionPanel, PeoplePanel, PosedPanel, TimingPanel,
   actionPropSummary, actionPropTitle, gettingSummary, motionInfo, motionSummary, peopleSummary, posedInfo, posedSummary, posedTitle, timingSummary,
 } from './action';
-import { CameraHeader, FilmsPanel, FramingPanel, LensPanel, MovesPanel, filmsInfo, filmsSummary, framingSummary, lensSummary, movesInfo, movesSummary } from './camera';
+import { CameraHeader, ShotsPanel, FramingPanel, LensPanel, MovesPanel, shotsInfo, shotsSummary, framingSummary, lensSummary, movesInfo, movesSummary } from './camera';
 import {
   BodyPanel, FigureHeader, HandsPanel, JointHeader, JointActions, JointPanel, JointsPanel, OthersPanel, PlacementPanel, POSTURE_LABELS, PosePanel, StandInPanel,
   bodySummary, handsSummary, hasOthers, jointSummary, othersSummary, placementSummary,
@@ -83,7 +83,7 @@ export const INSPECTOR_SECTIONS: InspectorSection[] = [
   { id: 'filmedby', title: 'Filmed by', when: (t) => !!t.span, Panel: FilmedByPanel, summary: filmedBySummary },
 
   // A camera.
-  { id: 'films', title: 'Shots', when: (t) => !!t.camera, Panel: FilmsPanel, defaultOpen: false, summary: filmsSummary, info: filmsInfo },
+  { id: 'shots', title: 'Shots', when: (t) => !!t.camera, Panel: ShotsPanel, defaultOpen: false, summary: shotsSummary, info: shotsInfo },
   { id: 'framing', title: 'Framing', when: (t) => !!t.camera, Panel: FramingPanel, summary: framingSummary },
   { id: 'lens', title: 'Lens', when: (t) => !!t.camera, Panel: LensPanel, summary: lensSummary },
   // (How it moves is what a camera is about (#16): open.)

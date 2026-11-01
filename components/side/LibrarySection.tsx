@@ -25,6 +25,10 @@ import type { SectionProps } from './sections';
  */
 const NO_MOTIONS: never[] = [];
 const noMotions = () => NO_MOTIONS;
+/** The Library's motion files, once their list has come (drawn again then: the Library, the command palette). */
+export function useLibraryMotions() {
+  return useSyncExternalStore(onLibraryMotions, libraryMotions, noMotions);
+}
 
 export default function LibrarySection({ notify, notifyUndo, onPick, section }: SectionProps) {
   const store = useStore();
@@ -34,8 +38,7 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
   useStudio((s) => s.activeFigure);
   useStudio((s) => s.selection);
   useStudio((s) => { const a = s.library.scenes[s.sceneIndex]?.animation; return a ? spanAt(a, s.time)?.shot.id ?? '' : ''; });
-  // (The Library's motion files, once their list has come.)
-  useSyncExternalStore(onLibraryMotions, libraryMotions, noMotions);
+  useLibraryMotions();
   const [query, setQuery] = useState('');
   const preview = usePreview();
   const ui: LibraryUi = { notify, notifyUndo, onPick };

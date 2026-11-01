@@ -5,6 +5,7 @@ import { Check, Clapperboard, Search, type LucideIcon } from 'lucide-react';
 import { useStore } from './store-context';
 import { COMMANDS, applies, enabled, iconOf, keyLabel, selectionCtx, titleOf } from './commands';
 import { LIBRARY_CATEGORIES, searchLibrary, type LibraryUi } from './side/libraryItems';
+import { useLibraryMotions } from './side/LibrarySection';
 
 interface Entry { key: string; title: string; icon?: LucideIcon; keys?: string; checked?: boolean; disabled?: boolean; run(): void }
 
@@ -19,6 +20,8 @@ export default function CommandPalette({ onClose, ui }: { onClose(): void; ui: L
   const [active, setActive] = useState(0);
   const list = useRef<HTMLUListElement>(null);
   const c = selectionCtx(store);
+  // (The Library's motion files found too, once their list has come.)
+  useLibraryMotions();
 
   const all: Entry[] = [];
   for (const cmd of COMMANDS) {

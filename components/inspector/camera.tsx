@@ -27,22 +27,22 @@ export function CameraHeader({ t, chrome }: { t: Target; chrome: HeaderChrome })
   );
 }
 
-const filmsOf = (t: Target) => (t.scene.animation ? shotSpans(t.scene.animation).filter((s) => s.shot.camera === t.camera!.id) : []);
+const shotsOf = (t: Target) => (t.scene.animation ? shotSpans(t.scene.animation).filter((s) => s.shot.camera === t.camera!.id) : []);
 const isFirst = (t: Target) => t.scene.cameras[0].id === t.camera!.id;
-export const filmsSummary = (t: Target) => {
-  const films = filmsOf(t);
-  return !t.scene.animation ? (isFirst(t) ? 'The still' : 'Not filming') : films.length ? `${films.length} ${films.length === 1 ? 'shot' : 'shots'}` : 'No shots';
+export const shotsSummary = (t: Target) => {
+  const shots = shotsOf(t);
+  return !t.scene.animation ? (isFirst(t) ? 'The still' : 'Not filming') : shots.length ? `${shots.length} ${shots.length === 1 ? 'shot' : 'shots'}` : 'No shots';
 };
-export const filmsInfo = (t: Target) => (!t.scene.animation ? 'A still scene is filmed by its first camera; the others are other angles on it.' : 'Pick a camera for a shot in the shot\'s inspector.');
+export const shotsInfo = (t: Target) => (!t.scene.animation ? 'A still scene is filmed by its first camera; the others are other angles on it.' : 'Pick a camera for a shot in the shot\'s inspector.');
 
 /** The shots it films. */
-export function FilmsPanel({ t }: { t: Target }) {
-  const films = filmsOf(t);
+export function ShotsPanel({ t }: { t: Target }) {
+  const shots = shotsOf(t);
   if (!t.scene.animation) return <Hint>{isFirst(t) ? 'The still' : 'Another angle on the still'}</Hint>;
-  if (!films.length) return <Hint>No shot films with it yet</Hint>;
+  if (!shots.length) return <Hint>No shot films with it yet</Hint>;
   return (
     <ul className="side-list" aria-label="Shots it films">
-      {films.map((s) => (
+      {shots.map((s) => (
         <li key={s.shot.id}>
           <button type="button" onClick={() => { t.store.setTime(s.start); t.store.select({ kind: 'shot', shot: s.shot.id }); }}>
             <span className="shot-no">{s.index + 1}</span>
@@ -384,8 +384,8 @@ function MoveSettings({ t, cam }: { t: Target; cam: RigCamera }) {
 function MoveEnds({ t, cam }: { t: Target; cam: RigCamera }) {
   const time = useStudio((s) => s.time);
   const style = useProjectSettings().style;
-  const films = filmsOf(t);
-  const span = films.find((s) => time >= s.start && time < s.end) ?? films[0];
+  const shots = shotsOf(t);
+  const span = shots.find((s) => time >= s.start && time < s.end) ?? shots[0];
   if (!span) return <Hint>It films no shot yet: pick it for a shot to see its move</Hint>;
   const end = Math.max(span.start, span.end - 1 / (t.scene.animation?.fps ?? 24));
   return (
