@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newFigure } from '@/lib/doc';
-import { Rig } from '@/lib/relations';
+import { Rig, reach } from '@/lib/relations';
 import { RIG_PARENT, angle, anglesOf, bonesOf, fromQuat, rigTurns, storedTurns, withAngles, type Bones } from '@/lib/pose';
 import { worldTurns } from '@/lib/skeleton';
 import { JOINTS, type JointName } from '@/lib/types';
@@ -46,6 +46,19 @@ describe('the 22 joints (#30)', () => {
     const twisted = worldTurns(withAngles(pose, { upperChest: [0, 25, 0] }));
     for (const j of ['neck', 'head', 'leftUpperArm', 'rightUpperArm'] as const) expect(deg(before.get(j)!, twisted.get(j)!), j).toBeCloseTo(25, 0);
     expect(deg(before.get('spine')!, twisted.get('spine')!)).toBeLessThan(0.01);
+  });
+
+  it('a hand reaches its target from a raised shoulder, the shoulder as posed (it is not solved)', () => {
+    const rig = new Rig();
+    const f = { ...newFigure(), bones: withAngles(bonesOf({}), { leftShoulder: [0, -10, 20], upperChest: [10, 15, 0] }), position: [0, 1, 0] as [number, number, number], grounded: false };
+    const target = new THREE.Vector3(0.35, 1.25, 0.45);
+    const { bones, reached } = reach(rig, f, 'L', target);
+    expect(reached).toBe(true);
+    expect(angle(bones, 'leftShoulder')).toEqual([0, -10, 20]);
+    expect(angle(bones, 'upperChest')).toEqual([10, 15, 0]);
+    const hand = rig.model({ ...f, bones }).joints.leftHand.getWorldPosition(new THREE.Vector3());
+    expect(hand.distanceTo(target)).toBeLessThan(0.12);
+    rig.dispose();
   });
 
   it('on the mannequin: a shrug lifts the arm and hand, the upper chest leans the shoulders and head, the toes bend at the ball of the foot', () => {
