@@ -1728,7 +1728,7 @@ test('adding is placing: a ghost follows the pointer, snaps beside a figure and 
   }).toBe(true);
 });
 
-test('a joint clicked (its figure picked) is selected, named in the inspector; its menu has the joint\'s commands', async ({ page }) => {
+test('a joint clicked (its figure picked) is selected, named in the inspector; its menu has the joint\'s commands; another part right-clicked is selected, its menu pins it', async ({ page }) => {
   await page.keyboard.press('1');
   const elbow = await project(page, 'leftLowerArm');
   const hand = await project(page, 'leftHand');
@@ -1740,6 +1740,12 @@ test('a joint clicked (its figure picked) is selected, named in the inspector; i
   await page.mouse.click(at.x, at.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Reset the joint' }).click();
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).toEqual([0, 0, 0]);
+  // Another part right-clicked, as a click would: that part selected, its menu pins it.
+  const foot = await project(page, 'leftFoot');
+  await page.mouse.click(foot.x, foot.y, { button: 'right' });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: unknown } } } }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftFoot' });
+  await page.getByRole('menuitemcheckbox', { name: 'Pinned' }).click();
+  expect(await page.evaluate(() => { const s = (window as unknown as { __poseStudio: { store: { getState(): { activeFigure: string; pins: Record<string, string[]> } } } }).__poseStudio.store.getState(); return s.pins[s.activeFigure]; })).toEqual(['leftFoot']);
 });
 
 test('the timeline is always there: what a figure does next from its + at the playhead; a Library pose dropped on its row at a time', async ({ page }) => {

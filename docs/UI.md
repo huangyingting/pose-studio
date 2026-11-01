@@ -145,7 +145,10 @@ first, then everywhere it applies.
   gesture goes into a tool, not into a new modifier. A hand or foot can be **Pinned** (its menu, its
   joint card): it stays where it is while the rest is posed, a blue mark on it.
 - Picking something opens the inspector (a wide screen; on a phone it is a drawer, opened by hand).
-- What is not picked through the canvas (sets) does not take clicks.
+- A figure's first click picks it, the next (it picked) the part under the pointer; a right-click
+  does the same, its menu with that part's commands too (a stand-in, or with Move, the whole figure).
+- What is not picked through the canvas (sets) is not selected by a click: it is where the floor
+  is (see §6).
 - Styles: a new render style is one entry in `lib/styles.ts`; what is drawn reads `styleDef`.
 
 ## 10. Tests

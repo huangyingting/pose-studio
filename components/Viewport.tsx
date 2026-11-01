@@ -64,7 +64,7 @@ export interface ViewportApi {
 
 /** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
 /** What is under a point of the canvas: a figure (and the point of its body a hand would hold), a prop, a camera (and its path's point), the floor there. */
-export type CanvasHit = { figure?: string; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; top?: Vec3; light?: string };
+export type CanvasHit = { figure?: string; joint?: JointName; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; top?: Vec3; light?: string };
 
 export interface FrameRequest {
   view: Pick<View, 'yaw' | 'pitch'> & { fov?: number };
@@ -1208,7 +1208,8 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
           while (o && !o.userData.camera) o = o.parent;
           if (o?.visible) return { ...hit, camera: o.userData.camera as string, ...(o.userData.point !== undefined ? { point: o.userData.point as number } : {}) };
         }
-        for (const { object, point } of ray.intersectObject(sv.root, true)) {
+        const under = ray.intersectObject(sv.root, true);
+        for (const { object, point } of under) {
           let o: THREE.Object3D | null = object;
           let shown = true;
           for (let p: THREE.Object3D | null = o; p; p = p.parent) shown &&= p.visible;
@@ -1220,7 +1221,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
             const id = o.userData.figure as string;
             const m = sv.figures.get(id);
             const f = figures.current.find((x) => x.id === id);
-            return { ...hit, figure: id, ...(m && f && !f.proxy ? { contact: nearestContact(m, f, point).contact } : {}) };
+            // (The part under it, as a click finds it.)
+            const part = partUnder(under, (x) => x.userData.figure === id);
+            return { ...hit, figure: id, ...(part?.userData.joint ? { joint: part.userData.joint as JointName } : {}), ...(m && f && !f.proxy ? { contact: nearestContact(m, f, point).contact } : {}) };
           }
         }
         return hit;

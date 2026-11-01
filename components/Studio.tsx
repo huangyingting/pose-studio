@@ -470,10 +470,13 @@ function App() {
       store.select({ kind: 'prop', prop: hit.prop });
       openContextMenu(e, menu('prop', { store, prop: hit.prop }), store.scene.props.find((p) => p.id === hit.prop)?.name);
     } else if (hit.figure) {
-      // (Its selected joint stays selected, and the menu has the joint's commands.)
-      const joint = sel?.kind === 'joint' && sel.figure === hit.figure ? sel.joint : undefined;
-      if (!joint) store.select({ kind: 'figure', figure: hit.figure });
-      openContextMenu(e, figureMenu(store, hit.figure, joint), store.scene.figures.find((f) => f.id === hit.figure)?.name);
+      // (As a click: the first picks the figure, the next, it picked, the part under the pointer, the
+      // menu with that part's commands too: a stand-in, or with the Move tool, the whole figure.)
+      const f = store.scene.figures.find((x) => x.id === hit.figure);
+      const picked = (sel?.kind === 'figure' || sel?.kind === 'joint') && sel.figure === hit.figure;
+      const joint = picked && !f?.proxy && store.getState().tool !== 'move' ? hit.joint : undefined;
+      store.select(joint ? { kind: 'joint', figure: hit.figure, joint } : { kind: 'figure', figure: hit.figure });
+      openContextMenu(e, figureMenu(store, hit.figure, joint), f?.name);
     } else {
       // (On a set's top, a dais, a table, a seat: the spot on it under the pointer, not the floor's behind it.)
       const spot = hit.top ?? hit.floor;
