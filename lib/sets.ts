@@ -331,6 +331,13 @@ export const SETS: SetDef[] = [
         M('tall-plant', -6.4, -6.1), M('tall-plant', 6.5, -6.1), M('potted-plant', -1, 1.6),
         ...waterCooler(6.5, -0.6),
         M('wall-clock', -6.89, -2.6, 90, 2.1),
+        // Carpet tiles under the desks; strip lights hung over them, lit.
+        { ...B(8.2, 0.008, 4.8, -2.2, 0, -3.7), look: { color: '#5d636b', rough: 1 } },
+        ...open([-4.6, -2.2, 0.2].flatMap((x): Piece[] => [
+          { ...B(1.8, 0.05, 0.16, x, 2.62, -3.7), look: { color: '#f4f6ff', rough: 0.4, glow: '#eef2ff' } },
+          { ...B(1.84, 0.04, 0.2, x, 2.67, -3.7), look: METAL },
+          ...made({ color: '#2b2b2b', rough: 0.5, metal: 1 }, [C(0.004, 0.3, x - 0.7, 2.7, -3.7), C(0.004, 0.3, x + 0.7, 2.7, -3.7)]),
+        ])),
       ];
     },
   },

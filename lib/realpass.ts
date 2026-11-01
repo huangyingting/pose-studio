@@ -16,7 +16,7 @@ export class RealPass {
   private composer: EffectComposer | null = null;
   private scenePass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
   private ao: GTAOPass | null = null;
-  private bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.16, 0.4, 1.4);
+  private bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.1, 0.25, 2.2);
   private output = new OutputPass();
   private size = new THREE.Vector2();
 
