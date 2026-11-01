@@ -232,9 +232,10 @@ export function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: b
   const src = thumb && 'url' in thumb ? thumb.url : url && url.key === drawn?.key ? url.url : null;
   return (
     <span ref={el} className={small ? 'lib-thumb small' : 'lib-thumb'} aria-hidden>
+      {/* (Its icon until its picture is drawn: not an empty tile.) */}
       {/* Generated data: URLs and the app's own images, so next/image does not apply. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {src ? <img src={src} alt="" draggable={false} /> : !drawn && fallback}
+      {src ? <img src={src} alt="" draggable={false} /> : fallback}
     </span>
   );
 }
