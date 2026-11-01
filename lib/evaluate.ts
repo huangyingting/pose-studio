@@ -82,12 +82,14 @@ function cycleOf(id: string, mirror = false): Cycle | null {
   return made.get(mirror)!;
 }
 
-/** The cycle a travel with captured steps goes with: its own, or keeping its facing, one that backs up or steps sideways. */
-function gaitCycle(src: Extract<Action['source'], { kind: 'travel' }>, path: [number, number][], yaws: number[]): Cycle | null {
+/** The cycle a travel with captured steps goes with, and which way from its facing: its own, or keeping its facing, one that backs up or steps sideways. */
+function gaitCycle(src: Extract<Action['source'], { kind: 'travel' }>, path: [number, number][], yaws: number[]): { cycle: Cycle; way?: number } | null {
   if (!src.gait || src.mode === 'jump') return null;
   const way = src.strafe ? wayOf(path, yaws) : 'forward';
   const ways = GAIT_WAYS[src.mode];
-  return way === 'forward' ? cycleOf(src.gait) : way === 'back' ? cycleOf(ways.back) : cycleOf(ways.side, way === 'right');
+  const back = ways.back[src.gait];
+  const cycle = way === 'forward' ? cycleOf(src.gait) : way === 'back' ? (back ? cycleOf(back) : null) : cycleOf(ways.side, way === 'right');
+  return cycle && { cycle, ...(way !== 'forward' ? { way: { back: 180, left: 90, right: -90 }[way] } : {}) };
 }
 
 /** A floor offset turned by `deg` about the vertical (the same sense as turning a figure). */
@@ -772,7 +774,7 @@ class Evaluator {
       ...(src.strafe ? { strafe: true } : {}),
       ...(src.spin ? { spin: src.spin } : {}),
       ...(src.flip ? { flip: src.flip } : {}),
-      ...(cycle ? { cycle } : {}),
+      ...cycle,
     };
     this.chains.set(key, c);
     return c;

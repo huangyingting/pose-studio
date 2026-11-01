@@ -12,8 +12,9 @@ import { fresh } from '../fixtures/scenes';
 /* Walks and runs to a mark with a captured cycle (#26). */
 
 const WALK = 'library:walk';
+const SNEAK = 'library:crouch-walk-forward';
 const clip = (id: string) => ({ ...parseClip(JSON.parse(readFileSync(`public/motions/${id}.json`, 'utf8')))!, id: `library:${id}` });
-putClips([clip('walk'), clip('walk-backward'), clip('walk-left')]);
+putClips([clip('walk'), clip('crouch-walk-forward'), clip('walk-backward'), clip('walk-left')]);
 
 const turnOf = (p: Pose, q: Pose, j: keyof Pose['bones']) => {
   const [a, b] = [p.bones[j]!, q.bones[j]!];
@@ -53,19 +54,23 @@ describe('a walk with a captured cycle (#26)', () => {
     expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
   });
 
-  it('keeping its facing, it backs up and steps sideways with the captured ones (to the right, mirrored)', () => {
-    for (const to of [[0, -4], [3, 0], [-3, 0]] as [number, number][]) {
-      const { store, a, act } = walked(to, WALK, undefined, true);
+  it('keeping its facing, it steps sideways (to the right, mirrored) and a sneak backs up with the captured ones; a walk backs up generated', () => {
+    for (const [to, gait] of [[[0, -4], SNEAK], [[3, 0], WALK], [[-3, 0], WALK]] as [[number, number], string][]) {
+      const { store, a, act } = walked(to, gait, undefined, true);
       const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
       expect(Math.hypot(end.position[0] - to[0], end.position[2] - to[1]), `${to}`).toBeLessThan(0.1);
       expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop'), `${to}`).toEqual([]);
-      // Facing as it was all the way; its body the captured one, not the generated side steps.
+      // Facing the way it did, its hips as turned from it as the captured person's (a side step opens them); its body the captured one, not generated side steps.
       const mid = act.start + act.duration / 2;
       const pose = figurePoseAt(store.scene, a, mid)!;
-      expect(Math.abs(facingOf(pose.bones)), `${to}`).toBeLessThan(15);
+      expect(Math.abs(facingOf(pose.bones)), `${to}`).toBeLessThan(75);
       const g = walked(to, undefined, undefined, true);
       expect(turnOf(pose, figurePoseAt(g.store.scene, g.a, mid)!, 'spine'), `${to}`).toBeGreaterThan(1);
     }
+    const { store, a, act } = walked([0, -4], WALK, undefined, true);
+    const g = walked([0, -4], undefined, undefined, true);
+    const mid = act.start + act.duration / 2;
+    expect(turnOf(figurePoseAt(store.scene, a, mid)!, figurePoseAt(g.store.scene, g.a, mid)!, 'spine')).toBeLessThan(1e-3);
   });
 
   it('chosen in its inspector (a walk\'s cycles for a walk), kept with the scene; made a run, a walk\'s cycle goes', () => {

@@ -146,8 +146,9 @@ export interface Chain {
   /** A jump's turns in the air: about the vertical (spin) and head over heels (flip, + forwards). */
   spin?: number;
   flip?: number;
-  /** A captured cycle it goes with, instead of generated steps (#26). */
+  /** A captured cycle it goes with, instead of generated steps (#26), and which way it goes from the facing (keeping it: back 180, left 90, right -90). */
   cycle?: Cycle;
+  way?: number;
 }
 
 /** The Library's captured cycles a walk or a run can go with (#26), the first the usual one. */
@@ -158,11 +159,12 @@ export const GAITS: Record<'walk' | 'run', readonly string[]> = {
 
 /**
  * The cycles a walk or run with captured steps goes with where it keeps its facing (#26): backing
- * up, and stepping sideways (to the left as captured; to the right, mirrored).
+ * up (by the steps chosen: the Library's only walk backward is a sneak), and stepping sideways (to
+ * the left as captured; to the right, mirrored). None: generated steps.
  */
-export const GAIT_WAYS: Record<'walk' | 'run', { back: string; side: string }> = {
-  walk: { back: 'library:walk-backward', side: 'library:walk-left' },
-  run: { back: 'library:run-backward', side: 'library:strafe-left' },
+export const GAIT_WAYS: Record<'walk' | 'run', { back: Record<string, string>; side: string }> = {
+  walk: { back: { 'library:crouch-walk-forward': 'library:walk-backward' }, side: 'library:walk-left' },
+  run: { back: Object.fromEntries(GAITS.run.map((g) => [g, 'library:run-backward'])), side: 'library:strafe-left' },
 };
 
 /** Which way a travel keeping its facing goes, from start to end, against that facing (on the whole). */
@@ -184,6 +186,8 @@ export interface Cycle {
   duration: number;
   stride: number;
   facing: number;
+  /** Which way a lap goes (its own heading: a captured sideways walk's body is turned from it). */
+  heading: number;
   body: BodyParams;
   contacts: { side: 'L' | 'R'; start: number; end: number }[];
 }
@@ -710,7 +714,7 @@ export function makeCycle(at: (u: number) => AnglePose, duration: number, body: 
       contacts.push({ side, start: (duration * i) / n, end: (duration * (j + 1)) / n });
     }
   }
-  return { at, duration, stride, facing, body, contacts };
+  return { at, duration, stride, facing, heading: yawOf([b.position[0] - a.position[0], b.position[2] - a.position[2]]), body, contacts };
 }
 
 /**
@@ -736,7 +740,8 @@ function cycleGait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Gro
   const hips = q.joints.hips ?? [0, 0, 0];
   const yaw = generated.joints.hips?.[1] ?? 0;
   // (Its root where the generated walk has it, at the cycle's height: the legs reach the floor.)
-  const out: AnglePose = { ...q, joints: { ...q.joints, hips: [hips[0], wrapDeg(yaw + hips[1] - cyc.facing), hips[2]] }, position: [generated.position[0], Math.min(generated.position[1], q.position[1] * k + (generated.position[1] - legs.rootY * 0.975)), generated.position[2]], hands: pose.hands, grounded: false };
+  // (Turned so that its own way goes the path's: the body as turned from it as the captured one's.)
+  const out: AnglePose = { ...q, joints: { ...q.joints, hips: [hips[0], wrapDeg(yaw + (c.way ?? 0) + hips[1] - cyc.heading), hips[2]] }, position: [generated.position[0], Math.min(generated.position[1], q.position[1] * k + (generated.position[1] - legs.rootY * 0.975)), generated.position[2]], hands: pose.hands, grounded: false };
   const mixed = mixPoses(generated, out, w);
   // Planted feet held where the plan has them; swinging, the cycle's legs (eased onto the hold as they come down).
   for (const side of ['L', 'R'] as const) plantLeg(mixed, legs, side, feet[side].world, 1 - smooth(feet[side].swing * 2.5));

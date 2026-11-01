@@ -38,7 +38,7 @@ const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain
 const LIST: Record<string, [string, MotionGroup]> = {
   'Walk': ['Walk', 'Moving'],
   'Walk Forward': ['Walk, brisk', 'Moving'],
-  'Walk Backward': ['Walk backward', 'Moving'],
+  'Walk Backward': ['Sneak backward', 'Moving'],
   'Walk Left': ['Walk sideways', 'Moving'],
   'Happy Walk': ['Walk, happy', 'Moving'],
   'Crouch Walk Forward': ['Sneak, crouched', 'Moving'],

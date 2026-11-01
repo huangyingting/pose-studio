@@ -988,6 +988,19 @@
   "turn": 0
  },
  {
+  "id": "library:walk-backward",
+  "name": "Sneak backward",
+  "duration": 1.1,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   0.007,
+   -1.652
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:crouch-walk-forward",
   "name": "Sneak, crouched",
   "duration": 1.133,
@@ -1253,19 +1266,6 @@
   "move": [
    -0.006,
    1.594
-  ],
-  "turn": 0
- },
- {
-  "id": "library:walk-backward",
-  "name": "Walk backward",
-  "duration": 1.1,
-  "people": 1,
-  "group": "Moving",
-  "loop": true,
-  "move": [
-   0.007,
-   -1.652
   ],
   "turn": 0
  },
