@@ -227,3 +227,22 @@ describe('models: characters from other tools fitted to the skeleton', () => {
     expect(Object.values(twice.bones).every((name) => kept.getObjectByName(name!))).toBe(true);
   });
 });
+
+describe('mapping a skeleton\'s bones', () => {
+  it('takes a bone named as ours where its shape does not tell (a file written with our names, a few renamed)', () => {
+    const bone = (name: string, parent?: THREE.Object3D, at: [number, number, number] = [0, 0.1, 0]) => { const b = new THREE.Bone(); b.name = name; b.position.set(...at); parent?.add(b); return b; };
+    const hips = bone('hips', undefined, [0, 1, 0]);
+    const upperChest = bone('upperChest', bone('chest', bone('spine', hips)));
+    bone('head', bone('neck', upperChest));
+    for (const [s, k] of [['left', 1], ['right', -1]] as const) {
+      // (Its forearm and hand renamed: nothing in their names says what they are.)
+      bone(`B_${s}_23`, bone(`B_${s}_fa`, bone(`${s}UpperArm`, bone(`${s}Shoulder`, upperChest, [k * 0.05, 0.1, 0]), [k * 0.1, 0, 0]), [k * 0.28, 0, 0]), [k * 0.28, 0, 0]);
+      bone(`${s}Toes`, bone(`${s}Foot`, bone(`${s}LowerLeg`, bone(`${s}UpperLeg`, hips, [k * 0.08, -0.07, 0]), [0, -0.44, 0]), [0, -0.44, 0]), [0, -0.05, 0.1]);
+    }
+    const root = new THREE.Group();
+    root.add(hips);
+    const map = mapBones(root);
+    expect([map.leftShoulder, map.leftUpperArm, map.rightShoulder, map.rightUpperArm, map.upperChest, map.leftToes]).toEqual(['leftShoulder', 'leftUpperArm', 'rightShoulder', 'rightUpperArm', 'upperChest', 'leftToes']);
+    expect(missingBones(map).sort()).toEqual(['leftHand', 'leftLowerArm', 'rightHand', 'rightLowerArm']);
+  });
+});

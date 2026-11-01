@@ -124,6 +124,10 @@ export function mapBones(root: THREE.Object3D): BoneMap {
     if (spine.length >= 2) put('chest', spine[1]);
     if (spine.length >= 3) put('upperChest', spine[spine.length - 1]);
   }
+  // What it still lacks, from a bone named as ours (a skeleton written with our names: Motion2MixamoRig's
+  // BVH, a VRM's export), where that bone is not taken already.
+  const taken = new Set(Object.values(map));
+  for (const b of BONES) if (!map[b]) put(b, all.find((o) => o.name === b && !taken.has(o.name)));
   return map;
 }
 
