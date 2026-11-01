@@ -68,7 +68,7 @@ export function nextStep(store: Store): Suggestion | null {
     || (lead && !acting && people.length === 1 && JSON.stringify(lead.bones) === DEFAULT_BONES
       && offer('pose', { text: `Pose ${lead.name}: drag a part, or pick a pose`, actions: [] }))
     || (lead && !acting && offer('act', { text: `Give ${lead.name} something to do`, actions: [] }))
-    || (a && acting && shotSpans(a).length === 1 && offer('cut', { text: 'One shot so far: let the director film it, or cut it', actions: [] }))
+    || (a && acting && shotSpans(a).length === 1 && offer('cut', { text: scene.coverage?.live ? 'One shot so far: cut it where the view should change' : 'One shot so far: let the director film it, or cut it', actions: [] }))
     || (a && shotSpans(a).length > 1 && new Set(shotSpans(a).map((sp) => sp.shot.camera)).size === 1
       && offer('camera', { text: 'All shots use one camera: give shot 2 its own', actions: [] }))
     || (a && acting && offer('check', { text: 'Check for sliding feet, collisions, joints bent too far and pops', actions: [] }))

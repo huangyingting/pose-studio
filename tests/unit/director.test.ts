@@ -131,7 +131,7 @@ describe('a film of a chosen length', () => {
     vi.unstubAllGlobals();
   });
 
-  it('is offered by the next-step hint when a film is still one shot', async () => {
+  it('is offered by the next-step hint when a scene is still one shot; on already, the hint offers the cut alone', async () => {
     const { nextStep } = await import('@/components/nextStep');
     const store = new Store(new MemoryStorage());
     const id = store.figure!.id;
@@ -143,6 +143,14 @@ describe('a film of a chosen length', () => {
     expect(step.actions.map((x) => x.label)).toEqual(['Director', 'Cut here']);
     step.actions[0].run();
     expect(store.scene.coverage).toMatchObject({ id: 'follow', live: true });
+    // Turned on from the timeline's menu instead, still one shot: no word of the director.
+    const other = new Store(new MemoryStorage());
+    startAnimation(other, 3);
+    travelTo(other, other.figure!.id, [0, -1], 'walk');
+    setDirector(other, 'follow');
+    const cut = nextStep(other)!;
+    expect(cut.text).toBe('One shot so far: cut it where the view should change');
+    expect(cut.actions.map((x) => x.label)).toEqual(['Cut here']);
   });
 
   it('never plays backwards: a first frame that began before play was pressed does not take the time back', async () => {
