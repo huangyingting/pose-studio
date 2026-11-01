@@ -592,7 +592,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           role="group"
           aria-label="Tracks"
           onKeyDown={onKeys}
-          onFocus={() => setKeysHere(true)}
+          // (Its keys said when it is reached from the keyboard, not over the rows at every click in it.)
+          onFocus={(e) => setKeysHere((e.target as HTMLElement).matches(':focus-visible'))}
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeysHere(false); }}
           // (Clicked in, it takes the keys; not from what has a focus of its own.)
           onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('input, textarea, select')) e.currentTarget.focus({ preventScroll: true }); }}
