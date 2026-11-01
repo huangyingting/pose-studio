@@ -10,4 +10,7 @@ code they check):
   bone's world turn and the root sampled at four times each.
 - `legacy-scene.json`: a scene as saved with a 17-joint figure, and its bones as it parsed.
 
-`tests/unit/compat.test.ts` holds today's code to them. Do not make them again with newer code.
+Since then the neck, shoulders and upper arms are stored from their parents in the body (the
+upper chest, the shoulders) and the shipped motions were converted once (#30); a bone's turn in
+the world is the same either way, which `tests/unit/compat.test.ts` checks: the converted motions
+and today's code against what the old ones meant. Do not make them again with newer code.

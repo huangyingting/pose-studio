@@ -3,7 +3,8 @@ import { buildOf, widthOf } from './body';
 import { BOTS, BOT_TARGETS } from './bots';
 import { Ink, InkedParts, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
-import { RIG_PARENT, boneToRig, rigToBone, rigTurns, storedTurns } from './pose';
+import { boneToRig, fromQuat, rigToBone, toQuat } from './pose';
+import { JOINT_PARENT } from './skeleton';
 import {
   JOINTS, type BodyParams, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
 } from './types';
@@ -140,8 +141,8 @@ interface FingerRig {
   side: 1 | -1;
 }
 
-/** Each joint's parent in the body (the hips: the root), #30: lib/pose.ts. */
-const PARENT = RIG_PARENT;
+/** Each joint's parent (the hips: the root). */
+const PARENT = JOINT_PARENT;
 
 /** The joint a part of the bot belongs to (a finger's segment: its hand's). */
 const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle|Ring|Little)/.test(target) ? (`${target.startsWith('left') ? 'left' : 'right'}Hand` as JointName) : (target as JointName));
@@ -431,9 +432,7 @@ export class Mannequin {
   /** Pose the figure from document state. */
   apply(fig: Figure) {
     this.setBody(fig.body);
-    // (Each joint's own turn in the body: the stored turns of the neck, shoulders and arms are from the chest.)
-    const own = rigTurns(fig.bones);
-    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, own[name]));
+    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fromQuat(fig.bones[name])));
     this.setHand('L', fig.hands.L);
     this.setHand('R', fig.hands.R);
     this.grounded = fig.grounded;
@@ -444,7 +443,7 @@ export class Mannequin {
   /** Read the bone rotations and the hips' position back out. */
   read(): Pick<Figure, 'bones' | 'position'> {
     const bones: Figure['bones'] = {};
-    Object.assign(bones, storedTurns(Object.fromEntries(JOINTS.map((name) => [name, rigToBone(name, this.joints[name].quaternion)])) as Record<JointName, THREE.Quaternion>));
+    for (const name of JOINTS) bones[name] = toQuat(rigToBone(name, this.joints[name].quaternion));
     const p = this.joints.hips.position;
     const r = (x: number) => Math.round(x * 1000) / 1000 || 0;
     return { bones, position: [r(p.x), r(p.y), r(p.z)] };

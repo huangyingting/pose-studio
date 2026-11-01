@@ -53,11 +53,12 @@ export function detectContacts(clip: Clip, index: number, fps: number): ClipCont
 const REACH_IN: Partial<Record<JointName, number>> = { hips: 0.17, spine: 0.17, chest: 0.17, neck: 0.1, leftUpperArm: 0.08, rightUpperArm: 0.08, leftLowerArm: 0.07, rightLowerArm: 0.07, leftUpperLeg: 0.1, rightUpperLeg: 0.1, leftLowerLeg: 0.08, rightLowerLeg: 0.08 };
 /** The joint a bone runs to (its axis is from its joint to that one). */
 const BONE_END: Partial<Record<JointName, JointName>> = {
-  hips: 'spine', spine: 'chest', chest: 'neck', neck: 'head', leftUpperArm: 'leftLowerArm', rightUpperArm: 'rightLowerArm', leftLowerArm: 'leftHand', rightLowerArm: 'rightHand',
-  leftUpperLeg: 'leftLowerLeg', rightUpperLeg: 'rightLowerLeg', leftLowerLeg: 'leftFoot', rightLowerLeg: 'rightFoot',
+  hips: 'spine', spine: 'chest', chest: 'upperChest', upperChest: 'neck', neck: 'head',
+  leftShoulder: 'leftUpperArm', rightShoulder: 'rightUpperArm', leftUpperArm: 'leftLowerArm', rightUpperArm: 'rightLowerArm', leftLowerArm: 'leftHand', rightLowerArm: 'rightHand',
+  leftUpperLeg: 'leftLowerLeg', rightUpperLeg: 'rightLowerLeg', leftLowerLeg: 'leftFoot', rightLowerLeg: 'rightFoot', leftFoot: 'leftToes', rightFoot: 'rightToes',
 };
 /** A hand on the trunk is held in the chest's frame (it may sit over the spine or the chest from frame to frame). */
-const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'neck'];
+const TRUNK: JointName[] = ['hips', 'spine', 'chest', 'upperChest', 'leftShoulder', 'rightShoulder', 'neck'];
 
 /**
  * Where the parts of a clip of several people hold each other: stretches where a hand stays on

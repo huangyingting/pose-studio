@@ -98,8 +98,8 @@ const tagged = (o: THREE.Object3D | null) => {
   return o;
 };
 
-/** The parts a hand or foot rests on (a palm on a hip, on a knee, on the head). */
-const RESTED_ON = new Set<JointName>(['hips', 'spine', 'chest', 'head', 'leftUpperLeg', 'rightUpperLeg']);
+/** The parts a hand or foot rests on (a palm on a hip, on a knee, on a shoulder, on the head). */
+const RESTED_ON = new Set<JointName>(['hips', 'spine', 'chest', 'upperChest', 'leftShoulder', 'rightShoulder', 'head', 'leftUpperLeg', 'rightUpperLeg']);
 
 /**
  * The part a press or click under the pointer takes (`usable`: not one to reach past, a

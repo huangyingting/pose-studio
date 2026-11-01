@@ -23,7 +23,7 @@ const quatAt = (values: number[], i: number) => new THREE.Quaternion(values[i * 
  * glance), as it is otherwise (one recorded at an angle).
  */
 export function lookFacing(part: ClipPart): number {
-  const chain: JointName[] = ['hips', 'spine', 'chest', 'neck', 'head'];
+  const chain: JointName[] = ['hips', 'spine', 'chest', 'upperChest', 'neck', 'head'];
   const tracks = chain.map((b) => track(part, b));
   const times = tracks[0]?.times ?? [];
   let x = 0, z = 0;

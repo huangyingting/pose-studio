@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { newFigure } from '@/lib/doc';
 import { handPosition } from '@/lib/propmotion';
 import { Rig, reach } from '@/lib/relations';
-import { RIG_PARENT, angle, anglesOf, bonesOf, fromQuat, rigTurns, storedTurns, withAngles, type Bones } from '@/lib/pose';
-import { worldTurns } from '@/lib/skeleton';
+import { angle, anglesOf, bonesOf, withAngles, type Bones } from '@/lib/pose';
+import { JOINT_PARENT, PARENT, worldTurns } from '@/lib/skeleton';
 import { JOINTS, type JointName } from '@/lib/types';
 
 /* The 22 joints (#30): the upper chest, the shoulders and the toes as joints of their own. */
@@ -17,21 +17,16 @@ const deg = (q: THREE.Quaternion, r: THREE.Quaternion) => {
 describe('the 22 joints (#30)', () => {
   it('22 joints, each after its parent in the body', () => {
     expect(JOINTS).toHaveLength(22);
-    for (const j of JOINTS) if (j !== 'hips') expect(JOINTS.indexOf(RIG_PARENT[j as Exclude<JointName, 'hips'>]), j).toBeLessThan(JOINTS.indexOf(j));
+    for (const j of JOINTS) if (j !== 'hips') expect(JOINTS.indexOf(JOINT_PARENT[j as Exclude<JointName, 'hips'>]), j).toBeLessThan(JOINTS.indexOf(j));
   });
 
-  it('stored and in-the-body turns convert both ways; a pose without the five means the same either way', () => {
-    // A legacy pose: the five at rest, every joint's own turn its stored one.
-    const legacy = bonesOf({ chest: [10, 20, 0], neck: [-15, 5, 0], leftUpperArm: [-40, 10, 30], rightUpperArm: [20, 0, -60] });
-    const own = rigTurns(legacy);
-    for (const j of JOINTS) expect(deg(own[j], fromQuat(legacy[j])), j).toBeLessThan(0.01);
-    // With them: back and forth unchanged.
-    const full = bonesOf({ chest: [10, 20, 0], upperChest: [12, -15, 5], neck: [-15, 5, 0], leftShoulder: [3, -10, 25], rightShoulder: [0, 12, -20], leftUpperArm: [-40, 10, 30], leftToes: [-30, 0, 0] });
-    const back = storedTurns(rigTurns(full));
-    for (const j of JOINTS) expect(deg(fromQuat(back[j]), fromQuat(full[j])), j).toBeLessThan(0.01);
+  it('each joint stored from its parent in the body: the neck and shoulders from the upper chest, an arm from its shoulder', () => {
+    expect([PARENT.neck, PARENT.leftShoulder, PARENT.rightShoulder, PARENT.leftUpperArm, PARENT.rightUpperArm, PARENT.leftToes]).toEqual(['upperChest', 'upperChest', 'upperChest', 'leftShoulder', 'rightShoulder', 'leftFoot']);
     // Angles read back as set.
+    const full = bonesOf({ chest: [10, 20, 0], upperChest: [12, -15, 5], neck: [-15, 5, 0], leftShoulder: [3, -10, 25], rightShoulder: [0, 12, -20], leftUpperArm: [-40, 10, 30], leftToes: [-30, 0, 0] });
     expect(anglesOf(full).leftShoulder).toEqual([3, -10, 25]);
     expect(angle(full, 'upperChest')).toEqual([12, -15, 5]);
+    expect(angle(full, 'leftUpperArm')).toEqual([-40, 10, 30]);
   });
 
   it('raising a shoulder raises its arm with it; twisting the upper chest turns the neck and arms; the others stay', () => {

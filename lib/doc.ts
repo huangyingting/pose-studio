@@ -161,7 +161,7 @@ export function symmetrize(f: Figure, from: Side): Figure {
     else delete joints[other];
   }
   // Centre joints become symmetric too.
-  for (const j of ['spine', 'chest', 'neck', 'head'] as const) {
+  for (const j of ['spine', 'chest', 'upperChest', 'neck', 'head'] as const) {
     const r = was[j];
     if (r) joints[j] = [r[0], 0, 0];
   }
