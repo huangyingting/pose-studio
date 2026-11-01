@@ -323,8 +323,78 @@ async function makeScene(id: string, a: SceneAsset) {
     if (between > 0.05 * alpha.length) continue;
     m.setAlphaMode(clear ? 'MASK' : 'OPAQUE');
   }
+  const walls = wallsOf(doc!);
   cutUp(doc!);
-  return finish(`scenes/${id}.glb`, doc!, a.tex);
+  return { ...(await finish(`scenes/${id}.glb`, doc!, a.tex)), walls };
+}
+
+/**
+ * A scene's walls (#27), what stops a camera as a built set's do: where upright faces stand from
+ * the floor to over a person's head (a wall, a pillar, a tall cupboard; not a table, a chair, a
+ * window's opening, glass), in 25 cm cells of the floor joined into boxes: [x0, z0, x1, z1, top].
+ */
+function wallsOf(doc: Document): number[][] {
+  const cell = 0.25;
+  const bins = 9; // (0 to 2.25 m, a quarter metre each)
+  const seen = new Map<string, { bins: number; top: number }>();
+  for (const node of doc.getRoot().listNodes()) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    const m = node.getWorldMatrix() as unknown as number[];
+    for (const prim of mesh.listPrimitives()) {
+      if (prim.getMaterial()?.getAlphaMode() === 'BLEND') continue;
+      const pos = prim.getAttribute('POSITION')!;
+      const idx = prim.getIndices();
+      const n = idx ? idx.getCount() : pos.getCount();
+      const at = (i: number) => { const p = pos.getElement(i, [0, 0, 0]); return [0, 1, 2].map((r) => m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r]); };
+      for (let t = 0; t + 2 < n; t += 3) {
+        const [a, b, c] = (idx ? [idx.getScalar(t), idx.getScalar(t + 1), idx.getScalar(t + 2)] : [t, t + 1, t + 2]).map(at);
+        const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        const nx = u[1] * v[2] - u[2] * v[1], ny = u[2] * v[0] - u[0] * v[2], nz = u[0] * v[1] - u[1] * v[0];
+        const area = Math.hypot(nx, ny, nz) / 2;
+        // (Upright faces only, sampled every 10 cm or so.)
+        if (area < 1e-6 || Math.abs(ny) / (2 * area) > 0.3) continue;
+        const k = Math.min(60, Math.ceil(Math.sqrt(area) / 0.1));
+        for (let i = 0; i <= k; i++) for (let j = 0; j <= k - i; j++) {
+          const [p, q] = [i / k, j / k];
+          const [x, y, z] = [0, 1, 2].map((r) => a[r] + u[r] * p + v[r] * q);
+          const bin = Math.floor(y / cell);
+          const key = `${Math.floor(x / cell)} ${Math.floor(z / cell)}`;
+          const was = seen.get(key) ?? { bins: 0, top: 0 };
+          seen.set(key, { bins: bin >= 0 && bin < bins ? was.bins | (1 << bin) : was.bins, top: Math.max(was.top, y) });
+        }
+      }
+    }
+  }
+  // (Standing over all but one of the bins: a gap under a cupboard, a skirting, a missed sample.)
+  const solid = new Map<string, number>();
+  for (const [key, x] of seen) {
+    let count = 0;
+    for (let i = 0; i < bins; i++) if (x.bins & (1 << i)) count++;
+    if (count >= bins - 1) solid.set(key, x.top);
+  }
+  // Rows of cells along x joined, then rows alike one after another along z.
+  const runs = new Map<string, { x0: number; x1: number; z0: number; z1: number; top: number }>();
+  const zs = [...new Set([...solid.keys()].map((k) => +k.split(' ')[1]))].sort((p, q) => p - q);
+  const boxes: { x0: number; x1: number; z0: number; z1: number; top: number }[] = [];
+  for (const z of zs) {
+    const xs = [...solid.keys()].filter((k) => +k.split(' ')[1] === z).map((k) => +k.split(' ')[0]).sort((p, q) => p - q);
+    for (let i = 0; i < xs.length;) {
+      let j = i;
+      while (j + 1 < xs.length && xs[j + 1] === xs[j] + 1) j++;
+      const top = Math.max(...xs.slice(i, j + 1).map((x) => solid.get(`${x} ${z}`)!));
+      const key = `${xs[i]} ${xs[j]}`;
+      const run = runs.get(key);
+      if (run && run.z1 === z) { run.z1 = z + 1; run.top = Math.max(run.top, top); } else {
+        const made = { x0: xs[i], x1: xs[j] + 1, z0: z, z1: z + 1, top };
+        runs.set(key, made);
+        boxes.push(made);
+      }
+      i = j + 1;
+    }
+  }
+  const r = (v: number) => Math.round(v * 100) / 100;
+  return boxes.map((b) => [r(b.x0 * cell), r(b.z0 * cell), r(b.x1 * cell), r(b.z1 * cell), r(b.top)]);
 }
 
 /** A model fitted to its budget: simplified (allowing more error until it fits), textures resized, compressed. */
@@ -357,7 +427,8 @@ async function makeModel(id: string, a: ModelAsset | TreeAsset) {
   const { min, max } = getBounds(scene);
   const made = a.height ? max[1] - min[1] : Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
   const want = a.height ?? (real ? Math.max(...real) / 1000 : made);
-  if (Math.abs(want / made - 1) > 0.25) {
+  // (Its height as given, or its size where it is far from what its source says.)
+  if (Math.abs(want / made - 1) > (a.height ? 0.01 : 0.25)) {
     const k = want / made;
     const holder = doc!.createNode('scaled').setScale([k, k, k]);
     for (const n of scene.listChildren()) { scene.removeChild(n); holder.addChild(n); }
@@ -462,7 +533,7 @@ async function main() {
     const was = before.scenes?.[id];
     try {
       const made = fresh(key, a, was?.file) ? was! : await makeScene(id, a);
-      index.scenes[id] = { file: made.file, tris: made.tris, bytes: made.bytes, size: made.size };
+      index.scenes[id] = { file: made.file, tris: made.tris, bytes: made.bytes, size: made.size, walls: made.walls };
       index.made[key] = JSON.stringify(a);
       const b = made as { min?: number[]; max?: number[] };
       console.log(`${id.padEnd(16)} scene ${String(made.tris).padStart(7)} tris ${(made.bytes / 1048576).toFixed(1).padStart(5)} MB  ${made.size.join(' × ')} m${b.min ? `  from ${b.min.join(',')} to ${b.max!.join(',')}` : ''}`);

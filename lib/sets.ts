@@ -7,6 +7,8 @@ import SET_INDEX from '../public/sets/index.json';
 import { CUTAWAY_LAYER, InkedParts, LINES_LAYER, type Ink } from './ink';
 import { MAX_LIGHTS, clampLight, newLight, skyOf } from './lighting';
 import { withBase } from './paths';
+import { styleDef } from './styles';
+import { paintedLook, toonMaterial } from './toon';
 import { SCENES, type ModelId, type SceneId, type SetIndex, type Sky, type SurfaceId } from './setassets';
 import { uid } from './uid';
 import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
@@ -293,8 +295,8 @@ export const SETS: SetDef[] = [
         skirting(-6.9, 6.9, -6.39), ...place([skirting(-6.4, 3.5, 0)], -6.89, 0, 0, 90), ...place([skirting(-6.4, 0, 0), skirting(1, 3.5, 0)], 6.89, 0, 0, -90),
         // Three pairs of desks back to back, a low partition between each pair.
         ...[-4.6, -2.2, 0.2].flatMap((x, i) => [
-          ...desk(x, -4.75, 0, i === 1 ? [M('laptop', 0.55, -0.1, 0, 0.787, 0.6)] : [M('stationery', -0.7, -0.25, 0, 0.787)]),
-          ...desk(x, -2.65, 180, i === 0 ? [M('small-plant', 0.8, -0.3, 0, 0.787)] : [M('notepads', 0.55, -0.05, 0, 0.787, 0.5)]),
+          ...desk(x, -4.75, 0, i === 1 ? [M('laptop', 0.55, -0.1, 0, 0.787)] : [M('stationery', -0.7, -0.25, 0, 0.787)]),
+          ...desk(x, -2.65, 180, i === 0 ? [M('small-plant', 0.8, -0.3, 0, 0.787)] : [M('notepads', 0.55, -0.05, 0, 0.787)]),
           ...open([{ ...B(2.1, 1.25, 0.05, x, 0, -3.7), look: { color: '#5f6b75', rough: 0.95 } }, { ...B(2.12, 0.03, 0.07, x, 1.25, -3.7), look: METAL }]),
         ]),
         // The meeting corner.
@@ -703,6 +705,18 @@ function materialOf(look: Look): THREE.Material {
   return mat;
 }
 
+const toons = new WeakMap<Ink, Map<string, THREE.Material>>();
+/** A material toon-shaded (its colour, texture, see-through as it is), lit by the ink's lights; from both sides too if asked. */
+function toonOf(ink: Ink, m: THREE.Material, twoSided: boolean): THREE.Material {
+  if (!(m instanceof THREE.MeshStandardMaterial)) return m;
+  let made = toons.get(ink);
+  if (!made) toons.set(ink, (made = new Map()));
+  const key = `${m.uuid}${twoSided ? '|2' : ''}`;
+  let t = made.get(key);
+  if (!t) made.set(key, (t = toonMaterial({ ...paintedLook(m), ...(twoSided ? { doubleSided: true } : {}) }, ink.uniforms)));
+  return t;
+}
+
 /* ---------- what is round a set in 3D (#25): its sky outdoors, a room's light indoors ---------- */
 
 const skies = new Map<Sky, THREE.DataTexture | null>();
@@ -771,6 +785,13 @@ export function setBlocks(id: string | undefined, from: THREE.Vector3, to: THREE
     boxes = [];
     for (const p of setById(id)?.build() ?? []) {
       const [kind] = p.shape;
+      // (A ready-made scene: its walls, as worked out when it was made.)
+      if (kind === 'scene') {
+        for (const [x0, z0, x1, z1, top] of INDEX.scenes[p.shape[1]]?.walls ?? []) {
+          boxes.push({ at: new THREE.Vector3((x0 + x1) / 2 + p.at[0], top / 2 + p.at[1], (z0 + z1) / 2 + p.at[2]), half: new THREE.Vector3((x1 - x0) / 2, top / 2, (z1 - z0) / 2), turn: new THREE.Quaternion() });
+        }
+        continue;
+      }
       // (Its architecture: not what furnishes it, a model, which a camera can pass by or see through, a tree's leaves; nor glass.)
       if (p.open || (typeof p.look === 'object' && p.look.glass)) continue;
       const size = kind === 'box' ? [p.shape[1], p.shape[2], p.shape[3]] as number[] : kind === 'cyl' ? [2 * Math.max(p.shape[1], p.shape[2]), p.shape[3], 2 * Math.max(p.shape[1], p.shape[2])] : null;
@@ -860,7 +881,7 @@ export class SetObject {
   private off: () => void;
   private shadows = false;
 
-  constructor(ink: Ink, readonly id: string) {
+  constructor(private ink: Ink, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
     for (const p of setById(id)?.build() ?? []) {
       if (p.shape[0] === 'model' || p.shape[0] === 'scene') { this.waiting.push(p); continue; }
@@ -932,11 +953,12 @@ export class SetObject {
     const blobs = (style === 'render' || style === 'shaded') && typeof document !== 'undefined';
     if (blobs && !this.blobs && this.grounded.length) this.object.add((this.blobs = contactShadows(this.grounded)));
     if (this.blobs) this.blobs.visible = blobs;
-    // (In 3D, in its own materials: textured.)
-    if (style === 'render') {
+    // (In 3D, in its own materials: textured; in the toon styles (Anime, Pixel), its own colours and textures toon-shaded, as a character's are.)
+    const toon = !!styleDef(style).toon;
+    if (style === 'render' || toon) {
       for (const mesh of this.pieces) {
         const own = mesh.userData.own ?? (mesh.userData.look ? materialOf(mesh.userData.look) : null);
-        if (own) mesh.material = own;
+        if (own) mesh.material = toon ? toonOf(this.ink, own, !!mesh.userData.twoSided) : own;
       }
     }
   }

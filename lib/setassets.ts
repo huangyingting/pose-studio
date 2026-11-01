@@ -11,7 +11,7 @@ export interface ModelAsset {
   /** Its Poly Haven id; or (`sf`) a Sketchfab model's, CC BY, its title and author credited. */
   ph?: string;
   sf?: { uid: string; title: string; author: string };
-  /** Its real height (m), where its file is at another scale and its source does not say. */
+  /** Its real height (m), where its file is at another scale and its source does not say, or says wrong (a seat over 60 cm up, a laptop 65 cm across). */
   height?: number;
   /** The most triangles it may have (simplified down to it). */
   tris: number;
@@ -53,15 +53,15 @@ export const MODELS = {
   'picture': small('hanging_picture_frame_02'),
   'picture-2': small('hanging_picture_frame_01'),
   'wall-clock': small('wall_clock'),
-  'ottoman': small('Ottoman_01'),
+  'ottoman': { ...small('Ottoman_01'), height: 0.46 },
   // Work
   'office-desk': model('metal_office_desk', 7_000),
   'drawer-cabinet': model('drawer_cabinet', 8_000),
   'steel-shelves': small('steel_frame_shelves_01'),
   'meeting-table': small('dining_table'),
   'dining-chair': small('dining_chair_02'),
-  'laptop': small('classic_laptop'),
-  'notepads': small('office_notepads'),
+  'laptop': { ...small('classic_laptop'), height: 0.24 },
+  'notepads': { ...small('office_notepads'), height: 0.008 },
   'stationery': small('stationery_supplies'),
   'projector-screen': model('projector_screen', 6_000),
   'chalkboard': small('standing_chalkboard_01'),
@@ -95,9 +95,9 @@ export const MODELS = {
   'aspen': tree('Aspen Medium', 10),
   'bush': tree('Bush 1', 1.6),
   // China
-  'chinese-armchair': small('chinese_armchair'),
+  'chinese-armchair': { ...small('chinese_armchair'), height: 1.15 },
   'chinese-tea-table': small('chinese_tea_table'),
-  'chinese-stool': small('chinese_stool'),
+  'chinese-stool': { ...small('chinese_stool'), height: 0.47 },
   'chinese-cabinet': model('chinese_cabinet', 8_000),
   'chinese-console': model('chinese_console_table', 6_000),
   'chinese-screen': small('chinese_screen_panels'),
@@ -115,15 +115,15 @@ export const MODELS = {
   'marble-bust': small('marble_bust_01'),
   'castle-door': model('large_castle_door', 6_000),
   'gothic-cabinet': model('GothicCabinet_01', 8_000),
-  'gothic-commode': small('GothicCommode_01'),
-  'throne': model('WoodenChair_01', 8_000),
+  'gothic-commode': { ...small('GothicCommode_01'), height: 0.9 },
+  'throne': { ...model('WoodenChair_01', 8_000), height: 1.65 },
   'chandelier': model('Chandelier_01', 8_000),
   'candleholders': model('brass_candleholders', 6_000),
   'goblets': small('brass_goblets'),
   'wine-barrel': small('wine_barrel_01'),
   'jug': small('jug_01'),
   'wooden-bowl': small('wooden_bowl_01'),
-  'feast-table': small('painted_wooden_table'),
+  'feast-table': { ...small('painted_wooden_table'), height: 0.77 },
 } satisfies Record<string, ModelAsset | TreeAsset>;
 export type ModelId = keyof typeof MODELS;
 
@@ -216,5 +216,6 @@ export interface SetIndex {
   models: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
   surfaces: Record<string, { color: string; normal: string; orm: string; bytes: number; tile: number }>;
   skies: Record<string, { file: string; bytes: number }>;
-  scenes: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
+  /** A ready-made scene's, with its walls (boxes on the floor, [x0, z0, x1, z1, top], m): what stops a camera. */
+  scenes: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number]; walls: number[][] }>;
 }
