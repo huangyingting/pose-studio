@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { startAnimatedScene } from '@/lib/actions';
+import { newShoot, startAnimatedScene } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
-import { cameraAt, viewOf } from '@/lib/cameras';
+import { cameraAt, liveCamera, viewOf } from '@/lib/cameras';
 import { parseClip } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { FILMS } from '@/lib/films';
 import { checkMotion } from '@/lib/qa';
-import { spanAt } from '@/lib/shots';
+import { shotSpans, spanAt } from '@/lib/shots';
 import * as THREE from 'three';
 import { Rig } from '@/lib/relations';
 import { Store } from '@/lib/store';
@@ -78,6 +78,32 @@ describe('films: templates staged as a director would', () => {
         const chair = scene.props.some((p) => p.kind === 'chair' && Math.hypot(p.position[0] - at[0], p.position[2] - at[1]) < 0.3);
         const sofa = scene.set === 'living-room' && Math.abs(at[1] + 3.42) < 0.1 && Math.abs(at[0]) < 1.1;
         expect(chair || sofa, `${f.name}: ${x.source.clip} at ${x.start.toFixed(1)} s`).toBe(true);
+      }
+    }
+    rig.dispose();
+  }, 600_000);
+
+  it('keeps each shot\'s subject in the picture, wherever the set\'s walls bring its camera in', () => {
+    const rig = new Rig();
+    for (const p of SHOOT_PRESETS.filter((x) => FILMS.some((f) => f.id === x.template))) {
+      const store = new Store(new MemoryStorage());
+      expect(newShoot(store, p.id), p.name).toBe(true);
+      const scene = store.scene;
+      load(scene);
+      for (const sp of shotSpans(scene.animation!)) {
+        for (let t = sp.start; t < sp.end; t += 0.5) {
+          const v = cameraAt(scene, t, 16 / 9);
+          const cam = new THREE.PerspectiveCamera(v.fov, 16 / 9, 0.05, 200);
+          cam.position.copy(v.position);
+          cam.lookAt(v.target);
+          cam.updateMatrixWorld();
+          const subject = liveCamera(scene, t).subject;
+          const seen = scene.figures.filter((f) => !subject || f.id === subject).some((f) => {
+            const m = rig.model(figurePoseAt(scene, f.id, t)!);
+            return (['head', 'chest', 'hips'] as const).some((j) => { const q = m.joints[j].getWorldPosition(new THREE.Vector3()).project(cam); return Math.abs(q.x) < 1 && Math.abs(q.y) < 1 && Math.abs(q.z) < 1; });
+          });
+          expect(seen, `${p.name}: shot ${sp.index + 1} at ${t.toFixed(1)} s`).toBe(true);
+        }
       }
     }
     rig.dispose();

@@ -236,6 +236,14 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
         v.position.x = at[0] + ux * r;
         v.position.z = at[2] + uz * r;
       }
+      // (Its subject always in the picture: where the set's walls bring it in closer than its
+      // framing of everyone needs, or than where it sits in the frame was measured for, it turns to
+      // keep its subject in rather than lose it off the edge.)
+      const one = cam.subject ? scene.figures.find((f) => f.id === cam.subject && !f.hidden) : undefined;
+      if (one) {
+        const at = (basePoseAt(scene, one.id, t) ?? one).position;
+        keepInFrame(v, new THREE.Vector3(at[0], v.target.y, at[2]), lensFov(v.lens, aspect), aspect);
+      }
       view = shaken(cam, t, { position: v.position, target: v.target, fov: lensFov(v.lens, aspect), lens: v.lens, roll: v.roll });
       if (views.size > 2000) views.clear();
       views.set(key, view);
@@ -254,6 +262,19 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
   // (Points with aims of their own: from what the one before looks at to what the next does.)
   if (cam.points.some((q) => q.aim)) target = pointsAim(scene, cam, t, target);
   return shaken(cam, t, { position, target, fov: lensFov(p.lens, aspect), lens: p.lens, roll: p.roll ?? 0 });
+}
+
+/** A view's aim turned (about where it stands) just enough that `p` is within 70% of the way to the frame's side. */
+function keepInFrame(v: { position: THREE.Vector3; target: THREE.Vector3 }, p: THREE.Vector3, fov: number, aspect: number) {
+  const look = v.target.clone().sub(v.position);
+  const to = p.clone().sub(v.position);
+  if (Math.hypot(to.x, to.z) < 1e-3) return;
+  const half = 0.7 * Math.atan(Math.tan((fov * D2R) / 2) * aspect);
+  const off = THREE.MathUtils.euclideanModulo(Math.atan2(to.x, to.z) - Math.atan2(look.x, look.z) + Math.PI, 2 * Math.PI) - Math.PI;
+  if (Math.abs(off) <= half) return;
+  const turn = off - Math.sign(off) * half;
+  const [c, s] = [Math.cos(turn), Math.sin(turn)];
+  v.target.copy(v.position).add(new THREE.Vector3(look.x * c + look.z * s, look.y, look.z * c - look.x * s));
 }
 
 /** Where a figure's chest is at t, or a spot: what a path point looks at, its own aim. */

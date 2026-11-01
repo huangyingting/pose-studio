@@ -1367,7 +1367,7 @@ button.psec-title svg { color: var(--text-3); }
 .psec-actions { display: flex; align-items: center; gap: 2px; }
 .psec-actions .segmented button { height: 22px; padding: 0 8px; font-size: var(--fs-s); }
 .psec-actions .ibtn { width: 26px; height: 26px; }
-.psec-body { display: grid; gap: 10px; }
+.psec-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .stack { display: grid; gap: 8px; }
 .empty-note { margin: 0; padding: 20px 14px; color: var(--text-2); }
 
