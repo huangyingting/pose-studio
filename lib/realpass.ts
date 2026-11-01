@@ -29,8 +29,19 @@ export class RealPass {
       const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
       this.composer = new EffectComposer(renderer, target);
       this.ao = new GTAOPass(scene, camera, w, h);
-      this.ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 12 });
+      this.ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 16 });
+      // (Denoised wider: no grain where a foot meets the floor.)
+      this.ao.updatePdMaterial({ radius: 10, rings: 3, samples: 16 });
       this.ao.blendIntensity = 0.85;
+      // (What only catches shadows (userData.noOcclusion: the floor's shadow) left out of where things meet.)
+      const ao = this.ao;
+      const gbuffer = ao.render.bind(ao);
+      ao.render = (...args: Parameters<GTAOPass['render']>) => {
+        const hidden: THREE.Object3D[] = [];
+        ao.scene.traverse((o) => { if (o.userData.noOcclusion && o.visible) { o.visible = false; hidden.push(o); } });
+        gbuffer(...args);
+        for (const o of hidden) o.visible = true;
+      };
       this.composer.addPass(this.scenePass);
       this.composer.addPass(this.ao);
       this.composer.addPass(this.bloom);

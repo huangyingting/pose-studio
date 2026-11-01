@@ -535,6 +535,8 @@ export class LightRig {
     this.floor.receiveShadow = true;
     this.floor.raycast = () => {};
     this.floor.renderOrder = -1;
+    // (Only a shadow on the floor, nothing there itself: no shading where things meet, #29.)
+    this.floor.userData.noOcclusion = true;
     this.object.add(this.ambient, this.floor);
   }
 

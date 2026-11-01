@@ -1005,6 +1005,8 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
  * scene and its lights) goes through the pixel pass and what is drawn over it (handles, gizmos,
  * tags) stays sharp on top.
  */
+const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+
 function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
   const pass = useMemo(() => new LineArtPass(), []);
   const pixels = useMemo(() => new PixelPass(), []);
@@ -1037,13 +1039,18 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
       pass.overlay(gl);
       pixels.end(gl);
     }
-    for (const o of over) o.visible = true;
-    for (const o of drawn) o.visible = false;
     const background = scene.background;
     scene.background = null;
     const autoClear = gl.autoClear;
     gl.autoClear = false;
+    // What was drawn into the picture leaves its depth behind first (no colour), so what is drawn
+    // over it (the grid, the handles) is hidden behind the figures as it is in the other styles.
     gl.clearDepth();
+    scene.overrideMaterial = depthOnly;
+    gl.render(scene, camera);
+    scene.overrideMaterial = null;
+    for (const o of over) o.visible = true;
+    for (const o of drawn) o.visible = false;
     gl.render(scene, camera);
     gl.autoClear = autoClear;
     scene.background = background;
