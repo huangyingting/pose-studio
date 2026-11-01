@@ -262,14 +262,18 @@ tests/e2e               Playwright: real-browser flows incl. IK drags, export/tu
 
 ### Rotation conventions
 
-The figure faces +Z, and its left is +X. Poses are stored as each bone's turn (a quaternion, glTF order x, y, z, w) relative to the VRM T-pose, local to its parent. The sliders, joint limits and the assistant use each joint's angles in degrees, with the arms hanging down at zero (root `YXZ`, all others `XZY`):
+The figure faces +Z, and its left is +X. A pose is 22 joints (the hips, spine, chest, upper chest, neck and head; each arm's shoulder, upper arm, forearm and hand; each leg's thigh, shin, foot and toes) and 30 finger bones: 52 bones, the VRM humanoid's but the eyes and jaw. Poses are stored as each bone's turn (a quaternion, glTF order x, y, z, w) relative to the VRM T-pose, local to its stored parent (`lib/skeleton.ts`): the neck, the shoulders and the upper arms are stored from the chest, as they always were, so older projects and motions mean what they did. The sliders, joint limits, the mannequin and the assistant use each joint's own turn in the body (from its parent there: the neck and shoulders hang from the upper chest, an upper arm from its shoulder; `lib/pose.ts` converts), in degrees, with the arms hanging down at zero (root `YXZ`, all others `XZY`):
 
 | Joint | X | Y | Z |
 | --- | --- | --- | --- |
 | root | pitch (+ forward) | turn (+ left) | roll (+ right) |
-| spine / chest / neck / head | bend (+ forward) | twist (+ left) | tilt (+ right) |
-| shoulder / hip | swing (− forward) | twist | raise / spread (+ out on the left, − on the right) |
+| spine / chest / upper chest / neck / head | bend (+ forward) | twist (+ left) | tilt (+ right) |
+| shoulder (collarbone) | roll | forward (− on the left, + on the right) | raise, a shrug (+ on the left, − on the right) |
+| upper arm / hip | swing (− forward) | twist | raise / spread (+ out on the left, − on the right) |
 | elbow / knee / ankle | bend (− / + / + points toes) | twist | side |
+| toes | curl (+ down, − up as the heel rises) | twist | side |
+
+A rig or a motion without an upper chest, shoulders or toes is fine: they stay at rest, their turn in the bones below them.
 
 ## Limitations
 
