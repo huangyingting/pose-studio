@@ -1087,6 +1087,20 @@
    "bytes": 1174053
   }
  },
+ "views": {
+  "garden": {
+   "file": "views/garden.hdr",
+   "bytes": 1622533
+  },
+  "city": {
+   "file": "views/city.hdr",
+   "bytes": 1658405
+  },
+  "street": {
+   "file": "views/street.hdr",
+   "bytes": 1840705
+  }
+ },
  "scenes": {
   "bedroom": {
    "file": "scenes/bedroom.glb",
@@ -8442,9 +8456,12 @@
   "scene:diner": "{\"sf\":\"5f97e3a16c664accaa566cfb6f46b5e8\",\"title\":\"American styled Diner\",\"author\":\"Joel_Zen\",\"tris\":230000,\"tex\":1024,\"fit\":{\"scale\":30}}",
   "scene:rooftop": "{\"sf\":\"068f29ea14134bc691cf97c2d51d2e9d\",\"title\":\"School_[rooftop]\",\"author\":\"Comicaroid\",\"tris\":230000,\"tex\":1024,\"fit\":{\"at\":[0,-0.05,0]}}",
   "scene:newsroom": "{\"sf\":\"e39f8d2ac3bb464e866eb21fc9a736ba\",\"title\":\"William Peace University News Room\",\"author\":\"GEFernandez\",\"tris\":230000,\"tex\":1024,\"fit\":{\"scale\":11}}",
-  "sky:day": "\"kloofendal_48d_partly_cloudy_puresky\"",
-  "sky:dusk": "\"qwantani_dusk_2_puresky\"",
-  "sky:night": "\"qwantani_night_puresky\"",
-  "sky:overcast": "\"kloofendal_overcast_puresky\""
+  "skies:day": "\"kloofendal_48d_partly_cloudy_puresky\"",
+  "skies:dusk": "\"qwantani_dusk_2_puresky\"",
+  "skies:night": "\"qwantani_night_puresky\"",
+  "skies:overcast": "\"kloofendal_overcast_puresky\"",
+  "views:garden": "\"suburban_garden\"",
+  "views:city": "\"canary_wharf\"",
+  "views:street": "\"urban_street_01\""
  }
 }

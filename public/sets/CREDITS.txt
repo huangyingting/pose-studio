@@ -104,6 +104,9 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
   dusk sky: https://polyhaven.com/a/qwantani_dusk_2_puresky
   night sky: https://polyhaven.com/a/qwantani_night_puresky
   overcast sky: https://polyhaven.com/a/kloofendal_overcast_puresky
+  garden view out of windows: https://polyhaven.com/a/suburban_garden
+  city view out of windows: https://polyhaven.com/a/canary_wharf
+  street view out of windows: https://polyhaven.com/a/urban_street_01
 
 From ambientCG (https://ambientcg.com), CC0 1.0 (public domain):
   grass: https://ambientcg.com/view?id=Grass001

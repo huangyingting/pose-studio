@@ -10,7 +10,7 @@ import { withBase } from './paths';
 import { styleDef } from './styles';
 import { paintedLook, toonMaterial } from './toon';
 import { paintedSky } from './paintedsky';
-import { SCENES, type ModelId, type SceneId, type SetIndex, type Sky, type SurfaceId } from './setassets';
+import { SCENES, type ModelId, type SceneId, type SetIndex, type Sky, type SurfaceId, type WindowView } from './setassets';
 import { uid } from './uid';
 import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
 
@@ -63,6 +63,8 @@ export interface SetDef {
   lights?: (Partial<Omit<Light, 'id' | 'kind'>> & { kind: LightKind; name: string })[];
   /** Who made it, if someone else did (a ready-made scene's credit, #27). */
   credit?: string;
+  /** Indoors, what is seen through its windows in 3D (#28). */
+  view?: WindowView;
 }
 
 /** A lamp of the set: warm, reaching a few metres. */
@@ -248,6 +250,7 @@ export const SETS: SetDef[] = [
     name: 'Living room',
     group: 'Home',
     indoors: true,
+    view: 'garden',
     place: 'Home, today',
     description: 'A modern living room: a sofa and armchair round a coffee table, a TV unit, a bookshelf, a floor lamp, a window and a door.',
     lights: [bulb('Floor lamp', [2, 1.75, -3.9]), pane('Window', [0, 1.55, -4.3])],
@@ -280,6 +283,7 @@ export const SETS: SetDef[] = [
     name: 'Office',
     group: 'Work & public',
     indoors: true,
+    view: 'city',
     place: 'Open-plan office, today',
     description: 'An open-plan office: rows of desks with monitors and chairs between low partitions, a glass wall of windows, a meeting table and a water cooler.',
     lights: [pane('Windows', [-1, 1.7, -6.3], { kelvin: 6500, intensity: 1.1 })],
@@ -322,6 +326,7 @@ export const SETS: SetDef[] = [
     name: 'Café',
     group: 'Food & drink',
     indoors: true,
+    view: 'street',
     place: 'Coffee shop, today',
     description: 'A small café: a counter with stools and shelves behind it, round tables with chairs, pendant lamps and a big shop window.',
     lights: [bulb('Pendant lamp', [-3.6, 1.9, -2.6], { intensity: 0.5, range: 4 }), bulb('Pendant lamp 2', [1.6, 1.9, -1.6], { intensity: 0.5, range: 4 }), pane('Shop window', [-5.8, 1.6, -1.5], { kelvin: 6500 })],
@@ -737,19 +742,19 @@ function toonOf(ink: Ink, m: THREE.Material, twoSided: boolean): THREE.Material 
 
 /* ---------- what is round a set in 3D (#25): its sky outdoors, a room's light indoors ---------- */
 
-const skies = new Map<Sky, THREE.DataTexture | null>();
-/** A sky as read (null until it has been: fetching starts now). */
-function skyTexture(sky: Sky): THREE.DataTexture | null {
-  const file = INDEX.skies?.[sky]?.file;
-  if (skies.has(sky) || !file || typeof document === 'undefined') return skies.get(sky) ?? null;
-  skies.set(sky, null);
+const panoramas = new Map<string, THREE.DataTexture | null>();
+/** A panorama (a sky, a view out of windows) as read, by its file (null until it has been: fetching starts now). */
+function panorama(file: string | undefined): THREE.DataTexture | null {
+  if (!file) return null;
+  if (panoramas.has(file) || typeof document === 'undefined') return panoramas.get(file) ?? null;
+  panoramas.set(file, null);
   new HDRLoader().loadAsync(withBase(`/sets/${file}`)).then((t) => {
     t.mapping = THREE.EquirectangularReflectionMapping;
-    skies.set(sky, t);
+    panoramas.set(file, t);
     arrived();
   }, (err) => {
-    console.warn(`Could not get the ${sky} sky:`, err);
-    setTimeout(() => { skies.delete(sky); arrived(); }, RETRY_MS);
+    console.warn(`Could not get ${file}:`, err);
+    setTimeout(() => { panoramas.delete(file); arrived(); }, RETRY_MS);
   });
   return null;
 }
@@ -782,8 +787,9 @@ export function surroundings(id: string | undefined, lighting: Lighting, style: 
     const t = set.indoors ? null : paintedSky(sky, paint);
     return t && { background: t, backgroundIntensity: 1, environment: null, intensity: 1 };
   }
-  if (set.indoors) return { background: null, backgroundIntensity: 1, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
-  const t = skyTexture(sky);
+  // (Indoors, the room's light, and through its windows the place outside it, if it has one.)
+  if (set.indoors) return { background: panorama(set.view && INDEX.views?.[set.view]?.file), backgroundIntensity: 0.9, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
+  const t = panorama(INDEX.skies?.[sky]?.file);
   if (!t) return null;
   return { background: t, backgroundIntensity: Math.max(0.25, SKY_LIGHT[sky] * 1.6), environment: prefilter(renderer, sky, (pmrem) => pmrem.fromEquirectangular(t).texture), intensity: SKY_LIGHT[sky] };
 }

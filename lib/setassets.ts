@@ -212,6 +212,17 @@ export const SKIES = {
 } as const;
 export type Sky = keyof typeof SKIES;
 
+/**
+ * What is seen through an indoor set's windows in 3D (#28): Poly Haven's panoramas of real places
+ * (1K HDR), behind it as a film set's backing is.
+ */
+export const VIEWS = {
+  garden: 'suburban_garden',
+  city: 'canary_wharf',
+  street: 'urban_street_01',
+} as const;
+export type WindowView = keyof typeof VIEWS;
+
 /** The bark the trees are grown with (Poly Haven). */
 export const BARK = 'bark_brown_02';
 
@@ -220,6 +231,7 @@ export interface SetIndex {
   models: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number] }>;
   surfaces: Record<string, { color: string; normal: string; orm: string; bytes: number; tile: number }>;
   skies: Record<string, { file: string; bytes: number }>;
+  views: Record<string, { file: string; bytes: number }>;
   /** A ready-made scene's, with its walls (boxes on the floor, [x0, z0, x1, z1, top], m): what stops a camera. */
   scenes: Record<string, { file: string; tris: number; bytes: number; size: [number, number, number]; walls: number[][] }>;
 }

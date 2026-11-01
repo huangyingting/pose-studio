@@ -16,7 +16,7 @@ import { ALL_EXTENSIONS, EXTMeshoptCompression, type Transmission } from '@gltf-
 import { compactPrimitive, dedup, flatten, getBounds, join as joinMeshes, joinPrimitives, metalRough, prune, quantize, reorder, simplify, textureCompress, transformPrimitive, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
-import { BARK, MODELS, SCENES, SKIES, SURFACES, type ModelAsset, type SceneAsset, type SetIndex, type SurfaceAsset, type TreeAsset } from '../lib/setassets';
+import { BARK, MODELS, SCENES, SKIES, SURFACES, VIEWS, type ModelAsset, type SceneAsset, type SetIndex, type SurfaceAsset, type TreeAsset } from '../lib/setassets';
 
 const CACHE = 'data/sets';
 const OUT = 'public/sets';
@@ -497,9 +497,9 @@ async function makeSurface(id: string, a: SurfaceAsset) {
 async function main() {
   await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready, MeshoptSimplifier.ready]);
   const indexFile = join(OUT, 'index.json');
-  const before: SetIndex & { made?: Record<string, string> } = existsSync(indexFile) ? JSON.parse(await readFile(indexFile, 'utf8')) : { models: {}, surfaces: {}, skies: {}, scenes: {} };
+  const before: SetIndex & { made?: Record<string, string> } = existsSync(indexFile) ? JSON.parse(await readFile(indexFile, 'utf8')) : { models: {}, surfaces: {}, skies: {}, views: {}, scenes: {} };
   const made = before.made ?? {};
-  const index: SetIndex & { made: Record<string, string> } = { models: {}, surfaces: {}, skies: {}, scenes: {}, made: {} };
+  const index: SetIndex & { made: Record<string, string> } = { models: {}, surfaces: {}, skies: {}, views: {}, scenes: {}, made: {} };
   // (What each was made from: made again only if that changed.)
   const fresh = (key: string, recipe: unknown, file?: string) => !all && made[key] === JSON.stringify(recipe) && !!file && existsSync(join(OUT, file));
   const failed: string[] = [];
@@ -542,22 +542,24 @@ async function main() {
       if (was) index.scenes[id] = was;
     }
   }
-  // The skies: Poly Haven's 1K HDR as it is.
-  await mkdir(join(OUT, 'skies'), { recursive: true });
-  for (const [id, ph] of Object.entries(SKIES)) {
-    const file = `skies/${id}.hdr`;
-    if (!fresh(`sky:${id}`, ph, file)) {
-      const files = await json<{ hdri: Record<string, { hdr: { url: string } }> }>(`${API}/files/${ph}`);
-      await writeFile(join(OUT, file), await readFile(await download(files.hdri['1k'].hdr.url, join(CACHE, 'skies', `${ph}.hdr`))));
+  // The skies and the views out of windows: Poly Haven's 1K HDR as it is.
+  for (const [kind, list] of [['skies', SKIES], ['views', VIEWS]] as const) {
+    await mkdir(join(OUT, kind), { recursive: true });
+    for (const [id, ph] of Object.entries(list)) {
+      const file = `${kind}/${id}.hdr`;
+      if (!fresh(`${kind}:${id}`, ph, file)) {
+        const files = await json<{ hdri: Record<string, { hdr: { url: string } }> }>(`${API}/files/${ph}`);
+        await writeFile(join(OUT, file), await readFile(await download(files.hdri['1k'].hdr.url, join(CACHE, kind, `${ph}.hdr`))));
+      }
+      index[kind][id] = { file, bytes: (await stat(join(OUT, file))).size };
+      index.made[`${kind}:${id}`] = JSON.stringify(ph);
+      console.log(`${id.padEnd(16)} ${kind.padEnd(7)} ${(index[kind][id].bytes / 1024).toFixed(0).padStart(6)} KB`);
     }
-    index.skies[id] = { file, bytes: (await stat(join(OUT, file))).size };
-    index.made[`sky:${id}`] = JSON.stringify(ph);
-    console.log(`${id.padEnd(16)} sky     ${(index.skies[id].bytes / 1024).toFixed(0).padStart(6)} KB`);
   }
   await writeFile(indexFile, `${JSON.stringify(index, null, 1)}\n`);
   // (What is no longer listed goes.)
-  const kept = new Set([...Object.values(index.models).map((m) => m.file), ...Object.values(index.surfaces).flatMap((x) => [x.color, x.normal, x.orm]), ...Object.values(index.skies).map((x) => x.file), ...Object.values(index.scenes).map((x) => x.file)]);
-  for (const dir of ['models', 'surfaces', 'skies', 'scenes']) {
+  const kept = new Set([...Object.values(index.models).map((m) => m.file), ...Object.values(index.surfaces).flatMap((x) => [x.color, x.normal, x.orm]), ...Object.values(index.skies).map((x) => x.file), ...Object.values(index.views).map((x) => x.file), ...Object.values(index.scenes).map((x) => x.file)]);
+  for (const dir of ['models', 'surfaces', 'skies', 'views', 'scenes']) {
     for (const f of await readdir(join(OUT, dir)).catch(() => [] as string[])) if (!kept.has(`${dir}/${f}`)) await rm(join(OUT, dir, f));
   }
   const total = [...kept].length;
@@ -569,6 +571,7 @@ async function main() {
     ...Object.entries(SURFACES).flatMap(([id, x]) => ('ph' in x ? [`  ${id}: ${ph(x.ph, 'a')}`] : [])),
     `  bark: ${ph(BARK, 'a')}`,
     ...Object.entries(SKIES).map(([id, x]) => `  ${id} sky: ${ph(x, 'a')}`),
+    ...Object.entries(VIEWS).map(([id, x]) => `  ${id} view out of windows: ${ph(x, 'a')}`),
     '',
     'From ambientCG (https://ambientcg.com), CC0 1.0 (public domain):',
     ...Object.entries(SURFACES).flatMap(([id, x]) => ('acg' in x ? [`  ${id}: https://ambientcg.com/view?id=${x.acg}`] : [])),

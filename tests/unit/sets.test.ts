@@ -57,11 +57,12 @@ describe('sets', () => {
       // (Outdoors, its sky in 3D too: the largest it could be.)
       const sky = !s.indoors ? Math.max(...Object.values(index.skies).map((x) => x.bytes)) : 0;
       const scenes = pieces.flatMap((p) => (p.shape[0] === 'scene' ? [index.scenes[p.shape[1]].bytes] : [])).reduce((n, x) => n + x, 0);
-      const bytes = setModels(s.id).reduce((n, id) => n + index.models[id].bytes, 0) + [...surfaces].reduce((n, id) => n + index.surfaces[id].bytes, 0) + sky + scenes;
+      const view = s.view ? index.views[s.view].bytes : 0;
+      const bytes = setModels(s.id).reduce((n, id) => n + index.models[id].bytes, 0) + [...surfaces].reduce((n, id) => n + index.surfaces[id].bytes, 0) + sky + view + scenes;
       expect(tris, `${s.id}: triangles`).toBeLessThanOrEqual(SET_BUDGET.tris);
       expect(bytes, `${s.id}: bytes`).toBeLessThanOrEqual(SET_BUDGET.bytes);
     }
-    const all = [index.models, index.surfaces, index.skies, index.scenes].flatMap((x) => Object.values(x)).reduce((n, x) => n + x.bytes, 0);
+    const all = [index.models, index.surfaces, index.skies, index.views, index.scenes].flatMap((x) => Object.values(x)).reduce((n, x) => n + x.bytes, 0);
     expect(all).toBeLessThanOrEqual(100 * 1024 * 1024);
   });
 });
