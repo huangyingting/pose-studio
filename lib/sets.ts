@@ -22,7 +22,8 @@ import type { Light, LightKind, Lighting, Style, Vec3 } from './types';
  * (+z) left open, the acting area round the stage origin. A set is the scene's by its id (Scene.set).
  */
 
-export const SET_GROUPS = ['Indoor', 'Outdoor'] as const;
+/** The Library's groups of sets, by what kind of place each is. */
+export const SET_GROUPS = ['Home', 'Work & public', 'Food & drink', 'Leisure', 'City', 'History'] as const;
 
 /** A piece: its shape and size, its middle, and its turn (degrees about x, y, z; y last). */
 type Shape =
@@ -45,12 +46,14 @@ type Primitive = Exclude<Shape, ['model', ...unknown[]] | ['scene', ...unknown[]
  */
 type Look = SurfaceId | { surface?: SurfaceId; color?: string; rough?: number; metal?: number; glass?: true };
 /** `open`: a detail a camera may pass through (a window's frame, a door, a chair): not a wall. */
-interface Piece { shape: Shape; at: Vec3; rot?: Vec3; look?: Look; open?: true }
+interface Piece { shape: Shape; at: Vec3; rot?: Vec3; look?: Look; open?: true; ground?: true }
 
 export interface SetDef {
   id: string;
   name: string;
   group: (typeof SET_GROUPS)[number];
+  /** Indoors (a room's light, no sky; its walls cast none of the key's shadows) or out of doors. */
+  indoors: boolean;
   /** Where and when, in a word or two. */
   place: string;
   description: string;
@@ -98,7 +101,7 @@ function around(look: Look, [x0, x1, z0, z1]: number[], r: number): Piece[] {
   return [
     floor(2 * r, z0 + r, (z0 - r) / 2), floor(2 * r, r - z1, (z1 + r) / 2),
     floor(x0 + r, z1 - z0, (z0 + z1) / 2, (x0 - r) / 2), floor(r - x1, z1 - z0, (z0 + z1) / 2, (x1 + r) / 2),
-  ].map((p) => ({ ...p, look }));
+  ].map((p) => ({ ...p, look, ground: true as const }));
 }
 
 /** A gable roof over a `w` × `d` plan (ridge along z), its eaves at y, rising `pitch` degrees, overhanging. */
@@ -242,7 +245,8 @@ export const SETS: SetDef[] = [
   {
     id: 'living-room',
     name: 'Living room',
-    group: 'Indoor',
+    group: 'Home',
+    indoors: true,
     place: 'Home, today',
     description: 'A modern living room: a sofa and armchair round a coffee table, a TV unit, a bookshelf, a floor lamp, a window and a door.',
     lights: [bulb('Floor lamp', [2, 1.75, -3.9]), pane('Window', [0, 1.55, -4.3])],
@@ -273,7 +277,8 @@ export const SETS: SetDef[] = [
   {
     id: 'office',
     name: 'Office',
-    group: 'Indoor',
+    group: 'Work & public',
+    indoors: true,
     place: 'Open-plan office, today',
     description: 'An open-plan office: rows of desks with monitors and chairs between low partitions, a glass wall of windows, a meeting table and a water cooler.',
     lights: [pane('Windows', [-1, 1.7, -6.3], { kelvin: 6500, intensity: 1.1 })],
@@ -314,7 +319,8 @@ export const SETS: SetDef[] = [
   {
     id: 'cafe',
     name: 'Café',
-    group: 'Indoor',
+    group: 'Food & drink',
+    indoors: true,
     place: 'Coffee shop, today',
     description: 'A small café: a counter with stools and shelves behind it, round tables with chairs, pendant lamps and a big shop window.',
     lights: [bulb('Pendant lamp', [-3.6, 1.9, -2.6], { intensity: 0.5, range: 4 }), bulb('Pendant lamp 2', [1.6, 1.9, -1.6], { intensity: 0.5, range: 4 }), pane('Shop window', [-5.8, 1.6, -1.5], { kelvin: 6500 })],
@@ -345,7 +351,8 @@ export const SETS: SetDef[] = [
   {
     id: 'street',
     name: 'City street',
-    group: 'Outdoor',
+    group: 'City',
+    indoors: false,
     place: 'Downtown, today',
     description: 'A city street: a pavement in front of shops and tall blocks, street lamps, a bench and a bin, a road with a zebra crossing and parked cars.',
     lights: [bulb('Street lamp', [-4.5, 4.4, 1.6], { color: '#ffd09e', kelvin: undefined, spot: 80, aim: { point: [-4.5, 0, 0.6] }, intensity: 0.9, range: 12 })],
@@ -372,7 +379,8 @@ export const SETS: SetDef[] = [
   {
     id: 'park',
     name: 'Park',
-    group: 'Outdoor',
+    group: 'Leisure',
+    indoors: false,
     place: 'City park, today',
     description: 'A park: a gravel path through the grass, trees and bushes, benches, a round fountain and lamp posts.',
     lights: [bulb('Lamp post', [-8, 4.4, 0], { color: '#ffd09e', kelvin: undefined, intensity: 0.6, range: 10 })],
@@ -390,7 +398,8 @@ export const SETS: SetDef[] = [
   {
     id: 'courtyard',
     name: 'Chinese courtyard',
-    group: 'Outdoor',
+    group: 'History',
+    indoors: false,
     place: 'Siheyuan, old Beijing',
     description: 'A siheyuan courtyard: a main hall on a raised plinth with columns and a tiled roof, side halls, grey walls with a round moon gate, a stone table with drum stools, a tree and lanterns.',
     lights: [bulb('Lantern', [-3, 3.4, -7.2], { kelvin: 1900, intensity: 0.5, range: 5 }), bulb('Lantern 2', [3, 3.4, -7.2], { kelvin: 1900, intensity: 0.5, range: 5 })],
@@ -414,7 +423,8 @@ export const SETS: SetDef[] = [
   {
     id: 'palace',
     name: 'Palace hall',
-    group: 'Indoor',
+    group: 'History',
+    indoors: true,
     place: 'Imperial China',
     description: 'A throne hall of the Forbidden City: two rows of tall red-lacquer columns, a stepped dais with the throne and a screen behind it, bronze incense burners, chandeliers, a long open floor of dark brick.',
     lights: [bulb('Candles', [-3, 2.2, -11], { kelvin: 2000, intensity: 0.6, range: 7 }), bulb('Candles 2', [3, 2.2, -11], { kelvin: 2000, intensity: 0.6, range: 7 })],
@@ -434,7 +444,8 @@ export const SETS: SetDef[] = [
   {
     id: 'old-street',
     name: 'Old Chinese street',
-    group: 'Outdoor',
+    group: 'History',
+    indoors: false,
     place: 'Market town, Ming–Qing China',
     description: 'An old market street: two-storey wooden shopfronts with tiled eaves on both sides, hanging lanterns and shop signs, goods out front, a stone-paved road and a memorial archway at its end.',
     lights: [bulb('Lantern', [-3.1, 2.6, -1.6], { kelvin: 1900, intensity: 0.5, range: 5 }), bulb('Lantern 2', [3.1, 2.6, -6.6], { kelvin: 1900, intensity: 0.5, range: 5 })],
@@ -469,7 +480,8 @@ export const SETS: SetDef[] = [
   {
     id: 'temple',
     name: 'Greek temple',
-    group: 'Outdoor',
+    group: 'History',
+    indoors: false,
     place: 'Ancient Greece',
     description: 'A Doric temple on a three-stepped base: a colonnade of fluted columns, the entablature and a triangular pediment, a paved forecourt with an altar, fallen column drums, olive trees and a statue.',
     build: () => {
@@ -497,7 +509,8 @@ export const SETS: SetDef[] = [
   {
     id: 'castle-hall',
     name: 'Castle hall',
-    group: 'Indoor',
+    group: 'History',
+    indoors: true,
     place: 'Medieval Europe',
     description: 'The great hall of a medieval castle: thick stone walls with arched windows, a long feasting table with benches, a throne on a dais, a big fireplace, banners, a chandelier and a heavy door.',
     lights: [bulb('Fireplace', [6.6, 0.8, -7], { kelvin: 1900, intensity: 1, range: 8 }), bulb('Chandelier', [0, 5.2, -7], { kelvin: 2000, intensity: 0.8, range: 10 }), pane('Window', [-7.4, 5, -7], { kelvin: 7500, intensity: 0.8 })],
@@ -533,29 +546,29 @@ export const SETS: SetDef[] = [
   },
   // Ready-made scenes (#27: Sketchfab, CC BY), fitted to the stage.
   ...([
-    ['bedroom', 'Bedroom', 'Indoor', 'Home, today', 'A modern bedroom: a double bed between bedside tables and lamps, tall windows, a rug.'],
-    ['kitchen', 'Kitchen', 'Indoor', 'Home, today', 'A modern open kitchen: an island with bar stools, fitted cupboards, an oven and a hob, pendant lights.'],
-    ['classroom', 'Classroom', 'Indoor', 'School, today', 'A classroom: rows of desks and chairs, lockers along the back wall.'],
-    ['hospital-ward', 'Hospital', 'Indoor', 'Hospital, today', 'A hospital: a long corridor with seats for visitors along it, and a room off it.'],
-    ['pub', 'Pub', 'Indoor', 'Pub, today', 'A pub: a wooden bar with stools and taps, booths and tables, panelled walls and old windows.'],
-    ['theatre-stage', 'Theatre stage', 'Indoor', 'Theatre', 'A theatre\'s stage: its boards, the curtains, the dark walls of the wings.'],
-    ['warehouse', 'Warehouse', 'Indoor', 'Industrial, today', 'A long empty warehouse: concrete floor, steel walls and roof, strip lights.'],
-    ['subway-station', 'Subway station', 'Indoor', 'City, today', 'A subway station: a tiled platform, benches, signs and the track.'],
-    ['subway-car', 'Subway car', 'Indoor', 'City, today', 'Inside a subway car: benches along both sides, poles and straps, doors and windows.'],
-    ['hotel-lobby', 'Hotel lobby', 'Indoor', 'Hotel, 1930s', 'An Art Deco hotel lobby: armchairs and tables, panelled walls, wall lights.'],
-    ['indoor-pool', 'Indoor pool', 'Indoor', 'Bathhouse', 'An indoor pool: a long pool in a hall of columns, a tiled deck round it.'],
-    ['outdoor-pool', 'Swimming pool', 'Outdoor', 'Garden, today', 'An outdoor swimming pool: the water, its tiled edge and the deck round it, a lawn beyond.', [{ surface: 'grass', rough: 1, metal: 0 }, [-5.75, 5.25, -13, 2], 40]],
-    ['parking-garage', 'Parking garage', 'Indoor', 'City, today', 'An underground parking garage: concrete columns and ceiling, painted bays, strip lights.'],
-    ['western-town', 'Western town', 'Outdoor', 'Wild West, 1880s', 'A Wild West town: a dusty main street between wooden saloons, stores and the bank, a water tower.', ['dry-ground', [-27.6, 27.4, -40.4, 40], 120]],
-    ['church', 'Church', 'Indoor', 'Church, old', 'An old Gothic church: the nave between its columns, rows of pews either side of the aisle, the altar under tall windows.'],
-    ['alley', 'Back alley', 'Outdoor', 'City, today', 'A dark back alley between brick walls: a fire escape, bins and crates, pipes and puddles.', ['asphalt', [-8.2, 8.3, -4.05, 4.05], 40]],
-    ['newsroom', 'Newsroom', 'Indoor', 'TV studio, today', 'A television newsroom: the anchors\' desk, columns and windows behind, studio lights.'],
-  ] as [SceneId, string, (typeof SET_GROUPS)[number], string, string, [Look, number[], number]?][]).map(([id, name, group, place, description, ground]): SetDef => {
+    ['bedroom', 'Bedroom', 'Home', true, 'Home, today', 'A modern bedroom: a double bed between bedside tables and lamps, tall windows, a rug.'],
+    ['kitchen', 'Kitchen', 'Home', true, 'Home, today', 'A modern open kitchen: an island with bar stools, fitted cupboards, an oven and a hob, pendant lights.'],
+    ['classroom', 'Classroom', 'Work & public', true, 'School, today', 'A classroom: rows of desks and chairs, lockers along the back wall.'],
+    ['hospital-ward', 'Hospital', 'Work & public', true, 'Hospital, today', 'A hospital: a long corridor with seats for visitors along it, and a room off it.'],
+    ['pub', 'Pub', 'Food & drink', true, 'Pub, today', 'A pub: a wooden bar with stools and taps, booths and tables, panelled walls and old windows.'],
+    ['theatre-stage', 'Theatre stage', 'Leisure', true, 'Theatre', 'A theatre\'s stage: its boards, the curtains, the dark walls of the wings.'],
+    ['warehouse', 'Warehouse', 'Work & public', true, 'Industrial, today', 'A long empty warehouse: concrete floor, steel walls and roof, strip lights.'],
+    ['subway-station', 'Subway station', 'City', true, 'City, today', 'A subway station: a tiled platform, benches, signs and the track.'],
+    ['subway-car', 'Subway car', 'City', true, 'City, today', 'Inside a subway car: benches along both sides, poles and straps, doors and windows.'],
+    ['hotel-lobby', 'Hotel lobby', 'Work & public', true, 'Hotel, 1930s', 'An Art Deco hotel lobby: armchairs and tables, panelled walls, wall lights.'],
+    ['indoor-pool', 'Indoor pool', 'Leisure', true, 'Bathhouse', 'An indoor pool: a long pool in a hall of columns, a tiled deck round it.'],
+    ['outdoor-pool', 'Swimming pool', 'Leisure', false, 'Garden, today', 'An outdoor swimming pool: the water, its tiled edge and the deck round it, a lawn beyond.', [{ surface: 'grass', rough: 1, metal: 0 }, [-5.75, 5.25, -13, 2], 40]],
+    ['parking-garage', 'Parking garage', 'City', true, 'City, today', 'An underground parking garage: concrete columns and ceiling, painted bays, strip lights.'],
+    ['western-town', 'Western town', 'History', false, 'Wild West, 1880s', 'A Wild West town: a dusty main street between wooden saloons, stores and the bank, a water tower.', ['dry-ground', [-27.6, 27.4, -40.4, 40], 120]],
+    ['church', 'Church', 'Work & public', true, 'Church, old', 'An old Gothic church: the nave between its columns, rows of pews either side of the aisle, the altar under tall windows.'],
+    ['alley', 'Back alley', 'City', false, 'City, today', 'A dark back alley between brick walls: a fire escape, bins and crates, pipes and puddles.', ['asphalt', [-8.2, 8.3, -4.05, 4.05], 40]],
+    ['newsroom', 'Newsroom', 'Work & public', true, 'TV studio, today', 'A television newsroom: the anchors\' desk, columns and windows behind, studio lights.'],
+  ] as [SceneId, string, (typeof SET_GROUPS)[number], boolean, string, string, [Look, number[], number]?][]).map(([id, name, group, indoors, place, description, ground]): SetDef => {
     const s = SCENES[id];
     return {
-      id, name, group, place, description,
+      id, name, group, indoors, place, description,
       credit: `“${s.title}” by ${s.author} (Sketchfab, CC BY 4.0)`,
-      ...(group === 'Indoor' ? { lights: [bulb('Ceiling light', [0, 2.6, 0], { kelvin: 3500, intensity: 0.6, range: 8 })] } : {}),
+      ...(indoors ? { lights: [bulb('Ceiling light', [0, 2.6, 0], { kelvin: 3500, intensity: 0.6, range: 8 })] } : {}),
       build: () => [{ shape: ['scene', id], at: [0, 0, 0] }, ...(ground ? around(...ground) : [])],
     };
   }),
@@ -569,7 +582,7 @@ export const setLights = (id: string): Light[] => (setById(id)?.lights ?? []).ma
  * indoors in an indoor set (#17: its walls cast none of the key's shadows), outdoors in another.
  */
 export function lightingForSet(l: Lighting, id: string | null): Lighting {
-  const indoors = setById(id ?? undefined)?.group === 'Indoor';
+  const indoors = !!setById(id ?? undefined)?.indoors;
   const { environment, ...rest } = l;
   const { indoors: _, ...env } = environment ?? {};
   void _;
@@ -759,12 +772,15 @@ const SKY_LIGHT: Record<Sky, number> = { day: 0.55, overcast: 0.5, dusk: 0.4, ni
 export function surroundings(id: string | undefined, lighting: Lighting, renderer: THREE.WebGLRenderer): { background: THREE.Texture | null; environment: THREE.Texture; intensity: number } | null {
   const set = setById(id);
   if (!set) return null;
-  if (set.group === 'Indoor') return { background: null, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
+  if (set.indoors) return { background: null, environment: prefilter(renderer, 'room', (pmrem) => pmrem.fromScene(new RoomEnvironment(), 0.04).texture), intensity: 0.35 };
   const sky = skyOf(lighting);
   const t = skyTexture(sky);
   if (!t) return null;
   return { background: t, environment: prefilter(renderer, sky, (pmrem) => pmrem.fromEquirectangular(t).texture), intensity: SKY_LIGHT[sky] };
 }
+
+/** Whether all a set's models (or its scene) are here to be drawn (fetching those not yet). */
+export const setFurnished = (id: string) => (setById(id)?.build() ?? []).every((p) => p.shape[0] !== 'model' && p.shape[0] !== 'scene' || !!modelOf(p.shape[1] as ModelId, p.shape[0] === 'scene'));
 
 /** The models a set is furnished with. */
 export const setModels = (id: string) => [...new Set((setById(id)?.build() ?? []).flatMap((p) => (p.shape[0] === 'model' ? [p.shape[1]] : [])))];
@@ -893,6 +909,7 @@ export class SetObject {
       // (A floor casts no shadow, only takes them: nothing is under it, and a broad surface that
       // shades itself shows stripes of shadow that crawl as the view turns.)
       if (p.shape[0] === 'box' && p.at[1] + p.shape[2] / 2 <= 0.001) { mesh.castShadow = false; mesh.userData.floor = true; }
+      if (p.ground) mesh.userData.ground = true;
       if (p.look) {
         // (Its material made, and its textures fetched, when it is first drawn in 3D.)
         mesh.userData.look = p.look;
@@ -1016,7 +1033,9 @@ export class SetObject {
 
   /** Every corner of it (a thumbnail of the set frames it all). */
   forEachPoint(cb: (p: THREE.Vector3) => void) {
-    const box = new THREE.Box3().setFromObject(this.object);
+    // (Not the ground laid round a ready-made scene: the place itself.)
+    const box = new THREE.Box3();
+    for (const o of this.object.children) if (!o.userData.ground) box.expandByObject(o);
     if (box.isEmpty()) return;
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) cb(new THREE.Vector3(x, y, z));
   }

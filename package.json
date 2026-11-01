@@ -19,7 +19,8 @@
     "motions": "jiti scripts/library-motions.ts",
     "postinstall": "prisma generate && node scripts/setup-mediapipe.mjs",
     "db:migrate": "prisma migrate deploy",
-    "sets": "jiti scripts/sets.ts"
+    "sets": "jiti scripts/sets.ts",
+    "set-thumbs": "jiti scripts/set-thumbs.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

@@ -23,7 +23,7 @@ describe('scene templates: what is filmed, without how', () => {
       expect(s.coverage, t.id).toBeUndefined();
       if (s.animation) expect(s.animation.shots.map((x) => x.camera), t.id).toEqual([s.cameras[0].id]);
       // (Lit for its set: indoors in an indoor one, its own lamps and windows with it, #17.)
-      if (s.set) expect(!!s.lighting?.environment?.indoors, t.id).toBe(setById(s.set)!.group === 'Indoor');
+      if (s.set) expect(!!s.lighting?.environment?.indoors, t.id).toBe(setById(s.set)!.indoors);
       if (s.set) expect(s.lighting!.lights.filter((l) => l.ofSet).map((l) => l.name), t.id).toEqual(setById(s.set)!.lights?.map((l) => l.name) ?? []);
     }
     expect(checkMotion(SCENE_TEMPLATES.find((t) => t.id === 'high-jump')!.build()).filter((i) => i.kind !== 'camera')).toEqual([]);

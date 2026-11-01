@@ -8,6 +8,8 @@ import { bodyFor, modelTemplate } from './model';
 import { builtInPoses, poseScene } from './poses';
 import { angleAt, cameraAt, filmWith } from './cameras';
 
+import { withBase } from './paths';
+import { setFurnished } from './sets';
 import { sharedRenderer } from './thumbnails';
 import type { Lighting, PoseAsset, Scene, Style, View } from './types';
 
@@ -134,14 +136,14 @@ const lightingScene = (lighting: Lighting): Scene => ({ ...poseScene(builtInPose
 
 /** A set, a figure in it for its size, seen from in front and a little above (all of it). */
 export function setPreview(id: string, style: Style): PreviewJob {
-  return { key: `set:${style}:${id}`, count: 1, frame: () => sharedRenderer().render(setScene(id), W, H, LINE, { style, margin: 0.04, angle: SET_VIEW, wholeSet: true }).toDataURL('image/png') };
+  return { key: `set:${style}:${id}`, count: 1, ready: () => setFurnished(id), frame: () => sharedRenderer().render(setScene(id), W, H, LINE, { style, margin: 0.04, angle: SET_VIEW, wholeSet: true }).toDataURL('image/png') };
 }
 
-/** A set's thumbnail (in line art). */
-export const setThumb = (id: string) => ({
-  key: `set:${id}`,
-  make: () => sharedRenderer().render(setScene(id), 144, 144, 1.1, { style: 'line', margin: 0.04, angle: SET_VIEW, wholeSet: true }).toDataURL('image/png'),
-});
+/**
+ * A set's thumbnail: its preview in line art with all its models (or its scene) in, made by `npm run
+ * set-thumbs` (drawn here, it would fetch every set's models to show the Library's grid).
+ */
+export const setThumb = (id: string) => ({ url: withBase(`/sets/thumbs/${id}.webp`) });
 const SET_VIEW = { yaw: 20, pitch: 22, fov: 40 };
 const setScene = (id: string): Scene => ({ ...newScene('Set', [newFigure()]), set: id });
 

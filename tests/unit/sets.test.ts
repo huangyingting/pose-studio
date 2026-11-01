@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
@@ -13,6 +14,8 @@ describe('sets', () => {
     expect(SETS.length).toBeGreaterThanOrEqual(8);
     for (const g of SET_GROUPS) expect(SETS.some((s) => s.group === g), g).toBe(true);
     expect(new Set(SETS.map((s) => s.id)).size).toBe(SETS.length);
+    // (Each with its thumbnail, made by `npm run set-thumbs`.)
+    for (const s of SETS) expect(existsSync(`public/sets/thumbs/${s.id}.webp`), s.id).toBe(true);
     for (const s of SETS) {
       const pieces = s.build();
       // (Built of pieces, or one ready-made scene, #27.)
@@ -52,7 +55,7 @@ describe('sets', () => {
       const tris = pieces.reduce((n, p) => n + (p.shape[0] === 'model' ? index.models[p.shape[1]].tris : p.shape[0] === 'scene' ? index.scenes[p.shape[1]].tris : shapeTris(p.shape)), 0);
       const surfaces = new Set(pieces.flatMap((p) => { const l = p.look; const id = typeof l === 'string' ? l : l?.surface; return id ? [id] : []; }));
       // (Outdoors, its sky in 3D too: the largest it could be.)
-      const sky = s.group === 'Outdoor' ? Math.max(...Object.values(index.skies).map((x) => x.bytes)) : 0;
+      const sky = !s.indoors ? Math.max(...Object.values(index.skies).map((x) => x.bytes)) : 0;
       const scenes = pieces.flatMap((p) => (p.shape[0] === 'scene' ? [index.scenes[p.shape[1]].bytes] : [])).reduce((n, x) => n + x, 0);
       const bytes = setModels(s.id).reduce((n, id) => n + index.models[id].bytes, 0) + [...surfaces].reduce((n, id) => n + index.surfaces[id].bytes, 0) + sky + scenes;
       expect(tris, `${s.id}: triangles`).toBeLessThanOrEqual(SET_BUDGET.tris);

@@ -233,7 +233,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
 function sets(store: Store, ui: LibraryUi): LibraryItem[] {
   const now = store.scene.set;
   const none: LibraryItem = {
-    key: 'set:none', tab: 'sets', part: 'Sets', group: 'Indoor', name: 'No set', icon: Ban, on: !now,
+    key: 'set:none', tab: 'sets', part: 'Sets', group: SET_GROUPS[0], name: 'No set', icon: Ban, on: !now,
     note: 'The bare stage', run: () => { if (now) { setSceneSet(store, null); } },
   };
   const built = SET_GROUPS.flatMap((g) => SETS.filter((s) => s.group === g)).map((s): LibraryItem => ({

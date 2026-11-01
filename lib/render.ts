@@ -335,6 +335,12 @@ export class SceneRenderer {
     const set = this.view.set;
     const what = opts.wholeSet && set ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { this.drawn.forEachPoint(cb); set.forEachPoint(cb); } } : this.drawn;
     fitCamera(this.camera, what, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
+    // (A set's walls and roofs in the way cut away, as in the editor: looking at the middle of what it shows.)
+    if (set) {
+      const box = new THREE.Box3();
+      what.forEachPoint((p) => box.expandByPoint(p));
+      set.cutaway(this.camera.position, box.getCenter(new THREE.Vector3()));
+    }
     return this.draw(line, opts);
   }
 
@@ -342,6 +348,7 @@ export class SceneRenderer {
   renderShot(doc: Scene, w: number, h: number, line: number, opts: RenderOptions & { camera: CameraView }) {
     this.setup(doc, w, h, line, opts);
     placeCamera(this.camera, opts.camera, w / h);
+    this.view.set?.cutaway(opts.camera.position, opts.camera.target);
     return this.draw(line, opts);
   }
 
