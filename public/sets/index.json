@@ -500,6 +500,46 @@
     1.724
    ]
   },
+  "gazania": {
+   "file": "models/gazania.glb",
+   "tris": 3528,
+   "bytes": 191780,
+   "size": [
+    1.481,
+    0.155,
+    0.679
+   ],
+   "min": [
+    -0.736,
+    -0.005,
+    -0.355
+   ],
+   "max": [
+    0.745,
+    0.15,
+    0.323
+   ]
+  },
+  "empodium": {
+   "file": "models/empodium.glb",
+   "tris": 3000,
+   "bytes": 81464,
+   "size": [
+    1.323,
+    0.268,
+    0.284
+   ],
+   "min": [
+    -0.683,
+    -0.004,
+    -0.177
+   ],
+   "max": [
+    0.639,
+    0.265,
+    0.107
+   ]
+  },
   "ash": {
    "file": "models/ash.glb",
    "tris": 20000,
@@ -8377,6 +8417,8 @@
   "model:planter": "{\"ph\":\"planter_box_02\",\"tris\":5000,\"tex\":512}",
   "model:rocks": "{\"ph\":\"rock_moss_set_01\",\"tris\":10000,\"tex\":1024}",
   "model:fern": "{\"ph\":\"fern_02\",\"tris\":5000,\"tex\":512}",
+  "model:gazania": "{\"ph\":\"flower_gazania\",\"tris\":3600,\"tex\":512}",
+  "model:empodium": "{\"ph\":\"flower_empodium\",\"tris\":3000,\"tex\":512}",
   "model:ash": "{\"tree\":\"Ash Medium\",\"height\":9,\"tris\":40000,\"tex\":1024}",
   "model:oak": "{\"tree\":\"Oak Medium\",\"height\":8,\"tris\":40000,\"tex\":1024}",
   "model:aspen": "{\"tree\":\"Aspen Medium\",\"height\":10,\"tris\":40000,\"tex\":1024}",

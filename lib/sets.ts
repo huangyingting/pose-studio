@@ -430,6 +430,13 @@ export const SETS: SetDef[] = [
       ...fountain(2, -5.5),
       M('street-lamp', -8, 0, 180), M('street-lamp', 9, 0, 180),
       M('rocks', 15, -16), M('rocks', -16, -15, 120),
+      // A path off it to the fountain, beds of flowers either side of it.
+      { ...B(2, 0.022, 3.2, 2, 0, -2.0), look: 'gravel' },
+      ...[-0.6, 4.6].flatMap((x, b): Piece[] => [
+        ...open(made({ surface: 'sandstone', color: '#cfc6b6' }, [B(2.6, 0.16, 0.12, x, 0, -0.95), B(2.6, 0.16, 0.12, x, 0, -3.25), B(0.12, 0.16, 2.3, x - 1.25, 0, -2.1), B(0.12, 0.16, 2.3, x + 1.25, 0, -2.1)])),
+        { ...B(2.4, 0.12, 2.2, x, 0, -2.1), look: { color: '#4a3526', rough: 1 }, open: true },
+        ...[-0.75, 0, 0.75].flatMap((dx, i) => [M(i % 2 === b ? 'gazania' : 'empodium', x + dx, -1.55, i * 70, 0.12), M(i % 2 === b ? 'empodium' : 'gazania', x + dx, -2.6, i * 110, 0.12)]),
+      ]),
     ],
   },
   {

@@ -44,6 +44,8 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
   planter: https://polyhaven.com/a/planter_box_02
   rocks: https://polyhaven.com/a/rock_moss_set_01
   fern: https://polyhaven.com/a/fern_02
+  gazania: https://polyhaven.com/a/flower_gazania
+  empodium: https://polyhaven.com/a/flower_empodium
   chinese-armchair: https://polyhaven.com/a/chinese_armchair
   chinese-tea-table: https://polyhaven.com/a/chinese_tea_table
   chinese-stool: https://polyhaven.com/a/chinese_stool

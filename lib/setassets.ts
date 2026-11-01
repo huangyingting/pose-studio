@@ -90,6 +90,8 @@ export const MODELS = {
   'planter': small('planter_box_02'),
   'rocks': model('rock_moss_set_01', 10_000),
   'fern': small('fern_02'),
+  'gazania': { ph: 'flower_gazania', tris: 3600, tex: 512 },
+  'empodium': { ph: 'flower_empodium', tris: 3000, tex: 512 },
   'ash': tree('Ash Medium', 9),
   'oak': tree('Oak Medium', 8),
   'aspen': tree('Aspen Medium', 10),
