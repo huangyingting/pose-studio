@@ -8,6 +8,7 @@ on:
   pull_request:
 
 # One run at a time: a run in progress finishes (its results are read); only the newest push waits.
+# (Each job has a time limit, so that one stuck on its runner, installing, does not hold the rest.)
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: false
@@ -15,6 +16,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -30,6 +32,7 @@ jobs:
 
   slow:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -45,6 +48,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -57,6 +61,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+        timeout-minutes: 10
       - run: npx playwright test --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v7
         if: failure()
