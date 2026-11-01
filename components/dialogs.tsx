@@ -546,15 +546,20 @@ export function PhotoDialog({ onClose, notify }: { onClose(): void; notify: Noti
             <strong>Choose a photo</strong>
             <span className="muted small">or drop it here · it stays on this computer</span>
           </label>
-          <Field label="Pose goes on">
-            <Segmented<'new' | 'current'>
-              label="Put the pose on"
-              full
-              value={target}
-              onChange={setTarget}
-              options={[{ value: 'new', label: 'A new scene' }, ...(posable ? [{ value: 'current' as const, label: 'The selected figure' }] : [])]}
-            />
-          </Field>
+          {posable ? (
+            <Field label="Pose goes on">
+              <Segmented<'new' | 'current'>
+                label="Put the pose on"
+                full
+                value={target}
+                onChange={setTarget}
+                options={[{ value: 'new', label: 'A new scene' }, { value: 'current', label: 'The selected figure' }]}
+              />
+            </Field>
+          ) : (
+            // (Nothing to choose: one place it can go.)
+            <Hint>The pose goes on a new scene (to pose a figure here with it, select the figure first)</Hint>
+          )}
         </div>
         <div className="preview">
           {status === 'loading' && <div className="spinner" aria-label="Working" />}

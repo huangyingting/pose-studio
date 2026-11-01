@@ -1225,7 +1225,11 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
         near = m?.joints[part as JointName]?.getWorldPosition(new THREE.Vector3()) ?? null;
         reach = 0.35 * (m?.object.scale.y ?? 1);
       }
-      const around = near && { forEachPoint: (cb: (p: THREE.Vector3) => void) => { for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) cb(near!.clone().add(new THREE.Vector3(x, y, z).multiplyScalar(reach))); } };
+      // (A light with the people it lights: what it does is seen on them, and a sun's lamp is far above them.)
+      const around = near && { forEachPoint: (cb: (p: THREE.Vector3) => void) => {
+        for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) cb(near!.clone().add(new THREE.Vector3(x, y, z).multiplyScalar(reach)));
+        if (kind === 'light') sv.forEachPoint(cb, true);
+      } };
       const ids = kind ? [] : typeof only === 'string' ? [only] : only ?? [];
       const things = ids.flatMap((id) => { const t = sv.figures.get(id) ?? sv.props.get(id); return t ? [t] : []; });
       const one = things.length ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => things.forEach((t) => t.forEachPoint(cb)) } : undefined;
