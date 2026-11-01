@@ -470,12 +470,6 @@ export interface ExtraLight { dir: THREE.Vector3; color: THREE.Color; at?: THREE
 const MAX_EXTRA = 4;
 
 /**
- * The ambient light (from the sky and the ground), the lights and a shadow-catching floor under
- * the sun's shadows. Shared by the editor and the exporter; only the lit styles are lit by it,
- * the line-art and minimal materials ignore it. A window is a soft panel of light in Clay (lamps
- * across its pane) and a light from its direction in the painterly styles.
- */
-/**
  * A shadow receiver whose soft shadow does not shimmer as the view moves (#31): three's soft
  * shadows turn their few samples by a noise of the screen's pixel, so a still shadow's grain
  * moves with the camera; here by the shadow map's own texel instead, which stays where it is on
@@ -496,6 +490,12 @@ function steadyShadows<M extends THREE.Material>(m: M): M {
   return m;
 }
 
+/**
+ * The ambient light (from the sky and the ground), the lights and a shadow-catching floor under
+ * the sun's shadows. Shared by the editor and the exporter; only the lit styles are lit by it,
+ * the line-art and minimal materials ignore it. A window is a soft panel of light in Clay (lamps
+ * across its pane) and a light from its direction in the painterly styles.
+ */
 export class LightRig {
   readonly object = new THREE.Group();
   private ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.05);

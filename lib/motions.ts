@@ -224,7 +224,6 @@ function inBetween(rig: Rig, a: Figure, b: Figure, count: number, ref: Figure, s
   });
 }
 
-
 /** Ease 0→1, slow at both ends. */
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };
 
@@ -683,7 +682,6 @@ export const MOTIONS: Motion[] = [
     }),
   },
 ];
-
 
 /* ---------- handling props ---------- */
 

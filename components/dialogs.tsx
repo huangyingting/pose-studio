@@ -42,7 +42,6 @@ function loadExportOptions(): ExportOptions {
   return { ...DEFAULT_EXPORT };
 }
 
-
 export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   onClose(): void;
   notify: Notify;

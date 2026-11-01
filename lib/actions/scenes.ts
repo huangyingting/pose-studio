@@ -51,7 +51,6 @@ export function moveScene(store: Store, from: number, to: number) {
   store.commit((lib) => ({ ...lib, scenes }), '', { sceneIndex: scenes.findIndex((x) => x.id === current) });
 }
 
-
 export function replaceLibrary(store: Store, scenes: Scene[]) {
   store.commit((lib) => ({ ...lib, scenes }), '', { sceneIndex: 0, selection: openingSelection(scenes[0]), activeFigure: null });
 }

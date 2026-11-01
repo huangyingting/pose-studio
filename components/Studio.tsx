@@ -318,7 +318,6 @@ function App() {
     }
   };
 
-
   // A pick mode (Walk to…, Throw to…): the next click on the floor; Esc or picking anything else
   // (another selection, another scene) cancels.
   // The scene alone, filling the window (the button in its corner, Shift + F).

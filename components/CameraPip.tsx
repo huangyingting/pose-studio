@@ -9,13 +9,13 @@ import { useProjectSettings, useScene, useStore } from './store-context';
 
 const WIDTH = 240;
 
+/** Whether the scene is playing now (read when the picture is drawn). */
+const playing = (clock: Clock) => clock.playing;
+
 /**
  * The selected camera's picture, live, in the canvas's bottom-right corner (above the timeline):
  * in the frame's aspect, with its name and lens. A click looks through it.
  */
-/** Whether the scene is playing now (read when the picture is drawn). */
-const playing = (clock: Clock) => clock.playing;
-
 export default function CameraPip({ camera, clock }: { camera: string; clock: Clock }) {
   const store = useStore();
   const scene = useScene();

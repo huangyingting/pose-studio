@@ -17,10 +17,10 @@ import { besideFigures } from './figures';
 const AHEAD: Partial<Record<PropKind, number>> = { hoop: 5, bar: 3, mat: 4.3 };
 
 /**
- * Add a prop. Handheld kinds go into the active figure's free hand (the right one first). Sports
- * gear goes ahead of it (or at `at`), turned to it: a hoop's board facing it, a bar and a mat across its way.
+ * Add a prop where asked (`at`, turned `turn`), else beside the figures. Handheld kinds go into the
+ * active figure's free hand (the right one first). Sports gear goes ahead of it (or at `at`), turned
+ * to it: a hoop's board facing it, a bar and a mat across its way.
  */
-/** A new prop where asked (`at`, turned `yaw`), or ahead of the active figure; a hand prop into its hand. */
 export function addProp(store: Store, kind: PropKind, at?: Vec3, turn?: number) {
   const f = store.figure;
   const [fx, fz] = f ? forward(f) : [0, 1];

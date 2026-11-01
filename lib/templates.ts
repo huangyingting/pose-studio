@@ -32,7 +32,6 @@ interface SceneTemplate {
   build(): Scene;
 }
 
-
 export const SCENE_TEMPLATES: SceneTemplate[] = [
   // Staged as a director would, beat by beat (lib/films.ts).
   ...FILMS.map((f) => ({ id: f.id, name: f.name, group: 'Staged' as const, people: f.people, build: f.build })),

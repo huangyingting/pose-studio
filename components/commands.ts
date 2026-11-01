@@ -222,7 +222,6 @@ const heldIn = (c: Ctx) => {
   const side = c.joint === 'leftHand' ? 'L' : c.joint === 'rightHand' ? 'R' : null;
   return side ? c.store.scene.props.find((p) => { const h = propNow(c.store, p.id)?.hold; return h?.figure === c.figure && h?.hand === side; }) : undefined;
 };
-/** An action that can be played again: a motion, or a keyed block of two keys or more. */
 /** The blocks picked: the action and those with it (#22). */
 const blocks = (c: Ctx) => (c.action ? [c.action, ...(c.also ?? [])] : []);
 
@@ -245,6 +244,7 @@ const splitting = (c: Ctx) => {
   const t = c.store.getState().time;
   return a && who ? a.actions.find((x) => !x.layer && x.roles.some((r) => r.figure === who) && x.start < t - 1e-6 && t < x.start + x.duration - 1e-6) : undefined;
 };
+/** An action that can be played again: a motion, or a keyed block of two keys or more. */
 const repeatable = (c: Ctx) => {
   const act = actionOf(c);
   return !!act && !act.layer && (act.source.kind === 'clip' || (act.source.kind === 'keys' && act.duration > 1e-6));

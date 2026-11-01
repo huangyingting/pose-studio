@@ -565,7 +565,6 @@ export interface ModelInfo {
   credit?: string;
 }
 
-/** A body's build as shares of its height: hips above the feet, the head above its joint, the shoulders' width. */
 /** An imported clip as the library lists it: its name, length and people (the frames are an asset). */
 export interface ClipInfo {
   id: string;
@@ -619,19 +618,18 @@ export type Selection =
   /** Nothing: the scene itself.  */
   | null;
 
-/** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
 /** A character's face (#15): what a VRM avatar's shape keys show (its eyes shut, the mouth's vowels, a feeling). */
 export const EXPRESSIONS = ['blink', 'aa', 'ih', 'ou', 'ee', 'oh', 'happy', 'angry', 'sad', 'relaxed', 'surprised'] as const;
 export type Expression = (typeof EXPRESSIONS)[number];
 /** How far each expression shows, 0–1. */
 export type Face = Partial<Record<Expression, number>>;
 
+/** Rendering styles (see lib/styles.ts). 'shaded' is shown as "Clay". */
 export const STYLES = ['line', 'sketch', 'ink', 'watercolor', 'anime', 'pixel', 'render', 'shaded', 'minimal'] as const;
 export type Style = (typeof STYLES)[number];
 /** What a selected prop's gizmo does: move it, or (R) scale it. */
 export type GizmoMode = 'translate' | 'scale';
 
-/** What a light is for: the main one, softening its shadows, outlining from behind, or another. */
 /**
  * What a light is: the sun (parallel rays from a direction: the one that casts shadows), a lamp (a
  * point in the scene, all round or a spot aimed at someone or something, reaching so far), or a

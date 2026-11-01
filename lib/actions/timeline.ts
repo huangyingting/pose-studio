@@ -305,7 +305,6 @@ export function setActionTarget(store: Store, id: string, target: PropTarget) {
   store.setTime(store.getState().time);
 }
 
-/** Remove an action (a motion, say) from the tracks of everyone in it. */
 /** Take actions away, what follows moving up (#22: Shift + Delete; see track.rippleDelete). */
 export function rippleDeleteActions(store: Store, ids: string[]) {
   store.updateScene((s) => (s.animation ? { ...s, animation: rippleDelete(s.animation, ids) } : s));
@@ -412,6 +411,7 @@ function pasteClip(store: Store, clip: NonNullable<typeof copied>, figure: strin
   return null;
 }
 
+/** Remove an action (a motion, say) from the tracks of everyone in it. */
 export function deleteAction(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.filter((x) => x.id !== id) } } : s));
   store.setTime(store.getState().time);

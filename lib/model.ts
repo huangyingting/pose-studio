@@ -332,7 +332,6 @@ export class Fitted {
 
 /* ---------- models: a figure drawn as an imported character ---------- */
 
-
 /**
  * A figure drawn as a model: the character's bones posed from the figure's (fingers from its hand
  * presets when the pose has none), its hips where the mannequin has them, at the figure's size.
@@ -700,7 +699,6 @@ export class ModelRig {
   }
 }
 
-/** A look as a 3D tool draws it (the 3D style): its colour and texture, its see-through parts, lit and shadowed by the scene's lights. */
 /** A mesh's tint and what it is tinted by: each bone's joint and its marks (the part picked, under the pointer, the whole figure picked), or the mesh's own (`whole`) where it is not skinned. */
 type Glaze = { mesh: THREE.Mesh; joints: JointName[]; data: Uint8Array; mask: THREE.DataTexture; whole: { value: THREE.Vector3 }; skinned: boolean };
 
@@ -749,6 +747,7 @@ function glazeMaterial(mask: THREE.Texture, whole: { value: THREE.Vector3 }) {
   });
 }
 
+/** A look as a 3D tool draws it (the 3D style): its colour and texture, its see-through parts, lit and shadowed by the scene's lights. */
 function standardOf(look: ToonLook) {
   return new THREE.MeshStandardMaterial({
     color: look.color, map: look.map, opacity: look.opacity, transparent: look.alpha === 'blend', alphaTest: look.alpha === 'mask' ? look.cutoff : 0,

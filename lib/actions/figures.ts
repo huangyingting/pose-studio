@@ -15,7 +15,6 @@ import { bonesOf, withAngles } from '../pose';
 import type { Store } from '../store';
 import { released } from '../hold';
 import { FINGER_BONES, type Vec3, type Posture, type Figure, type Animation, type Action, type Side, type JointName, type Hand, type Constraint, type Scene } from '../types';
-import { here } from './timeline';
 
 /* Figures: posing, placing and naming them, how they stand to each other, and holding on (lib/constraints.ts). */
 
@@ -292,7 +291,6 @@ function addHold(store: Store, figure: string, bone: Constraint['bone'], target:
   return hold;
 }
 
-/** Take the other end of a prop someone carries: a hand held on its last handle (two people carrying a stretcher). */
 /**
  * Why a figure cannot take the other end of a prop someone carries, if it cannot: the one at the
  * back much taller than the one in front tips it so far that what lies on it hits them
@@ -305,6 +303,7 @@ export function carryProblem(store: Store, figure: string, prop: string): string
   return back && front && back.body.height - front.body.height > 0.4 ? `${back.name} is too tall to carry ${p!.name} level with ${front.name}` : null;
 }
 
+/** Take the other end of a prop someone carries: a hand held on its last handle (two people carrying a stretcher). */
 export function holdHandle(store: Store, figure: string, prop: string, hand: Side) {
   const p = store.scene.props.find((x) => x.id === prop);
   const handles = p ? handlesOf(p) : [];

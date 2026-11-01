@@ -515,16 +515,15 @@ export function moveShotCut(store: Store, id: string, t: number, key = '') {
   }, key);
 }
 
+/** A camera as a new scene has it: the default, never changed (its id aside). */
+function untouched(c: Camera) {
+  return JSON.stringify({ ...c, id: '' }) === JSON.stringify({ ...defaultCamera(c.name), id: '' });
+}
+
 /**
  * The director (#14): the scene filmed in a style (a coverage, cast from who is in it) and cut
  * again as what they do changes; null: by hand from now on (its cameras and cuts stay as they are).
  */
-/** A camera as a new scene has it: the default, never changed (its id aside). */
-function untouched(c: Camera) {
-  const { id: _, ...now } = c;
-  const { id: __, ...made } = defaultCamera(c.name);
-  return JSON.stringify(now) === JSON.stringify(made);
-}
 
 export function setDirector(store: Store, style: string | null, roles?: Record<string, string>): boolean {
   return store.group(() => {

@@ -12,7 +12,7 @@ import type { Selection, Vec3, JointName } from '../types';
 import { deleteCamera, duplicateCamera, pathCamera, placeFixed, removeShotCut } from './cameras';
 import { deleteFigure, duplicateFigure, setJoint } from './figures';
 import { deleteProp, duplicateProp } from './props';
-import { copyOf, deleteAction, here } from './timeline';
+import { deleteAction, here } from './timeline';
 
 /* Several things at once (a selection of many), and steps from the keyboard (#13). */
 

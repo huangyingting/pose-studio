@@ -62,8 +62,11 @@ export interface ViewportApi {
   labelPoint(sel: NonNullable<Selection>): { x: number; y: number } | null;
 }
 
-/** What is under a point of the canvas: a figure, a prop, a camera (and which of its path points), the floor. */
-/** What is under a point of the canvas: a figure (and the point of its body a hand would hold), a prop, a camera (and its path's point), the floor there. */
+/**
+ * What is under a point of the canvas: a figure (the part there, and the point of its body a hand
+ * would hold), a prop, a camera (and its path's point), a light's lamp, the floor there (at the foot
+ * of a set's wall or furniture met first) and a set's top (a seat, a dais).
+ */
 export type CanvasHit = { figure?: string; joint?: JointName; contact?: Contact; prop?: string; camera?: string; point?: number; floor?: Vec3; top?: Vec3; light?: string };
 
 export interface FrameRequest {
@@ -98,7 +101,6 @@ interface Props {
 
 type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
 
-/** The floor is solid: the view can look up from near it, never from under it. */
 /** Whether a set's parts stand between two points (its parts are not picked: their own ray test, not their outlines'). */
 function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3) {
   const dir = to.clone().sub(from);
@@ -181,6 +183,7 @@ function DepthRange() {
   return null;
 }
 
+/** The floor is solid: the view can look up from near it, never from under it. */
 function keepCameraAboveFloor(e?: { target: { object: THREE.Camera } }) {
   const camera = e?.target.object;
   if (camera && camera.position.y < 0.03) camera.position.setY(0.03);
@@ -1334,6 +1337,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
   return null;
 }
 
+/** Each drag of a camera is one undo step. */
+let drags = 0;
+
 /**
  * The cameras' paths through the set (one line each), a camera at each point of them and, for a
  * camera looking at a point, that point. Drag a camera to move it across the floor (Shift: up and
@@ -1341,9 +1347,6 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
  * camera to delete the point. A camera placing itself from its subject (a rig) shows where it goes,
  * dashed. The red dot is the camera filming at the playhead.
  */
-/** Each drag of a camera is one undo step. */
-let drags = 0;
-
 function CameraRig({ store, scene, clock, time, selection, groupRef }: { store: Store; scene: Scene; clock: Clock; time: number; selection: Selection; groupRef: RefObject<THREE.Group | null> }) {
   const a = scene.animation;
   const fps = a?.fps ?? 24;

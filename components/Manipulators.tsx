@@ -244,7 +244,6 @@ function sliderDrag(m: Mannequin, joint: JointName, axis: number, grab: THREE.Ve
   };
 }
 
-
 type Plan = { begin(): void; move(ray: THREE.Ray, dx: number, dy: number, e: PointerEvent): void; end(): void; cursor: string };
 
 /** What a press on a part would move. */
@@ -852,7 +851,6 @@ export function PropRing({ sv, id, version, onTurn }: { sv: SceneView; id: strin
     </group>
   );
 }
-
 
 /** A mark's facing arrow: a small triangle just beyond its ring (pointing along the floor's -y before it is laid down, i.e. +z). */
 const ARROW = new THREE.Shape([new THREE.Vector2(-0.06, -0.14), new THREE.Vector2(0.06, -0.14), new THREE.Vector2(0, -0.21)]);

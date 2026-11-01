@@ -5,7 +5,7 @@ import { Line } from './Line';
 import { aimCamera, editRig, setCameraMove } from '@/lib/actions';
 import { cameraById, frameAspect, MOVE_NAMES, moveRun, placeCamera, rigAngle, rigPitch, SHOT_SIZES, viewOf } from '@/lib/cameras';
 import type { Store } from '@/lib/store';
-import type { CameraMove, RigCamera, Scene, ShotSize, Vec3 } from '@/lib/types';
+import type { CameraMove, Scene, ShotSize, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
 import { STEPS, snap, snapping } from './modifiers';
 

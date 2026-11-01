@@ -183,13 +183,13 @@ function evenTime(points: CameraPoint[], ease: PathCamera['ease'], t: number) {
 // A rig camera's view, once worked out (per how the figures move and who is hidden, the camera and the time).
 const rigViews = new WeakMap<object, WeakMap<Camera, Map<string, CameraView>>>();
 
-/** What a camera sees at time t, whatever is cut to then. */
 /** Props a camera keeps out of: how far they reach round their middle on the floor, for a scale of 1. */
 const STANDING: Partial<Record<PropKind, number>> = { chair: 0.6, stool: 0.4, hoop: 0.6, box: 0.6, cylinder: 0.5, sphere: 0.5, step: 0.4 };
 
 /** The shot sizes that frame people whole: in a small room, they take a wider lens. */
 const WIDE: ShotSize[] = ['ews', 'ws', 'fs', 'mws'];
 
+/** What a camera sees at time t, whatever is cut to then. */
 export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspect()): CameraView {
   // (Fixed, #21: where it was put, kept out of nothing: it does not move.)
   if (cam.kind === 'rig' && cam.rig.fixed) {

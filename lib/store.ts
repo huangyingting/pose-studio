@@ -375,10 +375,6 @@ export class Store {
     return { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
   }
 
-  /**
-   * The director (#14): the open scene's live coverage cut again when what is filmed changed (what
-   * they do, who is in it, props, its shots), shots taken over by hand kept.
-   */
   /** Reactions kept on their blows (#23: lib/track.ts relink), in the open scene. */
   private relinked(prev: Library, next: Library): Library {
     const i = this.state.sceneIndex;
@@ -390,6 +386,10 @@ export class Store {
     return animation === a ? next : { ...next, scenes: next.scenes.map((x, j) => (j === i ? { ...after, animation } : x)) };
   }
 
+  /**
+   * The director (#14): the open scene's live coverage cut again when what is filmed changed (what
+   * they do, who is in it, props, its shots), shots taken over by hand kept.
+   */
   private directed(prev: Library, next: Library): Library {
     const i = this.state.sceneIndex;
     const before = prev.scenes[i];

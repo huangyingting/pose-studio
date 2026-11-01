@@ -67,7 +67,6 @@ export function StandInPanel({ t }: { t: Target }) {
   );
 }
 
-/** The selected part: its sliders, next to a small map to pick another. */
 /** A − or + that steps a joint's slider 5° (Shift 15°), again and again while it is held. */
 function StepButton({ label, by, end, onStep }: { label: string; by: 1 | -1; end: string; onStep(deg: number): void }) {
   const press = (e: React.PointerEvent) => {

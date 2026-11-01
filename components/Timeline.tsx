@@ -293,7 +293,6 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     return () => el.removeEventListener('wheel', wheel);
   }, [v0, span, zoom, total, folded]);
 
-
   const check = () => {
     stepDone(scene.id, 'check');
     if (issues) { setQaOpen(!qaOpen); return; }

@@ -312,10 +312,6 @@ export function MenuItems({ items, onDone }: { items: MenuItem[]; onDone(): void
 
 /* ---------------- Panel structure ---------------- */
 
-/**
- * The inspector's title: what is selected, its name editable (Enter or leaving keeps it, Escape
- * reverts), then actions for it.
- */
 /** Where a header sits: what comes before its icon (a way back up) and after its actions (the panel's own buttons). */
 export interface HeaderChrome {
   before?: ReactNode;
@@ -683,7 +679,6 @@ export function Toolbar({ label, className = 'toolrow', children }: { label: str
 }
 const TOOLBAR_KEYS: Roving = { items: 'button', orientation: 'horizontal' };
 
-/** Styled native select. */
 /**
  * A drop-down list (replaces the system select so it matches the app): a combobox button and a
  * listbox drawn on top of everything. Keys: arrows, Home / End, Enter / Space, Escape, and typing

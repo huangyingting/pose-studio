@@ -439,14 +439,6 @@ const hermite01 = (y0: number, m0: number, y1: number, m1: number, u: number) =>
   return (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * y1 + (u3 - u2) * m1;
 };
 
-/**
- * The plan of a walk or run along a chain: its speed profile, step length and footsteps (as
- * 3ds Max's Biped plans them): whole steps of equal length along the path, feet alternating, the
- * first leaving from the standing spot and the last closing the feet together at the end. Each
- * step swings while the body covers a fixed stretch of the path, centred on the other foot: in a
- * walk the stretches never overlap (one foot is always down), in a run they do (both feet in the
- * air). Footfalls are fixed points on the floor: nothing slides.
- */
 /** How much of a path goes sideways to the way the body faces along it (0 forward or back, 1 sideways). */
 function sidewaysShare(line: ReturnType<typeof polyline>, D: number, yawAt: (arc: number) => number) {
   return Math.max(...[0.1, 0.3, 0.5, 0.7, 0.9].map((u) => {
@@ -456,6 +448,14 @@ function sidewaysShare(line: ReturnType<typeof polyline>, D: number, yawAt: (arc
   }));
 }
 
+/**
+ * The plan of a walk or run along a chain: its speed profile, step length and footsteps (as
+ * 3ds Max's Biped plans them): whole steps of equal length along the path, feet alternating, the
+ * first leaving from the standing spot and the last closing the feet together at the end. Each
+ * step swings while the body covers a fixed stretch of the path, centred on the other foot: in a
+ * walk the stretches never overlap (one foot is always down), in a run they do (both feet in the
+ * air). Footfalls are fixed points on the floor: nothing slides.
+ */
 function planGait(c: Chain, legs: Legs, ground: Ground, body: BodyParams) {
   const line = polyline(c.path);
   const D = line.length;

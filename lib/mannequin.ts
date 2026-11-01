@@ -150,9 +150,7 @@ const PARENT = JOINT_PARENT;
 /** The joint a part of the bot belongs to (a finger's segment: its hand's). */
 const partOf = (target: string): JointName => (/^(left|right)(Thumb|Index|Middle|Ring|Little)/.test(target) ? (`${target.startsWith('left') ? 'left' : 'right'}Hand` as JointName) : (target as JointName));
 
-
-/** A bone and its outermost points (at rest): where they are is where the bone takes them. */
-/** A bone's outermost points, and a sphere round them (to pass over the bone where they cannot matter). */
+/** A bone and its outermost points (at rest: where they are is where the bone takes them), and a sphere round them (to pass over the bone where they cannot matter). */
 interface Sample { bone: THREE.Bone; inverse: THREE.Matrix4; points: Float32Array; part: JointName; sphere: THREE.Sphere }
 
 /** The directions a bone's outermost points are found in (from the middle of a cube to the points on its surface, five to a side). */
@@ -508,9 +506,9 @@ export class Mannequin {
     this.object.updateMatrixWorld(true);
   }
 
+  /** What it stands on besides the floor: the height of the props under a floor point. */
   private surface: ((x: number, z: number) => number) | null = null;
 
-  /** What it stands on besides the floor: the height of the props under a floor point. */
   /** Its parts tagged as another figure's (a mannequin worked out with, passed on to the next). */
   retag(id: string) {
     if (id === this.id) return;

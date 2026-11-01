@@ -487,7 +487,6 @@ function parseAnimation(v: unknown, figures: Set<string>, propIds: Set<string>, 
   return anim;
 }
 
-
 /** A template's scene keeps no cameras, coverage or cuts. */
 function bareTemplate(scene: Scene): Scene {
   const { coverage: _c, ...rest } = scene;

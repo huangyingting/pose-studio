@@ -63,7 +63,6 @@ const POP_ROOT = 0.12;
 /** Capsules closer than this fraction of their radii overlap clearly (resting on each other is fine). */
 const OVERLAP = 0.5;
 
-
 /**
  * Capsules around the bones (radius at 1.7 m height). Hands and the shoulder caps are left out:
  * holding hands and a hand on a shoulder are contact, not overlap.
@@ -76,7 +75,6 @@ const BONE_LABELS: Record<string, string> = {
 
 /** Arms crossing arms is usually a hold, and the capsules are roughest there: not checked. */
 const ARMS = new Set<JointName>(['leftUpperArm', 'leftLowerArm', 'rightUpperArm', 'rightLowerArm']);
-
 
 /** Closest distance between segments p1q1 and p2q2. */
 export function segmentDistance(p1: THREE.Vector3, q1: THREE.Vector3, p2: THREE.Vector3, q2: THREE.Vector3) {
@@ -104,7 +102,6 @@ export function segmentDistance(p1: THREE.Vector3, q1: THREE.Vector3, p2: THREE.
   }
   return p1.clone().addScaledVector(d1, s).distanceTo(p2.clone().addScaledVector(d2, t));
 }
-
 
 /** Group frame-level hits into time ranges (gaps of one frame are bridged). */
 class Ranges {
@@ -151,7 +148,6 @@ class Ranges {
 
 const cm = (m: number) => `${Math.round(m * 100)} cm`;
 
-/** Check an animated scene. Returns the issues found, sorted by time. */
 /**
  * The recorded Library motion a figure plays as it is at t (none blending into it, no layer over
  * it): its pose is the recording's, whose own snaps and reaches are not this scene's to fix.
@@ -182,6 +178,7 @@ function pastLimit(bones: Figure['bones'], j: JointName) {
   }));
 }
 
+/** Check an animated scene. Returns the issues found, sorted by time. */
 export function checkMotion(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a) return [];
@@ -441,14 +438,14 @@ export function checkMotion(scene: Scene): Issue[] {
 /** What the shots' cameras get wrong: someone hidden behind a prop, the camera going through someone or something. */
 export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), ...cameraInside(scene)];
 
+/** What people sit on. */
+const SEATS: PropKind[] = ['chair', 'stool'];
+
 /**
  * Who a shot cannot see: seen through each shot's own camera, a figure (the shot's subject and
  * whoever it frames with them, or everyone) is hidden when a prop blocks the line of sight to at least two of its head, chest and
  * hips.
  */
-/** What people sit on. */
-const SEATS: PropKind[] = ['chair', 'stool'];
-
 function hiddenInShots(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a || !scene.props.some((p) => !p.hold)) return [];

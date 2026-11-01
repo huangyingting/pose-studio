@@ -12,7 +12,7 @@ import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
 import type { Travel } from '../types';
 import { applyMotion } from './library';
-import { here, retime, setBlend, setClipOptions } from './timeline';
+import { retime, setBlend, setClipOptions } from './timeline';
 
 /* Animating a scene, and walking, running and jumping from mark to mark (lib/locomotion.ts). */
 

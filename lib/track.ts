@@ -1008,7 +1008,6 @@ function turn(x: number, z: number, deg: number): [number, number] {
   return [x * Math.cos(r) + z * Math.sin(r), -x * Math.sin(r) + z * Math.cos(r)];
 }
 
-/** Make room on a figure's track from t0 to t1: keys there go (one is kept at t0), actions starting there go, ones running into it end at t0. */
 /** An action ending at t instead (#22): a motion plays only the part of it up to there (its `to`). */
 function cutShort(x: Action, t: number): Action {
   const src = x.source;
@@ -1018,6 +1017,7 @@ function cutShort(x: Action, t: number): Action {
   return { ...x, duration: t - x.start, source: { ...src, to: Math.min(whole.duration, to) } };
 }
 
+/** Make room on a figure's track from t0 to t1: keys there go (one is kept at t0), actions starting there go, ones running into it end at t0. */
 export function clear(scene: Scene, figure: string, t0: number, t1: number): Animation {
   const split = splitAt(scene, figure, t0);
   let a = split.a;
