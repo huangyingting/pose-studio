@@ -1271,6 +1271,13 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text-2); box-shadow: var(--shadow-float); cursor: pointer;
 }
 .stage-pop:hover, .stage-pop[aria-pressed='true'] { color: var(--accent); }
+/* The canvas's tools (#38): under the scene-only button, a column of the tools and the body's switch. */
+.canvas-tools {
+  position: absolute; top: 48px; left: 10px; z-index: 3; display: grid; gap: 2px; padding: 3px; border-radius: var(--radius-l);
+  background: color-mix(in srgb, var(--panel) 85%, transparent); box-shadow: var(--shadow-float);
+}
+.canvas-tools .ibtn { width: 28px; height: 28px; }
+.canvas-tools-sep { height: 1px; margin: 2px 4px; background: var(--border); }
 .stage-pop:hover { background: var(--panel); }
 /* The selected camera's picture, in the canvas's bottom-right corner; a click looks through it. */
 .camera-pip {

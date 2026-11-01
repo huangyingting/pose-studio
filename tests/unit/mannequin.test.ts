@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_BODY } from '@/lib/body';
 import { newFigure } from '@/lib/doc';
 import { Ink } from '@/lib/ink';
-import { IK_CHAINS, Mannequin, POLE_CHAINS, worldPos } from '@/lib/mannequin';
+import { IK_CHAINS, Mannequin, POLE_CHAINS, bodyFollows, worldPos } from '@/lib/mannequin';
+import { jointLimits } from '@/lib/joints';
 import { poseScene, referencePoses } from '@/lib/poses';
 import { angle, anglesOf, bonesOf, fromQuat } from '@/lib/pose';
 import { fingerBones } from '@/lib/skeleton';
@@ -207,5 +208,32 @@ describe('the mannequin\'s fingers', () => {
     const [ta, tb] = [tips(a), tips(b)];
     expect(Object.keys(ta)).toHaveLength(10);
     for (const [name, p] of Object.entries(ta)) expect(p.distanceTo(tb[name]), name).toBeLessThan(/Thumb/.test(name) ? 0.012 : 0.002);
+  });
+});
+
+describe('a reach with the body following (#38)', () => {
+  it('a hand pulled beyond its arm brings the shoulder and the chest along, within their limits; within reach, only the arm moves', () => {
+    const reachTo = (target: THREE.Vector3, follow: boolean) => {
+      const m = make();
+      m.apply({ ...newFigure() });
+      const chest0 = m.joints.chest.quaternion.clone();
+      if (follow) bodyFollows(m, IK_CHAINS.leftHand, target, true);
+      m.solveIK(IK_CHAINS.leftHand, target, undefined, true);
+      m.object.updateMatrixWorld(true);
+      return { m, miss: worldPos(m.joints.leftHand).distanceTo(target), chest: m.joints.chest.quaternion.angleTo(chest0) };
+    };
+    // Up and out, well beyond the arm.
+    const far = new THREE.Vector3(0.9, 1.9, 0.5);
+    const [arm, body] = [reachTo(far, false), reachTo(far, true)];
+    expect(body.miss).toBeLessThan(arm.miss - 0.1);
+    expect(body.chest).toBeGreaterThan(0.05);
+    for (const j of ['leftShoulder', 'upperChest', 'chest'] as const) {
+      const v = angle(body.m.read().bones, j);
+      const lim = jointLimits(j);
+      v.forEach((x, i) => { expect(x, `${j} ${i}`).toBeGreaterThanOrEqual(lim[i][0] - 0.5); expect(x, `${j} ${i}`).toBeLessThanOrEqual(lim[i][1] + 0.5); });
+    }
+    // Within reach: the body stays.
+    const near = reachTo(new THREE.Vector3(0.45, 1.1, 0.25), true);
+    expect(near.chest).toBeLessThan(1e-6);
   });
 });

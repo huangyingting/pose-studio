@@ -36,6 +36,8 @@ export interface Settings {
   widths: Partial<Record<(typeof SIDE_SECTIONS)[number] | 'inspector', number>>;
   /** The chrome's colours: as the system's, or light or dark. */
   theme: Theme;
+  /** A hand reaching beyond the arm brings the shoulder and the chest along (the Pose tool, #38). */
+  bodyFollows: boolean;
 }
 
 export const THEMES = ['system', 'light', 'dark'] as const;
@@ -58,6 +60,12 @@ export const openingSelection = (scene: Scene | undefined): Selection => {
   return f ? { kind: 'figure', figure: f.id } : null;
 };
 
+/**
+ * What a drag on a figure does (#38): pose it (a hand or foot reaches, a part swings), move it (any
+ * part places the whole figure), or rotate it (any part turns at its joint). Props move in each.
+ */
+export type Tool = 'pose' | 'move' | 'rotate';
+
 /** What the canvas looks through: the editor's own view (null), the cut (what the shots show), or one camera. */
 export type Through = { camera?: string } | null;
 
@@ -74,6 +82,8 @@ export interface State {
   /** Animation time (seconds) of the open pose; its figures always show the pose at this time. */
   time: number;
   through: Through;
+  /** The canvas's tool (not kept: each visit starts posing). */
+  tool: Tool;
   /** The figure, prop or camera under the pointer in the outline or on the canvas: the other one shows it too. */
   linked: string | null;
   /** A change refused (#22: a locked row's track), to say so: its words, and a count to tell one from the next. */
@@ -95,7 +105,7 @@ function lockedChange(before: Scene | undefined, after: Scene | undefined): stri
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', inspector: true, timelineFolded: false, timelineHeight: 0, timelineSnap: true, guides: false, widths: {}, theme: 'system',
+  showHandles: true, showGrid: true, limits: true, gizmo: 'translate', editorLine: 1.6, side: 'scene', inspector: true, timelineFolded: false, timelineHeight: 0, timelineSnap: true, guides: false, widths: {}, theme: 'system', bodyFollows: true,
 };
 
 const STORAGE = { library: 'pose-studio-library', settings: 'pose-studio-settings', index: 'pose-studio-index' };
@@ -148,6 +158,7 @@ function loadSettings(storage: Storage | null): Settings {
         widths: Object.fromEntries(Object.entries(s.widths ?? {}).filter(([k, v]) => (k === 'inspector' || SIDE_SECTIONS.includes(k as (typeof SIDE_SECTIONS)[number])) && typeof v === 'number')
           .map(([k, v]) => [k, Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, v as number))])),
         theme: THEMES.includes(s.theme as Theme) ? (s.theme as Theme) : 'system',
+        bodyFollows: s.bodyFollows !== false,
       };
     }
   } catch {
@@ -180,7 +191,7 @@ export class Store {
     const idx = Number(storage?.getItem(STORAGE.index) ?? 0);
     const sceneIndex = Number.isInteger(idx) && idx >= 0 && idx < library.scenes.length ? idx : 0;
     this.state = this.normalize({
-      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null, linked: null,
+      library, sceneIndex, selection: openingSelection(library.scenes[sceneIndex]), activeFigure: null, settings: loadSettings(storage), canUndo: false, canRedo: false, saveStatus: 'saved', time: 0, through: null, tool: 'pose', linked: null,
     });
     // An animated pose opens at its first frame.
     this.state = { ...this.state, library: this.withFrame(this.state.library, this.state.sceneIndex, 0) };
@@ -515,6 +526,10 @@ export class Store {
 
   lookThrough(through: Through) {
     this.set({ through }, false);
+  }
+
+  setTool(tool: Tool) {
+    if (tool !== this.state.tool) this.set({ tool }, false);
   }
 
   /** What the pointer rests on, in the outline or on the canvas (the other shows it too). */

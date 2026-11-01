@@ -132,6 +132,13 @@ first, then everywhere it applies.
   button for the next step). The selected thing has a label above it; dragging it is the main way to change it; its inspector has the exact values.
 - Handles and gizmos are sized with the model (they shrink as the view zooms out), with thick
   lines; lines use `components/Line.tsx` (never drei's `<Line>`).
+- **Tools** (#38): what a drag on a figure does is the tool's, shown in the bar at the canvas's top
+  left and in the hint: **Pose** (Q, the default: a hand or foot reaches, the limb following, and with
+  **Body follows** the shoulder and chest too; any other part swings from its joint; the hips sink or
+  shift on planted feet), **Move** (W: any part places the whole figure on the floor; Shift turns it),
+  **Rotate** (E: any part turns at its joint, hands and feet too). Props move in every tool. A new
+  gesture goes into a tool, not into a new modifier.
+- Picking something opens the inspector (a wide screen; on a phone it is a drawer, opened by hand).
 - What is not picked through the canvas (sets) does not take clicks.
 - Styles: a new render style is one entry in `lib/styles.ts`; what is drawn reads `styleDef`.
 

@@ -2,7 +2,7 @@ import {
   Activity, Aperture, Magnet, Flag, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
-  Lightbulb, Spline, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
+  Lightbulb, Spline, Bone, Move, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, stepRig, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKey, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
@@ -565,7 +565,14 @@ export const COMMANDS: Command[] = [
     },
   },
 
-  // The canvas's tools.
+  // The canvas's tools (#38): what a drag on a figure does.
+  { id: 'tool.pose', title: 'Pose', help: 'Pose: drag a hand or foot to reach (the limb follows), any other part to swing it, the hips to sink or shift', icon: PersonStanding, keys: ['q'], checked: (c) => c.store.getState().tool === 'pose', run: (c) => c.store.setTool('pose') },
+  { id: 'tool.move', title: 'Move', help: 'Move: drag any part of a figure, or a prop, to place it on the floor (Shift: turn it)', icon: Move, keys: ['w'], checked: (c) => c.store.getState().tool === 'move', run: (c) => c.store.setTool('move') },
+  { id: 'tool.rotate', title: 'Rotate', help: 'Rotate: drag any part to turn it at its joint, hands and feet too', icon: Rotate3d, keys: ['e'], checked: (c) => c.store.getState().tool === 'rotate', run: (c) => c.store.setTool('rotate') },
+  {
+    id: 'tool.bodyFollows', title: 'Body follows', help: 'Posing: a hand reaching beyond the arm brings the shoulder and the chest along', icon: Bone,
+    checked: (c) => c.store.getState().settings.bodyFollows, run: (c) => c.store.setSettings({ bodyFollows: !c.store.getState().settings.bodyFollows }),
+  },
   {
     // A selected prop's gizmo: R switches it between moving and scaling.
     id: 'tool.scale', title: 'Scale the prop', help: 'Scale the prop with its gizmo (R again: move it)', icon: Scale3d, keys: ['r'], when: (c) => c.store.getState().selection?.kind === 'prop',

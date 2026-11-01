@@ -714,3 +714,32 @@ export class Mannequin {
     this.object.clear();
   }
 }
+
+/** What turns with a hand reaching beyond its arm (#38), each so much of the way: the shoulder most, then down the trunk. */
+const FOLLOW: [string, number][] = [['Shoulder', 1], ['upperChest', 0.6], ['chest', 0.5], ['spine', 0.4]];
+
+/**
+ * A hand pulled beyond its arm's reach brings the body along (Body follows, #38): its shoulder, the
+ * upper chest, the chest and the spine each turned part of the way that brings the arm's root
+ * nearer the target, within their limits, twice over, until the arm can reach it.
+ */
+export function bodyFollows(m: Mannequin, chain: Chain, target: THREE.Vector3, limits: boolean) {
+  const side = chain[0].startsWith('left') ? 'left' : 'right';
+  m.object.updateMatrixWorld(true);
+  const reach = 0.98 * (worldPos(m.joints[chain[0]]).distanceTo(worldPos(m.joints[chain[1]])) + worldPos(m.joints[chain[1]]).distanceTo(worldPos(m.joints[chain[2]])));
+  for (let pass = 0; pass < 2; pass++) {
+    for (const [name, share] of FOLLOW) {
+      const joint = (name === 'Shoulder' ? `${side}Shoulder` : name) as JointName;
+      m.object.updateMatrixWorld(true);
+      const root = worldPos(m.joints[chain[0]]);
+      if (root.distanceTo(target) <= reach) return;
+      const pivot = worldPos(m.joints[joint]);
+      const from = root.sub(pivot).normalize();
+      const to = target.clone().sub(pivot).normalize();
+      const turn = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(from, to), share);
+      const obj = m.joints[joint];
+      setWorldQuaternion(obj, turn.multiply(obj.getWorldQuaternion(new THREE.Quaternion())));
+      if (limits) m.constrain([joint]);
+    }
+  }
+}

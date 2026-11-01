@@ -47,6 +47,7 @@ import ViewBall from './ViewBall';
 import type { Placing } from './placing';
 import Letterbox from './Letterbox';
 import CameraPip from './CameraPip';
+import CanvasTools from './CanvasTools';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
 import { nextStep, onStepDone, stepDone } from './nextStep';
 
@@ -626,6 +627,7 @@ function App() {
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} />}
         <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
+        {!through && <CanvasTools />}
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
         <div className="stage-hint hide-mobile">
           <Hint

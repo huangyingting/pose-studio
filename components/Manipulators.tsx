@@ -13,7 +13,7 @@ import { HOLDABLE } from '@/lib/hold';
 import { partKeys } from '@/lib/clip';
 import { legsOf } from '@/lib/locomotion';
 import { groundOf } from '@/lib/surfaces';
-import { IK_CHAINS, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
+import { IK_CHAINS, bodyFollows, setWorldQuaternion, type Chain, type Mannequin } from '@/lib/mannequin';
 import type { Hover, SceneView } from '@/lib/sceneview';
 import type { Store } from '@/lib/store';
 import { JOINTS, type Figure, type JointName, type Scene, type Vec3 } from '@/lib/types';
@@ -61,8 +61,9 @@ function usePointer() {
   }, [get]);
 }
 
-/** Move an IK chain's end toward `target`, but no part of the figure below the floor. */
-function reachAboveFloor(m: Mannequin, chain: Chain, target: THREE.Vector3, endQ: THREE.Quaternion, limits: boolean) {
+/** Move an IK chain's end toward `target`, but no part of the figure below the floor; a hand bringing the body along if asked. */
+function reachAboveFloor(m: Mannequin, chain: Chain, target: THREE.Vector3, endQ: THREE.Quaternion, limits: boolean, follow = false) {
+  if (follow && chain[2].endsWith('Hand')) bodyFollows(m, chain, target, limits);
   m.solveIK(chain, target, endQ, limits);
   const below = m.lowest();
   if (below < 0) m.solveIK(chain, target.setY(target.y - below), endQ, limits);
@@ -286,7 +287,11 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
     // drag on it poses the part under the pointer, picked or not.)
     const sel = store.getState().selection;
     if (scene.figures.find((f) => f.id === figure)?.proxy || (sel?.kind === 'many' && sel.figures.includes(figure))) return { kind: 'body', figure };
-    // The hips: the body moves on the legs, the feet planted; the rest turns at its joint.
+    // The tool (#38): Move places the whole figure, Rotate turns any part at its joint; Pose: the
+    // hips sink or shift on the planted feet, a hand or foot reaches, any other part swings.
+    const tool = store.getState().tool;
+    if (tool === 'move') return { kind: 'body', figure };
+    if (tool === 'rotate') return { kind: 'swing', figure, joint };
     if (joint === 'hips') return { kind: 'pelvis', figure };
     return { kind: ENDS[joint] ? 'end' : 'swing', figure, joint };
   };
@@ -495,7 +500,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
           onto = hand ? holdTarget(sv, scene, t.figure, ray) : null;
           const h = onto ? onto.at.clone() : hit(ray, facingPlane)?.add(grab);
           if (!h) return;
-          reachAboveFloor(m, chain, h, startQ, limits);
+          reachAboveFloor(m, chain, h, startQ, limits, store.getState().settings.bodyFollows);
           if (!onto) readout();
         },
         // (The pose and the hold: one undo step.)
@@ -620,7 +625,7 @@ export function SceneObjects({ sv, store, scene, limits, handles, gizmoActive, p
       const sel = store.getState().selection;
       const picked = (sel?.kind === 'figure' || sel?.kind === 'joint') && sel.figure === t.figure;
       const proxy = !!scene.figures.find((f) => f.id === t.figure)?.proxy;
-      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked && !proxy);
+      const body = bodyHint(name(t.figure), t.kind, t.kind === 'body' || t.kind === 'pelvis' ? undefined : t.joint, picked && !proxy, store.getState().settings.bodyFollows);
       setPointerHint(handles || t.kind === 'body' ? body : `${body} · Handles hidden: H shows the gizmo`);
     }
     document.body.style.cursor = e.shiftKey ? 'ew-resize' : t.kind === 'prop' || t.kind === 'body' ? 'move' : 'grab';
