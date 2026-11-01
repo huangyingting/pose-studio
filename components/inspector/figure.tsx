@@ -251,7 +251,10 @@ const holdsOf = (t: Target) => (t.scene.animation?.constraints ?? []).filter((c)
 export const hasOthers = (t: Target) => othersOf(t).length > 0 || t.scene.props.length > 0;
 export const othersSummary = (t: Target) => {
   const holds = holdsOf(t);
-  return t.figure!.gaze ? 'Eyes on someone' : holds.length ? `${holds.length} ${holds.length === 1 ? 'hold' : 'holds'}` : 'No holds';
+  const gaze = t.figure!.gaze;
+  const on = gaze && ('figure' in gaze ? t.scene.figures.find((f) => f.id === gaze.figure)?.name : t.scene.props.find((p) => p.id === gaze.prop)?.name);
+  // (Folded with nothing set: what it offers, so it is found.)
+  return on ? `Eyes on ${on}` : holds.length ? `${holds.length} ${holds.length === 1 ? 'hold' : 'holds'}` : othersOf(t).length ? 'Face each other, beside, eyes on…' : 'Eyes on…';
 };
 
 /** The figure with the others: where it keeps its eyes, and placing and touching another figure. */
