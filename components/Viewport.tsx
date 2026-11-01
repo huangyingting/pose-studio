@@ -272,8 +272,8 @@ export default function Viewport({
     const picked = !!figure && (selection?.kind === 'figure' || selection?.kind === 'joint') && selection.figure === figure;
     if (o.userData.prop) store.select({ kind: 'prop', prop: o.userData.prop as string });
     else if (!figure) return;
-    // (Stand-ins are placed, not posed: a click picks the whole figure.)
-    else if (!picked || figureDoc(figure)?.proxy) store.select({ kind: 'figure', figure });
+    // (Stand-ins are placed, not posed, and the Move tool places figures: a click picks the whole figure.)
+    else if (!picked || figureDoc(figure)?.proxy || store.getState().tool === 'move') store.select({ kind: 'figure', figure });
     else store.select({ kind: 'joint', figure, joint: o.userData.joint as JointName });
   };
   // The gizmo: a selected joint's rotate gizmo (with the drag handles shown: its rings about its own
