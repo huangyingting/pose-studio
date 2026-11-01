@@ -877,7 +877,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .timeline { container-type: inline-size; }
 @container (max-width: 940px) { .tl-label { display: none; } .tl-btn { padding: 0 6px; } }
 @container (max-width: 680px) { .tl-zoom { display: none; } }
-@container (max-width: 720px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
+@container (max-width: 880px) { .tl-narrow-hide { display: none; } .tl-time { min-width: 0; } }
 @container (max-width: 460px) { .tl-step, .tl-speed { display: none; } .tl-time { margin-left: 4px; } }
 .tl-tracks { position: relative; display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: 1fr auto; padding: 0 12px 10px 0; max-height: min(45vh, 360px); overflow-y: auto; scrollbar-width: thin; outline: none; }
 /* Taking the keys (#19): a line along its top says so. */
