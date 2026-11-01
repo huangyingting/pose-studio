@@ -633,7 +633,8 @@ function App() {
           <Hint
             clock={clock}
             pick={pick}
-            note={(scene.animation && !through ? correction(scene, activeFigure, time) : null)
+            // (Posing's note while a figure or a part of it is what is picked: not over a camera's, a light's.)
+            note={(scene.animation && !through && (selection?.kind === 'figure' || selection?.kind === 'joint') ? correction(scene, activeFigure, time) : null)
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
             keys={!through && selection ? stepHint(selectionCtx(store)) : null}
             quiet={!!through || clock.playing}
