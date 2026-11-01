@@ -363,6 +363,17 @@ export const SETS: SetDef[] = [
         M('tea-set', -1, -1.4, 0, 0.75, 0.45), M('vase', 1.6, -1.6, 0, 0.75, 0.6),
         M('small-plant', -5.8, -3.6, 0, 0.5), M('small-plant', -5.8, 0.6, 0, 0.5),
         M('tall-plant', 5.5, -5.5), M('chalkboard', 5.2, 2.2, -120),
+        // The menu on the brick wall: a chalkboard in a wooden frame, lines of chalk on it.
+        ...open([
+          { ...B(1.8, 1.1, 0.04, -2.2, 1.55, -5.88), look: { color: '#3a2a1e', rough: 0.7 } },
+          { ...B(1.66, 0.96, 0.02, -2.2, 1.62, -5.85), look: { color: '#1d2420', rough: 0.95 } },
+          ...[0, 1, 2, 3, 4, 5].map((i): Piece => ({ ...B(i % 3 === 0 ? 0.5 : 1.1, 0.025, 0.005, -2.2 + (i % 3 === 0 ? -0.4 : 0), 2.4 - i * 0.13, -5.835), look: { color: '#e9e6dc', rough: 1 } })),
+        ]),
+        // A glass case of pastries on the counter.
+        ...open([
+          { ...B(0.9, 0.38, 0.5, -0.35, 1.1, -4.4), look: { glass: true } },
+          ...[-0.65, -0.45, -0.25, -0.05].flatMap((x, i): Piece[] => [{ ...B(0.14, 0.06, 0.14, x, 1.12, -4.45), look: { color: ['#c98b4a', '#e8d2a6', '#8a4b2a', '#d9a35e'][i], rough: 0.8 } }, { ...B(0.14, 0.06, 0.14, x + 0.05, 1.27, -4.35), look: { color: ['#e8d2a6', '#c98b4a', '#d9a35e', '#8a4b2a'][i], rough: 0.8 } }]),
+        ]),
       ];
     },
   },
