@@ -197,6 +197,8 @@ export const SCENES = {
   'western-town': scene('2c6b404ab51a4fdeb47b991a936f29dd', 'Western City', 'daspanjo'),
   'church': scene('eb6cf543aa7d45e3acee49887ae3135c', 'Old church modeling - Interior Scene', 'Aurélien Martel', { yaw: 90, at: [0, 0, 4.5] }),
   'alley': scene('d170fdcc362e4300b9c1ed064e59753f', 'Dark_Alley', 'Eder Etxaide'),
+  'diner': scene('5f97e3a16c664accaa566cfb6f46b5e8', 'American styled Diner', 'Joel_Zen', { scale: 30 }),
+  'rooftop': scene('068f29ea14134bc691cf97c2d51d2e9d', 'School_[rooftop]', 'Comicaroid', { at: [0, -0.05, 0] }),
   'newsroom': scene('e39f8d2ac3bb464e866eb21fc9a736ba', 'William Peace University News Room', 'GEFernandez', { scale: 11 }),
 } satisfies Record<string, SceneAsset>;
 export type SceneId = keyof typeof SCENES;

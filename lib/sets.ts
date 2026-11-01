@@ -562,6 +562,8 @@ export const SETS: SetDef[] = [
     ['western-town', 'Western town', 'History', false, 'Wild West, 1880s', 'A Wild West town: a dusty main street between wooden saloons, stores and the bank, a water tower.', ['dry-ground', [-27.6, 27.4, -40.4, 40], 120]],
     ['church', 'Church', 'Work & public', true, 'Church, old', 'An old Gothic church: the nave between its columns, rows of pews either side of the aisle, the altar under tall windows.'],
     ['alley', 'Back alley', 'City', false, 'City, today', 'A dark back alley between brick walls: a fire escape, bins and crates, pipes and puddles.', ['asphalt', [-8.2, 8.3, -4.05, 4.05], 40]],
+    ['diner', 'Diner', 'Food & drink', true, 'Diner, American', 'An American diner: red booths along the wall, a long counter with its stools, a jukebox.'],
+    ['rooftop', 'Rooftop', 'City', false, 'School, today', 'A school\'s flat roof: tiled, a railing round it, the stairwell\'s housing at one side, the sky all round.'],
     ['newsroom', 'Newsroom', 'Work & public', true, 'TV studio, today', 'A television newsroom: the anchors\' desk, columns and windows behind, studio lights.'],
   ] as [SceneId, string, (typeof SET_GROUPS)[number], boolean, string, string, [Look, number[], number]?][]).map(([id, name, group, indoors, place, description, ground]): SetDef => {
     const s = SCENES[id];
