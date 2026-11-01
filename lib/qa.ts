@@ -58,7 +58,7 @@ const GLIDE_STEP = 0.008;
 const LIMIT_SLACK = 4;
 /** A pop is a sudden change of speed from one frame to the next (fast but smooth is fine). */
 const POP_STEP = 25;
-const LEGS = new Set<string>(['leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot']);
+const LEGS = new Set<string>(['leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot', 'leftToes', 'rightToes']);
 const POP_ROOT = 0.12;
 /** Capsules closer than this fraction of their radii overlap clearly (resting on each other is fine). */
 const OVERLAP = 0.5;

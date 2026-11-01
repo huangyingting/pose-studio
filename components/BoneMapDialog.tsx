@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Bone as BoneIcon } from 'lucide-react';
-import { NEEDED, type BoneMap } from '@/lib/model';
+import { NEEDED, OPTIONAL, type BoneMap } from '@/lib/model';
 import type { Bone } from '@/lib/types';
 import { Hint, Modal, Select } from './ui';
 
@@ -21,7 +21,7 @@ export default function BoneMapDialog({ file, names, found, onDone, onClose }: {
   onClose(): void;
 }) {
   const [map, setMap] = useState<BoneMap>(found);
-  const bones: Bone[] = [...NEEDED, 'spine', 'chest'];
+  const bones: Bone[] = [...NEEDED, ...OPTIONAL];
   const missing = NEEDED.filter((b) => !map[b]);
   const options = [{ value: '', label: '— none —' }, ...[...new Set(names)].map((n) => ({ value: n, label: n }))];
   return (

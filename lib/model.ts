@@ -26,8 +26,17 @@ import { CUTOFF, cutoutMaterial, featureMaterial, weighHead } from './features';
 /** Which of a rig's bones (by name) is each bone of the skeleton. */
 export type BoneMap = Partial<Record<Bone, string>>;
 
-/** The bones a rig must have to be posed or read: the mannequin's, but the spine's middle (which can be missed). */
-export const NEEDED: JointName[] = JOINTS.filter((j) => j !== 'spine' && j !== 'chest');
+/**
+ * The bones a rig must have to be posed or read: the mannequin's first 17 joints but the spine's
+ * middle (which can be missed). The upper chest, the shoulders and the toes (#30) a rig may well
+ * not have: left at rest, their turn in the bones below them.
+ */
+export const NEEDED: JointName[] = [
+  'hips', 'neck', 'head', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+  'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot',
+];
+/** The bones a rig may have, besides those it needs (the bone map offers them). */
+export const OPTIONAL: JointName[] = ['spine', 'chest', 'upperChest', 'leftShoulder', 'rightShoulder', 'leftToes', 'rightToes'];
 
 type Side = 'L' | 'R';
 

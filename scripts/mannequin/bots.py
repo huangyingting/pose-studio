@@ -4,8 +4,8 @@
 
 Each bot is made half as fine; its arms are lowered to hang at its sides (the mannequin's rest: its limbs along their
 joints' −y) and made its rest pose; its two meshes (the surface and the joint bands) are joined,
-keeping which is which; each vertex's weights are put on the mannequin's joints (and its fingers'
-segments), the four largest kept; its joints' places are taken from its bones. All in the app's
+keeping which is which; each vertex's weights are put on the mannequin's joints (its 22, #30: the upper chest, the
+shoulders and the toes too; and its fingers' segments), the four largest kept; its joints' places are taken from its bones. All in the app's
 axes (y up, facing +z), in metres, its feet on the floor. Written as one TypeScript module: its
 numbers in a base64 string each (positions as 16-bit fractions of its bounds).
 """
@@ -27,25 +27,23 @@ def target(group):
         if not n.startswith(side):
             continue
         rest = n[len(side):]
-        if rest == 'Shoulder':
-            return 'chest'
-        if rest in ('Arm', 'ForeArm', 'Hand', 'UpLeg', 'Leg', 'Foot', 'ToeBase', 'Toe_End'):
-            return ours + {'Arm': 'UpperArm', 'ForeArm': 'LowerArm', 'Hand': 'Hand', 'UpLeg': 'UpperLeg', 'Leg': 'LowerLeg'}.get(rest, 'Foot')
+        if rest in ('Shoulder', 'Arm', 'ForeArm', 'Hand', 'UpLeg', 'Leg', 'Foot', 'ToeBase', 'Toe_End'):
+            return ours + {'Shoulder': 'Shoulder', 'Arm': 'UpperArm', 'ForeArm': 'LowerArm', 'Hand': 'Hand', 'UpLeg': 'UpperLeg', 'Leg': 'LowerLeg', 'Foot': 'Foot'}.get(rest, 'Toes')
         for theirs, finger in FINGERS.items():
             if rest.startswith('Hand' + theirs):
                 return f'{ours}{finger}{min(2, int(rest[-1]) - 1)}'
-    return {'Hips': 'hips', 'Spine': 'spine', 'Spine1': 'chest', 'Spine2': 'chest', 'Neck': 'neck', 'Head': 'head', 'HeadTop_End': 'head'}.get(n)
+    return {'Hips': 'hips', 'Spine': 'spine', 'Spine1': 'chest', 'Spine2': 'upperChest', 'Neck': 'neck', 'Head': 'head', 'HeadTop_End': 'head'}.get(n)
 
 
-TARGETS = ['hips', 'spine', 'chest', 'neck', 'head']
+TARGETS = ['hips', 'spine', 'chest', 'upperChest', 'neck', 'head']
 for s in ('left', 'right'):
-    TARGETS += [f'{s}UpperArm', f'{s}LowerArm', f'{s}Hand', f'{s}UpperLeg', f'{s}LowerLeg', f'{s}Foot']
+    TARGETS += [f'{s}Shoulder', f'{s}UpperArm', f'{s}LowerArm', f'{s}Hand', f'{s}UpperLeg', f'{s}LowerLeg', f'{s}Foot', f'{s}Toes']
     TARGETS += [f'{s}{f}{i}' for f in FINGERS.values() for i in range(3)]
 
 # The places the mannequin takes from the bones (theirs → ours).
-PLACES = {'Hips': 'hips', 'Spine': 'spine', 'Spine1': 'chest', 'Neck': 'neck', 'Head': 'head', 'HeadTop_End': 'headTop'}
+PLACES = {'Hips': 'hips', 'Spine': 'spine', 'Spine1': 'chest', 'Spine2': 'upperChest', 'Neck': 'neck', 'Head': 'head', 'HeadTop_End': 'headTop'}
 for side, ours in (('Left', 'left'), ('Right', 'right')):
-    PLACES.update({f'{side}Arm': f'{ours}UpperArm', f'{side}ForeArm': f'{ours}LowerArm', f'{side}Hand': f'{ours}Hand',
+    PLACES.update({f'{side}Shoulder': f'{ours}Shoulder', f'{side}Arm': f'{ours}UpperArm', f'{side}ForeArm': f'{ours}LowerArm', f'{side}Hand': f'{ours}Hand',
                    f'{side}UpLeg': f'{ours}UpperLeg', f'{side}Leg': f'{ours}LowerLeg', f'{side}Foot': f'{ours}Foot',
                    f'{side}ToeBase': f'{ours}Toes', f'{side}Toe_End': f'{ours}ToesEnd'})
     for theirs, finger in FINGERS.items():

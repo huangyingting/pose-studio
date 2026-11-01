@@ -16,7 +16,10 @@ const line = (x1: number, y1: number, x2: number, y2: number, w: number): Shape 
 const PARTS: [JointName, Shape][] = [
   ['head', { kind: 'circle', cx: 60, cy: 17, r: 11 }],
   ['neck', line(60, 31, 60, 35, 9)],
-  ['chest', line(60, 47, 60, 56, 30)],
+  ['upperChest', line(48, 44, 72, 46, 6)],
+  ['chest', line(60, 55, 60, 60, 28)],
+  ['rightShoulder', line(51, 38, 42, 40, 6)],
+  ['leftShoulder', line(69, 38, 78, 40, 6)],
   ['spine', line(60, 70, 60, 75, 22)],
   ['hips', line(60, 87, 60, 92, 28)],
   ['rightUpperArm', line(39, 44, 33, 69, 10)],
@@ -27,10 +30,12 @@ const PARTS: [JointName, Shape][] = [
   ['leftHand', { kind: 'circle', cx: 93, cy: 108, r: 5.5 }],
   ['rightUpperLeg', line(52, 106, 49, 140, 12)],
   ['rightLowerLeg', line(48, 148, 47, 180, 10)],
-  ['rightFoot', line(46, 190, 40, 193, 8)],
+  ['rightFoot', line(46, 190, 42, 192, 8)],
+  ['rightToes', line(37, 194, 34, 195, 6)],
   ['leftUpperLeg', line(68, 106, 71, 140, 12)],
   ['leftLowerLeg', line(72, 148, 73, 180, 10)],
-  ['leftFoot', line(74, 190, 80, 193, 8)],
+  ['leftFoot', line(74, 190, 78, 192, 8)],
+  ['leftToes', line(83, 194, 86, 195, 6)],
 ];
 
 export default function BodyMap({ selected, onSelect }: { selected: JointName | null; onSelect(j: JointName): void }) {

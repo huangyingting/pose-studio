@@ -45,7 +45,8 @@ export function glanceAt(id: string, t: number, cycle = 0): number {
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
 /**
- * The turns idle life adds at t (degrees, per joint's sliders): breathing in the chest, a slow
+ * The turns idle life adds at t (degrees, per joint's sliders): breathing in the chest (the upper
+ * chest and shoulders rising with it), a slow
  * sway of weight through the spine (the hips and legs stay, so the feet do), the head drifting,
  * the arms hanging loose.
  */
@@ -56,6 +57,10 @@ export function idleTurns(id: string, t: number, cycle = 0): Partial<Record<Join
   const nod = wander(id, 30, t, 6, cycle);
   return {
     chest: [breath * 1.4, 0, sway * 0.4],
+    // (Breathing in lifts the upper chest and the shoulders a little, #30.)
+    upperChest: [-breath * 0.8, 0, 0],
+    leftShoulder: [0, 0, breath * 0.7],
+    rightShoulder: [0, 0, -breath * 0.7],
     spine: [breath * 0.5, drift * 0.8, sway * 0.9],
     neck: [nod * 1.2, drift * 2, 0],
     head: [nod * 1.5, drift * 3, sway * 1.2],
