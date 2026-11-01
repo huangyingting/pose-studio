@@ -1340,7 +1340,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .psec { border-bottom: 1px solid var(--border); padding: 4px 14px 14px; }
 .psec.closed { padding-bottom: 4px; }
 .psec-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 36px; margin-right: -6px; }
-.psec-title { display: flex; align-items: center; gap: 4px; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); cursor: default; }
+.psec-title { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); cursor: default; }
 button.psec-title { cursor: pointer; margin-left: -4px; }
 button.psec-title svg { color: var(--text-3); }
 .psec h3, h3.psec-title { margin: 0; font-size: var(--fs-m); font-weight: 600; }
@@ -1911,7 +1911,7 @@ button.psec-title svg { color: var(--text-3); }
 .panel-title { font-size: var(--fs-l); }
 .psec { padding: 6px 14px 16px; }
 .psec.closed { padding-bottom: 6px; }
-.psec h3, h3.psec-title { font-size: var(--fs-s); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.psec h3, h3.psec-title { font-size: var(--fs-s); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; flex: none; }
 .psec-summary { margin-left: 6px; overflow: hidden; color: var(--text-3); font-size: var(--fs-s); font-weight: 540; text-transform: none; letter-spacing: 0; white-space: nowrap; text-overflow: ellipsis; }
 .psec-body { gap: 4px; }
 .hint { margin: 0; color: var(--text-3); font-size: var(--fs-s); line-height: 1.45; }
