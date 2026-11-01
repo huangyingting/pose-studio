@@ -322,6 +322,15 @@ function App() {
   // (another selection, another scene) cancels.
   // The scene alone, filling the window (the button in its corner, Shift + F).
   const [stageOnly, setStageOnly] = useState(false);
+  // Something picked shows what it is: the inspector opens for it, hidden or not (not the scene
+  // alone; on a phone, where it is a drawer over the canvas, it is opened by hand).
+  const chosen = useStudio((s) => s.selection);
+  const chosenBefore = useRef(chosen);
+  useEffect(() => {
+    if (chosen === chosenBefore.current) return;
+    chosenBefore.current = chosen;
+    if (chosen && !stageOnly && !store.getState().settings.inspector && window.matchMedia('(min-width: 861px)').matches) store.setSettings({ inspector: true });
+  }, [chosen, stageOnly, store]);
   // Esc goes back (first, before it clears the selection; a menu or a dialog open: it closes that).
   useEffect(() => {
     if (!stageOnly) return;
