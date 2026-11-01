@@ -13,9 +13,9 @@ import { Ink } from '@/lib/ink';
 import { Mannequin } from '@/lib/mannequin';
 import { detectPeople, loadImage, type DetectedPerson } from '@/lib/photo';
 import {
-  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, videoSize, type ExportOptions, type Pass, type VideoSize,
+  canvasToBlob, DEFAULT_EXPORT, downloadBlob, exportCells, laidOut, parseExportOptions, safeFilename, sheetSize, VIDEO_SIZES, videoSize, type ExportOptions, type Pass, type VideoSize,
 } from '@/lib/render';
-import { cameraAt, frameAspect, type CameraView } from '@/lib/cameras';
+import { ASPECTS, cameraAt, frameAspect, type CameraView } from '@/lib/cameras';
 import { recordVideo, videoSupported } from '@/lib/video';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
@@ -87,8 +87,9 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const shots = whole ? story : sceneStory;
   const canRecord = videoSupported();
 
-  const cells = useMemo(() => exportCells(scenes, scene, { ...o, scope }, time, camera || undefined), [o, scope, scenes, scene, time, camera]);
-  const size = filmed ? videoSize(o.videoSize, frameAspect()) : scope === 'board' ? boardSize(story.length, o.columns, o.labels) : sheetSize(cells.length, o);
+  const laid = useMemo(() => laidOut({ ...o, scope }, ASPECTS[look.frame]), [o, scope, look.frame]);
+  const cells = useMemo(() => exportCells(scenes, scene, laid, time, camera || undefined), [laid, scenes, scene, time, camera]);
+  const size = filmed ? videoSize(o.videoSize, frameAspect()) : scope === 'board' ? boardSize(story.length, o.columns, o.labels) : sheetSize(cells.length, laid);
   const { width, height } = size;
   const tooBig = !filmed && !model && (width * height > 120_000_000 || width > 16384 || height > 16384);
   const pass = pack ? 'beauty' : o.pass;
@@ -126,12 +127,11 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         small.getContext('2d')!.drawImage(sheet, 0, 0, small.width, small.height);
       } else {
         small = sharedRenderer().sheet(cells, {
-          ...o,
+          ...laid,
           style,
-          scope,
-          cellWidth: Math.max(24, Math.round(o.cellWidth * scale)),
-          cellHeight: Math.max(24, Math.round(o.cellHeight * scale)),
-          lineWidth: Math.max(0.8, o.lineWidth * scale * 1.5),
+          cellWidth: Math.max(24, Math.round(laid.cellWidth * scale)),
+          cellHeight: Math.max(24, Math.round(laid.cellHeight * scale)),
+          lineWidth: Math.max(0.8, laid.lineWidth * scale * 1.5),
           labels: false,
         });
       }
@@ -139,7 +139,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       preview.current?.replaceChildren(small);
     }, 150);
     return () => clearTimeout(t);
-  }, [o, style, scope, filmed, pass, cells, width, height, shots, story]);
+  }, [o, laid, style, scope, filmed, pass, cells, width, height, shots, story]);
 
   const run = async () => {
     setBusy(true);
@@ -179,7 +179,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       }
       const canvas = scope === 'board'
         ? boardSheet(story, { style, captions: o.labels, columns: o.columns, pass })
-        : sharedRenderer().sheet(cells, { ...o, style, scope });
+        : sharedRenderer().sheet(cells, { ...laid, style });
       const blob = await canvasToBlob(canvas, o.format, 0.92);
       const ext = o.format === 'png' ? 'png' : 'jpg';
       const base = scope === 'all' ? 'Scenes' : scope === 'board' ? 'Storyboard' : safeFilename(scene.name);
@@ -194,7 +194,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
     }
   };
 
-  const num = (key: 'columns' | 'cellWidth' | 'cellHeight', min: number, max: number, label: string) => (
+  const num = (key: 'columns' | 'width' | 'cellWidth' | 'cellHeight', min: number, max: number, label: string) => (
     <NumberInput label={label} value={o[key]} min={min} max={max} digits={0} onChange={(v) => set({ [key]: v })} />
   );
 
@@ -391,14 +391,11 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
             <>
               {/* One scene is one cell: its size is the picture's. */}
               {scope !== 'current' && <label className="field"><span>Columns</span>{num('columns', 1, 12, 'Columns')}</label>}
-              <label className="field"><span>{scope === 'current' ? 'Width' : 'Cell width'}</span>{num('cellWidth', 100, 4000, scope === 'current' ? 'Width' : 'Cell width')}</label>
-              <label className="field"><span>{scope === 'current' ? 'Height' : 'Cell height'}</span>{num('cellHeight', 100, 4000, scope === 'current' ? 'Height' : 'Cell height')}</label>
-              {/* (A still through a camera: as the shot shows it, in the project's frame, unless made another shape.) */}
-              {scope === 'current' && Math.abs(o.cellWidth / o.cellHeight - frameAspect()) > 0.01 && (
-                <Field label="">
-                  <button type="button" className="btn subtle" onClick={() => set({ cellHeight: Math.round(o.cellWidth / frameAspect()) })}>Make it {look.frame}, as the shot</button>
-                </Field>
-              )}
+              <label className="field"><span>{scope === 'current' ? 'Width' : 'Cell width'}</span>{scope === 'current' ? num('width', 100, 8000, 'Width') : num('cellWidth', 100, 4000, 'Cell width')}</label>
+              {/* (A still through a camera: as the shot shows it, in the project's frame; another shape is another frame.) */}
+              {scope === 'current'
+                ? <Field label="Height" info="The project's frame sets the shape (the frame menu in the top bar)"><span className="muted">{height} px · {look.frame}</span></Field>
+                : <label className="field"><span>Cell height</span>{num('cellHeight', 100, 4000, 'Cell height')}</label>}
               <Slider label="Line weight" min={0.5} max={8} step={0.1} value={o.lineWidth} display={`${o.lineWidth.toFixed(1)} px`} onChange={(lineWidth) => set({ lineWidth })} />
               {/* (Around the figures, in the cells framed to fit them: a camera frames this scene's.) */}
               {scope !== 'current' && <Slider label="Padding" min={0} max={0.4} step={0.01} value={o.margin} display={`${Math.round(o.margin * 100)}%`} onChange={(margin) => set({ margin })} />}

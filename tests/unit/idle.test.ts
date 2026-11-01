@@ -14,7 +14,7 @@ class MemoryStorage implements Storage {
 }
 
 describe('idle life (#14)', () => {
-  it('breathes in the gaps as the film plays, not while posing, not during an action; the same every time', () => {
+  it('breathes in the gaps as the scene plays, not while posing, not during an action; the same every time', () => {
     const store = new Store(new MemoryStorage());
     const id = store.figure!.id;
     startAnimation(store, 8);

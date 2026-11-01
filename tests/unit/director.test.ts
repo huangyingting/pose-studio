@@ -110,7 +110,7 @@ describe('the director, by hand', () => {
 });
 
 describe('a film of a chosen length', () => {
-  it('plays the film through its cuts, and gives the free view back when it stops', async () => {
+  it('plays the scene through its cuts, and gives the free view back when it stops', async () => {
     const { Clock, startPlayback } = await import('@/components/clock');
     const { startAnimatedScene } = await import('@/lib/actions');
     vi.stubGlobal('requestAnimationFrame', () => 1);

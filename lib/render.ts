@@ -98,6 +98,8 @@ export interface ExportOptions {
   /** A video of a scene with an in and out (#22) films just that stretch. */
   videoRange: boolean;
   columns: number;
+  /** A still of the scene: its width (its height is the project's frame's). */
+  width: number;
   cellWidth: number;
   cellHeight: number;
   /** Outline width in pixels at the exported size. */
@@ -128,9 +130,19 @@ export const VIDEO_SIZES: VideoSize[] = ['720p', '1080p'];
 
 /** Matches the layout of the original Pose.jpg: 4 × 5 cells of 600 × 640. */
 export const DEFAULT_EXPORT: ExportOptions = {
-  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, videoRange: true, columns: 4, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg',
+  scope: 'current', pass: 'beauty', greybox: true, angles: 4, frames: 8, videoSize: '720p', videoLoops: 1, videoRange: true, columns: 4, width: 1920, cellWidth: 600, cellHeight: 640, lineWidth: 2.2, format: 'jpeg',
   transparent: false, labels: false, sameScale: false, margin: 0.07,
 };
+
+/**
+ * The options as laid out: a still of the scene is the shot as filmed, one cell in the project's
+ * frame at the width chosen, its lines as thick for its size as a video's; the sheets, as they are.
+ */
+export function laidOut(o: ExportOptions, aspect: number): ExportOptions {
+  if (o.scope !== 'current') return o;
+  const height = Math.round(o.width / aspect);
+  return { ...o, cellWidth: o.width, cellHeight: height, lineWidth: o.lineWidth * (height / 640) };
+}
 
 /** Validate export options from storage (they may be hand-edited). */
 export function parseExportOptions(raw: unknown): ExportOptions {
@@ -150,6 +162,7 @@ export function parseExportOptions(raw: unknown): ExportOptions {
     videoLoops: int(o.videoLoops, d.videoLoops, 1, 5),
     videoRange: o.videoRange !== false,
     columns: int(o.columns, d.columns, 1, 12),
+    width: int(o.width, d.width, 100, 8000),
     cellWidth: int(o.cellWidth, d.cellWidth, 100, 4000),
     cellHeight: int(o.cellHeight, d.cellHeight, 100, 4000),
     lineWidth: num(o.lineWidth, d.lineWidth, 0.5, 8),

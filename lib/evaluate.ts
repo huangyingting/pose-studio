@@ -29,7 +29,7 @@ import { fingerBones } from './skeleton';
  */
 
 const EPS = 1e-6;
-/** The most times a looping clip goes round (a short loop over a five-minute film). */
+/** The most times a looping clip goes round (a short loop over a five-minute scene). */
 const MAX_LAPS = 1000;
 /**
  * How far each clip's floor-touch correction moves a figure (by its mirroring, the clip's time and
@@ -408,7 +408,7 @@ class Evaluator {
   lived(f: Figure, t: number, scene: Scene): Figure {
     const w = this.gap(f.id, t);
     if (w <= 0) return f;
-    // (A looping film: its idle life loops with it, no jump where it starts over.)
+    // (A looping scene: its idle life loops with it, no jump where it starts over.)
     const cycle = this.a.loop ? this.a.duration : 0;
     const turns = idleTurns(f.id, t, cycle);
     // Holding something in a hand: the arms keep still (a two-handed hold stays on its handles).
@@ -439,7 +439,7 @@ class Evaluator {
   /** How much idle life a figure has at t: none during what it does, full in a gap, eased between (over half a second). */
   private gap(id: string, t: number): number {
     const spans = busySpans(this.a, id);
-    // (A looping film: what it does at the start comes right after its end.)
+    // (A looping scene: what it does at the start comes right after its end.)
     const laps = this.a.loop ? [-this.a.duration, 0, this.a.duration] : [0];
     let d = Infinity;
     for (const [a0, b0] of spans) {

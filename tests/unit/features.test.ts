@@ -10,7 +10,7 @@ import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => referencePoses().map((p) => poseScene(p));
-import { DEFAULT_EXPORT, exportCells, parseExportOptions, sheetSize } from '@/lib/render';
+import { DEFAULT_EXPORT, exportCells, laidOut, parseExportOptions, sheetSize } from '@/lib/render';
 import { Store } from '@/lib/store';
 import { addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setEnvironment, setLightRole, setSceneSet } from '@/lib/actions';
 
@@ -33,11 +33,20 @@ describe('export options', () => {
     expect(o.columns).toBe(12);
     expect(o.cellWidth).toBe(100);
     expect(o.lineWidth).toBe(DEFAULT_EXPORT.lineWidth);
-    // A style picked for one export is not remembered: the film's is used.
+    // A style picked for one export is not remembered: the project's is used.
     expect(o.style).toBeUndefined();
     expect(o.angles).toBe(8);
     expect(o.labels).toBe(true);
     expect(parseExportOptions(null)).toEqual(DEFAULT_EXPORT);
+  });
+
+  it('lays a still out as the shot: the project\'s frame at the width chosen, its lines thickened with it; sheets as they are', () => {
+    const still = laidOut({ ...DEFAULT_EXPORT, scope: 'current' }, 16 / 9);
+    expect([still.cellWidth, still.cellHeight]).toEqual([1920, 1080]);
+    expect(still.lineWidth).toBeCloseTo((DEFAULT_EXPORT.lineWidth * 1080) / 640);
+    expect(laidOut({ ...DEFAULT_EXPORT, scope: 'current', width: 1080 }, 9 / 16).cellHeight).toBe(1920);
+    const sheet = { ...DEFAULT_EXPORT, scope: 'all' as const };
+    expect(laidOut(sheet, 16 / 9)).toBe(sheet);
   });
 
   it('builds a turnaround from evenly spaced angles around the figure', () => {
