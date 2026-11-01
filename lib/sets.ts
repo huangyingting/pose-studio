@@ -159,6 +159,16 @@ function doorIn(a: number, b: number, h: number, z: number, t = 0.2, wood: Look 
     { ...B(0.12, 0.025, 0.06, b - f - 0.12, 1.02, z + 0.04), look: METAL },
   ]);
 }
+/** Curtains hung from a rail along x from x0 to x1 at z, down to the floor from `top`: pleated (folds in and out). */
+function curtain(x0: number, x1: number, z: number, top: number, look: Look): Piece[] {
+  const n = Math.max(2, Math.round((x1 - x0) / 0.11));
+  const w = (x1 - x0) / n;
+  return open([
+    ...Array.from({ length: n }, (_, i): Piece => ({ ...B(w * 1.08, top - 0.03, 0.035, x0 + w * (i + 0.5), 0.03, z + (i % 2 ? 0.035 : 0)), look })),
+    { ...B(x1 - x0 + 0.3, 0.03, 0.03, (x0 + x1) / 2, top + 0.02, z + 0.02), look: METAL },
+  ]);
+}
+
 /** Skirting along a wall's inner face (x from x0 to x1 at z). */
 const skirting = (x0: number, x1: number, z: number): Piece => ({ ...B(x1 - x0, 0.1, 0.02, (x0 + x1) / 2, 0, z), look: WHITE, open: true });
 
@@ -274,6 +284,8 @@ export const SETS: SetDef[] = [
       M('bookshelf', -4.1, -3.5, 90),
       M('side-table', 1.85, -3.8), M('potted-plant', 3.7, -3.95),
       M('picture', -2.8, -4.39, 0, 1.25), M('wall-clock', 4.39, -3.9, -90, 1.8),
+      // Linen curtains drawn back either side of the window.
+      ...curtain(-2.2, -1.25, -4.32, 2.6, { color: '#dccfba', rough: 1 }), ...curtain(1.25, 2.2, -4.32, 2.6, { color: '#dccfba', rough: 1 }),
       // A floor lamp by the sofa.
       ...open([...made(METAL, [C(0.015, 1.55, 2, 0, -3.9), C(0.16, 0.025, 2, 0, -3.9)]), { ...C(0.21, 0.3, 2, 1.55, -3.9, 0.13, 24), look: { color: '#efe6d2', rough: 0.9 } }]),
     ],
@@ -435,7 +447,8 @@ export const SETS: SetDef[] = [
     description: 'A throne hall of the Forbidden City: two rows of tall red-lacquer columns, a stepped dais with the throne and a screen behind it, bronze incense burners, chandeliers, a long open floor of dark brick.',
     lights: [bulb('Candles', [-3, 2.2, -11], { kelvin: 2000, intensity: 0.6, range: 7 }), bulb('Candles 2', [3, 2.2, -11], { kelvin: 2000, intensity: 0.6, range: 7 })],
     build: () => [
-      { ...floor(22, 26, -6), look: 'palace-floor' },
+      // (Its dark brick polished: it shines.)
+      { ...floor(22, 26, -6), look: { surface: 'palace-floor', rough: 0.35, metal: 0 } },
       ...made({ surface: 'red-plaster' }, [...wall(-11, 11, -18, 8, 0.6), ...sideWall(-18, 6, -11, 8, 0.6), ...sideWall(-18, 6, 11, 8, 0.6)]),
       ...made(TEAL, [B(22, 0.5, 0.65, 0, 7.5, -17.98), ...place([B(24, 0.5, 0.65, 0, 7.5, 0)], -10.98, 0, -6, 90), ...place([B(24, 0.5, 0.65, 0, 7.5, 0)], 10.98, 0, -6, -90)]),
       ...[-4.5, 4.5].flatMap((x) => [-14, -10, -6, -2, 2].flatMap((z) => [{ ...C(0.38, 8, x, 0, z, 0.36), look: LACQUER }, { ...C(0.55, 0.25, x, 0, z, 0.5, 24), look: { surface: 'marble', color: '#e2dccf' } as Look }])),
