@@ -150,7 +150,7 @@ export function placePopup(el: HTMLElement, anchor: DOMRect, side: 'top' | 'bott
   el.dataset.side = down ? 'bottom' : 'top';
 }
 
-/** Button that opens a list of actions. Closes on selection, outside click, Escape, or the window resized or scrolled. */
+/** Button that opens a list of actions. Closes on selection, outside click, Escape, the focus gone elsewhere (a dialog opened by a key), or the window resized or scrolled. */
 export function Menu({ label, items, children, className = 'btn ghost', side = 'bottom', align = 'start', tip }: {
   label: string;
   /** Its items, or how to make them (when it opens: a menu built from the state is not built until wanted). */
@@ -176,18 +176,21 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
     if (!open) return;
     const inside = (t: EventTarget | null) => root.current?.contains(t as Node) || list.current?.contains(t as Node);
     const onDown = (e: PointerEvent) => { if (!inside(e.target)) setOpen(false); };
+    const onFocus = (e: FocusEvent) => { if (!inside(e.target)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); root.current?.querySelector<HTMLElement>('button')?.focus(); }
     };
     const onScroll = (e: Event) => { if (!list.current?.contains(e.target as Node)) setOpen(false); };
     const onResize = () => setOpen(false);
     document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('focusin', onFocus);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onResize);
     list.current?.querySelector<HTMLElement>('[role^=menuitem]:not(:disabled)')?.focus();
     return () => {
       document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('focusin', onFocus);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onResize);

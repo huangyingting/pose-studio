@@ -1574,6 +1574,24 @@ async function floorMenu(page: Page, at: number[], item: string | RegExp) {
   await page.getByRole('menuitem', { name: item }).click();
 }
 
+test('a menu open when a key opens a dialog closes: nothing left over the dialog', async ({ page }) => {
+  const exportDialog = page.getByRole('dialog', { name: 'Export' });
+  await page.getByRole('button', { name: 'Main menu' }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.keyboard.press('Control+e');
+  await expect(exportDialog).toBeVisible();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(exportDialog).toBeHidden();
+  // A right-click menu, likewise.
+  const chest = await project(page, 'chest');
+  await page.mouse.click(chest.x, chest.y, { button: 'right' });
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.keyboard.press('Control+e');
+  await expect(exportDialog).toBeVisible();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+});
+
 test('a right-click menu taller than the window scrolls with the wheel and shows which way there is more', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 440 });
   const canvas = (await page.locator('.stage canvas').boundingBox())!;

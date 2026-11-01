@@ -5,8 +5,8 @@ import { MenuItems, placePopup, type MenuItem } from './ui';
 
 /*
  * Right-click menus. Anything can open one at the pointer with `openContextMenu`; one host in
- * the studio shows it. Closes on a choice, a click elsewhere, Escape, resizing, or the wheel turned
- * elsewhere (over it, the wheel scrolls it).
+ * the studio shows it. Closes on a choice, a click elsewhere, Escape, the focus gone elsewhere (a
+ * dialog opened by a key), resizing, or the wheel turned elsewhere (over it, the wheel scrolls it).
  */
 
 let current: { x: number; y: number; title?: string; items: MenuItem[] } | null = null;
@@ -45,6 +45,7 @@ export function ContextMenuHost() {
     }
     const onDown = (e: PointerEvent) => { if (!el?.contains(e.target as Node)) closeContextMenu(); };
     const onWheel = (e: WheelEvent) => { if (!el?.contains(e.target as Node)) closeContextMenu(); };
+    const onFocus = (e: FocusEvent) => { if (!el?.contains(e.target as Node)) closeContextMenu(); };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); closeContextMenu(); }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -54,11 +55,13 @@ export function ContextMenuHost() {
       items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
     };
     document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('focusin', onFocus);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', closeContextMenu);
     window.addEventListener('wheel', onWheel, { passive: true });
     return () => {
       document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('focusin', onFocus);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('resize', closeContextMenu);
       window.removeEventListener('wheel', onWheel);
