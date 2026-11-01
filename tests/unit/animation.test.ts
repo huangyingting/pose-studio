@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { setDuration, frameTimes } from '@/lib/animation';
+import { setDuration, frameTimes, keysAction } from '@/lib/animation';
 import { partKeys } from '@/lib/clip';
 import { figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { addFigure, addKey, applyCameraMove, deleteFigure, deleteKey, moveKey, startAnimation } from '@/lib/actions';
@@ -11,7 +11,7 @@ import { checkMotion } from '@/lib/qa';
 import { Rig, withFacing } from '@/lib/relations';
 import * as THREE from 'three';
 import { Store } from '@/lib/store';
-import { keyAtTime, keyTimesOf, keysAction, moveKeyTo, removeKeyAt, setPoseAt } from '@/lib/track';
+import { keyAtTime, keyTimesOf, moveKeyTo, removeKeyAt, setPoseAt } from '@/lib/track';
 import type { Figure, JointName, Scene } from '@/lib/types';
 import { angle, anglesOf, facingOf, withAngles } from '@/lib/pose';
 

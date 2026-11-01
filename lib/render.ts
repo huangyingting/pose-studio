@@ -11,17 +11,10 @@ import { RealPass } from './realpass';
 import { paperTexture } from './shaders';
 import { SceneView } from './sceneview';
 import { styleDef, TONE_MAPPING } from './styles';
-import { angleAt, angleOf, cameraAt, cameraById, frameAspect, placeCamera, viewOf, type CameraView } from './cameras';
+import { angleAt, angleOf, cameraAt, cameraById, frameAspect, placeCamera, viewDirection, viewOf, type CameraView } from './cameras';
 import type { Scene, Style, View } from './types';
 
 const D2R = Math.PI / 180;
-
-/** Unit vector from the subject towards the camera for a given view. */
-export function viewDirection(view: Pick<View, 'yaw' | 'pitch'>) {
-  const yaw = view.yaw * D2R;
-  const pitch = THREE.MathUtils.clamp(view.pitch, -89, 89) * D2R;
-  return new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
-}
 
 export function viewFromCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3): View {
   const d = camera.position.clone().sub(target).normalize();

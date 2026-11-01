@@ -7,7 +7,7 @@ import { sided, wrapDeg } from './joints';
 import { anglesOf, bonesOf, facingOf, type Angles } from './pose';
 import { Rig, leftward, forward, reach, withFacing } from './relations';
 import { GRAVITY, feetOf, legsOf, plantFeet, travelTime } from './locomotion';
-import { keysAction } from './track';
+import { keysAction } from './animation';
 import { uid } from './uid';
 import type { Action, Animation, BodyParams, ClipEvent, Figure, Hand, JointName, Pose, Scene, Side, Travel, Vec3, View } from './types';
 

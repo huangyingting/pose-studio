@@ -1,4 +1,4 @@
-import { keysClip, placeClip } from './clip';
+import { keysClip, placeClip, type Key } from './clip';
 import { wrapDeg } from './joints';
 import { uid } from './uid';
 import { MOVE_KINDS, type Action, type Animation, type Camera, type CameraMove, type CameraPoint, type CameraRig, type Figure, type Mark, type MoveKind, type Prop, type PropKey, type PropTarget, type Scene, type Shot, type ShotSize, type Vec3 } from './types';
@@ -280,4 +280,11 @@ export function parseShots(raw: unknown, duration: number, cameras: string[]): S
 /** A prop's place as a key at time t (held props: relative to the hand). */
 export function propKeyOf(p: Prop, t: number): PropKey {
   return { t, position: [...p.position], rotation: [...p.rotation], ...(p.hold ? { hold: { ...p.hold } } : {}) };
+}
+
+/** A keys action holding these poses (times in the animation), from the first to the last. */
+export function keysAction(figure: string, keys: Key[], layer?: Action['layer']): Action {
+  const start = keys[0].t;
+  const clip = keysClip(keys.map((k) => ({ ...k, t: k.t - start })));
+  return { id: uid('act'), start, duration: clip.duration, roles: [{ figure }], source: { kind: 'keys', clip }, ...(layer ? { layer } : {}) };
 }

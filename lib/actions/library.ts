@@ -1,22 +1,21 @@
-import { cameraFrom, newScene, uid } from '../doc';
+import { cameraFrom, newScene, nextName, uid } from '../doc';
 import { snapTime, newAnimation } from '../animation';
-import { BUILT_IN, hasClip, clipById } from '../assets';
+import { BUILT_IN } from '../assets';
 import { coverageById } from '../coverage';
 import { templatesOf, shootsOf, putTemplate, asTemplate } from '../templates';
 import { clipInfo } from '../clip';
 import { saveClips } from '../assetstore';
-import { fitted, addUpper, insertClip } from '../track';
+import { fitted, addUpper } from '../track';
 import { bodyFor } from '../model';
 import { MOTIONS, HANDLING } from '../motions';
 import { allPoses, withPose, poseFromFigure } from '../poses';
-import { forward } from '../relations';
 import { withCamera, angleAt } from '../cameras';
 import { updateShot } from '../shots';
 import type { Store } from '../store';
 import type { Scene, Figure, ShootPreset, Vec3, Clip, ModelInfo } from '../types';
 import { cover, setDirector } from './cameras';
 import { addFigures } from './figures';
-import { startAnimation, travelTo } from './motion';
+import { startAnimation } from './motion';
 import { addScene, appendScenes } from './scenes';
 
 /* The storyboard, the Library's assets applied to the scene, and scene templates (lib/templates.ts). */
@@ -309,31 +308,15 @@ export function applyUpperBody(store: Store, figureId: string, motionId: string)
 }
 
 /**
- * Give a figure a motion from the library (built in, or one of mine), starting at the playhead
- * (the scene is animated if it is not yet). A motion is one person's (several people's are made
- * by giving each their own). Returns false if it cannot.
+ * A keyed block kept in the Library (My motions) as a motion of its own, to give to any figure: its
+ * keys from where it starts, made on its figure's proportions. Returns its name.
  */
-export function applyMotion(store: Store, figureId: string, motionId: string) {
-  const start = store.scene.animation ? store.getState().time : 0;
-  // (An imported clip: one of my motions, or the local motion library's, at hand.)
-  if (store.getState().library.clips?.some((c) => c.id === motionId) || hasClip(motionId)) {
-    if ((clipById(motionId)?.parts.length ?? 1) > 1) return false;
-    store.updateScene((s) => insertClip(s, [figureId], motionId, start));
-    store.setTime(start);
-    return true;
-  }
-  const motion = MOTIONS.find((m) => m.id === motionId);
-  if (!motion) return false;
-  if (motion.travel) {
-    // Walk, run or jump ahead from where the figure stands, facing its way.
-    const f = store.figure?.id === figureId ? store.figure : store.scene.figures.find((x) => x.id === figureId);
-    if (!f) return false;
-    const [fx, fz] = forward(f);
-    const d = motion.travel.distance;
-    travelTo(store, figureId, [f.position[0] + fx * d, f.position[2] + fz * d], motion.travel.kind);
-    return true;
-  }
-  store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
-  store.setTime(start);
-  return true;
+export function saveKeysAsMotion(store: Store, id: string): string | null {
+  const act = store.scene.animation?.actions.find((x) => x.id === id);
+  const f = act && store.scene.figures.find((x) => x.id === act.roles[0].figure);
+  if (!act || !f || act.source.kind !== 'keys' || act.layer || act.duration <= 1e-6) return null;
+  const name = nextName(`${f.name}'s motion`, (store.getState().library.clips ?? []).map((c) => c.name));
+  const part = act.source.clip.parts[0];
+  saveMotion(store, { ...act.source.clip, id: uid('clip'), name, loop: false, duration: act.duration, parts: [{ ...part, name: f.name, body: { ...f.body } }] });
+  return name;
 }

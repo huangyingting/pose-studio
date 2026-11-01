@@ -3,7 +3,6 @@ import { basePoseAt, figurePoseAt, movesOf } from './evaluate';
 import { wrapDeg } from './joints';
 import { Rig } from './relations';
 import { facingOf } from './pose';
-import { viewDirection } from './render';
 import { defaultCamera } from './doc';
 import { setBlocks } from './sets';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
@@ -31,6 +30,13 @@ export const frameAspect = () => ASPECTS[projectSettings().frame];
 
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
+
+/** Unit vector from the subject towards the camera for a given view. */
+export function viewDirection(view: Pick<View, 'yaw' | 'pitch'>) {
+  const yaw = view.yaw * D2R;
+  const pitch = THREE.MathUtils.clamp(view.pitch, -89, 89) * D2R;
+  return new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+}
 
 /* ---------- lens ---------- */
 

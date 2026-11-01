@@ -10,7 +10,7 @@ import { applyMotion, issueFix } from '@/lib/actions';
 import { Store } from '@/lib/store';
 import { buildStaging } from '@/lib/stagings';
 import type { Figure, Scene } from '@/lib/types';
-import { keysAction } from '@/lib/track';
+import { keysAction } from '@/lib/animation';
 import { angle, bonesOf, withAngles } from '../../lib/pose';
 
 /** An animation from a list of [time, figures] keys (each figure's keys one action). */

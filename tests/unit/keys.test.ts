@@ -4,7 +4,8 @@ import { clipById } from '@/lib/assets';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { angle } from '@/lib/pose';
 import { Store } from '@/lib/store';
-import { keyEaseAt, keyTimesOf, keysAction, moveKeysBy } from '@/lib/track';
+import { keyEaseAt, keyTimesOf, moveKeysBy } from '@/lib/track';
+import { keysAction } from '@/lib/animation';
 import { newFigure } from '@/lib/doc';
 import type { Animation } from '@/lib/types';
 

@@ -1,7 +1,7 @@
-import { keyPose, keyTimes, keysClip, partKeys, placeClip, samplePart, setPartKey, startFacing, type Key } from './clip';
+import { keyPose, keyTimes, partKeys, placeClip, samplePart, setPartKey, startFacing, type Key } from './clip';
 import { clipById, loopsOf, playedClip } from './assets';
 import { REACT_LEAD, strikeTime } from './strike';
-import { MAX_DURATION, newAnimation, snapTime } from './animation';
+import { MAX_DURATION, keysAction, newAnimation, snapTime } from './animation';
 import { actionPoseAt, actionsOf, basePoseAt, correctionOf, figurePoseAt, marksOf, seamOf } from './evaluate';
 import { GAITS, JUMP_PREP, jumpHeight, legsOf, travelTime, turnTime } from './locomotion';
 import { facingOf, turnBones } from './pose';
@@ -26,13 +26,6 @@ const markOf = (p: Pose): Mark => ({ at: [r3(p.position[0]), r3(p.position[2])],
 const keysOf = (act: Action) => (act.source.kind === 'keys' ? partKeys(act.source.clip.parts[0]).map((k) => ({ ...k, t: act.start + k.t })) : []);
 const isKeys = (act: Action) => act.source.kind === 'keys' && !act.layer;
 const clipOfKeys = (act: Action) => (act.source as Extract<ActionSource, { kind: 'keys' }>).clip;
-
-/** A keys action holding these poses (times in the animation), from the first to the last. */
-export function keysAction(figure: string, keys: Key[], layer?: Action['layer']): Action {
-  const start = keys[0].t;
-  const clip = keysClip(keys.map((k) => ({ ...k, t: k.t - start })));
-  return { id: uid('act'), start, duration: clip.duration, roles: [{ figure }], source: { kind: 'keys', clip }, ...(layer ? { layer } : {}) };
-}
 
 const replace = (a: Animation, old: Action, next: Action[]): Animation => ({ ...a, actions: [...a.actions.filter((x) => x !== old), ...next] });
 const sorted = (a: Animation): Animation => ({ ...a, actions: [...a.actions].sort((p, q) => p.start - q.start || p.duration - q.duration) });

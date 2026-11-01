@@ -1,17 +1,16 @@
 import * as THREE from 'three';
 import { wrapDeg } from '../joints';
 import { uid, nextName } from '../doc';
-import { snapTime, MAX_DURATION, newAnimation, placeAnimation, setDuration as setAnimDuration } from '../animation';
+import { snapTime, MAX_DURATION, keysAction, newAnimation, placeAnimation, setDuration as setAnimDuration } from '../animation';
 import { playedClip, clipById } from '../assets';
 import { partKeys, type Key, placeClip, keysClip, partFromPoses, mirrorPose as mirrored } from '../clip';
 import { figurePoseAt, naturalEnd, actionPoseAt, warpLimit } from '../evaluate';
-import { rippleInStep, retimeAction, trimAction, unsplittable, splitAction, splitRepeats, playRange, slipAction, keysAction, correctionThroughout, correctionEveryRepeat, setBlendIn, recast, addTravel, rippleDelete, duplicateActions, actionLabel, clear, setPoseAt, removeKeyAt, moveKeyTo, moveKeysBy, setKeyEase as setTrackKeyEase, holdKeyFor, repeatAction as repeatTrack, keyAtTime, cutTo, removeCorrectionAt } from '../track';
+import { rippleInStep, retimeAction, trimAction, unsplittable, splitAction, splitRepeats, playRange, slipAction, correctionThroughout, correctionEveryRepeat, setBlendIn, recast, addTravel, rippleDelete, duplicateActions, actionLabel, clear, setPoseAt, removeKeyAt, moveKeyTo, moveKeysBy, setKeyEase as setTrackKeyEase, holdKeyFor, repeatAction as repeatTrack, keyAtTime, cutTo, removeCorrectionAt } from '../track';
 import { Rig } from '../relations';
 import { fromQuat, toQuat, facingOf } from '../pose';
 import type { Store } from '../store';
 import { strikeTime, REACT_LEAD } from '../strike';
 import type { Action, Scene, Pose, Vec3, PropTarget, Marker } from '../types';
-import { saveMotion } from './library';
 
 /* The timeline: keys and actions moved, retimed, blended and recast; markers; the in and out, locked and muted rows. */
 
@@ -320,7 +319,7 @@ export function duplicateBlocks(store: Store, ids: string[]) {
 let copied: { acts: Action[]; at: { x: number; z: number; facing: number }[] } | null = null;
 
 /** Actions as copied (with where each began). */
-export function copyOf(s: Scene, ids: string[]): NonNullable<typeof copied> | null {
+function copyOf(s: Scene, ids: string[]): NonNullable<typeof copied> | null {
   const all = s.animation?.actions ?? [];
   const picked = all.filter((x) => ids.includes(x.id));
   // (With the corrections on them, #23: they go where the blocks go.)
@@ -547,19 +546,6 @@ export function repeatAction(store: Store, id: string, times: number) {
   store.setTime(store.getState().time);
 }
 
-/**
- * A keyed block kept in the Library (My motions) as a motion of its own, to give to any figure: its
- * keys from where it starts, made on its figure's proportions. Returns its name.
- */
-export function saveKeysAsMotion(store: Store, id: string): string | null {
-  const act = store.scene.animation?.actions.find((x) => x.id === id);
-  const f = act && store.scene.figures.find((x) => x.id === act.roles[0].figure);
-  if (!act || !f || act.source.kind !== 'keys' || act.layer || act.duration <= 1e-6) return null;
-  const name = nextName(`${f.name}'s motion`, (store.getState().library.clips ?? []).map((c) => c.name));
-  const part = act.source.clip.parts[0];
-  saveMotion(store, { ...act.source.clip, id: uid('clip'), name, loop: false, duration: act.duration, parts: [{ ...part, name: f.name, body: { ...f.body } }] });
-  return name;
-}
 
 /** Retime one figure's key (or, without `figureId`, every figure's key at that time). */
 export function moveKey(store: Store, from: number, to: number, figureId?: string) {

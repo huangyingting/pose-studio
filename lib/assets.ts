@@ -9,7 +9,9 @@ import type { Action, Clip, Library, Scene } from './types';
 
 /*
  * Assets by id, from one place: the built-in motions (made into clips when first used) and the
- * imported clips loaded so far (lib/assetstore.ts keeps them; the library lists them).
+ * imported clips loaded so far (lib/assetstore.ts keeps them; the library lists them). A built-in
+ * motion is made by playing it (lib/evaluate.ts bakeClip), and playing reads clips from here: the
+ * two modules use each other, only when a motion is first wanted.
  */
 
 /** Ids of built-in motions' clips: this, then the motion's id. */

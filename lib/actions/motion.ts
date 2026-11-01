@@ -1,17 +1,18 @@
 import { wrapDeg } from '../joints';
 import { newAnimation, snapTime } from '../animation';
-import { hasClip } from '../assets';
+import { BUILT_IN, clipById, hasClip } from '../assets';
 import { figurePoseAt, actionsOf, warpOf, naturalEnd } from '../evaluate';
-import { addTravel, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
+import { addTravel, insertClip, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
 import { legsOf, GAITS, flightTime, JUMP_PREP } from '../locomotion';
 import LIBRARY_INDEX from '../../public/motions/index.json';
 import { DEFAULT_BODY } from '../body';
 import { facingOf } from '../pose';
+import { MOTIONS } from '../motions';
+import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
 import type { Travel } from '../types';
-import { applyMotion } from './library';
 import { retime, setBlend, setClipOptions } from './timeline';
 
 /* Animating a scene, and walking, running and jumping from mark to mark (lib/locomotion.ts). */
@@ -236,4 +237,34 @@ export function setJumpHeight(store: Store, figureId: string, t: number, height:
 /** Move a figure's mark (where it is keyed, or a travel ends, at time t) to another floor point. */
 export function moveMark(store: Store, figureId: string, t: number, to: [number, number], key = '') {
   store.updateScene((s) => (s.animation ? { ...s, animation: moveMarkTo(s, figureId, t, to) } : s), key);
+}
+
+/**
+ * Give a figure a motion from the library (built in, or one of mine), starting at the playhead
+ * (the scene is animated if it is not yet). A motion is one person's (several people's are made
+ * by giving each their own). Returns false if it cannot.
+ */
+export function applyMotion(store: Store, figureId: string, motionId: string) {
+  const start = store.scene.animation ? store.getState().time : 0;
+  // (An imported clip: one of my motions, or the local motion library's, at hand.)
+  if (store.getState().library.clips?.some((c) => c.id === motionId) || hasClip(motionId)) {
+    if ((clipById(motionId)?.parts.length ?? 1) > 1) return false;
+    store.updateScene((s) => insertClip(s, [figureId], motionId, start));
+    store.setTime(start);
+    return true;
+  }
+  const motion = MOTIONS.find((m) => m.id === motionId);
+  if (!motion) return false;
+  if (motion.travel) {
+    // Walk, run or jump ahead from where the figure stands, facing its way.
+    const f = store.figure?.id === figureId ? store.figure : store.scene.figures.find((x) => x.id === figureId);
+    if (!f) return false;
+    const [fx, fz] = forward(f);
+    const d = motion.travel.distance;
+    travelTo(store, figureId, [f.position[0] + fx * d, f.position[2] + fz * d], motion.travel.kind);
+    return true;
+  }
+  store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
+  store.setTime(start);
+  return true;
 }
