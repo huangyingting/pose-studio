@@ -525,6 +525,7 @@ async function makeModel(id: string, a: ModelAsset | TreeAsset) {
     scene.addChild(holder);
     console.log(`${id}: made ${made.toFixed(2)} m across, really ${want.toFixed(2)} m: scaled ×${k.toFixed(3)}`);
   }
+  if (a.oneSided) for (const m of doc!.getRoot().listMaterials()) m.setDoubleSided(false);
   return finish(`models/${id}.glb`, doc!, a.tex);
 }
 

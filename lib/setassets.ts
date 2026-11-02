@@ -17,6 +17,8 @@ export interface ModelAsset {
   tris: number;
   /** Its textures' size (px, square at most). */
   tex: 512 | 1024;
+  /** Its materials drawn from the front only: it models both faces itself (a screen's cloth, two layers a hair apart), drawn from both sides they fight. */
+  oneSided?: true;
 }
 
 /** A tree grown from one of ez-tree's presets, to a height (m). */
@@ -63,7 +65,7 @@ export const MODELS = {
   'laptop': { ...small('classic_laptop'), height: 0.24 },
   'notepads': { ...small('office_notepads'), height: 0.008 },
   'stationery': small('stationery_supplies'),
-  'projector-screen': model('projector_screen', 6_000),
+  'projector-screen': { ...model('projector_screen', 6_000), oneSided: true },
   'chalkboard': small('standing_chalkboard_01'),
   // Café
   'cafe-table': small('round_wooden_table_02'),

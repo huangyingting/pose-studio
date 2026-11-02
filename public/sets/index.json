@@ -907,11 +907,21 @@
   "projector-screen": {
    "file": "models/projector-screen.glb",
    "tris": 5560,
-   "bytes": 316944,
+   "bytes": 316904,
    "size": [
     1.094,
     1.799,
     0.916
+   ],
+   "min": [
+    -0.547,
+    0,
+    -0.606
+   ],
+   "max": [
+    0.547,
+    1.799,
+    0.31
    ],
    "tops": []
   },
@@ -33147,7 +33157,7 @@
   "model:laptop": "{\"ph\":\"classic_laptop\",\"tris\":5000,\"tex\":512,\"height\":0.24}",
   "model:notepads": "{\"ph\":\"office_notepads\",\"tris\":5000,\"tex\":512,\"height\":0.008}",
   "model:stationery": "{\"ph\":\"stationery_supplies\",\"tris\":5000,\"tex\":512}",
-  "model:projector-screen": "{\"ph\":\"projector_screen\",\"tris\":6000,\"tex\":1024}",
+  "model:projector-screen": "{\"ph\":\"projector_screen\",\"tris\":6000,\"tex\":1024,\"oneSided\":true}",
   "model:chalkboard": "{\"ph\":\"standing_chalkboard_01\",\"tris\":5000,\"tex\":512}",
   "model:cafe-table": "{\"ph\":\"round_wooden_table_02\",\"tris\":5000,\"tex\":512}",
   "model:cafe-chair": "{\"ph\":\"gallinera_chair\",\"tris\":5000,\"tex\":512}",
