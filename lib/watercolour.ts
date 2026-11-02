@@ -8,6 +8,7 @@ import { styleDef } from './styles';
  * (2017) do it:
  *  - abstracted: blurred along each surface but not across a step in depth, so textures and
  *    small detail melt into washes while the shapes keep their edges;
+ *  - pigment's colours: brighter and purer than a render's (no greys), the shade a cool glaze;
  *  - the hand's tremor: what is read moved a little by a slow noise, so the washes' edges wander;
  *  - pigment density: turbulence (a wash's blotches), granulation (pigment settling in the paper's
  *    grain, more in the dark) and, where a wash changes, the pigment pooled at its edge as it dried;
@@ -78,7 +79,12 @@ const PAINT_FRAG = /* glsl */ `
     vec2 wob = vec2(fbm(px * 0.011), fbm(px * 0.011 + 31.0)) - 0.5;
     vec2 uv = vUv + wob * 7.0 * scale / resolution;
     vec3 soft = seen(texture2D(tSoft, uv).rgb);
-    vec3 c = mix(soft, seen(texture2D(tSharp, uv).rgb), 0.2);
+    vec3 c = mix(soft, seen(texture2D(tSharp, uv).rgb), 0.12);
+    // Pigment, not a photograph's greys: brighter and purer colours, the shade a cool glaze.
+    float luma = dot(c, vec3(0.299, 0.587, 0.114));
+    c = pow(c, vec3(0.8));
+    c = clamp(mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.55), 0.0, 1.0);
+    c *= mix(vec3(1.0), vec3(0.9, 0.95, 1.1), (1.0 - smoothstep(0.15, 0.6, luma)) * 0.7);
     // Where a wash changes (its edge, another wash beside it): the pigment pooled there as it dried.
     vec2 e = 3.0 * scale / resolution;
     vec3 gx = seen(texture2D(tSoft, uv + vec2(e.x, 0.0)).rgb) - seen(texture2D(tSoft, uv - vec2(e.x, 0.0)).rgb);
@@ -163,7 +169,7 @@ export class WatercolourPass {
     this.blur.uniforms.far.value = lens.far;
     this.blur.uniforms.ortho.value = (lens as THREE.OrthographicCamera).isOrthographicCamera === true;
     this.blur.uniforms.tDepth.value = this.sharp.depthTexture;
-    const reach = 1.6 * scale * pr;
+    const reach = 2.2 * scale * pr;
     this.quad.material = this.blur;
     this.blur.uniforms.tColor.value = this.sharp.texture;
     this.blur.uniforms.step.value.set(reach / w, 0);

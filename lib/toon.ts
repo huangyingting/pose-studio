@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EXTRA_GLSL, NOISE_GLSL, type SharedUniforms } from './shaders';
+import { EXTRA_GLSL, type SharedUniforms } from './shaders';
 
 /*
  * The Anime style's surface (#15): a material in the manner of MToon (the VRM toon material, an
@@ -111,7 +111,6 @@ const FRAG = /* glsl */ `
   uniform vec3 lightDir;
   uniform vec3 lightColor;
   ${EXTRA_GLSL}
-  ${NOISE_GLSL}
   uniform vec3 color;
   uniform float opacity;
   uniform sampler2D map;
@@ -144,7 +143,13 @@ const FRAG = /* glsl */ `
   vec2 placed(mat3 t) { return (t * vec3(vUv, 1.0)).xy; }
   void main() {
     vec4 base = vec4(color, opacity);
-    if (useMap) base *= texture2D(map, placed(mapTransform));
+    if (useMap) {
+      vec4 t = texture2D(map, placed(mapTransform));
+      // (In watercolour, a texture's detail washed out at any distance: its colour read from its
+      // smaller mips; not what it cuts out, a tree's leaves.)
+      if (wash > 0.5) t.rgb = texture2D(map, placed(mapTransform), 2.5).rgb;
+      base *= t;
+    }
     if (alphaMode == 1 && base.a < cutoff) discard;
     vec3 shaded = shade;
     if (useShadeMap) shaded *= texture2D(shadeMap, placed(shadeMapTransform)).rgb;
@@ -167,13 +172,10 @@ const FRAG = /* glsl */ `
     // The other lights: a fill's colour on its side, a light from behind as a rim along the edge.
     col += extraLight(n, v, 4.0, vWorld) * mix(base.rgb, vec3(1.0), 0.5);
     if (wash > 0.5) {
-      // Watercolour: paler and uneven, as a wash lies (blooms fixed to the thing, as it turns), the
-      // pigment pooled where it dried between light and shade. (The paper, the pigment's grain and
-      // the washes' edges are the picture's: lib/watercolour.ts.)
-      float bloom = fbm3(vWorld * 3.0 + 5.0);
-      float dried = lit * (1.0 - lit) * 4.0;
-      col = mix(col, vec3(1.0, 0.985, 0.95), clamp(0.22 + (bloom - 0.5) * 0.3, 0.0, 1.0));
-      col *= 1.0 - 0.12 * dried;
+      // Watercolour: the pigment pooled where it dried between light and shade. (The colour's
+      // brightness, the paper, the pigment's blotches and grain and the washes' edges are the
+      // picture's: lib/watercolour.ts.)
+      col *= 1.0 - 0.12 * lit * (1.0 - lit) * 4.0;
     }
     vec3 glow = emissive;
     if (useEmissiveMap) glow *= texture2D(emissiveMap, placed(emissiveMapTransform)).rgb;
