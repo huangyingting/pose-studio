@@ -128,8 +128,9 @@ function SetCutaway({ sv }: { sv: SceneView }) {
     set.detail(camera.position, (camera as THREE.PerspectiveCamera).fov ?? 35, gl.domElement.height);
     const w = was.current;
     const people = sv.chests();
-    // (Again when the view has moved a millimetre, or someone in it a couple of centimetres.)
-    const moved = people.length !== w.people.length || people.some((p, i) => p.distanceToSquared(w.people[i]) > 4e-4);
+    // (Again when the view has moved a millimetre, or someone in it ten centimetres: a few frames'
+    // walk, not each frame of it.)
+    const moved = people.length !== w.people.length || people.some((p, i) => p.distanceToSquared(w.people[i]) > 0.01);
     if (w.set === set && !moved && w.eye.distanceToSquared(camera.position) < 1e-6 && w.target.distanceToSquared(controls.target) < 1e-6) return;
     w.set = set;
     w.eye.copy(camera.position);
