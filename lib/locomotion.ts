@@ -277,6 +277,16 @@ export function locomote(chain: Chain, body: BodyParams, t: number, pose: AngleP
   return chain.cycle ? cycleGait(chain, legs, t, pose, ground, body) : gait(chain, legs, t, pose, ground, body);
 }
 
+/**
+ * How far the hips are keyed turned from the facing at a travel's start and its end (degrees): a
+ * person standing at ease may stand with them turned from where they face (a captured idle, 40°
+ * and more). The hips go from and to that, not from the facing in a frame.
+ */
+const atEase = (c: Chain) => ({
+  from: c.start.joints.hips ? wrapDeg(c.start.joints.hips[1] - c.yaws[0]) : 0,
+  to: c.end.joints.hips ? wrapDeg(c.end.joints.hips[1] - c.yaws[c.yaws.length - 1]) : 0,
+});
+
 /** How far a travel turns from its start to its end (degrees, + to the left). */
 const turnOf = (c: Chain) => wrapDeg(c.yaws[c.yaws.length - 1] - c.yaws[0]);
 /** Whether a walk or run is a turn where it stands: (nearly) nowhere to go, another way to face. */
@@ -306,7 +316,8 @@ function pivot(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground,
   const u = clamp((t - c.t0) / dur, 0, 1);
   const by = turnOf(c);
   const [x, z] = [lerp(c.start.position[0], c.end.position[0], smooth(u)), lerp(c.start.position[2], c.end.position[2], smooth(u))];
-  const yaw = lerpAngle(c.yaws[0], c.yaws[c.yaws.length - 1], smooth(u));
+  // (The hips as keyed at either end, atEase, the feet turning about the facings.)
+  const yaw = lerpAngle(c.yaws[0], c.yaws[c.yaws.length - 1], smooth(u)) + atEase(c).from * (1 - smooth(u)) + atEase(c).to * smooth(u);
   const onGround = (key: AnglePose, side: 'L' | 'R'): [number, number, number] => {
     const k = keyedFeet(body, key)[side];
     return key.grounded ? [k[0], k[1] + ground(key.position[0], key.position[2]), k[2]] : k;
@@ -586,13 +597,16 @@ function walking(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Groun
 
   // Facing: where it goes (turning from the start key, and to the end key's facing at the end),
   // or, strafing, the keyed facing all the way.
+  // (From and to the way the hips are keyed, atEase: they turn on into the way it goes, not in a frame.)
   const turn = Math.min(0.35, dur / 3);
+  const ease = atEase(c);
   const keyedYaw = pose.joints.hips?.[1] ?? 0;
   const yaw = D < 0.05
     ? keyedYaw
     : plan.strafe
       ? yawAt(s)
-      : lerpAngle(lerpAngle(startYaw, yawAt(s), smooth(tau / turn)), endYaw, smooth(1 - (dur - tau) / turn));
+      : lerpAngle(lerpAngle(startYaw, yawAt(s), smooth(tau / turn)), endYaw, smooth(1 - (dur - tau) / turn))
+        + ease.from * (1 - smooth(tau / turn)) + ease.to * smooth(1 - (dur - tau) / turn);
   const [x, z] = line.point(s);
   // Lean into the way it goes (forwards, or to the side or back when strafing).
   const heading = D > 0.05 ? yawOf(line.direction(s)) : yaw;

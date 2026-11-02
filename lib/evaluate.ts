@@ -47,9 +47,9 @@ const STEP_MIN = 0.06;
 const STEP_BLEND = 0.3;
 const STEP_PER_M = 1;
 const STEP_BLEND_MAX = 0.8;
-/** Walking or running a way, the arms hang (as standing has them; the swing goes on top), let down and up again over this long (s). */
-const ARMS_EASE = 0.5;
-const ARMS_DOWN = Object.fromEntries((['leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'] as const)
+/** Walking or running a way, the arms hang (as standing has them; the swing goes on top) and the head looks ahead, let go and taken up again over this long (s). */
+const CARRIAGE_EASE = 0.5;
+const CARRIAGE = Object.fromEntries((['neck', 'head', 'leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'] as const)
   .map((j) => [j, NEUTRAL_ANGLES[j] ?? [0, 0, 0]])) as AnglePose['joints'];
 /** A foot whose ankle is no higher than this above standing's is on the ground (m). */
 const GROUNDED = 0.05;
@@ -817,12 +817,13 @@ class Evaluator {
     let keys = this.uppers.get(c);
     if (!keys) {
       keys = [{ t: c.t0, pose: c.start }, { t: c.t1, pose: c.end }];
-      // (Long enough, and never holding anything: the arms come down to walk and up again for what
-      // comes next, not carried along mid-gesture.)
+      // (Long enough, and never holding anything: the arms come down and the head up to walk, and
+      // back again for what comes next, not carried along mid-gesture looking at the floor.)
       const holds = this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id));
-      if (c.t1 - c.t0 >= 2 * ARMS_EASE + 0.2 && !holds) {
-        const down = (p: AnglePose): AnglePose => ({ ...p, joints: { ...p.joints, ...ARMS_DOWN } });
-        keys.splice(1, 0, { t: c.t0 + ARMS_EASE, pose: down(c.start) }, { t: c.t1 - ARMS_EASE, pose: down(c.end) });
+      if (c.t1 - c.t0 >= 2 * CARRIAGE_EASE + 0.2 && !holds) {
+        // (The hips level too, turned as they were: the walk turns them its way.)
+        const walking = (p: AnglePose): AnglePose => ({ ...p, joints: { ...p.joints, ...CARRIAGE, hips: [0, p.joints.hips?.[1] ?? 0, 0] } });
+        keys.splice(1, 0, { t: c.t0 + CARRIAGE_EASE, pose: walking(c.start) }, { t: c.t1 - CARRIAGE_EASE, pose: walking(c.end) });
       }
       this.uppers.set(c, keys);
     }
