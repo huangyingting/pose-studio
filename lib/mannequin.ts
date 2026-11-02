@@ -244,8 +244,9 @@ function fitBounds(mesh: THREE.SkinnedMesh, samples: Sample[]) {
 }
 
 /** The mannequin: Mixamo's X Bot or Y Bot on the app's skeleton, drawn in the app's styles. */
-/** (A point worked out with, not kept.) */
+/** (A point and a turn worked out with, not kept.) */
 const LOW = new THREE.Vector3();
+const RAISE = new THREE.Matrix3();
 
 export class Mannequin {
   readonly object = new THREE.Group();
@@ -514,8 +515,24 @@ export class Mannequin {
   liftAboveFloor() {
     const min = this.lowest();
     if (min >= 0) return;
-    this.joints.hips.position.y -= min;
-    this.object.updateMatrixWorld(true);
+    this.raise(-min);
+  }
+
+  /**
+   * Raise the figure by `dy` (its hips, and all on them), its bones' world placings just moved up
+   * with it: not each worked out again (they all move by the same, where they were just placed).
+   */
+  private raise(dy: number) {
+    const hips = this.joints.hips;
+    hips.position.y += dy;
+    hips.updateMatrix();
+    const by = LOW.set(0, dy, 0).applyMatrix3(RAISE.setFromMatrix4(hips.parent!.matrixWorld));
+    hips.traverse((o) => {
+      const e = o.matrixWorld.elements;
+      e[12] += by.x;
+      e[13] += by.y;
+      e[14] += by.z;
+    });
   }
 
   /** What it stands on besides the floor: the height of the props under a floor point. */
@@ -545,16 +562,16 @@ export class Mannequin {
     const root = this.joints.hips;
     root.position.y = 1;
     this.object.updateMatrixWorld(true);
-    root.position.y -= this.lowest(true);
+    let dy = -this.lowest(true);
     if (this.surface) {
-      // Standing on a box or a step: up onto the highest top under either foot.
-      const on = Math.max(...(['leftFoot', 'rightFoot'] as const).map((j) => {
-        const p = this.joints[j].getWorldPosition(new THREE.Vector3());
+      // Standing on a box or a step: up onto the highest top under either foot (where they are
+      // over the floor: their places as just worked out).
+      dy += Math.max(...(['leftFoot', 'rightFoot'] as const).map((j) => {
+        const p = LOW.setFromMatrixPosition(this.joints[j].matrixWorld);
         return this.surface!(p.x, p.z);
       }));
-      root.position.y += on;
     }
-    this.object.updateMatrixWorld(true);
+    this.raise(dy);
   }
 
   /** The points that bound it (each bone's outermost ones, where its bone has them now). */

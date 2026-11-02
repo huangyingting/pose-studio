@@ -119,7 +119,7 @@ function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3)
 /** A set's parts in the way of the view, or of the people in it, cut away as they move (SetObject.cutaway); its far cells drawn with fewer triangles (SetObject.detail). */
 function SetCutaway({ sv }: { sv: SceneView }) {
   const get = useThree((s) => s.get);
-  const was = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3(), set: null as unknown, people: [] as THREE.Vector3[] });
+  const was = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3(), set: null as unknown, people: [] as THREE.Vector3[], at: 0 });
   useFrame(() => {
     const { camera, controls, gl } = get() as unknown as { camera: THREE.Camera; controls: { target: THREE.Vector3 } | null; gl: THREE.WebGLRenderer };
     const set = sv.set;
@@ -128,10 +128,11 @@ function SetCutaway({ sv }: { sv: SceneView }) {
     set.detail(camera.position, (camera as THREE.PerspectiveCamera).fov ?? 35, gl.domElement.height);
     const w = was.current;
     const people = sv.chests();
-    // (Again when the view has moved a millimetre, or someone in it ten centimetres: a few frames'
-    // walk, not each frame of it.)
-    const moved = people.length !== w.people.length || people.some((p, i) => p.distanceToSquared(w.people[i]) > 0.01);
+    // (Again when the view has moved a millimetre, or someone in it ten centimetres, at most ten
+    // times a second for them: a few frames' walk, not each frame of it.)
+    const moved = people.length !== w.people.length || (performance.now() - w.at > 100 && people.some((p, i) => p.distanceToSquared(w.people[i]) > 0.01));
     if (w.set === set && !moved && w.eye.distanceToSquared(camera.position) < 1e-6 && w.target.distanceToSquared(controls.target) < 1e-6) return;
+    w.at = performance.now();
     w.set = set;
     w.eye.copy(camera.position);
     w.target.copy(controls.target);
@@ -1073,6 +1074,7 @@ function shadowKey(scene: THREE.Scene) {
     const e = m.elements;
     for (let i = 0; i < 16; i++) key += e[i] * ((n++ % 251) + 1);
   };
+  const casters: THREE.Mesh[] = [];
   scene.traverseVisible((o) => {
     const light = o as THREE.DirectionalLight | THREE.SpotLight;
     if (light.isLight && light.castShadow) {
@@ -1080,16 +1082,18 @@ function shadowKey(scene: THREE.Scene) {
       add(light.target.matrixWorld);
       add(light.shadow.camera.projectionMatrix);
       key += light.shadow.mapSize.x + light.shadow.radius * 7;
-      return;
-    }
-    if (!o.castShadow || !(o as THREE.Mesh).isMesh) return;
+    } else if (o.castShadow && (o as THREE.Mesh).isMesh) casters.push(o as THREE.Mesh);
+  });
+  // (No light casting any: nothing to draw, whatever moves.)
+  if (!key) return 0;
+  for (const o of casters) {
     key += o.id * 0.618;
     add(o.matrixWorld);
     // (Its look as the shadow takes it: a texture cutting it out arriving, a leaf's.)
-    for (const m of [(o as THREE.Mesh).material].flat() as (THREE.Material & { map?: THREE.Texture | null })[]) key += m.version * 3.1 + (m.map?.version ?? 0) * 5.3;
+    for (const m of [o.material].flat() as (THREE.Material & { map?: THREE.Texture | null })[]) key += m.version * 3.1 + (m.map?.version ?? 0) * 5.3;
     const skinned = o as THREE.SkinnedMesh;
     if (skinned.isSkinnedMesh) for (const b of skinned.skeleton.bones) add(b.matrixWorld);
-  });
+  }
   return key;
 }
 
