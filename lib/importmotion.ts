@@ -14,7 +14,7 @@ import { Rig } from './relations';
 import { PARENT } from './skeleton';
 import { uid } from './uid';
 import { BONES, type Bone, type Clip, type Pose, type Vec3 } from './types';
-import { goesRound, refineClip } from './motionfix';
+import { goesRound, isCycle, refineClip, seamless } from './motionfix';
 
 /*
  * Importing a motion from another tool: BVH (motion capture), FBX (e.g. Mixamo) or glTF/GLB with
@@ -145,6 +145,8 @@ export function retargetMotion(src: MotionSource, map?: BoneMap): Clip {
   const made = refineClip({ id: uid('clip'), name, duration: r3(duration), loop: false, parts, events: [], contacts: [] });
   // (Going round if it can: a walk cycle, an idle; a block's Loops says otherwise if it should.)
   const clip = { ...made, loop: goesRound(made) };
+  // (One that goes round where it stands, seamless, as the Library's are.)
+  if (clip.loop && !isCycle(name)) return seamless(clip, RATE);
   return { ...clip, contacts: parts.flatMap((_, n) => detectContacts(clip, n, RATE)) };
 }
 
