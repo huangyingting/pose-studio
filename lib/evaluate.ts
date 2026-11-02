@@ -14,6 +14,7 @@ import { groundOf, surfacesKey } from './surfaces';
 import { uid } from './uid';
 import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
 import { HZ, physicsReady } from './physics';
+import { humanize } from './humanize';
 import { FINGER_BONES, MASKS, UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
 import { fingerBones } from './skeleton';
 
@@ -1065,11 +1066,15 @@ export function footprints(scene: Scene, id: string) {
  * A scene's motion as a Clip: each figure's part sampled every frame (a built-in motion, made
  * with keys and travels, becomes one thing that plays anywhere). Its planted feet are found.
  */
-export function bakeClip(scene: Scene, id = uid('clip'), name = scene.name): Clip {
+export function bakeClip(scene: Scene, id = uid('clip'), name = scene.name, life?: { arms: boolean }): Clip {
   const a = scene.animation!;
   const frames = Math.max(1, Math.round(a.duration * a.fps));
   const times = Array.from({ length: frames + 1 }, (_, i) => i / a.fps);
-  const parts = scene.figures.map((f) => partFromPoses(f.name, times.map((t) => ({ t, pose: figurePoseAt(scene, f.id, Math.min(t, a.duration))! })), 'linear', f.body));
+  const parts = scene.figures.map((f) => {
+    const posed = times.map((t) => ({ t, pose: figurePoseAt(scene, f.id, Math.min(t, a.duration))! }));
+    // (A made motion: with a person's life in it, lib/humanize.ts.)
+    return partFromPoses(f.name, life ? humanize(posed, a.fps, a.loop, life.arms) : posed, 'linear', f.body);
+  });
   const clip: Clip = { id, name, duration: frames / a.fps, loop: a.loop, parts, events: [], contacts: [] };
   return { ...clip, contacts: [...parts.flatMap((p, i) => detectContacts(clip, i, a.fps)), ...detectGrips(clip, a.fps)] };
 }

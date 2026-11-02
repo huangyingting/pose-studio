@@ -28,7 +28,8 @@ export function clipById(id: string): Clip | null {
   if (!id.startsWith(BUILT_IN)) return loaded.get(id) ?? null;
   if (!builtIn.has(id)) {
     const m = [...MOTIONS, ...HANDLING].find((x) => x.id === id.slice(BUILT_IN.length));
-    builtIn.set(id, m && !m.travel ? { ...bakeClip(m.build(), id, m.name), events: m.events ?? [] } : null);
+    // (With life in it: the arms too, unless its hands hold something or the floor.)
+    builtIn.set(id, m && !m.travel ? { ...bakeClip(m.build(), id, m.name, { arms: !!m.looseArms }), events: m.events ?? [] } : null);
   }
   return builtIn.get(id)!;
 }

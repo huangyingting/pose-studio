@@ -34,6 +34,8 @@ interface Motion {
   travel?: { kind: Travel; distance: number };
   /** When a hand lets a prop go or takes hold of it (motions that handle props). */
   events?: ClipEvent[];
+  /** Its arms follow loosely as a person's do (lib/humanize.ts): not where the hands hold the floor or a thing. */
+  looseArms?: true;
 }
 
 type Joints = Angles;
@@ -270,6 +272,7 @@ export const MOTIONS: Motion[] = [
   },
   {
     id: 'kick',
+    looseArms: true,
     name: 'Front kick',
     group: 'Fighting',
     build: () => withRig((rig) => {
@@ -287,6 +290,7 @@ export const MOTIONS: Motion[] = [
   },
   {
     id: 'pirouette',
+    looseArms: true,
     name: 'Pirouette',
     group: 'Dance',
     build: () => withRig((rig) => {
@@ -345,6 +349,7 @@ export const MOTIONS: Motion[] = [
   },
   {
     id: 'leap',
+    looseArms: true,
     name: 'Split leap',
     group: 'Sport & acrobatics',
     build: () => withRig((rig) => {
@@ -426,6 +431,7 @@ export const MOTIONS: Motion[] = [
   },
   {
     id: 'bow',
+    looseArms: true,
     name: 'Bow',
     group: 'Talking & gestures',
     build: () => {
