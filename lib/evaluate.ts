@@ -793,7 +793,7 @@ class Evaluator {
     const cycle = gaitCycle(src, path, yaws);
     // (At the height they are drawn at: a pose of a recorded motion through the floor is raised out
     // of it as it is drawn, and the walk goes from and to there, not from as far down.)
-    const shown = (p: Pose): Pose => (p.grounded ? p : { ...p, position: this.rig.model({ ...f, ...p }).read().position });
+    const shown = (p: Pose): Pose => ({ ...p, position: this.rig.model({ ...f, ...p }).read().position });
     c = {
       kind: src.mode,
       t0: act.start,
@@ -838,7 +838,9 @@ class Evaluator {
       const [p, q] = [a.joints[j] ?? [0, 0, 0], b.joints[j] ?? [0, 0, 0]];
       joints[j] = p.map((v, k) => v + wrapDeg(q[k] - v) * u) as Vec3;
     }
-    return fromAngles(locomote(c, f.body, t, { ...a, joints, position: a.position.map((v, k) => v + (b.position[k] - v) * u) as Vec3, hands: blend(fromAngles(a), fromAngles(b), u).hands }, this.ground));
+    // (Standing on the floor where both ends do; else from the height one is drawn at to the other's.)
+    const on: AnglePose = { joints, position: a.position.map((v, k) => v + (b.position[k] - v) * u) as Vec3, hands: blend(fromAngles(a), fromAngles(b), u).hands, grounded: a.grounded && b.grounded };
+    return fromAngles(locomote(c, f.body, t, on, this.ground));
   }
 
   /* ---------- corrections ---------- */
