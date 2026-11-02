@@ -1203,7 +1203,7 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   // Looked through from its menu: a banner says the view moves it; Ctrl+D copies it.
   await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).click({ button: 'right' });
   await page.getByRole('menuitemcheckbox', { name: 'Look through it' }).click();
-  await expect(page.locator('.letterbox-banner')).toHaveText(/^Moving Camera 1 at \d+\.\d\d s: drag to change it · Esc to stop$/);
+  await expect(page.locator('.letterbox-banner [role="status"]')).toHaveText(/^Moving Camera 1 at \d+\.\d\d s: drag to change it$/);
   await page.keyboard.press('Control+d');
   expect((await anim(page)).cameras.map((c) => c.name)).toEqual(['Camera 1', 'Camera 2', 'Camera 1 copy']);
   // Its shot sizes are chips in the picture.
@@ -1217,6 +1217,11 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   expect(made.animation!.shots.find((x) => Math.abs(x.start - 0.5) < 0.05)!.camera).toBe(made.cameras[3].id);
   await expect(page.locator('.letterbox-banner')).toContainText(made.cameras[3].name);
   await page.keyboard.press('Escape');
+  await expect(page.locator('.letterbox')).toHaveCount(0);
+  // Its banner's Stop does as Esc does (a touch screen has no Esc).
+  await (await outline(page, 'Cameras')).getByRole('button', { name: /^Camera 1/ }).first().click({ button: 'right' });
+  await page.getByRole('menuitemcheckbox', { name: 'Look through it' }).click();
+  await page.locator('.letterbox-banner').getByRole('button', { name: 'Stop' }).click();
   await expect(page.locator('.letterbox')).toHaveCount(0);
 });
 
@@ -1687,6 +1692,12 @@ test('the command palette finds commands, scenes and Library items; Move to… w
   await expect(page.getByRole('button', { name: 'Render style' })).toContainText('Anime');
 
   // Move to…: pick Walk, then a spot on the floor (the hint says what to do).
+  await page.getByRole('button', { name: 'Move to…' }).click();
+  await page.getByRole('menuitem', { name: 'Walk to…' }).click();
+  await expect(page.locator('.bar-hint')).toHaveText(/^Click the floor where Figure should walk/);
+  // Its Cancel ends it, as Esc does (a touch screen has no Esc); then again.
+  await page.locator('.bar-hint').getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('.bar-hint')).not.toHaveText(/^Click the floor/);
   await page.getByRole('button', { name: 'Move to…' }).click();
   await page.getByRole('menuitem', { name: 'Walk to…' }).click();
   await expect(page.locator('.bar-hint')).toHaveText(/^Click the floor where Figure should walk/);

@@ -21,7 +21,7 @@ On the canvas, a selected camera draws its view cone. A path camera shows its pa
 
 ![Looking through a camera: the banner, and the shot sizes](images/look-through.png)
 
-1. **The banner** says which camera is being moved, at what time. Orbit, pan or dolly the view to change the camera there, and `Esc` stops looking through.
+1. **The banner** says which camera is being moved, at what time. Orbit, pan or dolly the view to change the camera there, and its **Stop** (or `Esc`) stops looking through.
 2. **Shot sizes**, from EWS (extreme wide) to ECU (extreme close-up): click one to reframe.
 
 `C` here cuts a new shot at the playhead, filmed by a new camera as the view is. **Framing guides** (View menu) show thirds and safe areas.

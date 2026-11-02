@@ -78,9 +78,11 @@ export default function Letterbox({ aspect, guides, camera, project }: {
   return (
     <div className="letterbox">
       <div ref={frame} style={{ '--aspect': aspect } as CSSProperties}>
-        <p className="letterbox-banner" role="status">
-          {cam ? `Moving ${cam.name}${scene.animation ? ` at ${time.toFixed(2)} s` : ''}: drag to change it` : 'Looking through the cut'} · Esc to stop
-        </p>
+        <div className="letterbox-banner">
+          <span role="status">{cam ? `Moving ${cam.name}${scene.animation ? ` at ${time.toFixed(2)} s` : ''}: drag to change it` : 'Looking through the cut'}</span>
+          {/* (A way back a touch screen has too, Esc's.) */}
+          <button type="button" data-tip="Stop looking through  Esc" onClick={() => store.lookThrough(null)}>Stop</button>
+        </div>
         {guides && (
           <>
             <i className="third v1" /><i className="third v2" /><i className="third h1" /><i className="third h2" />

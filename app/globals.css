@@ -1215,9 +1215,13 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .export-note { display: grid; justify-items: center; gap: 8px; padding: 40px 12px; color: var(--text-2); text-align: center; font-size: var(--fs-l); }
 /* Looking through: moving the view moves the camera (said at the frame's top), its shot sizes, its subject to drag. */
 .letterbox-banner {
-  position: absolute; top: 8px; left: 50%; z-index: 1; max-width: calc(100% - 16px); margin: 0; padding: 4px 12px; transform: translateX(-50%);
-  border-radius: var(--radius-pill); background: var(--danger); color: var(--on-accent); font-size: var(--fs-m); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: absolute; top: 8px; left: 50%; z-index: 1; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 16px); margin: 0; padding: 3px 3px 3px 12px; transform: translateX(-50%);
+  border-radius: var(--radius-pill); background: var(--danger); color: var(--on-accent); font-size: var(--fs-m); font-weight: 600; white-space: nowrap;
 }
+.letterbox-banner > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.letterbox-banner button { flex: none; height: 22px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--on-accent) 22%, transparent); color: var(--on-accent); font: inherit; font-size: var(--fs-s); cursor: pointer; pointer-events: auto; }
+.letterbox-banner button:hover { background: color-mix(in srgb, var(--on-accent) 32%, transparent); }
+.letterbox-banner button:focus-visible { outline: none; box-shadow: var(--focus); }
 .letterbox-sizes {
   position: absolute; bottom: 8px; left: 50%; display: flex; gap: 2px; padding: 3px; transform: translateX(-50%);
   border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 70%, transparent); pointer-events: auto;

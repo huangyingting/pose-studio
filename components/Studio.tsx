@@ -601,6 +601,7 @@ function App() {
           <Hint
             clock={clock}
             pick={pick}
+            cancelPick={() => setPick(null)}
             // (Posing's note while posing is what a drag does: nothing picked, the figure, a part or a block of it; not over a camera, a light, a prop.)
             note={(scene.animation && !through && (!selection || selection.kind === 'figure' || selection.kind === 'joint' || selection.kind === 'action') ? correction(scene, activeFigure, time) : null)
                 ?? (isolate && !through ? `Only ${(scene.figures.find((f) => f.id === isolate) ?? scene.props.find((p) => p.id === isolate))!.name} · / shows the others` : null)}
@@ -687,7 +688,7 @@ interface Alert { icon: LucideIcon; text: string; action?: { label: string; run(
  * (plain); a correction's or Isolate's note (soft accent); else a next step for the scene, with its
  * commands as buttons (accent).
  */
-function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: { hint: string; ghost?: Placing } | null; note: string | null; quiet: boolean; alert: Alert | null; keys: string | null }) {
+function Hint({ clock, pick, cancelPick, note, quiet, alert, keys }: { clock: Clock; pick: { hint: string; ghost?: Placing } | null; cancelPick(): void; note: string | null; quiet: boolean; alert: Alert | null; keys: string | null }) {
   const store = useStore();
   // (Nothing while the scene plays, whatever the pointer passes over: followed from the clock itself.)
   const playing = useSyncExternalStore(clock.subscribe, () => clock.playing, () => false);
@@ -697,7 +698,15 @@ function Hint({ clock, pick, note, quiet, alert, keys }: { clock: Clock; pick: {
   const [, setSteps] = useState(0);
   useEffect(() => onStepDone(() => setSteps((n) => n + 1)), []);
   if (playing) return null;
-  if (pick) return <Pill tone="accent" icon={Crosshair}>{pick.ghost ? pointerHint ?? pick.hint : pick.hint}</Pill>;
+  // (Cancelled by its button too: a touch screen has no Esc.)
+  if (pick) {
+    return (
+      <Pill tone="accent" icon={Crosshair}>
+        {pick.ghost ? pointerHint ?? pick.hint : pick.hint}
+        <button type="button" className="hint-action" data-tip="Cancel  Esc" onClick={cancelPick}>Cancel</button>
+      </Pill>
+    );
+  }
   if (pointerHint) return <Pill tone="plain" icon={MousePointer2}>{pointerHint}</Pill>;
   if (alert) {
     return (

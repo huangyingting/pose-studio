@@ -152,6 +152,9 @@ first, then everywhere it applies.
   **Rotate** (E: any part turns at its joint, hands and feet too). Props move in every tool. A new
   gesture goes into a tool, not into a new modifier. A hand or foot can be **Pinned** (its menu, its
   joint card): it stays where it is while the rest is posed, a blue mark on it.
+- **What Esc ends has a button too** (a touch screen has no Esc): picking a spot (Walk to…, placing)
+  shows **Cancel** in its hint, looking through a camera **Stop** in its banner, the scene alone its
+  way back in the corner.
 - Picking something opens the inspector (a wide screen; on a phone it is a drawer, opened by hand).
 - A figure's first click picks it, the next (it picked) the part under the pointer; a right-click
   does the same, its menu with that part's commands too (a stand-in, or with Move, the whole figure).
