@@ -384,7 +384,7 @@ class Stage {
   chair(seat: Spot, facing: number): Spot {
     const [dx, dz] = turn(0, -0.1, facing);
     this.prop('chair', [r3(seat[0] + dx), 0, r3(seat[1] + dz)], { turn: facing });
-    this.blocks.push({ at: [seat[0] + dx, seat[1] + dz], r: 0.32 });
+    this.blocks.push({ at: [seat[0] + dx, seat[1] + dz], r: 0.4 });
     return seat;
   }
 
@@ -638,7 +638,7 @@ function streetBasketball(): Scene {
   s.face('Fan', 'Kofi', Math.max(s.until('Fan'), s.until('Kofi') - 0.6));
   caught = s.pass('Fan', c, Math.max(s.until('Kofi'), s.until('Fan')), 'Kofi', 'L');
   s.idle('Fan', 'happy-idle', 'Kofi');
-  s.go('Jay', [-1.2, 5.8], Math.max(s.until('Jay'), caught));
+  s.go('Jay', [-1.7, 5.9], Math.max(s.until('Jay'), caught));
   s.idle('Jay', 'idle', 'Kofi');
   s.go('Rico', [1.4, 6.8], Math.max(s.until('Rico'), caught + 0.5));
   s.idle('Rico', 'standing-idle', 'Kofi');

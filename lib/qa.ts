@@ -440,6 +440,8 @@ export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), .
 
 /** What people sit on. */
 const SEATS: PropKind[] = ['chair', 'stool'];
+/** How long before sitting on a seat or after getting up from it someone is still by it (s). */
+const SEAT_TIME = 2;
 
 /**
  * Who a shot cannot see: seen through each shot's own camera, a figure (the shot's subject and
@@ -469,9 +471,12 @@ function hiddenInShots(scene: Scene): Issue[] {
         const m = view.figures.get(f.id);
         if (!m) continue;
         // (The chair someone sits on, is about to, or stands just up from and steps away from does
-        // not hide them: seen from behind, over its back, or for a moment as they pass it.)
+        // not hide them: seen from behind, over its back, or for a moment as they pass it. By it now
+        // or within a couple of seconds either way.)
         const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
-        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && Math.hypot(b.prop.position[0] - hips.x, b.prop.position[2] - hips.z) < 1.25));
+        const near = [hips.x, hips.z, ...[-SEAT_TIME, SEAT_TIME].flatMap((dt) => figurePoseAt(scene, f.id, Math.min(a.duration, Math.max(0, t + dt)))?.position.filter((_, k) => k !== 1) ?? [])];
+        const by = (p: Prop) => [0, 2, 4].some((k) => k < near.length && Math.hypot(p.position[0] - near[k], p.position[2] - near[k + 1]) < 1.25);
+        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && by(b.prop)));
         if (!blockers.length) continue;
         let blocked = 0;
         let behind = '';

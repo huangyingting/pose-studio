@@ -179,7 +179,7 @@ class Evaluator {
   private readonly marks = new Map<string, Mark>();
   private readonly chains = new Map<string, Chain>();
   /** Each walk's upper body on the way (from the pose it leaves in to the one it arrives in). */
-  private readonly uppers = new WeakMap<Chain, ClipPart>();
+  private readonly uppers = new WeakMap<Chain, { t: number; pose: AnglePose }[]>();
   private readonly anchors = new Map<string, ReturnType<typeof feetOf>>();
   /** How long each figure takes to ease into each action (blendOf). */
   private readonly blends = new Map<string, number>();
@@ -805,24 +805,31 @@ class Evaluator {
 
   private travel(f: Figure, act: Action, t: number): Pose {
     const c = this.chain(f, act);
-    // The upper body goes from the pose it leaves in to the one it arrives in; the legs, root and arm swing are generated.
-    let part = this.uppers.get(c);
-    if (!part) {
-      const keys = [{ t: c.t0, pose: fromAngles(c.start) }, { t: c.t1, pose: fromAngles(c.end) }];
+    if (t <= c.t0 + EPS) return fromAngles(c.start);
+    if (t >= c.t1 - EPS) return fromAngles(c.end);
+    // The upper body goes from the pose it leaves in to the one it arrives in, eased in joint angles
+    // (an arm goes within its range on the way); the legs, root and arm swing are generated.
+    let keys = this.uppers.get(c);
+    if (!keys) {
+      keys = [{ t: c.t0, pose: c.start }, { t: c.t1, pose: c.end }];
       // (Long enough, and never holding anything: the arms come down to walk and up again for what
       // comes next, not carried along mid-gesture.)
       const holds = this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id));
       if (c.t1 - c.t0 >= 2 * ARMS_EASE + 0.2 && !holds) {
-        const down = (p: AnglePose): Pose => fromAngles({ ...p, joints: { ...p.joints, ...ARMS_DOWN } });
+        const down = (p: AnglePose): AnglePose => ({ ...p, joints: { ...p.joints, ...ARMS_DOWN } });
         keys.splice(1, 0, { t: c.t0 + ARMS_EASE, pose: down(c.start) }, { t: c.t1 - ARMS_EASE, pose: down(c.end) });
       }
-      part = partFromPoses('', keys, 'smooth');
-      this.uppers.set(c, part);
+      this.uppers.set(c, keys);
     }
-    const on = samplePart(part, t, 0, false);
-    if (t <= c.t0 + EPS) return fromAngles(c.start);
-    if (t >= c.t1 - EPS) return fromAngles(c.end);
-    return fromAngles(locomote(c, f.body, t, toAngles(on), this.ground));
+    const n = Math.max(1, keys.findIndex((k) => k.t > t));
+    const [a, b] = [keys[n - 1].pose, keys[n].pose];
+    const u = smooth((t - keys[n - 1].t) / Math.max(EPS, keys[n].t - keys[n - 1].t));
+    const joints: AnglePose['joints'] = {};
+    for (const j of new Set([...Object.keys(a.joints), ...Object.keys(b.joints)]) as Set<JointName>) {
+      const [p, q] = [a.joints[j] ?? [0, 0, 0], b.joints[j] ?? [0, 0, 0]];
+      joints[j] = p.map((v, k) => v + wrapDeg(q[k] - v) * u) as Vec3;
+    }
+    return fromAngles(locomote(c, f.body, t, { ...a, joints, position: a.position.map((v, k) => v + (b.position[k] - v) * u) as Vec3, hands: blend(fromAngles(a), fromAngles(b), u).hands }, this.ground));
   }
 
   /* ---------- corrections ---------- */
