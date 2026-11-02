@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { JointName, Pose } from './types';
+import { anglesOf, withAngles, type Angles } from './pose';
+import type { JointName, Pose, Vec3 } from './types';
 
 /*
  * Life in a made motion: what a person's body does that keys posed one after another do not. A
@@ -7,7 +8,11 @@ import type { JointName, Pose } from './types';
  * moves through the body (the hips lead, the chest, the head and the arms follow a moment later),
  * carries on a little past where it stops and settles, and is never quite still (breathing).
  *
- * Each joint of the trunk, the head and (where the hands do not hold the floor) the arms follows
+ * First the whole body takes part, as a person's does where a motion was keyed joint by joint: a
+ * bend of the back curves through the spine, the chest and the upper chest (not a hinge at the
+ * waist), the neck and head carry the curve on, and a collarbone lifts with an arm raised past the
+ * shoulder (each only where the motion leaves that joint still). Then each joint of the trunk, the
+ * head and (where the hands do not hold the floor) the arms follows
  * what it is keyed to as a damped spring does: the further out from the hips, the softer, so it
  * lags and overshoots a little more. The legs are as keyed (the feet are planted where they land),
  * as are where the body is and which way it faces. Then the chest breathes. Used on the made
@@ -59,8 +64,9 @@ function turned(a: THREE.Quaternion, w: THREE.Vector3) {
  * springs are run through it once first, so its first frame follows on from its last). `arms`:
  * whether the arms follow loosely too (not where the hands hold the floor or a thing).
  */
-export function humanize(frames: { t: number; pose: Pose }[], fps: number, loop: boolean, arms: boolean): { t: number; pose: Pose }[] {
-  if (frames.length < 3) return frames;
+export function humanize(given: { t: number; pose: Pose }[], fps: number, loop: boolean, arms: boolean): { t: number; pose: Pose }[] {
+  if (given.length < 3) return given;
+  const frames = coordinated(given);
   const springs = { ...SPRINGS, ...(arms ? ARMS : {}) };
   const joints = Object.keys(springs) as JointName[];
   const dt = 1 / fps / SUBSTEPS;
@@ -99,4 +105,48 @@ export function humanize(frames: { t: number; pose: Pose }[], fps: number, loop:
     }
   }
   return out;
+}
+
+/** How a bend keyed at the spine is shared along the back (spine, chest, upper chest), and carried on by the neck and head. */
+const CURVE: [JointName, number][] = [['spine', 0.5], ['chest', 0.3], ['upperChest', 0.2]];
+const CARRY: [JointName, number][] = [['neck', 0.15], ['head', 0.1]];
+/** An arm raised past this (degrees, forward or out) lifts its collarbone, by this much of the rest (at most so far). */
+const SHRUG = { from: 60, by: 0.25, most: 22 };
+
+/** Whether a motion leaves these joints still (within 3°) all through. */
+function still(frames: Angles[], joints: JointName[]) {
+  return joints.every((j) => [0, 1, 2].every((k) => {
+    const v = frames.map((f) => f[j]?.[k] ?? 0);
+    return Math.max(...v) - Math.min(...v) < 3;
+  }));
+}
+
+/** The whole body taking part in a motion keyed joint by joint (see above). */
+function coordinated(frames: { t: number; pose: Pose }[]): { t: number; pose: Pose }[] {
+  const angles = frames.map((f) => anglesOf(f.pose.bones));
+  const curve = still(angles, ['chest', 'upperChest']);
+  const carry = still(angles, ['neck', 'head']);
+  const shrug = { L: still(angles, ['leftShoulder']), R: still(angles, ['rightShoulder']) };
+  if (!curve && !carry && !shrug.L && !shrug.R) return frames;
+  return frames.map((f, i) => {
+    const a = angles[i];
+    const out: Angles = {};
+    const spine = a.spine ?? [0, 0, 0];
+    const add = (j: JointName, v: Vec3, k: number) => { out[j] = (out[j] ?? a[j] ?? [0, 0, 0]).map((x, n) => x + v[n] * k) as Vec3; };
+    // (The spine's pitch and roll shared along the back; its twist too, as a back twists along its length.)
+    if (curve) {
+      out.spine = spine.map((v) => v * CURVE[0][1]) as Vec3;
+      for (const [j, k] of CURVE.slice(1)) add(j, spine, k);
+    }
+    if (carry) for (const [j, k] of CARRY) add(j, [spine[0], 0, spine[2]], k);
+    for (const side of ['L', 'R'] as const) {
+      if (!shrug[side]) continue;
+      const s = side === 'L' ? 1 : -1;
+      const arm = a[side === 'L' ? 'leftUpperArm' : 'rightUpperArm'] ?? [0, 0, 0];
+      const raised = Math.max(-arm[0], s * arm[2]);
+      const lift = Math.min(SHRUG.most, Math.max(0, raised - SHRUG.from) * SHRUG.by);
+      if (lift > 0) add(side === 'L' ? 'leftShoulder' : 'rightShoulder', [0, 0, s * lift], 1);
+    }
+    return { t: f.t, pose: { ...f.pose, bones: withAngles(f.pose.bones, out) } };
+  });
 }

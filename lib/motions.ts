@@ -250,10 +250,15 @@ export const MOTIONS: Motion[] = [
       const g = J(stance);
       // Leaning the pelvis back would swing the standing leg forward: counter it at the hip.
       const support = (pitch: number): Vec3 => [g.leftUpperLeg![0] - (pitch - g.hips![0]), g.leftUpperLeg![1], g.leftUpperLeg![2]];
-      const chamber = { ...stance, bones: bonesOf({ ...g, hips: [-2, g.hips![1], 0] as Vec3, leftUpperLeg: support(-2), rightUpperLeg: [-95, 0, -6] as Vec3, rightLowerLeg: [112, 0, 0] as Vec3, rightFoot: [12, 0, 0] as Vec3 }) };
-      const extend = { ...stance, bones: bonesOf({ ...g, hips: [-12, g.hips![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, leftUpperLeg: support(-12), rightUpperLeg: [-88, 0, -6] as Vec3, rightLowerLeg: [6, 0, 0] as Vec3, rightFoot: [-25, 0, 0] as Vec3 }) };
+      // (The arms balance it: the guard opens, the kicking side's arm swinging back and down as the
+      // leg goes out; the head stays on the target as the body leans away.)
+      const arm = (j: 'leftUpperArm' | 'rightUpperArm' | 'leftLowerArm' | 'rightLowerArm', d: Vec3): Vec3 => g[j]!.map((v, i) => v + d[i]) as Vec3;
+      // (Over the standing leg first: the back leaning to it, the feet where they are.)
+      const ready = { ...stance, bones: bonesOf({ ...g, spine: [0, 0, 4] as Vec3, chest: [0, 0, 2] as Vec3 }) };
+      const chamber = { ...stance, bones: bonesOf({ ...g, hips: [-2, g.hips![1], 0] as Vec3, leftUpperLeg: support(-2), rightUpperLeg: [-95, 0, -6] as Vec3, rightLowerLeg: [112, 0, 0] as Vec3, rightFoot: [12, 0, 0] as Vec3, rightUpperArm: arm('rightUpperArm', [12, 0, -6]), leftUpperArm: arm('leftUpperArm', [-6, 0, 4]) }) };
+      const extend = { ...stance, bones: bonesOf({ ...g, hips: [-12, g.hips![1], 0] as Vec3, spine: [-6, -12, 0] as Vec3, chest: [-4, -4, 0] as Vec3, head: [10, 6, 0] as Vec3, leftUpperLeg: support(-12), rightUpperLeg: [-88, 0, -6] as Vec3, rightLowerLeg: [6, 0, 0] as Vec3, rightFoot: [-25, 0, 0] as Vec3, rightUpperArm: arm('rightUpperArm', [30, 0, -14]), rightLowerArm: arm('rightLowerArm', [30, 0, 0]), leftUpperArm: arm('leftUpperArm', [-10, 0, 8]) }) };
       return animated('Front kick', [
-        { t: 0, figures: [stance] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
+        { t: 0, figures: [stance] }, { t: 0.12, figures: [ready] }, { t: 0.3, figures: [chamber] }, { t: 0.5, figures: [extend] }, { t: 0.72, figures: [chamber] }, { t: 1.05, figures: [stance] },
       ], { duration: 1.5, loop: false, view: { yaw: 70, pitch: 2, fov: 28 } });
     }),
   },
@@ -264,10 +269,11 @@ export const MOTIONS: Motion[] = [
     group: 'Dance',
     build: () => withRig((rig) => {
       const f = { ...person('Dancer', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Open'), R: hand('Open') } };
-      // Demi-plié, then up on the left toes with the right foot at the knee and the arms rounded, turning once on the toes.
+      // Demi-plié, then up on the left toes (bent back at the ball of the foot, flat on the floor) with
+      // the right foot at the knee and the arms rounded, turning once on the toes.
       const prep = sink(posed(f, { leftUpperArm: [-20, 0, 60], rightUpperArm: [-20, 0, -60], leftLowerArm: [-15, 0, 0], rightLowerArm: [-15, 0, 0], leftUpperLeg: [0, 0, 3], rightUpperLeg: [0, 0, -3] }), 30);
       const up = posed(f, {
-        leftUpperLeg: [0, 0, 3], leftFoot: [40, 0, 0], rightUpperLeg: [-50, -35, -55], rightLowerLeg: [125, 0, 0], rightFoot: [35, 0, 0],
+        leftUpperLeg: [0, 0, 3], leftFoot: [40, 0, 0], leftToes: [-40, 0, 0], rightUpperLeg: [-50, -35, -55], rightLowerLeg: [125, 0, 0], rightFoot: [35, 0, 0],
         leftUpperArm: [-75, 0, 18], rightUpperArm: [-75, 0, -18], leftLowerArm: [-55, 0, 0], rightLowerArm: [-55, 0, 0], neck: [-4, 0, 0],
       });
       const m = rig.model(up);
@@ -406,12 +412,19 @@ export const MOTIONS: Motion[] = [
     build: () => {
       const f = person('Ken', { ...DEFAULT_BODY }, STAND);
       const stand = posed(f, STAND);
+      // (The back bowing along its length, the head going a little further; the hands sliding down
+      // the thighs; a breath drawn up first, the head down a moment longer than the back.)
       const bow = posed(f, {
-        ...STAND, hips: [40, 0, 0], leftUpperLeg: [-40, 0, 3], rightUpperLeg: [-40, 0, -3], spine: [8, 0, 0], neck: [10, 0, 0],
-        leftUpperArm: [-38, 0, 6], rightUpperArm: [-38, 0, -6],
+        ...STAND, hips: [40, 0, 0], leftUpperLeg: [-40, 0, 3], rightUpperLeg: [-40, 0, -3], spine: [6, 0, 0], chest: [5, 0, 0], upperChest: [4, 0, 0], neck: [12, 0, 0], head: [8, 0, 0],
+        leftUpperArm: [-38, 0, 6], rightUpperArm: [-38, 0, -6], leftLowerArm: [-12, 0, 0], rightLowerArm: [-12, 0, 0],
+      });
+      const drawn = posed(f, { ...STAND, chest: [-3, 0, 0], upperChest: [-2, 0, 0], head: [-3, 0, 0] });
+      const rising = posed(f, {
+        ...STAND, hips: [14, 0, 0], leftUpperLeg: [-14, 0, 3], rightUpperLeg: [-14, 0, -3], spine: [2, 0, 0], chest: [2, 0, 0], neck: [14, 0, 0], head: [10, 0, 0],
+        leftUpperArm: [-14, 0, 8], rightUpperArm: [-14, 0, -8],
       });
       return animated('Bow', [
-        { t: 0, figures: [stand] }, { t: 0.7, figures: [bow] }, { t: 1.4, figures: [bow] }, { t: 2.1, figures: [stand] },
+        { t: 0, figures: [stand] }, { t: 0.25, figures: [drawn] }, { t: 0.85, figures: [bow] }, { t: 1.45, figures: [bow] }, { t: 1.85, figures: [rising] }, { t: 2.25, figures: [stand] },
       ], { duration: 2.6, loop: false, view: { yaw: 55, pitch: 6, fov: 24 } });
     },
   },
