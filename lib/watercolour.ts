@@ -55,6 +55,7 @@ const BLUR_FRAG = /* glsl */ `
 const PAINT_FRAG = /* glsl */ `
   uniform sampler2D tSharp;
   uniform sampler2D tSoft;
+  uniform sampler2D tDepth;
   uniform vec2 resolution;
   uniform float scale;
   uniform vec3 paper;  // (as seen: sRGB)
@@ -65,9 +66,15 @@ const PAINT_FRAG = /* glsl */ `
     vec2 u = f * f * (3.0 - 2.0 * f);
     return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
   }
-  float fbm(vec2 p) {
+  // (So many octaves: as few as what it is for needs.)
+  float fbm(vec2 p, int octaves) {
     float s = 0.0, a = 0.5;
-    for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.03 + 11.7; a *= 0.5; }
+    for (int i = 0; i < 4; i++) {
+      if (i >= octaves) break;
+      s += a * noise(p);
+      p = p * 2.03 + 11.7;
+      a *= 0.5;
+    }
     return s;
   }
   // (In the picture's own (sRGB) values: pigment darkens and pales as the eye sees it.)
@@ -76,7 +83,7 @@ const PAINT_FRAG = /* glsl */ `
     // The paper's own measure: pixels of a picture 800 high, whatever this one's size.
     vec2 px = vUv * resolution / scale;
     // The hand's tremor: the washes read a little off where they are, by a slow noise.
-    vec2 wob = vec2(fbm(px * 0.011), fbm(px * 0.011 + 31.0)) - 0.5;
+    vec2 wob = (vec2(fbm(px * 0.011, 3), fbm(px * 0.011 + 31.0, 3)) - 0.44) * 1.15;
     vec2 uv = vUv + wob * 7.0 * scale / resolution;
     vec3 soft = seen(texture2D(tSoft, uv).rgb);
     vec3 c = mix(soft, seen(texture2D(tSharp, uv).rgb), 0.12);
@@ -94,7 +101,7 @@ const PAINT_FRAG = /* glsl */ `
     // (where there is pigment: the bare paper stays clean).
     float dark = 1.0 - dot(c, vec3(0.299, 0.587, 0.114));
     float pigment = clamp(length(paper - c) * 3.0, 0.0, 1.0);
-    float turbulence = fbm(px * 0.006 + 7.0);
+    float turbulence = fbm(px * 0.006 + 7.0, 4);
     float grain = 0.6 * noise(px * 0.55) + 0.4 * noise(px * 1.4 + 3.0);
     float density = 1.0 + pigment * ((turbulence - 0.5) * 0.7 + (grain - 0.5) * (0.25 + 0.6 * dark)) + edge * 0.9;
     c = c - (c - c * c) * (density - 1.0);
@@ -102,12 +109,15 @@ const PAINT_FRAG = /* glsl */ `
     float gap = smoothstep(0.45, 0.8, edge) * smoothstep(0.68, 0.76, noise(px * 0.045 + 19.0));
     c = mix(c, paper, gap * 0.55);
     // The paper's tooth over it all, lit from the top left.
-    float h = fbm(px * 0.32);
-    float relief = (h - fbm((px + vec2(1.5, -1.5)) * 0.32)) * 2.2;
+    // (Its relief from how the tooth changes across the screen's pixels: no second look at it.)
+    float h = fbm(px * 0.32, 3);
+    float relief = (dFdy(h) - dFdx(h)) * 1.5 * scale * 2.2;
     c *= 0.975 + 0.05 * h + relief * 0.05;
     // (Where nothing was drawn on a see-through picture, nothing painted either.)
     float a = texture2D(tSharp, uv).a;
     gl_FragColor = vec4(pow(clamp(c, 0.0, 1.0), vec3(2.2)) * a, a);
+    // The scene's depth, as drawn: what is drawn next (its lines, the handles) hidden behind it.
+    gl_FragDepth = texture2D(tDepth, vUv).x;
     #include <colorspace_fragment>
   }`;
 
@@ -127,13 +137,11 @@ export class WatercolourPass {
     depthWrite: false,
   });
   private paint = new THREE.ShaderMaterial({
-    uniforms: { tSharp: { value: this.sharp.texture }, tSoft: { value: this.soft.texture }, resolution: { value: new THREE.Vector2() }, scale: { value: 1 }, paper: { value: new THREE.Color(styleDef('watercolor').background).convertLinearToSRGB() } },
+    uniforms: { tSharp: { value: this.sharp.texture }, tSoft: { value: this.soft.texture }, tDepth: { value: this.sharp.depthTexture }, resolution: { value: new THREE.Vector2() }, scale: { value: 1 }, paper: { value: new THREE.Color(styleDef('watercolor').background).convertLinearToSRGB() } },
     vertexShader: QUAD_VERT,
     fragmentShader: PAINT_FRAG,
-    depthTest: false,
-    depthWrite: false,
+    depthFunc: THREE.AlwaysDepth,
   });
-  private depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
   private size = new THREE.Vector2();
 
   constructor() {
@@ -185,17 +193,12 @@ export class WatercolourPass {
     this.paint.uniforms.scale.value = scale * pr;
     renderer.setRenderTarget(before);
     renderer.render(this.quadScene, this.quadCamera);
-    // Its lines over the washes, hidden behind what is in front of them: the scene's depth first.
+    // Its lines over the washes, hidden behind what is in front of them (the depth painted with them).
     const background = scene.background;
     const shadows = renderer.shadowMap.autoUpdate;
     scene.background = null;
     renderer.shadowMap.autoUpdate = false;
     renderer.autoClear = false;
-    renderer.clearDepth();
-    camera.layers.disable(LINES_LAYER);
-    scene.overrideMaterial = this.depthOnly;
-    renderer.render(scene, camera);
-    scene.overrideMaterial = null;
     camera.layers.set(LINES_LAYER);
     renderer.render(scene, camera);
     camera.layers.mask = mask;
@@ -210,6 +213,5 @@ export class WatercolourPass {
     this.quad.geometry.dispose();
     this.blur.dispose();
     this.paint.dispose();
-    this.depthOnly.dispose();
   }
 }

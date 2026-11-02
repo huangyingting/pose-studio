@@ -483,7 +483,10 @@ export default function Viewport({
         frameloop="demand"
         flat
         shadows="percentage"
-        dpr={[1, 2]}
+        // (A screen's pixels up to two each; up to one and a half in the styles a whole picture goes
+        // through a pass of its own, every pixel of it (Watercolour, 3D): a high-density screen's four
+        // times the pixels cost them far more, for little to see.)
+        dpr={styleDef(look.style).filmic || styleDef(look.style).wash ? [1, 1.5] : [1, 2]}
         camera={{ fov: 35, position: [0, 1, 5], near: 0.01, far: 200 }}
         gl={{ antialias: true }}
         onPointerMissed={(e) => {
@@ -1037,6 +1040,54 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
  */
 const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
 
+/**
+ * Draw a frame with the scene's objects placed once, not again for each of its passes (`also`: what
+ * a pass draws alone), and its shadows drawn again only when what they depend on has changed
+ * (`shadows`: as last drawn), not as the view turns round.
+ */
+function placedOnce(gl: THREE.WebGLRenderer, scene: THREE.Scene, also: THREE.Object3D, shadows: { key: number }, draw: () => void) {
+  scene.updateMatrixWorld();
+  scene.matrixWorldAutoUpdate = also.matrixWorldAutoUpdate = false;
+  const key = shadowKey(scene);
+  gl.shadowMap.autoUpdate = false;
+  if (key !== shadows.key) gl.shadowMap.needsUpdate = true;
+  shadows.key = key;
+  draw();
+  scene.matrixWorldAutoUpdate = also.matrixWorldAutoUpdate = true;
+}
+
+/**
+ * What the shadows depend on, as one number: where each thing shown that casts one is (a skinned
+ * one's bones too) and its look's version, and each light casting them, its aim and its reach.
+ * Hidden things (a wall cut away) are left out, so hiding one changes it too.
+ */
+function shadowKey(scene: THREE.Scene) {
+  let key = 0;
+  let n = 1;
+  const add = (m: THREE.Matrix4) => {
+    const e = m.elements;
+    for (let i = 0; i < 16; i++) key += e[i] * ((n++ % 251) + 1);
+  };
+  scene.traverseVisible((o) => {
+    const light = o as THREE.DirectionalLight | THREE.SpotLight;
+    if (light.isLight && light.castShadow) {
+      add(light.matrixWorld);
+      add(light.target.matrixWorld);
+      add(light.shadow.camera.projectionMatrix);
+      key += light.shadow.mapSize.x + light.shadow.radius * 7;
+      return;
+    }
+    if (!o.castShadow || !(o as THREE.Mesh).isMesh) return;
+    key += o.id * 0.618;
+    add(o.matrixWorld);
+    // (Its look as the shadow takes it: a texture cutting it out arriving, a leaf's.)
+    for (const m of [(o as THREE.Mesh).material].flat() as (THREE.Material & { map?: THREE.Texture | null })[]) key += m.version * 3.1 + (m.map?.version ?? 0) * 5.3;
+    const skinned = o as THREE.SkinnedMesh;
+    if (skinned.isSkinnedMesh) for (const b of skinned.skeleton.bones) add(b.matrixWorld);
+  });
+  return key;
+}
+
 function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineWidth: number; style: Style; gizmo: boolean }) {
   const pass = useMemo(() => new LineArtPass(), []);
   // The view gizmo, drawn last in its corner (not looking through a camera).
@@ -1085,28 +1136,28 @@ function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineW
     scene.background = null;
     const autoClear = gl.autoClear;
     gl.autoClear = false;
-    // (The shadows are drawn: not again for what follows.)
-    const shadows = gl.shadowMap.autoUpdate;
-    gl.shadowMap.autoUpdate = false;
     // What was drawn into the picture leaves its depth behind first (no colour), so what is drawn
     // over it (the grid, the handles) is hidden behind the figures as it is in the other styles.
     // (Watercolour's pass leaves it already: its lines are drawn over the washes the same way.)
+    // (The parts' depth alone: their outlines, on a layer of their own, left out.)
     if (!wash) {
       gl.clearDepth();
+      camera.layers.disable(LINES_LAYER);
       scene.overrideMaterial = depthOnly;
       gl.render(scene, camera);
       scene.overrideMaterial = null;
+      camera.layers.enable(LINES_LAYER);
     }
     for (const o of over) o.visible = true;
     for (const o of drawn) o.visible = false;
     gl.render(scene, camera);
-    gl.shadowMap.autoUpdate = shadows;
     gl.autoClear = autoClear;
     scene.background = background;
     for (const o of drawn) o.visible = true;
   };
+  const shadows = useRef({ key: NaN });
   useFrame(({ gl, scene, camera }) => {
-    draw(gl, scene, camera);
+    placedOnce(gl, scene, sv.root, shadows.current, () => draw(gl, scene, camera));
     if (gizmo) axes.draw(gl, camera);
   }, 1);
   return null;

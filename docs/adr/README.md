@@ -21,5 +21,6 @@ Most were made while the app was being built and are written down here as they s
 | [0013](0013-ai-assistant-uses-the-same-actions.md) | The AI assistant uses the same actions as the user | Accepted |
 | [0014](0014-testing-strategy.md) | Testing: fast unit tests locally, slow and browser tests in CI | Accepted |
 | [0015](0015-ui-rules-in-one-document.md) | The UI's rules live in one document | Accepted |
+| [0016](0016-each-frame-does-only-what-changed.md) | Each frame does only what changed | Accepted |
 
 New records copy [template.md](template.md) and take the next number.

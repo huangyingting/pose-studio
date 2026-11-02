@@ -18,10 +18,18 @@ interface Top { id: string; minX: number; maxX: number; minZ: number; maxZ: numb
 
 let ink: Ink | null = null;
 const cache = new WeakMap<Prop[], Top[]>();
+/** By what can be stood on (surfacesKey): a scene as played is new props each frame, the same tops. */
+const byKey = new Map<string, Top[]>();
 
 function topsOf(props: Prop[]): Top[] {
   let tops = cache.get(props);
   if (tops) return tops;
+  const key = surfacesKey(props);
+  tops = byKey.get(key);
+  if (tops) {
+    cache.set(props, tops);
+    return tops;
+  }
   ink ??= new Ink();
   const box = new THREE.Box3();
   tops = [];
@@ -39,6 +47,9 @@ function topsOf(props: Prop[]): Top[] {
     o.dispose();
   }
   cache.set(props, tops);
+  // (The last few kept: a prop dragged makes a new key each step.)
+  if (byKey.size >= 16) byKey.delete(byKey.keys().next().value!);
+  byKey.set(key, tops);
   return tops;
 }
 

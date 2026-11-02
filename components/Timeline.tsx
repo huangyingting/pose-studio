@@ -36,6 +36,36 @@ export function usePlayhead(clock: Clock) {
   return clock.playing ? clock.time : time;
 }
 
+/**
+ * The playhead for the rows: while playing, in steps of a quarter second (the rows, their blocks
+ * and keys, drawn again four times a second, not every frame; the playhead's line and its readout
+ * are drawn every frame by themselves); the document time otherwise.
+ */
+function useRowsTime(clock: Clock) {
+  // (Stopped, any change to the clock, its speed say: as it is.)
+  const coarse = () => (clock.playing ? Math.floor(clock.time * 4) / 4 : -1 - clock.getVersion());
+  const step = useSyncExternalStore(clock.subscribe, coarse, coarse);
+  const time = useStudio((s) => s.time);
+  return clock.playing ? step : time;
+}
+
+/** The time at the playhead, every frame: seconds, the length, the frame. */
+function TimeReadout({ clock, a }: { clock: Clock; a: Animation }) {
+  const time = usePlayhead(clock);
+  return (
+    <span className="tl-time" aria-live="off">
+      {time.toFixed(2)}<span className="tl-narrow-hide">/ {a.duration.toFixed(1)} s</span><em className="tl-narrow-hide">F{Math.round(time * a.fps)}</em>
+    </span>
+  );
+}
+
+/** The playhead's line on the tracks, every frame (within the window on show). */
+function PlayheadLine({ clock, v0, v1, pct, tip }: { clock: Clock; v0: number; v1: number; pct(t: number): string; tip?: string }) {
+  const time = usePlayhead(clock);
+  if (time < v0 - 1e-6 || time > v1 + 1e-6) return null;
+  return <div className={`tl-playhead${tip ? ' autokey' : ''}`} style={{ left: pct(time) }} data-tip={tip} aria-hidden />;
+}
+
 /** The timeline bar's buttons for the keyboard: a toolbar (#20). */
 // (Not the buttons of its question about shortening, which takes the focus while it is asked.)
 const BAR_KEYS: Roving = { items: 'button:not(.tl-ask *)', orientation: 'horizontal' };
@@ -126,7 +156,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const store = useStore();
   const scene = useScene();
   const a = scene.animation!;
-  const time = usePlayhead(clock);
+  const time = useRowsTime(clock);
   const folded = useStudio((s) => s.settings.timelineFolded);
   const height = useStudio((s) => s.settings.timelineHeight);
   const track = useRef<HTMLDivElement>(null);
@@ -201,7 +231,6 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     return () => document.removeEventListener('pointerdown', away, true);
   }, [shorten]);
 
-  const frame = Math.round(time * a.fps);
   // Each figure has its own key track; the key buttons work on the active figure's.
   const activeId = useStudio((st) => st.activeFigure);
   const selected = useStudio((st) => (st.selection?.kind === 'action' ? st.selection.action : null));
@@ -478,9 +507,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
             {clock.playing ? <Pause size={17} aria-hidden /> : <Play size={17} aria-hidden />}
           </button>
           <CommandButton id="timeline.nextKey" ctx={c} tipSide="top" className="tl-step" disabled={nextKey === undefined} />
-          <span className="tl-time" aria-live="off">
-            {time.toFixed(2)}<span className="tl-narrow-hide">/ {a.duration.toFixed(1)} s</span><em className="tl-narrow-hide">F{frame}</em>
-          </span>
+          <TimeReadout clock={clock} a={a} />
           <Menu
             label="Playback speed"
             side="top"
@@ -638,14 +665,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
             )}
             {snapAt !== null && snapAt >= v0 && snapAt <= v1 && <div className="tl-snapline" style={{ left: pct(snapAt) }} aria-hidden />}
             {readout && readout.t >= v0 && readout.t <= v1 && <div className={`tl-readout${readout.t > v0 + span * 0.6 ? ' left' : ''}`} style={{ left: pct(readout.t) }} role="status">{readout.text}</div>}
-            {time >= v0 - 1e-6 && time <= v1 + 1e-6 && (
-              <div
-                className={`tl-playhead${keying ? ' autokey' : ''}`}
-                style={{ left: pct(time) }}
-                data-tip={keying ? `Auto-key: posing ${name(keying)} keys it here` : undefined}
-                aria-hidden
-              />
-            )}
+            <PlayheadLine clock={clock} v0={v0} v1={v1} pct={pct} tip={keying ? `Auto-key: posing ${name(keying)} keys it here` : undefined} />
           </div>
           {zoom && (
             <ScrollBar
