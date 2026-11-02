@@ -30,6 +30,11 @@ function moodOf(act: Action) {
   return MOODS[id.startsWith('library:') ? id.slice(8) : id] ?? null;
 }
 
+/** Whether a motion is someone talking (what a conversation cuts to: lib/coverage.ts). */
+export function talking(act: Action) {
+  return !!moodOf(act)?.talk;
+}
+
 /** A number from a figure's id, 0–1, the same every time (its own rhythm of blinking and talking). */
 function seed(id: string) {
   let h = 2166136261;

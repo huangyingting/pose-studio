@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { basePoseAt, figurePoseAt, movesOf } from './evaluate';
+import { basePoseAt, figurePoseAt, movesOf, propWorldAt } from './evaluate';
 import { wrapDeg } from './joints';
 import { Rig } from './relations';
 import { facingOf } from './pose';
@@ -7,7 +7,7 @@ import { defaultCamera } from './doc';
 import { setBlocks } from './sets';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
 import { projectSettings } from './project';
-import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, MoveKind, PathCamera, Placement, PropKind, RigCamera, Scene, ShotSize, Vec3, View } from './types';
+import type { Camera, CameraMove, CameraPoint, CameraRig, FrameShape, MoveKind, PathCamera, Placement, Prop, PropKind, RigCamera, Scene, ShotSize, Vec3, View } from './types';
 
 /*
  * The cameras: how a "director" films the figures. A scene has cameras, at least one, each an
@@ -707,9 +707,28 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     const people = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => (basePoseAt(scene, f.id, time) ?? f).position);
     // (And what stands on the floor, a chair's back: not one they sit on or are by.)
     const mine = (subject ?? []).map((id) => basePoseAt(scene, id, time)?.position).filter((x): x is Vec3 => !!x);
+    // (A ball and the like moved in the scene, where it is then if it lies on the floor: in a hand, its holder is in the way already.)
+    const placed = (p: Prop): Vec3 | null => {
+      if (!scene.animation?.props?.[p.id]?.length) return p.position;
+      const w = propWorldAt(scene, p.id, time)?.position;
+      return w && w[1] < 0.3 ? w : null;
+    };
     const others = [...people, ...scene.props
-      .filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length && mine.every((m) => Math.hypot(m[0] - p.position[0], m[2] - p.position[2]) >= 1.25))
-      .map((p) => p.position)];
+      .filter((p) => !p.hold && STANDING[p.kind] !== undefined)
+      .map(placed)
+      .filter((at): at is Vec3 => !!at && mine.every((m) => Math.hypot(m[0] - at[0], m[2] - at[2]) >= 1.25))];
+    // (Nor looking at them through a table or the like further off: the line of sight to where they
+    // stand, at the height it looks at, passing over it.)
+    const tops = scene.props.filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length && p.kind !== 'chair' && p.kind !== 'stool')
+      .map((p) => ({ at: p.position, r: STANDING[p.kind]! * Math.max(p.scale[0], p.scale[2]), top: p.position[1] + p.scale[1] }));
+    const screened = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => mine.some((m) => tops.some(({ at, r, top }) => {
+      const d = new THREE.Vector3(m[0], shot.look.y, m[2]).sub(shot.position);
+      const flat = d.x * d.x + d.z * d.z;
+      if (flat < 1e-6) return false;
+      const u = ((at[0] - shot.position.x) * d.x + (at[2] - shot.position.z) * d.z) / flat;
+      if (u <= 0 || u >= 1) return false;
+      return Math.hypot(shot.position.x + d.x * u - at[0], shot.position.z + d.z * u - at[2]) < r && shot.position.y + d.y * u < top + 0.05;
+    }));
     // (A wall of the set close behind what it films, where it would have to come right in: no good
     // either; a side it can stand back on is.)
     const walled = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => {
@@ -725,7 +744,7 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
       const keep = Math.min(1, Math.max(0.3, wall - 0.15) / dist);
       return { position: shot.position.clone().sub(shot.look).multiplyScalar(keep).add(shot.look), look: shot.look };
     };
-    const blocked = (shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) => inWay(shot, people) || inWay(pulled(shot), people);
+    const blocked = (shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) => inWay(shot, people) || inWay(pulled(shot), people) || screened(shot);
     if (!others.length && !walled(at(keepOut))) return keepOut;
     // One way round only (no swinging back across), further than for people if a wall is in the way.
     const tries = [0, 20, 40, 60, 90].map((x) => keepOut + away * x);

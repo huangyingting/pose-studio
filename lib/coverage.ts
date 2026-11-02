@@ -1,7 +1,13 @@
 import { propStretchesOf } from './evaluate';
 import { newCamera } from './cameras';
 import { newShot, shotSpans } from './shots';
-import type { Camera, CameraRig, RigCamera, Scene, Shot } from './types';
+import { talking } from './face';
+import type { Action, Camera, CameraRig, RigCamera, Scene, Shot } from './types';
+import LIBRARY_INDEX from '../public/motions/index.json';
+
+/** Whether an action is someone waiting in an idle (the Library's standing, sitting or fighting idles): nothing to cut to. */
+const IDLES = new Set((LIBRARY_INDEX as unknown as { id: string; group: string }[]).filter((m) => m.group === 'Standing & waiting' || /(^|-)idle$/.test(m.id.slice(8))).map((m) => m.id));
+const waiting = (x: Action) => x.source.kind === 'clip' && IDLES.has(x.source.clip);
 
 /*
  * Coverage: how to film a scene, as a set of cameras on roles (A, B) and rules for cutting
@@ -26,10 +32,15 @@ interface CoverageCamera {
   rig: Omit<CameraRig, 'toward' | 'clear'> & { toward?: CoverageRole; clear?: CoverageRole };
 }
 
-/** When to cut to a camera: at the start, when a role sets off or starts a motion, lets go of or catches a prop, or on a beat. */
+/**
+ * When to cut to a camera: at the start, when a role sets off or starts a motion (not waiting in
+ * its idle, nor talking), when it talks (to `camera`; a long speech going closer, and to the one
+ * listening a moment, `reaction`, and back), lets go of or catches a prop, or on a beat.
+ */
 type CutRule =
   | { on: 'start'; camera: string }
   | { on: 'action'; role: CoverageRole; kind?: 'travel' | 'motion'; camera: string }
+  | { on: 'speaks'; role: CoverageRole; camera: string; closer?: string; reaction?: string }
   | { on: 'release' | 'catch'; role: CoverageRole; camera: string }
   | { on: 'beat'; every: number; cameras: string[] };
 
@@ -58,11 +69,15 @@ export const COVERAGES: Coverage[] = [
       { key: 'single-a', name: '{A} single', subject: 'A', rig: { yaw: 30, pitch: 2, toward: 'B', clear: 'B', size: 'mcu', place: 'right', lens: 85, smooth: 0.8 } },
       { key: 'single-b', name: '{B} single', subject: 'B', rig: { yaw: -30, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 85, smooth: 0.8 } },
     ],
+    // (As a conversation is cut: on whoever talks, held while they do, closer as it goes on and to
+    // the one listening a moment; the two of them when they move or do something together.)
     cuts: [
       { on: 'start', camera: 'master' },
-      { on: 'action', role: 'A', camera: 'ots-a' },
-      { on: 'action', role: 'B', camera: 'ots-b' },
-      { on: 'beat', every: 3, cameras: ['single-a', 'single-b', 'master'] },
+      { on: 'speaks', role: 'A', camera: 'ots-a', closer: 'single-a', reaction: 'single-b' },
+      { on: 'speaks', role: 'B', camera: 'ots-b', closer: 'single-b', reaction: 'single-a' },
+      { on: 'action', role: 'A', camera: 'master' },
+      { on: 'action', role: 'B', camera: 'master' },
+      { on: 'beat', every: 8, cameras: ['master', 'ots-a', 'ots-b'] },
     ],
   },
   {
@@ -178,13 +193,26 @@ const rule = (cam: Omit<Camera, 'id'> | Camera) => {
 function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t: number; camera: string }[] {
   const a = scene.animation!;
   const events: { t: number; camera: string }[] = [];
+  // (Each figure's actions on their track: not layered over others, after the start.)
+  const mine = (figure: string) => a.actions.filter((x) => !x.layer && x.start > 1e-6 && x.roles.some((p) => p.figure === figure));
+  const talks = c.cuts.some((r) => r.on === 'speaks');
   for (const r of c.cuts) {
     if (r.on === 'action') {
-      const figure = roles[r.role];
-      for (const x of a.actions) {
-        if (x.layer || x.start <= 1e-6 || !x.roles.some((p) => p.figure === figure)) continue;
+      for (const x of mine(roles[r.role])) {
         const kind = x.source.kind === 'travel' ? 'travel' : x.source.kind === 'clip' ? 'motion' : null;
+        // (Not waiting in an idle; nor talking, where talking is cut to.)
+        if (kind === 'motion' && (waiting(x) || (talks && talking(x)))) continue;
         if (kind && (!r.kind || r.kind === kind)) events.push({ t: x.start, camera: r.camera });
+      }
+    } else if (r.on === 'speaks') {
+      for (const x of mine(roles[r.role]).filter(talking)) {
+        events.push({ t: x.start, camera: r.camera });
+        // (A long speech: closer after a while; the one listening a moment past halfway, and back.)
+        if (r.closer && x.duration > 6) events.push({ t: x.start + 3.5, camera: r.closer });
+        if (r.reaction && x.duration >= 8) {
+          const at = x.start + x.duration * 0.55;
+          events.push({ t: at, camera: r.reaction }, { t: at + 2.2, camera: r.closer ?? r.camera });
+        }
       }
     } else if (r.on === 'release' || r.on === 'catch') {
       for (const p of scene.props) {

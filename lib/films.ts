@@ -843,11 +843,14 @@ function cafeMeeting(): Scene {
   s.go('Ben', [3.6, 1.1], 8);
   s.play('Ben', 'waving', s.until('Ben'), { face: 'Lea' });
   s.play('Lea', 'sitting-talking', s.until('Ben') - 2.6, { seconds: 2.6 });
-  s.sit('Ben', his, -90, s.until('Ben'), 'sitting-talking');
+  s.sit('Ben', his, -90, s.until('Ben'), 'sitting-idle');
   // They talk; the barista works.
-  const talk = s.until('Ben');
-  s.play('Lea', 'sitting-talking', talk, { seconds: 26 });
-  s.play('Ben', 'sitting-talking', talk + 0.5, { seconds: 26 });
+  // (In turn, the one listening sitting still.)
+  let talk = s.until('Ben') + 0.3;
+  for (const [who, seconds] of [['Lea', 6], ['Ben', 5], ['Lea', 4], ['Ben', 7], ['Lea', 4]] as const) {
+    s.play(who, 'sitting-talking', talk, { seconds });
+    talk += seconds + 0.3;
+  }
   s.play('Ira', 'talking', 16, { seconds: 6, face: [2.8, -3.2] });
   s.go('Ira', [-0.6, -5.2], s.until('Ira'));
   s.play('Ira', 'lifting-object', s.until('Ira'), { seconds: 5, face: 0 });

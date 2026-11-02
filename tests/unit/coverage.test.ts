@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, arrange, coverScene, editRig, holdProp, moveProp, removeShotCut, startAnimation, throwProp, travelTo } from '@/lib/actions';
+import { addFigure, addProp, applyMotion, arrange, coverScene, editRig, holdProp, moveProp, removeShotCut, retime, startAnimation, throwProp, travelTo } from '@/lib/actions';
+import { actionsOf } from '@/lib/evaluate';
 import { parseScene } from '@/lib/doc';
 import { sceneAt } from '@/lib/evaluate';
 import { describeSpan } from '@/lib/prompt';
@@ -9,7 +10,7 @@ import { Rig } from '@/lib/relations';
 import { SHOT_ASPECT, cameraAt, placeCamera, sizeOf, viewOf } from '@/lib/cameras';
 import { shotSpans } from '@/lib/shots';
 import type { Camera, Scene } from '@/lib/types';
-import { fresh } from '../fixtures/scenes';
+import { captured, fresh } from '../fixtures/scenes';
 
 /** Where on screen (−1 … 1) a figure's chest is seen by a camera at t. */
 function chestOn(scene: Scene, cam: Camera, t: number, figure: string) {
@@ -33,9 +34,15 @@ function twoPeople() {
 const byKey = (scene: Scene, key: string) => scene.cameras.find((c) => c.made?.endsWith(`:${key}`))!;
 
 describe('coverage: cameras on roles and cuts on what happens', () => {
-  it('covers a dialogue from one side of the line between the two, singles clean, cut on a beat', () => {
+  it('covers a dialogue from one side of the line between the two, singles clean, cut on who talks', () => {
     const { store, a, b } = twoPeople();
     startAnimation(store, 12);
+    // A talks, then B.
+    const talk = captured('talking');
+    store.setTime(1);
+    applyMotion(store, a, talk);
+    store.setTime(6);
+    applyMotion(store, b, talk);
     store.select({ kind: 'figure', figure: a });
     store.setTime(0);
     expect(coverScene(store, 'dialogue')).toEqual({ A: a, B: b });
@@ -44,9 +51,9 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     const [own, ...cams] = scene.cameras;
     expect(own.made).toBeUndefined();
     expect(cams.map((c) => c.name)).toEqual(['Master', 'Figure over Figure 2’s shoulder', 'Figure 2 over Figure’s shoulder', 'Figure single', 'Figure 2 single']);
-    // Cut on a beat: the master, the singles, the master again (one camera cut to twice).
+    // Cut on who talks: the master, then each over the other's shoulder as they talk.
     const spans = shotSpans(scene.animation!);
-    expect(spans.map((s) => [s.start, cams.find((c) => c.id === s.shot.camera)!.name])).toEqual([[0, 'Master'], [3, 'Figure single'], [6, 'Figure 2 single'], [9, 'Master']]);
+    expect(spans.map((s) => [s.start, cams.find((c) => c.id === s.shot.camera)!.name])).toEqual([[0, 'Master'], [1, 'Figure over Figure 2’s shoulder'], [6, 'Figure 2 over Figure’s shoulder']]);
     // Every camera on the same side of the line from A to B.
     const pa = new THREE.Vector3(...scene.figures[0].position);
     const pb = new THREE.Vector3(...scene.figures[1].position);
@@ -92,6 +99,10 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
   it('keeps framing when the blocking changes; applied again it recuts, leaving cameras edited by hand', () => {
     const { store, a, b } = twoPeople();
     startAnimation(store, 12);
+    // A long speech of A's: over B's shoulder, closer, B listening a moment, A again.
+    store.setTime(1);
+    applyMotion(store, a, captured('talking'));
+    retime(store, actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!.id, 9);
     store.select({ kind: 'figure', figure: a });
     coverScene(store, 'dialogue');
     const before = store.scene.cameras.slice(1);
@@ -112,8 +123,8 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     expect(after.map((c) => c.id)).toEqual(before.map((c) => c.id));
     expect(byKey(store.scene, 'single-a')).toMatchObject({ rig: { yaw: 45 } });
     expect(byKey(store.scene, 'single-b')).toEqual(before[4]);
-    expect(shotSpans(store.scene.animation!)).toHaveLength(4);
-    expect(cameraAt(store.scene, 4).position.distanceTo(viewOf(store.scene, byKey(store.scene, 'single-a'), 4).position)).toBeLessThan(1e-9);
+    expect(shotSpans(store.scene.animation!)).toHaveLength(5);
+    expect(cameraAt(store.scene, 5).position.distanceTo(viewOf(store.scene, byKey(store.scene, 'single-a'), 5).position)).toBeLessThan(1e-9);
     // Another coverage over it: the dialogue's cameras go, but the one edited by hand stays.
     coverScene(store, 'follow');
     const names = store.scene.cameras.map((c) => c.made);
@@ -134,6 +145,9 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     addProp(store, 'box', [mid.x, 0, mid.z]);
     const wall = store.scene.props.at(-1)!.id;
     moveProp(store, wall, { scale: [0.6, 2.2, 0.6] });
+    // (Held where it was: placed again, it goes round the wall, as a camera does.)
+    const look = viewOf(store.scene, master, 0).target;
+    store.updateScene((s) => ({ ...s, cameras: s.cameras.map((c) => (c.id === master.id && c.kind === 'rig' ? { ...c, rig: { ...c.rig, fixed: { position: from.toArray() as [number, number, number], look: look.toArray() as [number, number, number] } } } : c)) }));
     expect(checkShots(store.scene).filter((i) => i.kind === 'hidden').map((i) => i.figure)).toContain(b);
   });
 });
