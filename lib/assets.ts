@@ -2,7 +2,7 @@ import { newAnimation } from './animation';
 import { clipRange, keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
-import { GAIT_WAYS, LEAP_CLIP, gaitOf } from './locomotion';
+import { GAIT_WAYS, LEAP_CLIP, TWIST_CLIP, gaitOf } from './locomotion';
 import { HANDLING, MOTIONS } from './motions';
 import { uid } from './uid';
 import type { Action, Clip, Library, Scene } from './types';
@@ -84,7 +84,8 @@ export function playedClips(lib: Library): string[] {
     if (x.mode === 'jump') return [LEAP_CLIP];
     const gait = gaitOf(x)!;
     const back = GAIT_WAYS[x.mode].back[gait];
-    return [gait, ...(x.strafe ? [GAIT_WAYS[x.mode].side, ...(back ? [back] : [])] : [])];
+    // (A walk may be a turn on the spot: the captured turn too.)
+    return [gait, ...(x.strafe ? [GAIT_WAYS[x.mode].side, ...(back ? [back] : [])] : []), ...(x.mode === 'walk' ? [TWIST_CLIP] : [])];
   };
   return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : gaits(x.source)))))];
 }

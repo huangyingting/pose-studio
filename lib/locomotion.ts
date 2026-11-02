@@ -152,7 +152,22 @@ export interface Chain {
   way?: number;
   /** A jump's body, a real person's (their take-off, flight and landing): the jump's way, height and turns its own. None: not at hand yet. */
   leap?: Leap;
+  /** A turn on the spot's steps and body, a real person's turning (their rhythm, which foot when, the body leading): the turn's angle and footing its own. */
+  twist?: Twist;
 }
+
+/**
+ * A captured turn on the spot as a turn's steps and body (lib/evaluate.ts twistOf): poses by the
+ * clip's time (turned the way the turn goes), and when each foot is off the floor. A turn further
+ * than it goes takes it twice.
+ */
+export interface Twist {
+  at(u: number): AnglePose;
+  duration: number;
+  swings: { side: 'L' | 'R'; start: number; end: number }[];
+}
+/** The Library's turn on the spot every turn goes with (a real person's, to the left; mirrored to the right). */
+export const TWIST_CLIP = 'library:turn-90-left';
 
 /**
  * A captured jump as a jump's body (lib/evaluate.ts leapOf): poses by the clip's time, and when
@@ -366,25 +381,43 @@ function pivot(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground,
     const [x, , z] = arc(side, share);
     return [x + off[side][0] * share, share >= 1 ? endOf[side][1] : startOf[side][1], z + off[side][2] * share];
   };
-  // Steps: n of them, alternate feet, the lead foot (on the side it turns to) first; each goes on
-  // round by an even share, so no foot goes round much more than twice a step; the last of each
-  // foot's lands where the end key has it.
-  const n = pivotSteps(by);
-  const lead: 'L' | 'R' = by > 0 ? 'L' : 'R';
-  const sideOf = (j: number): 'L' | 'R' => ((j % 2 === 0) === (lead === 'L') ? 'L' : 'R');
-  const share = (j: number) => Math.min(1, (j + 1) / (n - 1));
+  // Steps, each when its foot is off the floor, going on round by an even share (the last of each
+  // foot's lands where the end key has it): a real person's turning, if at hand (which foot when,
+  // as they did it; twice round for more than a quarter and a half); else n of them, alternate
+  // feet, the lead foot (on the side it turns to) first, so no foot goes round much more than
+  // twice a step.
+  const twist = c.twist;
+  const laps = twist && Math.abs(by) > 135 ? 2 : 1;
+  const steps: { side: 'L' | 'R'; a: number; b: number }[] = twist
+    ? Array.from({ length: laps }, (_, l) => twist.swings.map((w) => ({ side: w.side, a: (l + w.start / twist.duration) / laps, b: (l + w.end / twist.duration) / laps }))).flat()
+    : (() => {
+      const m = pivotSteps(by);
+      const lead: 'L' | 'R' = by > 0 ? 'L' : 'R';
+      return Array.from({ length: m }, (_, j) => ({ side: (j % 2 === 0) === (lead === 'L') ? 'L' as const : 'R' as const, a: (j + 0.1) / m, b: (j + 0.9) / m }));
+    })();
+  const n = steps.length;
+  const share = (j: number) => (j >= n - 2 ? 1 : (j + 1) / (n - 1));
+  // (The body as the person turning carries it: their back, arms and head; the legs go where the steps put them.)
+  // (Coming over to it from how the turn sets off, and back to how it ends, over a moment: not snapped.)
+  if (twist) {
+    const { hips: _h, leftUpperLeg: _a, rightUpperLeg: _b, leftLowerLeg: _c, rightLowerLeg: _d, leftFoot: _e, rightFoot: _f, ...upper } = twist.at(((u * laps) % 1 || (u >= 1 ? 1 : 0)) * twist.duration).joints;
+    void [_h, _a, _b, _c, _d, _e, _f];
+    const ease = Math.min(UPPER_EASE, dur / 2);
+    const w = Math.min(smooth((u * dur) / ease), smooth(((1 - u) * dur) / ease));
+    pose = mixPoses(pose, { ...pose, joints: { ...pose.joints, ...upper } }, w);
+  }
   const feet = {} as Record<'L' | 'R', { world: [number, number, number]; swing: number }>;
   for (const side of ['L', 'R'] as const) {
-    const mine = [...Array(n).keys()].filter((j) => sideOf(j) === side);
-    // (Each step takes its share of the time, swinging over most of it.)
-    const now = mine.find((j) => u > j / n && u < (j + 1) / n);
-    const done = mine.filter((j) => u >= (j + 1) / n);
-    const was = done.length ? share(done[done.length - 1]) : 0;
-    if (now === undefined) {
+    const mine = steps.map((x, j) => ({ ...x, j })).filter((x) => x.side === side);
+    const step = mine.find((x) => u > x.a && u < x.b);
+    const done = mine.filter((x) => u >= x.b);
+    const was = done.length ? share(done[done.length - 1].j) : 0;
+    if (!step) {
       feet[side] = { world: turned(side, was), swing: 0 };
       continue;
     }
-    const q = clamp((u * n - now - 0.1) / 0.8, 0, 1);
+    const now = step.j;
+    const q = clamp((u - step.a) / (step.b - step.a), 0, 1);
     const k = smoother(q);
     // (Round the body, not across it: the foot follows the turn.)
     const at = turned(side, lerp(was, share(now), k));
@@ -394,9 +427,12 @@ function pivot(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground,
   }
   const floor = Math.min(feet.L.world[1], feet.R.world[1]) - legs.ankleY;
   const y = pose.grounded ? floor + legs.rootY : pose.position[1];
-  return compose(pose, legs, {
+  const out = compose(pose, legs, {
     position: [x, y, z], yaw, pitch: pose.joints.hips?.[0] ?? 0, roll: pose.joints.hips?.[2] ?? 0, feet, swing: 0, raise: 0, elbows: 0,
   });
+  // (A real person's within our ranges, as their walks are.)
+  if (twist) for (const j of Object.keys(out.joints) as JointName[]) if (j !== 'hips') out.joints[j] = clampRotation(j, out.joints[j]!);
+  return out;
 }
 
 /** Where a foot goes: on the floor (`world`, level when planted, hanging as it swings), or in the air relative to its hip in the body's frame (`body`, toes pointed). */

@@ -5,7 +5,7 @@ import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { NEUTRAL_ANGLES } from './doc';
 import { mirrorJointName, wrapDeg } from './joints';
-import { GAIT_WAYS, LEAP_CLIP, feetOf, gaitOf, legsOf, locomote, makeCycle, wayOf, type Leap, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
+import { GAIT_WAYS, LEAP_CLIP, TWIST_CLIP, feetOf, gaitOf, legsOf, locomote, makeCycle, wayOf, type Leap, type Twist, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
@@ -104,6 +104,32 @@ function leapOf(id: string): Leap | null {
     leaps.set(clip, takeoff > 0 && landing < clip.duration ? { at: (u) => toAngles(samplePart(part, u, clip.duration, false)), takeoff, landing, duration: clip.duration } : null);
   }
   return leaps.get(clip)!;
+}
+
+const twists = new WeakMap<Clip, Map<boolean, Twist | null>>();
+/** A captured turn on the spot as a turn's steps and body (lib/locomotion.ts Twist), once it is at hand: to the left as captured, to the right mirrored. */
+function twistOf(id: string, right: boolean): Twist | null {
+  const clip = playedClip({ clip: id });
+  if (!clip?.parts[0]) return null;
+  let made = twists.get(clip);
+  if (!made) twists.set(clip, (made = new Map()));
+  if (!made.has(right)) {
+    const part = clip.parts[0];
+    const D = clip.duration;
+    // (When each foot is off the floor: between the times the clip has it down.)
+    const swings: Twist['swings'] = [];
+    for (const [bone, side] of [['leftFoot', 'L'], ['rightFoot', 'R']] as const) {
+      const down = clip.contacts.filter((x) => !x.on && x.part === 0 && x.bone === bone).sort((p, q) => p.start - q.start);
+      let from = 0;
+      for (const x of [...down, { start: D, end: D }]) {
+        if (x.start - from > 0.05) swings.push({ side: right ? (side === 'L' ? 'R' : 'L') : side, start: from, end: x.start });
+        from = Math.max(from, x.end);
+      }
+    }
+    swings.sort((p, q) => p.start - q.start);
+    made.set(right, swings.length ? { at: (u) => toAngles(right ? mirrorPose(samplePart(part, u, D, false)) : samplePart(part, u, D, false)), duration: D, swings } : null);
+  }
+  return made.get(right)!;
 }
 
 /** The cycle a travel with captured steps goes with, and which way from its facing: its own, or keeping its facing, one that backs up or steps sideways. */
@@ -809,6 +835,9 @@ class Evaluator {
     const path: [number, number][] = [start.at, ...via.map((m) => m.at), to.at];
     const yaws = [start.facing, ...via.map((m) => m.facing), to.facing];
     const cycle = gaitCycle(src, path, yaws);
+    // (Turning where it stands: nowhere to go, another way to face.)
+    const turnBy = wrapDeg(yaws[yaws.length - 1] - yaws[0]);
+    const onTheSpot = Math.hypot(path[path.length - 1][0] - path[0][0], path[path.length - 1][1] - path[0][1]) < 0.05 && Math.abs(turnBy) > 5;
     // (At the height they are drawn at: a pose of a recorded motion through the floor is raised out
     // of it as it is drawn, and the walk goes from and to there, not from as far down.)
     const shown = (p: Pose): Pose => ({ ...p, position: this.rig.model({ ...f, ...p }).read().position });
@@ -825,6 +854,8 @@ class Evaluator {
       ...(src.flip ? { flip: src.flip } : {}),
       ...cycle,
       ...(src.mode === 'jump' && leapOf(LEAP_CLIP) ? { leap: leapOf(LEAP_CLIP)! } : {}),
+      // (A turn on the spot: a real person's turning.)
+      ...(src.mode === 'walk' && onTheSpot && twistOf(TWIST_CLIP, turnBy < 0) ? { twist: twistOf(TWIST_CLIP, turnBy < 0)! } : {}),
     };
     this.chains.set(key, c);
     return c;

@@ -40,8 +40,8 @@ The primitives:
 | --- | --- | --- |
 | Walk, run (and backing up, side steps) | The chosen walk or run (Walk unless another is chosen) | Path, pace, footfalls, turns |
 | Jump (to a spot, onto a box, with spins or flips) | Jump on the spot | Arc, height, landing spot, turns in the air |
-| Turn on the spot (to come) | Turn 90°, Turn around | Angle, steps |
-| Starting, stopping, speed (to come) | — | — |
+| Turn on the spot | Turn 90° (mirrored to the right; twice round past 135°): which foot when, the body | Angle, where each foot lands |
+| Setting off, stopping, pace | The walk's or run's own cycle, eased in and out as the pace ramps up and down (the Library has no recording of starting or stopping) | How long it takes (its pace follows: a walk made longer is slower, its strides and steps as the person's, scaled) |
 
 Nothing is generated where a recording can carry it. A primitive whose recording is not at hand yet
 (still being fetched) plays as the path alone until it comes.
