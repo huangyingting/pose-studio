@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { jointLimits, wrapDeg } from './joints';
 import { angleToQuat, fromQuat, quatToAngle, toQuat } from './pose';
-import { samplePart } from './clip';
+import { partFromPoses, samplePart } from './clip';
+import { detectContacts } from './constraints';
 import { facingOf } from './pose';
-import type { Clip, ClipPart, JointName } from './types';
+import type { Clip, ClipPart, JointName, Pose } from './types';
 
 /*
  * Motion capture made ready to play on our figures (lib/importmotion.ts, scripts/library-motions.ts):
@@ -87,4 +88,37 @@ export function goesRound(clip: Clip): boolean {
     if (!there && !isCycle(clip.name)) return false;
     return Object.entries(a.bones).every(([j, q]) => j === 'hips' || !q || !b.bones[j as JointName] || quatAngle(q, b.bones[j as JointName]!) < 3);
   });
+}
+
+/** How long the end of a motion that goes round is eased into its start (s, at most a quarter of it). */
+const SEAM = 0.5;
+
+/**
+ * A motion that goes round (not a walk or run: one done where it stands) made seamless: its last
+ * moments eased into its first frame, joints and place, so each time round its planted feet are
+ * where they were (ending within a few degrees and centimetres of its start, they jumped there).
+ * Its planted feet found again.
+ */
+export function seamless(clip: Clip, fps = 30): Clip {
+  const n = Math.max(2, Math.round(clip.duration * fps));
+  const w = Math.min(SEAM, clip.duration / 4);
+  const parts = clip.parts.map((part) => {
+    const first = samplePart(part, 0, clip.duration, false);
+    const keys = Array.from({ length: n + 1 }, (_, i) => {
+      const t = (clip.duration * i) / n;
+      const pose = samplePart(part, t, clip.duration, false);
+      const u = Math.min(1, Math.max(0, (t - (clip.duration - w)) / w));
+      if (u <= 0) return { t, pose };
+      const k = u * u * (3 - 2 * u);
+      const bones: Pose['bones'] = {};
+      for (const [j, q] of Object.entries(pose.bones) as [JointName, [number, number, number, number]][]) {
+        const to = first.bones[j];
+        bones[j] = to ? toQuat(fromQuat(q).slerp(fromQuat(to), k)) : q;
+      }
+      return { t, pose: { ...pose, bones, position: pose.position.map((v, i) => v + (first.position[i] - v) * k) as Pose['position'] } };
+    });
+    return { ...partFromPoses(part.name, keys, 'linear', part.body), ...(part.facing !== undefined ? { facing: part.facing } : {}) };
+  });
+  const made: Clip = { ...clip, parts, contacts: [] };
+  return { ...made, contacts: [...parts.flatMap((_, i) => detectContacts(made, i, fps)), ...(clip.contacts ?? []).filter((c) => c.on)] };
 }

@@ -14,7 +14,7 @@ import { samplePart } from '../lib/clip';
 import { newFigure, parseClip } from '../lib/doc';
 import { DEFAULT_BODY } from '../lib/body';
 import { legsOf } from '../lib/locomotion';
-import { goesRound, isCycle, refineClip } from '../lib/motionfix';
+import { goesRound, isCycle, refineClip, seamless } from '../lib/motionfix';
 import { clipCourse, strikeTime } from '../lib/strike';
 import { Rig } from '../lib/relations';
 import { detectGrips } from '../lib/constraints';
@@ -275,7 +275,9 @@ const index: { id: string; name: string; duration: number; people: number; group
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;
   if (index.some((m) => m.name === clip.name)) throw new Error(`Two motions are called ${clip.name}`);
-  const ready: Clip = { ...clip, id, loop };
+  // (One that goes round where it stands, seamless: its end eased into its start. Not a walk or
+  // run, which goes on from where it got to: by the file's name, what it is.)
+  const ready: Clip = { ...(loop && !isCycle(file) ? seamless(clip) : clip), id, loop };
   await writeFile(join(to, `${slug(file)}.json`), JSON.stringify(ready));
   index.push({
     id, name: ready.name, duration: ready.duration, people: ready.parts.length, group,
