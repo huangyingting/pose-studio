@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { motionScene } from '../fixtures/scenes';
+import { captured } from '../fixtures/scenes';
 import { addFigure, applyMotion, applyPose, deletePose, saveMotion, savePose } from '@/lib/actions';
-import { BUILT_IN, clipById } from '@/lib/assets';
+import { clipById } from '@/lib/assets';
 import { keysClip } from '@/lib/clip';
 import { clipsIn, newFigure, newScene, parseLibrary } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
@@ -63,7 +63,7 @@ describe('library assets applied to the scene', () => {
   it('puts a motion on one figure\'s track, from where it stands and facing its way', () => {
     const ben = withFacing({ ...newFigure({ name: 'Ben' }), position: [2, 0, 0] }, 90);
     const anna = newFigure({ name: 'Anna' });
-    const wave = clipById(BUILT_IN + 'wave')!;
+    const wave = clipById(captured('waving'))!;
     const scene = insertClip(newScene('S', [ben, anna]), [ben.id], wave.id, 0);
     const a = scene.animation!;
     expect(a.duration).toBe(wave.duration);
@@ -73,20 +73,20 @@ describe('library assets applied to the scene', () => {
     const first = figurePoseAt(scene, ben.id, 0)!;
     expect(first.position[0]).toBeCloseTo(2);
     expect(facing(first)).toBeCloseTo(90, 0);
-    // A loop: one full cycle.
+    // All of it, once.
     expect(actionsOf(a, ben.id)[1].duration).toBeCloseTo(a.duration);
   });
 
   it('adds a motion at the playhead to an animated scene, lengthening it', () => {
     const store = new Store(new MemoryStorage());
     const id = store.figure!.id;
-    expect(applyMotion(store, id, 'wave')).toBe(true);
+    expect(applyMotion(store, id, captured('waving'))).toBe(true);
     expect(store.scene.animation).toBeDefined();
     addFigure(store);
     const other = store.getState().activeFigure!;
     store.setTime(store.scene.animation!.duration);
     expect(applyMotion(store, other, 'jump')).toBe(true);
-    expect(store.scene.animation!.duration).toBeGreaterThan(motionScene('wave').animation!.duration);
+    expect(store.scene.animation!.duration).toBeGreaterThan(clipById(captured('waving'))!.duration);
     // A set-up with its own props opens as a scene instead.
     expect(applyMotion(store, id, 'high-jump')).toBe(false);
   });

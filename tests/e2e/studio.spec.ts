@@ -1053,7 +1053,7 @@ const anim = async (page: Page) => page.evaluate(() => {
 });
 
 test('a library motion plays, takes keys and is filmed by a shot camera', async ({ page }) => {
-  await sceneWithMotion(page, 'Dance groove');
+  await sceneWithMotion(page, 'Dance');
   // On the figure's track: it holds its pose, then dances (a clip from the library).
   let s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'clip']);
@@ -1351,17 +1351,17 @@ test('keys picked together with Shift-click move together; a correction is a ban
 test('exports an animation as a frame sheet and as a video', async ({ page }) => {
   // Software rendering and encoding on CI machines without a GPU is slow.
   test.setTimeout(300_000);
-  await sceneWithMotion(page, 'Wave hello');
+  await sceneWithMotion(page, 'Wave, both arms');
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Frame sheet' }).click();
   await expect(page.getByText('2400 × 1280 px')).toBeVisible();
   let [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
-  expect(download.suggestedFilename()).toBe('Wave_hello_frames.jpg');
+  expect(download.suggestedFilename()).toBe('Wave_both_arms_frames.jpg');
   expect(jpegSize(readFileSync((await download.path())!))).toEqual({ width: 2400, height: 1280 });
 
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video', exact: true }).click();
-  await expect(page.getByText(/1280 × 720 px · 1\.2 s at 24 fps/)).toBeVisible();
+  await expect(page.getByText(/1280 × 720 px · 3\.2 s at 24 fps/)).toBeVisible();
   await page.keyboard.press('Escape');
   // Filmed square (the frame, in the top bar): the video follows.
   await page.getByRole('button', { name: 'Frame', exact: true }).click();
@@ -1370,13 +1370,13 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await page.getByRole('radio', { name: 'Video', exact: true }).click();
   await expect(page.getByText(/720 × 720 px/)).toBeVisible();
   [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Download' }).click()]);
-  expect(download.suggestedFilename()).toMatch(/^Wave_hello\.(webm|mp4)$/);
+  expect(download.suggestedFilename()).toMatch(/^Wave_both_arms\.(webm|mp4)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);
 });
 
 test('cuts shots and exports a keyframe pack with depth and normal passes', async ({ page }) => {
   test.setTimeout(240_000);
-  await sceneWithMotion(page, 'Wave hello');
+  await sceneWithMotion(page, 'Wave, both arms');
   await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
   await page.getByRole('button', { name: /^Cut: start a new shot here/ }).click();
   await expect(page.locator('.tl-shot')).toHaveCount(2);
@@ -1391,7 +1391,7 @@ test('cuts shots and exports a keyframe pack with depth and normal passes', asyn
   await page.getByRole('radio', { name: 'AI video pack', exact: true }).click();
   await page.getByRole('switch', { name: 'Greybox clips' }).uncheck();
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 200_000 }), page.getByRole('button', { name: 'Download' }).click()]);
-  expect(download.suggestedFilename()).toBe('Wave_hello_ai_pack.zip');
+  expect(download.suggestedFilename()).toBe('Wave_both_arms_ai_pack.zip');
   const zip = readFileSync((await download.path())!);
   const text = zip.toString('latin1');
   for (const name of ['cutlist.otio', '01_Shot_1/first_depth.png', '02_Shot_2/last_normal.png', '02_Shot_2/camera.json']) expect(text).toContain(name);
@@ -1830,7 +1830,7 @@ test('the timeline is always there: what a figure does next from its + at the pl
   // The row's + at the playhead (the walk's end): a motion from there.
   const end = s.time;
   await timeline.getByRole('button', { name: /^What Figure does next, from/ }).click();
-  await picker.getByRole('menuitem', { name: /^Wave hello/ }).click();
+  await picker.getByRole('menuitem', { name: /^Wave, both arms/ }).click();
   s = await live(page);
   const wave = actionsOf(s.scene.animation!, s.active).find((x) => x.source.kind === 'clip')!;
   expect(wave.start).toBeCloseTo(end, 1);
@@ -2096,15 +2096,12 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
   expect(actionsOf(s.scene.animation!, s.active)[1].source).toMatchObject({ mode: 'jump', spin: 1 });
 });
 
-test('a walk with a real person\'s steps: chosen in its inspector, at their pace, then taken by Walk here (#26)', async ({ page }) => {
+test('a walk with a real person\'s steps: by default, chosen in its inspector, at their pace, then taken by Walk here (#26)', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   const walk = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'travel')!);
-  const before = await walk();
-  await page.locator('.tl-travel.walk').first().click({ position: { x: 12, y: 5 } });
-  await choose(page, 'Steps', /^Walk$/);
+  // A real person's steps from the first (not generated ones).
   await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBe('library:walk');
-  // At the captured walk's pace (a little quicker than the generated one).
-  expect((await walk()).duration).toBeLessThan(before.duration);
+  await page.locator('.tl-travel.walk').first().click({ position: { x: 12, y: 5 } });
   await choose(page, 'Steps', 'Generated');
   await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBeUndefined();
   // Walk here takes the Steps last chosen.
@@ -2438,8 +2435,8 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   const scenes = (await state(page)).library.scenes.length;
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Generated');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jab & cross [\d.]+ s$/ }).click();
+  await motionsTab(page, 'Mocap');
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jab, cross [\d.]+ s$/ }).click();
   // In this scene (no new one), on the selected figure alone: people together each get their own motion.
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
   expect((await state(page)).library.scenes).toHaveLength(scenes);
@@ -2450,13 +2447,15 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   await openSection(page, 'Scene');
   await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure\b/ }).first().click();
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Generated');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Take a hit [\d.]+ s$/ }).click();
+  await motionsTab(page, 'Mocap');
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Hit, recoil [\d.]+ s$/ }).click();
   const hit = () => live(page).then((x) => x.scene.animation!.actions.find((a) => a.source.kind === 'clip' && a.roles[0].figure !== second.id)!);
+  // (A captured motion: fetched, then put on.)
+  await expect.poll(async () => !!(await hit())).toBe(true);
   const before = (await hit()).start;
-  await page.locator('.tl-travel', { hasText: 'Take a hit' }).click({ button: 'right' });
+  await page.locator('.tl-travel', { hasText: 'Hit, recoil' }).click({ button: 'right' });
   // (Under React to: everyone else's motions.)
-  await page.getByRole('menuitem', { name: /: Jab & cross/ }).click();
+  await page.getByRole('menuitem', { name: /: Jab, cross/ }).click();
   await expect.poll(async () => (await hit()).start).not.toBe(before);
 });
 
@@ -2726,12 +2725,12 @@ test('a wave over a walk, from the waist up; posing over a motion corrects it', 
   await expect(page.getByRole('status').filter({ hasText: /^Posing here corrects Figure's walk$/ })).toBeVisible();
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Generated');
-  await page.getByRole('button', { name: /^Wave hello: upper body only/ }).click();
-  await expect(page.locator('.tl-travel.upper')).toHaveText(/Wave hello · upper body/);
+  await motionsTab(page, 'Mocap');
+  await page.getByRole('button', { name: /^Wave, both arms: upper body only/ }).click();
+  await expect(page.locator('.tl-travel.upper')).toHaveText(/Wave, both arms · upper body/);
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });
   await page.keyboard.press('.');
-  await expect(page.getByRole('status').filter({ hasText: /Wave hello \(upper body\)$/ })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: /Wave, both arms \(upper body\)$/ })).toBeVisible();
   const s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active, 'upper')).toHaveLength(1);
 });

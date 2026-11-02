@@ -40,7 +40,7 @@ The timeline zooms with `Ctrl` + wheel or its zoom buttons and scrolls with `Shi
 
 ![The walk on the timeline, its marks on the floor](images/walk-done.png)
 
-1. **The walk's block**. The figure gets there in a natural time, with its steps generated and its feet planted (no sliding). Its marks are numbered discs on the floor, joined by its path; drag one to move the spot. In the walk's inspector, **Steps** can be a real person's (a Mocap walk, jog or sneak) instead of generated ones.
+1. **The walk's block**. The figure gets there in a natural time, with its steps generated and its feet planted (no sliding). Its marks are numbered discs on the floor, joined by its path; drag one to move the spot. Its **Steps** are a real person's (a Mocap walk or run) unless you choose generated ones in the walk's inspector; the next walk takes the steps you chose last.
 
 **Move to…** in the figure's inspector, and a figure's right-click menu, do the same: pick the spot afterwards on the floor.
 

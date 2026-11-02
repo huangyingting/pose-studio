@@ -1,6 +1,6 @@
 import { cameraFrom, newScene, nextName, uid } from '../doc';
 import { snapTime, newAnimation } from '../animation';
-import { BUILT_IN } from '../assets';
+import { BUILT_IN, LIBRARY, hasClip } from '../assets';
 import { coverageById } from '../coverage';
 import { templatesOf, shootsOf, putTemplate, asTemplate } from '../templates';
 import { clipInfo } from '../clip';
@@ -296,12 +296,12 @@ function nearestPartners(store: Store, figureId: string, count: number) {
  * walking): an upper-body action. False if it cannot (a walk).
  */
 export function applyUpperBody(store: Store, figureId: string, motionId: string) {
-  const mine = store.getState().library.clips?.some((c) => c.id === motionId);
-  // (A motion from the Library, or one of those prop menus put on, as carrying.)
+  // (A captured one, the Library's or mine, at hand; else a made one, or one of those prop menus put on, as carrying.)
+  const clip = store.getState().library.clips?.some((c) => c.id === motionId) || (motionId.startsWith(LIBRARY) && hasClip(motionId));
   const motion = [...MOTIONS, ...HANDLING].find((m) => m.id === motionId);
-  if (!mine && (!motion || motion.travel)) return false;
+  if (!clip && (!motion || motion.travel)) return false;
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
-  const animation = addUpper(store.scene, figureId, mine ? motionId : BUILT_IN + motionId, store.getState().time);
+  const animation = addUpper(store.scene, figureId, clip ? motionId : BUILT_IN + motionId, store.getState().time);
   if (!animation) return false;
   store.updateScene((s) => ({ ...s, animation }));
   return true;

@@ -23,8 +23,8 @@ The poses are grouped by posture (standing, sitting and squatting, kneeling and 
 
 Motions come from three places, each a tab (a search looks in all three, as in the picture):
 
-- **Mocap**: 107 clips recorded from people, such as walks and runs, stairs, fights, sport, dances, idles, sitting and talking.
-- **Generated**: motions made by Pose Studio itself.
+- **Mocap**: 107 clips recorded from real people, such as walks and runs, stairs, fights, sport, dances, idles, sitting, talking and gestures. These come first, and the timeline's **Everyday** beats (talk, wave, nod, sit down…) are among them. Each one can also play **from the waist up** over what the figure is doing (its ⋯).
+- **Generated**: the few motions no capture covers yet (a bow, a cartwheel, a pirouette, a split leap, falling and getting up, a front kick, picking a thing up), and walking, running or jumping ahead.
 - **Imported**: your own.
 
 **Import motion…** reads BVH, FBX or glTF animation onto the skeleton; a dialog matches any bone it cannot name. Motions of several people (a waltz, a boxing exchange) go on the selected figure, which leads, and the figures nearest it.

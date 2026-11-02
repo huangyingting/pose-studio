@@ -9,12 +9,12 @@ import type { Action, Animation, Expression, Face } from './types';
 
 /** What each motion shows on the face: a feeling and how strongly, whether the mouth talks. */
 const MOODS: Record<string, { feel?: Expression; by?: number; talk?: boolean }> = {
-  talking: { talk: true }, 'sitting-talking': { talk: true }, 'talking-on-phone': { talk: true }, 'motion:talk': { talk: true },
+  talking: { talk: true }, 'sitting-talking': { talk: true }, 'talking-on-phone': { talk: true },
   'standing-arguing': { feel: 'angry', by: 0.5, talk: true }, 'dismissing-gesture': { feel: 'angry', by: 0.3, talk: true },
   laughing: { feel: 'happy', by: 1, talk: true }, 'happy-idle': { feel: 'happy', by: 0.8 }, victory: { feel: 'happy', by: 1 },
-  'standing-thumbs-up': { feel: 'happy', by: 0.7 }, waving: { feel: 'happy', by: 0.6 }, 'happy-walk': { feel: 'happy', by: 0.6 }, 'motion:wave': { feel: 'happy', by: 0.5 },
+  'standing-thumbs-up': { feel: 'happy', by: 0.7 }, waving: { feel: 'happy', by: 0.6 }, 'happy-walk': { feel: 'happy', by: 0.6 },
   'salsa-dancing': { feel: 'happy', by: 0.5 }, 'hip-hop-dancing': { feel: 'relaxed', by: 0.6 }, 'swing-dancing': { feel: 'happy', by: 0.6 },
-  'rumba-dancing': { feel: 'relaxed', by: 0.6 }, 'jazz-dancing': { feel: 'happy', by: 0.5 }, dancing: { feel: 'happy', by: 0.5 }, 'motion:dance': { feel: 'happy', by: 0.5 },
+  'rumba-dancing': { feel: 'relaxed', by: 0.6 }, 'jazz-dancing': { feel: 'happy', by: 0.5 }, dancing: { feel: 'happy', by: 0.5 },
   crying: { feel: 'sad', by: 1 }, 'sad-idle': { feel: 'sad', by: 0.8 }, 'defeat-idle': { feel: 'sad', by: 0.8 }, disappointed: { feel: 'sad', by: 0.7 },
   angry: { feel: 'angry', by: 1, talk: true }, 'shake-fist': { feel: 'angry', by: 0.9 }, 'fight-idle': { feel: 'angry', by: 0.4 },
   'jab-cross': { feel: 'angry', by: 0.7 }, 'hook-punch': { feel: 'angry', by: 0.7 }, uppercut: { feel: 'angry', by: 0.7 }, 'roundhouse-kick': { feel: 'angry', by: 0.7 },

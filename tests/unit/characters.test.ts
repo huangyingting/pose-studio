@@ -6,7 +6,7 @@ import { parseScene } from '@/lib/doc';
 import { Fitted, mapBones, missingBones, modelInfo, parseModel } from '@/lib/model';
 import { legsOf } from '@/lib/locomotion';
 import { checkMotion } from '@/lib/qa';
-import { fresh } from '../fixtures/scenes';
+import { fresh, captured } from '../fixtures/scenes';
 
 /** A GLB as the test can read it (Node has no image decoding): its textures left out. */
 function withoutTextures(file: Buffer): ArrayBuffer {
@@ -65,9 +65,9 @@ describe('built-in characters', () => {
     // Each with its own body under it: a man's, a woman's.
     expect(fa.body).toEqual(man.body);
     store.setTime(0);
-    expect(applyMotion(store, a, 'dance')).toBe(true);
+    expect(applyMotion(store, a, captured('dancing'))).toBe(true);
     store.setTime(0);
-    expect(applyMotion(store, b, 'dance')).toBe(true);
+    expect(applyMotion(store, b, captured('dancing'))).toBe(true);
     expect(checkMotion(store.scene).filter((i) => i.kind !== 'camera' && i.kind !== 'hidden').map((i) => i.message)).toEqual([]);
   }, 300_000);
 });

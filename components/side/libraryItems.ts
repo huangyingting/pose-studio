@@ -214,6 +214,12 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
         return { ...motionPreview(m.id, () => { const c = clipById(m.id); return c ? clipScene(c) : newScene(m.name); }, style(store)), ready: () => hasClip(m.id) };
       },
       ghost: figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void load(), null)) : undefined,
+      // From the waist up, over what the figure is doing (waving while walking).
+      actions: figure ? [{
+        icon: Layers,
+        label: `${m.name}: upper body only, over what ${figure.name} is doing`,
+        run: () => void load().then((ok) => { if (ok && applyUpperBody(store, figure.id, m.id)) ui.onPick?.(); }),
+      }] : undefined,
     };
   };
   // The Library's motion files: each fetched the first time it is used or shown.
@@ -221,11 +227,14 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     // (In the groups' order, Moving first, as on the Generated tab.)
     .sort((p, q) => MOTION_GROUPS.indexOf(p.group as never) - MOTION_GROUPS.indexOf(q.group as never));
   // (One person's each: an imported clip of several people is not offered.)
-  const mine = (store.getState().library.clips ?? []).filter((m) => m.people.length <= 1).map((m): LibraryItem => ({
-    ...clipItem({ ...m, group: 'My motions' }, () => Promise.resolve(hasClip(m.id))),
-    kind: 'imported',
-    actions: [{ icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
-  }));
+  const mine = (store.getState().library.clips ?? []).filter((m) => m.people.length <= 1).map((m): LibraryItem => {
+    const item = clipItem({ ...m, group: 'My motions' }, () => Promise.resolve(hasClip(m.id)));
+    return {
+      ...item,
+      kind: 'imported',
+      actions: [...(item.actions ?? []), { icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
+    };
+  });
   return [...built, ...files, ...mine];
 }
 

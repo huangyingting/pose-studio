@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyMotion, setIdleLife, startAnimation } from '@/lib/actions';
 import { actionsOf, sceneAt } from '@/lib/evaluate';
 import { Store } from '@/lib/store';
+import { captured } from '../fixtures/scenes';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -19,7 +20,7 @@ describe('idle life (#14)', () => {
     const id = store.figure!.id;
     startAnimation(store, 8);
     store.setTime(4);
-    applyMotion(store, id, 'wave');
+    applyMotion(store, id, captured('waving'));
     const wave = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'clip')!;
     const chest = (t: number, live: boolean) => sceneAt(store.scene, t, live).figures[0].bones.chest;
     // In the gap before the wave: alive when playing, as keyed when posing.

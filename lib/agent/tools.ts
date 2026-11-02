@@ -14,7 +14,9 @@ import { actionsOf, figurePoseAt, marksOf, missedCatchesOf, overWarp } from '../
 import { actionLabel, travelInto } from '../track';
 import { GAITS } from '../locomotion';
 import { clampRotation } from '../joints';
+import { LIBRARY, hasClip } from '../assets';
 import { MOTIONS } from '../motions';
+import CAPTURED_INDEX from '../../public/motions/index.json';
 import { allPoses, builtInPoses } from '../poses';
 import { COVERAGES, castCoverage } from '../coverage';
 import { describeShot } from '../prompt';
@@ -147,6 +149,24 @@ function findTemplate(store: Store, q: string) {
 }
 
 const RELATIONS = ['turn_to', 'face_each_other', 'look_at', 'beside_left', 'beside_right', 'back_to_back', 'in_front', 'distance'] as const;
+
+/** The Library's captured motions (public/motions): offered first, by name. */
+const CAPTURED = CAPTURED_INDEX as { id: string; name: string; people: number }[];
+
+/**
+ * A motion asked for by name or id: one of the Library's captured motions first, else a made one
+ * (by id), else one of the user's imported motions. (The captured are fetched before a tool plays
+ * one: lib/agent/turn.ts.)
+ */
+export function motionFor(store: Store, asked: unknown): { id: string; name: string } | null {
+  const q = String(asked ?? '').trim().toLowerCase();
+  if (!q) return null;
+  const mine = store.getState().library.clips ?? [];
+  const named = <T extends { id: string; name: string }>(list: T[]) =>
+    list.find((m) => m.id.toLowerCase() === q || m.name.toLowerCase() === q) ?? list.find((m) => m.name.toLowerCase().includes(q));
+  // (A made one by its id first: "walk" is the walk ahead, not the captured cycle.)
+  return MOTIONS.find((m) => m.id === q) ?? named(CAPTURED) ?? named(mine) ?? null;
+}
 
 export const TOOLS: AgentTool[] = [
   {
@@ -666,14 +686,13 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way: ${MOTIONS.map((m) => `${m.id} = ${m.name}`).join(', ')}; plus the user's imported motions by name. A motion is one person's: for people together, give each their own (and place them with arrange or set_distance).`,
-    schema: obj({ figure: FIGURE, motion: str('Motion id, or the name of an imported motion') }),
+    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. Motion-captured (use these first, by name): ${CAPTURED.filter((m) => m.people === 1).map((m) => m.name).join('; ')}. Made (by id, where nothing captured fits): ${MOTIONS.map((m) => `${m.id} = ${m.name}`).join(', ')}. Plus the user's imported motions by name. A motion is one person's: for people together, give each their own (and place them with arrange or set_distance).`,
+    schema: obj({ figure: FIGURE, motion: str('A captured motion\'s name, a made one\'s id, or an imported one\'s name') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
-      const q = String(i.motion).trim().toLowerCase();
-      const mine = store.getState().library.clips ?? [];
-      const motion = MOTIONS.find((m) => m.id === q) ?? mine.find((m) => m.name.toLowerCase() === q) ?? mine.find((m) => m.name.toLowerCase().includes(q));
+      const motion = motionFor(store, i.motion);
       if (!motion) throw new Error(`No motion "${i.motion}"`);
+      if (motion.id.startsWith(LIBRARY) && !hasClip(motion.id)) throw new Error(`${motion.name} could not be loaded`);
       const from = store.scene.animation ? store.getState().time : 0;
       if (!applyMotion(store, f.id, motion.id)) throw new Error(`${motion.name} is for several people: give each their own motion`);
       const a = store.scene.animation!;
@@ -745,12 +764,13 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'upper_body',
-    description: `Play a motion from the waist up over what a figure does at the playhead (waving while walking): ${MOTIONS.filter((m) => !m.travel).map((m) => m.id).join(', ')}. A motion that loops lasts as long as what is under it.`,
-    schema: obj({ figure: FIGURE, motion: str('Motion id') }),
+    description: `Play a motion from the waist up over what a figure does at the playhead (waving while walking): any captured or made motion that is not a walk, run or jump, as apply_motion takes them. A motion that loops lasts as long as what is under it.`,
+    schema: obj({ figure: FIGURE, motion: str('A captured motion\'s name, a made one\'s id, or an imported one\'s name') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
-      if (!applyUpperBody(store, f.id, String(i.motion))) throw new Error(`${i.motion} is not a motion for the upper body`);
-      return `${f.name}: ${i.motion} from the waist up from ${r2(store.getState().time)} s.`;
+      const motion = motionFor(store, i.motion);
+      if (!motion || !applyUpperBody(store, f.id, motion.id)) throw new Error(`${i.motion} is not a motion for the upper body`);
+      return `${f.name}: ${motion.name} from the waist up from ${r2(store.getState().time)} s.`;
     },
   },
   {

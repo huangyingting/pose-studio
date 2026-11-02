@@ -209,13 +209,18 @@ export function setGait(store: Store, id: string, gait: string | null) {
   store.setTime(store.getState().time);
 }
 
-/** The Steps last chosen for a walk and for a run (#26), which Walk here and Run here take (kept in the browser). */
+/**
+ * The Steps last chosen for a walk and for a run (#26), which Walk here and Run here take (kept in
+ * the browser): a real person's (captured) until generated ones are chosen.
+ */
 const STEPS_KEY = (mode: 'walk' | 'run') => `pose-studio-steps-${mode}`;
+const CAPTURED_STEPS: Record<'walk' | 'run', string> = { walk: 'library:walk', run: 'library:run-forward' };
 export function rememberSteps(mode: 'walk' | 'run', gait: string | null) {
   try { localStorage.setItem(STEPS_KEY(mode), gait ?? ''); } catch { /* ignore */ }
 }
 export function lastSteps(mode: 'walk' | 'run'): string | null {
   const v = typeof localStorage === 'undefined' ? null : localStorage.getItem(STEPS_KEY(mode));
+  if (v === null) return CAPTURED_STEPS[mode];
   return v && GAITS[mode].includes(v) ? v : null;
 }
 

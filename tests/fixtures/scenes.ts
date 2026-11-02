@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { expect } from 'vitest';
+import { putClips } from '@/lib/assets';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
 import { BODY_PRESETS } from '@/lib/body';
@@ -9,7 +11,7 @@ import { handlesOf } from '@/lib/props';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { Store } from '@/lib/store';
-import { cameraFrom } from '@/lib/doc';
+import { cameraFrom, parseClip } from '@/lib/doc';
 import type { Scene, View } from '@/lib/types';
 
 /*
@@ -19,6 +21,13 @@ import type { Scene, View } from '@/lib/types';
 
 /** A built-in motion's own scene: its people doing it. */
 export const motionScene = (id: string) => MOTIONS.find((m) => m.id === id)!.build();
+
+/** One of the Library's captured motions (public/motions, by its file's name), brought to hand: its id. */
+export function captured(slug: string) {
+  const clip = parseClip(JSON.parse(readFileSync(`public/motions/${slug}.json`, 'utf8')))!;
+  putClips([clip]);
+  return clip.id;
+}
 
 export const body = (name: string) => ({ ...BODY_PRESETS.find((p) => p.name === name)!.body });
 

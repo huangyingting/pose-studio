@@ -14,7 +14,7 @@ import { REACT_LEAD, strikeTime } from '@/lib/strike';
 import { newScene } from '@/lib/doc';
 import { actionLabel, retimeAction, rippleInStep } from '@/lib/track';
 import type { Action, Animation } from '@/lib/types';
-import { fresh } from '../fixtures/scenes';
+import { fresh, captured } from '../fixtures/scenes';
 
 const ends = (store: ReturnType<typeof fresh>['store'], id: string) => actionsOf(store.scene.animation!, id).map((x) => +(x.start + x.duration).toFixed(3));
 
@@ -84,9 +84,9 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     addFigure(store, [0, 0, 0.75]);
     const b = store.getState().activeFigure!;
     store.setTime(0);
-    expect(applyMotion(store, a, 'jab-cross')).toBe(true);
+    expect(applyMotion(store, a, captured('jab-cross'))).toBe(true);
     store.setTime(0);
-    expect(applyMotion(store, b, 'hit')).toBe(true);
+    expect(applyMotion(store, b, captured('hit-reaction'))).toBe(true);
     const clip = (who: string) => actionsOf(store.scene.animation!, who).find((x) => x.source.kind === 'clip')!;
     const strike = clip(a);
     const lands = strike.start + strikeTime(clipById((strike.source as { clip: string }).clip)!);
@@ -177,7 +177,7 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     // chain once each, the duet once (not once for each of them).
     let a: Animation = { ...base, actions: [
       travel('a', 'A', 0, 2), travel('b', 'B', 2, 2), travel('c', 'C', 4, 2),
-      { id: 'duet', start: 10, duration: 2, roles: [{ figure: 'A' }, { figure: 'C' }], source: { kind: 'clip', clip: 'motion:dance' } },
+      { id: 'duet', start: 10, duration: 2, roles: [{ figure: 'A' }, { figure: 'C' }], source: { kind: 'clip', clip: captured('dancing') } },
     ] };
     expect(starts(retimeAction(a, 'a', 3))).toEqual({ a: 0, b: 3, c: 5, duet: 11 });
 

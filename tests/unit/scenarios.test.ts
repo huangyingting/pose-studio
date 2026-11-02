@@ -12,7 +12,7 @@ import { highJump } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { CMU, bvh } from '../fixtures/bvh';
-import { audit, expectClean, figureAt, fresh, seenFrom } from '../fixtures/scenes';
+import { audit, expectClean, figureAt, fresh, seenFrom, captured } from '../fixtures/scenes';
 
 /*
  * Whole scenes made the way a user makes them (the same actions as the menus), for the use case of
@@ -83,11 +83,11 @@ describe('scenes from the use case', () => {
     const b = store.getState().activeFigure!;
     arrange(store, a, b, 'faceEachOther');
     store.setTime(0);
-    applyMotion(store, a, 'jab-cross');
+    applyMotion(store, a, captured('jab-cross'));
     store.setTime(0);
-    applyMotion(store, b, 'block-duck');
+    applyMotion(store, b, captured('standing-block'));
     store.setTime(1.2);
-    applyMotion(store, b, 'hit');
+    applyMotion(store, b, captured('hit-reaction'));
     setGaze(store, a, { figure: b });
     setGaze(store, b, { figure: a });
     expectClean(store.scene);

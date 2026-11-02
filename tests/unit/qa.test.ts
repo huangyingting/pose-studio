@@ -24,7 +24,7 @@ const kinds = (s: Scene) => checkMotion(s).map((i) => i.kind);
 
 describe('motion QA', () => {
   it('passes the built-in animations and multi-person holds', () => {
-    for (const id of ['walk', 'run', 'jump', 'dance', 'kick', 'wave', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
+    for (const id of ['walk', 'run', 'jump', 'kick', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
     for (const id of ['waltz', 'shoulder', 'group', 'sparring']) {
       const s = buildStaging(id)!;
       expect(checkMotion(animate([[0, s.figures]])), id).toEqual([]);

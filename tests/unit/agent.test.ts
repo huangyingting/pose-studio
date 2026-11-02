@@ -9,6 +9,7 @@ import { partKeys } from '@/lib/clip';
 import { actionsOf } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { keyTimesOf } from '@/lib/track';
+import { captured } from '../fixtures/scenes';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -146,7 +147,8 @@ describe('assistant tools', () => {
     run(store, 'move_mark', { action: walk.id, figure: id, x: 1, z: 4 });
     expect(actionsOf(store.scene.animation!, id).find((x) => x.id === walk.id)!.roles[0].end!.at).toEqual([1, 4]);
     run(store, 'set_time', { seconds: 0.5 });
-    expect(run(store, 'upper_body', { figure: id, motion: 'wave' })).toMatch(/wave from the waist up/);
+    captured('waving');
+    expect(run(store, 'upper_body', { figure: id, motion: 'Wave, both arms' })).toMatch(/Wave, both arms from the waist up/);
     expect(actionsOf(store.scene.animation!, id, 'upper')).toHaveLength(1);
     // A ball shot at a hoop from the hand.
     run(store, 'add_prop', { kind: 'sphere', x: 0, z: 0, facing: null, name: 'Ball', held_by: id, hand: 'R' });

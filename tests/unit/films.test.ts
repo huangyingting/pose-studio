@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { liveCamera } from '@/lib/cameras';
+import { clipById } from '@/lib/assets';
 import {
   addFigure, addProp, addScene, applyCameraMove, applyMotion, applyUpperBody, arrange, cutShot, dribbleProp, holdHandle, holdProp, lieOn, moveProp,
   addModel, retime, setShotSubject, saveMotion, setAnimationOptions, setFigureModel, setGaze, setGrounded, setJoint, applyLightingPreset, throwProp, travelTo,
@@ -19,7 +20,7 @@ import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
-import { body, expectClean, fresh, motionScene, seenFrom } from '../fixtures/scenes';
+import { body, expectClean, fresh, seenFrom, captured } from '../fixtures/scenes';
 
 /*
  * Acceptance baseline for the redesign (issue #1): these films must keep passing at every step.
@@ -80,17 +81,17 @@ function boxing(ben: string, kai: string) {
   arrange(store, a, b, 'faceEachOther');
   // They square up: a jab and a cross, blocked (each their own motion); then the combination.
   store.setTime(0);
-  applyMotion(store, a, 'jab-cross');
+  applyMotion(store, a, captured('jab-cross'));
   store.setTime(0);
-  applyMotion(store, b, 'block-duck');
+  applyMotion(store, b, captured('standing-block'));
   const later = store.scene.animation!.duration;
   store.setTime(later);
-  applyMotion(store, a, 'jab-cross');
+  applyMotion(store, a, captured('jab-cross'));
   store.setTime(later);
-  applyMotion(store, b, 'block-duck');
-  // The hit lands as the block and duck finishes.
-  store.setTime(later + motionScene('block-duck').animation!.duration);
-  applyMotion(store, b, 'hit');
+  applyMotion(store, b, captured('standing-block'));
+  // The hit lands as the block finishes.
+  store.setTime(later + clipById(captured('standing-block'))!.duration);
+  applyMotion(store, b, captured('hit-reaction'));
   setGaze(store, a, { figure: b });
   setGaze(store, b, { figure: a });
   return { store, later };
@@ -315,7 +316,7 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     // (Each their own dance, together.)
     for (const d of dancers) {
       store.setTime(0);
-      expect(applyMotion(store, d, 'dance')).toBe(true);
+      expect(applyMotion(store, d, captured('dancing'))).toBe(true);
     }
     setAnimationOptions(store, { loop: false });
 

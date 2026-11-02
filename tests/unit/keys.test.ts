@@ -8,6 +8,7 @@ import { keyEaseAt, keyTimesOf, moveKeysBy } from '@/lib/track';
 import { keysAction } from '@/lib/animation';
 import { newFigure } from '@/lib/doc';
 import type { Animation } from '@/lib/types';
+import { captured } from '../fixtures/scenes';
 
 class MemoryStorage implements Storage {
   private m = new Map<string, string>();
@@ -72,7 +73,7 @@ describe('keys: pose to pose (#13)', () => {
     const s2 = new Store(new MemoryStorage());
     const f2 = s2.figure!.id;
     startAnimation(s2, 4);
-    applyMotion(s2, f2, 'wave');
+    applyMotion(s2, f2, captured('waving'));
     const wave = actionsOf(s2.scene.animation!, f2).find((x) => x.source.kind === 'clip')!;
     repeatAction(s2, wave.id, 3);
     const now = s2.scene.animation!.actions.find((x) => x.id === wave.id)!;

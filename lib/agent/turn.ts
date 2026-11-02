@@ -1,6 +1,7 @@
 import { withBase } from '../paths';
 import type { Store } from '../store';
-import { runTool } from './tools';
+import { motionFor, runTool } from './tools';
+import { LIBRARY } from '../assets';
 import { STRIKES } from '../actions';
 import { fetchLibraryClips } from '../librarymotions';
 
@@ -52,8 +53,12 @@ export async function assistantTurn(previous: string | null, text: string, store
     }
     const calls = output.filter((item) => item.type === 'function_call');
     if (!calls.length) return last;
-    // (A strike plays the Library's motions: brought to hand first.)
+    // (A strike plays the Library's motions, and so may a motion asked for: brought to hand first.)
     if (calls.some((c) => c.name === 'strike')) await fetchLibraryClips(STRIKES.flatMap((x) => [x.id, x.reaction]));
+    const asked = calls.filter((c) => c.name === 'apply_motion' || c.name === 'upper_body').flatMap((c) => {
+      try { return [motionFor(store, (JSON.parse(c.arguments || '{}') as { motion?: unknown }).motion)?.id ?? '']; } catch { return []; }
+    });
+    if (asked.some((id) => id.startsWith(LIBRARY))) await fetchLibraryClips(asked);
     input = calls.map((call) => {
       let args: unknown = {};
       try {

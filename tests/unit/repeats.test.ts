@@ -8,7 +8,7 @@ import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, curved, figurePoseAt } from '@/lib/evaluate';
 import { reachOf } from '@/lib/track';
 import type { JointName, Pose } from '@/lib/types';
-import { fresh } from '../fixtures/scenes';
+import { fresh, captured } from '../fixtures/scenes';
 
 /* Repeats as segments, and what comes between them (#23). */
 
@@ -231,7 +231,7 @@ describe('motion options (#23)', () => {
     store.setTime(0);
     travelTo(store, a, [0, 4], 'walk');
     store.setTime(0.5);
-    applyUpperBody(store, a, 'wave');
+    applyUpperBody(store, a, captured('waving'));
     const up = actionsOf(store.scene.animation!, a, 'upper')[0];
     const t = up.start + 1;
     const all = figurePoseAt(store.scene, a, t)!;
@@ -257,9 +257,9 @@ describe('linked reactions (#23)', () => {
     const b = store.getState().activeFigure!;
     startAnimation(store, 4);
     store.setTime(0);
-    applyMotion(store, a, 'jab-cross');
+    applyMotion(store, a, captured('jab-cross'));
     store.setTime(0);
-    applyMotion(store, b, 'hit');
+    applyMotion(store, b, captured('hit-reaction'));
     const clip = (who: string) => actionsOf(store.scene.animation!, who).find((x) => x.source.kind === 'clip')!;
     const strike = clip(a);
     reactTo(store, clip(b).id, strike.id);

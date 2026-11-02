@@ -9,8 +9,8 @@ import { Thumbnail } from './side/LibrarySection';
 import { useStore } from './store-context';
 import { inPopup } from './ui';
 
-/** The everyday beats offered first (Library motions, by id). */
-const COMMON_BEATS = ['talk', 'wave', 'nod', 'shake-head', 'point', 'sit-down', 'stand-up', 'pick-up'];
+/** The everyday beats offered first (Library motions, by id: captured ones, and picking a thing up). */
+const COMMON_BEATS = ['library:talking', 'library:waving', 'library:head-nod-yes', 'library:shaking-head-no', 'library:pointing', 'library:stand-to-sit', 'library:sit-to-stand', 'pick-up'];
 
 /** Where the picker opens: for a figure, at a point of the page (it opens upwards from there). */
 export interface PickerAt { figure: string; x: number; y: number }
