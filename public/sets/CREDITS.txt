@@ -33,7 +33,6 @@ The sets' models, surfaces and bark (public/sets) are from Poly Haven (https://p
   vase: https://polyhaven.com/a/ceramic_vase_01
   street-lamp: https://polyhaven.com/a/street_lamp_01
   park-lamp: https://polyhaven.com/a/street_lamp_02
-  bench: https://polyhaven.com/a/painted_wooden_bench
   trash-can: https://polyhaven.com/a/metal_trash_can
   hydrant: https://polyhaven.com/a/fire_hydrant
   utility-box: https://polyhaven.com/a/utility_box_02

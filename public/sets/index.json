@@ -1139,25 +1139,6 @@
    ],
    "tops": []
   },
-  "bench": {
-   "file": "models/bench.glb",
-   "tris": 630,
-   "bytes": 73660,
-   "size": [
-    1.165,
-    0.889,
-    0.496
-   ],
-   "tops": [
-    [
-     -0.5,
-     -0.2,
-     0.5,
-     0.2,
-     0.66
-    ]
-   ]
-  },
   "park-bench": {
    "file": "models/park-bench.glb",
    "tris": 1640,
@@ -33170,7 +33151,6 @@
   "model:vase": "{\"ph\":\"ceramic_vase_01\",\"tris\":5000,\"tex\":512}",
   "model:street-lamp": "{\"ph\":\"street_lamp_01\",\"tris\":6000,\"tex\":1024}",
   "model:park-lamp": "{\"ph\":\"street_lamp_02\",\"tris\":5000,\"tex\":512}",
-  "model:bench": "{\"ph\":\"painted_wooden_bench\",\"tris\":5000,\"tex\":512}",
   "model:park-bench": "{\"sf\":{\"uid\":\"d9014318124c4013a3bd49cfd69e8b77\",\"title\":\"Park Bech Low-poly\",\"author\":\"MaX3Dd\"},\"height\":0.82,\"tris\":5000,\"tex\":1024}",
   "model:trash-can": "{\"ph\":\"metal_trash_can\",\"tris\":5000,\"tex\":512}",
   "model:hydrant": "{\"ph\":\"fire_hydrant\",\"tris\":5000,\"tex\":512}",

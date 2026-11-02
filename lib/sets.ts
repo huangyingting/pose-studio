@@ -402,7 +402,8 @@ export const SETS: SetDef[] = [
       ...cityBlock(-14, 7, 14, { surface: 'red-brick' }), ...cityBlock(-6.5, 8, 9, { surface: 'facade-tiles', color: '#d8d4cc' }), ...cityBlock(1.5, 8, 18, { surface: 'brick', color: '#cbb8a8' }),
       ...cityBlock(9.5, 8, 7, { surface: 'facade-tiles', color: '#c9cfd4' }), ...cityBlock(17, 7, 12, { surface: 'red-brick', color: '#c8b0a0' }),
       ...[-10, -4.5, 6, 12].map((x) => M('street-lamp', x, 1.6, 180)),
-      M('bench', -2.5, -2.2, 0, 0, 1.3), M('trash-can', 2.6, -2.6), M('hydrant', 8.2, 1.4), M('utility-box', -7.5, -4.7),
+      // (A street bench, its back to the shops; the bin's own two cans by it.)
+      M('park-bench', -2.5, -2.2), M('trash-can', 2.6, -2.6), M('hydrant', 8.2, 1.4), M('utility-box', -7.5, -4.7),
       M('planter', -14.5, -1.2), M('planter', 16.5, -1.2), M('aspen', -18, -0.6), M('aspen', 19, -0.6),
       // The road: a dashed middle line, a zebra crossing, a manhole; cars parked by the kerb.
       ...made({ color: '#f1f0ea', rough: 0.7 }, [
@@ -736,9 +737,10 @@ function modelOf(id: ModelId | SceneId, scene = false): THREE.Object3D | null {
       const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
       if (m?.emissiveIntensity !== undefined) m.emissiveIntensity = Math.min(m.emissiveIntensity, 2);
     });
-    // (A model's bottom's middle at its origin; a scene where it was fitted.)
+    // (A model's bottom's middle at its origin; a scene where it was fitted. Its box from its points: a turned
+    // part's box, turned and boxed again, reaches below it, and the model would stand above the floor.)
     if (!scene) {
-      const box = new THREE.Box3().setFromObject(root);
+      const box = new THREE.Box3().setFromObject(root, true);
       const c = box.getCenter(new THREE.Vector3());
       root.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
       root.updateMatrixWorld(true);
@@ -1302,7 +1304,7 @@ export class SetObject {
       });
       // (Standing on the floor: its contact shadow, in the styles lit as 3D is; a scene has its own.)
       if (!isScene && p.at[1] < 0.05) {
-        const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).multiplyScalar(scale);
+        const size = new THREE.Box3().setFromObject(model, true).getSize(new THREE.Vector3()).multiplyScalar(scale);
         this.grounded.push({ at: p.at, yaw: p.rot?.[1] ?? 0, w: size.x, d: size.z });
       }
     }

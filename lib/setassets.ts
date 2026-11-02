@@ -80,7 +80,6 @@ export const MODELS = {
   // Street and park
   'street-lamp': model('street_lamp_01', 6_000),
   'park-lamp': small('street_lamp_02'),
-  'bench': small('painted_wooden_bench'),
   'park-bench': { sf: { uid: 'd9014318124c4013a3bd49cfd69e8b77', title: 'Park Bech Low-poly', author: 'MaX3Dd' }, height: 0.82, tris: MODEL_BUDGET.small, tex: 1024 },
   'trash-can': small('metal_trash_can'),
   'hydrant': small('fire_hydrant'),
