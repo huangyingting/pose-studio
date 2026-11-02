@@ -195,7 +195,13 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     const giveTo = (id: string) => void load().then((ok) => {
       const f = posableById(store, id);
       if (!ok) return ui.notify(`Could not load ${m.name}`);
-      if (f) applyMotion(store, f.id, m.id);
+      if (!f) return;
+      const before = new Set(store.scene.figures.map((x) => x.id));
+      // (Of two with nobody to play it with: who was added is said, with an undo.)
+      if (applyMotion(store, f.id, m.id)) {
+        const added = store.scene.figures.filter((x) => !before.has(x.id)).map((x) => x.name);
+        if (added.length) ui.notifyUndo(`${added.join(' and ')} added to play ${m.name} with ${f.name}`);
+      }
     });
     return {
       key: `motion:${m.id}`,

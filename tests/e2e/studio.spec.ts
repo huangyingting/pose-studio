@@ -2734,3 +2734,20 @@ test('a wave over a walk, from the waist up; posing over a motion corrects it', 
   const s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active, 'upper')).toHaveLength(1);
 });
+
+test('a motion of two on a figure alone: someone is added to play it with, said so, one undo', async ({ page }) => {
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Motions');
+  await page.getByLabel('Search motions').fill('Shake hands');
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Shake hands 2 people · [\d.]+ s$/ }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Figure 2 added to play Shake hands with Figure' })).toBeVisible();
+  await expect(page.locator('.tl-travel.clip', { hasText: 'Shake hands' })).toHaveCount(2);
+  let s = await live(page);
+  expect(s.scene.figures).toHaveLength(2);
+  // (The figure it was given to stays the one selected.)
+  expect(s.active).toBe(s.scene.figures[0].id);
+  await page.getByLabel('Search motions').blur();
+  await page.keyboard.press('ControlOrMeta+z');
+  s = await live(page);
+  expect(s.scene.figures).toHaveLength(1);
+});
