@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
 import { SceneView } from '@/lib/sceneview';
-import { SETS, SET_GROUPS, isEffect, seatNear, setModels, setTops } from '@/lib/sets';
+import { SETS, SET_GROUPS, isEffect, mergeParts, seatNear, setModels, setTops, type Part } from '@/lib/sets';
 import { groundOf } from '@/lib/surfaces';
 import { MODELS, SET_BUDGET, SKIES, SURFACES, type SetIndex } from '@/lib/setassets';
 import INDEX from '../../public/sets/index.json';
@@ -118,6 +118,19 @@ describe('sets', () => {
     expect(isEffect(material({ transparent: true, opacity: 0.19, emissive: new THREE.Color(0.94, 0.94, 0.94) }))).toBe(true);
     expect(isEffect(material({ transparent: true, opacity: 0.25 }))).toBe(false);
     expect(isEffect(material({ emissive: new THREE.Color(1, 1, 1) }))).toBe(false);
+  });
+
+  it('a ready-made scene\'s cells merge into one piece (no line where two meet in the line art); a built set\'s parts stay pieces', () => {
+    const part = (scene: boolean, x: number): Part => {
+      const matrix = new THREE.Matrix4().makeTranslation(x, 0, 0);
+      return { geometry: new THREE.BoxGeometry(1, 1, 1), matrix, inverse: matrix.clone().invert(), box: new THREE.Box3(), floor: false, scene, ground: false, effect: false, start: 0, count: 0, cut: false };
+    };
+    const cells = mergeParts([part(true, 0), part(true, 1), part(true, 2)]).geometry;
+    expect(cells.userData.pieces).toBe(1);
+    expect(new Set(cells.attributes.piece.array)).toEqual(new Set([0]));
+    const built = mergeParts([part(false, 0), part(false, 1), part(false, 2)]).geometry;
+    expect(built.userData.pieces).toBe(3);
+    expect(new Set(built.attributes.piece.array)).toEqual(new Set([0, 1, 2]));
   });
 
   it('made of models and surfaces that npm run sets made, each within its budget; each set within its own (#25)', () => {

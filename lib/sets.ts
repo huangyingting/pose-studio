@@ -1112,7 +1112,7 @@ function contactShadows(grounded: { at: Vec3; yaw: number; w: number; d: number 
 }
 
 /** A part of a set as drawn (#29): its geometry where it stands, what it is made of, how it is treated, and where it is in its group. */
-interface Part {
+export interface Part {
   geometry: THREE.BufferGeometry;
   matrix: THREE.Matrix4;
   inverse: THREE.Matrix4;
@@ -1156,7 +1156,7 @@ export function isEffect(m: THREE.Material) {
 }
 
 /** Parts merged into one geometry, each its own piece number (its inner lines and its ID in the line art's pass). */
-function mergeParts(parts: Part[]) {
+export function mergeParts(parts: Part[]) {
   let vertices = 0;
   let indices = 0;
   for (const p of parts) {
@@ -1175,6 +1175,9 @@ function mergeParts(parts: Part[]) {
   const nm = new THREE.Matrix3();
   let base = 0;
   let at = 0;
+  // (A ready-made scene's parts are cells it was cut into, to be cut away by: one piece, so no line is drawn where two
+  // cells meet. A built set's are pieces of their own, the lines between them drawn.)
+  const whole = parts[0].scene;
   parts.forEach((p, n) => {
     const g = p.geometry;
     const pos = g.attributes.position;
@@ -1189,7 +1192,7 @@ function mergeParts(parts: Part[]) {
       if (tex) { uv[(base + i) * 2] = tex.getX(i); uv[(base + i) * 2 + 1] = tex.getY(i); }
       if (tex1 && uv1) { uv1[(base + i) * 2] = tex1.getX(i); uv1[(base + i) * 2 + 1] = tex1.getY(i); }
       if (col && colors) { colors[(base + i) * 3] = col.getX(i); colors[(base + i) * 3 + 1] = col.getY(i); colors[(base + i) * 3 + 2] = col.getZ(i); }
-      piece[base + i] = n;
+      piece[base + i] = whole ? 0 : n;
     }
     p.start = at;
     const count = g.index ? g.index.count : pos.count;
@@ -1206,7 +1209,7 @@ function mergeParts(parts: Part[]) {
   geometry.setAttribute('piece', new THREE.BufferAttribute(piece, 1));
   if (colors) geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setIndex(new THREE.BufferAttribute(index.slice(), 1));
-  geometry.userData.pieces = parts.length;
+  geometry.userData.pieces = whole ? 1 : parts.length;
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return { geometry, full: index };
