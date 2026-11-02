@@ -337,7 +337,9 @@ class Stage {
 
   /** `who` turns to face someone or something, from t, in their idle. The time they have. */
   face(who: string, f: Facing, t: number, seconds = 0.6): number {
-    return this.play(who, this.idles.get(who)!.slug, t, { seconds, face: f });
+    // (As long as stepping round to it takes, at least: not slid round to make the time.)
+    const by = Math.abs(wrap(this.yaw(this.where(who).at, f) - this.where(who).facing));
+    return this.play(who, this.idles.get(who)!.slug, t, { seconds: by > 15 ? Math.max(seconds, frame(turnTime(by))) : seconds, face: f });
   }
 
   /**
@@ -485,6 +487,10 @@ function wuxiaDuel(): Scene {
   x = s.strike('Mei', 'uppercut', s.until('Mei') + 0.4, 'Lin');
   s.react('Lin', 'receive-punch-to-the-face', x.lands);
   s.play('Lin', 'kneeling-idle', s.until('Lin'), { seconds: 3, blend: 0.7 });
+  // She steps back a pace, still facing him, as he goes down.
+  const [mei, lin] = [s.where('Mei').at, s.where('Lin').at];
+  const gap = Math.hypot(mei[0] - lin[0], mei[1] - lin[1]) || 1;
+  s.go('Mei', [mei[0] + ((mei[0] - lin[0]) / gap) * 0.7, mei[1] + ((mei[1] - lin[1]) / gap) * 0.7], s.until('Mei') + 0.2, 'walk', true);
   // He gets up slowly while she waits.
   s.play('Lin', 'crouch-to-stand', s.until('Lin'));
   s.face('Lin', 'Mei', s.until('Lin'));
