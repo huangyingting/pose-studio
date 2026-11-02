@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { VIEW_PRESETS } from '@/lib/views';
 import { command, type Ctx } from './commands';
+import { GIZMO_REACH, GIZMO_SIZE } from './viewGizmo';
 
 /** The axes' ends: the views of the keys 1–5 (from +X is from the figures' left; +Z is the way they face). Below is not a view. */
 const ENDS: { axis: 0 | 1 | 2; sign: 1 | -1; key?: string }[] = [
@@ -14,9 +15,9 @@ const ENDS: { axis: 0 | 1 | 2; sign: 1 | -1; key?: string }[] = [
   { axis: 2, sign: -1, key: '2' },
 ];
 const NAMES = ['x', 'y', 'z'] as const;
-const R = 32;
-/** Its size (px); the axes' ends round its middle at R. */
-const SIZE = 84;
+/** Its size (px), the 3D gizmo's square, and how far from its middle the axes' ends are drawn there. */
+const SIZE = GIZMO_SIZE;
+const R = (GIZMO_SIZE / 2) * GIZMO_REACH;
 /** Degrees the view turns for each pixel the widget is dragged (as the canvas, but a small thing to drag). */
 const TURN = 1.2;
 
@@ -41,10 +42,11 @@ function project(axis: number, sign: number, { yaw, pitch }: { yaw: number; pitc
 }
 
 /**
- * The view widget in the canvas's top-right corner: the world's axes as the view sees them (X red,
- * Y green, Z blue, as everywhere). Dragging it turns the view round what it looks at; a click on an
- * end turns the view to look from there, as the keys 1–5 do; ¾ (6) is beside it; the end the view
- * looks from is marked.
+ * The view gizmo's hands (#38): over the 3D gizmo drawn in the canvas's top-right corner (viewGizmo.ts:
+ * the world's axes as the view sees them, X red, Y green, Z blue, as everywhere), its axes' ends as
+ * buttons at the same places. Dragging it turns the view round what it looks at; a click on an end
+ * turns the view to look from there, as the keys 1–5 do; ¾ (6) is beside it; the end the view looks
+ * from is marked.
  */
 export default function ViewBall({ ctx, view, turn }: { ctx: Ctx; view(): { yaw: number; pitch: number } | null; turn(yaw: number, pitch: number): void }) {
   const [v, setV] = useState({ yaw: 0, pitch: 4 });
@@ -103,11 +105,6 @@ export default function ViewBall({ ctx, view, turn }: { ctx: Ctx; view(): { yaw:
   };
   return (
     <div className="view-ball" role="group" aria-label="View" data-tip="Drag to turn the view; click an axis to look from there" data-tip-side="left" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
-      <svg viewBox={`${-SIZE / 2} ${-SIZE / 2} ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} aria-hidden>
-        {ends.filter((e) => e.sign > 0).map((e) => (
-          <line key={e.axis} x1={0} y1={0} x2={e.x} y2={e.y} className={`view-axis ${NAMES[e.axis]}`} />
-        ))}
-      </svg>
       {ends.map((e) => {
         const style = { transform: `translate(${SIZE / 2 + e.x}px, ${SIZE / 2 + e.y}px) translate(-50%, -50%)`, zIndex: Math.round(e.depth * 10) + 10 };
         const className = `view-end ${NAMES[e.axis]}${e.sign > 0 ? '' : ' minus'}`;

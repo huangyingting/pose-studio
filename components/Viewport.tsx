@@ -6,6 +6,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
+import { ViewGizmo } from './viewGizmo';
 import { aimCamera, editLight, moveCameraPoint, setCameraPoint, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
@@ -608,7 +609,7 @@ export default function Viewport({
           lighting={lightingOf(scene)}
         />
         <SelectionTag selection={selection} text={tagText} at={labelAt} />
-        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={look.style} />
+        <LineArtRenderer sv={sv} lineWidth={settings.editorLine} style={look.style} gizmo={!through} />
       </Canvas>
       <DragReadout />
     </div>
@@ -1035,8 +1036,11 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
  */
 const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
 
-function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: number; style: Style }) {
+function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineWidth: number; style: Style; gizmo: boolean }) {
   const pass = useMemo(() => new LineArtPass(), []);
+  // The view gizmo, drawn last in its corner (not looking through a camera).
+  const axes = useMemo(() => new ViewGizmo(), []);
+  useEffect(() => () => axes.dispose(), [axes]);
   const pixels = useMemo(() => new PixelPass(), []);
   useEffect(() => () => pixels.dispose(), [pixels]);
   const real = useMemo(() => new RealPass(), []);
@@ -1047,7 +1051,7 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     sv.ink.setResolution(size.width, size.height);
     sv.ink.setThickness(lineWidth);
   }, [sv, size, lineWidth]);
-  useFrame(({ gl, scene, camera }) => {
+  const draw = (gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) => {
     // (Its outlines and lines are on a layer of their own: seen too.)
     camera.layers.enable(LINES_LAYER);
     pass.prepare(gl, sv, camera, lineWidth * 0.8);
@@ -1083,6 +1087,10 @@ function LineArtRenderer({ sv, lineWidth, style }: { sv: SceneView; lineWidth: n
     gl.autoClear = autoClear;
     scene.background = background;
     for (const o of drawn) o.visible = true;
+  };
+  useFrame(({ gl, scene, camera }) => {
+    draw(gl, scene, camera);
+    if (gizmo) axes.draw(gl, camera);
   }, 1);
   return null;
 }

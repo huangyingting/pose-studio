@@ -139,10 +139,12 @@ first, then everywhere it applies.
   the mouse and keys do), and a Library section a command opens opens the side drawer on it. The selected thing has a label above it; dragging it is the main way to change it; its inspector has the exact values.
 - Handles and gizmos are sized with the model (they shrink as the view zooms out), with thick
   lines; lines use `components/Line.tsx` (never drei's `<Line>`).
-- **The canvas's bar** (top left, one row): **Scene only**, then the tools for what is selected,
-  and only those: for a figure (or a part of one, several, or nothing) its tools and Body follows;
-  for a prop Move and Scale (its gizmo's modes, W and R); for a camera, a light, a shot or a block,
-  none (they are edited by their own handles and their inspector).
+- **The tools** are in the top bar, in its canvas group after View, Frame and Render style, as icon
+  buttons (their tips say what a drag does, and their keys): **Scene only**, then the tools for what
+  is selected, and only those: for a figure (or a part of one, several, or nothing) Pose, Move,
+  Rotate and Body follows; for a prop Move and Scale (its gizmo's modes, W and R); for a camera, a
+  light, a shot or a block, none (their own handles and their inspector edit them). The scene alone
+  hides the top bar: its way back is a button in the canvas's corner (and Esc).
 - **Tools** (#38): what a drag on a figure does is the tool's, shown in the bar and in the hint: **Pose** (Q, the default: a hand or foot reaches, the limb following, and with
   **Body follows** the shoulder and chest too; any other part swings from its joint; the hips sink or
   shift on planted feet), **Move** (W: any part places the whole figure on the floor, in an animated
@@ -155,9 +157,10 @@ first, then everywhere it applies.
   does the same, its menu with that part's commands too (a stand-in, or with Move, the whole figure).
 - What is not picked through the canvas (sets) is not selected by a click: it is where the floor
   is (see §6).
-- **The view widget** (top right): the world's axes as the view sees them, large enough to grab.
-  Dragging it turns the view round what it looks at (as dragging the canvas does); a click on an
-  axis's end looks from there (keys 1–6), ¾ beside it.
+- **The view gizmo** (top right): the world's axes in 3D as the view sees them (lit rods and balls,
+  as the gizmos are drawn), the same size on screen however near or far the view is. Dragging it
+  turns the view round what it looks at (as dragging the canvas does); a click on an axis's end looks
+  from there (keys 1–6), ¾ beside it.
 - **The floor's axes**: the line along X (red) and the line along Z (blue) through the stage's middle,
   drawn on the grid (not in exports), so which way is which can be read off the floor.
 - Styles: a new render style is one entry in `lib/styles.ts`; what is drawn reads `styleDef`.

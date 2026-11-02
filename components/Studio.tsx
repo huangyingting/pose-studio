@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import {
-  ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, Maximize2, Minimize2, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
+  ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, Minimize2, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react';
 import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
 import { clipsIn, parseLibrary, uid } from '@/lib/doc';
@@ -494,6 +494,7 @@ function App() {
             >
               <StyleIcon size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{style.label}</span> <ChevronDown size={14} aria-hidden />
             </Menu>
+            <CanvasTools />
           </Toolbar>
         </div>
         <div className="tb-center">
@@ -590,11 +591,8 @@ function App() {
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} camera={through.camera} project={projectChest} />}
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
         {!through && <ViewBall ctx={cx} view={viewNow} turn={turnView} />}
-        {/* The canvas's bar, at its top left: the scene alone, and the tools for what is selected. */}
-        <div className="canvas-bar">
-          <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
-          {!through && <CanvasTools />}
-        </div>
+        {/* (The scene alone hides the top bar and its tools: the way back, in the canvas's corner.) */}
+        {stageOnly && <BackToPanels onBack={() => setStageOnly(false)} />}
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
         <div className="stage-hint">
           <Hint
@@ -738,13 +736,11 @@ function Pill({ tone, icon: Icon, label, children }: { tone: 'plain' | 'note' | 
 /** A gesture or a key, as written in a hint (Drag, Right-click, Alt, ←, H…). */
 const KEYISH = /^(Drag|Click|Right-click|Double-click|Wheel|Shift|Ctrl|Alt|Tab|Esc|Enter|Space|Page|Up|Down|Arrows|Del|F2|[A-Z]|[←→↑↓]|←→|(Shift|Ctrl|Alt)-(drag|click))$/;
 
-/** In the canvas's corner: the scene alone, filling the window, or back with its panels. */
-function StageOnlyButton({ on, toggle }: { on: boolean; toggle(): void }) {
-  const label = on ? 'Back to the panels' : 'Scene only';
-  const keys = on ? 'Esc' : shortcutOf('view.stageOnly');
+/** The scene alone (its top bar and tools hidden): the way back to the panels, in the canvas's corner (Esc too). */
+function BackToPanels({ onBack }: { onBack(): void }) {
   return (
-    <button type="button" className="stage-pop" aria-label={label} aria-pressed={on} data-tip={keys ? `${label} · ${keys}` : label} onClick={toggle}>
-      {on ? <Minimize2 size={16} aria-hidden /> : <Maximize2 size={16} aria-hidden />}
+    <button type="button" className="stage-pop" aria-label="Back to the panels" aria-pressed data-tip="Back to the panels · Esc" onClick={onBack}>
+      <Minimize2 size={16} aria-hidden />
     </button>
   );
 }

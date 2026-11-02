@@ -355,7 +355,7 @@ test('dragging a hand moves the arm with IK', async ({ page }) => {
 test('the tools (#38): Move places the whole figure from any part, Rotate turns a hand at its wrist; a pinned hand stays as the chest is posed', async ({ page }) => {
   await page.keyboard.press('1');
   const figure = () => page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().library.scenes[0].figures[0]);
-  const tools = page.getByRole('toolbar', { name: 'Tools', exact: true });
+  const tools = page.getByRole('group', { name: 'Tools', exact: true });
   await expect(tools.getByRole('button', { name: 'Pose' })).toHaveAttribute('aria-pressed', 'true');
   // Move: a drag on the forearm moves the figure, the arm as it was.
   await tools.getByRole('button', { name: 'Move' }).click();
@@ -441,17 +441,17 @@ test('a picked figure moves by its gizmo, a prop by dragging it; they turn by th
   expect((await prop()).position).toEqual(p0.position);
 });
 
-test('the canvas\'s bar has the tools for what is selected; the view widget turns the view when dragged, a click on an end still looks from there', async ({ page }) => {
-  const tools = page.getByRole('toolbar', { name: 'Tools', exact: true });
+test('the top bar has the canvas\'s tools for what is selected; the view widget turns the view when dragged, a click on an end still looks from there', async ({ page }) => {
+  const tools = page.getByRole('group', { name: 'Tools', exact: true });
   const names = () => tools.getByRole('button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
   // A figure: what a drag on it does, the tool in use lit.
   expect(await names()).toEqual(['Pose', 'Move', 'Rotate', 'Body follows']);
   await expect(tools.getByRole('button', { name: 'Pose' })).toHaveAttribute('aria-pressed', 'true');
   // A prop: its gizmo moving or scaling.
   await addLayer(page, 'Box');
-  await expect.poll(names).toEqual(['Move', 'Scale']);
-  await tools.getByRole('button', { name: 'Scale' }).click();
-  await expect(tools.getByRole('button', { name: 'Scale' })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(names).toEqual(['Move the prop', 'Scale the prop']);
+  await tools.getByRole('button', { name: 'Scale the prop' }).click();
+  await expect(tools.getByRole('button', { name: 'Scale the prop' })).toHaveAttribute('aria-pressed', 'true');
   // A camera: none (the scene-only button stays).
   await page.evaluate(() => { const s = (window as unknown as { __poseStudio: { store: { scene: { cameras: { id: string }[] }; select(x: unknown): void } } }).__poseStudio.store; s.select({ kind: 'camera', camera: s.scene.cameras[0].id }); });
   await expect(tools).toHaveCount(0);
