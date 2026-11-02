@@ -1132,6 +1132,15 @@ export interface Part {
   start: number;
   count: number;
   cut: boolean;
+  /**
+   * A ready-made scene's cell's fewer triangles, drawn when it is small in the view (SetObject.detail):
+   * where they start in its group's indices, how many (none: as it is); drawn so now.
+   */
+  lodStart?: number;
+  lodCount?: number;
+  /** How far (m) its fewer triangles stray from its own at most. */
+  lodError?: number;
+  far?: boolean;
 }
 
 /** The parts of a set made of the same, drawn as one (#29): one mesh and one outline, a twin that only casts their shadows. */
@@ -1139,10 +1148,35 @@ interface Group {
   parts: Part[];
   mesh: THREE.Mesh | null;
   twin: THREE.Mesh | null;
-  /** All its triangles' indices (what is cut away is left out of the mesh's own). */
+  /** All its triangles' indices (what is cut away is left out of the mesh's own), its parts' fewer after. */
   full: Uint32Array | Uint16Array | null;
   dirty: boolean;
 }
+
+/** What a group's mesh draws of each part: none (cut away), its fewer triangles (far), or all. */
+function applyIndex(g: Group) {
+  const index = g.mesh?.geometry.index;
+  if (!index || !g.full) return;
+  const out = index.array as Uint32Array | Uint16Array;
+  for (const p of g.parts) {
+    const lod = !p.cut && !!p.far && !!p.lodCount;
+    if (p.cut || lod) out.fill(0, p.start, p.start + p.count);
+    else out.set(g.full.subarray(p.start, p.start + p.count), p.start);
+    if (!p.lodCount) continue;
+    if (lod) out.set(g.full.subarray(p.lodStart!, p.lodStart! + p.lodCount), p.lodStart!);
+    else out.fill(0, p.lodStart!, p.lodStart! + p.lodCount);
+  }
+  index.needsUpdate = true;
+}
+
+/**
+ * A cell is drawn with fewer triangles where they stray from its own by under this many of the
+ * screen's pixels (seen from its nearest), with all again from this many.
+ */
+const FAR = { enter: 1, leave: 1.3 };
+/** A cell with fewer triangles than this keeps them all; one with more, about a quarter, straying at most LOD_ERROR (m). */
+const LOD_MIN = 600;
+const LOD_ERROR = 0.05;
 
 const keyOf = (p: Pick<Part, 'own' | 'look' | 'floor' | 'scene' | 'ground' | 'effect'>) =>
   `${p.own ? p.own.uuid : `look:${JSON.stringify(p.look ?? null)}`}|${p.floor ? 'f' : ''}${p.scene ? 's' : ''}${p.ground ? 'g' : ''}`;
@@ -1340,12 +1374,13 @@ export class SetObject {
       this.object.add(twin);
       g.mesh = mesh;
       g.twin = twin;
-      for (const p of g.parts) p.cut = false;
+      for (const p of g.parts) Object.assign(p, { cut: false, lodStart: undefined, lodCount: undefined, lodError: undefined, far: false });
     }
     // (A set stands still: its parts placed once, not worked out again every frame.)
     this.object.traverse((o) => { o.updateMatrix(); o.matrixAutoUpdate = false; });
     this.object.updateMatrixWorld(true);
     this.box = null;
+    void this.lods();
   }
 
   setStyle(style: Style) {
@@ -1443,15 +1478,70 @@ export class SetObject {
         changed.add(g);
       }
     }
-    for (const g of changed) {
-      const index = g.mesh?.geometry.index;
-      if (!index || !g.full) continue;
-      const out = index.array as Uint32Array | Uint16Array;
+    for (const g of changed) applyIndex(g);
+  }
+
+  /**
+   * Draw a ready-made scene's cells far enough that fewer triangles look the same with them (made
+   * once its groups are built, lods), the others with all: as the view (`eye`, its vertical `fov` in
+   * degrees, the canvas `height` in pixels) moves. The canvas's only: an export draws every triangle.
+   */
+  detail(eye: THREE.Vector3, fov: number, height: number) {
+    const perMetre = height / 2 / Math.tan(THREE.MathUtils.degToRad(fov / 2));
+    const centre = new THREE.Vector3();
+    for (const g of this.groups.values()) {
+      let changed = false;
       for (const p of g.parts) {
-        if (p.cut) out.fill(0, p.start, p.start + p.count);
-        else out.set(g.full.subarray(p.start, p.start + p.count), p.start);
+        if (!p.lodCount) continue;
+        p.box.getCenter(centre).applyMatrix4(p.matrix);
+        const radius = (p.box.max.distanceTo(p.box.min) / 2) * p.matrix.getMaxScaleOnAxis();
+        // (How many pixels its fewer triangles stray by, at its nearest.)
+        const strays = (p.lodError! * perMetre) / Math.max(0.01, centre.distanceTo(eye) - radius);
+        const far = p.far ? strays < FAR.leave : strays < FAR.enter;
+        if (far === !!p.far) continue;
+        p.far = far;
+        changed = true;
       }
-      index.needsUpdate = true;
+      if (changed) applyIndex(g);
+    }
+  }
+
+  /** Each scene group's cells given fewer triangles too (meshoptimizer's simplifier, fetched only for a scene), after it is built. */
+  private async lods() {
+    const groups = [...this.groups.values()].filter((g) => g.mesh && g.full && g.parts[0].scene && g.parts.some((p) => p.count >= LOD_MIN && p.lodCount === undefined));
+    if (!groups.length || typeof window === 'undefined') return;
+    const { MeshoptSimplifier } = await import('meshoptimizer/simplifier');
+    await MeshoptSimplifier.ready;
+    for (const g of groups) {
+      const mesh = g.mesh;
+      if (!mesh || !g.full) continue;
+      const positions = mesh.geometry.attributes.position.array as Float32Array;
+      // (Its triangles joined where their corners meet, whatever their own normals and texture
+      // places: a model's are mostly apart, and apart they could not be simplified.)
+      const remap = MeshoptSimplifier.generatePositionRemap(positions, 3);
+      const fewer: Uint32Array[] = [];
+      for (const p of g.parts) {
+        p.lodCount = 0;
+        if (p.count < LOD_MIN) continue;
+        const joined = Uint32Array.from(g.full.subarray(p.start, p.start + p.count), (i) => remap[i]);
+        const [lod, error] = MeshoptSimplifier.simplify(joined, positions, 3, Math.floor(p.count / 12) * 3, LOD_ERROR, ['LockBorder', 'Sparse', 'ErrorAbsolute']);
+        // (Not worth it if it keeps most of them.)
+        if (lod.length > p.count * 0.6) continue;
+        p.lodError = Math.max(error, 0.002);
+        p.lodStart = g.full.length + fewer.reduce((n, f) => n + f.length, 0);
+        p.lodCount = lod.length;
+        fewer.push(lod);
+      }
+      if (!fewer.length) continue;
+      // (Rebuilt since: left as it is.)
+      if (g.mesh !== mesh) continue;
+      const all = new (g.full.constructor as Uint32ArrayConstructor)(g.full.length + fewer.reduce((n, f) => n + f.length, 0));
+      all.set(g.full);
+      let at = g.full.length;
+      for (const f of fewer) { all.set(f, at); at += f.length; }
+      g.full = all;
+      mesh.geometry.setIndex(new THREE.BufferAttribute(all.slice(), 1));
+      applyIndex(g);
     }
   }
 

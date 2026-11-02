@@ -116,14 +116,16 @@ function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3)
   return hits.length > 0;
 }
 
-/** A set's parts in the way of the view, or of the people in it, cut away as they move (SetObject.cutaway). */
+/** A set's parts in the way of the view, or of the people in it, cut away as they move (SetObject.cutaway); its far cells drawn with fewer triangles (SetObject.detail). */
 function SetCutaway({ sv }: { sv: SceneView }) {
   const get = useThree((s) => s.get);
   const was = useRef({ eye: new THREE.Vector3(NaN, 0, 0), target: new THREE.Vector3(), set: null as unknown, people: [] as THREE.Vector3[] });
   useFrame(() => {
-    const { camera, controls } = get() as unknown as { camera: THREE.Camera; controls: { target: THREE.Vector3 } | null };
+    const { camera, controls, gl } = get() as unknown as { camera: THREE.Camera; controls: { target: THREE.Vector3 } | null; gl: THREE.WebGLRenderer };
     const set = sv.set;
     if (!set || !controls) return;
+    // (Its far cells with fewer triangles, near ones with all: also once they are made.)
+    set.detail(camera.position, (camera as THREE.PerspectiveCamera).fov ?? 35, gl.domElement.height);
     const w = was.current;
     const people = sv.chests();
     // (Again when the view has moved a millimetre, or someone in it a couple of centimetres.)
