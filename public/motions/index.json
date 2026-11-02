@@ -5,6 +5,7 @@
   "duration": 5.433,
   "people": 1,
   "group": "Weapons",
+  "seat": "start",
   "move": [
    0.005,
    -0.01
@@ -129,6 +130,7 @@
   "people": 1,
   "group": "Sitting & lying",
   "loop": true,
+  "seat": "start",
   "move": [
    0,
    0
@@ -142,6 +144,7 @@
   "people": 1,
   "group": "Sitting & lying",
   "loop": true,
+  "seat": "start",
   "move": [
    0,
    0
@@ -255,6 +258,7 @@
   "duration": 15.2,
   "people": 1,
   "group": "Using things",
+  "seat": "start",
   "move": [
    -0.332,
    2.726
@@ -304,6 +308,7 @@
   "duration": 2.267,
   "people": 1,
   "group": "Sitting & lying",
+  "seat": "start",
   "move": [
    0.001,
    0.47
@@ -967,6 +972,7 @@
   "duration": 2.233,
   "people": 1,
   "group": "Sitting & lying",
+  "seat": "end",
   "move": [
    0,
    -0.476
@@ -979,6 +985,7 @@
   "duration": 1.2,
   "people": 1,
   "group": "Sitting & lying",
+  "seat": "end",
   "move": [
    0,
    0
@@ -992,6 +999,7 @@
   "people": 1,
   "group": "Sitting & lying",
   "loop": true,
+  "seat": "start",
   "move": [
    0,
    0
@@ -1195,6 +1203,7 @@
   "duration": 30,
   "people": 1,
   "group": "Talking & gestures",
+  "seat": "start",
   "move": [
    -0.001,
    0

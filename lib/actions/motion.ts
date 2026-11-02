@@ -1,7 +1,9 @@
 import { wrapDeg } from '../joints';
 import { newAnimation, snapTime } from '../animation';
 import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
-import { figurePoseAt, actionsOf, warpOf, naturalEnd } from '../evaluate';
+import { figurePoseAt, actionsOf, marksOf, warpOf, naturalEnd } from '../evaluate';
+import { newProp, nextName } from '../doc';
+import { seatAt } from '../sets';
 import { addTravel, insertClip, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
 import { legsOf, GAITS, flightTime, JUMP_PREP } from '../locomotion';
 import LIBRARY_INDEX from '../../public/motions/index.json';
@@ -12,7 +14,7 @@ import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
-import type { Travel } from '../types';
+import type { PropKind, Travel } from '../types';
 import { retime, setBlend, setClipOptions } from './timeline';
 import { addFigure } from './figures';
 
@@ -261,6 +263,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
     return store.group(() => {
       const cast = [figureId, ...partners(store, figureId, people - 1)];
       store.updateScene((s) => insertClip(s, cast, motionId, start));
+      seatUnder(store, figureId, motionId, start);
       store.select({ kind: 'figure', figure: figureId });
       store.setTime(start);
       return true;
@@ -271,6 +274,27 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
   store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;
+}
+
+/** What a seat may be among the scene's props. */
+const SEATS: PropKind[] = ['chair', 'stool'];
+
+/**
+ * A motion done sitting given to someone with nothing there to sit on (a set's seat, a chair or a
+ * stool of the scene's): a chair is put under them, where they sit (at its start, or where sitting
+ * down takes them), facing their way. Not sat in the air.
+ */
+function seatUnder(store: Store, figureId: string, motionId: string, start: number) {
+  const seat = (LIBRARY_INDEX as unknown as { id: string; seat?: 'start' | 'end' }[]).find((m) => m.id === motionId)?.seat;
+  const act = seat && actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === motionId && Math.abs(x.start - start) < 1e-3);
+  const marks = act && marksOf(store.scene, act, figureId);
+  if (!marks) return;
+  const { at: [x, z], facing } = seat === 'start' ? marks.start : marks.end;
+  if (seatAt(store.scene.set, x, z) || store.scene.props.some((p) => !p.hold && SEATS.includes(p.kind) && Math.hypot(p.position[0] - x, p.position[2] - z) < 0.5)) return;
+  // (Its seat's middle a little behind where the hips come down: as chairs are set for sitting, lib/films.ts.)
+  const [bx, bz] = [x - Math.sin((facing * Math.PI) / 180) * 0.1, z - Math.cos((facing * Math.PI) / 180) * 0.1];
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('chair', [r3(bx), 0, r3(bz)], nextName('Chair', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0] }] }));
 }
 
 /**

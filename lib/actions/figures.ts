@@ -322,7 +322,8 @@ export function lieOn(store: Store, figure: string, prop: string) {
 
 /** Sitting: what a figure plays down onto a seat, there, and back up (the Library's motions). */
 const SIT = { down: 'library:stand-to-sit', idle: 'library:sitting-idle', up: 'library:sit-to-stand' };
-const SITTING = ['library:stand-to-sit', 'library:sitting-idle', 'library:sitting-talking', 'library:sit-to-type'];
+/** Those done sitting, or sitting down (the index says: npm run motions), not getting up. */
+const SITTING = (LIBRARY_INDEX as unknown as { id: string; seat?: string }[]).filter((m) => m.seat && m.id !== SIT.up).map((m) => m.id);
 
 /** A Library motion's entry in its index: how long it is, and where it takes its person (in leg lengths). */
 function course(id: string) {

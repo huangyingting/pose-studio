@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, moveProp, setSceneSet, sitAt, sitOn, sittingAt, standUp } from '@/lib/actions';
+import { addFigure, addProp, applyMotion, moveProp, setSceneSet, sitAt, sitOn, sittingAt, standUp } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { parseClip } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
@@ -18,7 +18,7 @@ class MemoryStorage implements Storage {
   setItem(k: string, v: string) { this.m.set(k, v); }
 }
 
-putClips(['idle', 'stand-to-sit', 'sitting-idle', 'sit-to-stand'].map((n) => parseClip(JSON.parse(readFileSync(`public/motions/${n}.json`, 'utf8')))!));
+putClips(['idle', 'stand-to-sit', 'sitting-idle', 'sit-to-stand', 'sitting-talking', 'clapping'].map((n) => parseClip(JSON.parse(readFileSync(`public/motions/${n}.json`, 'utf8')))!));
 
 const hipsAt = (store: Store, id: string, t: number) => {
   const f = figurePoseAt(store.scene, id, t)!;
@@ -96,5 +96,32 @@ describe('sitting on a chair or a stool (#14)', () => {
     park.setTime(0);
     expect(sitAt(park, b, -1.8, -0.55)).toBe(true);
     expect(Math.abs(hipsAt(park, b, park.getState().time + 0.5).facing)).toBeLessThan(10);
+  });
+
+  it('a motion done sitting, given where there is nothing to sit on, brings a chair (not sat in the air); one there is used', () => {
+    let store = new Store(new MemoryStorage());
+    for (const [motion, at] of [['library:sitting-talking', 'start'], ['library:stand-to-sit', 'end']] as const) {
+      store = new Store(new MemoryStorage());
+      const a = store.figure!.id;
+      const before = store.scene.props.length;
+      expect(applyMotion(store, a, motion)).toBe(true);
+      expect(store.scene.props, motion).toHaveLength(before + 1);
+      const chair = store.scene.props.at(-1)!;
+      expect(chair.kind).toBe('chair');
+      // (Its middle a little behind where the hips come down, facing the way they do.)
+      const t = store.getState().time;
+      const act = store.scene.animation!.actions.find((x) => x.source.kind === 'clip' && x.source.clip === motion && Math.abs(x.start - t) < 1e-3)!;
+      const sat = hipsAt(store, a, at === 'start' ? act.start + 0.2 : act.start + act.duration);
+      expect(Math.hypot(chair.position[0] - sat.x, chair.position[2] - sat.z), motion).toBeLessThan(0.3);
+      // One undo takes the chair away with the motion.
+      store.undo();
+      expect(store.scene.props).toHaveLength(before);
+      store.redo();
+    }
+    // Sitting where a chair already is: no second one.
+    const chairs = store.scene.props.length;
+    store.setTime(store.scene.animation!.duration);
+    expect(applyMotion(store, store.figure!.id, 'library:clapping')).toBe(true);
+    expect(store.scene.props).toHaveLength(chairs);
   });
 });

@@ -158,6 +158,16 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Salsa Dancing': ['Salsa', 'Dance'],
   'Swing Dancing': ['Swing', 'Dance'],
 };
+
+/**
+ * The motions done sitting, by their file's name: seated from the start, or (sitting down) at the
+ * end. Given to someone with nothing under them to sit on, a chair is put there (lib/actions/motion.ts).
+ */
+const SEATED: Record<string, 'start' | 'end'> = {
+  'Sitting Idle': 'start', 'Sitting Talking': 'start', 'Clapping': 'start', 'Victory': 'start', 'Aim Pistol': 'start',
+  'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'end',
+};
+for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const rig = new Rig();
@@ -270,7 +280,7 @@ for (const p of PAIRS) {
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; move: [number, number]; turn: number; reach?: [number, number, number] }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; move: [number, number]; turn: number; reach?: [number, number, number] }[] = [];
 
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;
@@ -283,6 +293,7 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
     id, name: ready.name, duration: ready.duration, people: ready.parts.length, group,
     ...(loop ? { loop: true as const } : {}),
     ...(impact !== undefined ? { impact } : {}),
+    ...(SEATED[file] ? { seat: SEATED[file] } : {}),
     // (Where it takes its person, and where a strike lands: lib/strike.ts clipCourse.)
     ...clipCourse(ready, impact),
   });
