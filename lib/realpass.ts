@@ -52,9 +52,12 @@ export class RealPass {
     this.scenePass.camera = camera;
     this.ao!.scene = scene;
     this.ao!.camera = camera;
-    // (The depth of the picture the scene is drawn into this time: the composer's two take turns.)
-    const depth = composer.readBuffer.depthTexture ?? undefined;
-    if (this.ao!.depthTexture !== depth) this.ao!.setGBuffer(depth);
+    // (The depth of the picture the scene is drawn into this time: the composer's two take turns;
+    // given to its materials as it is, not as a new g-buffer, which would rebuild them.)
+    const ao = this.ao!;
+    const depth = composer.readBuffer.depthTexture!;
+    if (ao.depthTexture === undefined || ao.normalTexture !== undefined) ao.setGBuffer(depth);
+    ao.depthTexture = ao.gtaoMaterial.uniforms.tDepth.value = ao.pdMaterial.uniforms.tDepth.value = depth;
     composer.render();
   }
 
