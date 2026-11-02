@@ -1984,24 +1984,11 @@ button.psec-title svg { color: var(--text-3); }
 /* The view widget: the world's axes as the view sees them; their ends turn the view. */
 .view-ball { position: absolute; top: 10px; right: 10px; z-index: 3; width: 96px; height: 96px; border-radius: 50%; cursor: grab; touch-action: none; }
 .view-ball:active { cursor: grabbing; }
-/* (The gizmo is drawn in 3D under it, viewGizmo.ts: its ends here are the buttons over the drawn balls, a letter on the near ones.) */
-.view-end {
-  position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
-  background: transparent; color: #ffffff; font-size: var(--fs-xs); font-weight: 650; text-shadow: 0 0 2px rgb(0 0 0 / 0.35); cursor: pointer;
-}
-.view-end.x { --c: var(--axis-x); }
-.view-end.y { --c: var(--axis-y); }
-.view-end.z { --c: var(--axis-z); }
+/* (The gizmo is drawn in 3D under it, viewGizmo.ts: its ends here are unseen buttons over the drawn balls.) */
+.view-end { position: absolute; top: 0; left: 0; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
 .view-end.minus { width: 14px; height: 14px; }
 span.view-end.minus { cursor: default; }
-.view-end:is(button):hover, .view-end.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--c); }
 .view-end:focus-visible { outline: none; box-shadow: var(--focus); }
-.view-quarter {
-  position: absolute; right: -4px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
-  background: color-mix(in srgb, var(--panel) 82%, transparent); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; cursor: pointer; z-index: var(--z-drawer);
-}
-.view-quarter:hover { color: var(--accent); }
-.view-quarter.on { background: var(--accent); box-shadow: none; color: var(--on-accent); }
 
 /* Beside the pointer while something is dragged: how far it has moved or turned, a joint's value. */
 .drag-readout {

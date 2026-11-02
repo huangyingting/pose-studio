@@ -3,24 +3,57 @@ import * as THREE from 'three';
 /** The view gizmo's square at the canvas's top right (px), and its margin from the corner (as `.view-ball`'s). */
 export const GIZMO_SIZE = 96;
 const GIZMO_MARGIN = 10;
-/** Where an axis's end is drawn: a share of half the square (the rest is room for its ball and the ring). */
+/** Where an axis's end is drawn: a share of half the square (the rest is room for its ball). */
 export const GIZMO_REACH = 0.66;
 
 /** The axes' colours, as the CSS tokens `--axis-x/y/z` (light theme) and the floor's axes. */
 const COLOURS = ['#e5484d', '#30a46c', '#3d7bff'];
+const LETTERS = ['X', 'Y', 'Z'];
+
+/** An axis's end: its axis and which way (`x+`, `z-`). */
+export type GizmoEnd = `${'x' | 'y' | 'z'}${'+' | '-'}`;
+
+/** The end the pointer rests on (ViewBall says), drawn larger; who to tell to draw again. */
+let hovered: GizmoEnd | null = null;
+let redraw: (() => void) | null = null;
+export function hoverGizmo(end: GizmoEnd | null) {
+  if (end === hovered) return;
+  hovered = end;
+  redraw?.();
+}
+export function onGizmoHover(f: (() => void) | null) {
+  redraw = f;
+}
+
+/** A letter on a ball: white, facing the view, drawn over it. */
+function letter(text: string) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  g.font = `700 40px ${getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif'}`;
+  g.fillStyle = '#ffffff';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 32, 35);
+  const map = new THREE.CanvasTexture(c);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, depthTest: false, transparent: true }));
+  s.scale.setScalar(0.5);
+  s.renderOrder = 1;
+  return s;
+}
 
 /**
  * The view gizmo drawn in 3D (#38): the world's axes as the view sees them, lit rods with a ball at
- * each end (the far ends paler) and a faint ring round them, the way the joint gizmo is drawn: but
- * in a square of its own in the canvas's corner, through a camera of its own, so it stays the same
- * size however near or far the view is. What is clicked and dragged on it is the DOM's (ViewBall),
- * laid over it at the same places.
+ * each end (the far ends paler, the near ones lettered), the end the pointer rests on larger; nothing
+ * else, over the canvas. In a square of its own in the canvas's corner, through a camera of its own,
+ * so it stays the same size however near or far the view is. What is clicked and dragged on it is the
+ * DOM's (ViewBall: unseen, at the same places).
  */
 export class ViewGizmo {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.OrthographicCamera;
-  /** What is turned with the view (faces it): the ring and the disc behind the axes. */
-  private readonly facing = new THREE.Group();
+  private readonly ends = new Map<GizmoEnd, THREE.Object3D>();
   private readonly size = new THREE.Vector2();
   private readonly viewport = new THREE.Vector4();
 
@@ -28,7 +61,7 @@ export class ViewGizmo {
     const f = 1 / GIZMO_REACH;
     this.camera = new THREE.OrthographicCamera(-f, f, f, -f, 0.1, 10);
     this.camera.add(new THREE.DirectionalLight('#ffffff', 2.2).translateX(-1).translateY(1.5).translateZ(2));
-    this.scene.add(this.camera, new THREE.AmbientLight('#ffffff', 1.2), this.facing);
+    this.scene.add(this.camera, new THREE.AmbientLight('#ffffff', 1.2));
     const rod = new THREE.CylinderGeometry(0.06, 0.06, 1, 12).translate(0, 0.5, 0);
     const ball = new THREE.SphereGeometry(0.3, 24, 16);
     const far = new THREE.SphereGeometry(0.18, 16, 12);
@@ -38,26 +71,23 @@ export class ViewGizmo {
       const pale = new THREE.MeshLambertMaterial({ color: new THREE.Color(c).lerp(new THREE.Color('#ffffff'), 0.55) });
       const r = new THREE.Mesh(rod, near);
       r.rotation.copy(turns[axis]);
-      const end = new THREE.Vector3().setComponent(axis, 1);
-      const b = new THREE.Mesh(ball, near);
-      b.position.copy(end);
-      const back = new THREE.Mesh(far, pale);
-      back.position.copy(end).negate();
-      this.scene.add(r, b, back);
+      const at = new THREE.Vector3().setComponent(axis, 1);
+      const plus = new THREE.Group().add(new THREE.Mesh(ball, near));
+      if (typeof document !== 'undefined') plus.add(letter(LETTERS[axis]));
+      plus.position.copy(at);
+      const minus = new THREE.Mesh(far, pale);
+      minus.position.copy(at).negate();
+      const name = 'xyz'[axis] as 'x' | 'y' | 'z';
+      this.ends.set(`${name}+`, plus).set(`${name}-`, minus);
+      this.scene.add(r, plus, minus);
     });
-    // (Behind the axes, facing the view: a faint disc to stand out on any scene, and its rim, a ring to grab as the joint gizmo's.)
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(f * 0.97, 48), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }));
-    const ring = new THREE.Mesh(new THREE.RingGeometry(f * 0.93, f * 0.97, 64), new THREE.MeshBasicMaterial({ color: '#8b8d98', transparent: true, opacity: 0.55, depthWrite: false }));
-    disc.position.z = ring.position.z = -1.5;
-    disc.renderOrder = ring.renderOrder = -1;
-    this.facing.add(disc, ring);
   }
 
   /** Drawn over what is drawn already, in its square, as `view` sees the world (round what it looks at). */
   draw(gl: THREE.WebGLRenderer, view: THREE.Camera) {
     this.camera.quaternion.copy(view.quaternion);
     this.camera.position.set(0, 0, 4).applyQuaternion(view.quaternion);
-    this.facing.quaternion.copy(view.quaternion);
+    for (const [end, o] of this.ends) o.scale.setScalar(end === hovered ? 1.3 : 1);
     gl.getSize(this.size);
     gl.getViewport(this.viewport);
     const [x, y] = [this.size.x - GIZMO_MARGIN - GIZMO_SIZE, this.size.y - GIZMO_MARGIN - GIZMO_SIZE];
@@ -75,10 +105,12 @@ export class ViewGizmo {
 
   dispose() {
     this.scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      m.geometry.dispose();
-      (m.material as THREE.Material).dispose();
+      const m = o as THREE.Mesh | THREE.Sprite;
+      if (!(m as THREE.Mesh).isMesh && !(m as THREE.Sprite).isSprite) return;
+      const material = m.material as THREE.Material & { map?: THREE.Texture | null };
+      material.map?.dispose();
+      material.dispose();
+      if ((m as THREE.Mesh).isMesh) m.geometry.dispose();
     });
   }
 }

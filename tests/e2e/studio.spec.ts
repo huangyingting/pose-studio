@@ -472,9 +472,8 @@ test('the top bar has the canvas\'s tools for what is selected; the view widget 
 test('the axes show on the view widget and in the fields; drags read out how far', async ({ page }) => {
   test.setTimeout(240_000);
   await page.keyboard.press('1');
-  // The view widget's Z end is the front view.
+  // The view gizmo's Z end is the front view (its letter drawn on the ball in 3D).
   const front = page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' });
-  await expect(front).toHaveText('Z');
   await expect(front).toHaveAttribute('aria-pressed', 'true');
 
   /** Drag from a point by steps, checking the readout before letting go. */

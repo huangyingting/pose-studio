@@ -6,7 +6,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { Line } from './Line';
-import { ViewGizmo } from './viewGizmo';
+import { ViewGizmo, onGizmoHover } from './viewGizmo';
 import { aimCamera, editLight, moveCameraPoint, setCameraPoint, toggleSelected } from '@/lib/actions';
 import { angle } from '@/lib/pose';
 import { sceneAt } from '@/lib/evaluate';
@@ -1041,6 +1041,12 @@ function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineW
   // The view gizmo, drawn last in its corner (not looking through a camera).
   const axes = useMemo(() => new ViewGizmo(), []);
   useEffect(() => () => axes.dispose(), [axes]);
+  // (The end the pointer rests on drawn larger: a frame drawn for it.)
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    onGizmoHover(invalidate);
+    return () => onGizmoHover(null);
+  }, [invalidate]);
   const pixels = useMemo(() => new PixelPass(), []);
   useEffect(() => () => pixels.dispose(), [pixels]);
   const real = useMemo(() => new RealPass(), []);

@@ -158,9 +158,10 @@ first, then everywhere it applies.
 - What is not picked through the canvas (sets) is not selected by a click: it is where the floor
   is (see §6).
 - **The view gizmo** (top right): the world's axes in 3D as the view sees them (lit rods and balls,
-  as the gizmos are drawn), the same size on screen however near or far the view is. Dragging it
-  turns the view round what it looks at (as dragging the canvas does); a click on an axis's end looks
-  from there (keys 1–6), ¾ beside it.
+  lettered, as the gizmos are drawn), the same size on screen however near or far the view is, and
+  nothing else: no tip, no panel round it. Dragging it turns the view round what it looks at (as
+  dragging the canvas does); a click on an axis's end looks from there (keys 1–6), the end under
+  the pointer drawn larger.
 - **The floor's axes**: the line along X (red) and the line along Z (blue) through the stage's middle,
   drawn on the grid (not in exports), so which way is which can be read off the floor.
 - Styles: a new render style is one entry in `lib/styles.ts`; what is drawn reads `styleDef`.

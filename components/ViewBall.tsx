@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { VIEW_PRESETS } from '@/lib/views';
 import { command, type Ctx } from './commands';
-import { GIZMO_REACH, GIZMO_SIZE } from './viewGizmo';
+import { GIZMO_REACH, GIZMO_SIZE, hoverGizmo, type GizmoEnd } from './viewGizmo';
 
 /** The axes' ends: the views of the keys 1–5 (from +X is from the figures' left; +Z is the way they face). Below is not a view. */
 const ENDS: { axis: 0 | 1 | 2; sign: 1 | -1; key?: string }[] = [
@@ -42,11 +42,10 @@ function project(axis: number, sign: number, { yaw, pitch }: { yaw: number; pitc
 }
 
 /**
- * The view gizmo's hands (#38): over the 3D gizmo drawn in the canvas's top-right corner (viewGizmo.ts:
- * the world's axes as the view sees them, X red, Y green, Z blue, as everywhere), its axes' ends as
- * buttons at the same places. Dragging it turns the view round what it looks at; a click on an end
- * turns the view to look from there, as the keys 1–5 do; ¾ (6) is beside it; the end the view looks
- * from is marked.
+ * The view gizmo's hands (#38), unseen: over the 3D gizmo drawn in the canvas's top-right corner
+ * (viewGizmo.ts: the world's axes as the view sees them, X red, Y green, Z blue, as everywhere), its
+ * axes' ends as buttons at the same places. Dragging it turns the view round what it looks at; a click
+ * on an end turns the view to look from there, as the keys 1–5 do (¾ is the key 6).
  */
 export default function ViewBall({ ctx, view, turn }: { ctx: Ctx; view(): { yaw: number; pitch: number } | null; turn(yaw: number, pitch: number): void }) {
   const [v, setV] = useState({ yaw: 0, pitch: 4 });
@@ -84,33 +83,30 @@ export default function ViewBall({ ctx, view, turn }: { ctx: Ctx; view(): { yaw:
   const up = () => { drag.current = null; };
   // Far ends first: the near ones are drawn (and clicked) over them.
   const ends = ENDS.map((e) => ({ ...e, ...project(e.axis, e.sign, v) })).sort((a, b) => a.depth - b.depth);
-  const button = (key: string, className: string, style: CSSProperties | undefined, text: string) => {
-    const cmd = command(`view.${key}`);
-    const label = typeof cmd.title === 'string' ? cmd.title : key;
+  // (Unseen: the 3D gizmo under it is what shows, the end the pointer rests on drawn larger there.)
+  const end = (e: (typeof ends)[number]) => {
+    const name = `${NAMES[e.axis]}${e.sign > 0 ? '+' : '-'}` as GizmoEnd;
+    const style: CSSProperties = { transform: `translate(${SIZE / 2 + e.x}px, ${SIZE / 2 + e.y}px) translate(-50%, -50%)`, zIndex: Math.round(e.depth * 10) + 10 };
+    const className = `view-end${e.sign > 0 ? '' : ' minus'}`;
+    if (!e.key) return <span key={name} className={className} style={style} aria-hidden />;
+    const cmd = command(`view.${e.key}`);
     return (
       <button
-        key={key}
+        key={name}
         type="button"
-        className={`${className}${at === key ? ' on' : ''}`}
+        className={className}
         style={style}
-        aria-label={label}
-        aria-pressed={at === key}
-        data-tip={`${label}  ${key}`}
-        data-tip-side="left"
+        aria-label={typeof cmd.title === 'string' ? cmd.title : e.key}
+        aria-pressed={at === e.key}
+        onPointerEnter={() => hoverGizmo(name)}
+        onPointerLeave={() => hoverGizmo(null)}
         onClick={() => { if (!dragged.current) cmd.run!(ctx); dragged.current = false; }}
-      >
-        {text}
-      </button>
+      />
     );
   };
   return (
-    <div className="view-ball" role="group" aria-label="View" data-tip="Drag to turn the view; click an axis to look from there" data-tip-side="left" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
-      {ends.map((e) => {
-        const style = { transform: `translate(${SIZE / 2 + e.x}px, ${SIZE / 2 + e.y}px) translate(-50%, -50%)`, zIndex: Math.round(e.depth * 10) + 10 };
-        const className = `view-end ${NAMES[e.axis]}${e.sign > 0 ? '' : ' minus'}`;
-        return e.key ? button(e.key, className, style, e.sign > 0 ? NAMES[e.axis].toUpperCase() : '') : <span key="below" className={className} style={style} aria-hidden />;
-      })}
-      {button('6', 'view-quarter', undefined, '¾')}
+    <div className="view-ball" role="group" aria-label="View" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+      {ends.map(end)}
     </div>
   );
 }
