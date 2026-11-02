@@ -24,7 +24,10 @@ interface StyleDef {
   paper?: true;
   /** Toon-shaded, each character in its own colours and textures (as Anime). */
   toon?: true;
-  /** Toon-shaded as watercolour washes are (#28): soft edges, pigment pooling at the edges, paler, the paper's grain. */
+  /**
+   * Painted in watercolour (#28): toon-shaded paler and softer, then the picture abstracted into
+   * washes, their pigment pooling and granulating, on paper, under a pencil line (lib/watercolour.ts).
+   */
   wash?: true;
   /** Drawn in big pixels: so many screen pixels each, in a few colours (lib/pixel.ts). */
   pixel?: number;
@@ -73,11 +76,10 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
   watercolor: {
     id: 'watercolor',
     label: 'Watercolour',
-    description: 'Watercolour: soft washes in each thing’s own colours, pooling at their edges, a light pencil line, the paper’s grain, a washed sky',
+    description: 'Watercolour, painted: soft washes in each thing’s own colours, pooling where they dried, the paper’s grain through them, a light pencil line, a washed sky',
     background: '#f7f2e8',
     outline: { color: '#6e6052', scale: 0.55, jitter: 0.6, dry: 0.55 },
     interior: null,
-    paper: true,
     toon: true,
     wash: true,
     sky: 'wash',

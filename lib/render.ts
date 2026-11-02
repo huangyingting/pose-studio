@@ -8,6 +8,7 @@ import { LINES_LAYER } from './ink';
 import { LineArtPass } from './lineart';
 import { PixelPass } from './pixel';
 import { RealPass } from './realpass';
+import { WatercolourPass } from './watercolour';
 import { paperTexture } from './shaders';
 import { SceneView } from './sceneview';
 import { styleDef, TONE_MAPPING } from './styles';
@@ -235,6 +236,7 @@ export class SceneRenderer {
   private lines = new LineArtPass();
   private pixels = new PixelPass();
   private real = new RealPass();
+  private paint = new WatercolourPass();
   private style: Style = 'line';
   private depth = new THREE.ShaderMaterial({
     uniforms: { near: { value: 1 }, far: { value: 10 } },
@@ -298,10 +300,15 @@ export class SceneRenderer {
     if (pass === 'beauty') {
       this.lines.prepare(this.renderer, this.view, this.camera, line * 0.8);
       // (In Pixel, so many of the picture's pixels each: as on the canvas, at the export's size.)
-      const { pixel, filmic } = styleDef(this.style);
+      const { pixel, filmic, wash } = styleDef(this.style);
       // (In 3D, as a camera takes it: shaded where things meet, the brightest blooming, #29.)
       if (filmic) {
         this.real.render(this.renderer, this.scene, this.camera);
+        return this.renderer.domElement;
+      }
+      // (In Watercolour, painted: its paper's grain as on the canvas, at the export's size.)
+      if (wash) {
+        this.paint.render(this.renderer, this.scene, this.camera, this.renderer.domElement.height / 800);
         return this.renderer.domElement;
       }
       if (pixel) this.pixels.begin(this.renderer, Math.max(2, Math.round((pixel * this.renderer.domElement.height) / 800)));
@@ -422,6 +429,9 @@ export class SceneRenderer {
     this.lights.dispose();
     this.depth.dispose();
     this.normals.dispose();
+    this.pixels.dispose();
+    this.real.dispose();
+    this.paint.dispose();
     this.renderer.dispose();
   }
 }

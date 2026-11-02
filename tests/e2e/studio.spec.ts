@@ -929,6 +929,25 @@ test('render styles switch from the toolbar: the project\'s look', async ({ page
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Watercolour' }).click();
   expect(await style()).toBe('watercolor');
+  // Painted on paper: even the bare paper above the figure has its grain (many shades, not one).
+  const box = (await page.locator('.stage canvas').boundingBox())!;
+  const shades = async () => {
+    const png = await page.screenshot({ clip: { x: box.x + 20, y: box.y + 60, width: 100, height: 50 } });
+    return page.evaluate(async (src) => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const c = document.createElement('canvas');
+      [c.width, c.height] = [img.width, img.height];
+      const g = c.getContext('2d')!;
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      const seen = new Set<number>();
+      for (let i = 0; i < d.length; i += 4) seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+      return seen.size;
+    }, `data:image/png;base64,${png.toString('base64')}`);
+  };
+  await expect.poll(shades).toBeGreaterThan(20);
   await page.getByRole('button', { name: 'Render style' }).click();
   await page.getByRole('menuitemradio', { name: 'Anime' }).click();
   expect(await style()).toBe('anime');

@@ -137,7 +137,6 @@ const FRAG = /* glsl */ `
   uniform vec3 faceFront;
   uniform float faceSmooth;
   uniform float wash;
-  uniform vec2 resolution;
   varying vec3 vNormal;
   varying vec3 vWorld;
   varying vec2 vUv;
@@ -168,15 +167,13 @@ const FRAG = /* glsl */ `
     // The other lights: a fill's colour on its side, a light from behind as a rim along the edge.
     col += extraLight(n, v, 4.0, vWorld) * mix(base.rgb, vec3(1.0), 0.5);
     if (wash > 0.5) {
-      // Watercolour: paler and uneven, as a wash lies; the pigment pooled where it dried (the edge
-      // between light and shade) and along the edges of the form; the paper's tooth through it all.
-      vec3 px = vec3(gl_FragCoord.xy / max(1.0, resolution.y) * 600.0, 0.0);
-      float tooth = fbm3(px * 0.5);
+      // Watercolour: paler and uneven, as a wash lies (blooms fixed to the thing, as it turns), the
+      // pigment pooled where it dried between light and shade. (The paper, the pigment's grain and
+      // the washes' edges are the picture's: lib/watercolour.ts.)
       float bloom = fbm3(vWorld * 3.0 + 5.0);
       float dried = lit * (1.0 - lit) * 4.0;
-      float rimmed = smoothstep(0.55, 0.95, 1.0 - abs(dot(n, v)));
       col = mix(col, vec3(1.0, 0.985, 0.95), clamp(0.22 + (bloom - 0.5) * 0.3, 0.0, 1.0));
-      col *= (1.0 - 0.12 * dried - 0.16 * rimmed) * (0.94 + 0.12 * tooth);
+      col *= 1.0 - 0.12 * dried;
     }
     vec3 glow = emissive;
     if (useEmissiveMap) glow *= texture2D(emissiveMap, placed(emissiveMapTransform)).rgb;
@@ -190,7 +187,7 @@ const FRAG = /* glsl */ `
  * others (`extra…`); shared. `shadows`: the key's shadows cast on it are its shade (a set's
  * surfaces: what the people's shadows fall on).
  */
-export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount, resolution, wash }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount' | 'resolution' | 'wash'>, shadows = false): THREE.ShaderMaterial {
+export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, extraColors, extraPlaces, extraSpots, extraCount, wash }: Pick<SharedUniforms, 'lightDir' | 'lightColor' | 'extraDirs' | 'extraColors' | 'extraPlaces' | 'extraSpots' | 'extraCount' | 'wash'>, shadows = false): THREE.ShaderMaterial {
   const placing = (t: THREE.Texture | null) => {
     t?.updateMatrix();
     return { value: t ? t.matrix : new THREE.Matrix3() };
@@ -207,7 +204,6 @@ export function toonMaterial(look: ToonLook, { lightDir, lightColor, extraDirs, 
       extraPlaces,
       extraSpots,
       extraCount,
-      resolution,
       wash,
       color: { value: look.color },
       opacity: { value: look.opacity },

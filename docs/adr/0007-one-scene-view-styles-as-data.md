@@ -11,7 +11,7 @@ The canvas, the Library's thumbnails, the storyboard, still exports, video and t
 
 - **`SceneView`** (`lib/sceneview.ts`) keeps three.js objects in step with a `Scene`: figures (the mannequin, or a character), props, the set and the lights. The editor's canvas (React Three Fiber, `components/Viewport.tsx`) and the off-screen renderer (`lib/render.ts`, used by every export) both draw through it.
 - **A style is data**: one entry in `lib/styles.ts` (`STYLE_DEFS`), giving its outline, interior lines, materials, background, lighting and any post pass. What is drawn reads `styleDef(style)`, never the style's name.
-- Lines are drawn as outline hulls with brush jitter (`lib/ink.ts`), plus a part-ID edge pass for where body parts meet (`lib/lineart.ts`). Painterly and toon looks are shaders (`lib/shaders.ts`, `lib/toon.ts`); 3D is a physically based render with its own pass (`lib/realpass.ts`).
+- Lines are drawn as outline hulls with brush jitter (`lib/ink.ts`), plus a part-ID edge pass for where body parts meet (`lib/lineart.ts`). Painterly and toon looks are shaders (`lib/shaders.ts`, `lib/toon.ts`); 3D is a physically based render with its own pass (`lib/realpass.ts`). Picture-wide looks are post passes that both the canvas and the exporter run: Pixel (`lib/pixel.ts`) and Watercolour (`lib/watercolour.ts`: the picture abstracted into washes, their pigment pooling and granulating on paper, the pencil line drawn over it).
 
 ## Consequences
 

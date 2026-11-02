@@ -17,6 +17,7 @@ import { LineArtPass } from '@/lib/lineart';
 import { groundOf } from '@/lib/surfaces';
 import { PixelPass } from '@/lib/pixel';
 import { RealPass } from '@/lib/realpass';
+import { WatercolourPass } from '@/lib/watercolour';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { onSetAssets, seatNear, surroundings, topUnder } from '@/lib/sets';
@@ -1030,9 +1031,9 @@ function Waker({ store, clock, sv }: { store: Store; clock: Clock; sv: SceneView
 }
 
 /**
- * Takes over R3F's render loop to add the interior line-art pass; in Pixel, what is drawn (the
- * scene and its lights) goes through the pixel pass and what is drawn over it (handles, gizmos,
- * tags) stays sharp on top.
+ * Takes over R3F's render loop to add the interior line-art pass; in Pixel, Watercolour and 3D, what
+ * is drawn (the scene and its lights) goes through their pass and what is drawn over it (handles,
+ * gizmos, tags) stays sharp on top.
  */
 const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
 
@@ -1051,6 +1052,8 @@ function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineW
   useEffect(() => () => pixels.dispose(), [pixels]);
   const real = useMemo(() => new RealPass(), []);
   useEffect(() => () => real.dispose(), [real]);
+  const paint = useMemo(() => new WatercolourPass(), []);
+  useEffect(() => () => paint.dispose(), [paint]);
   useEffect(() => pass.setStyle(style), [pass, style]);
   const size = useThree((s) => s.size);
   useEffect(() => {
@@ -1061,8 +1064,8 @@ function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineW
     // (Its outlines and lines are on a layer of their own: seen too.)
     camera.layers.enable(LINES_LAYER);
     pass.prepare(gl, sv, camera, lineWidth * 0.8);
-    const { pixel, filmic } = styleDef(style);
-    if (!pixel && !filmic) {
+    const { pixel, filmic, wash } = styleDef(style);
+    if (!pixel && !filmic && !wash) {
       gl.render(scene, camera);
       pass.overlay(gl);
       return;
@@ -1071,6 +1074,7 @@ function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineW
     const over = scene.children.filter((o) => !o.userData.drawn && o.visible);
     for (const o of over) o.visible = false;
     if (filmic) real.render(gl, scene, camera);
+    else if (wash) paint.render(gl, scene, camera, 1);
     else {
       pixels.begin(gl, pixel!);
       gl.render(scene, camera);
