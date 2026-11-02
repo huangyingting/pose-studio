@@ -52,6 +52,10 @@ describe('playback worked out ahead (lib/playahead.ts)', () => {
     const edited = { ...s, figures: s.figures.map((f) => ({ ...f, position: [1, 0, 0] as [number, number, number] })) };
     expect(ahead.at(edited, t, span, 1)).toBeNull();
     expect(w.asked.filter((m) => m.type === 'scene')).toHaveLength(2);
+    // Stopped: what was asked for dropped, once.
+    ahead.stop();
+    ahead.stop();
+    expect(w.asked.filter((m) => m.type === 'frames' && !m.frames.length)).toHaveLength(1);
   });
 
   it('without workers (an old browser, the tests), the page works every frame out itself', () => {

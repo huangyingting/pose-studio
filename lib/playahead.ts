@@ -91,6 +91,13 @@ export class PlayAhead {
     return { ...scene, figures: f.figures, props: f.props };
   }
 
+  /** Playback stopped: nothing more worked out ahead (what was asked for dropped). */
+  stop() {
+    if (!this.worker || Number.isNaN(this.asked)) return;
+    this.asked = NaN;
+    this.worker.postMessage({ type: 'frames', gen: this.gen, frames: [] } satisfies PlayAheadRequest);
+  }
+
   /** Its thread stopped (started again if asked for more). */
   dispose() {
     this.worker?.terminate();

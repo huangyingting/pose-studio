@@ -816,7 +816,7 @@ function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Cl
   const ahead = useMemo(() => new PlayAhead(), []);
   useEffect(() => () => ahead.dispose(), [ahead]);
   useFrame(() => {
-    if (!clock.playing || !scene.animation) return;
+    if (!clock.playing || !scene.animation) return ahead.stop();
     // (Playing: as the scene plays, idle life in the gaps; at the moments on playback's grid.)
     const t = onGrid(scene, clock.time);
     sv.sync(ahead.at(scene, t, clock.span(), clock.speed) ?? sceneAt(scene, t, true));
