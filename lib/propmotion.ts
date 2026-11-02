@@ -540,20 +540,31 @@ export function ribbonTrail(scene: Scene, id: string, t: number, figureAt: Figur
   const ground = groundOf(scene.props, id, scene.set);
   const seg = RIBBON.length / RIBBON.segments;
   const pts = [start];
-  // Walk the path a segment at a time.
+  // Along the path a segment at a time: each point where the path is first a segment's length
+  // from the last (straight between them, so the ribbon keeps its length round the bends).
   let i = 0;
   let at = start.clone();
   let way = new THREE.Vector3(1, 0, 0);
+  const off = new THREE.Vector3();
   for (let n = 1; n <= RIBBON.segments; n++) {
-    let left = seg;
-    while (i < path.length - 1 && left > 1e-6) {
-      const to = path[i + 1];
-      const d = at.distanceTo(to);
-      if (d <= left) { left -= d; if (d > 1e-6) way = to.clone().sub(at).normalize(); at = to.clone(); i++; }
-      else { way = to.clone().sub(at).normalize(); at.addScaledVector(way, left); left = 0; }
+    const prev = pts[pts.length - 1];
+    let reached = false;
+    while (i < path.length - 1) {
+      const d = path[i + 1].clone().sub(at);
+      if (d.lengthSq() > 1e-12) way = d.clone().normalize();
+      if (path[i + 1].distanceTo(prev) >= seg) {
+        // (Where on this stretch: |at + d s - prev| = seg, the root in 0…1.)
+        off.copy(at).sub(prev);
+        const [a, b, c] = [d.lengthSq(), 2 * off.dot(d), off.lengthSq() - seg * seg];
+        at.addScaledVector(d, (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a));
+        reached = true;
+        break;
+      }
+      at = path[i + 1].clone();
+      i++;
     }
-    // Past the path: straight down, then along the floor the way it was going.
-    if (left > 1e-6) at.y -= left;
+    // Past the path: straight down from its end (a segment from the last point), then along the floor the way it was going.
+    if (!reached) at.y = prev.y - Math.sqrt(Math.max(0, seg * seg - (at.x - prev.x) ** 2 - (at.z - prev.z) ** 2));
     const floor = ground(at.x, at.z) + 0.004;
     if (at.y < floor) {
       const flat = new THREE.Vector3(way.x, 0, way.z);
