@@ -24,8 +24,15 @@ export function TooltipHost() {
     let timer = 0;
     let hiddenAt = 0;
     let open = false;
+    // (What is shown changes its tip while it is shown, Play to Pause: the tip says so.)
+    const changed = new MutationObserver(() => {
+      if (!current || !open) return;
+      if (current.dataset.tip) show(current);
+      else hide();
+    });
     const hide = () => {
       window.clearTimeout(timer);
+      changed.disconnect();
       if (open) hiddenAt = performance.now();
       open = false;
       current = null;
@@ -35,6 +42,8 @@ export function TooltipHost() {
       const text = el.dataset.tip;
       if (!text || !el.isConnected || (el as HTMLButtonElement).disabled) return;
       open = true;
+      changed.disconnect();
+      changed.observe(el, { attributes: true, attributeFilter: ['data-tip'] });
       setTip({ el, text, side: (el.dataset.tipSide as Side | undefined) ?? 'bottom' });
     };
     const over = (e: PointerEvent) => {
@@ -67,6 +76,7 @@ export function TooltipHost() {
     document.addEventListener('pointerleave', hide);
     return () => {
       window.clearTimeout(timer);
+      changed.disconnect();
       window.removeEventListener('pointerover', over, true);
       window.removeEventListener('pointermove', move, true);
       window.removeEventListener('pointerdown', hide, true);
