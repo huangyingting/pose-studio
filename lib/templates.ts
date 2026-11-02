@@ -46,8 +46,6 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
  */
 export const SHOOT_PRESETS: ShootPreset[] = [
   ...FILMS.map((f) => ({ id: `shoot-${f.id}`, name: f.name, template: f.id, coverage: f.coverage, ...(f.cast ? { cast: f.cast } : {}) })),
-  { id: 'shoot-interview', name: 'Interview', template: 'conversation', coverage: 'dialogue', duration: 9 },
-  { id: 'shoot-deal', name: 'Closing the deal', template: 'handshake', coverage: 'dialogue', duration: 6 },
   { id: 'shoot-jump', name: 'Over the bar', template: 'high-jump', coverage: 'follow' },
 ];
 

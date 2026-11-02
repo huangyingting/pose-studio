@@ -25,11 +25,11 @@ import { PROP_LABELS, type Action, type BodyParams, type Mark, type Prop, type P
  * index's course of it), so that what is done to someone reaches them: a fighter steps in as far
  * as the blow reaches and turns so it lands on the other (the index keeps where each strike's
  * fist or foot is when it lands), the one struck reacts as it does; someone sits only on a chair,
- * walking to the front of it and sitting back onto it. Between what they do, each waits in their
- * own idle facing whom they watch.
+ * walking to the front of it and sitting back onto it; two shaking hands step up to where the
+ * motion has them. Between what they do, each waits in their own idle facing whom they watch.
  */
 
-interface Entry { id: string; name: string; duration: number; loop?: boolean; impact?: number; move: [number, number]; turn: number; reach?: [number, number, number] }
+interface Entry { id: string; name: string; duration: number; loop?: boolean; impact?: number; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: Spot; facing: number } }
 const motions = INDEX as unknown as Entry[];
 
 /** One of the Library's motions, by its file's name. */
@@ -378,6 +378,33 @@ class Stage {
     t1 = this.play(who, stance, t1, { seconds: SQUARE_UP, at, face: facing });
     const end = this.play(who, slug, t1, { mirror: o.mirror });
     return { lands: frame(t1) + m.impact, end };
+  }
+
+  /**
+   * `lead` and `partner` do one of the Library's motions of two from t (a handshake): the partner
+   * steps up to where the motion has them, facing as it has them, and both play it. When it ends.
+   */
+  pair(lead: string, partner: string, slug: string, t: number): number {
+    const m = motion(slug);
+    if (!m.partner) throw new Error(`${slug} is not a motion of two`);
+    const here = this.where(lead);
+    const legs = Math.max(this.legs(lead), this.legs(partner));
+    const [dx, dz] = turn(m.partner.at[0] * legs, m.partner.at[1] * legs, here.facing);
+    const spot: Spot = [r3(here.at[0] + dx), r3(here.at[1] + dz)];
+    let t1 = Math.max(frame(t), this.until(partner));
+    const there = this.where(partner).at;
+    if (Math.hypot(spot[0] - there[0], spot[1] - there[1]) > 0.05) t1 = this.go(partner, spot, t1, 'walk', Math.hypot(spot[0] - there[0], spot[1] - there[1]) < 1);
+    t1 = this.face(partner, wrap(here.facing + m.partner.facing), t1, 0.3);
+    t1 = frame(Math.max(t1, this.until(lead)));
+    this.wait(lead, t1);
+    this.wait(partner, t1);
+    const seconds = frame(m.duration);
+    const ends = [lead, partner].map((who) => this.where(who));
+    [lead, partner].forEach((who, i) => this.moved(who, t1, t1 + seconds, ends[i].at, [], ends[i]));
+    return this.add({
+      id: uid('act'), start: t1, duration: seconds, blendIn: 0.3,
+      roles: [{ figure: this.id(lead), end: ends[0] }, { figure: this.id(partner), end: ends[1] }], source: { kind: 'clip', clip: m.id },
+    });
   }
 
   /** A reaction to a blow that lands at `lands`: `who` plays `slug` so that it starts `lead` seconds before. When it ends. */
@@ -999,6 +1026,89 @@ function streetChase(): Scene {
   return s.done(1);
 }
 
+/**
+ * An interview in an office: the guest comes in, the host goes to meet him and they shake hands;
+ * they sit facing each other, half turned to the room, and talk it through, question and answer;
+ * then they get up, shake hands again, and he goes.
+ */
+function interview(): Scene {
+  const s = new Stage('Interview', [
+    { name: 'Ana', body: 'Woman', at: [0.2, 2.8], facing: 90 },
+    { name: 'Cole', body: 'Man', at: [6.2, -1.2], facing: -90 },
+  ], 'studio', 'office');
+  const [hers, his] = [s.chair([-0.95, 0.2], 60), s.chair([0.95, 0.2], -60)];
+  // He comes in; she goes to meet him, and they shake hands.
+  s.go('Cole', [3.4, 1.8], 0.5);
+  s.go('Ana', [2.2, 1.8], 2.4);
+  s.idle('Ana', 'idle', 'Cole');
+  s.idle('Cole', 'idle', 'Ana');
+  s.pair('Ana', 'Cole', 'shaking-hands', Math.max(s.until('Ana'), s.until('Cole')) + 0.3);
+  // To the chairs.
+  s.sit('Ana', hers, 60, s.until('Ana') + 0.3, 'sitting-idle');
+  s.sit('Cole', his, -60, s.until('Cole') + 1.6, 'sitting-idle');
+  // Question and answer, three times: the one listening sits still.
+  let t = Math.max(s.until('Ana'), s.until('Cole')) + 0.6;
+  for (const [ask, answer] of [[5, 9], [4, 11], [5, 8]]) {
+    s.play('Ana', 'sitting-talking', t, { seconds: ask });
+    s.play('Cole', 'sitting-talking', t + ask + 0.3, { seconds: answer });
+    t += ask + answer + 0.9;
+  }
+  // Thanks: up, a handshake, and he goes.
+  s.rise('Ana', t, 'idle', 'Cole');
+  s.rise('Cole', t + 0.5, 'idle', 'Ana');
+  // (He steps over to her to shake hands.)
+  s.pair('Ana', 'Cole', 'shaking-hands', Math.max(s.until('Ana'), s.until('Cole')) + 0.3);
+  s.go('Cole', [6.2, -1.2], s.until('Cole') + 0.4);
+  s.play('Ana', 'waving', s.until('Ana') + 0.6);
+  return s.done(1.5);
+}
+
+/**
+ * Closing a deal at a meeting table: she arrives, he gets up from the table to greet her and they
+ * shake hands; they sit across the table and go through it, each in turn; he hesitates, she
+ * makes her case, he claps: agreed. They stand, shake on it, and she leaves.
+ */
+function closingTheDeal(): Scene {
+  const s = new Stage('Closing the deal', [
+    { name: 'Lee', body: 'Woman', at: [6.2, -1.6], facing: -90 },
+    { name: 'Grant', body: 'Big man', at: [-0.7, 1.6], facing: 180 },
+  ], 'studio', 'office');
+  s.prop('cylinder', [0, 0, 0.4], { scale: [0.75, 0.74, 0.75], name: 'Table' });
+  s.block([0, 0.4], 0.4);
+  const [his, hers] = [s.chair([-1.35, 0.4], 90), s.chair([1.35, 0.4], -90)];
+  // He sits down to wait at the table; she comes in.
+  s.sit('Grant', his, 90, 0.2, 'sitting-idle');
+  s.go('Lee', [1.9, 1.9], 0.5);
+  s.idle('Lee', 'idle', 'Grant');
+  s.rise('Grant', Math.max(s.until('Grant'), s.until('Lee') - 2), 'idle', 'Lee');
+  s.go('Grant', [-0.3, 2.3], s.until('Grant') + 0.2);
+  s.pair('Grant', 'Lee', 'shaking-hands', Math.max(s.until('Grant'), s.until('Lee')) + 0.3);
+  // Across the table.
+  s.sit('Lee', hers, -90, s.until('Lee') + 0.3, 'sitting-idle');
+  s.sit('Grant', his, 90, s.until('Grant') + 0.6, 'sitting-idle');
+  let t = Math.max(s.until('Lee'), s.until('Grant')) + 0.6;
+  for (const [hersFor, hisFor] of [[7, 6], [8, 5]]) {
+    s.play('Lee', 'sitting-talking', t, { seconds: hersFor });
+    s.play('Grant', 'sitting-talking', t + hersFor + 0.3, { seconds: hisFor });
+    t += hersFor + hisFor + 0.8;
+  }
+  // He hesitates; she makes her case; he claps: agreed.
+  s.play('Grant', 'sitting-idle', t, { seconds: 3 });
+  s.play('Lee', 'sitting-talking', t + 0.6, { seconds: 6 });
+  s.play('Grant', 'clapping', s.until('Lee') + 0.2);
+  // On their feet, they shake on it; she goes, he waves.
+  t = s.until('Grant') + 0.4;
+  s.rise('Grant', t, 'happy-idle', 'Lee');
+  s.rise('Lee', t + 0.4, 'idle', 'Grant');
+  // (Clear of the table to shake on it.)
+  s.go('Grant', [-0.3, 2.3], s.until('Grant') + 0.2);
+  s.go('Lee', [1.4, 2.3], s.until('Lee') + 0.2);
+  s.pair('Grant', 'Lee', 'shaking-hands', Math.max(s.until('Grant'), s.until('Lee')) + 0.3);
+  s.go('Lee', [6.2, -1.6], s.until('Lee') + 0.4);
+  s.play('Grant', 'waving', s.until('Grant') + 0.8, { face: [6.2, -1.6] });
+  return s.done(1.5);
+}
+
 /** The films, as scene templates (people, set, light, what they do), with how each is filmed. */
 export const FILMS: { id: string; name: string; people: number; build(): Scene; coverage: string; cast?: number[] }[] = [
   { id: 'film-wuxia', name: 'Wuxia duel', people: 2, build: wuxiaDuel, coverage: 'fight' },
@@ -1012,4 +1122,6 @@ export const FILMS: { id: string; name: string; people: number; build(): Scene; 
   { id: 'film-cafe', name: 'Café meeting', people: 3, build: cafeMeeting, coverage: 'dialogue', cast: [0, 1] },
   { id: 'film-kungfu', name: 'Kung fu school', people: 4, build: kungFuSchool, coverage: 'fight', cast: [0, 2] },
   { id: 'film-chase', name: 'Street chase', people: 3, build: streetChase, coverage: 'sports', cast: [0, 1] },
+  { id: 'film-interview', name: 'Interview', people: 2, build: interview, coverage: 'dialogue', cast: [0, 1] },
+  { id: 'film-deal', name: 'Closing the deal', people: 2, build: closingTheDeal, coverage: 'dialogue', cast: [0, 1] },
 ];

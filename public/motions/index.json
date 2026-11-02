@@ -468,7 +468,14 @@
    0,
    0
   ],
-  "turn": 0
+  "turn": 0,
+  "partner": {
+   "at": [
+    -0.031,
+    0.448
+   ],
+   "facing": 0
+  }
  },
  {
   "id": "library:hook-punch",
@@ -940,7 +947,14 @@
    0,
    0
   ],
-  "turn": 0
+  "turn": 0,
+  "partner": {
+   "at": [
+    0.031,
+    1.058
+   ],
+   "facing": -180
+  }
  },
  {
   "id": "library:shaking-head-no",

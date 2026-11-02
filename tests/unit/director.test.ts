@@ -73,7 +73,7 @@ describe('a new film (#14)', () => {
     const { startAnimatedScene } = await import('@/lib/actions');
     const store = new Store(new MemoryStorage());
     const scenes = store.getState().library.scenes.length;
-    expect(startAnimatedScene(store, { shoot: 'shoot-interview' }, 30)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-film-interview' }, 30)).toBe(true);
     expect(store.getState().library.scenes.length).toBe(scenes + 1);
     expect(store.scene.animation!.duration).toBe(30);
     expect(store.scene.coverage).toMatchObject({ id: 'dialogue', live: true });
@@ -116,7 +116,7 @@ describe('a film of a chosen length', () => {
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.stubGlobal('cancelAnimationFrame', () => {});
     const store = new Store(new MemoryStorage());
-    expect(startAnimatedScene(store, { shoot: 'shoot-interview' }, 15)).toBe(true);
+    expect(startAnimatedScene(store, { shoot: 'shoot-film-interview' }, 15)).toBe(true);
     const clock = new Clock();
     startPlayback(clock, store);
     expect(store.getState().through).toEqual({});

@@ -115,7 +115,7 @@ describe('scene templates: what is filmed, without how', () => {
     // Opened in one step: one undo goes back to before it.
     const store = new Store(new MemoryStorage());
     const before = store.getState().library;
-    newShoot(store, 'shoot-interview');
+    newShoot(store, 'shoot-film-interview');
     store.undo();
     expect(store.getState().library).toBe(before);
   }, 300_000);

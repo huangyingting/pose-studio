@@ -48,10 +48,11 @@ export function strikeTime(clip: Clip): number {
  * Where a motion takes its first person, from where it starts facing (+z forward, +x to the
  * left), in lengths of its legs (its hips' height standing, as the scenes scale motions to a body):
  * where it ends up and how far it has turned (degrees); for a strike, where what strikes is when it
- * lands (across, up, ahead). Kept in the Library's index (scripts/library-motions.ts) for the
- * scenes staged with them (lib/films.ts): a fighter steps in as far as the blow reaches.
+ * lands (across, up, ahead); of two, where the other starts and which way they face. Kept in the
+ * Library's index (scripts/library-motions.ts) for the scenes staged with them (lib/films.ts): a
+ * fighter steps in as far as the blow reaches, one shaking hands steps up to where the other is.
  */
-export function clipCourse(clip: Clip, strike?: number): { move: [number, number]; turn: number; reach?: [number, number, number] } {
+export function clipCourse(clip: Clip, strike?: number): { move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } } {
   const part = clip.parts[0];
   const first = samplePart(part, 0, clip.duration, false);
   const last = samplePart(part, clip.duration, clip.duration, false);
@@ -63,10 +64,17 @@ export function clipCourse(clip: Clip, strike?: number): { move: [number, number
     return [x * Math.cos(a) + z * Math.sin(a), -x * Math.sin(a) + z * Math.cos(a)];
   };
   const [mx, mz] = local(last.position[0] - first.position[0], last.position[2] - first.position[2]);
-  const out: { move: [number, number]; turn: number; reach?: [number, number, number] } = {
+  const out: ReturnType<typeof clipCourse> = {
     move: [r(mx), r(mz)],
     turn: Math.round(((((facingOf(last.bones) - facingOf(first.bones)) % 360) + 540) % 360) - 180),
   };
+  // (Of two: where the other starts, from the first as it faces, and which way.)
+  const other = clip.parts[1];
+  if (other) {
+    const o = samplePart(other, 0, clip.duration, false);
+    const [ox, oz] = local(o.position[0] - first.position[0], o.position[2] - first.position[2]);
+    out.partner = { at: [r(ox), r(oz)], facing: Math.round(((((startFacing(other, o) - startFacing(part, first)) % 360) + 540) % 360) - 180) };
+  }
   if (strike === undefined) return out;
   // What strikes: the hand or foot furthest out from the hips then.
   const rig = new Rig();
