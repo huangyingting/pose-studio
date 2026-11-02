@@ -11,7 +11,7 @@
    * the command palette · a context menu · an open select list · tooltips, over everything.
    * Values under 20 order things inside one container (the timeline's parts, the stage's overlays).
    */
-  --z-float: 20; --z-float-menu: 21; --z-scrim: 25; --z-drawer: 30; --z-readout: 40; --z-modal: 50; --z-fullscreen: 55;
+  --z-float: 20; --z-scrim: 25; --z-drawer: 30; --z-readout: 40; --z-modal: 50; --z-fullscreen: 55;
   --z-popover: 60; --z-menu: 70; --z-palette: 80; --z-context: 90; --z-select: 200; --z-tooltip: 300;
   --bg: #f3f3f5;
   --panel: #ffffff;
