@@ -21,6 +21,7 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
       uniform float thickness;
       uniform float jitter;
       uniform vec2 resolution;
+      attribute vec3 outlineNormal;
       #include <morphtarget_pars_vertex>
       #include <skinning_pars_vertex>
       #ifdef CUTOUT
@@ -35,6 +36,8 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
           vUv = (mapTransform * vec3(uv, 1.0)).xy;
         #endif
         #include <beginnormal_vertex>
+        // (Out along the normal smoothed over its hard edges, where the part has one: outlineNormals.)
+        if (dot(outlineNormal, outlineNormal) > 1e-6) objectNormal = outlineNormal;
         #include <morphnormal_vertex>
         #include <skinbase_vertex>
         #include <skinnormal_vertex>
@@ -83,6 +86,42 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
         #include <colorspace_fragment>
       }`,
   });
+}
+
+/**
+ * Each vertex's normal averaged with the others at the same place, for its outline hull to go out
+ * along (`outlineNormal`): at a hard edge (a box's, a wall's top) the faces' own normals part, and
+ * the hull pushed out along them cracks there, its line seen in dashes or not at all. Once per
+ * geometry; one without normals keeps none (its hull goes out along its normals).
+ */
+export function outlineNormals(geo: THREE.BufferGeometry) {
+  const { position, normal } = geo.attributes;
+  if (geo.attributes.outlineNormal || !normal) return;
+  const places = new Map<string, number>();
+  const slots = new Int32Array(position.count);
+  const sums: number[] = [];
+  for (let i = 0; i < position.count; i++) {
+    const key = `${Math.round(position.getX(i) * 1e4)},${Math.round(position.getY(i) * 1e4)},${Math.round(position.getZ(i) * 1e4)}`;
+    let slot = places.get(key);
+    if (slot === undefined) {
+      slot = sums.length / 3;
+      places.set(key, slot);
+      sums.push(0, 0, 0);
+    }
+    slots[i] = slot;
+    sums[slot * 3] += normal.getX(i);
+    sums[slot * 3 + 1] += normal.getY(i);
+    sums[slot * 3 + 2] += normal.getZ(i);
+  }
+  const out = new Float32Array(position.count * 3);
+  const n = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    n.fromArray(sums, slots[i] * 3);
+    // (Where they cancel out, a thin sheet's two sides: its own.)
+    if (n.lengthSq() < 1e-8) n.set(normal.getX(i), normal.getY(i), normal.getZ(i));
+    n.normalize().toArray(out, i * 3);
+  }
+  geo.setAttribute('outlineNormal', new THREE.BufferAttribute(out, 3));
 }
 
 /** How sharply a character's surface folds in to be lined (the mannequin's from 16). */
@@ -513,6 +552,7 @@ export class InkedParts {
       this.bodies.push(mesh);
       return mesh;
     }
+    outlineNormals(geo);
     const hull = made(geo, this.ink.outline);
     hull.raycast = () => {};
     hull.layers.set(LINES_LAYER);

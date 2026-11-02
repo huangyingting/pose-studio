@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
-import { Ink, InkedParts } from '@/lib/ink';
+import { Ink, InkedParts, outlineNormals } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
 import { SETS, SET_GROUPS, isEffect, mergeParts, seatNear, setModels, setTops, type Part } from '@/lib/sets';
 import { groundOf } from '@/lib/surfaces';
@@ -171,5 +171,23 @@ describe('sets', () => {
     }
     const all = [index.models, index.surfaces, index.skies, index.views, index.scenes].flatMap((x) => Object.values(x)).reduce((n, x) => n + x.bytes, 0);
     expect(all).toBeLessThanOrEqual(100 * 1024 * 1024);
+  });
+
+  it('a hull goes out along normals smoothed over hard edges: a box\'s line does not crack at its corners', () => {
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    new InkedParts(new Ink(), 'prop').add(new THREE.Group(), box, {});
+    const out = box.attributes.outlineNormal;
+    expect(out.count).toBe(box.attributes.position.count);
+    // (A corner's three faces, one way out: the diagonal.)
+    for (let i = 0; i < out.count; i++) for (const k of [0, 1, 2]) expect(Math.abs(out.getComponent(i, k))).toBeCloseTo(1 / Math.sqrt(3), 5);
+    // A flat sheet's two sides at the same place cancel out: each keeps its own.
+    const sheet = new THREE.PlaneGeometry(1, 1);
+    const back = sheet.clone().rotateY(Math.PI);
+    const both = new THREE.BufferGeometry();
+    both.setAttribute('position', new THREE.Float32BufferAttribute([...sheet.attributes.position.array, ...back.attributes.position.array], 3));
+    both.setAttribute('normal', new THREE.Float32BufferAttribute([...sheet.attributes.normal.array, ...back.attributes.normal.array], 3));
+    outlineNormals(both);
+    expect(both.attributes.outlineNormal.getZ(0)).toBeCloseTo(1);
+    expect(both.attributes.outlineNormal.getZ(4)).toBeCloseTo(-1);
   });
 });
