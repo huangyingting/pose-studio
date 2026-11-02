@@ -58,9 +58,8 @@ During a session, the keyboard pauses and skips.
 
 1. **The side panel** opens as a drawer.
 2. **The inspector** opens as a drawer too.
-3. **The canvas tools**, as on a wide screen.
-4. **The hint**: the next step and its buttons, a spot to pick, warnings. A Library section opened from it opens the side drawer.
-5. **View, Frame and Render style** float at the canvas's foot.
+3. **The hint**: the next step and its buttons, a spot to pick, warnings. A Library section opened from it opens the side drawer.
+4. **The floating bar** at the canvas's foot: View, Frame and Render style, then the canvas's tools.
 
 Drag with a finger as with the mouse. A long press opens the menu of what is under it.
 

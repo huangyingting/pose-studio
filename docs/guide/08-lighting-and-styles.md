@@ -33,9 +33,9 @@ The project's **Render style** (top bar, or `L` to cycle) is how the canvas, the
 - **Line art**: clean ink outlines, lines where parts meet, like a drawing reference sheet.
 - **Pencil**: graphite lines with a hand-drawn wobble and cross-hatched shading.
 - **Ink wash**: dry-brush lines and washes of ink on rice paper.
-- **Watercolour**: soft washes in each character's and set's own colours, under a washed sky.
+- **Watercolour**: painted: soft washes in each character's and set's own colours, darker where they dried at their edges, the paper's grain through them and now and then left bare, under a light pencil line and a washed sky.
 - **Anime**: toon shading with outlines, characters in their own colours and textures.
-- **Pixel**: big square pixels in a few flat colours.
+- **Pixel**: small square pixels in a few flat colours.
 - **3D**: a 3D render in the scene's lights and shadows, with textures and a real sky.
 - **Clay**: soft studio light with cast shadows, for value studies.
 - **Minimal**: flat shapes with a hairline outline.

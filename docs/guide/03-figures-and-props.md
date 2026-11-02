@@ -29,7 +29,7 @@ Dragging a hand onto someone else does the same as Reach: it holds on at the nea
 
 ## Props
 
-- **Drag** a prop to move it on the floor, turn it by its floor ring, raise it with its gizmo, and `R` switches to scaling. Its inspector has exact position, rotation and size (drag a field's letter to scrub).
+- **Drag** a prop to move it on the floor, turn it by its floor ring, and raise it with its gizmo. With a prop selected, the tools in the top bar are **Move** and **Scale** (`R`), the gizmo's two modes. Its inspector has exact position, rotation and size (drag a field's letter to scrub).
 - **Held props**: a small prop can be put in a hand (**Held by** in its inspector, or its menu). It follows the hand through poses and animation, and dragging it moves the hand. **Let go** sets it down.
 - **Physics** (balls, boxes and the like): how much it bounces and grips when thrown, passed, shot or dropped. A reset button brings back the default.
 - **Several at once**: Shift-click figures and props to pick them together, then drag one to move them all. Their panel duplicates, hides or deletes them together.

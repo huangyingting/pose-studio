@@ -24,6 +24,13 @@ const joint = (page: Page, part: string, r = 22, figure = 0) => async (): Promis
   return { x: p!.x - r, y: p!.y - r, width: 2 * r, height: 2 * r };
 };
 
+/** The box round two elements and what is between them (a run of buttons). */
+const span = (first: Locator, last: Locator) => async (): Promise<Box> => {
+  const [a, b] = [(await first.boundingBox())!, (await last.boundingBox())!];
+  const [x, y] = [Math.min(a.x, b.x), Math.min(a.y, b.y)];
+  return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
+};
+
 /** The box of the first element matching `selector` with `text` that is in view (a zoomed timeline has others past its ends). */
 const shown = (page: Page, selector: string, text: string) => async (): Promise<Box> => {
   const box = await page.evaluate(([selector, text]) => {
@@ -112,12 +119,12 @@ const SHOTS: Shot[] = [
     },
     marks: (page) => [
       { n: 1, at: page.getByRole('button', { name: 'Main menu' }), side: 'bottom' },
-      { n: 2, at: page.locator('.topbar .toolbar').first(), side: 'bottom' },
+      { n: 2, at: span(page.getByRole('button', { name: 'View', exact: true }), page.getByRole('button', { name: 'Render style' })), side: 'bottom' },
       { n: 3, at: page.locator('.tb-center'), side: 'bottom' },
       { n: 4, at: page.locator('.tb-right'), side: 'bottom' },
       { n: 5, at: page.locator('.rail'), side: 'right' },
       { n: 6, at: page.locator('.side-panel'), side: 'inside-bottom', ring: false },
-      { n: 7, at: page.locator('.canvas-tools'), side: 'right' },
+      { n: 7, at: page.locator('.topbar .canvas-tools'), side: 'bottom' },
       { n: 8, at: page.locator('.view-ball'), side: 'left' },
       { n: 9, at: inspector(page), side: 'inside-bottom', ring: false },
       { n: 10, at: timeline(page), side: 'inside', ring: false },
@@ -139,7 +146,7 @@ const SHOTS: Shot[] = [
       await idle(page, 1200);
     },
     marks: (page) => [
-      { n: 1, at: page.locator('.canvas-tools'), side: 'right' },
+      { n: 1, at: page.locator('.canvas-tools'), side: 'bottom' },
       { n: 2, at: joint(page, 'rightHand', 26), side: 'right' },
       { n: 3, at: joint(page, 'leftLowerArm', 60), side: 'right', ring: false },
       { n: 4, at: inspector(page).locator('.bodymap').first(), side: 'left' },
@@ -412,9 +419,8 @@ const SHOTS: Shot[] = [
     marks: (page) => [
       { n: 1, at: page.getByRole('button', { name: 'Side panel' }), side: 'bottom' },
       { n: 2, at: page.getByRole('button', { name: 'Inspector' }), side: 'bottom' },
-      { n: 3, at: page.locator('.canvas-tools'), side: 'right' },
-      { n: 4, at: page.locator('.stage-hint .bar-hint').first(), side: 'top' },
-      { n: 5, at: page.locator('.toolbar').first(), side: 'right' },
+      { n: 3, at: page.locator('.stage-hint .bar-hint').first(), side: 'top' },
+      { n: 4, at: page.locator('.toolbar').first(), side: 'right' },
     ],
   },
 ];

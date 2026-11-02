@@ -2,10 +2,10 @@
 
 ![A figure being posed: a hand reached up, a forearm selected](images/posing.png)
 
-1. **The tools** say what a drag on a figure does:
+1. **The tools**, icon buttons in the top bar, say what a drag on a figure does; the one in use is lit, and resting the pointer on one gives its name and key:
    - **Pose** (`Q`, the default): a hand or foot **reaches**, the arm or leg following it (IK). Any other part **swings** from its joint. The hips **sink or shift** with the feet staying planted, to drop into a squat or shift the weight.
    - **Move** (`W`): any part places **the whole figure** on the floor. Shift-drag turns it. In an animated scene this moves everything the figure does.
-   - **Rotate** (`E`): any part **turns at its joint**, hands and feet too.
+   - **Rotate** (`E`): any part **turns at its joint**, hands and feet too. It differs from Pose on the hands and feet: with Pose, a hand dragged **moves** (the arm bends to follow it); with Rotate, it **turns** at the wrist and the arm stays as it is.
    - **Body follows** (the last button): when a hand reaches beyond the arm, the shoulder and chest come along.
 2. **A hand reached up** with the Pose tool: dragged from where it hung, the arm followed.
 3. **The selected part** (here the left forearm) shows its rotate gizmo: its rings turn it about its own axes, and the ring facing the view turns it freely. Dragging the part itself also turns it. Hold `X`, `Y` or `Z` while dragging to turn only that way. `Ctrl` snaps to 5° steps; `Shift`-drag twists it.
