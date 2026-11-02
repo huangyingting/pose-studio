@@ -97,11 +97,14 @@ function createOutlineMaterial(uniforms: Ink['uniforms'], cutout?: { map: THREE.
 export function outlineNormals(geo: THREE.BufferGeometry) {
   const { position, normal } = geo.attributes;
   if (geo.attributes.outlineNormal || !normal) return;
-  const places = new Map<string, number>();
+  const places = new Map<number | string, number>();
   const slots = new Int32Array(position.count);
   const sums: number[] = [];
+  // (A place to the millimetre, as one number while it fits (65 m round the middle): quicker than as a string.)
+  const R = 1 << 16;
   for (let i = 0; i < position.count; i++) {
-    const key = `${Math.round(position.getX(i) * 1e4)},${Math.round(position.getY(i) * 1e4)},${Math.round(position.getZ(i) * 1e4)}`;
+    const [x, y, z] = [Math.round(position.getX(i) * 1e3), Math.round(position.getY(i) * 1e3), Math.round(position.getZ(i) * 1e3)];
+    const key = Math.abs(x) < R && Math.abs(y) < R && Math.abs(z) < R ? ((x + R) * 2 * R + y + R) * 2 * R + z + R : `${x},${y},${z}`;
     let slot = places.get(key);
     if (slot === undefined) {
       slot = sums.length / 3;

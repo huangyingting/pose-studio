@@ -201,7 +201,11 @@ export function requestThumb(key: string, make: () => string, onUrl: (url: strin
     draining = true;
     idle(() => void drain());
   }
-  return () => job.done.delete(onUrl);
+  // (No longer waited for by anyone, a grid closed or scrolled away: not drawn.)
+  return () => {
+    job.done.delete(onUrl);
+    if (!job.done.size && waiting.get(key) === job) waiting.delete(key);
+  };
 }
 
 /** A scene as a thumbnail, from an angle. */
