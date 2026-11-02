@@ -18,6 +18,7 @@ import { groundOf } from '@/lib/surfaces';
 import { PixelPass } from '@/lib/pixel';
 import { RealPass } from '@/lib/realpass';
 import { WatercolourPass } from '@/lib/watercolour';
+import { PlayAhead, onGrid } from '@/lib/playahead';
 import { fitCamera, viewFromCamera } from '@/lib/render';
 import { onModels } from '@/lib/model';
 import { onSetAssets, seatNear, surroundings, topUnder } from '@/lib/sets';
@@ -811,9 +812,14 @@ function Lights({ sv, style, scene, time, clock }: { sv: SceneView; style: Style
 
 /** While playing, pose the figures for the clock's time on every frame (without touching the document). */
 function Playback({ sv, scene, clock }: { sv: SceneView; scene: Scene; clock: Clock }) {
+  // (Worked out ahead on another thread where it can be: lib/playahead.ts.)
+  const ahead = useMemo(() => new PlayAhead(), []);
+  useEffect(() => () => ahead.dispose(), [ahead]);
   useFrame(() => {
-    // (Playing: as the scene plays, idle life in the gaps.)
-    if (clock.playing) sv.sync(sceneAt(scene, clock.time, true));
+    if (!clock.playing || !scene.animation) return;
+    // (Playing: as the scene plays, idle life in the gaps; at the moments on playback's grid.)
+    const t = onGrid(scene, clock.time);
+    sv.sync(ahead.at(scene, t, clock.span(), clock.speed) ?? sceneAt(scene, t, true));
   }, -2);
   return null;
 }

@@ -1,6 +1,9 @@
 import { spanAt } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 
+/** A stretch of the animation played: from, to, and whether it goes round. */
+type Span = { start: number; end: number; loop: boolean };
+
 /**
  * Animation playback clock. Kept outside React state so playing an animation does not
  * re-render the whole studio every frame: the viewport and the timeline subscribe to it.
@@ -45,9 +48,17 @@ export class Clock {
     this.emit();
   }
 
+  /** What is playing (read every frame): from where to where, and whether it goes round. */
+  private range: () => Span | null = () => null;
+  /** The stretch playing now (null: none). */
+  span() {
+    return this.playing ? this.range() : null;
+  }
+
   /** Play from the current time over `range` (read every frame), at `speed`. */
-  play(range: () => { start: number; end: number; loop: boolean } | null, onEnd?: (time: number) => void) {
+  play(range: () => Span | null, onEnd?: (time: number) => void) {
     if (this.playing) return;
+    this.range = range;
     const r = range();
     if (!r) return;
     if (this.time < r.start - 1e-3 || (!r.loop && this.time >= r.end - 1e-3) || this.time > r.end) this.time = r.start;

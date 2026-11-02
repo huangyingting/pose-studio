@@ -68,6 +68,8 @@ lib/
   stagings.ts           How several people stand together (for templates and motions)
   templates.ts          Scene templates: cast, set, actions and light; placed into a scene
   animation.ts          Animation documents: frames, keyed actions, prop keys, cameras and shots
+  playahead.ts, playahead.worker.ts
+                        Playback worked out ahead on a worker thread (the page draws its frames)
   motions.ts            Motion library: what people do, no camera or set
   cameras.ts            Cameras: paths, framing, shot sizes, lenses, camera moves; the camera filming at a time
   shots.ts, otio.ts     Cuts and per-model clip limits; OpenTimelineIO cut list

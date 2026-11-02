@@ -25,6 +25,7 @@ A frame draws what changed and reuses the rest:
 - **React at the pace of what it shows**: while playing, the timeline's rows are drawn again four times a second; the playhead and its readout, each frame, by themselves.
 - **Pixels where they show**: the canvas uses up to two screen pixels per CSS pixel, and up to one and a half in the styles whose whole picture goes through a pass (Watercolour, 3D); it multisamples only below two (a high-density screen's own pixels are fine enough).
 - **Work no one waits for is dropped**: a thumbnail whose grid has closed is not drawn.
+- **Playback worked out ahead, on another thread**: while a scene plays, a worker (`lib/playahead.worker.ts`) works out where everything is for the second ahead of the playhead, on a grid of twice the scene's frame rate, and the page draws those frames (`lib/playahead.ts`). A frame not there yet (playback just started, an edit, a jump, no worker) is worked out on the page as before, on the same grid, so what is drawn is the same either way. The worker evaluates with the same code from the same scene and clips; only playback uses it, so scrubbing and editing stay immediate.
 
 ## Consequences
 
