@@ -83,7 +83,7 @@ describe('scenes from the use case', () => {
     const b = store.getState().activeFigure!;
     arrange(store, a, b, 'faceEachOther');
     store.setTime(0);
-    applyMotion(store, a, captured('jab-cross'));
+    applyMotion(store, a, captured('hook-punch'));
     store.setTime(0);
     applyMotion(store, b, captured('standing-block'));
     store.setTime(1.2);

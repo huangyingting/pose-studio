@@ -2587,9 +2587,9 @@ test('a motion file is imported into My motions and given to the figure', async 
   await motionsTab(page, 'Imported');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   const mine = page.getByRole('list', { name: 'My motions' });
-  await expect(mine.getByRole('button', { name: /^Step forward/ })).toBeVisible();
+  await expect(mine.getByRole('button', { name: /^Step forward [\d.]+ s$/ })).toBeVisible();
   expect((await live(page)).motions.map((m) => m.name)).toEqual(['Step forward']);
-  await mine.getByRole('button', { name: /^Step forward/ }).click();
+  await mine.getByRole('button', { name: /^Step forward [\d.]+ s$/ }).click();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
   const s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'clip']);

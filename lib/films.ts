@@ -154,6 +154,19 @@ class Stage {
     if (t < from - 1e-3) throw new Error(`${who} is still busy at ${t.toFixed(2)} s (till ${from.toFixed(2)} s)`);
     if (t - from < 0.05) return;
     const { slug, watch } = this.idles.get(who)!;
+    // (Already waiting in that idle, facing the same way: it goes on, one wait, not one started
+    // again for each beat of someone else's; a restarted idle eases back to its first pose each time.)
+    const a = this.scene.animation!;
+    const last = a.actions.filter((x) => x.roles[0].figure === this.id(who) && !x.layer).at(-1);
+    const here = this.where(who);
+    const same = last && last.source.kind === 'clip' && last.source.clip === motion(slug).id && Math.abs(last.start + last.duration - from) < 1e-3
+      && (watch === undefined || Math.abs(wrap(this.yaw(here.at, watch) - here.facing)) < 5);
+    if (same) {
+      const longer = { ...last, duration: frame(t - last.start) };
+      this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x.id === last.id ? longer : x)), duration: Math.max(a.duration, t) } };
+      this.moved(who, from, t, here.at, [], here);
+      return;
+    }
     this.play(who, slug, from, { seconds: t - from, ...(watch !== undefined ? { face: watch } : {}) });
   }
 

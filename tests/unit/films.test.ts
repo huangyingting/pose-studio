@@ -79,14 +79,14 @@ function boxing(ben: string, kai: string) {
   name(store, b, 'Kai');
   store.updateFigure(b, (f) => ({ ...f, body: body(kai) }));
   arrange(store, a, b, 'faceEachOther');
-  // They square up: a jab and a cross, blocked (each their own motion); then the combination.
+  // They square up: a hook, blocked (each their own motion); then another, and the hit.
   store.setTime(0);
-  applyMotion(store, a, captured('jab-cross'));
+  applyMotion(store, a, captured('hook-punch'));
   store.setTime(0);
   applyMotion(store, b, captured('standing-block'));
   const later = store.scene.animation!.duration;
   store.setTime(later);
-  applyMotion(store, a, captured('jab-cross'));
+  applyMotion(store, a, captured('hook-punch'));
   store.setTime(later);
   applyMotion(store, b, captured('standing-block'));
   // The hit lands as the block finishes.

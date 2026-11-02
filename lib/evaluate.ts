@@ -510,10 +510,9 @@ class Evaluator {
     return { act: next, w: curved(1 - (next.start - t) / time, next.blendCurve), from: next.start - time };
   }
 
-  /** Whether both feet are on the ground (their ankles no higher above it than standing has them). */
-  private grounded(f: Figure, feet: ReturnType<typeof feetOf>) {
-    const ankle = legsOf(f.body).ankleY;
-    return feet.every((x) => x.p.y - this.ground(x.p.x, x.p.z) < ankle + GROUNDED);
+  /** Whether a foot is on the ground (its ankle no higher above it than standing has it). */
+  private down(f: Figure, foot: ReturnType<typeof feetOf>[number]) {
+    return foot.p.y - this.ground(foot.p.x, foot.p.z) < legsOf(f.body).ankleY + GROUNDED;
   }
 
   /**
@@ -527,7 +526,8 @@ class Evaluator {
       // (Where its feet are before any easing into it could begin.)
       const a = feetOf(this.rig, { ...f, ...this.free(f, act.start - STEP_BLEND_MAX - EPS) });
       const b = feetOf(this.rig, { ...f, ...this.at(f, act, act.start) });
-      const d = this.grounded(f, a) && this.grounded(f, b) ? Math.max(...a.map((x, i) => Math.hypot(b[i].p.x - x.p.x, b[i].p.z - x.p.z))) : 0;
+      // (Longer only from standing to standing; a foot in the air, or out of one, steps in the blend's own time.)
+      const d = [...a, ...b].every((x) => this.down(f, x)) ? Math.max(...a.map((x, i) => Math.hypot(b[i].p.x - x.p.x, b[i].p.z - x.p.z))) : 0;
       // (Not back past where something else starts or ends: what it eases from would change on the way.)
       const before = actionsOf(this.a, f.id).flatMap((x) => [x.start, end(x)]).filter((x) => x < act.start - EPS);
       const room = act.start - Math.max(-Infinity, ...before);
@@ -551,8 +551,6 @@ class Evaluator {
     const to = this.at(f, next.act, next.act.start);
     const a = feetOf(this.rig, { ...f, ...from });
     const b = feetOf(this.rig, { ...f, ...to });
-    // (Only from standing to standing: not out of a leap or a fall.)
-    if (!this.grounded(f, a) || !this.grounded(f, b)) return null;
     const now = feetOf(this.rig, { ...f, ...free });
     const m = this.rig.model({ ...f, ...free });
     const legs = legsOf(f.body);
@@ -561,10 +559,12 @@ class Evaluator {
     (['L', 'R'] as const).forEach((side, i) => {
       const p = a[i].p;
       const q = b[i].p;
-      if (Math.hypot(q.x - p.x, q.z - p.z) < STEP_MIN) return;
+      // (Only a foot on the ground before and after: not out of a leap, a fall, or a lifted foot, which blends.)
+      if (!this.down(f, a[i]) || !this.down(f, b[i]) || Math.hypot(q.x - p.x, q.z - p.z) < STEP_MIN) return;
       // (The left foot steps first, the right as it lands: one after the other, overlapping a little.)
       const s = Math.min(1, Math.max(0, (next.w - i * 0.35) / 0.65));
-      const k = smooth(s);
+      // (Lifted before it goes, set down once there: a step, not a shuffle along the floor.)
+      const k = smooth((s - 0.12) / 0.76);
       const at = new THREE.Vector3(p.x + (q.x - p.x) * k, now[i].p.y + STEP_LIFT * Math.sin(Math.PI * s), p.z + (q.z - p.z) * k);
       // (Never further from the hip than the leg reaches: it would snap straight.)
       const hip = m.joints[side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'].getWorldPosition(new THREE.Vector3());
