@@ -683,7 +683,7 @@ const TOOLBAR_KEYS: Roving = { items: 'button', orientation: 'horizontal' };
 /**
  * A drop-down list (replaces the system select so it matches the app): a combobox button and a
  * listbox drawn on top of everything. Keys: arrows, Home / End, Enter / Space, Escape, and typing
- * jumps to a matching option.
+ * jumps to a matching option. The list keeps to its button as what it is in scrolls.
  */
 export function Select<T extends string>({ value, options, onChange, label }: {
   value: T;
@@ -737,7 +737,14 @@ export function Select<T extends string>({ value, options, onChange, label }: {
     if (!open) return;
     const inside = (t: EventTarget | null) => button.current?.contains(t as Node) || list.current?.contains(t as Node);
     const onDown = (e: PointerEvent) => { if (!inside(e.target)) setOpen(false); };
-    const onScroll = (e: Event) => { if (!list.current?.contains(e.target as Node)) setOpen(false); };
+    // (What it is in scrolled, a dialog's form: the list goes with its button, closed once that is out of sight.)
+    const onScroll = (e: Event) => {
+      const el = list.current;
+      if (!el || !button.current || el.contains(e.target as Node)) return;
+      const b = button.current.getBoundingClientRect();
+      if (b.bottom < 0 || b.top > window.innerHeight) setOpen(false);
+      else placePopup(el, b, 'bottom', 'start', 4);
+    };
     const onResize = () => setOpen(false);
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('scroll', onScroll, true);
