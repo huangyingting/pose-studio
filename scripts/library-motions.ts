@@ -5,7 +5,8 @@
 //
 // Made ready: each person facing where they look and the wrists' roll the forearms' (lib/motionfix.ts,
 // as any import); a motion that ends as it starts loops; one that is another mirrored is left out
-// (an action plays mirrored); so are the halves of motions of two people (a motion is one person's).
+// (an action plays mirrored); so are the halves of motions of two people, but those whose halves
+// line up, which are put together (PAIRS: one motion of two, as shaking hands).
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import * as THREE from 'three';
@@ -16,6 +17,7 @@ import { legsOf } from '../lib/locomotion';
 import { goesRound, isCycle, refineClip } from '../lib/motionfix';
 import { clipCourse, strikeTime } from '../lib/strike';
 import { Rig } from '../lib/relations';
+import { detectGrips } from '../lib/constraints';
 import type { MOTION_GROUPS } from '../lib/motions';
 import type { Clip } from '../lib/types';
 
@@ -27,8 +29,20 @@ const to = 'public/motions';
 /** Left out: the same as another mirrored (that one, mirrored, does it the other way). */
 const MIRRORED = ['Walk Right', 'Strafe Right', 'Turn 90 Right'];
 
-/** Left out: one person's half of a motion of two (alone, it is not the motion). */
+/** Left out: one person's half of a motion of two (alone, it is not the motion; those PAIRS has are put together). */
 const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim'];
+
+/**
+ * Motions of two people put together from halves captured apart, each at the place it starts
+ * from: the second put where the first meets it (in the first's frame where it starts: `at`, x to
+ * its left, z ahead; `facing`, degrees), worked out from where their hands are as they meet (the
+ * hands that shake; the arm round the neck). The shoulder throw's halves do not meet so (its
+ * thrower runs four metres to it): left out.
+ */
+const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; partner: string; at: [number, number]; facing: number }[] = [
+  { file: 'Shaking Hands', name: 'Shake hands', group: 'Talking & gestures', lead: 'Shaking Hands 1', partner: 'Shaking Hands 2', at: [0.03, 1.04], facing: 180 },
+  { file: 'Hostage Situation', name: 'Hold someone hostage', group: 'Fighting', lead: 'Hostage Situation Villain', partner: 'Hostage Situation Hostage', at: [-0.03, 0.44], facing: 0 },
+];
 
 /**
  * Each motion's name in the Library and its group, by what the person does (one holding a gun is
@@ -201,6 +215,45 @@ for (const f of files) {
   clips.set(clip.name, clip);
 }
 
+/** A pair's halves as one motion of two: the second half placed and turned as PAIRS says, its contacts its own, and the hands each holds of the other. */
+async function paired(p: (typeof PAIRS)[number]): Promise<Clip> {
+  const raw = async (name: string) => asCaptured(parseClip(JSON.parse(await readFile(join(from, `${name}.clip.json`), 'utf8')))!);
+  const [a, b] = [await raw(p.lead), await raw(p.partner)];
+  const yaw = (p.facing * Math.PI) / 180;
+  const turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const q = new THREE.Quaternion();
+  const placed = {
+    ...b.parts[0],
+    tracks: b.parts[0].tracks.map((t) => {
+      if (t.name === 'hips.position') {
+        const v = [...t.values];
+        for (let i = 0; i < v.length; i += 3) {
+          const [x, z] = [v[i], v[i + 2]];
+          v[i] = round(x * Math.cos(yaw) + z * Math.sin(yaw) + p.at[0]);
+          v[i + 2] = round(-x * Math.sin(yaw) + z * Math.cos(yaw) + p.at[1]);
+        }
+        return { ...t, values: v };
+      }
+      if (t.name !== 'hips.quaternion') return t;
+      const v = [...t.values];
+      for (let i = 0; i < v.length; i += 4) {
+        q.set(v[i], v[i + 1], v[i + 2], v[i + 3]).premultiply(turn);
+        [v[i], v[i + 1], v[i + 2], v[i + 3]] = [q.x, q.y, q.z, q.w];
+      }
+      return { ...t, values: v };
+    }),
+  };
+  const both = refineClip({
+    ...a, name: p.file, duration: Math.min(a.duration, b.duration), parts: [a.parts[0], placed],
+    contacts: [...(a.contacts ?? []).map((c) => ({ ...c, part: 0 })), ...(b.contacts ?? []).map((c) => ({ ...c, part: 1 }))],
+  });
+  // Hands held both ways at once (a handshake): the partner's follows the lead's (one hold, not
+  // two pulling at each other, which neither meets for people of other sizes).
+  const grips = detectGrips(both, 30);
+  const mutual = (g: (typeof grips)[number]) => g.part === 0 && grips.some((o) => o.part === 1 && o.on?.part === 0 && o.start < g.end && g.start < o.end);
+  return { ...both, contacts: [...(both.contacts ?? []), ...grips.filter((g) => !mutual(g))] };
+}
+
 /** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
 const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) && !/^receive/i.test(clip.name) ? strikeTime(clip) : undefined);
 
@@ -211,6 +264,10 @@ for (const clip of clips.values()) {
   if (!LIST[clip.name]) throw new Error(`${clip.name}: give it a name and a group in LIST`);
   const [name, group] = LIST[clip.name];
   out.push({ file: clip.name, clip: { ...clip, name }, group, loop: loops(clip), impact: impactOf(clip) });
+}
+for (const p of PAIRS) {
+  const clip = await paired(p);
+  out.push({ file: p.file, clip: { ...clip, name: p.name }, group: p.group, loop: false });
 }
 
 await rm(to, { recursive: true, force: true });
@@ -232,4 +289,4 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
 }
 await writeFile(join(to, 'index.json'), JSON.stringify(index, null, 1) + '\n');
 rig.dispose();
-console.log(`${index.length} motions in ${to} (${index.filter((m) => m.loop).length} loop, ${MIRRORED.length} left out as mirrored, ${HALVES.length} halves of two people's)`);
+console.log(`${index.length} motions in ${to} (${index.filter((m) => m.loop).length} loop, ${PAIRS.length} of two people, ${MIRRORED.length} left out as mirrored, ${HALVES.length} halves of two people's, put together or left out)`);

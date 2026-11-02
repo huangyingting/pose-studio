@@ -23,7 +23,7 @@ The poses are grouped by posture (standing, sitting and squatting, kneeling and 
 
 Motions come from three places, each a tab (a search looks in all three, as in the picture):
 
-- **Mocap**: 107 clips recorded from real people, such as walks and runs, stairs, fights, sport, dances, idles, sitting, talking and gestures. These come first, and the timeline's **Everyday** beats (talk, wave, nod, sit down…) are among them. Each one can also play **from the waist up** over what the figure is doing (its ⋯).
+- **Mocap**: 109 clips recorded from real people, such as walks and runs, stairs, fights, sport, dances, idles, sitting, talking and gestures. These come first, and the timeline's **Everyday** beats (talk, wave, nod, sit down…) are among them. Each one-person clip can also play **from the waist up** over what the figure is doing (its ⋯). Two are for two people (**Shake hands**, **Hold someone hostage**, marked *2 people*): the selected figure leads, and the other is the figure selected with it, else the nearest one, else a new one; both are placed where the motion has them.
 - **Generated**: the few motions no capture covers yet (a bow, a cartwheel, a pirouette, a split leap, falling and getting up, a front kick, picking a thing up), and walking, running or jumping ahead.
 - **Imported**: your own.
 

@@ -454,6 +454,18 @@
   "turn": 0
  },
  {
+  "id": "library:hostage-situation",
+  "name": "Hold someone hostage",
+  "duration": 5,
+  "people": 2,
+  "group": "Fighting",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:hook-punch",
   "name": "Hook punch",
   "duration": 2.167,
@@ -906,6 +918,18 @@
   "name": "Shake a fist",
   "duration": 2.433,
   "people": 1,
+  "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:shaking-hands",
+  "name": "Shake hands",
+  "duration": 4.367,
+  "people": 2,
   "group": "Talking & gestures",
   "move": [
    0,

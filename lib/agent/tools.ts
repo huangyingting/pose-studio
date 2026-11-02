@@ -686,7 +686,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'apply_motion',
-    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. Motion-captured (use these first, by name): ${CAPTURED.filter((m) => m.people === 1).map((m) => m.name).join('; ')}. Made (by id, where nothing captured fits): ${MOTIONS.map((m) => `${m.id} = ${m.name}`).join(', ')}. Plus the user's imported motions by name. A motion is one person's: for people together, give each their own (and place them with arrange or set_distance).`,
+    description: `Give a figure a motion from the library, on its track from the playhead (the scene is animated if needed), starting where it stands and facing its way. Motion-captured (use these first, by name): ${CAPTURED.filter((m) => m.people === 1).map((m) => m.name).join('; ')}. Captured of two (the figure leads; the other is the nearest figure, or one added; both placed as the motion has them): ${CAPTURED.filter((m) => m.people === 2).map((m) => m.name).join('; ')}. Made (by id, where nothing captured fits): ${MOTIONS.map((m) => `${m.id} = ${m.name}`).join(', ')}. Plus the user's imported motions by name. Any other is one person's: for people together, give each their own (and place them with arrange or set_distance).`,
     schema: obj({ figure: FIGURE, motion: str('A captured motion\'s name, a made one\'s id, or an imported one\'s name') }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);
@@ -694,7 +694,7 @@ export const TOOLS: AgentTool[] = [
       if (!motion) throw new Error(`No motion "${i.motion}"`);
       if (motion.id.startsWith(LIBRARY) && !hasClip(motion.id)) throw new Error(`${motion.name} could not be loaded`);
       const from = store.scene.animation ? store.getState().time : 0;
-      if (!applyMotion(store, f.id, motion.id)) throw new Error(`${motion.name} is for several people: give each their own motion`);
+      if (!applyMotion(store, f.id, motion.id)) throw new Error(`${motion.name} is an imported motion of several people: open it as a scene`);
       const a = store.scene.animation!;
       return `${f.name}: ${motion.name} from ${r2(from)} s (animation ${a.duration} s).`;
     },
@@ -937,6 +937,6 @@ Joint angles are degrees, Euler X/Y/Z:
 - leftLowerArm/R: X− bends (to −150). leftLowerLeg/R: X+ bends (to 160). leftFoot/R: X+ points the toes. wrists: X flex, Z sideways.
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
-Animation is made of actions on each person's track: a walk, run or jump to a mark (move_to), a motion from the library (apply_motion: one person's; people together each get their own), poses keyed by hand (set_time, then set_joints), an upper-body motion over another (upper_body), a prop thrown, passed, shot or dribbled (throw_prop), contacts held over time (hold). get_scene lists the actions with their ids; edit_action moves, retimes, blends, speeds up or removes one, move_mark changes where it ends. Changing one action moves only what that person does after it.
+Animation is made of actions on each person's track: a walk, run or jump to a mark (move_to), a motion from the library (apply_motion: one person's, or a captured one of two, as shaking hands), poses keyed by hand (set_time, then set_joints), an upper-body motion over another (upper_body), a prop thrown, passed, shot or dribbled (throw_prop), contacts held over time (hold). get_scene lists the actions with their ids; edit_action moves, retimes, blends, speeds up or removes one, move_mark changes where it ends. Changing one action moves only what that person does after it.
 Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures from mark to mark with move_to, apply_pose or apply_motion for actions on the spot, then refine), then shoot (film_coverage for the whole scene, or cut_shot and camera_move shot by shot; then check_motion).
 Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. To put a figure beside, in front of or facing another, use relate rather than working out coordinates. For animation: chain actions at the playhead, fix timing with edit_action, add a camera_move, and run check_motion. Keep replies short: say what you did.`;

@@ -1,6 +1,6 @@
 import { cameraFrom, newScene, nextName, uid } from '../doc';
 import { snapTime, newAnimation } from '../animation';
-import { BUILT_IN, LIBRARY, hasClip } from '../assets';
+import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
 import { coverageById } from '../coverage';
 import { templatesOf, shootsOf, putTemplate, asTemplate } from '../templates';
 import { clipInfo } from '../clip';
@@ -300,6 +300,8 @@ export function applyUpperBody(store: Store, figureId: string, motionId: string)
   const clip = store.getState().library.clips?.some((c) => c.id === motionId) || (motionId.startsWith(LIBRARY) && hasClip(motionId));
   const motion = [...MOTIONS, ...HANDLING].find((m) => m.id === motionId);
   if (!clip && (!motion || motion.travel)) return false;
+  // (One person's: not one of two, as shaking hands.)
+  if (clip && (clipById(motionId)?.parts.length ?? 1) > 1) return false;
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const animation = addUpper(store.scene, figureId, clip ? motionId : BUILT_IN + motionId, store.getState().time);
   if (!animation) return false;

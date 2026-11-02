@@ -1,6 +1,6 @@
 import { wrapDeg } from '../joints';
 import { newAnimation, snapTime } from '../animation';
-import { BUILT_IN, clipById, hasClip } from '../assets';
+import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
 import { figurePoseAt, actionsOf, warpOf, naturalEnd } from '../evaluate';
 import { addTravel, insertClip, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
 import { legsOf, GAITS, flightTime, JUMP_PREP } from '../locomotion';
@@ -14,6 +14,7 @@ import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
 import type { Travel } from '../types';
 import { retime, setBlend, setClipOptions } from './timeline';
+import { addFigure } from './figures';
 
 /* Animating a scene, and walking, running and jumping from mark to mark (lib/locomotion.ts). */
 
@@ -246,17 +247,24 @@ export function moveMark(store: Store, figureId: string, t: number, to: [number,
 
 /**
  * Give a figure a motion from the library (built in, or one of mine), starting at the playhead
- * (the scene is animated if it is not yet). A motion is one person's (several people's are made
- * by giving each their own). Returns false if it cannot.
+ * (the scene is animated if it is not yet). A motion of two (the Library's, as shaking hands):
+ * the figure leads, the other is the one selected with it, else the nearest, else a new figure;
+ * placed where the motion has them. Returns false if it cannot.
  */
 export function applyMotion(store: Store, figureId: string, motionId: string) {
   const start = store.scene.animation ? store.getState().time : 0;
   // (An imported clip: one of my motions, or the local motion library's, at hand.)
   if (store.getState().library.clips?.some((c) => c.id === motionId) || hasClip(motionId)) {
-    if ((clipById(motionId)?.parts.length ?? 1) > 1) return false;
-    store.updateScene((s) => insertClip(s, [figureId], motionId, start));
-    store.setTime(start);
-    return true;
+    const people = clipById(motionId)?.parts.length ?? 1;
+    // (Of several people: mine, as imported, open as a scene of their own.)
+    if (people > 1 && !motionId.startsWith(LIBRARY)) return false;
+    return store.group(() => {
+      const cast = [figureId, ...partners(store, figureId, people - 1)];
+      store.updateScene((s) => insertClip(s, cast, motionId, start));
+      store.select({ kind: 'figure', figure: figureId });
+      store.setTime(start);
+      return true;
+    });
   }
   const motion = MOTIONS.find((m) => m.id === motionId);
   if (!motion) return false;
@@ -272,4 +280,26 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
   store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;
+}
+
+/**
+ * Who joins a figure in a motion of several people: those selected with it, then the nearest
+ * (not stand-ins), then new figures beside it (the motion then puts each where it goes).
+ */
+function partners(store: Store, figureId: string, count: number): string[] {
+  if (count <= 0) return [];
+  const sel = store.getState().selection;
+  const picked = sel?.kind === 'many' ? sel.figures.filter((id) => id !== figureId) : [];
+  const lead = store.scene.figures.find((f) => f.id === figureId)!;
+  const near = store.scene.figures
+    .filter((f) => f.id !== figureId && !f.proxy && !picked.includes(f.id))
+    .sort((a, b) => Math.hypot(a.position[0] - lead.position[0], a.position[2] - lead.position[2]) - Math.hypot(b.position[0] - lead.position[0], b.position[2] - lead.position[2]))
+    .map((f) => f.id);
+  const cast = [...picked, ...near].slice(0, count);
+  while (cast.length < count) {
+    const [fx, fz] = forward(lead);
+    addFigure(store, [lead.position[0] + fx * (1 + cast.length), 0, lead.position[2] + fz * (1 + cast.length)]);
+    cast.push(store.getState().activeFigure!);
+  }
+  return cast;
 }

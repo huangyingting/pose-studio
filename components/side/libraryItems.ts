@@ -191,7 +191,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     };
   });
   /** An imported clip's item (the Library's motion files, my motions): `load` brings it to hand first. */
-  const clipItem = (m: { id: string; name: string; duration: number; group: string }, load: () => Promise<boolean>): LibraryItem => {
+  const clipItem = (m: { id: string; name: string; duration: number; group: string; people?: number }, load: () => Promise<boolean>): LibraryItem => {
     const giveTo = (id: string) => void load().then((ok) => {
       const f = posableById(store, id);
       if (!ok) return ui.notify(`Could not load ${m.name}`);
@@ -205,7 +205,8 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       group: m.group,
       name: m.name,
       icon: Film,
-      meta: `${m.duration.toFixed(1)} s`,
+      // (Of two: the selected figure leads, the other selected or the nearest joins, else one is added.)
+      meta: `${(m.people ?? 1) > 1 ? `${m.people} people · ` : ''}${m.duration.toFixed(1)} s`,
       disabled: !figure,
       run: () => { if (figure) { giveTo(figure.id); ui.onPick?.(); } },
       drop: { figure: giveTo, length: m.duration },
@@ -215,7 +216,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       },
       ghost: figure ? () => (hasClip(m.id) ? motionGhost(store, figure.id, m.id) : (void load(), null)) : undefined,
       // From the waist up, over what the figure is doing (waving while walking).
-      actions: figure ? [{
+      actions: figure && (m.people ?? 1) === 1 ? [{
         icon: Layers,
         label: `${m.name}: upper body only, over what ${figure.name} is doing`,
         run: () => void load().then((ok) => { if (ok && applyUpperBody(store, figure.id, m.id)) ui.onPick?.(); }),
@@ -228,7 +229,7 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     .sort((p, q) => MOTION_GROUPS.indexOf(p.group as never) - MOTION_GROUPS.indexOf(q.group as never));
   // (One person's each: an imported clip of several people is not offered.)
   const mine = (store.getState().library.clips ?? []).filter((m) => m.people.length <= 1).map((m): LibraryItem => {
-    const item = clipItem({ ...m, group: 'My motions' }, () => Promise.resolve(hasClip(m.id)));
+    const item = clipItem({ ...m, people: 1, group: 'My motions' }, () => Promise.resolve(hasClip(m.id)));
     return {
       ...item,
       kind: 'imported',
