@@ -791,12 +791,15 @@ class Evaluator {
     const path: [number, number][] = [start.at, ...via.map((m) => m.at), to.at];
     const yaws = [start.facing, ...via.map((m) => m.facing), to.facing];
     const cycle = gaitCycle(src, path, yaws);
+    // (At the height they are drawn at: a pose of a recorded motion through the floor is raised out
+    // of it as it is drawn, and the walk goes from and to there, not from as far down.)
+    const shown = (p: Pose): Pose => (p.grounded ? p : { ...p, position: this.rig.model({ ...f, ...p }).read().position });
     c = {
       kind: src.mode,
       t0: act.start,
       t1: end(act),
-      start: toAngles(from),
-      end: toAngles(arrive),
+      start: toAngles(shown(from)),
+      end: toAngles(shown(arrive)),
       path,
       yaws,
       ...(src.strafe ? { strafe: true } : {}),

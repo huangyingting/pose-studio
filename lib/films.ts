@@ -202,9 +202,12 @@ class Stage {
       const want = this.yaw(here.at, o.face);
       const by = wrap(want - here.facing);
       if (Math.abs(by) > 15 && (o.seconds === undefined || o.seconds - frame(turnTime(by)) >= 0)) {
+        if (o.seconds === undefined) return this.play(who, slug, this.turn(who, want, t), o);
+        // (Only a moment left after it: the turn takes it all, slower, not a moment of the motion.)
+        const rest = o.seconds - frame(turnTime(by));
+        if (rest < MOMENT) return this.turn(who, want, t, o.seconds);
         const t2 = this.turn(who, want, t);
-        if (o.seconds === undefined) return this.play(who, slug, t2, o);
-        return o.seconds - (t2 - t) < 0.05 ? t2 : this.play(who, slug, t2, { ...o, seconds: o.seconds - (t2 - t) });
+        return this.play(who, slug, t2, { ...o, seconds: o.seconds - (t2 - t) });
       }
     }
     const from = this.where(who);
@@ -229,13 +232,13 @@ class Stage {
     });
   }
 
-  /** `who` turns to face this way from t, stepping round where they stand. When they have. */
-  turn(who: string, facing: number, t: number): number {
+  /** `who` turns to face this way from t, stepping round where they stand (taking `seconds` at least). When they have. */
+  turn(who: string, facing: number, t: number, seconds = 0): number {
     t = frame(t);
     this.wait(who, t);
     const here = this.where(who);
     const end = { at: here.at, facing: Math.round(wrap(facing) * 10) / 10 || 0 };
-    const t1 = t + frame(turnTime(wrap(facing - here.facing)));
+    const t1 = t + frame(Math.max(seconds, turnTime(wrap(facing - here.facing))));
     this.moved(who, t, t1, here.at, [], end);
     return this.add({ id: uid('act'), start: t, duration: t1 - t, roles: [{ figure: this.id(who), end }], source: { kind: 'travel', mode: 'walk' } });
   }
@@ -259,6 +262,8 @@ class Stage {
     const facing = this.where(who).facing;
     const d = Math.hypot(to[0] - from[0], to[1] - from[1]);
     if (d < 0.05) return t;
+    // (Setting off the way they have their back to: stepping round first, not spun round on the first step.)
+    if (!strafe && Math.abs(wrap(toward(from, to) - facing)) > 120) return this.go(who, to, this.turn(who, toward(from, to), t), mode);
     // Round anyone in the way (where they are as they pass) and the chairs and tables, on the side away from them.
     const length = (pts: Spot[]) => pts.slice(1).reduce((n, q, i) => n + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0);
     const sideways = strafe ? Math.abs(Math.sin((toward(from, to) - facing) * D2R)) : 0;
@@ -640,7 +645,7 @@ function streetBasketball(): Scene {
   s.idle('Fan', 'happy-idle', 'Kofi');
   s.go('Jay', [-1.7, 5.9], Math.max(s.until('Jay'), caught));
   s.idle('Jay', 'idle', 'Kofi');
-  s.go('Rico', [1.4, 6.8], Math.max(s.until('Rico'), caught + 0.5));
+  s.go('Rico', [0.2, 7.0], Math.max(s.until('Rico'), caught + 0.5));
   s.idle('Rico', 'standing-idle', 'Kofi');
   s.face('Kofi', [0, 8.5], caught + 0.4);
   from = s.until('Kofi');
@@ -915,8 +920,9 @@ function kungFuSchool(): Scene {
   const bow = Math.max(...students.map((w) => s.until(w)), s.until('Master Wu')) + 0.5;
   for (const w of students) s.idle(w, 'idle', 'Master Wu');
   s.idle('Master Wu', 'idle', 'Jun');
-  s.go('Master Wu', [0, -1.8], bow);
+  // (Their places first: he goes round where they will stand.)
   for (const [i, w] of students.entries()) s.go(w, [-2 + i * 2, 1.6], bow + 0.2 * i);
+  s.go('Master Wu', [0, -1.8], bow);
   const line = Math.max(...students.map((w) => s.until(w)), s.until('Master Wu')) + 0.3;
   s.face('Master Wu', 0, line);
   for (const w of students) s.face(w, 180, line);
