@@ -1355,12 +1355,10 @@ button.psec-title svg { color: var(--text-3); }
 
 .bodymap { display: block; width: 100%; max-width: 104px; height: auto; margin: 0 auto; }
 .bodymap .part { cursor: pointer; outline: none; }
-.bodymap .part line { stroke: var(--bodymap); stroke-linecap: round; transition: stroke 0.12s; }
-.bodymap .part circle { fill: var(--bodymap); transition: fill 0.12s; }
-.bodymap .part:hover line, .bodymap .part:focus-visible line { stroke: var(--bodymap-hover); }
-.bodymap .part:hover circle, .bodymap .part:focus-visible circle { fill: var(--bodymap-hover); }
-.bodymap .part.on line { stroke: var(--accent); }
-.bodymap .part.on circle { fill: var(--accent); }
+/* (Each part filled, a hairline of the panel's colour between them, as a jointed mannequin's.) */
+.bodymap .part path { fill: var(--bodymap); stroke: var(--panel); stroke-width: 1.1; stroke-linejoin: round; transition: fill 0.12s; }
+.bodymap .part:hover path, .bodymap .part:focus-visible path { fill: var(--bodymap-hover); }
+.bodymap .part.on path { fill: var(--accent); }
 .bodymap-side { font-size: var(--fs-m); font-weight: 600; fill: var(--text-2); }
 
 .swatches { display: flex; gap: 6px; }
