@@ -488,7 +488,9 @@ export default function Viewport({
         // times the pixels cost them far more, for little to see.)
         dpr={styleDef(look.style).filmic || styleDef(look.style).wash ? [1, 1.5] : [1, 2]}
         camera={{ fov: 35, position: [0, 1, 5], near: 0.01, far: 200 }}
-        gl={{ antialias: true }}
+        // (Smoothed edges by multisampling on a screen of one or one and a half pixels each; a
+        // high-density screen's own pixels are fine enough, without four samples of each.)
+        gl={{ antialias: typeof window === 'undefined' || window.devicePixelRatio < 2 }}
         onPointerMissed={(e) => {
           const [x, y] = downAt.current;
           const moved = Math.hypot(e.clientX - x, e.clientY - y) > 4;
