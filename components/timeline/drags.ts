@@ -128,9 +128,10 @@ export function useDrags(d: DragsOf) {
     seek(timeAt(e.clientX));
     const move = (ev: { clientX: number }) => seek(timeAt(ev.clientX));
     const stop = follow(e.clientX, move);
-    const up = () => { stop(); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
+    const up = () => { stop(); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
   };
   /**
    * Drag one figure's key along its track to retime it (the other figures keep their timing).
@@ -188,6 +189,7 @@ export function useDrags(d: DragsOf) {
       snap.done();
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
       // A Shift-click (no drag) adds the key to those picked, or takes it out.
       if (shift && !dragged) {
         const had = keyPick?.figure === figureId ? keyPick.times : [];
@@ -198,6 +200,7 @@ export function useDrags(d: DragsOf) {
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
   };
   /** Drag the end of the picked keys' span (#22): their timing scaled from the first, as far as no key is passed. */
   const scaleKeys = (figureId: string) => (e: ReactPointerEvent) => {
@@ -216,9 +219,10 @@ export function useDrags(d: DragsOf) {
       setPicked({ figure: figureId, times: now });
     };
     const stop = follow(e.clientX, move);
-    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   /**
    * Shift-drag along a row's empty stretch: a box picking the keys in it, and the blocks in it on
@@ -243,6 +247,7 @@ export function useDrags(d: DragsOf) {
       stop();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       setBox(null);
       y = ev.clientY;
       const [lo, hi] = [Math.min(t0, timeAt(ev.clientX)), Math.max(t0, timeAt(ev.clientX))];
@@ -259,6 +264,7 @@ export function useDrags(d: DragsOf) {
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   /** What a drag does to an action, as it goes on (#22): "Trim end · plays 1.20–3.80 s of Jab, cross". */
@@ -338,6 +344,7 @@ export function useDrags(d: DragsOf) {
       setReadout(null);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       if (moved) {
         // (The playhead back where it was, after showing what was dragged.)
         if (part === 'start' || part === 'end' || slipping) store.setTime(back);
@@ -364,6 +371,7 @@ export function useDrags(d: DragsOf) {
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   /** Drag a point of the row's camera to retime it; a click goes to it. */
@@ -386,9 +394,10 @@ export function useDrags(d: DragsOf) {
       }
     };
     const stop = follow(e.clientX, move);
-    const up = () => { stop(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { stop(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   /** Drag a cut (a shot's start) to move it, or the ramp after it to set how long the shot blends in. */
@@ -407,9 +416,10 @@ export function useDrags(d: DragsOf) {
       }
     };
     const stop = follow(e.clientX, move);
-    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   /** Drag a marker along the ruler (snapping as any drag); a click goes to it (#22). */
@@ -431,10 +441,12 @@ export function useDrags(d: DragsOf) {
       snap.done();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       if (!moved) seek(t);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   /** Drag an end of the in / out range along the ruler (#22). */
   const dragRange = (end: 'from' | 'to') => (e: ReactPointerEvent) => {
@@ -449,9 +461,10 @@ export function useDrags(d: DragsOf) {
       setRange(store, end === 'from' ? { from: Math.min(t, now.to - 0.1), to: now.to } : { from: now.from, to: Math.max(t, now.from + 0.1) }, 'range-drag');
     };
     const stop = follow(e.clientX, move);
-    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { stop(); snap.done(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   const renameMarker = (id: string, name: string) => {
     const next = window.prompt('Marker name', name)?.trim();

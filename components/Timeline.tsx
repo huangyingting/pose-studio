@@ -351,9 +351,10 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     const h0 = tracks?.getBoundingClientRect().height ?? 120;
     const y0 = e.clientY;
     const move = (ev: PointerEvent) => store.setSettings({ timelineHeight: Math.round(Math.min(window.innerHeight * 0.6, Math.max(48, h0 + y0 - ev.clientY))) });
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   /**
@@ -691,9 +692,10 @@ function ScrollBar({ start, size, onScroll }: { start: number; size: number; onS
     const x0 = e.clientX;
     const s0 = start;
     const move = (ev: PointerEvent) => onScroll(Math.min(1 - size, Math.max(0, s0 + (ev.clientX - x0) / w)));
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   return (
     <div className="tl-scroll" ref={bar} aria-hidden>

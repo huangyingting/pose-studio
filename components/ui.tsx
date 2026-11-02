@@ -454,9 +454,10 @@ export function PanelEdge({ label, side, width, onWidth }: { label: string; side
     const x0 = e.clientX;
     const w0 = width();
     const move = (ev: PointerEvent) => onWidth(Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, w0 + (side === 'right' ? ev.clientX - x0 : x0 - ev.clientX)))));
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('resizing'); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); document.body.classList.remove('resizing'); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
     document.body.classList.add('resizing');
   };
   return <div className={`panel-edge ${side}`} role="separator" aria-orientation="vertical" aria-label={label} data-tip={`${label} (double-click: its own width)`} onPointerDown={drag} onDoubleClick={() => onWidth(null)} />;
@@ -843,9 +844,11 @@ export function NumberField({ prefix, label, value, onChange, step = 1, min = -I
     const up = () => {
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
   };
   return (
     <div className="numfield">
