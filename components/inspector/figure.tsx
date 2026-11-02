@@ -186,7 +186,7 @@ export function PlacementPanel({ t }: { t: Target }) {
   const store = t.store;
   const animation = t.scene.animation;
   const time = useStudio((s) => s.time);
-  // Between two marks of a walk, run or jump the generated steps place the figure.
+  // Between two marks of a walk, run or jump, its steps place the figure.
   const travel = animation ? travelAt(animation, figure.id, time) : null;
   const moving = travel && time > travel.start + 1e-6 && time < travel.start + travel.duration - 1e-6;
   // (A motion playing sets its own height: whether it is on the floor is the motion's then.)

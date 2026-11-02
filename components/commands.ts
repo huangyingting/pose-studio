@@ -296,7 +296,7 @@ const goTo = (c: Ctx, kind: Travel, opts: { strafe?: boolean } = {}) => {
   const steps = kind === 'walk' || kind === 'run' ? lastSteps(kind) : null;
   const go = (at: Vec3) => c.store.group(() => {
     const done = travelTo(c.store, f.id, [Math.round(at[0] * 100) / 100, Math.round(at[2] * 100) / 100], kind, opts);
-    const act = done && steps && actionsOf(c.store.scene.animation!, f.id).find((x) => x.source.kind === 'travel' && Math.abs(x.start + x.duration - done.to) < 1e-3);
+    const act = done && steps !== null && actionsOf(c.store.scene.animation!, f.id).find((x) => x.source.kind === 'travel' && Math.abs(x.start + x.duration - done.to) < 1e-3);
     if (!act) return;
     setGait(c.store, act.id, steps);
     // (At its pace, it arrives at another time: the playhead there.)

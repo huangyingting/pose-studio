@@ -5,7 +5,7 @@ import { clearMark, correctEveryRepeat, rememberSteps, setGait, fitWarp, moveAct
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById, loopsOf } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
-import { GAITS, JUMP_PREP, jumpHeight } from '@/lib/locomotion';
+import { GAITS, JUMP_PREP, gaitOf, jumpHeight } from '@/lib/locomotion';
 import LIBRARY_INDEX from '@/public/motions/index.json';
 import { actionLabel, correctionHeld, reachOf, repeatedUnder } from '@/lib/track';
 import type { Action, Travel } from '@/lib/types';
@@ -311,14 +311,14 @@ export function GettingPanel({ t }: { t: Target }) {
       {(src.mode === 'walk' || src.mode === 'run') && (
         <Toggle label="Keep facing" hint="Side steps and backing up instead of turning to the way it goes" checked={!!src.strafe} onChange={(strafe) => set(src.mode, { strafe })} />
       )}
-      {/* (Its steps: generated, or a real person's from the Library's Mocap, #26.) */}
+      {/* (Its steps: a real person's walk or run from the Library's Mocap, #26.) */}
       {(src.mode === 'walk' || src.mode === 'run') && (
-        <PropertyRow label="Steps" info="Generated steps, or a real person's walk or run from the Library's Mocap, going where this one goes (round turns, to its mark); keeping its facing, it backs up or steps sideways as they did. Walk here and Run here take the last chosen">
+        <PropertyRow label="Steps" info="A real person's walk or run from the Library's Mocap, going where this one goes (round turns, to its mark); keeping its facing, it backs up or steps sideways as they did. Walk here and Run here take the last chosen">
           <Select<string>
             label="Steps"
-            value={src.gait ?? ''}
-            onChange={(v) => { setGait(t.store, act.id, v || null); rememberSteps(src.mode as 'walk' | 'run', v || null); }}
-            options={[{ value: '', label: 'Generated' }, ...GAITS[src.mode].map((id) => ({ value: id, label: (LIBRARY_INDEX as { id: string; name: string }[]).find((m) => m.id === id)?.name ?? id }))]}
+            value={gaitOf(src) ?? ''}
+            onChange={(v) => { setGait(t.store, act.id, v); rememberSteps(src.mode as 'walk' | 'run', v); }}
+            options={GAITS[src.mode].map((id) => ({ value: id, label: (LIBRARY_INDEX as { id: string; name: string }[]).find((m) => m.id === id)?.name ?? id }))}
           />
         </PropertyRow>
       )}

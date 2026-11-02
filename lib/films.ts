@@ -664,7 +664,9 @@ function streetBasketball(): Scene {
   s.play('Fan', 'waving', Math.max(s.until('Fan'), t));
   s.play('Fan', 'happy-idle', s.until('Fan'), { seconds: 4, face: 'Jay' });
   s.play('Rico', 'defeat-idle', t + 0.5, { seconds: 5 });
-  s.go('Jay', [3.5, 4.3], s.until('Jay') + 0.5);
+  // (Round the ball left lying by his feet, not through it.)
+  s.go('Jay', [-1.4, 5.2], s.until('Jay') + 0.5);
+  s.go('Jay', [3.5, 4.3], s.until('Jay'));
   s.go('Kofi', [4.4, 2.3], s.until('Kofi') + 0.2);
   s.play('Jay', 'laughing', s.until('Jay'), { seconds: 5, face: 'Fan' });
   s.play('Kofi', 'talking', s.until('Kofi'), { seconds: 5, face: 'Fan' });

@@ -5,7 +5,7 @@ import { figurePoseAt, actionsOf, marksOf, warpOf, naturalEnd } from '../evaluat
 import { newProp, nextName } from '../doc';
 import { seatAt } from '../sets';
 import { addTravel, insertClip, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
-import { legsOf, GAITS, flightTime, JUMP_PREP } from '../locomotion';
+import { legsOf, GAITS, CAPTURED_STEPS, flightTime, JUMP_PREP } from '../locomotion';
 import LIBRARY_INDEX from '../../public/motions/index.json';
 import { DEFAULT_BODY } from '../body';
 import { facingOf } from '../pose';
@@ -188,20 +188,20 @@ export function setTravel(store: Store, figureId: string, t: number, kind: Trave
   store.updateScene((s) => (s.animation ? { ...s, animation: setTravelMode(s, figureId, t, kind, patch) } : s));
 }
 
-/** A walk or run's steps: one of the Library's captured cycles (#26), or (null) generated. */
-export function setGait(store: Store, id: string, gait: string | null) {
+/** A walk or run's steps: one of the Library's captured cycles (#26). */
+export function setGait(store: Store, id: string, gait: string) {
   store.group(() => {
     store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => {
       if (x.id !== id || x.source.kind !== 'travel' || x.source.mode === 'jump') return x;
       const { gait: _g, ...rest } = x.source;
       void _g;
-      return { ...x, source: gait && GAITS[x.source.mode].includes(gait) ? { ...rest, gait } : rest };
+      return { ...x, source: GAITS[x.source.mode].includes(gait) ? { ...rest, gait } : rest };
     }) } } : s));
     // (At the cycle's own pace: as far as the way goes, at the speed its person walked it, scaled to the figure's legs.)
     const act = store.scene.animation?.actions.find((x) => x.id === id);
     const m = (LIBRARY_INDEX as unknown as { id: string; duration: number; move: [number, number] }[]).find((x) => x.id === gait);
     const f = act && store.scene.figures.find((x) => x.id === act.roles[0].figure);
-    if (act?.source.kind === 'travel' && act.source.gait && m && f) {
+    if (act?.source.kind === 'travel' && m && f) {
       const from = figurePoseAt(store.scene, f.id, act.start)!.position;
       const marks = [[from[0], from[2]], ...(act.source.via ?? []).map((v) => v.at), act.roles[0].end?.at ?? [from[0], from[2]]];
       const way = marks.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - marks[i][0], p[1] - marks[i][1]), 0);
@@ -214,17 +214,15 @@ export function setGait(store: Store, id: string, gait: string | null) {
 
 /**
  * The Steps last chosen for a walk and for a run (#26), which Walk here and Run here take (kept in
- * the browser): a real person's (captured) until generated ones are chosen.
+ * the browser): the Library's captured walk and run until others are chosen.
  */
 const STEPS_KEY = (mode: 'walk' | 'run') => `pose-studio-steps-${mode}`;
-const CAPTURED_STEPS: Record<'walk' | 'run', string> = { walk: 'library:walk', run: 'library:run-forward' };
-export function rememberSteps(mode: 'walk' | 'run', gait: string | null) {
-  try { localStorage.setItem(STEPS_KEY(mode), gait ?? ''); } catch { /* ignore */ }
+export function rememberSteps(mode: 'walk' | 'run', gait: string) {
+  try { localStorage.setItem(STEPS_KEY(mode), gait); } catch { /* ignore */ }
 }
-export function lastSteps(mode: 'walk' | 'run'): string | null {
+export function lastSteps(mode: 'walk' | 'run'): string {
   const v = typeof localStorage === 'undefined' ? null : localStorage.getItem(STEPS_KEY(mode));
-  if (v === null) return CAPTURED_STEPS[mode];
-  return v && GAITS[mode].includes(v) ? v : null;
+  return v && GAITS[mode].includes(v) ? v : CAPTURED_STEPS[mode];
 }
 
 /** Set a jump's height: its time in the air changes (gravity), the figure's later actions move with it. */

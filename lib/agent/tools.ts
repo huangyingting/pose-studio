@@ -226,7 +226,7 @@ export const TOOLS: AgentTool[] = [
       height: opt(num('Jump height in metres (default 0.45)')),
       spin: opt(num('Jump: turns about the vertical (0.5, 1, 2)')),
       flip: opt(num('Jump: 1 front flip, -1 back flip')),
-      steps: opt(str('Walk or run: a real person\'s captured steps instead of generated ones (it takes their pace)', [...GAITS.walk, ...GAITS.run])),
+      steps: opt(str('Walk or run: whose captured steps (it takes their pace; else the Library\'s Walk or Run)', [...GAITS.walk, ...GAITS.run])),
     }),
     run: (store, i) => {
       const f = findFigure(store, i.figure);

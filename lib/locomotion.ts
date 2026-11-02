@@ -147,7 +147,7 @@ export interface Chain {
   /** A jump's turns in the air: about the vertical (spin) and head over heels (flip, + forwards). */
   spin?: number;
   flip?: number;
-  /** A captured cycle it goes with, instead of generated steps (#26), and which way it goes from the facing (keeping it: back 180, left 90, right -90). */
+  /** The captured cycle it goes with (#26), and which way it goes from the facing (keeping it: back 180, left 90, right -90). None: a jump, or its cycle not at hand yet. */
   cycle?: Cycle;
   way?: number;
 }
@@ -157,14 +157,22 @@ export const GAITS: Record<'walk' | 'run', readonly string[]> = {
   walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward'],
   run: ['library:jog-forward', 'library:run-forward', 'library:sprint'],
 };
+/** The steps a walk or run takes unless others are chosen: a real person's. */
+export const CAPTURED_STEPS: Record<'walk' | 'run', string> = { walk: 'library:walk', run: 'library:run-forward' };
+
+/** The captured steps a walk or run goes with: those chosen, else a real person's walk or run; a jump has none. */
+export function gaitOf(src: { mode: Travel; gait?: string }): string | null {
+  if (src.mode === 'jump') return null;
+  return src.gait && GAITS[src.mode].includes(src.gait) ? src.gait : CAPTURED_STEPS[src.mode];
+}
 
 /**
  * The cycles a walk or run with captured steps goes with where it keeps its facing (#26): backing
- * up (by the steps chosen: the Library's only walk backward is a sneak), and stepping sideways (to
- * the left as captured; to the right, mirrored). None: generated steps.
+ * up (the Library's only walk backward is a sneak, so every walk backs up as one), and stepping sideways (to
+ * the left as captured; to the right, mirrored).
  */
 export const GAIT_WAYS: Record<'walk' | 'run', { back: Record<string, string>; side: string }> = {
-  walk: { back: { 'library:crouch-walk-forward': 'library:walk-backward' }, side: 'library:walk-left' },
+  walk: { back: Object.fromEntries(GAITS.walk.map((g) => [g, 'library:walk-backward'])), side: 'library:walk-left' },
   run: { back: Object.fromEntries(GAITS.run.map((g) => [g, 'library:run-backward'])), side: 'library:strafe-left' },
 };
 
@@ -760,12 +768,29 @@ function cycleGait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Gro
   const yaw = generated.joints.hips?.[1] ?? 0;
   // (Its root where the generated walk has it, at the cycle's height: the legs reach the floor.)
   // (Turned so that its own way goes the path's: the body as turned from it as the captured one's.)
-  const out: AnglePose = { ...q, joints: { ...q.joints, hips: [hips[0], wrapDeg(yaw + (c.way ?? 0) + hips[1] - cyc.heading), hips[2]] }, position: [generated.position[0], Math.min(generated.position[1], q.position[1] * k + (generated.position[1] - legs.rootY * 0.975)), generated.position[2]], hands: pose.hands, grounded: false };
+  // (Keeping its facing, it keeps looking where it did: not over its shoulder where the captured
+  // person backing up or side-stepping looked.)
+  const look = c.way ? { neck: pose.joints.neck ?? [0, 0, 0], head: pose.joints.head ?? [0, 0, 0] } : {};
+  const out: AnglePose = { ...q, joints: { ...q.joints, ...look, hips: [hips[0], wrapDeg(yaw + (c.way ?? 0) + hips[1] - cyc.heading), hips[2]] }, position: [generated.position[0], Math.min(generated.position[1], q.position[1] * k + (generated.position[1] - legs.rootY * 0.975)), generated.position[2]], hands: pose.hands, grounded: false };
+  // (The legs take the captured steps as the speed comes up; the arms and back come over to them,
+  // and back to what comes next, more slowly: an arm raised for what comes next is not dropped and
+  // raised again in a few frames.)
+  const u = Math.max(plan.ramp, Math.min(UPPER_EASE, plan.dur / 2));
+  const tau = clamp(t - c.t0, 0, plan.dur);
+  const wu = Math.min(w, smooth(tau / u), smooth((plan.dur - tau) / u));
   const mixed = mixPoses(generated, out, w);
+  const upper = mixPoses(generated, out, wu);
+  for (const j of UPPER) if (upper.joints[j]) mixed.joints[j] = upper.joints[j];
   // Planted feet held where the plan has them; swinging, the cycle's legs (eased onto the hold as they come down).
   for (const side of ['L', 'R'] as const) plantLeg(mixed, legs, side, feet[side].world, 1 - smooth(feet[side].swing * 2.5));
+  // (Every joint within its range: a captured one past ours, as recorded and retargeted, would read as bent too far.)
+  for (const j of Object.keys(mixed.joints) as JointName[]) if (j !== 'hips') mixed.joints[j] = clampRotation(j, mixed.joints[j]!);
   return mixed;
 }
+
+/** How long a captured walk's upper body takes to come over from what it set off in, and back to what it arrives in (s, at most half the walk). */
+const UPPER_EASE = 0.5;
+const UPPER: JointName[] = ['spine', 'chest', 'upperChest', 'neck', 'head', 'leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'];
 
 /** A leg's angles turned towards reaching `world` with its ankle (two-bone IK), by `weight`. */
 function plantLeg(p: AnglePose, legs: Legs, side: 'L' | 'R', world: [number, number, number], weight: number) {

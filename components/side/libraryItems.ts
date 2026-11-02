@@ -325,7 +325,7 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     // (Recorded from people, Mixamo's; made here, posed and stepped by the app; and your own.)
     kinds: [
       { id: 'captured', label: 'Mocap', icon: Video, tip: 'Motion capture: recorded from real people (Mixamo)' },
-      { id: 'generated', label: 'Generated', icon: WandSparkles, tip: 'Made by Pose Studio: posed key by key, with steps worked out for walks, runs and jumps' },
+      { id: 'generated', label: 'Generated', icon: WandSparkles, tip: 'Made by Pose Studio, key by key: what no capture covers yet' },
       { id: 'imported', label: 'Imported', icon: Import, tip: 'The motions you import (BVH, FBX, glTF or a Pose Studio motion) and save', empty: 'Motions you import, or save from a Posed block, show here.' },
     ],
   },

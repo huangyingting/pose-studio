@@ -2099,16 +2099,14 @@ test('figures walk, run and jump to marks from the floor menu; the timeline says
 test('a walk with a real person\'s steps: by default, chosen in its inspector, at their pace, then taken by Walk here (#26)', async ({ page }) => {
   await floorMenu(page, [0.8, 0, -1.2], 'Walk here');
   const walk = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'travel')!);
-  // A real person's steps from the first (not generated ones).
+  // A real person's steps from the first: the Library's Walk.
   await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBe('library:walk');
   await page.locator('.tl-travel.walk').first().click({ position: { x: 12, y: 5 } });
-  await choose(page, 'Steps', 'Generated');
-  await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBeUndefined();
+  await choose(page, 'Steps', /^Walk, brisk$/);
+  await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBe('library:walk-forward');
   // Walk here takes the Steps last chosen.
-  await choose(page, 'Steps', /^Walk$/);
-  await expect.poll(async () => ((await walk()).source as { gait?: string }).gait).toBe('library:walk');
   await floorMenu(page, [-0.6, 0, -0.4], 'Walk here');
-  await expect.poll(async () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'travel').map((a) => (a.source as { gait?: string }).gait))).toEqual(['library:walk', 'library:walk']);
+  await expect.poll(async () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'travel').map((a) => (a.source as { gait?: string }).gait))).toEqual(['library:walk-forward', 'library:walk-forward']);
 });
 
 test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots stay as its rows scroll; a drag at the edge of a zoomed view scrolls on', async ({ page }) => {

@@ -21,7 +21,7 @@ const turnOf = (p: Pose, q: Pose, j: keyof Pose['bones']) => {
   return (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
 };
 
-/** A figure walking to (x, z) from the stage's middle, generated or with the captured Walk. */
+/** A figure walking to (x, z) from the stage's middle, in the captured steps given (else the Library's Walk). */
 function walked(to: [number, number], gait?: string, via?: [number, number], strafe?: boolean) {
   const { store, a } = fresh();
   startAnimation(store, 2);
@@ -41,10 +41,12 @@ describe('a walk with a captured cycle (#26)', () => {
     const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
     expect(Math.hypot(end.position[0], end.position[2] - 6)).toBeLessThan(0.1);
     expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
-    // Mid-way, not the generated walk: the captured arms and spine.
-    const g = walked([0, 6]);
+    // Unless others are chosen, the Library's Walk; others chosen (a sneak), theirs.
     const mid = act.start + act.duration / 2;
-    expect(turnOf(figurePoseAt(store.scene, a, mid)!, figurePoseAt(g.store.scene, g.a, mid)!, 'spine')).toBeGreaterThan(1);
+    const plain = walked([0, 6]);
+    expect(turnOf(figurePoseAt(store.scene, a, mid)!, figurePoseAt(plain.store.scene, plain.a, mid)!, 'spine')).toBeLessThan(1e-3);
+    const sneak = walked([0, 6], SNEAK);
+    expect(turnOf(figurePoseAt(store.scene, a, mid)!, figurePoseAt(sneak.store.scene, sneak.a, mid)!, 'spine')).toBeGreaterThan(1);
   });
 
   it('round a corner, past a mark on the way: its planted feet still hold', () => {
@@ -54,21 +56,19 @@ describe('a walk with a captured cycle (#26)', () => {
     expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
   });
 
-  it('keeping its facing, it steps sideways (to the right, mirrored) and a sneak backs up with the captured ones; a walk backs up generated', () => {
+  it('keeping its facing, it steps sideways (to the right, mirrored) and backs up with the captured ones', () => {
     for (const [to, gait] of [[[0, -4], SNEAK], [[3, 0], WALK], [[-3, 0], WALK]] as [[number, number], string][]) {
       const { store, a, act } = walked(to, gait, undefined, true);
       const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
       expect(Math.hypot(end.position[0] - to[0], end.position[2] - to[1]), `${to}`).toBeLessThan(0.1);
       expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop'), `${to}`).toEqual([]);
-      // Facing the way it did, its hips as turned from it as the captured person's (a side step opens them); its body the captured one, not generated side steps.
+      // Facing the way it did, its hips as turned from it as the captured person's (a side step opens them).
       const mid = act.start + act.duration / 2;
-      const pose = figurePoseAt(store.scene, a, mid)!;
-      expect(Math.abs(facingOf(pose.bones)), `${to}`).toBeLessThan(75);
-      const g = walked(to, undefined, undefined, true);
-      expect(turnOf(pose, figurePoseAt(g.store.scene, g.a, mid)!, 'spine'), `${to}`).toBeGreaterThan(1);
+      expect(Math.abs(facingOf(figurePoseAt(store.scene, a, mid)!.bones)), `${to}`).toBeLessThan(75);
     }
+    // Any walk backs up as the captured one backing up does (the Library's only one, a sneak's).
     const { store, a, act } = walked([0, -4], WALK, undefined, true);
-    const g = walked([0, -4], undefined, undefined, true);
+    const g = walked([0, -4], SNEAK, undefined, true);
     const mid = act.start + act.duration / 2;
     expect(turnOf(figurePoseAt(store.scene, a, mid)!, figurePoseAt(g.store.scene, g.a, mid)!, 'spine')).toBeLessThan(1e-3);
   });

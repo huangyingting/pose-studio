@@ -5,7 +5,7 @@ import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { NEUTRAL_ANGLES } from './doc';
 import { mirrorJointName, wrapDeg } from './joints';
-import { GAIT_WAYS, feetOf, legsOf, locomote, makeCycle, wayOf, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
+import { GAIT_WAYS, feetOf, gaitOf, legsOf, locomote, makeCycle, wayOf, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
@@ -93,11 +93,12 @@ function cycleOf(id: string, mirror = false): Cycle | null {
 
 /** The cycle a travel with captured steps goes with, and which way from its facing: its own, or keeping its facing, one that backs up or steps sideways. */
 function gaitCycle(src: Extract<Action['source'], { kind: 'travel' }>, path: [number, number][], yaws: number[]): { cycle: Cycle; way?: number } | null {
-  if (!src.gait || src.mode === 'jump') return null;
+  const gait = gaitOf(src);
+  if (!gait || src.mode === 'jump') return null;
   const way = src.strafe ? wayOf(path, yaws) : 'forward';
   const ways = GAIT_WAYS[src.mode];
-  const back = ways.back[src.gait];
-  const cycle = way === 'forward' ? cycleOf(src.gait) : way === 'back' ? (back ? cycleOf(back) : null) : cycleOf(ways.side, way === 'right');
+  const back = ways.back[gait];
+  const cycle = way === 'forward' ? cycleOf(gait) : way === 'back' ? (back ? cycleOf(back) : null) : cycleOf(ways.side, way === 'right');
   return cycle && { cycle, ...(way !== 'forward' ? { way: { back: 180, left: 90, right: -90 }[way] } : {}) };
 }
 
@@ -788,7 +789,7 @@ class Evaluator {
     // (Not into a clip not at hand yet, still coming: as it left, until it comes.)
     const arrive = next && next.source.kind !== 'travel' && Math.abs(next.start - end(act)) < 1e-3 && (next.source.kind !== 'clip' || clipOf(next))
       ? this.at(f, next, next.start)
-      : turned({ ...from, position: [to.at[0], from.position[1], to.at[1]] }, wrapDeg(to.facing - facingOf(from.bones)));
+      : this.carried(f, turned({ ...from, position: [to.at[0], from.position[1], to.at[1]] }, wrapDeg(to.facing - facingOf(from.bones))));
     const via = src.mode === 'jump' ? [] : src.via ?? [];
     const path: [number, number][] = [start.at, ...via.map((m) => m.at), to.at];
     const yaws = [start.facing, ...via.map((m) => m.facing), to.facing];
@@ -813,6 +814,19 @@ class Evaluator {
     return c;
   }
 
+  /**
+   * Arriving where nothing comes next but more walking (or nothing): as a person walking stands,
+   * the arms down and the head up (unless holding something), not as the motion before it left them.
+   */
+  private carried(f: Figure, p: Pose): Pose {
+    return this.handling(f) ? p : { ...p, bones: bonesOf({ ...anglesOf(p.bones), ...CARRIAGE }) };
+  }
+
+  /** Whether a figure ever holds anything in the scene (its arms then kept as posed on the way). */
+  private handling(f: Figure) {
+    return this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id));
+  }
+
   private travel(f: Figure, act: Action, t: number): Pose {
     const c = this.chain(f, act);
     if (t <= c.t0 + EPS) return fromAngles(c.start);
@@ -824,8 +838,7 @@ class Evaluator {
       keys = [{ t: c.t0, pose: c.start }, { t: c.t1, pose: c.end }];
       // (Long enough, and never holding anything: the arms come down and the head up to walk, and
       // back again for what comes next, not carried along mid-gesture looking at the floor.)
-      const holds = this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id));
-      if (c.t1 - c.t0 >= 2 * CARRIAGE_EASE + 0.2 && !holds) {
+      if (c.t1 - c.t0 >= 2 * CARRIAGE_EASE + 0.2 && !this.handling(f)) {
         // (The hips level too, turned as they were: the walk turns them its way.)
         const walking = (p: AnglePose): AnglePose => ({ ...p, joints: { ...p.joints, ...CARRIAGE, hips: [0, p.joints.hips?.[1] ?? 0, 0] } });
         keys.splice(1, 0, { t: c.t0 + CARRIAGE_EASE, pose: walking(c.start) }, { t: c.t1 - CARRIAGE_EASE, pose: walking(c.end) });
