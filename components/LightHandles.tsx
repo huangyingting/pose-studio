@@ -6,6 +6,7 @@ import { editLight, setLook, subjectOf } from '@/lib/actions';
 import { cameraAt } from '@/lib/cameras';
 import { ROLE_NAMES, clampLight, handleAt, keyLight, lampAt, lightDome, lightFrom, lightText, lightingOf, lookOf, sunText } from '@/lib/lighting';
 import type { SceneView } from '@/lib/sceneview';
+import { LIT_NAMES } from '@/lib/styles';
 import type { Store } from '@/lib/store';
 import type { Light, Scene, Vec3 } from '@/lib/types';
 import { setPointerHint, setReadout } from './hints';
@@ -197,7 +198,7 @@ function Lamp({ store, light, dome: { base, radius }, aim, selected, lit }: {
         // (The click that follows the press is the lamp's: not a figure's behind it.)
         onClick={(e) => e.stopPropagation()}
         onWheel={wheel}
-        onPointerOver={() => { document.body.style.cursor = 'grab'; zoom(false); setPointerHint(lit ? `${light.name}, ${lightText(light).toLowerCase()} · ${how} · Wheel: brighter, dimmer` : 'Light shows in Pencil, Ink wash, Anime, 3D and Clay: switch to one in the top bar, or from the light\'s menu'); }}
+        onPointerOver={() => { document.body.style.cursor = 'grab'; zoom(false); setPointerHint(lit ? `${light.name}, ${lightText(light).toLowerCase()} · ${how} · Wheel: brighter, dimmer` : `Light shows in ${LIT_NAMES}: switch to one in the top bar, or from the light's menu`); }}
         onPointerOut={() => { document.body.style.cursor = ''; zoom(true); setPointerHint(null); }}
         userData={{ light: light.id }}
       >

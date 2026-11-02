@@ -8,7 +8,7 @@ import { projectSettingsOf } from '@/lib/project';
 import {
   KELVIN, KIND_NAMES, LIGHT_SWATCHES, ROLE_ABOUT, ROLE_NAMES, keyLight, kelvinColor, lightText, lightingName, lightingOf, lookOf, sunText,
 } from '@/lib/lighting';
-import { STYLE_LIST, styleDef } from '@/lib/styles';
+import { LIT_NAMES, styleDef } from '@/lib/styles';
 import { LIGHT_KINDS, LIGHT_ROLES, type Light, type LightKind, type LightRole } from '@/lib/types';
 import { command, menu } from '../commands';
 import { Field, NameHeader, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
@@ -31,7 +31,6 @@ const KIND_ABOUT: Record<LightKind, string> = {
   window: 'Soft light through a pane, aimed at the people.',
 };
 
-const LIT = STYLE_LIST.filter((s) => s.lit).map((s) => s.label);
 const lit = (t: Target) => styleDef(projectSettingsOf(t.store.getState().library).style).lit;
 const percent = (n: number) => `${Math.round(n * 100)}%`;
 
@@ -70,7 +69,7 @@ function Unlit({ t }: { t: Target }) {
   if (lit(t)) return null;
   return (
     <div className="light-unlit" role="note">
-      <span>{styleDef(projectSettingsOf(t.store.getState().library).style).label} shows no light. It shows in {LIT.join(', ').replace(/, ([^,]*)$/, ' and $1')}.</span>
+      <span>{styleDef(projectSettingsOf(t.store.getState().library).style).label} shows no light. It shows in {LIT_NAMES}.</span>
       <button type="button" className="btn subtle" onClick={() => command('light.clay').run!({ store: t.store, light: lightingOf(t.scene).lights[0].id })}>Switch to Clay</button>
     </div>
   );

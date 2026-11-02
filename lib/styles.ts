@@ -149,6 +149,9 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
 
 export const STYLE_LIST = STYLES.map((s) => STYLE_DEFS[s]);
 
+/** The styles that show the scene's lights, named as a sentence ("Pencil, Ink wash, … and Clay"). */
+export const LIT_NAMES = STYLE_LIST.filter((s) => s.lit).map((s) => s.label).join(', ').replace(/, ([^,]*)$/, ' and $1');
+
 /** How a filmic style maps its light to the picture (Khronos PBR Neutral: bright light rolls off instead of clipping, colours as they are). */
 export const TONE_MAPPING = THREE.NeutralToneMapping;
 
