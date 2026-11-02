@@ -356,6 +356,11 @@ class Evaluator {
         const partner = act.roles[c.on.part]?.figure;
         const body = this.figures.get(partner ?? '')?.body;
         if (!partner || !body) return;
+        // Held both ways at once (a handshake): only the shorter one's hand goes to the other's (two
+        // pulling at each other meet neither; a child reaches up, a grown-up's arm cannot reach down
+        // as far); of two as tall, the partner's goes to the lead's.
+        const both = clip.contacts.some((o) => o.on && o.part === c.on!.part && o.on.part === c.part && o.start < c.end && c.start < o.end);
+        if (both && (legsOf(f.body).rootY > legsOf(body).rootY + 0.01 || (Math.abs(legsOf(f.body).rootY - legsOf(body).rootY) <= 0.01 && index < c.on.part))) return;
         // Where on the partner's body the clip has the hand now, on the partner as it is (however big).
         const k = scaleOf(body) / scaleOf(clip.parts[c.on.part].body ?? body);
         const spot = this.onBody(partner, flip(c.on.bone), this.gripSpot(clip, index, c.on.part, bone, flip(c.on.bone), u, mirror), t, k);

@@ -247,11 +247,8 @@ async function paired(p: (typeof PAIRS)[number]): Promise<Clip> {
     ...a, name: p.file, duration: Math.min(a.duration, b.duration), parts: [a.parts[0], placed],
     contacts: [...(a.contacts ?? []).map((c) => ({ ...c, part: 0 })), ...(b.contacts ?? []).map((c) => ({ ...c, part: 1 }))],
   });
-  // Hands held both ways at once (a handshake): the partner's follows the lead's (one hold, not
-  // two pulling at each other, which neither meets for people of other sizes).
-  const grips = detectGrips(both, 30);
-  const mutual = (g: (typeof grips)[number]) => g.part === 0 && grips.some((o) => o.part === 1 && o.on?.part === 0 && o.start < g.end && g.start < o.end);
-  return { ...both, contacts: [...(both.contacts ?? []), ...grips.filter((g) => !mutual(g))] };
+  // (Hands held both ways at once, a handshake: both kept; as played, the shorter one's follows.)
+  return { ...both, contacts: [...(both.contacts ?? []), ...detectGrips(both, 30)] };
 }
 
 /** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
