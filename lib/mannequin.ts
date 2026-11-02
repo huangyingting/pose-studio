@@ -244,6 +244,9 @@ function fitBounds(mesh: THREE.SkinnedMesh, samples: Sample[]) {
 }
 
 /** The mannequin: Mixamo's X Bot or Y Bot on the app's skeleton, drawn in the app's styles. */
+/** (A point worked out with, not kept.) */
+const LOW = new THREE.Vector3();
+
 export class Mannequin {
   readonly object = new THREE.Group();
   joints = {} as Record<JointName, THREE.Group>;
@@ -255,6 +258,9 @@ export class Mannequin {
   private hands = {} as Record<Side, FingerRig>;
   /** What bounds it, cheaply: a few of each bone's points (outline). */
   private samples: Sample[] = [];
+  /** Each sample's bone as placed now and how low its sphere reaches (lowest's, kept). */
+  private lows: { x: Sample; m: THREE.Matrix4; bottom: number }[] = [];
+  private lowsOf: Sample[] | null = null;
   private bodyKey = '';
   private style: Style = 'line';
   private selected: JointName | null = null;
@@ -482,14 +488,20 @@ export class Mannequin {
     if (!placed) this.object.updateMatrixWorld(true);
     // (The bones by how low their sphere reaches: past the lowest point found, the rest cannot
     // go lower. Only heights worked out.)
-    const c = new THREE.Vector3();
-    const bones = this.samples.map((x) => {
-      const m = new THREE.Matrix4().multiplyMatrices(x.bone.matrixWorld, x.inverse);
-      return { points: x.points, e: m.elements, bottom: c.copy(x.sphere.center).applyMatrix4(m).y - x.sphere.radius * m.getMaxScaleOnAxis() };
-    }).sort((a, b) => a.bottom - b.bottom);
+    // (Worked out many times a frame, as a pose is solved: nothing made anew each time.)
+    if (this.lowsOf !== this.samples) {
+      this.lows = this.samples.map((x) => ({ x, m: new THREE.Matrix4(), bottom: 0 }));
+      this.lowsOf = this.samples;
+    }
+    for (const low of this.lows) {
+      low.m.multiplyMatrices(low.x.bone.matrixWorld, low.x.inverse);
+      low.bottom = LOW.copy(low.x.sphere.center).applyMatrix4(low.m).y - low.x.sphere.radius * low.m.getMaxScaleOnAxis();
+    }
+    this.lows.sort((a, b) => a.bottom - b.bottom);
     let min = Infinity;
-    for (const { points, e, bottom } of bones) {
+    for (const { x, m, bottom } of this.lows) {
       if (bottom >= min) break;
+      const [e, points] = [m.elements, x.points];
       for (let i = 0; i < points.length; i += 3) {
         const y = e[1] * points[i] + e[5] * points[i + 1] + e[9] * points[i + 2] + e[13];
         if (y < min) min = y;
