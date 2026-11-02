@@ -11,7 +11,8 @@ Many scenes ran slowly, in some styles far more than in others. Measured per fra
 - the key light's shadows were drawn again on every frame, also while only the view turned;
 - the post passes drew the scene again for its depth (Watercolour, Pixel and 3D, and 3D's ambient occlusion a second time), outlines and all;
 - while playing, the stand-on surfaces were rebuilt from new prop meshes every frame, and the whole timeline was rendered by React every frame;
-- a high-density screen gave the full-picture passes four times the pixels.
+- a high-density screen gave the full-picture passes four times the pixels, each multisampled;
+- the thumbnail queue drew every template on after its dialog had closed.
 
 ## Decision
 
@@ -22,7 +23,8 @@ A frame draws what changed and reuses the rest:
 - **One depth, shared**: Watercolour writes the scene's depth with its paint (`gl_FragDepth`), and 3D's ambient occlusion reads the depth of the picture it shades; a depth pass that is still needed (Pixel, 3D, for the handles drawn over them) leaves the outlines out.
 - **Nothing built per frame**: what is worked out from the scene (the surfaces to stand on) is kept by its content, not by the object holding it, since a scene as played is a new object each frame.
 - **React at the pace of what it shows**: while playing, the timeline's rows are drawn again four times a second; the playhead and its readout, each frame, by themselves.
-- **Pixels where they show**: the canvas uses up to two screen pixels per CSS pixel, and up to one and a half in the styles whose whole picture goes through a pass (Watercolour, 3D).
+- **Pixels where they show**: the canvas uses up to two screen pixels per CSS pixel, and up to one and a half in the styles whose whole picture goes through a pass (Watercolour, 3D); it multisamples only below two (a high-density screen's own pixels are fine enough).
+- **Work no one waits for is dropped**: a thumbnail whose grid has closed is not drawn.
 
 ## Consequences
 
