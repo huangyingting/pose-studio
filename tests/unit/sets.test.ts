@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
+import { Ink, InkedParts } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
 import { SETS, SET_GROUPS, isEffect, mergeParts, seatNear, setModels, setTops, type Part } from '@/lib/sets';
 import { groundOf } from '@/lib/surfaces';
@@ -131,6 +132,20 @@ describe('sets', () => {
     const built = mergeParts([part(false, 0), part(false, 1), part(false, 2)]).geometry;
     expect(built.userData.pieces).toBe(3);
     expect(new Set(built.attributes.piece.array)).toEqual(new Set([0, 1, 2]));
+  });
+
+  it('leaves cut out by their texture are filled flat from both sides in a drawn style, their outline\'s hull hidden (not their backs in ink)', () => {
+    const ink = new Ink();
+    const parts = new InkedParts(ink, 'prop');
+    const root = new THREE.Group();
+    const leaves = parts.add(root, new THREE.PlaneGeometry(1, 1), {});
+    leaves.userData.cutout = { map: new THREE.Texture(), cutoff: 0.5 };
+    const trunk = parts.add(root, new THREE.BoxGeometry(0.2, 2, 0.2), {});
+    parts.refresh('line', () => false);
+    expect((leaves.material as THREE.Material).side).toBe(THREE.DoubleSide);
+    expect((leaves.material as THREE.ShaderMaterial).uniforms.cutoff.value).toBe(0.5);
+    expect(leaves.children[0].visible).toBe(false);
+    expect(trunk.children[0].visible).toBe(true);
   });
 
   it('made of models and surfaces that npm run sets made, each within its budget; each set within its own (#25)', () => {

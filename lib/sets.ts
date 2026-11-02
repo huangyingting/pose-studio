@@ -1155,6 +1155,12 @@ export function isEffect(m: THREE.Material) {
   return s.transparent && s.opacity < 0.5 && !!s.emissive && Math.max(s.emissive.r, s.emissive.g, s.emissive.b) > 0.5;
 }
 
+/** Where a model's material is cut out by its texture (a tree's leaves, a fern), and from how clear. */
+function cutoutOf(m: THREE.Material | undefined) {
+  const s = m as THREE.MeshStandardMaterial | undefined;
+  return s?.map && s.alphaTest > 0 ? { map: s.map, cutoff: s.alphaTest } : undefined;
+}
+
 /** Parts merged into one geometry, each its own piece number (its inner lines and its ID in the line art's pass). */
 export function mergeParts(parts: Part[]) {
   let vertices = 0;
@@ -1316,7 +1322,8 @@ export class SetObject {
       g.full = full;
       const first = g.parts[0];
       const mesh = this.parts.add(this.object, geometry, { set: this.id });
-      Object.assign(mesh.userData, { own: first.own, look: first.look, scene: first.scene, twoSided: first.scene, floor: first.floor, ground: first.ground, effect: first.effect });
+      const cutout = cutoutOf(first.own);
+      Object.assign(mesh.userData, { own: first.own, look: first.look, scene: first.scene, twoSided: first.scene || !!cutout, cutout, floor: first.floor, ground: first.ground, effect: first.effect });
       mesh.castShadow = false;
       mesh.visible = !first.effect || this.style === 'render';
       mesh.raycast = () => {};

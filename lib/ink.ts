@@ -146,6 +146,17 @@ const CUT_FRAG = /* glsl */ `
     if (texture2D(map, vUv).a < cutoff) discard;
     gl_FragColor = vec4(id, 1.0);
   }`;
+/** A part cut out where its texture is clear, filled flat (a tree's leaves in a style that draws shapes). */
+const FILL_FRAG = /* glsl */ `
+  uniform vec3 fill;
+  uniform sampler2D map;
+  uniform float cutoff;
+  varying vec2 vUv;
+  void main() {
+    if (texture2D(map, vUv).a < cutoff) discard;
+    gl_FragColor = vec4(fill, 1.0);
+    #include <colorspace_fragment>
+  }`;
 /** For a part made of pieces (a hand): each piece its own ID, the part's first one plus the piece's number. */
 const PIECES_VERT = /* glsl */ `
   attribute float piece;
@@ -227,6 +238,7 @@ export class Ink {
   private ownOutlines = new Map<string, { material: THREE.ShaderMaterial; width: number; thickness: { value: number } }>();
   private idMats = new Map<string, THREE.ShaderMaterial>();
   private twoSidedMats = new Map<THREE.Material, THREE.Material>();
+  private fills = new Map<string, THREE.ShaderMaterial>();
 
   constructor(readonly ghost: Ghost | null = null) {
     if (ghost) {
@@ -356,6 +368,28 @@ export class Ink {
     return two;
   }
 
+  /**
+   * A part cut out where its texture is clear (a tree's leaves, a fern), filled flat in `like`'s colour
+   * from both sides: foliage as a style that draws shapes draws it, a mass whose edge the line pass draws.
+   */
+  cutoutFill(like: THREE.Material, cutout: { map: THREE.Texture; cutoff: number }): THREE.ShaderMaterial {
+    const base = (like as THREE.ShaderMaterial).uniforms?.base?.value as THREE.Color | undefined;
+    const color = base ?? (like as THREE.MeshBasicMaterial).color ?? new THREE.Color('#ffffff');
+    const key = `${color.getHexString()}|${cutout.map.uuid}@${cutout.cutoff}`;
+    let m = this.fills.get(key);
+    if (!m) {
+      cutout.map.updateMatrix();
+      m = new THREE.ShaderMaterial({
+        uniforms: { fill: { value: color.clone() }, map: { value: cutout.map }, mapTransform: { value: cutout.map.matrix }, cutoff: { value: cutout.cutoff } },
+        vertexShader: CUT_VERT,
+        fragmentShader: FILL_FRAG,
+        side: THREE.DoubleSide,
+      });
+      this.fills.set(key, m);
+    }
+    return m;
+  }
+
   /** Materials for a style; `tint` mixes a figure's colour into its body (selection looks the same). */
   private createMaterials(style: Style, tint?: string): StyleMaterials {
     const body = (c: string) => (tint ? `#${new THREE.Color(c).lerp(new THREE.Color(tint), 0.42).getHexString()}` : c);
@@ -428,6 +462,8 @@ export class Ink {
     this.idMats.clear();
     for (const m of this.twoSidedMats.values()) m.dispose();
     this.twoSidedMats.clear();
+    for (const m of this.fills.values()) m.dispose();
+    this.fills.clear();
     this.outline.dispose();
     for (const own of this.ownOutlines.values()) own.material.dispose();
     this.ownOutlines.clear();
@@ -515,7 +551,9 @@ export class InkedParts {
       const pieces = (mesh.geometry.userData.pieces as number | undefined) ?? 0;
       const group = mesh.userData.form as string | undefined;
       const first = group && shared.has(group) ? shared.get(group)! : id;
-      idMaterialOf(mesh, on ? this.sided(mesh, this.ink.idMaterial(first, pieces > 0)) : null);
+      // (Cut out by its texture, a tree's leaves: one ID, none where nothing is drawn.)
+      const cutout = mesh.userData.cutout as { map: THREE.Texture; cutoff: number } | undefined;
+      idMaterialOf(mesh, on ? this.sided(mesh, this.ink.idMaterial(first, !cutout && pieces > 0, cutout)) : null);
       if (first !== id) continue;
       if (group) shared.set(group, id);
       id += Math.max(1, pieces);
@@ -529,6 +567,8 @@ export class InkedParts {
     for (const mesh of this.bodies) {
       const state = isSelected(mesh);
       mesh.material = this.sided(mesh, this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body);
+      // (Cut out by its texture, a tree's leaves: filled flat as the shape of its leaves, from both sides.)
+      if (mesh.userData.cutout && !this.faded) mesh.material = this.ink.cutoutFill(prop ? m.prop : m.body, mesh.userData.cutout);
     }
     this.style = style;
     if (this.faded) for (const h of this.hulls) h.visible = false;
@@ -546,7 +586,8 @@ export class InkedParts {
     const outline = !!styleDef(this.style).outline;
     for (const h of this.hulls) {
       h.material = this.linked ? this.ink.linked : this.ink.outline;
-      if (!this.faded) h.visible = this.linked || outline;
+      // (Not round what is cut out by its texture, a tree's leaves: a flat card's hull is the card, its back in ink.)
+      if (!this.faded) h.visible = this.linked || (outline && !h.parent?.userData.cutout);
     }
   }
 
