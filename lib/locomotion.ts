@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clampRotation, sided, wrapDeg } from './joints';
+import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
 import { angleToQuat, bonesOf, type Angles } from './pose';
 import { scaleOf } from './mannequin';
 import { Rig } from './relations';
@@ -417,7 +417,9 @@ function compose(pose: AnglePose, legs: Legs, g: Generated): AnglePose {
       if (tiptoe > 0 && 'world' in foot) joints[sided('Toes', side)] = [r1(-clamp(tiptoe * (1 - foot.swing), 0, 50)), 0, 0];
     }
     const sh = joints[sided('UpperArm', side)] ?? [0, 0, 0];
-    joints[sided('UpperArm', side)] = [r1(sh[0] + s * g.swing + g.raise), sh[1], sh[2]];
+    // (Swung within its range, or no further past it than keyed: on top of arms raised, a guard, it would go past.)
+    const [lo, hi] = jointLimits(sided('UpperArm', side))[0];
+    joints[sided('UpperArm', side)] = [r1(clamp(sh[0] + s * g.swing + g.raise, Math.min(lo, sh[0]), Math.max(hi, sh[0]))), sh[1], sh[2]];
     const el = joints[sided('LowerArm', side)] ?? [0, 0, 0];
     // (Bent for running as far as an elbow goes, from however bent it was keyed.)
     joints[sided('LowerArm', side)] = [r1(Math.max(-150, Math.min(el[0], el[0] + g.elbows))), el[1], el[2]];
