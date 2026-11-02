@@ -1452,7 +1452,7 @@ test('storyboard: the scene list in its order, shot by shot, captions, reorderin
 
 test('motion check flags foot sliding and jumps to it', async ({ page }) => {
   test.setTimeout(120_000);
-  await sceneWithMotion(page, 'Walk ahead');
+  await floorMenu(page, [1.2, 0, -3], 'Walk here');
   await page.locator('.tl-qa').click();
   await expect(page.locator('.tl-qa')).toHaveText('No issues', { timeout: 30_000 });
 
@@ -1601,12 +1601,12 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + PAIRS + 1);
   await libraryShows(page, 'Motions');
   await motionsTab(page, 'Generated');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jump ahead/ }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Bow [\d.]+ s$/ }).click();
   const sc = (await live(page)).scene;
-  const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => (x.source.kind === 'travel' ? x.source.mode : x.source.kind)));
+  const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => x.source.kind));
   expect(tracks[0]).toEqual(['keys']);
-  // Holding where it stands, then a jump to where it lands (its steps generated).
-  expect(tracks[1]).toEqual(['keys', 'jump']);
+  // Holding where it stands, then the bow.
+  expect(tracks[1]).toEqual(['keys', 'clip']);
 });
 
 /** The live scene, as the tests below need it. */

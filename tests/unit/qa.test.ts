@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { MemoryStorage, motionScene } from '../fixtures/scenes';
+import { MemoryStorage, fresh, motionScene } from '../fixtures/scenes';
 import { putClips } from '@/lib/assets';
 import { newFigure, newProp, newScene, parseClip } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
 import { checkMotion, segmentDistance } from '@/lib/qa';
-import { applyMotion, issueFix } from '@/lib/actions';
+import { applyMotion, issueFix, travelTo } from '@/lib/actions';
 import { Store } from '@/lib/store';
 import { buildStaging } from '@/lib/stagings';
 import type { Figure, Scene } from '@/lib/types';
@@ -24,7 +24,13 @@ const kinds = (s: Scene) => checkMotion(s).map((i) => i.kind);
 
 describe('motion QA', () => {
   it('passes the built-in animations and multi-person holds', () => {
-    for (const id of ['walk', 'run', 'jump', 'kick', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
+    for (const id of ['kick', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
+    // Walking, running and jumping a way: their steps captured or made.
+    for (const [kind, d] of [['walk', 3], ['run', 6], ['jump', 1]] as const) {
+      const { store, a } = fresh();
+      travelTo(store, a, [0, d], kind);
+      expect(checkMotion(store.scene), kind).toEqual([]);
+    }
     for (const id of ['waltz', 'shoulder', 'group', 'sparring']) {
       const s = buildStaging(id)!;
       expect(checkMotion(animate([[0, s.figures]])), id).toEqual([]);

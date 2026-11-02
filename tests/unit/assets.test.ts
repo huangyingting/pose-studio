@@ -85,7 +85,7 @@ describe('library assets applied to the scene', () => {
     addFigure(store);
     const other = store.getState().activeFigure!;
     store.setTime(store.scene.animation!.duration);
-    expect(applyMotion(store, other, 'jump')).toBe(true);
+    expect(applyMotion(store, other, 'bow')).toBe(true);
     expect(store.scene.animation!.duration).toBeGreaterThan(clipById(captured('waving'))!.duration);
     // A set-up with its own props opens as a scene instead.
     expect(applyMotion(store, id, 'high-jump')).toBe(false);

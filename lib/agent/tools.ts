@@ -164,7 +164,7 @@ export function motionFor(store: Store, asked: unknown): { id: string; name: str
   const mine = store.getState().library.clips ?? [];
   const named = <T extends { id: string; name: string }>(list: T[]) =>
     list.find((m) => m.id.toLowerCase() === q || m.name.toLowerCase() === q) ?? list.find((m) => m.name.toLowerCase().includes(q));
-  // (A made one by its id first: "walk" is the walk ahead, not the captured cycle.)
+  // (A made one by its id first, then a captured one by name.)
   return MOTIONS.find((m) => m.id === q) ?? named(CAPTURED) ?? named(mine) ?? null;
 }
 

@@ -268,15 +268,6 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
   }
   const motion = MOTIONS.find((m) => m.id === motionId);
   if (!motion) return false;
-  if (motion.travel) {
-    // Walk, run or jump ahead from where the figure stands, facing its way.
-    const f = store.figure?.id === figureId ? store.figure : store.scene.figures.find((x) => x.id === figureId);
-    if (!f) return false;
-    const [fx, fz] = forward(f);
-    const d = motion.travel.distance;
-    travelTo(store, figureId, [f.position[0] + fx * d, f.position[2] + fz * d], motion.travel.kind);
-    return true;
-  }
   store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;

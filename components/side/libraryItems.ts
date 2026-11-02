@@ -178,12 +178,12 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
           const f = posableById(store, id);
           if (f) applyMotion(store, f.id, m.id);
         },
-        length: m.travel ? undefined : motionLength(m.id),
+        length: motionLength(m.id),
       },
       preview: () => motionPreview(m.id, m.build, style(store)),
-      ghost: !m.travel && figure ? () => motionGhost(store, figure.id, BUILT_IN + m.id) : undefined,
+      ghost: figure ? () => motionGhost(store, figure.id, BUILT_IN + m.id) : undefined,
       // From the waist up, over what the figure is doing (waving while walking).
-      actions: !m.travel && figure ? [{
+      actions: figure ? [{
         icon: Layers,
         label: `${m.name}: upper body only, over what ${figure.name} is doing`,
         run: () => { if (applyUpperBody(store, figure.id, m.id)) ui.onPick?.(); },

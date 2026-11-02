@@ -126,11 +126,8 @@ describe('assistant tools', () => {
     const store = new Store(new MemoryStorage());
     const id = store.figure!.id;
     expect(run(store, 'apply_pose', { figure: id, pose: 'hand on head' })).toBe('Figure: Hand on head.');
-    expect(run(store, 'apply_motion', { figure: id, motion: 'walk' })).toMatch(/Walk ahead from 0 s/);
-    // From where it stands to a mark 3 m ahead, walking (the steps generated).
-    const walk = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'travel')!;
-    expect(walk.source).toMatchObject({ mode: 'walk' });
-    expect(walk.roles[0].end!.at[1]).toBeCloseTo(3, 2);
+    expect(run(store, 'apply_motion', { figure: id, motion: 'bow' })).toMatch(/Bow from 0 s/);
+    expect(actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'clip')!.source).toMatchObject({ clip: 'motion:bow' });
     expect(runTool(store, 'apply_pose', { figure: id, pose: 'moonwalk' }).ok).toBe(false);
   });
 

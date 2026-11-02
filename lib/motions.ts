@@ -30,8 +30,6 @@ interface Motion {
   name: string;
   group: (typeof MOTION_GROUPS)[number];
   build(): Scene;
-  /** Moving from mark to mark (generated steps): applied, the figure goes this far ahead. */
-  travel?: { kind: Travel; distance: number };
   /** When a hand lets a prop go or takes hold of it (motions that handle props). */
   events?: ClipEvent[];
   /** Its arms follow loosely as a person's do (lib/humanize.ts): not where the hands hold the floor or a thing. */
@@ -97,14 +95,6 @@ function travelling(scene: Scene, figure: string, t0: number, t1: number, mode: 
   const after = keys.filter((k) => k.t >= t1 - 1e-4);
   const actions = [...a.actions.filter((x) => x !== act), keysAction(figure, before), travel, ...(after.length ? [keysAction(figure, after)] : [])];
   return { ...scene, animation: { ...a, actions } };
-}
-
-/** A figure walking, running or jumping `distance` metres ahead, its steps generated. */
-function travelled(f: Figure, kind: Travel, distance: number, o: { view: View }): Scene {
-  // (Whole frames, kept to the millionths a saved scene keeps.)
-  const t = Math.round((Math.round(travelTime(kind, distance, f.body) * 24) / 24) * 1e6) / 1e6;
-  const there = { ...f, position: [f.position[0], f.position[1], f.position[2] + distance] as Vec3 };
-  return travelling(animated(f.name, [{ t: 0, figures: [f] }, { t, figures: [there] }], { duration: t, loop: false, ...o }), f.id, 0, t, kind);
 }
 
 function withRig<T>(fn: (rig: Rig) => T): T {
@@ -249,27 +239,6 @@ function turnOn(f: Figure, deg: number, pivot: [number, number]): Figure {
 }
 
 export const MOTIONS: Motion[] = [
-  {
-    id: 'walk',
-    name: 'Walk ahead',
-    group: 'Moving',
-    travel: { kind: 'walk', distance: 3 },
-    build: () => travelled(person('Walker', { ...DEFAULT_BODY }, STAND), 'walk', 3, { view: { yaw: 70, pitch: 6, fov: 30 } }),
-  },
-  {
-    id: 'run',
-    name: 'Run ahead',
-    group: 'Moving',
-    travel: { kind: 'run', distance: 6 },
-    build: () => travelled({ ...person('Runner', { ...DEFAULT_BODY }, STAND), hands: { L: hand('Grip'), R: hand('Grip') } }, 'run', 6, { view: { yaw: 90, pitch: 4, fov: 34 } }),
-  },
-  {
-    id: 'jump',
-    name: 'Jump ahead',
-    group: 'Moving',
-    travel: { kind: 'jump', distance: 1 },
-    build: () => travelled(person('Jumper', { ...DEFAULT_BODY }, STAND), 'jump', 1, { view: { yaw: 70, pitch: 4, fov: 30 } }),
-  },
   {
     id: 'kick',
     looseArms: true,

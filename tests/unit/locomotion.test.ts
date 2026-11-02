@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { motionScene } from '../fixtures/scenes';
 import { addProp, moveProp, setTravel, travelTo, turnTo } from '@/lib/actions';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt } from '@/lib/evaluate';
@@ -168,8 +167,10 @@ describe('walking, running and jumping from mark to mark', () => {
 
   it('generates smooth motion: no joint snaps, even sampled ten times finer than the frame rate', () => {
     const legs = ['leftUpperLeg', 'rightUpperLeg', 'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot', 'hips'] as const;
-    for (const id of ['walk', 'run', 'jump']) {
-      const scene = motionScene(id);
+    for (const [kind, d] of [['walk', 3], ['run', 6], ['jump', 1]] as const) {
+      const { store, id } = fresh();
+      travelTo(store, id, [0, d], kind);
+      const scene = store.scene;
       let worst = 0;
       let prev: number[] | null = null;
       for (let t = 0; t <= scene.animation!.duration; t += 1 / 240) {
@@ -178,9 +179,9 @@ describe('walking, running and jumping from mark to mark', () => {
         if (prev) cur.forEach((v, k) => { const d = Math.abs(v - prev![k]); worst = Math.max(worst, Math.min(d, 360 - d)); });
         prev = cur;
       }
-      expect(worst, id).toBeLessThan(10);
+      expect(worst, kind).toBeLessThan(10);
       // And the motion check finds nothing wrong with them.
-      expect(checkMotion(scene), id).toEqual([]);
+      expect(checkMotion(scene), kind).toEqual([]);
     }
   }, 60_000);
 
