@@ -749,6 +749,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 }
 .layer-main svg { color: var(--text-2); flex: none; }
 .layers li.on .layer-main, .layers li.on .layer-main svg { color: var(--accent); }
+/* (The figure the timeline and keys work on, nothing selected: named in the accent, not shown as selected.) */
+.layers li.current .layer-main, .layers li.current .layer-main svg { color: var(--accent); }
 .layer-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layers li.hidden-layer .layer-main { color: var(--text-3); }
 .layers .layer-rename { height: 24px; margin-left: -8px; }

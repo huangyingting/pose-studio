@@ -155,6 +155,9 @@ first, then everywhere it applies.
 - Picking something opens the inspector (a wide screen; on a phone it is a drawer, opened by hand).
 - A figure's first click picks it, the next (it picked) the part under the pointer; a right-click
   does the same, its menu with that part's commands too (a stand-in, or with Move, the whole figure).
+- **Selected** looks one way everywhere: a row's accent background, the label on the canvas. With
+  nothing selected, the figure the timeline and the keys work on is named in the accent in the
+  outline (no background), so nothing looks selected that is not.
 - What is not picked through the canvas (sets) is not selected by a click: it is where the floor
   is (see §6).
 - **The view gizmo** (top right): the world's axes in 3D as the view sees them (lit rods and balls,

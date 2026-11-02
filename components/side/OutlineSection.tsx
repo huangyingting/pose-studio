@@ -93,10 +93,12 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
           </div>
           <ul className="layers" aria-label="Cast">
             {scene.figures.map((f) => {
-              const on = (f.id === active && (!selection || selection.kind === 'figure' || selection.kind === 'joint')) || (selection?.kind === 'many' && selection.figures.includes(f.id));
+              const on = (f.id === active && (selection?.kind === 'figure' || selection?.kind === 'joint')) || (selection?.kind === 'many' && selection.figures.includes(f.id));
+              // (Nothing selected: the figure the timeline and the keys work on is named so, not shown as selected.)
+              const current = f.id === active && !selection;
               const moving = !!a && moments(a, f.id).length > 1;
               return (
-                <li key={f.id} className={`${on ? 'on' : ''}${f.hidden ? ' hidden-layer' : ''}${linked === f.id ? ' linked' : ''}`} {...link(f.id)}>
+                <li key={f.id} className={`${on ? 'on' : current ? 'current' : ''}${f.hidden ? ' hidden-layer' : ''}${linked === f.id ? ' linked' : ''}`} {...link(f.id)}>
                   <Row
                     id={f.id}
                     icon={f.proxy ? UserRound : PersonStanding}
