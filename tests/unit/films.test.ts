@@ -535,6 +535,8 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     seenFrom(store, { yaw: 0, pitch: 2, fov: 30 });
     store.setTime(0);
     applyCameraMove(store, 'static');
+    // (Placed, it steps round the hoop: held where it was asked to look from instead.)
+    store.updateScene((s) => ({ ...s, cameras: s.cameras.map((c) => (c.kind === 'rig' && c.rig.fixed ? { ...c, rig: { ...c.rig, fixed: { ...c.rig.fixed, position: [0, c.rig.fixed.position[1], Math.hypot(c.rig.fixed.position[0], c.rig.fixed.position[2])] } } } : c)) }));
     expect(checkMotion(store.scene).some((i) => i.kind === 'hidden' && /behind Basketball hoop/.test(i.message))).toBe(true);
   }, 60_000);
 });

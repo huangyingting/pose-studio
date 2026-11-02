@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart, startFacing } from './clip';
 import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
+import { NEUTRAL_ANGLES } from './doc';
 import { mirrorJointName, wrapDeg } from './joints';
 import { GAIT_WAYS, feetOf, legsOf, locomote, makeCycle, wayOf, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
@@ -46,6 +47,10 @@ const STEP_MIN = 0.06;
 const STEP_BLEND = 0.3;
 const STEP_PER_M = 1;
 const STEP_BLEND_MAX = 0.8;
+/** Walking or running a way, the arms hang (as standing has them; the swing goes on top), let down and up again over this long (s). */
+const ARMS_EASE = 0.5;
+const ARMS_DOWN = Object.fromEntries((['leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'] as const)
+  .map((j) => [j, NEUTRAL_ANGLES[j] ?? [0, 0, 0]])) as AnglePose['joints'];
 /** A foot whose ankle is no higher than this above standing's is on the ground (m). */
 const GROUNDED = 0.05;
 /** How high a stepping foot lifts on its way (m). */
@@ -529,10 +534,11 @@ class Evaluator {
       const b = feetOf(this.rig, { ...f, ...this.at(f, act, act.start) });
       // (Longer only from standing to standing; a foot in the air, or out of one, steps in the blend's own time.)
       const d = [...a, ...b].every((x) => this.down(f, x)) ? Math.max(...a.map((x, i) => Math.hypot(b[i].p.x - x.p.x, b[i].p.z - x.p.z))) : 0;
-      // (Not back past where something else starts or ends: what it eases from would change on the way.)
+      // (Not back past where something else starts or ends: what it eases from would change on the
+      // way, and it would be part eased already as that began.)
       const before = actionsOf(this.a, f.id).flatMap((x) => [x.start, end(x)]).filter((x) => x < act.start - EPS);
       const room = act.start - Math.max(-Infinity, ...before);
-      time = d < STEP_MIN ? act.blendIn! : Math.max(act.blendIn!, Math.min(STEP_BLEND_MAX, room, STEP_BLEND + d * STEP_PER_M));
+      time = Math.min(room, d < STEP_MIN ? act.blendIn! : Math.max(act.blendIn!, Math.min(STEP_BLEND_MAX, STEP_BLEND + d * STEP_PER_M)));
       this.blends.set(key, time);
     }
     return time;
@@ -551,6 +557,12 @@ class Evaluator {
     const from = this.free(f, next.from - EPS);
     const to = this.at(f, next.act, next.act.start);
     const a = feetOf(this.rig, { ...f, ...from });
+    // (Where the motion it eases from has them planted, there: not where its pose alone puts them.)
+    const before = acts.filter((x) => x.source.kind === 'clip' && x.start - EPS <= next.from - EPS && next.from - EPS <= end(x) + EPS).at(-1);
+    for (const h of before ? this.clipHolds(f, before, next.from - EPS, from) : []) {
+      const i = h.bone === 'leftFoot' ? 0 : h.bone === 'rightFoot' ? 1 : -1;
+      if (i >= 0) a[i].p.set(a[i].p.x + (h.at.x - a[i].p.x) * h.weight, a[i].p.y, a[i].p.z + (h.at.z - a[i].p.z) * h.weight);
+    }
     const b = feetOf(this.rig, { ...f, ...to });
     const now = feetOf(this.rig, { ...f, ...free });
     const m = this.rig.model({ ...f, ...free });
@@ -561,7 +573,13 @@ class Evaluator {
       const p = a[i].p;
       const q = b[i].p;
       // (Only a foot on the ground before and after: not out of a leap, a fall, or a lifted foot, which blends.)
-      if (!this.down(f, a[i]) || !this.down(f, b[i]) || Math.hypot(q.x - p.x, q.z - p.z) < STEP_MIN) return;
+      if (!this.down(f, a[i]) || !this.down(f, b[i])) return;
+      const bone = side === 'L' ? 'leftFoot' : 'rightFoot';
+      // (One that barely moves stays down, easing over to where the next has it.)
+      if (Math.hypot(q.x - p.x, q.z - p.z) < STEP_MIN) {
+        out.push({ bone, at: new THREE.Vector3(p.x + (q.x - p.x) * next.w, now[i].p.y, p.z + (q.z - p.z) * next.w), weight: 1, relative: true });
+        return;
+      }
       // (The left foot steps first, the right as it lands: one after the other, overlapping a little.)
       const s = Math.min(1, Math.max(0, (next.w - i * 0.35) / 0.65));
       // (Lifted before it goes, set down once there: a step, not a shuffle along the floor.)
@@ -570,7 +588,7 @@ class Evaluator {
       // (Never further from the hip than the leg reaches: it would snap straight.)
       const hip = m.joints[side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'].getWorldPosition(new THREE.Vector3());
       if (at.distanceTo(hip) > reach) at.sub(hip).setLength(reach).add(hip);
-      out.push({ bone: side === 'L' ? 'leftFoot' : 'rightFoot', at, weight: 1, relative: true });
+      out.push({ bone, at, weight: 1, relative: true });
     });
     return out;
   }
@@ -790,7 +808,15 @@ class Evaluator {
     // The upper body goes from the pose it leaves in to the one it arrives in; the legs, root and arm swing are generated.
     let part = this.uppers.get(c);
     if (!part) {
-      part = partFromPoses('', [{ t: c.t0, pose: fromAngles(c.start) }, { t: c.t1, pose: fromAngles(c.end) }], 'smooth');
+      const keys = [{ t: c.t0, pose: fromAngles(c.start) }, { t: c.t1, pose: fromAngles(c.end) }];
+      // (Long enough, and never holding anything: the arms come down to walk and up again for what
+      // comes next, not carried along mid-gesture.)
+      const holds = this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id));
+      if (c.t1 - c.t0 >= 2 * ARMS_EASE + 0.2 && !holds) {
+        const down = (p: AnglePose): Pose => fromAngles({ ...p, joints: { ...p.joints, ...ARMS_DOWN } });
+        keys.splice(1, 0, { t: c.t0 + ARMS_EASE, pose: down(c.start) }, { t: c.t1 - ARMS_EASE, pose: down(c.end) });
+      }
+      part = partFromPoses('', keys, 'smooth');
       this.uppers.set(c, part);
     }
     const on = samplePart(part, t, 0, false);

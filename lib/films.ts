@@ -56,6 +56,12 @@ const FPS = 24;
 const frame = (t: number) => Math.round(t * FPS) / FPS;
 /** How far in front of someone's middle a blow lands on them (their chest, their face). */
 const SURFACE = 0.14;
+/** How far someone shifts into range for a strike as their stance plays (m); further, they step there. */
+const STEP_IN = 0.3;
+/** How long someone squares up in their stance before a strike (s). */
+const SQUARE_UP = 0.8;
+/** A wait shorter than this (s) holds what someone did last instead of starting their idle. */
+const MOMENT = 0.5;
 
 /** A scene being staged: its people by name and where each is, what they do added in time. */
 class Stage {
@@ -161,13 +167,18 @@ class Stage {
     const here = this.where(who);
     const same = last && last.source.kind === 'clip' && last.source.clip === motion(slug).id && Math.abs(last.start + last.duration - from) < 1e-3
       && (watch === undefined || Math.abs(wrap(this.yaw(here.at, watch) - here.facing)) < 5);
-    if (same) {
+    // (Or only a moment: what they did holds, not an idle begun and gone again before it is eased into.)
+    const moment = last && last.source.kind === 'clip' && Math.abs(last.start + last.duration - from) < 1e-3 && t - from < MOMENT;
+    if (same || moment) {
       const longer = { ...last, duration: frame(t - last.start) };
       this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x.id === last.id ? longer : x)), duration: Math.max(a.duration, t) } };
       this.moved(who, from, t, here.at, [], here);
       return;
     }
-    this.play(who, slug, from, { seconds: t - from, ...(watch !== undefined ? { face: watch } : {}) });
+    // (Turned to whom they watch, if there is the time to step round; else as they are.)
+    const by = watch === undefined ? 0 : Math.abs(wrap(this.yaw(here.at, watch) - here.facing));
+    const turns = watch !== undefined && (by <= 15 || t - from >= frame(turnTime(by)));
+    this.play(who, slug, from, { seconds: t - from, ...(turns ? { face: watch } : {}) });
   }
 
   /**
@@ -184,14 +195,16 @@ class Stage {
     // (Turning to face something straight after walking there: the walk turns as it arrives, its
     // last steps taking them round; turning on the spot as they stand would slide their feet.)
     if (o.face !== undefined && !o.at) this.arriveFacing(who, t, this.yaw(this.where(who).at, o.face));
-    // (Else, with the time for it, stepping round to face it first, as people turn: not sliding round on the spot.)
-    if (o.face !== undefined && !o.at && o.seconds !== undefined) {
+    // (Else stepping round to face it first, as people turn, not sliding round on the spot: before
+    // the whole motion, or in the time given for it if there is that much.)
+    if (o.face !== undefined && !o.at) {
       const here = this.where(who);
       const want = this.yaw(here.at, o.face);
       const by = wrap(want - here.facing);
-      if (Math.abs(by) > 15 && o.seconds - frame(turnTime(by)) >= 0.5) {
+      if (Math.abs(by) > 15 && (o.seconds === undefined || o.seconds - frame(turnTime(by)) >= 0)) {
         const t2 = this.turn(who, want, t);
-        return this.play(who, slug, t2, { ...o, seconds: o.seconds - (t2 - t) });
+        if (o.seconds === undefined) return this.play(who, slug, t2, o);
+        return o.seconds - (t2 - t) < 0.05 ? t2 : this.play(who, slug, t2, { ...o, seconds: o.seconds - (t2 - t) });
       }
     }
     const from = this.where(who);
@@ -351,8 +364,11 @@ class Stage {
     const d = Math.hypot(at[0] - me[0], at[1] - me[1]);
     // (Back or aside, near: stepping there still facing them, not turning away and round again.)
     const away = d <= 3 && Math.abs(wrap(toward(me, at) - this.where(who).facing)) > 90;
-    if (d > 0.8) t1 = this.go(who, at, t1, d > 3 ? 'run' : 'walk', away);
-    t1 = this.play(who, stance, t1, { seconds: d > 0.8 ? 0.35 : 0.5, at, face: facing });
+    // (Further than a shift of the feet: stepping there, not sliding into range as the stance plays.)
+    const steps = d > STEP_IN;
+    if (steps) t1 = this.go(who, at, t1, d > 3 ? 'run' : 'walk', away);
+    // (Squaring up long enough to step from the stance into the strike's own: their feet are often far apart.)
+    t1 = this.play(who, stance, t1, { seconds: SQUARE_UP, at, face: facing });
     const end = this.play(who, slug, t1, { mirror: o.mirror });
     return { lands: frame(t1) + m.impact, end };
   }
@@ -385,8 +401,8 @@ class Stage {
     const [dx, dz] = turn(m.move[0] * this.legs(who), m.move[1] * this.legs(who), facing);
     const front: Spot = [seat[0] - dx, seat[1] - dz];
     let t1 = this.go(who, front, t, 'walk');
-    // (Turning round on the spot in front of it: turning as they arrive would take their last steps through it.)
-    t1 = this.play(who, 'idle', t1, { seconds: 0.7, at: front, face: facing });
+    // (Stepping round on the spot in front of it: turning as they arrive would take their last steps through it.)
+    t1 = this.turn(who, facing, t1);
     t1 = this.play(who, 'stand-to-sit', t1, { at: seat, face: facing });
     this.idle(who, idle);
     return t1;
@@ -714,7 +730,7 @@ function officeDeadline(): Scene {
     { name: 'Mr Hale', body: 'Big man', at: [-5.6, 1.6], facing: 90 },
   ], 'studio', 'office');
   // Three chairs for a briefing.
-  const seats = ([[-1.8, 0.8], [0, 0.5], [1.8, 0.8]] as Spot[]).map((at) => s.chair(at, 0));
+  const seats = ([[-1.9, 1.1], [0, 0.4], [1.9, 1.1]] as Spot[]).map((at) => s.chair(at, 0));
   // Maya on the phone at her desk, Grace thinking by hers, Tom in through the side door to the water cooler.
   s.play('Maya', 'talking-on-phone', 0.2, { seconds: 16, face: 180 });
   s.play('Grace', 'thinking', 0.4, { seconds: 12.7, face: 150 });
@@ -735,7 +751,7 @@ function officeDeadline(): Scene {
   s.go('Tom', [6.2, -1.2], Math.max(s.until('Tom'), meet - 2));
   s.sit('Tom', seats[2], 0, s.until('Tom'), 'sitting-idle');
   // He stands before them and talks it through.
-  s.go('Mr Hale', [2.4, 2.5], meet + 0.3);
+  s.go('Mr Hale', [0.9, 2.7], meet + 0.3);
   s.idle('Mr Hale', 'idle', [0, 0.6]);
   const brief = Math.max(s.until('Tom'), s.until('Mr Hale')) + 0.3;
   s.play('Mr Hale', 'talking', brief, { seconds: 8, face: [0, 0.6] });
@@ -777,7 +793,7 @@ function cafeMeeting(): Scene {
   // Their table at the front, a chair either side of it.
   s.prop('cylinder', [-2.4, 0, 1.4], { scale: [0.7, 0.74, 0.7], name: 'Table' });
   s.block([-2.4, 1.4], 0.35);
-  const [hers, his] = [s.chair([-3.4, 1.4], 90), s.chair([-1.4, 1.4], -90)];
+  const [hers, his] = [s.chair([-3.6, 1.4], 90), s.chair([-1.2, 1.4], -90)];
   // Lea sits down to wait.
   s.sit('Lea', hers, 90, 0.3, 'sitting-idle');
   // The barista behind the counter.
@@ -801,14 +817,14 @@ function cafeMeeting(): Scene {
   const up = Math.max(s.until('Lea'), s.until('Ben')) + 0.5;
   s.rise('Lea', up, 'happy-idle', 'Ben');
   s.rise('Ben', up + 0.4, 'happy-idle', 'Lea');
-  s.go('Lea', [-3.2, 2.8], s.until('Lea') + 0.2);
-  s.go('Ben', [-2.0, 2.8], s.until('Ben') + 0.2);
+  s.go('Lea', [-2.9, 2.8], s.until('Lea') + 0.2);
+  s.go('Ben', [-1.7, 2.8], s.until('Ben') + 0.2);
   s.face('Lea', 'Ben', s.until('Lea'), 0.8);
   s.face('Ben', 'Lea', s.until('Ben'), 0.8);
   s.play('Ben', 'laughing', s.until('Ben'), { seconds: 4, face: 'Lea' });
   s.play('Lea', 'talking', s.until('Lea'), { seconds: 4, face: 'Ben' });
   s.play('Ben', 'waving', s.until('Ben'), { face: 'Lea' });
-  s.go('Ben', [6.8, 1.1], s.until('Ben') + 0.2);
+  s.go('Ben', [6.3, 1.1], s.until('Ben') + 0.2);
   s.play('Lea', 'waving', s.until('Lea') + 0.5, { face: [6, 1.1] });
   s.sit('Lea', hers, 90, s.until('Lea') + 0.5, 'sitting-idle');
   s.play('Ira', 'happy-idle', s.until('Ira'), { seconds: 3, face: 'Lea' });

@@ -704,7 +704,12 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     const out = (x: number) => !them || !seen(at(x), them, r.lens, aspect);
     const keepOut = solve(time, place, at, them).extra;
     // (Where they stand, from what they do: their holds and idle life do not move them.)
-    const others = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => (basePoseAt(scene, f.id, time) ?? f).position);
+    const people = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => (basePoseAt(scene, f.id, time) ?? f).position);
+    // (And what stands on the floor, a chair's back: not one they sit on or are by.)
+    const mine = (subject ?? []).map((id) => basePoseAt(scene, id, time)?.position).filter((x): x is Vec3 => !!x);
+    const others = [...people, ...scene.props
+      .filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length && mine.every((m) => Math.hypot(m[0] - p.position[0], m[2] - p.position[2]) >= 1.25))
+      .map((p) => p.position)];
     // (A wall of the set close behind what it films, where it would have to come right in: no good
     // either; a side it can stand back on is.)
     const walled = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => {
