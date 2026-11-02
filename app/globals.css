@@ -1353,7 +1353,7 @@ button.psec-title svg { color: var(--text-3); }
 .toolrow .ibtn:hover:not(:disabled) { background: var(--raised); box-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 8%, transparent); }
 .toolrow-sep { width: 1px; height: 16px; background: var(--border-strong); flex: none; }
 
-.bodymap { display: block; width: 100%; max-width: 104px; height: auto; margin: 0 auto; }
+.bodymap { display: block; width: 100%; max-width: 120px; height: auto; margin: 0 auto; }
 .bodymap .part { cursor: pointer; outline: none; }
 /* (Each part filled, a hairline of the panel's colour between them, as a jointed mannequin's.) */
 .bodymap .part path { fill: var(--bodymap); stroke: var(--panel); stroke-width: 1.1; stroke-linejoin: round; transition: fill 0.12s; }
@@ -1372,7 +1372,9 @@ button.psec-title svg { color: var(--text-3); }
 .reach { display: grid; gap: 6px; }
 .reach-label { color: var(--text-2); }
 .reach-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
-.reach-row:has(> :nth-child(3)) { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* (With Hold on too: where it touches on a row of its own, readable, the two buttons under it.) */
+.reach-row:has(> :nth-child(3)) { grid-template-columns: 1fr 1fr; }
+.reach-row:has(> :nth-child(3)) > :first-child { grid-column: 1 / -1; }
 .holds { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
 .holds li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; font-size: var(--fs-m); }
 .holds li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1708,6 +1710,9 @@ button.psec-title svg { color: var(--text-3); }
      note; not what the mouse and the keys do, which a touch screen has neither of.) */
   .stage-hint { bottom: calc(var(--tl-h, 44px) + 62px); }
   .stage-hint .bar-hint.plain { display: none; }
+  /* (Its words wrap within their parts too, narrow as it is: never under its buttons.) */
+  .stage-hint .bar-hint-text { flex: 1 1 auto; }
+  .stage-hint .hint-part { white-space: normal; }
   .export-grid, .photo-grid { grid-template-columns: 1fr; min-height: 0; }
   .export-outputs { border-right: 0; padding-right: 0; }
   .shortcuts { grid-template-columns: 1fr; }

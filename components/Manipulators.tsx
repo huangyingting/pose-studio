@@ -916,7 +916,13 @@ export function RouteOverlay({ store, scene, figureId, time }: { store: Store; s
         : [{ t: act.start + act.duration, ...marksOf(scene, act, figureId)!.end, moved: true, act: act.id, over: overWarp(scene, act, figureId) }];
       for (const m of stops) {
         const last = marks[marks.length - 1];
-        if (!last || m.moved || Math.hypot(m.at[0] - last.x, m.at[1] - last.z) > 0.15) marks.push({ t: m.t, x: m.at[0], z: m.at[1], facing: m.facing, act: m.act, over: m.over });
+        const mark = { t: m.t, x: m.at[0], z: m.at[1], facing: m.facing, act: m.act, over: m.over };
+        // (An action ending where the last mark is, done in place: that mark is its end, not a second one under it.)
+        if (last && Math.hypot(m.at[0] - last.x, m.at[1] - last.z) <= 0.15) {
+          if (m.moved) marks[marks.length - 1] = mark;
+          continue;
+        }
+        marks.push(mark);
       }
     }
     return { ...path, marks };

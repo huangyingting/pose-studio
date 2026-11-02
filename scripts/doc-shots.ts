@@ -407,7 +407,8 @@ const SHOTS: Shot[] = [
       await fresh(page);
       await canvas(page).click({ position: { x: 5, y: 300 } });
       await page.keyboard.press('p');
-      await idle(page, 900);
+      // (Settled: not as it appears.)
+      await idle(page, 2500);
     },
   },
   {
