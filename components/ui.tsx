@@ -697,10 +697,12 @@ export function Select<T extends string>({ value, options, onChange, label }: {
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const typed = useRef({ text: '', at: 0 });
+  // (Whether the active option is the one the pointer rests on, not the keys'.)
+  const hovered = useRef(false);
   const id = useId();
   const index = Math.max(0, options.findIndex((o) => o.value === value));
 
-  const show = () => { setActive(index); setOpen(true); };
+  const show = () => { hovered.current = false; setActive(index); setOpen(true); };
   const pick = (i: number) => {
     setOpen(false);
     const o = options[i];
@@ -747,12 +749,15 @@ export function Select<T extends string>({ value, options, onChange, label }: {
     };
   }, [open]);
 
+  // (The option the keys move to scrolled into sight; not one the pointer rests on: a list scrolled
+  // under the pointer, as it reaches an option half in sight at its edge, would jump about.)
   useEffect(() => {
-    if (open) list.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+    if (open && !hovered.current) list.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [open, active]);
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
+    hovered.current = false;
     const last = options.length - 1;
     const step: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, Home: -Infinity, End: Infinity, PageDown: 8, PageUp: -8 };
     let handled = true;
@@ -803,7 +808,7 @@ export function Select<T extends string>({ value, options, onChange, label }: {
               aria-selected={i === index}
               className={i === active ? 'active' : undefined}
               onPointerDown={(e) => e.preventDefault()}
-              onPointerMove={() => setActive(i)}
+              onPointerMove={() => { hovered.current = true; setActive(i); }}
               onClick={() => { pick(i); button.current?.focus(); }}
             >
               <Check size={15} aria-hidden />
