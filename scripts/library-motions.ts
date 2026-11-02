@@ -39,9 +39,9 @@ const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain
  * hands that shake; the arm round the neck). The shoulder throw's halves do not meet so (its
  * thrower runs four metres to it): left out.
  */
-const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; partner: string; at: [number, number]; facing: number }[] = [
-  { file: 'Shaking Hands', name: 'Shake hands', group: 'Talking & gestures', lead: 'Shaking Hands 1', partner: 'Shaking Hands 2', at: [0.03, 1.04], facing: 180 },
-  { file: 'Hostage Situation', name: 'Hold someone hostage', group: 'Fighting', lead: 'Hostage Situation Villain', partner: 'Hostage Situation Hostage', at: [-0.03, 0.44], facing: 0 },
+const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; partner: string; roles: [string, string]; at: [number, number]; facing: number }[] = [
+  { file: 'Shaking Hands', name: 'Shake hands', group: 'Talking & gestures', lead: 'Shaking Hands 1', partner: 'Shaking Hands 2', roles: ['Lead', 'Partner'], at: [0.03, 1.04], facing: 180 },
+  { file: 'Hostage Situation', name: 'Hold someone hostage', group: 'Fighting', lead: 'Hostage Situation Villain', partner: 'Hostage Situation Hostage', roles: ['Captor', 'Hostage'], at: [-0.03, 0.44], facing: 0 },
 ];
 
 /**
@@ -244,7 +244,8 @@ async function paired(p: (typeof PAIRS)[number]): Promise<Clip> {
     }),
   };
   const both = refineClip({
-    ...a, name: p.file, duration: Math.min(a.duration, b.duration), parts: [a.parts[0], placed],
+    // (Each part named by its role, as the inspector lists who plays it.)
+    ...a, name: p.file, duration: Math.min(a.duration, b.duration), parts: [{ ...a.parts[0], name: p.roles[0] }, { ...placed, name: p.roles[1] }],
     contacts: [...(a.contacts ?? []).map((c) => ({ ...c, part: 0 })), ...(b.contacts ?? []).map((c) => ({ ...c, part: 1 }))],
   });
   // (Hands held both ways at once, a handshake: both kept; as played, the shorter one's follows.)
