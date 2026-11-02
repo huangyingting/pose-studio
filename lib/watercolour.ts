@@ -99,7 +99,9 @@ const PAINT_FRAG = /* glsl */ `
     float h = fbm(px * 0.32);
     float relief = (h - fbm((px + vec2(1.5, -1.5)) * 0.32)) * 2.2;
     c *= 0.975 + 0.05 * h + relief * 0.05;
-    gl_FragColor = vec4(pow(clamp(c, 0.0, 1.0), vec3(2.2)), 1.0);
+    // (Where nothing was drawn on a see-through picture, nothing painted either.)
+    float a = texture2D(tSharp, uv).a;
+    gl_FragColor = vec4(pow(clamp(c, 0.0, 1.0), vec3(2.2)) * a, a);
     #include <colorspace_fragment>
   }`;
 
@@ -134,7 +136,8 @@ export class WatercolourPass {
 
   /**
    * The scene through the camera, painted, into what is drawn to now (the screen, or the exporter's
-   * picture); its lines over it. `scale`: the picture's height over 800 (the paper's measure).
+   * picture); its lines over it, and the scene's depth left behind for what is drawn over it next.
+   * `scale`: the picture's height over 800 (the paper's measure).
    */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, scale: number) {
     renderer.getDrawingBufferSize(this.size);

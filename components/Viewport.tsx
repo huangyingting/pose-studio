@@ -1085,15 +1085,22 @@ function LineArtRenderer({ sv, lineWidth, style, gizmo }: { sv: SceneView; lineW
     scene.background = null;
     const autoClear = gl.autoClear;
     gl.autoClear = false;
+    // (The shadows are drawn: not again for what follows.)
+    const shadows = gl.shadowMap.autoUpdate;
+    gl.shadowMap.autoUpdate = false;
     // What was drawn into the picture leaves its depth behind first (no colour), so what is drawn
     // over it (the grid, the handles) is hidden behind the figures as it is in the other styles.
-    gl.clearDepth();
-    scene.overrideMaterial = depthOnly;
-    gl.render(scene, camera);
-    scene.overrideMaterial = null;
+    // (Watercolour's pass leaves it already: its lines are drawn over the washes the same way.)
+    if (!wash) {
+      gl.clearDepth();
+      scene.overrideMaterial = depthOnly;
+      gl.render(scene, camera);
+      scene.overrideMaterial = null;
+    }
     for (const o of over) o.visible = true;
     for (const o of drawn) o.visible = false;
     gl.render(scene, camera);
+    gl.shadowMap.autoUpdate = shadows;
     gl.autoClear = autoClear;
     scene.background = background;
     for (const o of drawn) o.visible = true;
