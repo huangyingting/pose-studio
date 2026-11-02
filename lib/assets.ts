@@ -2,7 +2,7 @@ import { newAnimation } from './animation';
 import { clipRange, keyPose } from './clip';
 import { newFigure, newScene } from './doc';
 import { bakeClip } from './evaluate';
-import { GAIT_WAYS, gaitOf } from './locomotion';
+import { GAIT_WAYS, LEAP_CLIP, gaitOf } from './locomotion';
 import { HANDLING, MOTIONS } from './motions';
 import { uid } from './uid';
 import type { Action, Clip, Library, Scene } from './types';
@@ -78,10 +78,11 @@ export function clipIdsOf(lib: Library): string[] {
 
 /** The ids of the clips a library's scenes play. */
 export function playedClips(lib: Library): string[] {
-  // (A walk or run with a captured cycle plays it too, #26, and keeping its facing, those that back up and step sideways.)
+  // (A walk or run plays its captured cycle too, #26, and keeping its facing, those that back up and step sideways; a jump, the captured jump.)
   const gaits = (x: Action['source']) => {
-    const gait = x.kind === 'travel' ? gaitOf(x) : null;
-    if (x.kind !== 'travel' || !gait || x.mode === 'jump') return [];
+    if (x.kind !== 'travel') return [];
+    if (x.mode === 'jump') return [LEAP_CLIP];
+    const gait = gaitOf(x)!;
     const back = GAIT_WAYS[x.mode].back[gait];
     return [gait, ...(x.strafe ? [GAIT_WAYS[x.mode].side, ...(back ? [back] : [])] : [])];
   };

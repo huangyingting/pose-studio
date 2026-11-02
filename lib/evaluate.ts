@@ -5,7 +5,7 @@ import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { NEUTRAL_ANGLES } from './doc';
 import { mirrorJointName, wrapDeg } from './joints';
-import { GAIT_WAYS, feetOf, gaitOf, legsOf, locomote, makeCycle, wayOf, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
+import { GAIT_WAYS, LEAP_CLIP, feetOf, gaitOf, legsOf, locomote, makeCycle, wayOf, type Leap, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
 import { GLANCE_TURN, glanceAt, idleTurns } from './idle';
@@ -89,6 +89,21 @@ function cycleOf(id: string, mirror = false): Cycle | null {
     made.set(mirror, makeCycle((u) => toAngles(mirror ? mirrorPose(at(u)) : at(u)), clip.duration, part.body ?? DEFAULT_BODY));
   }
   return made.get(mirror)!;
+}
+
+const leaps = new WeakMap<Clip, Leap | null>();
+/** A captured jump as a jump's body (lib/locomotion.ts Leap), once it is at hand: its take-off and landing from where its feet leave the floor and come down. */
+function leapOf(id: string): Leap | null {
+  const clip = playedClip({ clip: id });
+  if (!clip?.parts[0]) return null;
+  if (!leaps.has(clip)) {
+    const part = clip.parts[0];
+    const feet = clip.contacts.filter((x) => !x.on && x.part === 0);
+    const takeoff = Math.max(...feet.filter((x) => x.start < 0.05).map((x) => x.end), 0);
+    const landing = Math.min(...feet.filter((x) => x.start > takeoff).map((x) => x.start), clip.duration);
+    leaps.set(clip, takeoff > 0 && landing < clip.duration ? { at: (u) => toAngles(samplePart(part, u, clip.duration, false)), takeoff, landing, duration: clip.duration } : null);
+  }
+  return leaps.get(clip)!;
 }
 
 /** The cycle a travel with captured steps goes with, and which way from its facing: its own, or keeping its facing, one that backs up or steps sideways. */
@@ -809,6 +824,7 @@ class Evaluator {
       ...(src.spin ? { spin: src.spin } : {}),
       ...(src.flip ? { flip: src.flip } : {}),
       ...cycle,
+      ...(src.mode === 'jump' && leapOf(LEAP_CLIP) ? { leap: leapOf(LEAP_CLIP)! } : {}),
     };
     this.chains.set(key, c);
     return c;

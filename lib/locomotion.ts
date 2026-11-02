@@ -33,8 +33,8 @@ const SPEED: Record<Exclude<Travel, 'jump'>, number> = { walk: 1.35, run: 3.6 };
 export const flightTime = (h: number) => Math.sqrt((8 * Math.max(0.02, h)) / GRAVITY);
 /** Height of a jump with `t` seconds in the air. */
 export const jumpHeight = (t: number) => (GRAVITY * t * t) / 8;
-/** Crouch before and absorb after a jump, at most (s). */
-export const JUMP_PREP = 0.3;
+/** Crouch before and absorb after a jump, at most (s): about a real person's (the captured jump's, played over it). */
+export const JUMP_PREP = 0.45;
 /** Default jump height (metres the body rises). */
 const JUMP_HEIGHT = 0.45;
 
@@ -150,7 +150,26 @@ export interface Chain {
   /** The captured cycle it goes with (#26), and which way it goes from the facing (keeping it: back 180, left 90, right -90). None: a jump, or its cycle not at hand yet. */
   cycle?: Cycle;
   way?: number;
+  /** A jump's body, a real person's (their take-off, flight and landing): the jump's way, height and turns its own. None: not at hand yet. */
+  leap?: Leap;
 }
+
+/**
+ * A captured jump as a jump's body (lib/evaluate.ts leapOf): poses by the clip's time, and when
+ * its feet leave the floor and come down again. The jump keeps its own path, height and turns
+ * (under gravity, to the mark, spins and flips): the person's crouch, swing, tuck and landing are
+ * played over them, each phase in the jump's time.
+ */
+export interface Leap {
+  at(u: number): AnglePose;
+  takeoff: number;
+  landing: number;
+  duration: number;
+}
+/** The Library's jump every jump goes with: a real person's, jumping up from where they stand. */
+export const LEAP_CLIP = 'library:standing-jump';
+/** How much of a captured jump after it lands is played as the jump lands (s: the rest is standing up again). */
+const LEAP_LANDING = 0.6;
 
 /** The Library's captured cycles a walk or a run can go with (#26), the first the usual one. */
 export const GAITS: Record<'walk' | 'run', readonly string[]> = {
@@ -869,7 +888,18 @@ function jump(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     if (s < settle) return lerp(-150, -30, smoother((s - top) / (settle - top)));
     return -30 * (1 - smoother((s - settle) / (0.7 * land)));
   };
-  const raise = armsAt(tau);
+  // (A real person's jump, if at hand: their body in each phase, in this one's time.)
+  const leap = c.leap;
+  const leapAt = !leap ? null
+    : tau < prep ? leap.at(leap.takeoff * (tau / prep))
+      : tau <= prep + flight ? leap.at(lerp(leap.takeoff, leap.landing, (tau - prep) / flight))
+        : leap.at(leap.landing + Math.min(LEAP_LANDING, leap.duration - leap.landing) * ((tau - prep - flight) / land));
+  if (leapAt) {
+    const { hips: _h, ...body } = leapAt.joints;
+    void _h;
+    pose = { ...pose, joints: { ...pose.joints, ...body }, hands: leapAt.hands };
+  }
+  const raise = leapAt ? 0 : armsAt(tau);
   const feet: Generated['feet'] = { L: null, R: null };
   // Taking off from and landing on the keyed feet (raised onto a prop if the key stands on one).
   const startFeet = keyedFeet(body, c.start);
@@ -914,7 +944,8 @@ function jump(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     const offAnkle = legAngles(legs, [0, -lenOff, 0], startPitch).ankle[0];
     const onAnkle = legAngles(legs, [0, -lenOn, 0], endPitch).ankle[0];
     const point = lerp(lerp(offAnkle, 35, smooth(u / 0.3)), onAnkle, smooth((u - 0.7) / 0.3));
-    for (const side of ['L', 'R'] as const) {
+    // (In a real person's jump, their legs in the air.)
+    for (const side of leapAt ? [] : (['L', 'R'] as const)) {
       const len = ext - 0.5 * leg * clamp(tuck, 0, 1);
       const ahead = 0.32 * leg * clamp(tuck, 0, 1);
       feet[side] = { body: [0, -Math.sqrt(Math.max(1e-4, len * len - ahead * ahead)), ahead], point };
@@ -930,7 +961,10 @@ function jump(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Ground, 
     roll = c.end.joints.hips?.[2] ?? 0;
     planted('end', gb);
   }
-  return compose(pose, legs, { position: [x, y, z], yaw, pitch, roll, feet, swing: 0, raise, elbows: raise < 0 ? 0.12 * raise : 0 });
+  const out = compose(pose, legs, { position: [x, y, z], yaw, pitch, roll, feet, swing: 0, raise, elbows: raise < 0 ? 0.12 * raise : 0 });
+  // (A real person's within our ranges: captured and retargeted, an arm thrown up may read past one.)
+  if (leapAt) for (const j of Object.keys(out.joints) as JointName[]) if (j !== 'hips') out.joints[j] = clampRotation(j, out.joints[j]!);
+  return out;
 }
 
 /* ---------- planting feet in keyed poses ---------- */

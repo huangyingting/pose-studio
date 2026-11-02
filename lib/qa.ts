@@ -345,7 +345,9 @@ export function checkMotion(scene: Scene): Issue[] {
       const recorded = wrap ? null : recordedAt(a, f.id, times[i]);
       const asRecorded = !!recorded && recorded === recordedAt(a, f.id, times[i - 1] ?? -1);
       for (const j of JOINTS) {
-        if ((generated && (LEGS.has(j) || j === 'hips')) || asRecorded) {
+        // (A jump's body is a real person's, swinging the arms up as fast as people do: as recorded.)
+        const leaping = going?.source.kind === 'travel' && going.source.mode === 'jump';
+        if ((generated && (LEGS.has(j) || j === 'hips' || leaping)) || asRecorded) {
           prevStep.delete(f.id + j);
           prevQ.delete(f.id + j);
           continue;
