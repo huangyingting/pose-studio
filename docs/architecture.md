@@ -57,9 +57,11 @@ lib/
   sceneview.ts          Keeps three.js objects in sync with a Scene (shared by editor and exporter)
   styles.ts             Render style definitions (outline, rings, interior lines, background, lighting)
   ink.ts, shaders.ts    Outline hulls with brush jitter, per-style materials, pencil / ink-wash / anime shaders
-  lineart.ts            Part-ID edge pass for the lines where body parts meet
+  lineart.ts            Part-ID edge pass for the lines where body parts meet (and a set's silhouette)
+  pixel.ts, watercolour.ts, realpass.ts
+                        The picture-wide passes: Pixel's pixels, Watercolour's paint, 3D's camera look
   lighting.ts           Key light, and a shadow-catching floor on the bare stage (a set takes its own shadows)
-  sets.ts, setassets.ts The sets: their pieces, tops and seats, cut-away; the asset list `npm run sets` prepares
+  sets.ts, setassets.ts The sets: their pieces, tops and seats, cut-away, far cells simpler; the asset list `npm run sets` prepares
   render.ts             Camera fitting, off-screen rendering, sheet / turnaround export
   practice.ts           Gesture-practice session building
   relations.ts          Spatial relations between figures: facing, spacing, look-at, reach
