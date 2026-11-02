@@ -100,13 +100,13 @@ export const STYLE_DEFS: Record<Style, StyleDef> = {
   pixel: {
     id: 'pixel',
     label: 'Pixel',
-    description: 'Pixel art: big square pixels in a few colours, toon-shaded with a dark outline, as in a retro game',
+    description: 'Pixel art: square pixels (three of the screen’s each) in a few colours, toon-shaded with a dark outline, as in a retro game',
     background: '#dfe8f1',
     // (Its outline about a pixel wide, whatever the pixels' size.)
     outline: { color: '#1d1a26', scale: 2.2, jitter: 0 },
     interior: null,
     toon: true,
-    pixel: 4,
+    pixel: 3,
     sky: 'painted',
     shadows: true,
     lit: true,
