@@ -1255,6 +1255,8 @@ export class SetObject {
 
   constructor(private ink: Ink, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
+    // (Its triangles not drawn again for an outline where the inner lines can draw it.)
+    this.parts.silhouetteByLines = true;
     for (const p of setById(id)?.build() ?? []) {
       if (p.shape[0] === 'model' || p.shape[0] === 'scene') { this.waiting.push(p); continue; }
       const matrix = new THREE.Matrix4().compose(new THREE.Vector3(...p.at), new THREE.Quaternion().setFromEuler(new THREE.Euler(...((p.rot ?? [0, 0, 0]).map((a) => (a * Math.PI) / 180) as Vec3), 'YXZ')), new THREE.Vector3(1, 1, 1));

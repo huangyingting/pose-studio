@@ -5,7 +5,8 @@ import type { Style } from './types';
 
 /**
  * Draws ink lines where one body part meets another (joints, waist, limbs crossing).
- * Silhouettes come from the mannequin's outline hulls; this pass adds the interior lines.
+ * Silhouettes come from the outline hulls; this pass adds the interior lines (and the silhouette
+ * of what has no hull in a style with inner lines: a set, InkedParts.silhouetteByLines).
  *
  * 1. Render every figure/prop part with a flat colour into an off-screen ID buffer.
  * 2. After the normal render, overlay a full-screen quad that inks pixels whose
@@ -64,11 +65,13 @@ export class LineArtPass {
           f = f * f * (3.0 - 2.0 * f);
           return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
         }
-        float differs(vec3 c, vec2 offset) {
-          vec3 s = texture2D(tId, vUv + offset * texel * radius).rgb;
-          // Background (black) is handled by the silhouette hulls.
-          if (s.r + s.g + s.b < 0.001) return 0.0;
-          return step(0.02, distance(s, c));
+        // (A part whose silhouette is drawn here too, not by a hull: its ID's alpha a half.)
+        bool drawsSilhouette(vec4 s) { return s.r + s.g + s.b > 0.001 && s.a < 0.75; }
+        float differs(vec4 c, vec2 offset) {
+          vec4 s = texture2D(tId, vUv + offset * texel * radius);
+          // Background (black): the silhouette hulls' (or here, for a part that has none).
+          if (s.r + s.g + s.b < 0.001) return drawsSilhouette(c) ? 1.0 : 0.0;
+          return step(0.02, distance(s.rgb, c.rgb));
         }
         float depthAt(vec2 uv) {
           float d = texture2D(tDepth, uv).x;
@@ -76,7 +79,8 @@ export class LineArtPass {
         }
         // A fold of the same part: this side nearer than its neighbours across it, by more than a
         // slope would make it (their mean against it), so ramps and curves seen at a slant are not lines.
-        float folds(vec3 c, float z, vec2 dir) {
+        float folds(vec4 c4, float z, vec2 dir) {
+          vec3 c = c4.rgb;
           vec2 a = vUv + dir * texel * radius, b = vUv - dir * texel * radius;
           vec3 ca = texture2D(tId, a).rgb, cb = texture2D(tId, b).rgb;
           if (distance(ca, c) >= 0.02 || distance(cb, c) >= 0.02) return 0.0;
@@ -84,8 +88,17 @@ export class LineArtPass {
           return smoothstep(0.012, 0.03, bend / max(z, 0.5));
         }
         void main() {
-          vec3 c = texture2D(tId, vUv).rgb;
-          if (c.r + c.g + c.b < 0.001) discard;
+          vec4 c = texture2D(tId, vUv);
+          if (c.r + c.g + c.b < 0.001) {
+            // The background round a part whose silhouette is drawn here: the outer half of its line.
+            vec2 r = texel * radius;
+            if (!(drawsSilhouette(texture2D(tId, vUv + vec2(r.x, 0.0))) || drawsSilhouette(texture2D(tId, vUv - vec2(r.x, 0.0)))
+                || drawsSilhouette(texture2D(tId, vUv + vec2(0.0, r.y))) || drawsSilhouette(texture2D(tId, vUv - vec2(0.0, r.y))))) discard;
+            float edge = dry > 0.0 ? mix(1.0, smoothstep(0.3, 0.6, noise(gl_FragCoord.xy / (6.0 * radius))), dry) : 1.0;
+            gl_FragColor = vec4(color, edge * opacity);
+            #include <colorspace_fragment>
+            return;
+          }
           float d = differs(c, vec2(1.0, 0.0)) + differs(c, vec2(-1.0, 0.0))
                   + differs(c, vec2(0.0, 1.0)) + differs(c, vec2(0.0, -1.0))
                   + 0.5 * (differs(c, vec2(0.7, 0.7)) + differs(c, vec2(-0.7, 0.7))

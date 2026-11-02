@@ -164,7 +164,12 @@ const ID_VERT = /* glsl */ `
     #include <skinning_vertex>
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
-const ID_FRAG = 'uniform vec3 id; void main() { gl_FragColor = vec4(id, 1.0); }';
+/**
+ * An ID's alpha: 1, or a half for a part whose silhouette the inner-line pass draws too (`SILHOUETTE`:
+ * a set's, which has no outline hull in a style with inner lines).
+ */
+const ID_ALPHA = '#ifdef SILHOUETTE\n#define ID_ALPHA 0.5\n#else\n#define ID_ALPHA 1.0\n#endif\n';
+const ID_FRAG = `${ID_ALPHA}uniform vec3 id; void main() { gl_FragColor = vec4(id, ID_ALPHA); }`;
 /** For a part cut out where its texture is clear (hair): no ID there, so no line round what is not drawn. */
 const CUT_VERT = /* glsl */ `
   uniform mat3 mapTransform;
@@ -179,14 +184,14 @@ const CUT_VERT = /* glsl */ `
     #include <skinning_vertex>
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
-const CUT_FRAG = /* glsl */ `
+const CUT_FRAG = /* glsl */ `${ID_ALPHA}
   uniform vec3 id;
   uniform sampler2D map;
   uniform float cutoff;
   varying vec2 vUv;
   void main() {
     if (texture2D(map, vUv).a < cutoff) discard;
-    gl_FragColor = vec4(id, 1.0);
+    gl_FragColor = vec4(id, ID_ALPHA);
   }`;
 /** A part cut out where its texture is clear, filled flat (a tree's leaves in a style that draws shapes). */
 const FILL_FRAG = /* glsl */ `
@@ -213,12 +218,12 @@ const PIECES_VERT = /* glsl */ `
     #include <skinning_vertex>
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }`;
-const PIECES_FRAG = /* glsl */ `
+const PIECES_FRAG = /* glsl */ `${ID_ALPHA}
   uniform float first;
   varying float vPiece;
   void main() {
     float n = first + 1.0 + floor(vPiece + 0.5);
-    gl_FragColor = vec4(mod(n, 16.0) / 15.0, mod(floor(n / 16.0), 16.0) / 15.0, mod(floor(n / 256.0), 16.0) / 15.0, 1.0);
+    gl_FragColor = vec4(mod(n, 16.0) / 15.0, mod(floor(n / 16.0), 16.0) / 15.0, mod(floor(n / 256.0), 16.0) / 15.0, ID_ALPHA);
   }`;
 
 interface StyleMaterials {
@@ -292,22 +297,25 @@ export class Ink {
 
   /**
    * A part's ID material (`pieces`: one whose geometry numbers its pieces, each drawn as its own ID
-   * from `id` on; `cutout`: none where its texture is clearer than the cut-off).
+   * from `id` on; `cutout`: none where its texture is clearer than the cut-off; `silhouette`: its
+   * silhouette drawn by the inner-line pass too).
    */
-  idMaterial(id: number, pieces = false, cutout?: { map: THREE.Texture; cutoff: number }) {
-    const key = pieces ? `-${id}` : cutout ? `${id}|${cutout.map.uuid}@${cutout.cutoff}` : `${id}`;
+  idMaterial(id: number, pieces = false, cutout?: { map: THREE.Texture; cutoff: number }, silhouette = false) {
+    const key = `${silhouette ? 's' : ''}${pieces ? `-${id}` : cutout ? `${id}|${cutout.map.uuid}@${cutout.cutoff}` : `${id}`}`;
     let m = this.idMats.get(key);
     if (!m) {
       cutout?.map.updateMatrix();
+      const defines = silhouette ? { SILHOUETTE: '' } : {};
       m = pieces
-        ? new THREE.ShaderMaterial({ uniforms: { first: { value: id } }, vertexShader: PIECES_VERT, fragmentShader: PIECES_FRAG })
+        ? new THREE.ShaderMaterial({ defines, uniforms: { first: { value: id } }, vertexShader: PIECES_VERT, fragmentShader: PIECES_FRAG })
         : cutout
           ? new THREE.ShaderMaterial({
+            defines,
             uniforms: { id: { value: encodeId(id) }, map: { value: cutout.map }, mapTransform: { value: cutout.map.matrix }, cutoff: { value: cutout.cutoff } },
             vertexShader: CUT_VERT,
             fragmentShader: CUT_FRAG,
           })
-          : new THREE.ShaderMaterial({ uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
+          : new THREE.ShaderMaterial({ defines, uniforms: { id: { value: encodeId(id) } }, vertexShader: ID_VERT, fragmentShader: ID_FRAG });
       this.idMats.set(key, m);
     }
     return m;
@@ -527,6 +535,11 @@ export class InkedParts {
 
   /** A colour mixed into the body (to tell figures apart). */
   tint: string | null = null;
+  /**
+   * Its silhouette drawn by the inner-line pass in a style that has one, not by outline hulls (a
+   * set: its triangles not drawn a second time for its outline). Hulls still in the other styles.
+   */
+  silhouetteByLines = false;
   /** Drawn see-through, without lines (it stands between the camera and what is edited). */
   faded = false;
 
@@ -596,7 +609,7 @@ export class InkedParts {
       const first = group && shared.has(group) ? shared.get(group)! : id;
       // (Cut out by its texture, a tree's leaves: one ID, none where nothing is drawn.)
       const cutout = mesh.userData.cutout as { map: THREE.Texture; cutoff: number } | undefined;
-      idMaterialOf(mesh, on ? this.sided(mesh, this.ink.idMaterial(first, !cutout && pieces > 0, cutout)) : null);
+      idMaterialOf(mesh, on ? this.sided(mesh, this.ink.idMaterial(first, !cutout && pieces > 0, cutout, this.silhouetteByLines && !cutout)) : null);
       if (first !== id) continue;
       if (group) shared.set(group, id);
       id += Math.max(1, pieces);
@@ -626,7 +639,9 @@ export class InkedParts {
   }
 
   private applyLinked() {
-    const outline = !!styleDef(this.style).outline;
+    const def = styleDef(this.style);
+    // (Its silhouette the inner-line pass's, in a style with one.)
+    const outline = !!def.outline && !(this.silhouetteByLines && def.interior);
     for (const h of this.hulls) {
       h.material = this.linked ? this.ink.linked : this.ink.outline;
       // (Not round what is cut out by its texture, a tree's leaves: a flat card's hull is the card, its back in ink.)
