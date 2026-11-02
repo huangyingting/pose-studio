@@ -553,6 +553,31 @@ function parseClipInfo(v: unknown): ClipInfo | null {
 }
 
 /** The imported clips whose frames a saved library file carries. */
+/**
+ * The imported characters' files a project file carries (as base64: a file opened elsewhere draws
+ * its figures as they were), by the id the library lists each by.
+ */
+export function modelFilesIn(data: unknown): { id: string; data: ArrayBuffer }[] {
+  if (!isObj(data) || !Array.isArray(data.modelFiles)) return [];
+  return data.modelFiles.slice(0, 200).filter(isObj).flatMap((f) => {
+    if (typeof f.id !== 'string' || typeof f.data !== 'string') return [];
+    try {
+      return [{ id: f.id.slice(0, 40), data: Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0)).buffer }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** A file's bytes as base64 (modelFilesIn reads them back). */
+export function toBase64(data: ArrayBuffer) {
+  const bytes = new Uint8Array(data);
+  let text = '';
+  // (In pieces: one call per byte, or all at once, would be slow or too many arguments.)
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+
 export function clipsIn(data: unknown): Clip[] {
   if (!isObj(data)) return [];
   return Array.isArray(data.clips) ? data.clips.slice(0, 500).map(parseClip).filter((c): c is Clip => c !== null) : [];

@@ -183,3 +183,27 @@ describe('share link limits', () => {
     await expect(decodeScene(encoded)).rejects.toThrow(/too large/);
   });
 });
+
+describe('a project file', () => {
+  it('opened: its scenes in place of these or after them; what the user made in it added to what is here, by id', async () => {
+    const { openProject } = await import('@/lib/actions');
+    const { modelFilesIn, parseLibrary, toBase64 } = await import('@/lib/doc');
+    const store = new Store(new MemoryStorage());
+    const pose = { ...referencePoses()[0], id: 'mine' };
+    store.commit((lib) => ({ ...lib, poses: [pose] }));
+    const file = parseLibrary({ scenes: [refScenes()[1], refScenes()[2]], poses: [{ ...referencePoses()[1], id: 'theirs' }, pose], settings: { style: 'anime' } });
+    openProject(store, file, 'append');
+    expect(store.getState().library.scenes).toHaveLength(3);
+    expect(store.getState().library.poses!.map((p) => p.id)).toEqual(['mine', 'theirs']);
+    expect(store.getState().library.settings?.style).not.toBe('anime');
+    openProject(store, file, 'replace');
+    expect(store.getState().library.scenes.map((s) => s.id)).toEqual(file.scenes.map((s) => s.id));
+    expect(store.getState().library.settings?.style).toBe('anime');
+    expect(store.getState().library.poses).toHaveLength(2);
+    // An imported character's file goes with it, and comes back as it was.
+    const bytes = new Uint8Array(70_000).map((_, i) => i % 251);
+    const [back] = modelFilesIn({ modelFiles: [{ id: 'model-1', data: toBase64(bytes.buffer) }] });
+    expect(back.id).toBe('model-1');
+    expect(new Uint8Array(back.data)).toEqual(bytes);
+  });
+});

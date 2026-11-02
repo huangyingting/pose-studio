@@ -1,9 +1,9 @@
-import { newScene, duplicateScene } from '../doc';
+import { newScene, duplicateScene, uid } from '../doc';
 import { projectSettingsOf } from '../project';
 import { lightingOf } from '../lighting';
 import { lightingForSet } from '../sets';
 import { type Store, openingSelection } from '../store';
-import type { Scene, ProjectSettings } from '../types';
+import type { Library, Scene, ProjectSettings } from '../types';
 import { setLighting } from './lights';
 
 /* Scenes: adding, opening, renaming, reordering and deleting them (library entries). */
@@ -51,8 +51,30 @@ export function moveScene(store: Store, from: number, to: number) {
   store.commit((lib) => ({ ...lib, scenes }), '', { sceneIndex: scenes.findIndex((x) => x.id === current) });
 }
 
-export function replaceLibrary(store: Store, scenes: Scene[]) {
-  store.commit((lib) => ({ ...lib, scenes }), '', { sceneIndex: 0, selection: openingSelection(scenes[0]), activeFigure: null });
+/**
+ * A project file opened: its scenes in place of these (`replace`, with its settings, its frame and
+ * style) or after them (`append`, with new ids); with either, what the user made in it (saved poses,
+ * templates, shoot presets, imported characters and motions) added to what is here, by id (one
+ * already here kept). One step to undo.
+ */
+export function openProject(store: Store, file: Library, mode: 'replace' | 'append') {
+  const merge = <T extends { id: string }>(have: T[] | undefined, add: T[] | undefined) => {
+    const ids = new Set((have ?? []).map((x) => x.id));
+    const all = [...(have ?? []), ...(add ?? []).filter((x) => !ids.has(x.id))];
+    return all.length ? all : undefined;
+  };
+  const scenes = mode === 'replace' ? file.scenes : file.scenes.map((s) => ({ ...s, id: uid('s') }));
+  const at = mode === 'replace' ? 0 : store.getState().library.scenes.length;
+  store.commit((lib) => ({
+    ...lib,
+    scenes: mode === 'replace' ? scenes : [...lib.scenes, ...scenes],
+    settings: mode === 'replace' ? file.settings ?? lib.settings : lib.settings,
+    poses: merge(lib.poses, file.poses),
+    clips: merge(lib.clips, file.clips),
+    models: merge(lib.models, file.models),
+    templates: merge(lib.templates, file.templates),
+    shoots: merge(lib.shoots, file.shoots),
+  }), '', { sceneIndex: at, selection: openingSelection(scenes[0]), activeFigure: null });
 }
 
 export function renameScene(store: Store, name: string) {

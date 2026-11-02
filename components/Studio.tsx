@@ -4,8 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import {
   ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, Minimize2, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react';
-import { addMotions, appendScenes, replaceLibrary } from '@/lib/actions';
-import { clipsIn, parseLibrary, uid } from '@/lib/doc';
+import { addMotions, appendScenes, openProject } from '@/lib/actions';
+import { clipsIn, modelFilesIn, parseLibrary, toBase64, uid } from '@/lib/doc';
 import { BUILT_IN_CHARACTERS, characterImage } from '@/lib/characters';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
@@ -36,7 +36,7 @@ import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
 import { IconButton, Menu, Toasts, Toolbar, type Notify, type Toast } from './ui';
-import { onOutdated } from '@/lib/assetstore';
+import { loadModelFile, onOutdated, saveModelFile } from '@/lib/assetstore';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
@@ -286,12 +286,17 @@ function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, [store, notify]);
 
-  const saveFile = useCallback(() => {
-    // The file carries the imported clips' frames too (the library itself only lists them).
+  const saveFile = useCallback(async () => {
+    // The file carries the imported clips' frames and the imported characters' files too (the
+    // library itself only lists them): opened anywhere, it is the whole project.
     const lib = store.getState().library;
     const frames = clipIdsOf(lib).flatMap((id) => clipById(id) ?? []);
     const clips = [...frames, ...(lib.clips ?? []).filter((c) => !clipById(c.id))];
-    const json = JSON.stringify({ ...lib, ...(clips.length ? { clips } : {}) }, null, 2);
+    const modelFiles = (await Promise.all((lib.models ?? []).map(async (m) => {
+      const data = await loadModelFile(m.id).catch(() => null);
+      return data ? [{ id: m.id, data: toBase64(data) }] : [];
+    }))).flat();
+    const json = JSON.stringify({ ...lib, ...(clips.length ? { clips } : {}), ...(modelFiles.length ? { modelFiles } : {}) }, null, 2);
     downloadBlob(new Blob([json], { type: 'application/json' }), 'pose-studio.json');
   }, [store]);
 
@@ -308,13 +313,11 @@ function App() {
       if (!lib.scenes.length) throw new Error(`there are no scenes in ${file.name}`);
       const what = `${lib.scenes.length} scene${lib.scenes.length === 1 ? '' : 's'}`;
       addMotions(store, clipsIn(data));
-      if (mode === 'replace') {
-        replaceLibrary(store, lib.scenes);
-        notifyUndo(`Opened ${what}`);
-      } else {
-        appendScenes(store, lib.scenes.map((s) => ({ ...s, id: uid('s') })));
-        notify(`Loaded ${what}`);
-      }
+      // (Its characters' files kept before its figures are drawn as them.)
+      await Promise.all(modelFilesIn(data).map((f) => saveModelFile(f.id, f.data)));
+      openProject(store, lib, mode);
+      if (mode === 'replace') notifyUndo(`Opened ${what}`);
+      else notify(`Loaded ${what}`);
     } catch (err) {
       notify(`Could not open the file: ${(err as Error).message}`, 'error');
     }
