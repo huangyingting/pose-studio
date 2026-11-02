@@ -208,9 +208,9 @@ export function requestThumb(key: string, make: () => string, onUrl: (url: strin
   };
 }
 
-/** A scene as a thumbnail, from an angle. */
-function drawThumb(scene: Scene, angle: View) {
-  return sharedRenderer().render(scene, THUMB, THUMB, 1.2, { style: 'line', transparent: true, margin: 0.08, angle }).toDataURL('image/png');
+/** A scene as a thumbnail, from an angle (`people`: framing them only, what is round them cropped). */
+function drawThumb(scene: Scene, angle: View, people = false) {
+  return sharedRenderer().render(scene, THUMB, THUMB, 1.2, { style: 'line', transparent: true, margin: 0.08, angle, people }).toDataURL('image/png');
 }
 
 /** A pose's thumbnail: its key and how to draw it. */
@@ -221,7 +221,7 @@ export const templateThumb = (id: string, build: () => Scene) => ({
   key: `template:${id}`,
   make: () => {
     const scene = build();
-    return drawThumb(scene.animation ? sceneAt(scene, 0) : scene, angleAt(scene));
+    return drawThumb(scene.animation ? sceneAt(scene, 0) : scene, angleAt(scene), true);
   },
 });
 

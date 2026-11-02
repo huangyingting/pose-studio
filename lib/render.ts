@@ -221,6 +221,8 @@ interface RenderOptions {
   pass?: Pass;
   /** Fit its set in the picture too (a set's thumbnail), not only its people and props. */
   wholeSet?: boolean;
+  /** Fit its people only (a scene template's thumbnail: who is in it, the props round them cropped). */
+  people?: boolean;
 }
 
 export type Pass = 'beauty' | 'depth' | 'normal';
@@ -354,7 +356,8 @@ export class SceneRenderer {
     this.setup(doc, w, h, line, opts);
     this.camera.aspect = w / h;
     const set = this.view.set;
-    const what = opts.wholeSet && set ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { this.drawn.forEachPoint(cb); set.forEachPoint(cb); } } : this.drawn;
+    const people = { forEachPoint: (cb: (p: THREE.Vector3) => void) => this.view.forEachPoint(cb, true) };
+    const what = opts.wholeSet && set ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => { this.drawn.forEachPoint(cb); set.forEachPoint(cb); } } : opts.people ? people : this.drawn;
     fitCamera(this.camera, what, opts.angle, opts.margin ?? 0.07, opts.minDistance ?? 0);
     // (A set's walls and roofs in the way cut away, as in the editor: looking at the middle of what it shows.)
     if (set) {
