@@ -849,7 +849,7 @@ export function NumberField({ prefix, label, value, onChange, step = 1, min = -I
   };
   return (
     <div className="numfield">
-      {/* (X, Y and Z in the axes' colours, as on the gizmo and the view widget.) */}
+      {/* (X, Y and Z in the axes' colours, as on the gizmos.) */}
       <span className={`numfield-prefix${/^[XYZ]$/.test(prefix) ? ` axis-${prefix.toLowerCase()}` : ''}`} onPointerDown={scrub} aria-hidden>{prefix}</span>
       <NumberInput label={label} value={value} min={min} max={max} step={step} digits={digits} onChange={onChange} />
     </div>

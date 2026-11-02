@@ -728,7 +728,7 @@ function GizmoWarmup() {
 const X_AXIS: [number, number, number][] = [[-20, 0.002, 0], [20, 0.002, 0]];
 const Z_AXIS: [number, number, number][] = [[0, 0.002, -20], [0, 0.002, 20]];
 
-/** The line along X (red) and the line along Z (blue) on the grid, as the gizmo and the view widget colour them: which way is which, read off the floor. */
+/** The line along X (red) and the line along Z (blue) on the grid, as the gizmos colour them: which way is which, read off the floor. */
 function FloorAxes() {
   return (
     <>
