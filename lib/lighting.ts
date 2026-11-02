@@ -496,6 +496,9 @@ function steadyShadows<M extends THREE.Material>(m: M): M {
  * the line-art and minimal materials ignore it. A window is a soft panel of light in Clay (lamps
  * across its pane) and a light from its direction in the painterly styles.
  */
+/** How fine the key's shadow map is at most (m a texel): finer costs, and is not seen. */
+const SHADOW_TEXEL = 0.012;
+
 export class LightRig {
   readonly object = new THREE.Group();
   private ambient = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.05);
@@ -514,6 +517,7 @@ export class LightRig {
     for (let i = 0; i < MAX_LIGHTS; i++) {
       const sun = new THREE.DirectionalLight(0xffffff, 0);
       const s = sun.shadow;
+      // (Its size fitted to what it lights, by update.)
       s.mapSize.set(2048, 2048);
       s.bias = -0.0004;
       s.normalBias = 0.025;
@@ -601,10 +605,14 @@ export class LightRig {
         sun.intensity = 1.9 * l.intensity * (l.kind === 'window' ? 0.8 : 1);
         // (Only the key casts shadows (#17), as soft as it is.)
         if (l.kind !== 'sun' || l !== key || !l.shadows || !styleDef(style).shadows || shadowed) continue;
-        sun.shadow.radius = 2 + 10 * (l.soft ?? 0.1);
         const cam = sun.shadow.camera;
         // Shadows on the floor reach further when the light is low.
         const reach = radius * (1.2 + 1 / Math.tan(THREE.MathUtils.degToRad(Math.max(15, l.elevation))));
+        // (Its map as fine as a centimetre or so, no finer: a small scene's a quarter of a large
+        // one's, each texel as cheap; its softness kept in metres, not in texels.)
+        const size = THREE.MathUtils.clamp(THREE.MathUtils.ceilPowerOfTwo(Math.ceil((2 * reach) / SHADOW_TEXEL)), 512, 2048);
+        sun.shadow.mapSize.set(size, size);
+        sun.shadow.radius = Math.max(1, (2 + 10 * (l.soft ?? 0.1)) * (size / 2048));
         cam.left = cam.bottom = -reach;
         cam.right = cam.top = reach;
         cam.near = 0.1;
