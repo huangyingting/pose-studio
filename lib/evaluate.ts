@@ -51,6 +51,8 @@ const STEP_BLEND_MAX = 0.8;
 const CARRIAGE_EASE = 0.5;
 const CARRIAGE = Object.fromEntries((['neck', 'head', 'leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'] as const)
   .map((j) => [j, NEUTRAL_ANGLES[j] ?? [0, 0, 0]])) as AnglePose['joints'];
+/** A walk or run eases out of its first pose and into its last over this long (s). */
+const EDGE_EASE = 0.15;
 /** A foot whose ankle is no higher than this above standing's is on the ground (m). */
 const GROUNDED = 0.05;
 /** How high a stepping foot lifts on its way (m). */
@@ -840,7 +842,14 @@ class Evaluator {
     }
     // (Standing on the floor where both ends do; else from the height one is drawn at to the other's.)
     const on: AnglePose = { joints, position: a.position.map((v, k) => v + (b.position[k] - v) * u) as Vec3, hands: blend(fromAngles(a), fromAngles(b), u).hands, grounded: a.grounded && b.grounded };
-    return fromAngles(locomote(c, f.body, t, on, this.ground));
+    const made = fromAngles(locomote(c, f.body, t, on, this.ground));
+    // (Out of the pose it leaves in and into the one it arrives in over a few frames, whatever the
+    // steps make of them: a recorded pose's legs as they were, not as a step would put them.)
+    const edge = Math.min(EDGE_EASE, (c.t1 - c.t0) / 4);
+    const ease = (p: Pose, toward: AnglePose, u: number) => ({ ...blend(fromAngles(toward), p, smooth(u)), grounded: false });
+    if (t - c.t0 < edge) return ease(made, c.start, (t - c.t0) / edge);
+    if (c.t1 - t < edge) return ease(made, c.end, (c.t1 - t) / edge);
+    return made;
   }
 
   /* ---------- corrections ---------- */

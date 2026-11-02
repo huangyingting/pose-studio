@@ -334,8 +334,13 @@ export function checkMotion(scene: Scene): Issue[] {
       // Pops: a large rotation, or the body jumping, in a single frame. Walks, runs and jumps are
       // generated smooth (tests sample them finely), and legs really move that fast when running
       // or taking off: their legs and body are not checked for pops.
-      const generated = !!travelAt(a, f.id, times[i]) || generatedBefore.has(f.id);
-      if (travelAt(a, f.id, times[i])) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
+      // (But a walk or run setting off from what is posed or recorded, or arriving in it, is: it
+      // eases out of and into those; a jump takes off and lands as fast as legs do.)
+      const going = travelAt(a, f.id, times[i]);
+      const went = i > 0 ? travelAt(a, f.id, times[i - 1]) : going;
+      const edge = going !== went && [going, went].every((x) => !x || (x.source.kind === 'travel' && x.source.mode !== 'jump'));
+      const generated = !edge && (!!going || generatedBefore.has(f.id));
+      if (going) generatedBefore.add(f.id); else generatedBefore.delete(f.id);
       // (Within one recorded motion, as it was recorded: not checked for pops or reach.)
       const recorded = wrap ? null : recordedAt(a, f.id, times[i]);
       const asRecorded = !!recorded && recorded === recordedAt(a, f.id, times[i - 1] ?? -1);
