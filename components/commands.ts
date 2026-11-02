@@ -576,7 +576,11 @@ export const COMMANDS: Command[] = [
     checked: (c) => c.store.getState().settings.bodyFollows, run: (c) => c.store.setSettings({ bodyFollows: !c.store.getState().settings.bodyFollows }),
   },
   {
-    // A selected prop's gizmo: R switches it between moving and scaling.
+    // A selected prop's gizmo: moving it, or (R, again: back) scaling it.
+    id: 'tool.moveProp', title: 'Move the prop', help: 'Move the prop with its gizmo, along the floor or up and down (R: scale it)', icon: Move, when: (c) => c.store.getState().selection?.kind === 'prop',
+    checked: (c) => c.store.getState().settings.gizmo !== 'scale', run: (c) => c.store.setSettings({ gizmo: 'translate' }),
+  },
+  {
     id: 'tool.scale', title: 'Scale the prop', help: 'Scale the prop with its gizmo (R again: move it)', icon: Scale3d, keys: ['r'], when: (c) => c.store.getState().selection?.kind === 'prop',
     checked: (c) => c.store.getState().settings.gizmo === 'scale', run: (c) => c.store.setSettings({ gizmo: c.store.getState().settings.gizmo === 'scale' ? 'translate' : 'scale' }),
   },

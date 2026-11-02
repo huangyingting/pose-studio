@@ -441,6 +441,34 @@ test('a picked figure moves by its gizmo, a prop by dragging it; they turn by th
   expect((await prop()).position).toEqual(p0.position);
 });
 
+test('the canvas\'s bar has the tools for what is selected; the view widget turns the view when dragged, a click on an end still looks from there', async ({ page }) => {
+  const tools = page.getByRole('toolbar', { name: 'Tools', exact: true });
+  const names = () => tools.getByRole('button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+  // A figure: what a drag on it does, the tool in use lit.
+  expect(await names()).toEqual(['Pose', 'Move', 'Rotate', 'Body follows']);
+  await expect(tools.getByRole('button', { name: 'Pose' })).toHaveAttribute('aria-pressed', 'true');
+  // A prop: its gizmo moving or scaling.
+  await addLayer(page, 'Box');
+  await expect.poll(names).toEqual(['Move', 'Scale']);
+  await tools.getByRole('button', { name: 'Scale' }).click();
+  await expect(tools.getByRole('button', { name: 'Scale' })).toHaveAttribute('aria-pressed', 'true');
+  // A camera: none (the scene-only button stays).
+  await page.evaluate(() => { const s = (window as unknown as { __poseStudio: { store: { scene: { cameras: { id: string }[] }; select(x: unknown): void } } }).__poseStudio.store; s.select({ kind: 'camera', camera: s.scene.cameras[0].id }); });
+  await expect(tools).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Scene only' })).toBeVisible();
+  // The view widget dragged across: the view turns; a click on an end: from there.
+  const view = () => page.evaluate(() => (window as unknown as { __poseStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__poseStudio.viewport.current.getView().yaw);
+  const before = await view();
+  const ball = (await page.locator('.view-ball').boundingBox())!;
+  await page.mouse.move(ball.x + 20, ball.y + ball.height - 15);
+  await page.mouse.down();
+  await page.mouse.move(ball.x + 60, ball.y + ball.height - 15, { steps: 6 });
+  await page.mouse.up();
+  expect(Math.abs((await view()) - before)).toBeGreaterThan(20);
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' }).click();
+  await expect.poll(view).toBeCloseTo(0, 0);
+});
+
 test('the axes show on the view widget and in the fields; drags read out how far', async ({ page }) => {
   test.setTimeout(240_000);
   await page.keyboard.press('1');

@@ -169,6 +169,7 @@ function App() {
   }, [store, notify]);
 
   const viewNow = useCallback(() => apiRef.current?.getView() ?? null, []);
+  const turnView = useCallback((yaw: number, pitch: number) => apiRef.current?.turnView(yaw, pitch), []);
   const projectChest = useCallback((figure: string) => apiRef.current?.project(figure, 'chest') ?? null, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
@@ -588,9 +589,12 @@ function App() {
         />
         {through && <Letterbox aspect={frameAspect()} guides={settings.guides} camera={through.camera} project={projectChest} />}
         {!through && selection?.kind === 'camera' && <CameraPip camera={selection.camera} clock={clock} />}
-        {!through && <ViewBall ctx={cx} view={viewNow} />}
-        <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
-        {!through && <CanvasTools />}
+        {!through && <ViewBall ctx={cx} view={viewNow} turn={turnView} />}
+        {/* The canvas's bar, at its top left: the scene alone, and the tools for what is selected. */}
+        <div className="canvas-bar">
+          <StageOnlyButton on={stageOnly} toggle={() => setStageOnly((on) => !on)} />
+          {!through && <CanvasTools />}
+        </div>
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
         <div className="stage-hint">
           <Hint

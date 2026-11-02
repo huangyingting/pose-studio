@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { VIEW_PRESETS } from '@/lib/views';
 import { command, type Ctx } from './commands';
 
@@ -14,7 +14,11 @@ const ENDS: { axis: 0 | 1 | 2; sign: 1 | -1; key?: string }[] = [
   { axis: 2, sign: -1, key: '2' },
 ];
 const NAMES = ['x', 'y', 'z'] as const;
-const R = 22;
+const R = 32;
+/** Its size (px); the axes' ends round its middle at R. */
+const SIZE = 84;
+/** Degrees the view turns for each pixel the widget is dragged (as the canvas, but a small thing to drag). */
+const TURN = 1.2;
 
 /** The view preset nearest a view (its yaw and pitch), if it is near one. */
 function nearest(v: { yaw: number; pitch: number }) {
@@ -38,10 +42,11 @@ function project(axis: number, sign: number, { yaw, pitch }: { yaw: number; pitc
 
 /**
  * The view widget in the canvas's top-right corner: the world's axes as the view sees them (X red,
- * Y green, Z blue, as everywhere). A click on an end turns the view to look from there, as the keys
- * 1–5 do; ¾ (6) is beside it; the end the view looks from is marked.
+ * Y green, Z blue, as everywhere). Dragging it turns the view round what it looks at; a click on an
+ * end turns the view to look from there, as the keys 1–5 do; ¾ (6) is beside it; the end the view
+ * looks from is marked.
  */
-export default function ViewBall({ ctx, view }: { ctx: Ctx; view(): { yaw: number; pitch: number } | null }) {
+export default function ViewBall({ ctx, view, turn }: { ctx: Ctx; view(): { yaw: number; pitch: number } | null; turn(yaw: number, pitch: number): void }) {
   const [v, setV] = useState({ yaw: 0, pitch: 4 });
   useEffect(() => {
     let raf = 0;
@@ -54,6 +59,27 @@ export default function ViewBall({ ctx, view }: { ctx: Ctx; view(): { yaw: numbe
     return () => cancelAnimationFrame(raf);
   }, [view]);
   const at = nearest(v);
+  // A drag anywhere on it (its ends too) turns the view; a press that does not move is a click.
+  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const down = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    drag.current = { x: e.clientX, y: e.clientY, moved: false };
+    dragged.current = false;
+  };
+  const move = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const [dx, dy] = [e.clientX - d.x, e.clientY - d.y];
+    if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    // (Held from here on, wherever the pointer goes; a press that did not move stays a click on an end.)
+    if (!d.moved) e.currentTarget.setPointerCapture(e.pointerId);
+    d.moved = true;
+    dragged.current = true;
+    turn(dx * TURN, dy * TURN);
+    [d.x, d.y] = [e.clientX, e.clientY];
+  };
+  const up = () => { drag.current = null; };
   // Far ends first: the near ones are drawn (and clicked) over them.
   const ends = ENDS.map((e) => ({ ...e, ...project(e.axis, e.sign, v) })).sort((a, b) => a.depth - b.depth);
   const button = (key: string, className: string, style: CSSProperties | undefined, text: string) => {
@@ -69,21 +95,21 @@ export default function ViewBall({ ctx, view }: { ctx: Ctx; view(): { yaw: numbe
         aria-pressed={at === key}
         data-tip={`${label}  ${key}`}
         data-tip-side="left"
-        onClick={() => cmd.run!(ctx)}
+        onClick={() => { if (!dragged.current) cmd.run!(ctx); dragged.current = false; }}
       >
         {text}
       </button>
     );
   };
   return (
-    <div className="view-ball" role="group" aria-label="View">
-      <svg viewBox="-30 -30 60 60" width={60} height={60} aria-hidden>
+    <div className="view-ball" role="group" aria-label="View" data-tip="Drag to turn the view; click an axis to look from there" data-tip-side="left" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+      <svg viewBox={`${-SIZE / 2} ${-SIZE / 2} ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} aria-hidden>
         {ends.filter((e) => e.sign > 0).map((e) => (
           <line key={e.axis} x1={0} y1={0} x2={e.x} y2={e.y} className={`view-axis ${NAMES[e.axis]}`} />
         ))}
       </svg>
       {ends.map((e) => {
-        const style = { transform: `translate(${30 + e.x}px, ${30 + e.y}px) translate(-50%, -50%)`, zIndex: Math.round(e.depth * 10) + 10 };
+        const style = { transform: `translate(${SIZE / 2 + e.x}px, ${SIZE / 2 + e.y}px) translate(-50%, -50%)`, zIndex: Math.round(e.depth * 10) + 10 };
         const className = `view-end ${NAMES[e.axis]}${e.sign > 0 ? '' : ' minus'}`;
         return e.key ? button(e.key, className, style, e.sign > 0 ? NAMES[e.axis].toUpperCase() : '') : <span key="below" className={className} style={style} aria-hidden />;
       })}

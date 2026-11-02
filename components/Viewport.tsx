@@ -42,6 +42,8 @@ import type { Placing } from './placing';
 export interface ViewportApi {
   /** Current editor camera as a View (for "use current view"). */
   getView(): View;
+  /** Turn the view round what it looks at, by degrees across (yaw) and up (pitch), as dragging the canvas does. */
+  turnView(yaw: number, pitch: number): void;
   /** The editor camera as it stands, to make a scene camera from. */
   editorCamera(): CameraView;
   /** Where a figure's pelvis currently is (including auto-grounding). */
@@ -508,6 +510,7 @@ export default function Viewport({
             position={[0, 0.0005, 0]}
           />
         )}
+        {settings.showGrid && <FloorAxes />}
         <SceneObjects sv={sv} store={store} scene={scene} limits={settings.limits} handles={settings.showHandles || shotMode} gizmoActive={() => gizmoBusy.current === Infinity} playing={() => clock.playing} onClick={handleClick} />
         <primitive object={stand} />
         <GizmoWarmup />
@@ -717,6 +720,20 @@ function GizmoWarmup() {
   useFrame(({ scene, camera }) => warmup.tick(scene, camera));
   useEffect(() => () => warmup.release(), [warmup]);
   return null;
+}
+
+/** The floor's axes through the stage's middle (X, Z: 20 m each way), in the axes' colours. */
+const X_AXIS: [number, number, number][] = [[-20, 0.002, 0], [20, 0.002, 0]];
+const Z_AXIS: [number, number, number][] = [[0, 0.002, -20], [0, 0.002, 20]];
+
+/** The line along X (red) and the line along Z (blue) on the grid, as the gizmo and the view widget colour them: which way is which, read off the floor. */
+function FloorAxes() {
+  return (
+    <>
+      <Line points={X_AXIS} color="#e5484d" lineWidth={1.6} transparent opacity={0.6} />
+      <Line points={Z_AXIS} color="#3d7bff" lineWidth={1.6} transparent opacity={0.6} />
+    </>
+  );
 }
 
 /** While something above the floor is dragged: a dashed line from it down to the floor. */
@@ -1109,6 +1126,16 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     };
     apiRef.current = {
       getView: () => viewFromCamera(camera, controls?.target ?? new THREE.Vector3(0, 1, 0)),
+      turnView: (yaw, pitch) => {
+        if (!controls) return;
+        const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        s.theta -= (yaw * Math.PI) / 180;
+        // (Not past straight down, nor under the floor: as the canvas's own orbit.)
+        s.phi = THREE.MathUtils.clamp(s.phi - (pitch * Math.PI) / 180, 0.02, Math.PI / 2 + 0.2);
+        camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(s));
+        controls.update();
+        keepCameraAboveFloor({ target: { object: camera } });
+      },
       editorCamera: () => ({ position: camera.position.clone(), target: (controls?.target ?? new THREE.Vector3(0, 1, 0)).clone(), fov: camera.fov, lens: fovLens(camera.fov), roll: 0 }),
       rootPosition: (id) => sv.figures.get(id)?.read().position ?? null,
       project: (id, joint) => {
