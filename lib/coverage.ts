@@ -245,7 +245,8 @@ const rule = (cam: Omit<Camera, 'id'> | Camera) => {
 /** The moments a coverage cuts on, in time order: when, and to which of its cameras. */
 function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t: number; camera: string }[] {
   const a = scene.animation!;
-  const events: { t: number; camera: string }[] = [];
+  // (Each with how long what it cuts to goes on: one too soon after the last cut can wait for it.)
+  const events: { t: number; camera: string; until?: number }[] = [];
   // (How far a figure goes over an action: from where it is as it starts to its mark.)
   const way = (x: Action, figure: string) => {
     const from = figurePoseAt(scene, figure, x.start)?.position;
@@ -262,11 +263,11 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
         // (Not waiting in an idle; nor talking, where talking is cut to; nor a step or two, a turn where they stand.)
         if (kind === 'motion' && (waiting(x) || (talks && talking(x)))) continue;
         if (kind === 'travel' && way(x, roles[r.role]) < GOING) continue;
-        if (kind && (!r.kind || r.kind === kind)) events.push({ t: x.start, camera: r.camera });
+        if (kind && (!r.kind || r.kind === kind)) events.push({ t: x.start, camera: r.camera, until: x.start + x.duration });
       }
     } else if (r.on === 'speaks') {
       for (const x of mine(roles[r.role]).filter(talking)) {
-        events.push({ t: x.start, camera: r.camera });
+        events.push({ t: x.start, camera: r.camera, until: x.start + x.duration });
         // (A long speech: closer after a while; the one listening a moment past halfway, and back.)
         if (r.closer && x.duration > 6) events.push({ t: x.start + 3.5, camera: r.closer });
         if (r.reaction && x.duration >= 8) {
@@ -309,7 +310,11 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
       if (k === undefined || !cutTo(last.t + beat.every, beat.cameras[k])) break;
       b = (k + 1) % beat.cameras.length;
     }
-    if (e.camera) cutTo(Math.round(e.t * a.fps) / a.fps, e.camera);
+    if (!e.camera) continue;
+    const t = Math.round(e.t * a.fps) / a.fps;
+    // (Too soon after the last cut: as soon as it may be, if what it is cut for still goes on a while then.)
+    const soonest = Math.round((out[out.length - 1].t + (c.hold ?? MIN_SHOT)) * a.fps) / a.fps;
+    if (!cutTo(t, e.camera) && soonest > t && e.until !== undefined && e.until - soonest >= MIN_SHOT) cutTo(soonest, e.camera);
   }
   return out;
 }

@@ -5,8 +5,8 @@ import { MemoryStorage, fresh, motionScene } from '../fixtures/scenes';
 import { putClips } from '@/lib/assets';
 import { newFigure, newProp, newScene, parseClip } from '@/lib/doc';
 import { figurePoseAt } from '@/lib/evaluate';
-import { checkMotion, segmentDistance } from '@/lib/qa';
-import { applyMotion, issueFix, travelTo } from '@/lib/actions';
+import { checkMotion, checkShots, segmentDistance } from '@/lib/qa';
+import { addFigure, applyMotion, issueFix, startAnimation, travelTo } from '@/lib/actions';
 import { Store } from '@/lib/store';
 import { buildStaging } from '@/lib/stagings';
 import type { Figure, Scene } from '@/lib/types';
@@ -23,6 +23,23 @@ function animate(keys: [number, Figure[]][], duration = 1, loop = false): Scene 
 const kinds = (s: Scene) => checkMotion(s).map((i) => i.kind);
 
 describe('motion QA', () => {
+  it('says when someone a shot is on alone has another person right in front of them', () => {
+    const { store, a } = fresh();
+    addFigure(store, [0, 0, 1.6]);
+    const b = store.getState().activeFigure!;
+    startAnimation(store, 2);
+    const at = (z: number) => store.updateScene((sc) => ({
+      ...sc,
+      cameras: [...sc.cameras.filter((c) => c.id !== 'single'), { id: 'single', name: 'On A', kind: 'rig', subject: a, rig: { yaw: 0, pitch: 0, size: 'ms', lens: 50, fixed: { position: [0, 1.4, z], look: [0, 1.3, 0] } } }],
+      animation: { ...sc.animation!, shots: sc.animation!.shots.map((x) => ({ ...x, camera: 'single' })) },
+    }));
+    at(4);
+    expect(checkShots(store.scene).map((i) => i.message)).toEqual([expect.stringMatching(/^Figure is hidden behind Figure 2 in /)]);
+    // (From where they are not in the way, nothing.)
+    store.updateFigure(b, (f) => ({ ...f, position: [1.5, 0, 1.6] }));
+    expect(checkShots(store.scene)).toEqual([]);
+  });
+
   it('passes the built-in animations and multi-person holds', () => {
     for (const id of ['kick', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
     // Walking, running and jumping a way: their steps captured or made.

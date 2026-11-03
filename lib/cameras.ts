@@ -800,7 +800,10 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
       const keep = Math.min(1, Math.max(0.3, wall - 0.15) / dist);
       return { position: shot.position.clone().sub(shot.look).multiplyScalar(keep).add(shot.look), look: shot.look };
     };
-    const blocked = (shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) => inWay(shot, people) || inWay(pulled(shot), people) || screened(shot);
+    // (Someone further off in its line of sight only for a camera on one person: in a shot of them all, one in front of another is in it too.)
+    const alone = !cam.also?.length;
+    const person = (p: Vec3) => alone && people.includes(p);
+    const blocked = (shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) => inWay(shot, people, person) || inWay(pulled(shot), people, person) || screened(shot);
     if (!others.length && !walled(at(keepOut))) return keepOut;
     // One way round only (no swinging back across), further than for people if a wall is in the way.
     const tries = [0, 20, 40, 60, 90].map((x) => keepOut + away * x);
@@ -975,10 +978,10 @@ const SWING_EASE = 1.5;
 
 /**
  * Whether a camera stands in someone's reach (where they stand, `people`: an arm swung would cross
- * the lens) or has them right in front of it: across its line of sight within a metre and a half
- * of it, between it and what it films.
+ * the lens) or has them in front of it: across its line of sight within a metre and a half of it,
+ * or (`far`: people, of a camera on one) right in it further off, between it and what it films.
  */
-function inWay(shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) {
+function inWay(shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[], far: (p: Vec3) => boolean = () => false) {
   const [cx, cz] = [shot.position.x, shot.position.z];
   const [dx, dz] = [shot.look.x - cx, shot.look.z - cz];
   const len = Math.hypot(dx, dz) || 1;
@@ -986,8 +989,10 @@ function inWay(shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: V
     const [px, pz] = [p[0] - cx, p[2] - cz];
     if (Math.hypot(px, pz) < 0.7) return true;
     const along = (px * dx + pz * dz) / len;
-    if (along <= 0 || along > Math.min(1.5, len - 0.3)) return false;
-    return Math.abs(px * dz - pz * dx) / len < 0.45;
+    // (Near it, anyone across its line of sight fills the frame; further off, someone standing right
+    // in it, who would hide the one it films alone.)
+    if (along <= 0 || along > (far(p) ? len - 0.5 : Math.min(1.5, len - 0.3))) return false;
+    return Math.abs(px * dz - pz * dx) / len < (along <= 1.5 ? 0.45 : 0.3);
   });
 }
 

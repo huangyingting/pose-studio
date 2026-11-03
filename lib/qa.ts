@@ -45,7 +45,7 @@ const HINTS: Record<IssueKind, string> = {
   overlap: 'Move the figures apart or adjust the pose at these keys.',
   limit: 'Re-pose this key with “Joint limits” on.',
   pop: 'Add an in-between key, or move the keys further apart.',
-  hidden: 'Move the camera, the prop, or the figure out from behind it.',
+  hidden: 'Move the camera, or whoever or whatever is in front of them, out of the way.',
   miss: 'Something got in its way, or the hand cannot reach it then: clear the way, or move the catch.',
   camera: 'Move the shot\'s camera point out of the way (drag it on the canvas), or its path around it; or film it with a framing (a move instead of a path), which comes in front of a wall itself.',
 };
@@ -454,7 +454,7 @@ export function checkMotion(scene: Scene): Issue[] {
 }
 
 /** What the shots' cameras get wrong: someone hidden behind a prop, the camera going through someone or something. */
-export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), ...cameraInside(scene)];
+export const checkShots = (scene: Scene): Issue[] => [...hiddenInShots(scene), ...hiddenByPeople(scene), ...cameraInside(scene)];
 
 /** What people sit on. */
 const SEATS: PropKind[] = ['chair', 'stool'];
@@ -498,7 +498,9 @@ function hiddenInShots(scene: Scene): Issue[] {
         // (Nor a ball or the like: smaller than a person by far, it is in front of part of them at most,
         // as it is dribbled, thrown or lies about.)
         const small = (p: Prop) => Math.max(...p.scale) <= 0.4;
-        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && by(b.prop)) && !small(b.prop));
+        // (Nor what they are at, within arm's reach: the bag they hit, as they hit it.)
+        const at = (p: Prop) => Math.hypot(p.position[0] - hips.x, p.position[2] - hips.z) < 0.9;
+        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && by(b.prop)) && !small(b.prop) && !at(b.prop));
         if (!blockers.length) continue;
         let blocked = 0;
         let behind = '';
@@ -534,6 +536,55 @@ function hiddenInShots(scene: Scene): Issue[] {
  * along its path; or (a camera on a path) a wall of the set between it and what it films (a rig
  * comes in front of one itself); ten times a second.
  */
+/**
+ * Someone a shot is on alone (a single, a close one, a tracking shot: not one over another's
+ * shoulder, nor a two-shot) with another person's body between the camera and their head and chest,
+ * a good part of the shot (two of its five moments looked at, or more); not one within reach of
+ * them, they are together.
+ */
+function hiddenByPeople(scene: Scene): Issue[] {
+  const a = scene.animation;
+  if (!a || scene.figures.filter((f) => !f.hidden).length < 2) return [];
+  const rig = new Rig();
+  const issues: Issue[] = [];
+  const samples = 5;
+  for (const span of shotSpans(a)) {
+    const cam = scene.cameras.find((c) => c.id === span.shot.camera);
+    if (!cam?.subject || cam.also?.length || (cam.kind === 'rig' && cam.rig.toward)) continue;
+    const by = new Map<string, number>();
+    let first = -1;
+    for (let i = 0; i < samples; i++) {
+      const t = span.start + ((span.end - span.start) * i) / samples;
+      const now = sceneAt(scene, t);
+      const f = now.figures.find((x) => x.id === cam.subject && !x.hidden);
+      if (!f) continue;
+      const eye = cameraAt(scene, t).position;
+      const m = rig.model(f);
+      const points = (['head', 'chest'] as const).map((j) => {
+        const p = m.joints[j].getWorldPosition(new THREE.Vector3());
+        // (A little short of it: not its own body.)
+        return p.add(eye.clone().sub(p).setLength(0.15));
+      });
+      // (Not one they are at grips with, a sparring partner within reach: a single on one has the other in it.)
+      const close = (o: Figure) => Math.hypot(o.position[0] - f.position[0], o.position[2] - f.position[2]) < 1.2;
+      for (const o of now.figures.filter((x) => x.id !== f.id && !x.hidden && !close(x))) {
+        const caps = capsules(rig, o);
+        if (points.every((p) => caps.some((c) => segmentDistance(eye, p, c.p, c.q) < c.r))) {
+          by.set(o.id, (by.get(o.id) ?? 0) + 1);
+          if (first < 0) first = t;
+        }
+      }
+    }
+    for (const [id, n] of by) {
+      if (n < 2) continue;
+      const name = (x: string) => scene.figures.find((g) => g.id === x)?.name ?? 'Someone';
+      issues.push({ kind: 'hidden', figure: cam.subject, start: first, end: span.end, message: `${name(cam.subject)} is hidden behind ${name(id)} in ${span.shot.name}`, hint: HINTS.hidden });
+    }
+  }
+  rig.dispose();
+  return issues;
+}
+
 function cameraInside(scene: Scene): Issue[] {
   const a = scene.animation;
   if (!a) return [];
