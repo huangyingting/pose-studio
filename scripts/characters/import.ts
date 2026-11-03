@@ -125,13 +125,13 @@ await page.waitForSelector('.stage canvas');
 const tab = page.getByRole('tablist', { name: 'Sections' }).getByRole('tab', { name: 'Characters', exact: true });
 if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 
-type Page = { __poseStudio: { store: { getState(): { library: { models?: { id: string; thumb?: string }[] } } } } };
+type Page = { __filmStudio: { store: { getState(): { library: { models?: { id: string; thumb?: string }[] } } } } };
 for (const file of files) {
-  const count = await page.evaluate(() => (window as unknown as Page).__poseStudio.store.getState().library.models?.length ?? 0);
+  const count = await page.evaluate(() => (window as unknown as Page).__filmStudio.store.getState().library.models?.length ?? 0);
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: /Import character/ }).click()]);
   await chooser.setFiles(file);
-  await page.waitForFunction((n) => ((window as unknown as Page).__poseStudio.store.getState().library.models?.length ?? 0) > n, count, { timeout: 300_000 });
-  const info = await page.evaluate(() => (window as unknown as Page).__poseStudio.store.getState().library.models!.at(-1)!);
+  await page.waitForFunction((n) => ((window as unknown as Page).__filmStudio.store.getState().library.models?.length ?? 0) > n, count, { timeout: 300_000 });
+  const info = await page.evaluate(() => (window as unknown as Page).__filmStudio.store.getState().library.models!.at(-1)!);
   // (Its file as the app keeps it: IndexedDB, lib/assetstore.ts.)
   const data = await page.evaluate((key) => new Promise<string>((resolve, reject) => {
     const req = indexedDB.open('pose-studio-assets');

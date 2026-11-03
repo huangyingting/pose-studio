@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Each record is one decision Pose Studio is built on: what it had to solve, what was chosen, and what follows from it. They are short and they stay true: when a decision is changed, its record is marked **Superseded** and the new one says what replaced it.
+Each record is one decision Film Studio is built on: what it had to solve, what was chosen, and what follows from it. They are short and they stay true: when a decision is changed, its record is marked **Superseded** and the new one says what replaced it.
 
 Most were made while the app was being built and are written down here as they stand (November 2026).
 

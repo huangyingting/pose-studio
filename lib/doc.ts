@@ -497,7 +497,7 @@ function bareTemplate(scene: Scene): Scene {
 
 /** Accepts a library, or throws on unusable input. */
 export function parseLibrary(data: unknown): Library {
-  if (!isObj(data) || !Array.isArray(data.scenes)) throw new Error('Not a Pose Studio library');
+  if (!isObj(data) || !Array.isArray(data.scenes)) throw new Error('Not a Film Studio library');
   const entries: unknown[] = data.scenes;
   if (!entries.length) throw new Error('The file contains no scenes');
   const scenes = entries.slice(0, 500).map(parseScene);

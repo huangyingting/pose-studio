@@ -5,7 +5,7 @@
 
 ## Context
 
-Much of Pose Studio's behaviour is geometry and timing: IK, contacts between bodies of every size, cameras framing people, motions of several people, whole films. These are best checked without a browser, but some checks are slow (every motion on every build and every pair of builds). The UI's behaviour needs a real browser, and the browser suite takes long enough that running it on every local edit would get in the way.
+Much of Film Studio's behaviour is geometry and timing: IK, contacts between bodies of every size, cameras framing people, motions of several people, whole films. These are best checked without a browser, but some checks are slow (every motion on every build and every pair of builds). The UI's behaviour needs a real browser, and the browser suite takes long enough that running it on every local edit would get in the way.
 
 ## Decision
 

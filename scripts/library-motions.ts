@@ -1,4 +1,4 @@
-// The Library's motions from motion-capture clips (Pose Studio's own format, as "Import motion…"
+// The Library's motions from motion-capture clips (Film Studio's own format, as "Import motion…"
 // makes them): each *.clip.json in data/library/motions (or the folder given) is made ready to play
 // and copied to public/motions as <slug>.json with the id library:<slug>; public/motions/index.json
 // lists them, each with its name and group in the Library's Motions (LIST). Run with `npm run motions`.

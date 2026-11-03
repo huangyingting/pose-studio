@@ -5,7 +5,7 @@
 
 ## Context
 
-Most of Pose Studio (posing, animation, the storyboard, export, photo posing) can run entirely in the browser. That lets it be hosted for free on GitHub Pages and used with no account. Some features need a server: accounts, a library synced across devices, and an AI model called with a key that must not reach the browser. Keeping two apps would split the effort; shipping server code to a static host would send code that cannot work there.
+Most of Film Studio (posing, animation, the storyboard, export, photo posing) can run entirely in the browser. That lets it be hosted for free on GitHub Pages and used with no account. Some features need a server: accounts, a library synced across devices, and an AI model called with a key that must not reach the browser. Keeping two apps would split the effort; shipping server code to a static host would send code that cannot work there.
 
 ## Decision
 

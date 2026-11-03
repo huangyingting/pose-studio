@@ -5,9 +5,9 @@ export const dynamic = 'force-static';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Pose Studio',
-    short_name: 'Pose Studio',
-    description: 'Posable 3D mannequin for drawing reference',
+    name: 'Film Studio',
+    short_name: 'Film Studio',
+    description: 'Block, act and film scenes with posable 3D people',
     start_url: './',
     scope: './',
     display: 'standalone',

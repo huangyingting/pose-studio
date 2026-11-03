@@ -7,7 +7,7 @@ import { newScene } from '@/lib/doc';
 import { anglesOf, bonesOf } from '@/lib/pose';
 
 // A fresh SQLite database with the app's migrations, and a signed-in user we control.
-const dir = mkdtempSync(join(tmpdir(), 'pose-studio-'));
+const dir = mkdtempSync(join(tmpdir(), 'filmstudio-'));
 const file = join(dir, 'test.db');
 process.env.DATABASE_URL = `file:${file}`;
 process.env.ASSETS_DIR = join(dir, 'assets');
@@ -154,7 +154,7 @@ describe('AI API', () => {
     expect((sent[0].init.headers as Record<string, string>)['api-key']).toBe('secret');
     const body = JSON.parse(String(sent[0].init.body));
     expect(body.model).toBe('dep');
-    expect(body.instructions).toMatch(/Pose Studio/);
+    expect(body.instructions).toMatch(/Film Studio/);
     expect(body.tools.map((t: { name: string }) => t.name)).toContain('set_joints');
     expect(body.previous_response_id).toBe('r0');
 

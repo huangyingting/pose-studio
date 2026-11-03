@@ -18,7 +18,7 @@ type Hook = { store: { scene: { figures: { id: string }[]; cameras: { id: string
 /** A box round a figure's joint as it is on the screen. */
 const joint = (page: Page, part: string, r = 22, figure = 0) => async (): Promise<Box> => {
   const p = await page.evaluate(([part, figure]) => {
-    const h = (window as unknown as { __poseStudio: Hook }).__poseStudio;
+    const h = (window as unknown as { __filmStudio: Hook }).__filmStudio;
     return h.viewport.current.project(h.store.scene.figures[figure as number].id, part as string);
   }, [part, figure] as const);
   return { x: p!.x - r, y: p!.y - r, width: 2 * r, height: 2 * r };
@@ -66,7 +66,7 @@ async function template(page: Page, name: RegExp) {
 /** Select the scene's figure or camera by its place in the scene. */
 async function select(page: Page, kind: 'figure' | 'camera', i: number) {
   await page.evaluate(([kind, i]) => {
-    const h = (window as unknown as { __poseStudio: Hook }).__poseStudio;
+    const h = (window as unknown as { __filmStudio: Hook }).__filmStudio;
     const scene = h.store.scene;
     h.store.select(kind === 'figure' ? { kind, figure: scene.figures[i].id } : { kind, camera: scene.cameras[i].id });
   }, [kind, i] as const);
@@ -114,7 +114,7 @@ const SHOTS: Shot[] = [
     async setup(page) {
       await template(page, /^Café meeting/);
       await select(page, 'figure', 0);
-      await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.setTime(4));
+      await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.setTime(4));
       await idle(page, 1500);
     },
     marks: (page) => [
@@ -135,13 +135,13 @@ const SHOTS: Shot[] = [
     name: 'posing',
     async setup(page) {
       await fresh(page);
-      const h = await page.evaluate(() => { const x = (window as unknown as { __poseStudio: Hook }).__poseStudio; return x.viewport.current.project(x.store.scene.figures[0].id, 'rightHand'); });
+      const h = await page.evaluate(() => { const x = (window as unknown as { __filmStudio: Hook }).__filmStudio; return x.viewport.current.project(x.store.scene.figures[0].id, 'rightHand'); });
       await page.mouse.move(h!.x, h!.y + 6);
       await page.mouse.down();
       await page.mouse.move(h!.x + 40, h!.y - 240, { steps: 14 });
       await page.mouse.up();
       await idle(page);
-      const l = await page.evaluate(() => { const x = (window as unknown as { __poseStudio: Hook }).__poseStudio; return x.viewport.current.project(x.store.scene.figures[0].id, 'leftLowerArm'); });
+      const l = await page.evaluate(() => { const x = (window as unknown as { __filmStudio: Hook }).__filmStudio; return x.viewport.current.project(x.store.scene.figures[0].id, 'leftLowerArm'); });
       await page.mouse.click(l!.x, l!.y);
       await idle(page, 1200);
     },
@@ -158,7 +158,7 @@ const SHOTS: Shot[] = [
     name: 'pins',
     async setup(page) {
       await fresh(page);
-      const f = await page.evaluate(() => { const x = (window as unknown as { __poseStudio: Hook }).__poseStudio; return x.viewport.current.project(x.store.scene.figures[0].id, 'leftFoot'); });
+      const f = await page.evaluate(() => { const x = (window as unknown as { __filmStudio: Hook }).__filmStudio; return x.viewport.current.project(x.store.scene.figures[0].id, 'leftFoot'); });
       await page.mouse.click(f!.x, f!.y, { button: 'right' });
       await idle(page, 600);
     },
@@ -257,7 +257,7 @@ const SHOTS: Shot[] = [
     name: 'timeline',
     async setup(page) {
       await template(page, /^Café meeting/);
-      await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.setTime(8));
+      await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.setTime(8));
       for (let i = 0; i < 3; i++) await timeline(page).getByRole('button', { name: /Zoom in/ }).click();
       await idle(page, 1200);
     },
@@ -305,7 +305,7 @@ const SHOTS: Shot[] = [
       await page.mouse.click(980, 690, { button: 'right' });
       await page.getByRole('menuitem', { name: 'Walk here' }).click();
       await idle(page, 1500);
-      await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.setTime(0.6));
+      await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.setTime(0.6));
       await idle(page, 1500);
     },
     marks: (page) => [
@@ -330,7 +330,7 @@ const SHOTS: Shot[] = [
     name: 'look-through',
     async setup(page) {
       await template(page, /^Café meeting/);
-      await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.setTime(12));
+      await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.setTime(12));
       await select(page, 'camera', 1);
       await inspector(page).getByRole('button', { name: 'Look through this camera' }).click();
       await idle(page, 2500);
@@ -431,8 +431,8 @@ const STYLES = ['Line art', 'Watercolour', 'Anime', '3D'];
 
 async function styles(page: Page) {
   await template(page, /^Café meeting/);
-  await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.select(null));
-  await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.setTime(10));
+  await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.select(null));
+  await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.setTime(10));
   const tiles: Buffer[] = [];
   for (const st of STYLES) {
     await page.getByRole('button', { name: 'Render style' }).click();

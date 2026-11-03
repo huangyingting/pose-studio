@@ -31,24 +31,24 @@ type Hook = {
 
 const state = (page: Page) =>
   page.evaluate(() => {
-    const s = (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState();
+    const s = (window as unknown as { __filmStudio: Hook }).__filmStudio.store.getState();
     return { ...s, scene: s.library.scenes[s.sceneIndex] };
   });
 
 const project = (page: Page, joint: string) =>
   page.evaluate((j) => {
-    const h = (window as unknown as { __poseStudio: Hook }).__poseStudio;
+    const h = (window as unknown as { __filmStudio: Hook }).__filmStudio;
     const s = h.store.getState();
     return h.viewport.current!.project(s.activeFigure, j)!;
   }, joint);
 
 /** Screen position of a world point. */
 const projectPoint = (page: Page, p: number[]) =>
-  page.evaluate((q) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.projectPoint(q), p);
+  page.evaluate((q) => (window as unknown as { __filmStudio: Hook }).__filmStudio.viewport.current!.projectPoint(q), p);
 
 /** A part of a figure picked on the canvas: a click picks the figure, another the part (one, if the figure is picked already). */
 async function pickPart(page: Page, at: { x: number; y: number }) {
-  const kind = () => page.evaluate(() => ((window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().selection as { kind?: string } | null)?.kind);
+  const kind = () => page.evaluate(() => ((window as unknown as { __filmStudio: Hook }).__filmStudio.store.getState().selection as { kind?: string } | null)?.kind);
   await page.mouse.click(at.x, at.y);
   await expect.poll(kind).toMatch(/^(figure|joint)$/);
   if ((await kind()) === 'figure') await page.mouse.click(at.x, at.y);
@@ -65,7 +65,7 @@ async function pickFigure(page: Page, at: { x: number; y: number }) {
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await page.mouse.click(at.x, at.y);
-  await expect.poll(() => page.evaluate(() => ((window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().selection as { kind?: string } | null)?.kind)).toBe('figure');
+  await expect.poll(() => page.evaluate(() => ((window as unknown as { __filmStudio: Hook }).__filmStudio.store.getState().selection as { kind?: string } | null)?.kind)).toBe('figure');
 }
 
 async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, modifier?: 'Shift' | 'Control') {
@@ -355,7 +355,7 @@ test('dragging a hand moves the arm with IK', async ({ page }) => {
 
 test('the tools (#38): Move places the whole figure from any part, Rotate turns a hand at its wrist; a pinned hand stays as the chest is posed', async ({ page }) => {
   await page.keyboard.press('1');
-  const figure = () => page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().library.scenes[0].figures[0]);
+  const figure = () => page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.store.getState().library.scenes[0].figures[0]);
   const tools = page.getByRole('group', { name: 'Tools', exact: true });
   await expect(tools.getByRole('button', { name: 'Pose' })).toHaveAttribute('aria-pressed', 'true');
   // Move: a drag on the forearm moves the figure, the arm as it was.
@@ -454,11 +454,11 @@ test('the top bar has the canvas\'s tools for what is selected; the view widget 
   await tools.getByRole('button', { name: 'Scale the prop' }).click();
   await expect(tools.getByRole('button', { name: 'Scale the prop' })).toHaveAttribute('aria-pressed', 'true');
   // A camera: none (the scene-only button stays).
-  await page.evaluate(() => { const s = (window as unknown as { __poseStudio: { store: { scene: { cameras: { id: string }[] }; select(x: unknown): void } } }).__poseStudio.store; s.select({ kind: 'camera', camera: s.scene.cameras[0].id }); });
+  await page.evaluate(() => { const s = (window as unknown as { __filmStudio: { store: { scene: { cameras: { id: string }[] }; select(x: unknown): void } } }).__filmStudio.store; s.select({ kind: 'camera', camera: s.scene.cameras[0].id }); });
   await expect(tools).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Scene only' })).toBeVisible();
   // The view widget dragged across: the view turns; a click on an end: from there.
-  const view = () => page.evaluate(() => (window as unknown as { __poseStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__poseStudio.viewport.current.getView().yaw);
+  const view = () => page.evaluate(() => (window as unknown as { __filmStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__filmStudio.viewport.current.getView().yaw);
   const before = await view();
   const ball = (await page.locator('.view-ball').boundingBox())!;
   await page.mouse.move(ball.x + 20, ball.y + ball.height - 15);
@@ -711,9 +711,9 @@ test('the shortcuts dialog lists each key once, from the commands, then what is 
 });
 
 test('what is selected is named above it, in its colour; with nothing picked, no tag', async ({ page }) => {
-  type Tagged = { __poseStudio: { store: { getState(): { activeFigure: string }; select(s: unknown): void }; viewport: { current: { labelPoint(s: unknown): { x: number; y: number } | null } } } };
+  type Tagged = { __filmStudio: { store: { getState(): { activeFigure: string }; select(s: unknown): void }; viewport: { current: { labelPoint(s: unknown): { x: number; y: number } | null } } } };
   // (The figure's tag: where it goes, and how much of the figure's blue is drawn just above that point.)
-  const at = await page.evaluate(() => { const h = (window as unknown as Tagged).__poseStudio; return h.viewport.current.labelPoint({ kind: 'figure', figure: h.store.getState().activeFigure }); });
+  const at = await page.evaluate(() => { const h = (window as unknown as Tagged).__filmStudio; return h.viewport.current.labelPoint({ kind: 'figure', figure: h.store.getState().activeFigure }); });
   expect(at).not.toBeNull();
   const blue = async () => {
     const png = await page.screenshot({ clip: { x: at!.x - 40, y: at!.y - 45, width: 80, height: 45 } });
@@ -731,7 +731,7 @@ test('what is selected is named above it, in its colour; with nothing picked, no
       return n;
     }, `data:image/png;base64,${png.toString('base64')}`);
   };
-  const pick = (s: 'figure' | null) => page.evaluate((s) => { const h = (window as unknown as Tagged).__poseStudio; h.store.select(s && { kind: s, figure: h.store.getState().activeFigure }); }, s);
+  const pick = (s: 'figure' | null) => page.evaluate((s) => { const h = (window as unknown as Tagged).__filmStudio; h.store.select(s && { kind: s, figure: h.store.getState().activeFigure }); }, s);
   await pick('figure');
   await expect.poll(blue).toBeGreaterThan(150);
   await pick(null);
@@ -739,16 +739,16 @@ test('what is selected is named above it, in its colour; with nothing picked, no
 });
 
 test('a rendering bug shows the crash screen: the project downloads as kept, and Reset starts fresh', async ({ page }) => {
-  type Crashable = { __poseStudio: { store: { getState(): { activeFigure: string }; updateFigure(id: string, fn: (f: object) => object): void } } };
+  type Crashable = { __filmStudio: { store: { getState(): { activeFigure: string }; updateFigure(id: string, fn: (f: object) => object): void } } };
   // (A name that is not text: rendering it throws.)
-  await page.evaluate(() => { const s = (window as unknown as Crashable).__poseStudio.store; s.updateFigure(s.getState().activeFigure, (f) => ({ ...f, name: { not: 'text' } })); });
+  await page.evaluate(() => { const s = (window as unknown as Crashable).__filmStudio.store; s.updateFigure(s.getState().activeFigure, (f) => ({ ...f, name: { not: 'text' } })); });
   const fatal = page.getByRole('alert').filter({ hasText: 'Something went wrong' });
   await expect(fatal).toBeVisible();
   // (Saved as it was: a reload would crash again, which is why the screen offers the download and the reset.)
   await expect.poll(() => page.evaluate(() => localStorage.getItem('pose-studio-library')?.includes('"not":"text"'))).toBe(true);
   errors.length = 0; // the crash's own report
   const [download] = await Promise.all([page.waitForEvent('download'), fatal.getByRole('button', { name: 'Download the project' }).click()]);
-  expect(download.suggestedFilename()).toBe('pose-studio.json');
+  expect(download.suggestedFilename()).toBe('film-studio.json');
   expect(JSON.parse(readFileSync(await download.path(), 'utf8')).scenes).toHaveLength(20);
   page.once('dialog', (d) => d.accept());
   await fatal.getByRole('button', { name: 'Reset saved data' }).click();
@@ -800,7 +800,7 @@ test('mobile layout uses drawers', async ({ page }) => {
   const timeline = page.getByRole('region', { name: 'Timeline' });
   await expect(timeline.getByRole('button', { name: 'Play', exact: true })).toBeInViewport();
   await expect(timeline.getByRole('button', { name: /^Cut/ })).toHaveCount(0);
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(1));
   await timeline.getByRole('button', { name: 'Animation options' }).click();
   await page.getByRole('menuitem', { name: /^Cut: start a new shot here/ }).click();
   await expect(page.locator('.tl-shot')).toHaveCount(2);
@@ -888,8 +888,8 @@ test('figures can be hidden without deleting them', async ({ page }) => {
   let s = (await state(page)).scene;
   expect(s.figures).toHaveLength(2);
   expect((s.figures[1] as { hidden?: boolean }).hidden).toBe(true);
-  expect(await page.evaluate(() => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(
-    (window as unknown as { __poseStudio: Hook }).__poseStudio.store.getState().library.scenes[0].figures[1].id, 'hips',
+  expect(await page.evaluate(() => (window as unknown as { __filmStudio: Hook }).__filmStudio.viewport.current!.project(
+    (window as unknown as { __filmStudio: Hook }).__filmStudio.store.getState().library.scenes[0].figures[1].id, 'hips',
   ))).toBeNull();
   await page.getByRole('button', { name: 'Show Figure 2' }).click();
   s = (await state(page)).scene;
@@ -1064,7 +1064,7 @@ test('placement fields move and turn the figure', async ({ page }) => {
 
 type Anim = Animation;
 const anim = async (page: Page) => page.evaluate(() => {
-  const s = (window as unknown as { __poseStudio: { store: { getState(): { time: number; sceneIndex: number; library: { scenes: { animation?: unknown; cameras: unknown }[] } } } } }).__poseStudio.store.getState();
+  const s = (window as unknown as { __filmStudio: { store: { getState(): { time: number; sceneIndex: number; library: { scenes: { animation?: unknown; cameras: unknown }[] } } } } }).__filmStudio.store.getState();
   const scene = s.library.scenes[s.sceneIndex];
   return { time: s.time, animation: scene.animation as Anim | undefined, cameras: scene.cameras as Camera[] };
 });
@@ -1075,7 +1075,7 @@ test('a library motion plays, takes keys and is filmed by a shot camera', async 
   let s = await live(page);
   expect(actionsOf(s.scene.animation!, s.active).map((x) => x.source.kind)).toEqual(['keys', 'clip']);
 
-  const editorView = () => page.evaluate(() => JSON.stringify((window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.getView()));
+  const editorView = () => page.evaluate(() => JSON.stringify((window as unknown as { __filmStudio: Hook }).__filmStudio.viewport.current!.getView()));
   const free = await editorView();
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   // Playing: the film as filmed (the shot camera), the playhead moving on (however busy the machine).
@@ -1190,7 +1190,7 @@ test('a shot is framed by size and lens, and its camera path edited on the canva
 test('cuts move on the timeline; a camera on a path has a row, one on a rule none; looked through', async ({ page }) => {
   await openSection(page, 'Scene');
   await animate(page);
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(1));
   await page.keyboard.press('c');
   // The cut is dragged later; the cameras stay as they were.
   const before = await anim(page);
@@ -1227,7 +1227,7 @@ test('cuts move on the timeline; a camera on a path has a row, one on a rule non
   await page.getByRole('group', { name: 'Shot size' }).getByRole('button', { name: 'MCU' }).click();
   expect(((await anim(page)).cameras[0] as Camera & { rig: { size: string } }).rig.size).toBe('mcu');
   // C cuts here, the new shot filmed from this view by a new camera (looked through); Esc stops looking through.
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(0.5));
   await page.keyboard.press('c');
   const made = await anim(page);
   expect(made.cameras).toHaveLength(4);
@@ -1353,7 +1353,7 @@ test('keys picked together with Shift-click move together; a correction is a ban
   await page.locator('.tl-tracks').focus();
   await page.keyboard.press('Control+c');
   await expect(page.locator('.toast', { hasText: '2 keys copied' })).toHaveCount(1);
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(3.5));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(3.5));
   await page.locator('.tl-tracks').focus();
   await page.keyboard.press('Control+v');
   s = await live(page);
@@ -1394,7 +1394,7 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
 test('cuts shots and exports a keyframe pack with depth and normal passes', async ({ page }) => {
   test.setTimeout(240_000);
   await sceneWithMotion(page, 'Wave, both arms');
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(0.5));
   await page.getByRole('button', { name: /^Cut: start a new shot here/ }).click();
   await expect(page.locator('.tl-shot')).toHaveCount(2);
   // Shots are listed in the Scene outline and edited in the inspector.
@@ -1436,7 +1436,7 @@ test('storyboard: the scene list in its order, shot by shot, captions, reorderin
   await closeScenes(page);
   await openSection(page, 'Scene');
   await animate(page);
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(1));
   await page.keyboard.press('c');
   await page.keyboard.press('b');
   // A panel per shot: the still scenes, and the animated one's two shots in its place.
@@ -1460,7 +1460,7 @@ test('storyboard: the scene list in its order, shot by shot, captions, reorderin
   expect(download.suggestedFilename()).toMatch(/^Storyboard\.(jpg|png)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(5000);
 
-  await page.waitForFunction(() => (window as unknown as { __poseStudio: { store: { getState(): { saveStatus: string } } } }).__poseStudio.store.getState().saveStatus === 'saved');
+  await page.waitForFunction(() => (window as unknown as { __filmStudio: { store: { getState(): { saveStatus: string } } } }).__filmStudio.store.getState().saveStatus === 'saved');
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   await page.keyboard.press('b');
@@ -1546,7 +1546,7 @@ test('the AI assistant runs on the server and its tools on the open pose', async
   await page.keyboard.press('Enter');
   await expect(page.getByText(/Switched to anime/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.assistant-tool code')).toHaveText('set_style');
-  expect(await page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { library: { settings?: { style: string } } } } } }).__poseStudio.store.getState().library.settings?.style)).toBe('anime');
+  expect(await page.evaluate(() => (window as unknown as { __filmStudio: { store: { getState(): { library: { settings?: { style: string } } } } } }).__filmStudio.store.getState().library.settings?.style)).toBe('anime');
   await expect(page.locator('.assistant-usage')).toContainText('/ 1000');
 });
 
@@ -1628,7 +1628,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
 type LiveStore = { scene: Scene; getState(): { activeFigure: string; time: number; library: { clips?: { id: string; name: string }[] } } };
 const live = (page: Page) =>
   page.evaluate(() => {
-    const store = (window as unknown as { __poseStudio: { store: LiveStore } }).__poseStudio.store;
+    const store = (window as unknown as { __filmStudio: { store: LiveStore } }).__filmStudio.store;
     return { scene: store.scene, active: store.getState().activeFigure, time: store.getState().time, motions: store.getState().library.clips ?? [] };
   });
 
@@ -1730,7 +1730,7 @@ test('the command palette finds commands, scenes and Library items; Move to… w
 test('the view widget, isolate, hover links, dragging from the Library, resizable panels and the dark theme', async ({ page }) => {
   // Many steps, each a frame or more of software rendering.
   test.setTimeout(240_000);
-  const yaw = () => page.evaluate(() => Math.round((window as unknown as { __poseStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__poseStudio.viewport.current.getView().yaw));
+  const yaw = () => page.evaluate(() => Math.round((window as unknown as { __filmStudio: { viewport: { current: { getView(): { yaw: number } } } } }).__filmStudio.viewport.current.getView().yaw));
   // The view widget turns the view as the keys 1–6 do.
   await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the left' }).click();
   await expect.poll(yaw).toBe(90);
@@ -1754,7 +1754,7 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   // A pose dragged from the Library onto the figure that is not selected: it takes it.
   await openSection(page, 'Library');
   await libraryShows(page, 'Poses');
-  const chest = await page.evaluate((id) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(id, 'chest')!, first.id);
+  const chest = await page.evaluate((id) => (window as unknown as { __filmStudio: Hook }).__filmStudio.viewport.current!.project(id, 'chest')!, first.id);
   const canvas = (await page.locator('.stage canvas').boundingBox())!;
   await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: 'Cobra', exact: true })
     .dragTo(page.locator('.stage canvas'), { targetPosition: { x: chest.x - canvas.x, y: chest.y - canvas.y } });
@@ -1816,7 +1816,7 @@ test('a joint clicked (its figure picked) is selected, named in the inspector; i
   const hand = await project(page, 'leftHand');
   const at = { x: (elbow.x + hand.x) / 2, y: (elbow.y + hand.y) / 2 };
   await pickPart(page, at);
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: unknown } } } }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftLowerArm' });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __filmStudio: { store: { getState(): { selection: unknown } } } }).__filmStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftLowerArm' });
   expect(angle((await state(page)).scene.figures[0].bones, 'leftLowerArm')).not.toEqual([0, 0, 0]);
   // Right-click it: the joint stays selected, and its menu resets it.
   await page.mouse.click(at.x, at.y, { button: 'right' });
@@ -1825,9 +1825,9 @@ test('a joint clicked (its figure picked) is selected, named in the inspector; i
   // Another part right-clicked, as a click would: that part selected, its menu pins it.
   const foot = await project(page, 'leftFoot');
   await page.mouse.click(foot.x, foot.y, { button: 'right' });
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: unknown } } } }).__poseStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftFoot' });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __filmStudio: { store: { getState(): { selection: unknown } } } }).__filmStudio.store.getState().selection)).toMatchObject({ kind: 'joint', joint: 'leftFoot' });
   await page.getByRole('menuitemcheckbox', { name: 'Pinned' }).click();
-  expect(await page.evaluate(() => { const s = (window as unknown as { __poseStudio: { store: { getState(): { activeFigure: string; pins: Record<string, string[]> } } } }).__poseStudio.store.getState(); return s.pins[s.activeFigure]; })).toEqual(['leftFoot']);
+  expect(await page.evaluate(() => { const s = (window as unknown as { __filmStudio: { store: { getState(): { activeFigure: string; pins: Record<string, string[]> } } } }).__filmStudio.store.getState(); return s.pins[s.activeFigure]; })).toEqual(['leftFoot']);
 });
 
 test('the timeline is always there: what a figure does next from its + at the playhead; a Library pose dropped on its row at a time', async ({ page }) => {
@@ -1868,7 +1868,7 @@ test('relations by pointing: a hand let go on someone holds on there; who to loo
   await page.waitForTimeout(400);
   await animate(page);
   const [first, second] = (await live(page)).scene.figures;
-  const at = (figure: string, joint: string) => page.evaluate(([f, j]) => (window as unknown as { __poseStudio: Hook }).__poseStudio.viewport.current!.project(f, j)!, [figure, joint]);
+  const at = (figure: string, joint: string) => page.evaluate(([f, j]) => (window as unknown as { __filmStudio: Hook }).__filmStudio.viewport.current!.project(f, j)!, [figure, joint]);
   // The second's hand nearer the first, dragged onto the first's chest: it holds on there from the playhead.
   // (Where they are on screen once the view has settled; a press that missed the hand, once more.)
   await page.waitForTimeout(800);
@@ -2064,7 +2064,7 @@ test('the panels by the keyboard (#20): one Tab stop per list, the arrows inside
 });
 
 test('Tab goes from thing to thing in the scene, Shift + Tab back; in the panels it moves the focus', async ({ page }) => {
-  const sel = () => page.evaluate(() => (window as unknown as { __poseStudio: { store: { getState(): { selection: { kind: string } | null } } } }).__poseStudio.store.getState().selection);
+  const sel = () => page.evaluate(() => (window as unknown as { __filmStudio: { store: { getState(): { selection: { kind: string } | null } } } }).__filmStudio.store.getState().selection);
   const scene = await live(page);
   const things = scene.scene.figures.length + scene.scene.props.length + scene.scene.cameras.length + 1;
   // Before the canvas is clicked, Tab is the browser's (a keyboard user reaches the controls).
@@ -2148,7 +2148,7 @@ test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots sta
   await page.keyboard.press('Home');
   expect((await store()).time).toBe(0);
   // The person below, and on to the last: their row in sight under the ruler and Shots, which stay.
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setSettings(s: object): void } } }).__poseStudio.store.setSettings({ timelineHeight: 150 }));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setSettings(s: object): void } } }).__filmStudio.store.setSettings({ timelineHeight: 150 }));
   const people = (await store()).scene.figures;
   for (let i = 0; i < people.length; i++) await page.keyboard.press('ArrowDown');
   expect((await store()).active).toBe(people.at(-1)!.id);
@@ -2177,7 +2177,7 @@ test('the timeline (#19): clicked in, it takes the keys; its ruler and Shots sta
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => !!document.activeElement?.closest('.tl-tracks'))).toBe(false);
   // Made taller than its rows (its top edge dragged up): the scrollbar at its bottom, not under the last row.
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setSettings(s: object): void } } }).__poseStudio.store.setSettings({ timelineHeight: 420 }));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setSettings(s: object): void } } }).__filmStudio.store.setSettings({ timelineHeight: 420 }));
   await expect.poll(async () => {
     const [t, b] = [(await page.locator('.tl-tracks').boundingBox())!, (await page.locator('.tl-scroll').boundingBox())!];
     return t.y + t.height - (b.y + b.height);
@@ -2269,7 +2269,7 @@ test('a motion block\'s edges trim it (a note says what it plays); Alt-drag stre
   // S splits it at the playhead: two blocks, the second going on from the first.
   await page.locator('.tl-travel.clip').first().click({ position: { x: 30, y: 4 } });
   const mid = Math.round((now.start + now.duration / 2) * 24) / 24;
-  await page.evaluate((t) => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(t), mid);
+  await page.evaluate((t) => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(t), mid);
   await page.locator('.stage canvas').hover({ position: { x: 5, y: 5 } });
   await page.keyboard.press('s');
   const parts = await live(page).then((x) => actionsOf(x.scene.animation!, x.active).filter((a) => a.source.kind === 'clip'));
@@ -2305,7 +2305,7 @@ test('markers on the ruler (M); drags snap to them, the magnet turns it off (#22
   const anim = () => live(page).then((x) => x.scene.animation!);
   const motion = () => live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'clip')!);
   // M with the timeline focused: a marker at the playhead.
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(2));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(2));
   await page.locator('.tl-tracks').focus();
   await page.keyboard.press('m');
   await expect(page.locator('.tl-marker')).toHaveCount(1);
@@ -2336,10 +2336,10 @@ test('markers on the ruler (M); drags snap to them, the magnet turns it off (#22
   await snap.click();
   await expect(snap).toHaveAttribute('aria-pressed', 'false');
   // I and O: the stretch playback goes round.
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(0.5));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(0.5));
   await page.locator('.tl-tracks').focus();
   await page.keyboard.press('i');
-  await page.evaluate(() => (window as unknown as { __poseStudio: { store: { setTime(t: number): void } } }).__poseStudio.store.setTime(1.5));
+  await page.evaluate(() => (window as unknown as { __filmStudio: { store: { setTime(t: number): void } } }).__filmStudio.store.setTime(1.5));
   await page.locator('.tl-tracks').focus();
   await page.keyboard.press('o');
   expect((await anim()).range).toEqual({ from: 0.5, to: 1.5 });
@@ -2361,7 +2361,7 @@ test('posing over a motion makes a correction around that moment: how long it fa
   const motion = await live(page).then((x) => actionsOf(x.scene.animation!, x.active).find((a) => a.source.kind === 'clip')!);
   // The right forearm bent at 1.5 s.
   await page.evaluate(() => {
-    const store = (window as unknown as { __poseStudio: { store: { setTime(t: number): void; getState(): { activeFigure: string }; updateFigure(id: string, fn: (f: { bones: Record<string, number[]> }) => unknown): void } } }).__poseStudio.store;
+    const store = (window as unknown as { __filmStudio: { store: { setTime(t: number): void; getState(): { activeFigure: string }; updateFigure(id: string, fn: (f: { bones: Record<string, number[]> }) => unknown): void } } }).__filmStudio.store;
     store.setTime(1.5);
     store.updateFigure(store.getState().activeFigure, (f) => ({ ...f, bones: { ...f.bones, rightLowerArm: [-0.8, 0, 0, 0.6] } }));
   });
@@ -2414,7 +2414,7 @@ test('in a set, a right-click on a sofa seen from about eye level sits the figur
   expect(did).toContain('library:stand-to-sit');
   // The back wall clicked: the floor at its foot, in the room, not the floor beyond it.
   const wall = await projectPoint(page, [2.8, 1.6, -4.4]);
-  const hit = await page.evaluate(([x, y]) => (window as unknown as { __poseStudio: { viewport: { current: { pick(x: number, y: number): { floor?: number[] } } } } }).__poseStudio.viewport.current.pick(x, y), [wall.x, wall.y]);
+  const hit = await page.evaluate(([x, y]) => (window as unknown as { __filmStudio: { viewport: { current: { pick(x: number, y: number): { floor?: number[] } } } } }).__filmStudio.viewport.current.pick(x, y), [wall.x, wall.y]);
   expect(hit.floor![2]).toBeGreaterThan(-4.5);
 });
 
@@ -2610,7 +2610,7 @@ test('a motion file is imported into My motions and given to the figure', async 
   await page.reload();
   await page.locator('.stage canvas').waitFor();
   const at = (t: number) => page.evaluate((time) => {
-    const store = (window as unknown as { __poseStudio: { store: LiveStore & { setTime(t: number): void } } }).__poseStudio.store;
+    const store = (window as unknown as { __filmStudio: { store: LiveStore & { setTime(t: number): void } } }).__filmStudio.store;
     store.setTime(time);
     return store.scene.figures.find((f) => f.id === store.getState().activeFigure)!.position[2];
   }, t);
@@ -2655,7 +2655,7 @@ test('a character is imported and the figure drawn as it; bones it cannot name a
   const models = page.getByRole('list', { name: 'My characters' });
   await expect(models.getByRole('button', { name: /^Hero/ })).toBeVisible();
   const figure = () => page.evaluate(() => {
-    const store = (window as unknown as { __poseStudio: { store: { figure: { model?: string } | null; getState(): { library: { models?: { id: string; bones: Record<string, string> }[] } } } } }).__poseStudio.store;
+    const store = (window as unknown as { __filmStudio: { store: { figure: { model?: string } | null; getState(): { library: { models?: { id: string; bones: Record<string, string> }[] } } } } }).__filmStudio.store;
     return { model: store.figure?.model, models: store.getState().library.models ?? [] };
   });
   let f = await figure();

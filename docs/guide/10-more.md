@@ -48,7 +48,7 @@ During a session, the keyboard pauses and skips.
 ## Saving and sharing
 
 - The project saves itself in the browser as you work. The indicator by the scene's name says so, and says **Not saved** if the browser refuses; `Ctrl S` still downloads the project then.
-- **Main menu → Save** (`Ctrl S`): the whole project as one file (`pose-studio.json`), to go on with later or elsewhere: every scene with its cast, set, animation, cameras, shots, lights and storyboard notes; the project's frame and style; your saved poses, templates and shoot presets; and your imported motions and characters, their files too.
+- **Main menu → Save** (`Ctrl S`): the whole project as one file (`film-studio.json`), to go on with later or elsewhere: every scene with its cast, set, animation, cameras, shots, lights and storyboard notes; the project's frame and style; your saved poses, templates and shoot presets; and your imported motions and characters, their files too.
 - **Open…** puts a file's scenes in place of these (undo brings them back); **Add scenes…** adds them after these. Either way its poses, templates, motions and characters join yours.
 - **Share link** (a scene's menu in the scene picker): one scene, compressed into the link itself. Nothing is sent to a server.
 - **Share this scene for review** (the account menu, server edition, signed in): a link to a copy of the open scene on the server. Whoever opens it sees the scene with its **notes** beside it: each at a moment of the scene (click one: the playhead goes there); a note is left at the playhead, under your name when signed in.

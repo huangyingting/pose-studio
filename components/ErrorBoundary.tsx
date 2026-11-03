@@ -9,7 +9,7 @@ function downloadProject() {
   if (!json) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-  a.download = 'pose-studio.json';
+  a.download = 'film-studio.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -23,7 +23,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Pose Studio crashed', error, info.componentStack);
+    console.error('Film Studio crashed', error, info.componentStack);
   }
 
   render() {

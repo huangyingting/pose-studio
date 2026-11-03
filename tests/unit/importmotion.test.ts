@@ -105,14 +105,14 @@ describe('importing motions from other tools', () => {
     await expect(readMotionFile('x.txt', text)).rejects.toThrow(/BVH, FBX/);
   });
 
-  it('imports a Pose Studio motion file as it was saved, under a new id', async () => {
+  it('imports a Film Studio motion file as it was saved, under a new id', async () => {
     const clip = retargetMotion(await readMotionFile('Step_forward.bvh', file(CMU)));
     const bytes = new TextEncoder().encode(JSON.stringify(clip)).buffer as ArrayBuffer;
     const back = await importMotion('Step_forward.clip.json', bytes);
     expect(back.id).not.toBe(clip.id);
     expect({ ...back, id: clip.id }).toEqual(clip);
     const other = new TextEncoder().encode('{"parts":[]}').buffer as ArrayBuffer;
-    await expect(importMotion('x.json', other)).rejects.toThrow(/Pose Studio motion/);
+    await expect(importMotion('x.json', other)).rejects.toThrow(/Film Studio motion/);
   });
 
   it('an import that ends as it starts, where it starts, goes round; a step forward does not', async () => {

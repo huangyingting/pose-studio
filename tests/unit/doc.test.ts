@@ -17,7 +17,7 @@ describe('parseLibrary', () => {
 
 
   it('accepts only library files', () => {
-    expect(() => parseLibrary(refScenes()[3])).toThrow('Not a Pose Studio library');
+    expect(() => parseLibrary(refScenes()[3])).toThrow('Not a Film Studio library');
     expect(() => parseLibrary({ scenes: [] })).toThrow('no scenes');
   });
 

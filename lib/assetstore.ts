@@ -18,7 +18,7 @@ const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBu
 
 /** Whether a newer build (in another tab) has the database: this tab can no longer keep or read anything in it. */
 let outdated = false;
-const OUTDATED = 'Pose Studio was updated in another tab: reload this one to keep saving';
+const OUTDATED = 'Film Studio was updated in another tab: reload this one to keep saving';
 const outdatedListeners = new Set<() => void>();
 
 /** Be told (once) when a newer build has the database: this tab should be reloaded. Returns the way to stop. */

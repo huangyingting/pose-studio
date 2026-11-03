@@ -184,6 +184,6 @@ function nativeMotion(data: ArrayBuffer): Clip {
   } catch {
     clip = null;
   }
-  if (!clip) throw new Error('Not a Pose Studio motion file');
+  if (!clip) throw new Error('Not a Film Studio motion file');
   return { ...clip, id: uid('clip') };
 }

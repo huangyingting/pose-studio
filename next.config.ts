@@ -6,7 +6,7 @@ import { contentSecurityPolicy } from './lib/csp';
  *   (unset)      server for `next start`
  *   standalone   self-contained server bundle for the Docker image (set in the Dockerfile)
  *   export       static files in out/ for any static host (GitHub Pages: .github/workflows/pages.yml)
- * NEXT_PUBLIC_BASE_PATH serves the app from a sub-path, e.g. "/pose-studio".
+ * NEXT_PUBLIC_BASE_PATH serves the app from a sub-path, e.g. "/filmstudio".
  *
  * Two editions come out of the same code:
  *   static   the export: everything runs in the browser, no accounts and no AI

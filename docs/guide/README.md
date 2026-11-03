@@ -1,6 +1,6 @@
-# Pose Studio user guide
+# Film Studio user guide
 
-Pose Studio is a posable 3D mannequin for drawing reference, and a small studio for blocking scenes: pose people, put them in a set, make them act, film them in shots, and export pictures, storyboards and video.
+Film Studio is a small studio for blocking and filming scenes with posable 3D people, and a posable mannequin for drawing reference: pose people, put them in a set, make them act, film them in shots, and export pictures, storyboards and video.
 
 This guide goes through the app part by part. Each page has screenshots with numbered marks; the text after each picture explains the marks.
 

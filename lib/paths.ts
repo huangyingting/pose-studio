@@ -1,5 +1,5 @@
 /**
- * URL prefix when the app is served from a sub-path, e.g. "/pose-studio" on GitHub Pages
+ * URL prefix when the app is served from a sub-path, e.g. "/filmstudio" on GitHub Pages without a domain of its own
  * (set NEXT_PUBLIC_BASE_PATH at build time). Next.js prefixes its own routes and assets;
  * hand-written URLs to files in public/ need this.
  */

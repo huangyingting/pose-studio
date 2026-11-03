@@ -24,7 +24,7 @@ interface PackOptions {
   greybox: boolean;
 }
 
-const README = `Pose Studio keyframe pack
+const README = `Film Studio keyframe pack
 
 Each shot folder holds:
   first.png, last.png               the first and last frame of the shot

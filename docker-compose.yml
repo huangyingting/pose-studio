@@ -1,6 +1,6 @@
 # The server edition with its database on a named volume: `docker compose up --build`.
 services:
-  pose-studio:
+  filmstudio:
     build: .
     ports:
       - "3000:3000"

@@ -13,7 +13,7 @@
  * - Other same-origin GETs: stale-while-revalidate.
  */
 const VERSION = 'v2';
-// The app may live under a sub-path (e.g. /pose-studio/ on GitHub Pages): the scope is its root.
+// The app may live under a sub-path (e.g. /filmstudio/ on GitHub Pages): the scope is its root.
 const BASE = new URL(self.registration.scope).pathname;
 const SHELL = `pose-studio-shell-${VERSION}`;
 const ASSETS = `pose-studio-assets-${VERSION}`;

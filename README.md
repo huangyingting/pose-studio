@@ -1,8 +1,10 @@
-# Pose Studio
+# Film Studio
 
-A posable 3D mannequin for drawing reference, and a small studio for blocking scenes. Pose figures by dragging their hands, feet and hips; put them in a set, make them walk and act on a timeline; film them in shots; and export pose sheets, storyboards, video, or packs for AI video tools.
+A small studio for blocking and filming scenes with posable 3D people, and a posable mannequin for drawing reference. Pose figures by dragging their hands, feet and hips; put them in a set, make them walk and act on a timeline; film them in shots; and export pose sheets, storyboards, video, or packs for AI video tools.
 
-![Pose Studio](docs/guide/images/layout.png)
+Live: **https://filmstudio.genisisiq.com** (the static edition).
+
+![Film Studio](docs/guide/images/layout.png)
 
 ## Documentation
 
@@ -36,10 +38,10 @@ npm run dev          # http://localhost:3000
 
 ```bash
 npm run build:static                                    # → out/
-NEXT_PUBLIC_BASE_PATH=/pose-studio npm run build:static  # served from a sub-path
+NEXT_PUBLIC_BASE_PATH=/filmstudio npm run build:static   # served from a sub-path
 ```
 
-Pushing to `main` deploys it to GitHub Pages (`.github/workflows/pages.yml`; enable *Settings → Pages → Source: GitHub Actions* once).
+Pushing to `main` deploys it to GitHub Pages (`.github/workflows/pages.yml`; enable *Settings → Pages → Source: GitHub Actions* once), at the custom domain set there: https://filmstudio.genisisiq.com (a DNS CNAME to `vibewatch.github.io`), served from the root.
 
 ### Server edition
 
@@ -60,7 +62,7 @@ Each sign-in provider appears when it is configured.
 npm run db:migrate && npm run dev                      # local
 npm run build && npm start                             # production
 docker compose up --build                              # or Docker, the database on a volume
-# (or: docker build -t pose-studio . && docker run -p 3000:3000 --env-file .env -v pose-studio-data:/data pose-studio)
+# (or: docker build -t filmstudio . && docker run -p 3000:3000 --env-file .env -v pose-studio-data:/data filmstudio)
 ```
 
 The image applies pending migrations on start, keeps the database on the `/data` volume, runs as a non-root user and answers `GET /api/health`.

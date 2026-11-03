@@ -72,7 +72,7 @@ export default function Studio() {
     return (
       <div className="fatal" role="alert">
         <h1>WebGL is not available</h1>
-        <p>Pose Studio needs a browser with WebGL enabled (any recent Chrome, Edge or Firefox).</p>
+        <p>Film Studio needs a browser with WebGL enabled (any recent Chrome, Edge or Firefox).</p>
       </div>
     );
   }
@@ -155,7 +155,7 @@ function App() {
   }, []);
 
   // A newer build opened in another tab has the browser's storage: this one says so, once.
-  useEffect(() => onOutdated(() => notify('Pose Studio was updated in another tab: reload this one to keep saving', 'error', { label: 'Reload', run: () => location.reload() })), [notify]);
+  useEffect(() => onOutdated(() => notify('Film Studio was updated in another tab: reload this one to keep saving', 'error', { label: 'Reload', run: () => location.reload() })), [notify]);
 
   // A change refused (a locked row, #22): said once each time.
   useEffect(() => {
@@ -298,7 +298,7 @@ function App() {
       return data ? [{ id: m.id, data: toBase64(data) }] : [];
     }))).flat();
     const json = JSON.stringify({ ...lib, ...(clips.length ? { clips } : {}), ...(modelFiles.length ? { modelFiles } : {}) }, null, 2);
-    downloadBlob(new Blob([json], { type: 'application/json' }), 'pose-studio.json');
+    downloadBlob(new Blob([json], { type: 'application/json' }), 'film-studio.json');
   }, [store]);
 
   const openFile = async (file: File, mode: 'replace' | 'append') => {
@@ -307,7 +307,7 @@ function App() {
       try {
         data = JSON.parse(await file.text());
       } catch {
-        throw new Error(`${file.name} is not a Pose Studio project`);
+        throw new Error(`${file.name} is not a Film Studio project`);
       }
       const lib = parseLibrary(data);
       // (A file with no scenes in it does not empty the project.)
@@ -408,9 +408,9 @@ function App() {
     void navigator.serviceWorker.ready.then((r) => r.active?.postMessage({ keep }));
   }, []);
 
-  // Read-only hook for automated tests and power users (e.g. `__poseStudio.store.getState()` in the console).
+  // Read-only hook for automated tests and power users (e.g. `__filmStudio.store.getState()` in the console).
   useEffect(() => {
-    (window as unknown as { __poseStudio?: unknown }).__poseStudio = { store, viewport: apiRef };
+    (window as unknown as { __filmStudio?: unknown }).__filmStudio = { store, viewport: apiRef };
   }, [store]);
 
   // Right-click on the canvas: the menu of what is under the pointer, or of the empty floor.
@@ -473,7 +473,7 @@ function App() {
           <IconButton icon={PanelLeft} label="Side panel" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
           <Menu label="Main menu" className="brand" items={() => menu('main', cx)}>
             <Logo />
-            <span className="brand-name">Pose Studio</span>
+            <span className="brand-name">Film Studio</span>
             <ChevronDown size={15} className="brand-chevron" aria-hidden />
           </Menu>
           <span className="tb-sep hide-mobile" />

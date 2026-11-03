@@ -1,4 +1,4 @@
-# Pose Studio UI guide
+# Film Studio UI guide
 
 How the interface is built, so that what comes next looks and works like what is there. Each rule
 comes from a decision already made (the issue it came from is given where there is one). When a
@@ -112,9 +112,9 @@ first, then everywhere it applies.
 - **One focus ring:** `box-shadow: var(--focus)` (1.5 px, inset, following the radius); outline
   rows ring the row, Library tiles ring outside.
 - **Keys follow the industry where it has an answer** (Ctrl snaps; Shift adds; Delete;
-  Ctrl + C / V / D; Space plays; I / O range; S split; M marker), and Pose Studio's own quick
+  Ctrl + C / V / D; Space plays; I / O range; S split; M marker), and Film Studio's own quick
   edits stay too (arrow steps on any selection, X/Y/Z + ← →). When proposing something new, say
-  which tool does it that way, and mark Pose Studio's own additions as such. (#13, #22.)
+  which tool does it that way, and mark Film Studio's own additions as such. (#13, #22.)
 - **Keys act where the focus is:** the timeline's keys while it has the focus, the canvas's
   otherwise; a text field keeps its own keys.
 

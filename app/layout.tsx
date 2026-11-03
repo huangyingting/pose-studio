@@ -9,9 +9,9 @@ const sans = Inter_Tight({ subsets: ['latin'], variable: '--font-sans', display:
 const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'Pose Studio — posable mannequin for drawing reference',
-  description: 'Pose a 3D art mannequin by dragging hands and feet, then export clean line-art reference sheets.',
-  applicationName: 'Pose Studio',
+  title: 'Film Studio — block, act and film scenes with posable 3D people',
+  description: 'Pose 3D people by dragging hands and feet, put them in a set, make them act and film them in shots; export reference sheets, storyboards and video.',
+  applicationName: 'Film Studio',
 };
 
 // Static hosts (e.g. GitHub Pages) cannot send the CSP header, so static exports carry it as a <meta> tag.
