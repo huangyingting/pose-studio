@@ -1,7 +1,7 @@
 import { wrapDeg } from '../joints';
 import { MAX_LINE, newAnimation, snapTime } from '../animation';
 import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
-import { figurePoseAt, actionsOf, marksOf, naturalEnd, turnsFreely } from '../evaluate';
+import { figurePoseAt, actionsOf, marksOf, naturalEnd, warpOf, withinReach } from '../evaluate';
 import { newProp, nextName } from '../doc';
 import { seatAt } from '../sets';
 import { addTravel, insertClip, insertLine, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
@@ -110,8 +110,9 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
   if (issue.kind === 'slide') {
     // (Its motion, or the one it ends as its last frames are drawn: a frame or two after it, its feet still on it.)
     const act = mine.find((x) => x.source.kind === 'clip' && x.start <= issue.start + 1e-6 && issue.start < x.start + x.duration + 2 / a.fps);
-    // (Not with someone within reach: it would turn them into them.)
-    if (!act || !turnsFreely(store.scene, act, issue.figure)) return null;
+    // (Held to another way than it turns by itself; not with someone within reach: it would turn them into them.)
+    const w = act && warpOf(store.scene, act, issue.figure);
+    if (!act || !w || w.angle < 10 || withinReach(store.scene, issue.figure, act.start)) return null;
     return {
       label: 'Step round instead',
       run: () => store.group(() => {

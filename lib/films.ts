@@ -3,7 +3,7 @@ import { BUILT_IN, LIBRARY, clipById } from './assets';
 import { BODY_PRESETS, DEFAULT_BODY } from './body';
 import { newAnimation, propKeyOf } from './animation';
 import { newFigure, newProp, newScene, nextName } from './doc';
-import { arrivalAt, turnsFreely } from './evaluate';
+import { NATURAL_TURN, arrivalAt, turnsFreely } from './evaluate';
 import { held } from './hold';
 import { fromPreset } from './lighting';
 import { legsOf, travelTime, turnTime } from './locomotion';
@@ -79,6 +79,8 @@ class Stage {
   private blocks: { at: Spot; r: number }[] = [];
   /** What each does while waiting, and whom they watch meanwhile. */
   private idles = new Map<string, { slug: string; watch?: Facing }>();
+  /** The way each motion played was asked to face (or as they faced as it began), before it is left to turn as recorded (see turned). */
+  private asked = new Map<string, number>();
 
   constructor(name: string, cast: { name: string; body: string; at: Spot; facing: Facing; idle?: string }[], light: string, set?: string) {
     const spots = new Map(cast.map((c) => [c.name, c.at]));
@@ -179,7 +181,7 @@ class Stage {
     }
     // (Turned to whom they watch, if there is the time to step round; else as they are.)
     const by = watch === undefined ? 0 : Math.abs(wrap(this.yaw(here.at, watch) - here.facing));
-    const turns = watch !== undefined && (by <= 15 || t - from >= frame(turnTime(by)));
+    const turns = watch !== undefined && (by < NATURAL_TURN || t - from >= frame(turnTime(by)));
     this.play(who, slug, from, { seconds: t - from, ...(turns ? { face: watch } : {}) });
   }
 
@@ -203,7 +205,7 @@ class Stage {
       const here = this.where(who);
       const want = this.yaw(here.at, o.face);
       const by = wrap(want - here.facing);
-      if (Math.abs(by) > 15 && (o.seconds === undefined || o.seconds - frame(turnTime(by)) >= 0)) {
+      if (Math.abs(by) >= NATURAL_TURN && (o.seconds === undefined || o.seconds - frame(turnTime(by)) >= 0)) {
         if (o.seconds === undefined) return this.play(who, slug, this.turn(who, want, t), o);
         // (Only a moment left after it: the turn takes it all, slower, not a moment of the motion.)
         const rest = o.seconds - frame(turnTime(by));
@@ -232,23 +234,28 @@ class Stage {
       source: { kind: 'clip', clip: m.id, ...(o.mirror ? { mirror: true } : {}), ...(o.inPlace ? { inPlace: true } : {}) },
     };
     const ends = this.add(act);
+    // (Asked to face a way, or else as they were: what it turns by itself goes on top.)
+    this.asked.set(act.id, o.face !== undefined ? end.facing : from.facing);
     this.moved(who, t, t + seconds, from.at, [], o.inPlace || o.at ? end : this.turned(who, act));
     return ends;
   }
 
   /**
    * A recorded motion held to a way it does not end facing by itself, as the person recorded turned
-   * as they did it, turned back as it plays, would slide their feet round: it ends as it turns
-   * instead, unless that would turn them into someone (they stepped round to face what they face
-   * first). Where it leaves them.
+   * as they did it, turned back as it plays, would slide their feet round: it ends turned as far as
+   * the recording turns, on top of the way it was asked to face, unless that would turn them into
+   * someone. Where it leaves them.
    */
   private turned(who: string, act: Action): Mark {
-    const end = act.roles[0].end!;
-    const natural = turnsFreely(this.scene, act, this.id(who));
-    if (!natural) return end;
-    const mark = { ...end, facing: Math.round(wrap(natural.facing) * 10) / 10 || 0 };
+    const id = this.id(who);
+    const end = act.roles.find((r) => r.figure === id)!.end!;
+    // (From the way it was asked to face, however often it is looked at again: made longer, at the end.)
+    const asked = this.asked.get(act.id) ?? end.facing;
+    const own = turnsFreely(this.scene, act, id) ?? 0;
+    const mark = { ...end, facing: Math.round(wrap(asked + own) * 10) / 10 || 0 };
+    if (mark.facing === end.facing) return end;
     const a = this.scene.animation!;
-    this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x.id === act.id ? { ...x, roles: [{ ...x.roles[0], end: mark }] } : x)) } };
+    this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x.id === act.id ? { ...x, roles: x.roles.map((r) => (r.figure === id ? { ...r, end: mark } : r)) } : x)) } };
     return mark;
   }
 
@@ -364,7 +371,7 @@ class Stage {
   face(who: string, f: Facing, t: number, seconds = 0.6): number {
     // (As long as stepping round to it takes, at least: not slid round to make the time.)
     const by = Math.abs(wrap(this.yaw(this.where(who).at, f) - this.where(who).facing));
-    return this.play(who, this.idles.get(who)!.slug, t, { seconds: by > 15 ? Math.max(seconds, frame(turnTime(by))) : seconds, face: f });
+    return this.play(who, this.idles.get(who)!.slug, t, { seconds: by >= NATURAL_TURN ? Math.max(seconds, frame(turnTime(by))) : seconds, face: f });
   }
 
   /**
@@ -492,14 +499,6 @@ class Stage {
     const a = this.scene.animation!;
     const end = frame(Math.max(...a.actions.map((x) => x.start + x.duration)) + tail);
     for (const who of this.ids.keys()) this.wait(who, end);
-    // (Now that everyone is where they go: one with nobody within reach after all, at a motion before
-    // a walk or the end (which sets off from however it leaves them), turns as it turns.)
-    for (const [who, id] of this.ids) {
-      const mine = this.scene.animation!.actions.filter((x) => x.roles[0].figure === id && !x.layer && x.roles.length === 1).sort((p, q) => p.start - q.start);
-      mine.forEach((x, i) => {
-        if (x.source.kind === 'clip' && !x.source.inPlace && (!mine[i + 1] || mine[i + 1].source.kind === 'travel')) this.turned(who, x);
-      });
-    }
     return { ...this.scene, animation: { ...this.scene.animation!, duration: end } };
   }
 }
@@ -757,7 +756,7 @@ function houseParty(): Scene {
   // Nia comes in late through the door, waving, and comes over to the sofa.
   s.go('Nia', [-3.8, -1.6], 13);
   s.play('Nia', 'waving', s.until('Nia'), { face: [0, -0.4] });
-  s.go('Nia', [-1.5, -1.2], s.until('Nia'));
+  s.go('Nia', [-1.7, -1.3], s.until('Nia'));
   s.face('Nia', [-0.1, -3.4], s.until('Nia'));
   s.play('Nia', 'talking', s.until('Nia'), { seconds: 7.8, face: 'Kim' });
   s.play('Nia', 'laughing', s.until('Nia'), { seconds: 4, face: 'Sam' });

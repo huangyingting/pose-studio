@@ -117,6 +117,10 @@ describe('walking, running and jumping from mark to mark', () => {
     // Already facing it: nothing to do.
     const { store, id } = fresh();
     expect(turnTo(store, id, 2)).toBe(false);
+    // A turn left with nothing to turn (what it turns from turned that way since): the feet shift where they stand, nothing goes astray.
+    turnTo(store, id, 60);
+    store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.source.kind === 'travel' ? { ...x, roles: x.roles.map((r) => ({ ...r, end: { at: [0, 0] as [number, number], facing: 0 } })) } : x)) } }));
+    for (const f of track(store.scene, id)) expect([f.root.x, f.root.y, f.root.z, f.yaw].every(Number.isFinite)).toBe(true);
   });
 
   it('turns as it arrives when told to face somewhere just after a walk; a short walk back steps back', () => {

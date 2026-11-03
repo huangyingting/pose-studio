@@ -1146,21 +1146,27 @@ export function naturalEnd(scene: Scene, act: Action, id: string): Mark | null {
 }
 
 /**
- * Whether a clip action, left to turn its figure as the person recorded turned (not held to its end
- * mark's way), would turn them by itself, nobody else within reach as it starts (who they would
- * turn into): the way it ends then, or null.
+ * How far a clip action turns its figure by itself, as the person recorded turned as they did it,
+ * if far enough that holding them to another way would slide their feet round and nobody else is
+ * within reach as it starts (who, left to turn, they would turn into): degrees, or null.
  */
-export function turnsFreely(scene: Scene, act: Action, id: string, reach = 1.2): Mark | null {
-  const end = act.roles.find((r) => r.figure === id)?.end;
-  const natural = end && naturalEnd(scene, act, id);
-  if (!natural || Math.abs(wrapDeg(natural.facing - end.facing)) < NATURAL_TURN) return null;
-  const at = (fid: string) => basePoseAt(scene, fid, act.start)?.position ?? scene.figures.find((f) => f.id === fid)!.position;
-  const me = at(id);
-  return scene.figures.some((f) => f.id !== id && !f.hidden && Math.hypot(at(f.id)[0] - me[0], at(f.id)[2] - me[2]) < reach) ? null : natural;
+export function turnsFreely(scene: Scene, act: Action, id: string, reach = 1.2): number | null {
+  const f = scene.figures.find((x) => x.id === id);
+  if (!f || act.source.kind !== 'clip' || !scene.animation) return null;
+  const ev = evaluator(scene);
+  const own = wrapDeg(ev.natural(f, act).facing - ev.startMark(f, act).facing);
+  return Math.abs(own) < NATURAL_TURN || withinReach(scene, id, act.start, reach) ? null : own;
 }
 
-/** How far a recorded motion turns by itself before holding it to another way slides its feet (degrees). */
-const NATURAL_TURN = 10;
+/** Whether anyone else stands within reach of a figure at t (m): turning there, they would turn into them. */
+export function withinReach(scene: Scene, id: string, t: number, reach = 1.2): boolean {
+  const at = (fid: string) => basePoseAt(scene, fid, t)?.position ?? scene.figures.find((x) => x.id === fid)!.position;
+  const me = at(id);
+  return scene.figures.some((x) => x.id !== id && !x.hidden && Math.hypot(at(x.id)[0] - me[0], at(x.id)[2] - me[2]) < reach);
+}
+
+/** How far a recorded motion may be turned from the way it goes by itself before its feet slide round (degrees): further, people step round. */
+export const NATURAL_TURN = 10;
 
 /** How far a clip action is warped for a figure, from where the clip by itself would leave them to its end mark (m, degrees); null: not a warped clip. */
 export function warpOf(scene: Scene, act: Action, id: string): { distance: number; angle: number } | null {

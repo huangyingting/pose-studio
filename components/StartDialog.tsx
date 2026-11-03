@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { rovingKey, useRoving, type Roving } from './roving';
 import { Clapperboard, FilePlus2, Layers, PersonStanding, Trash2, UsersRound, type LucideIcon } from 'lucide-react';
 import { addScene, deleteShoot, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, startAnimatedScene } from '@/lib/actions';
@@ -29,8 +29,8 @@ interface Tile {
   /** What it is made from: a template (its Library motions fetched before it is made, as it times what they do). */
   build?: () => Scene;
   open(): boolean;
-  /** Small buttons on it: put it into this scene, delete one of mine. */
-  actions?: { icon: LucideIcon; label: string; run(): void }[];
+  /** Small buttons on it: put it into this scene (`place`: the template), delete one of mine. */
+  actions?: { icon: LucideIcon; label: string; run?(): void; place?: { id: string; build: () => Scene } }[];
 }
 
 /**
@@ -48,15 +48,27 @@ export function StartDialog({ onClose }: { onClose(): void }) {
   const templates = templatesOf(library);
   const shoots = shootsOf(library);
 
+  // (A template is made once the Library motions it plays have come: one at a time, and not once
+  // the dialog has been closed while they come.)
   const opening = useRef(false);
-  const start = async (tile: Tile) => {
+  const closed = useRef(false);
+  useEffect(() => {
+    closed.current = false;
+    return () => { closed.current = true; };
+  }, []);
+  const whenReady = async (build: (() => Scene) | undefined, then: () => void) => {
     if (opening.current) return;
     opening.current = true;
-    await motionsFor(tile.build);
-    opening.current = false;
-    if (!tile.open()) return;
-    onClose();
+    try {
+      await motionsFor(build);
+      if (!closed.current) then();
+    } finally {
+      opening.current = false;
+    }
   };
+  const start = (tile: Tile) => whenReady(tile.build, () => { if (tile.open()) onClose(); });
+  // (Placed with the pointer: onto a figure, its first role, or the floor.)
+  const place = (t: { id: string; build: () => Scene }) => whenReady(t.build, () => { onClose(); placeOrAdd(placingTemplate(store, t.id), () => { placeTemplate(store, t.id); }); });
   const empty: Tile = {
     key: 'empty', name: 'Empty', meta: 'One figure', icon: FilePlus2,
     open: () => (seconds ? startAnimatedScene(store, {}, seconds) : (addScene(store), true)),
@@ -79,8 +91,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
       {
         icon: Layers,
         label: figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`,
-        // (Placed with the pointer: onto a figure, its first role, or the floor.)
-        run: () => { onClose(); void motionsFor(t.build).then(() => placeOrAdd(placingTemplate(store, t.id), () => { placeTemplate(store, t.id); })); },
+        place: t,
       },
       ...(t.group === 'Mine' ? [{ icon: Trash2, label: `Delete the template ${t.name}`, run: () => { deleteTemplate(store, t.id); } }] : []),
     ],
@@ -113,7 +124,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
                   {tile.actions && (
                     <span className="start-actions">
                       {tile.actions.map((a) => (
-                        <button key={a.label} type="button" className="ibtn" aria-label={a.label} data-tip={a.label} onClick={a.run}>
+                        <button key={a.label} type="button" className="ibtn" aria-label={a.label} data-tip={a.label} onClick={() => (a.place ? void place(a.place) : a.run?.())}>
                           <a.icon size={15} aria-hidden />
                         </button>
                       ))}

@@ -835,7 +835,7 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
   const held = (i: number, back = 0): number => {
     let x = sample(i).stuck ? raw(i) : 0;
     for (let j = Math.max(0, i - reach); j <= i + reach; j++) if (!sample(j).stuck && Math.abs(raw(j)) > Math.abs(x)) x = raw(j);
-    if (i === 0 || back >= HOLD_BACK) return x;
+    if (i === 0 || back >= HOLD_BACK || sample(i - 1).stuck) return x;
     const before = held(i - 1, back + 1);
     const across = (y: number) => (y - x) * (y - before) < 0 && Math.abs(y - x) > 1 && Math.abs(y - before) > 1;
     return Math.abs(before) > Math.abs(x) && sample(i).blocked.some(across) ? before : x;

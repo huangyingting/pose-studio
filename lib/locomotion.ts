@@ -344,9 +344,10 @@ const atEase = (c: Chain) => ({
 /** How far a travel turns from its start to its end (degrees, + to the left). */
 const turnOf = (c: Chain) => wrapDeg(c.yaws[c.yaws.length - 1] - c.yaws[0]);
 /** Whether a walk or run is a turn where it stands: (nearly) nowhere to go, another way to face. */
+// (However little it turns: going nowhere, there is no walk to take, only the feet to shift where they stand.)
 const pivots = (c: Chain) => {
   const [a, b] = [c.path[0], c.path[c.path.length - 1]];
-  return Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.05 && Math.abs(turnOf(c)) > 5;
+  return Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.05;
 };
 /** How far a turn on the spot goes round with each step (degrees; a foot, stepping every other one, goes twice as far). */
 const PIVOT_STEP = 40;
