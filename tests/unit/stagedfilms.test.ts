@@ -4,12 +4,12 @@ import { newShoot, startAnimatedScene } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { cameraAt, liveCamera, viewOf } from '@/lib/cameras';
 import { parseClip } from '@/lib/doc';
-import { actionsOf, figurePoseAt } from '@/lib/evaluate';
+import { actionsOf, figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { FILMS } from '@/lib/films';
-import { checkMotion } from '@/lib/qa';
+import { checkMotion, segmentDistance } from '@/lib/qa';
 import { shotSpans, spanAt } from '@/lib/shots';
 import * as THREE from 'three';
-import { Rig } from '@/lib/relations';
+import { Rig, capsules } from '@/lib/relations';
 import { Store } from '@/lib/store';
 import { SHOOT_PRESETS } from '@/lib/templates';
 import type { Scene } from '@/lib/types';
@@ -103,6 +103,30 @@ describe('films: templates staged as a director would', () => {
             return (['head', 'chest', 'hips'] as const).some((j) => { const q = m.joints[j].getWorldPosition(new THREE.Vector3()).project(cam); return Math.abs(q.x) < 1 && Math.abs(q.y) < 1 && Math.abs(q.z) < 1; });
           });
           expect(seen, `${p.name}: shot ${sp.index + 1} at ${t.toFixed(1)} s`).toBe(true);
+        }
+      }
+    }
+    rig.dispose();
+  }, 600_000);
+
+  it('never has a fight\'s single on one hidden behind the other, swinging round them as they move', () => {
+    const rig = new Rig();
+    for (const film of ['film-wuxia', 'film-kungfu']) {
+      const store = new Store(new MemoryStorage());
+      expect(newShoot(store, `shoot-${film}`)).toBe(true);
+      const scene = store.scene;
+      load(scene);
+      for (let t = 0; t < scene.animation!.duration; t += 0.25) {
+        const cam = liveCamera(scene, t);
+        if (!cam.subject || cam.also?.length) continue;
+        const now = sceneAt(scene, t);
+        const eye = cameraAt(scene, t).position;
+        const m = rig.model(now.figures.find((x) => x.id === cam.subject)!);
+        // (Head and chest both behind the other's body: just in front of them, as the lens sees them.)
+        const points = (['head', 'chest'] as const).map((j) => { const q = m.joints[j].getWorldPosition(new THREE.Vector3()); return q.add(eye.clone().sub(q).setLength(0.15)); });
+        for (const o of now.figures.filter((x) => x.id !== cam.subject)) {
+          const parts = capsules(rig, o);
+          expect(points.every((q) => parts.some((c) => segmentDistance(eye, q, c.p, c.q) < c.r)), `${film}: ${cam.name} at ${t.toFixed(2)} s`).toBe(false);
         }
       }
     }
