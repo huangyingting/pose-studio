@@ -998,6 +998,24 @@ export function insertClip(scene: Scene, cast: string[], clipId: string, start: 
   return { ...s, animation: sorted(s.animation!) };
 }
 
+/**
+ * A line said by a figure (lib/actions sayLine): a motion of talking from `start` for `len` seconds,
+ * with its words, going round at its own pace as long as that, in place of what the figure does
+ * then; what it was doing carries on after it (split there).
+ */
+export function insertLine(scene: Scene, figure: string, clipId: string, start: number, len: number, say: string): { scene: Scene; id: string } | null {
+  const clip = clipById(clipId);
+  if (!clip || !scene.figures.some((f) => f.id === figure)) return null;
+  let a: Animation = scene.animation ?? newAnimation(scene, Math.max(0.2, start + len));
+  const t0 = snapTime({ ...a, duration: MAX_DURATION }, start);
+  const t1 = Math.min(MAX_DURATION, Math.max(t0 + 1 / a.fps, Math.round((t0 + len) * a.fps) / a.fps));
+  const over = actionsOf(a, figure).find((x) => x.start < t1 - EPS && end(x) > t1 + EPS);
+  if (over && !unsplittable(a, over.id, t1)) a = splitAction(a, over.id, t1);
+  a = clear({ ...scene, animation: longer(a, t1) }, figure, t0, t1);
+  const act: Action = { id: uid('act'), start: t0, duration: t1 - t0, blendIn: BLEND, roles: [{ figure }], source: { kind: 'clip', clip: clipId, ...(clip.loop ? {} : { loops: true }) }, say };
+  return { scene: { ...scene, animation: sorted({ ...a, actions: [...a.actions, act] }) }, id: act.id };
+}
+
 function turn(x: number, z: number, deg: number): [number, number] {
   const r = (deg * Math.PI) / 180;
   return [x * Math.cos(r) + z * Math.sin(r), -x * Math.sin(r) + z * Math.cos(r)];

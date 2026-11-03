@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { lineTime, sayLine, setLine, sitOn, addProp } from '@/lib/actions';
+import { addProp, applyMotion, lineTime, sayLine, setLine, sitOn } from '@/lib/actions';
+import { actionsOf } from '@/lib/evaluate';
 import { parseScene } from '@/lib/doc';
 import { talking } from '@/lib/face';
 import { actionLabel } from '@/lib/track';
@@ -29,6 +30,26 @@ describe('lines of dialogue', () => {
     setLine(store, id, '');
     expect(store.scene.animation!.actions.find((x) => x.id === id)!.say).toBeUndefined();
     expect(sayLine(store, a, '   ')).toBeNull();
+  });
+
+  it('said in the middle of something, what they were doing carries on after it', () => {
+    const { store, a } = fresh();
+    const dance = captured('dancing');
+    captured('talking');
+    store.setTime(0);
+    expect(applyMotion(store, a, dance)).toBe(true);
+    const whole = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    store.setTime(2);
+    const id = sayLine(store, a, 'Not now.')!;
+    const after = actionsOf(store.scene.animation!, a).filter((x) => x.source.kind === 'clip');
+    const len = lineTime('Not now.');
+    expect(after.map((x) => (x.source as { clip: string }).clip)).toEqual([dance, 'library:talking', dance]);
+    expect(after[1].start).toBeCloseTo(2, 3);
+    // (On a frame: within one of the line's length.)
+    expect(Math.abs(after[2].start - (2 + len))).toBeLessThan(1 / 24 + 1e-6);
+    expect(after[1].id).toBe(id);
+    // (The dance where it would have been, to its end.)
+    expect(after[2].start + after[2].duration).toBeCloseTo(whole.start + whole.duration, 2);
   });
 
   it('someone sitting says it sitting', () => {
