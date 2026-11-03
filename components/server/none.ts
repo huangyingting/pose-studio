@@ -6,4 +6,5 @@ import type { SaveStatus } from '@/lib/store';
 export const ServerRoot: ComponentType<{ children: ReactNode }> | null = null;
 export const Account: ComponentType | null = null;
 export const SaveState: ComponentType<{ status: SaveStatus }> | null = null;
+export const Review: ComponentType | null = null;
 export const Assistant: ComponentType | null = null;

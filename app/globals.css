@@ -1137,6 +1137,15 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .qa-card em { justify-self: end; font-size: var(--fs-s); font-weight: 540; font-style: normal; color: var(--text-3); }
 .qa-msg { grid-column: 1 / -1; color: var(--text); }
 .qa-hint { grid-column: 1 / -1; color: var(--text-2); }
+/* A review's notes (server edition), over the canvas's top left (the view ball has the right); each a moment of the scene. */
+.review-card { position: absolute; top: 12px; left: 12px; z-index: var(--z-float); width: min(320px, calc(100% - 24px)); max-height: min(60%, 420px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; padding: 12px 6px 8px 12px; background: var(--panel); border-radius: var(--radius-l); box-shadow: var(--shadow-pop); }
+.review-card .qa-head strong { display: inline-flex; align-items: center; gap: 6px; }
+.review-card ul { list-style: none; margin: 0; padding: 0 6px 0 0; overflow-y: auto; }
+.review-card li button { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); text-align: left; cursor: pointer; }
+.review-card li button:hover { background: var(--hover); }
+.review-card li em { font-style: normal; font-size: var(--fs-s); color: var(--text-3); }
+.review-card li span { grid-column: 1 / -1; }
+.review-card form { display: grid; gap: 6px; padding-right: 6px; }
 /* Those as recorded, folded at the end. */
 .qa-card .qa-fold button { align-items: center; color: var(--text-2); font-weight: 540; }
 .tl-past { position: absolute; top: 0; bottom: 0; pointer-events: none; border-left: 1px dashed var(--border-strong); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--text-3) 9%, transparent) 6px 7px); }

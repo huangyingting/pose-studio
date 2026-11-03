@@ -13,5 +13,7 @@ export const ServerRoot: ComponentType<{ children: ReactNode }> | null = dynamic
 export const Account: ComponentType | null = dynamic(() => import('./Account').then((m) => m.Account));
 /** The save indicator, synced to the account when signed in. */
 export const SaveState: ComponentType<{ status: SaveStatus }> | null = dynamic(() => import('./Account').then((m) => m.SyncedSaveIndicator));
+/** A scene shared for review, opened from its link, with its notes. */
+export const Review: ComponentType | null = dynamic(() => import('./Review'));
 /** The AI assistant (a section of the left side panel). */
 export const Assistant: ComponentType | null = dynamic(() => import('./Assistant'));

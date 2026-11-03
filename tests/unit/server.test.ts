@@ -14,7 +14,10 @@ process.env.ASSETS_DIR = join(dir, 'assets');
 let user: string | null = null;
 vi.mock('@/lib/server/auth', () => ({ currentUserId: async () => user }));
 
-type Routes = { library: typeof import('@/app/api/library/route.server'); ai: typeof import('@/app/api/ai/route.server'); asset: typeof import('@/app/api/assets/[id]/route.server') };
+type Routes = {
+  library: typeof import('@/app/api/library/route.server'); ai: typeof import('@/app/api/ai/route.server'); asset: typeof import('@/app/api/assets/[id]/route.server');
+  reviews: typeof import('@/app/api/reviews/route.server'); review: typeof import('@/app/api/reviews/[id]/route.server'); notes: typeof import('@/app/api/reviews/[id]/comments/route.server');
+};
 let routes: Routes;
 
 beforeAll(async () => {
@@ -24,7 +27,10 @@ beforeAll(async () => {
   }
   db.prepare("insert into User (id, email, createdAt) values ('u1', 'a@test', 0), ('u2', 'b@test', 0)").run();
   db.close();
-  routes = { library: await import('@/app/api/library/route.server'), ai: await import('@/app/api/ai/route.server'), asset: await import('@/app/api/assets/[id]/route.server') };
+  routes = {
+    library: await import('@/app/api/library/route.server'), ai: await import('@/app/api/ai/route.server'), asset: await import('@/app/api/assets/[id]/route.server'),
+    reviews: await import('@/app/api/reviews/route.server'), review: await import('@/app/api/reviews/[id]/route.server'), notes: await import('@/app/api/reviews/[id]/comments/route.server'),
+  };
 });
 
 afterEach(() => {
@@ -68,6 +74,36 @@ describe('library API', () => {
     expect(saved.scenes[0].name).toBe('Junk');
     expect(saved.scenes[0].evil).toBeUndefined();
     expect(anglesOf(saved.scenes[0].figures[0].bones)).toEqual({ leftLowerLeg: [30, 0, 0] });
+  });
+});
+
+describe('reviews API', () => {
+  const at = (id: string) => ({ params: Promise.resolve({ id }) });
+  const share = (body: unknown) => routes.reviews.POST(new Request('http://x/api/reviews', { method: 'POST', body: JSON.stringify(body) }));
+  const note = (id: string, body: unknown) => routes.notes.POST(new Request(`http://x/api/reviews/${id}/comments`, { method: 'POST', body: JSON.stringify(body) }), at(id));
+  const get = (id: string) => routes.review.GET(new Request(`http://x/api/reviews/${id}`), at(id));
+
+  it('shares a scene for review when signed in; anyone with the link sees it and leaves notes at its moments', async () => {
+    expect((await share({ scene: newScene('Pitch') })).status).toBe(401);
+    user = 'u1';
+    expect((await share({ scene: { figures: 'nope' } })).status).toBe(400);
+    const { id } = await (await share({ scene: newScene('Pitch') })).json();
+    // Anyone with the link: not signed in, under the name they give; signed in, under theirs.
+    user = null;
+    let r = await (await get(id)).json();
+    expect(r.name).toBe('Pitch');
+    expect(r.scene.name).toBe('Pitch');
+    expect(r.comments).toEqual([]);
+    expect((await note(id, { t: 1.5, text: 'Hold this longer', author: 'Kim' })).status).toBe(200);
+    user = 'u2';
+    expect((await note(id, { t: 0.5, text: 'Nice turn', author: 'Not me' })).status).toBe(200);
+    r = await (await get(id)).json();
+    expect(r.comments.map((c: { t: number; author: string; text: string }) => [c.t, c.author, c.text])).toEqual([[0.5, 'b@test', 'Nice turn'], [1.5, 'Kim', 'Hold this longer']]);
+    // A note needs words and a time; a review that is not there has none.
+    expect((await note(id, { t: -1, text: 'x' })).status).toBe(400);
+    expect((await note(id, { t: 1, text: '  ' })).status).toBe(400);
+    expect((await get('nope')).status).toBe(404);
+    expect((await note('nope', { t: 1, text: 'x' })).status).toBe(404);
   });
 });
 

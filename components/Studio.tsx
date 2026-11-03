@@ -24,7 +24,7 @@ import Board from './Board';
 import { ExportDialog, HelpDialog, PhotoDialog } from './dialogs';
 import { StartDialog } from './StartDialog';
 // Accounts, library sync and AI: the server edition only (null in the static build).
-import { Account, SaveState, ServerRoot } from '@edition/server';
+import { Account, Review, SaveState, ServerRoot } from '@edition/server';
 import SaveIndicator from './SaveIndicator';
 import ErrorBoundary from './ErrorBoundary';
 import Inspector, { type InspectorContext } from './Inspector';
@@ -597,6 +597,8 @@ function App() {
         {!through && <ViewBall ctx={cx} view={viewNow} turn={turnView} />}
         {/* (The scene alone hides the top bar and its tools: the way back, in the canvas's corner.) */}
         {stageOnly && <BackToPanels onBack={() => setStageOnly(false)} />}
+        {/* (A scene opened from a review link: its notes, server edition.) */}
+        {Review && <Review />}
         {/* What the pointer, the keys or the next step say, over the canvas's foot. */}
         <div className="stage-hint">
           <Hint

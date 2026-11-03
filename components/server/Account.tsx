@@ -2,13 +2,14 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { SessionProvider, getProviders, signIn, signOut, useSession } from 'next-auth/react';
-import { LogIn, LogOut } from 'lucide-react';
+import { LogIn, LogOut, MessageSquare } from 'lucide-react';
 import { CloudSync } from '@/lib/cloud';
 import { withBase } from '@/lib/paths';
 import type { SaveStatus } from '@/lib/store';
 import SaveIndicator from '../SaveIndicator';
 import { useStore } from '../store-context';
 import { Hint, Menu, type MenuItem } from '../ui';
+import { shareForReview } from './Review';
 
 /*
  * Server edition: accounts (NextAuth) and library sync around the studio. Loaded only in the
@@ -94,6 +95,7 @@ export function SyncedSaveIndicator({ status }: { status: SaveStatus }) {
 
 /** Top bar: sign in, or the account and sign out. */
 export function Account() {
+  const store = useStore();
   const { data, status } = useSession();
   const providers = useProviders();
   if (status === 'loading') return null;
@@ -116,6 +118,8 @@ export function Account() {
 
   const items: MenuItem[] = [
     { group: user.email ?? user.name ?? 'Signed in' },
+    // (A link to the open scene: whoever has it sees it, and leaves notes on it at its moments.)
+    { label: 'Share this scene for review', icon: MessageSquare, onSelect: () => void shareForReview(store) },
     { label: 'Sign out', icon: LogOut, onSelect: () => void signOut() },
   ];
   const initial = (user.name || user.email || '?').trim()[0]?.toUpperCase();

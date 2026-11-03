@@ -20,6 +20,7 @@ One codebase builds two editions:
 | Runs on | GitHub Pages or any static host | Node or Docker |
 | Posing, animation, storyboard, export, photo posing | ✓ in the browser | ✓ |
 | Sign-in (Google, Microsoft), library synced across devices | | ✓ NextAuth, Prisma + SQLite |
+| Review links: a scene shared, notes left at its moments | | ✓ |
 | AI assistant | | ✓ Azure OpenAI or OpenAI, with the server's key |
 
 ## Build and run

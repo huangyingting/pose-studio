@@ -19,6 +19,7 @@ model User {
   sessions      Session[]
   library       Library?
   aiUsage       AiUsage[]
+  reviews       Review[]
 }
 
 model Account {
@@ -78,4 +79,30 @@ model AiUsage {
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, day])
+}
+
+/// A scene shared for review: a copy of it as shared (JSON), and what those with the link say about it.
+model Review {
+  id        String          @id @default(cuid())
+  userId    String
+  name      String
+  scene     String
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments  ReviewComment[]
+
+  @@index([userId])
+}
+
+/// A reviewer's note on a scene shared for review, at a moment of it (seconds).
+model ReviewComment {
+  id        String   @id @default(cuid())
+  reviewId  String
+  author    String
+  t         Float
+  text      String
+  createdAt DateTime @default(now())
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
 }
