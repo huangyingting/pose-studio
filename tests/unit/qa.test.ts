@@ -41,7 +41,7 @@ describe('motion QA', () => {
   });
 
   it('passes the built-in animations and multi-person holds', () => {
-    for (const id of ['kick', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
+    for (const id of ['leap', 'bow']) expect(checkMotion(motionScene(id)), id).toEqual([]);
     // Walking, running and jumping a way: their steps captured or made.
     for (const [kind, d] of [['walk', 3], ['run', 6], ['jump', 1]] as const) {
       const { store, a } = fresh();

@@ -20,7 +20,8 @@ export default defineConfig({
     // matrices over builds, whole films; most of the time, run in CI).
     projects: [
       { extends: true, test: { name: 'unit', include: ['tests/unit/**/*.test.ts'], exclude: SLOW } },
-      { extends: true, test: { name: 'slow', include: SLOW } },
+      // (The matrices keep every build's scenes and cameras worked out in one worker: more room than node's default.)
+      { extends: true, test: { name: 'slow', include: SLOW, execArgv: ['--max-old-space-size=8192'] } },
     ],
   },
 });

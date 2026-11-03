@@ -12,7 +12,7 @@ import { highJump } from '@/lib/motions';
 import { checkMotion } from '@/lib/qa';
 import { SceneView } from '@/lib/sceneview';
 import { CMU, bvh } from '../fixtures/bvh';
-import { audit, expectClean, figureAt, fresh, seenFrom, captured } from '../fixtures/scenes';
+import { audit, expectClean, figureAt, fixAll, fresh, seenFrom, captured } from '../fixtures/scenes';
 
 /*
  * Whole scenes made the way a user makes them (the same actions as the menus), for the use case of
@@ -105,15 +105,15 @@ describe('scenes from the use case', () => {
     expectClean(store.scene);
   }, 60_000);
 
-  it('a floor routine chained at the playhead: cartwheel, pirouette, run off', () => {
+  it('a floor routine chained at the playhead: cartwheel, a spin, run off', () => {
     const { store, a } = fresh();
-    applyMotion(store, a, 'cartwheel');
+    applyMotion(store, a, captured('cartwheel'));
     store.setTime(store.scene.animation!.duration);
-    applyMotion(store, a, 'pirouette');
+    applyMotion(store, a, captured('spinning'));
     store.setTime(store.scene.animation!.duration);
     const where = store.scene.figures[0].position;
-    // The pirouette starts where the cartwheel ended.
-    expect(where[0]).toBeLessThan(-1.5);
+    // The spin starts where the cartwheel ended, metres on.
+    expect(Math.hypot(where[0], where[2])).toBeGreaterThan(1.5);
     travelTo(store, a, [where[0] - 3, where[2]], 'run');
     expectClean(store.scene);
   }, 60_000);
@@ -258,17 +258,19 @@ describe('scenes from the use case', () => {
     // Up two metres over the hand, about 1.3 s in the air.
     expect(toss.to - toss.from).toBeGreaterThan(1.1);
     store.setTime(toss.to);
-    applyMotion(store, a, 'cartwheel');
+    applyMotion(store, a, captured('cartwheel'));
+    // (The motion check's fixes taken: the cartwheel eased into from the catch.)
+    fixAll(store);
     expectClean(store.scene);
     expect(sceneAt(store.scene, store.scene.animation!.duration).props[0].hold?.figure).toBe(a);
   }, 60_000);
 
-  it('rhythmic gymnastics: a ribbon trails the stick through a pirouette, its own length, above the floor', () => {
+  it('rhythmic gymnastics: a ribbon trails the stick through a spin, its own length, above the floor', () => {
     const { store, a } = fresh();
     addProp(store, 'ribbon');
     const ribbon = store.scene.props[0];
     expect(ribbon.hold).toEqual({ figure: a, hand: 'R' });
-    applyMotion(store, a, 'pirouette');
+    applyMotion(store, a, captured('spinning'));
     expectClean(store.scene);
     const lengths = (trail: number[][]) => trail.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - trail[i][0], p[1] - trail[i][1], p[2] - trail[i][2]), 0);
     const started = performance.now();

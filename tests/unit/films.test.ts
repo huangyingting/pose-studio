@@ -20,7 +20,7 @@ import { shotSpans } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
-import { body, expectClean, fresh, seenFrom, captured } from '../fixtures/scenes';
+import { body, expectClean, fixAll, fresh, seenFrom, captured } from '../fixtures/scenes';
 
 /*
  * Acceptance baseline for the redesign (issue #1): these films must keep passing at every step.
@@ -403,13 +403,15 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     travelTo(store, b, [2.5, 3], 'walk');
     store.setTime(walk.to);
     // Ben kicks, Kai goes down: each their own motion.
-    expect(applyMotion(store, a, 'kick')).toBe(true);
+    expect(applyMotion(store, a, captured('mma-kick'))).toBe(true);
     store.setTime(walk.to);
-    expect(applyMotion(store, b, 'fall')).toBe(true);
+    expect(applyMotion(store, b, captured('falling-down'))).toBe(true);
+    // (The motion check's fixes taken: going down eased into from the walk.)
+    fixAll(store);
     light(store, 'studio');
     shoot(store, [walk.to], ['static', 'orbit90']);
     expectFilm(store, 'studio', 2);
-    // Kai goes down (and gets up again: the fall's own).
+    // Kai goes down.
     const sv = new SceneView();
     sv.sync(sceneAt(store.scene, walk.to + 1.5));
     expect(sv.figures.get(b)!.joints.chest.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(0.5);
@@ -426,18 +428,20 @@ describe('films for the use case: light, cameras, people, props, occlusion and p
     store.updateFigure(b, (f) => ({ ...f, body: body('Tall woman') }));
     addProp(store, 'ring');
     const ring = store.scene.props[1].id;
-    // Ana: leap, pirouette, cartwheel, one after another.
+    // Ana: leap, spin, cartwheel, one after another.
     store.setTime(0);
     applyMotion(store, a, 'leap');
     store.setTime(store.scene.animation!.duration);
-    applyMotion(store, a, 'pirouette');
+    applyMotion(store, a, captured('spinning'));
     store.setTime(store.scene.animation!.duration);
-    applyMotion(store, a, 'cartwheel');
+    applyMotion(store, a, captured('cartwheel'));
     // Eva tosses her hoop and catches it, then leaps.
     store.setTime(0.5);
     const toss = throwProp(store, ring, { figure: b, hand: 'R' })!;
     store.setTime(toss.to + 0.3);
     applyMotion(store, b, 'leap');
+    // (The motion check's fixes taken: the spin eased into from the leap.)
+    fixAll(store);
     light(store, 'soft');
     shoot(store, [3], ['crane', 'orbit360']);
     expectFilm(store, 'soft', 2);

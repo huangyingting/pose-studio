@@ -128,8 +128,11 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
     };
   }
   if (issue.kind === 'pop') {
-    const act = mine.find((x) => !x.layer && x.source.kind === 'clip' && Math.abs(x.start - issue.start) < 0.4 && (x.blendIn ?? 0) < 0.5);
-    if (act) return { label: 'Ease into it', run: () => setBlend(store, act.id, 0.5) };
+    // (Over half a second; already so, over a second: a step into a wide stance, a cartwheel's, takes that.)
+    const more = (x: { blendIn?: number }) => ((x.blendIn ?? 0) < 0.5 ? 0.5 : 1);
+    // (With the time before it to ease over.)
+    const act = mine.find((x) => !x.layer && x.source.kind === 'clip' && Math.abs(x.start - issue.start) < 0.6 && (x.blendIn ?? 0) < 1 && x.start >= more(x));
+    if (act) return { label: (act.blendIn ?? 0) < 0.5 ? 'Ease into it' : 'Ease into it more slowly', run: () => setBlend(store, act.id, more(act)) };
     // (At a repeat's start, #23: a blend between the repeats.)
     const rep = mine.find((x) => x.source.kind === 'clip' && (x.source.repeat ?? 1) > 1 && x.start < issue.start && issue.start < x.start + x.duration
       && Array.from({ length: (x.source as { repeat: number }).repeat - 1 }, (_, k) => x.start + ((k + 1) * x.duration) / (x.source as { repeat: number }).repeat).some((s) => Math.abs(s - issue.start) < 0.4));

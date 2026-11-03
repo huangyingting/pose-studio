@@ -155,7 +155,8 @@ describe('assistant tools', () => {
     expect(edit({ remove: true })).toBe('Removed Walk.');
     // A motion's part, its split, in place, a layer's body parts and strength (#22, #23).
     store.setTime(0);
-    run(store, 'apply_motion', { figure: id, motion: 'cartwheel' });
+    captured('cartwheel');
+    run(store, 'apply_motion', { figure: id, motion: 'Cartwheel' });
     const jump = actionsOf(store.scene.animation!, id).find((x) => x.source.kind === 'clip')!;
     const editJump = (patch: Record<string, unknown>) => run(store, 'edit_action', { action: jump.id, start: null, duration: null, blend_in: null, speed: null, mirrored: null, remove: null, ...patch });
     editJump({ plays_from: 0.2, in_place: true });

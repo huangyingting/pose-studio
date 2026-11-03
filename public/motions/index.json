@@ -100,6 +100,18 @@
   "turn": 0
  },
  {
+  "id": "library:quick-informal-bow",
+  "name": "Bow, quick",
+  "duration": 2.733,
+  "people": 1,
+  "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:capoeira",
   "name": "Capoeira",
   "duration": 4.8,
@@ -108,6 +120,18 @@
   "move": [
    0.716,
    -0.331
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:cartwheel",
+  "name": "Cartwheel",
+  "duration": 3.533,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.013,
+   3.25
   ],
   "turn": 0
  },
@@ -266,6 +290,18 @@
   "turn": 166
  },
  {
+  "id": "library:falling-down",
+  "name": "Fall down",
+  "duration": 2.267,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   -0.594,
+   -0.851
+  ],
+  "turn": 90
+ },
+ {
   "id": "library:fight-idle",
   "name": "Fighting stance",
   "duration": 7.467,
@@ -303,6 +339,24 @@
   "turn": 15
  },
  {
+  "id": "library:mma-kick",
+  "name": "Front kick",
+  "duration": 1.6,
+  "people": 1,
+  "group": "Fighting",
+  "impact": 0.64,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   0.123,
+   1.286,
+   1.166
+  ]
+ },
+ {
   "id": "library:sit-to-stand",
   "name": "Get up from a chair",
   "duration": 2.267,
@@ -326,6 +380,18 @@
    0.265
   ],
   "turn": -26
+ },
+ {
+  "id": "library:getting-up",
+  "name": "Get up off the floor",
+  "duration": 8.6,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   -0.276,
+   -0.096
+  ],
+  "turn": -66
  },
  {
   "id": "library:golf-drive",
@@ -733,6 +799,18 @@
   ]
  },
  {
+  "id": "library:picking-up",
+  "name": "Pick something up",
+  "duration": 9.567,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -0.042,
+   0.002
+  ],
+  "turn": 5
+ },
+ {
   "id": "library:pointing",
   "name": "Point at someone",
   "duration": 3.433,
@@ -1056,6 +1134,18 @@
   "move": [
    -0.008,
    1.905
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:spinning",
+  "name": "Spin on one foot",
+  "duration": 1.7,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },

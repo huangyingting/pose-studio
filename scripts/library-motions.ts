@@ -81,9 +81,12 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Kneeling Idle': ['Kneel', 'Sitting & lying'],
   'Crouch To Stand': ['Get up from one knee', 'Sitting & lying'],
   'Stand Up': ['Stand up, slow', 'Sitting & lying'],
+  'Falling Down': ['Fall down', 'Sitting & lying'],
+  'Getting Up': ['Get up off the floor', 'Sitting & lying'],
   'Lying Down': ['Lie down on a bed', 'Sitting & lying'],
   'Laying Idle': ['Lie, idle', 'Sitting & lying'],
   'Talking': ['Talk, explaining', 'Talking & gestures'],
+  'Quick Informal Bow': ['Bow, quick', 'Talking & gestures'],
   'Sitting Talking': ['Talk, sitting', 'Talking & gestures'],
   'Standing Arguing': ['Argue', 'Talking & gestures'],
   'Head Nod Yes': ['Nod yes', 'Talking & gestures'],
@@ -111,6 +114,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Carrying': ['Hold a box', 'Using things'],
   'Lifting Object': ['Lift a heavy box', 'Using things'],
   'Pick Up Item': ['Grab something on the run', 'Moving'],
+  'Picking Up': ['Pick something up', 'Using things'],
   'Throw Object': ['Throw', 'Using things'],
   'Push': ['Push something heavy', 'Using things'],
   'Pull Heavy Object': ['Pull something heavy', 'Using things'],
@@ -129,6 +133,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Hook Punch': ['Hook punch', 'Fighting'],
   'Uppercut': ['Uppercut', 'Fighting'],
   'Roundhouse Kick': ['Roundhouse kick', 'Fighting'],
+  'Mma Kick': ['Front kick', 'Fighting'],
   'Punching Bag': ['Hit a punching bag', 'Fighting'],
   'Blocking': ['Guard up', 'Fighting'],
   'Standing Block': ['Block', 'Fighting'],
@@ -145,6 +150,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Jumping Jacks': ['Jumping jacks', 'Sport & acrobatics'],
   'Jumping Rope': ['Skip rope', 'Sport & acrobatics'],
   'Backflip': ['Backflip', 'Sport & acrobatics'],
+  'Cartwheel': ['Cartwheel', 'Sport & acrobatics'],
   'Front Flip': ['Front flip', 'Sport & acrobatics'],
   'Baseball Hit': ['Baseball swing', 'Sport & acrobatics'],
   'Baseball Pitching': ['Baseball pitch', 'Sport & acrobatics'],
@@ -152,6 +158,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Football Catch': ['Catch a football', 'Sport & acrobatics'],
   'Soccer Penalty Kick': ['Penalty kick', 'Sport & acrobatics'],
   'Dancing': ['Dance', 'Dance'],
+  'Spinning': ['Spin on one foot', 'Dance'],
   'Hip Hop Dancing': ['Hip hop', 'Dance'],
   'Jazz Dancing': ['Jazz', 'Dance'],
   'Rumba Dancing': ['Rumba', 'Dance'],
@@ -180,6 +187,7 @@ const round = (v: number) => Math.round(v * 1000) / 1000;
  */
 const ONCE = [
   'Shooting', 'Surprised', 'Head Nod Yes', 'Shaking Head No', 'Pointing', 'Salute', 'Shake Fist', 'Shrugging', 'Standing Thumbs Up', 'Dismissing Gesture',
+  'Cartwheel', 'Spinning', 'Falling Down', 'Getting Up', 'Mma Kick', 'Picking Up', 'Quick Informal Bow',
   'Jump', 'Hit Reaction', 'Hook Punch', 'Jab Cross', 'Receive Punch To The Face', 'Roundhouse Kick', 'Uppercut', 'Lifting Object', 'Button Pushing', 'Pulling Lever', 'Throw Object',
 ];
 

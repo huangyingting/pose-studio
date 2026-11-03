@@ -4,7 +4,7 @@ import { keyPose, keyTimes, mirrorPose, partFromPoses, samplePart, startFacing }
 import { clipsVersion, playedClip } from './assets';
 import { DEFAULT_BODY } from './body';
 import { NEUTRAL_ANGLES } from './doc';
-import { mirrorJointName, wrapDeg } from './joints';
+import { clampRotation, mirrorJointName, wrapDeg } from './joints';
 import { GAIT_WAYS, LEAP_CLIP, TWIST_CLIP, feetOf, gaitOf, legsOf, locomote, makeCycle, wayOf, type Leap, type Twist, footprints as stepsOf, type AnglePose, type Chain, type Cycle, type Ground } from './locomotion';
 import { scaleOf } from './mannequin';
 import { angle as angleOf, angleToQuat, anglesOf, bonesOf, facingOf, fromQuat, quatToAngle, toQuat, turnBones, withAngles } from './pose';
@@ -16,7 +16,7 @@ import { uid } from './uid';
 import { detectContacts, detectGrips, solveHolds, type Hold } from './constraints';
 import { HZ, physicsReady } from './physics';
 import { humanize } from './humanize';
-import { FINGER_BONES, MASKS, UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
+import { FINGER_BONES, JOINTS, MASKS, UPPER_BODY, type Action, type Animation, type Clip, type ClipPart, type ConstraintTarget, type Figure, type Holder, type JointName, type Mark, type Pose, type Prop, type Scene, type Vec3 } from './types';
 import { fingerBones } from './skeleton';
 
 /*
@@ -76,6 +76,9 @@ const markOf = (p: Pose): Mark => ({ at: [p.position[0], p.position[2]], facing:
 const toAngles = (p: Pose): AnglePose => ({ joints: anglesOf(p.bones), position: p.position, hands: p.hands, grounded: p.grounded });
 const fromAngles = (p: AnglePose): Pose => ({ bones: bonesOf(p.joints), position: p.position, hands: p.hands, grounded: p.grounded });
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * (3 - 2 * x); };
+const CORE = new Set<string>(JOINTS);
+/** Whether a joint's angles are past its range (by more than a degree). */
+const pastLimit = (j: JointName, r: Vec3) => clampRotation(j, r).some((v, i) => Math.abs(v - r[i]) > 1);
 
 // (Each captured cycle worked out once, #26: a clip's first person's lap, as captured and mirrored.)
 const cycles = new WeakMap<Clip, Map<boolean, Cycle | null>>();
@@ -556,7 +559,19 @@ class Evaluator {
    */
   private easeInto(f: Figure, acts: Action[], t: number, pose: Pose): Pose {
     const next = this.easing(f, acts, t);
-    return next ? blend(pose, this.at(f, next.act, next.act.start), next.w) : pose;
+    if (!next) return pose;
+    const to = this.at(f, next.act, next.act.start);
+    const mixed = blend(pose, to, next.w);
+    // (A joint within its range at both ends stays within it on the way: turning the short way
+    // between two bends it may pass outside it.)
+    const bones = { ...mixed.bones };
+    for (const j of Object.keys(bones) as JointName[]) {
+      if (j === 'hips' || !CORE.has(j) || !pose.bones[j] || !to.bones[j]) continue;
+      const [p, q, m] = [quatToAngle(j, pose.bones[j]), quatToAngle(j, to.bones[j]), quatToAngle(j, bones[j])];
+      if (pastLimit(j, p) || pastLimit(j, q) || !pastLimit(j, m)) continue;
+      bones[j] = angleToQuat(j, clampRotation(j, m));
+    }
+    return { ...mixed, bones };
   }
 
   /** The action a figure eases into at t, how far (0–1) and from when; null when it is not easing into one. */
@@ -583,7 +598,8 @@ class Evaluator {
     let time = this.blends.get(key);
     if (time === undefined) {
       // (Where its feet are before any easing into it could begin.)
-      const a = feetOf(this.rig, { ...f, ...this.free(f, act.start - STEP_BLEND_MAX - EPS) });
+      // (Before any blend: one of its own longer than STEP_BLEND_MAX too, else this asks itself again.)
+      const a = feetOf(this.rig, { ...f, ...this.free(f, act.start - Math.max(STEP_BLEND_MAX, act.blendIn ?? 0) - EPS) });
       const b = feetOf(this.rig, { ...f, ...this.at(f, act, act.start) });
       // (Longer only from standing to standing; a foot in the air, or out of one, steps in the blend's own time.)
       const d = [...a, ...b].every((x) => this.down(f, x)) ? Math.max(...a.map((x, i) => Math.hypot(b[i].p.x - x.p.x, b[i].p.z - x.p.z))) : 0;
@@ -622,6 +638,9 @@ class Evaluator {
     const legs = legsOf(f.body);
     const reach = (legs.rootY - legs.ankleY) * 0.97;
     const out: Hold[] = [];
+    // (Taken over from the pose it eases from over its first moments, not at once: the legs as the
+    // feet are held would differ from the pose's in a frame.)
+    const weight = smooth(Math.min(1, next.w / 0.2));
     (['L', 'R'] as const).forEach((side, i) => {
       const p = a[i].p;
       const q = b[i].p;
@@ -630,7 +649,7 @@ class Evaluator {
       const bone = side === 'L' ? 'leftFoot' : 'rightFoot';
       // (One that barely moves stays down, easing over to where the next has it.)
       if (Math.hypot(q.x - p.x, q.z - p.z) < STEP_MIN) {
-        out.push({ bone, at: new THREE.Vector3(p.x + (q.x - p.x) * next.w, now[i].p.y, p.z + (q.z - p.z) * next.w), weight: 1, relative: true });
+        out.push({ bone, at: new THREE.Vector3(p.x + (q.x - p.x) * next.w, now[i].p.y, p.z + (q.z - p.z) * next.w), weight, relative: true });
         return;
       }
       // (The left foot steps first, the right as it lands: one after the other, overlapping a little.)
@@ -640,8 +659,11 @@ class Evaluator {
       const at = new THREE.Vector3(p.x + (q.x - p.x) * k, now[i].p.y + STEP_LIFT * Math.sin(Math.PI * s), p.z + (q.z - p.z) * k);
       // (Never further from the hip than the leg reaches: it would snap straight.)
       const hip = m.joints[side === 'L' ? 'leftUpperLeg' : 'rightUpperLeg'].getWorldPosition(new THREE.Vector3());
-      if (at.distanceTo(hip) > reach) at.sub(hip).setLength(reach).add(hip);
-      out.push({ bone, at, weight: 1, relative: true });
+      // (Eased into that, not met at once: a knee straightening in a frame snaps.)
+      const d = at.distanceTo(hip);
+      const knee = 0.85 * reach;
+      if (d > knee) at.sub(hip).setLength(knee + (reach - knee) * (1 - Math.exp(-(d - knee) / (reach - knee)))).add(hip);
+      out.push({ bone, at, weight, relative: true });
     });
     return out;
   }

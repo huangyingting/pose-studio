@@ -19,6 +19,18 @@ import { fresh, captured } from '../fixtures/scenes';
 const ends = (store: ReturnType<typeof fresh>['store'], id: string) => actionsOf(store.scene.animation!, id).map((x) => +(x.start + x.duration).toFixed(3));
 
 describe('actions edited as blocks: moved, retimed, blended, recast, their marks dragged', () => {
+  it('a blend into a motion longer than the steps into it takes plays (it worked out its own time from itself)', () => {
+    const { store, a } = fresh();
+    store.setTime(0);
+    applyMotion(store, a, captured('waving'));
+    const wave = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+    store.setTime(wave.start + wave.duration + 1.5);
+    applyMotion(store, a, captured('cartwheel'));
+    const cw = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip' && x.id !== wave.id)!;
+    setBlend(store, cw.id, 1);
+    expect(sceneAt(store.scene, cw.start - 0.5).figures).toHaveLength(1);
+  });
+
   it('moving or retiming one action takes what that figure does after along, and nobody else', () => {
     const { store, a } = fresh();
     addFigure(store, [2, 0, 0]);
@@ -66,7 +78,7 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
     addFigure(store, [1, 0, 0]);
     const b = store.getState().activeFigure!;
     store.setTime(0);
-    expect(applyMotion(store, a, 'fall')).toBe(true);
+    expect(applyMotion(store, a, captured('falling-down'))).toBe(true);
     const box = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
     setClipOptions(store, box.id, { speed: 2, mirror: true });
     const fast = store.scene.animation!.actions.find((x) => x.id === box.id)!;
@@ -146,7 +158,7 @@ describe('actions edited as blocks: moved, retimed, blended, recast, their marks
   it('a mark further than a motion can stretch shows, and is moved back or walked to', () => {
     const { store, a } = fresh();
     store.setTime(0);
-    expect(applyMotion(store, a, 'cartwheel')).toBe(true);
+    expect(applyMotion(store, a, captured('cartwheel'))).toBe(true);
     const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
     const t = act.start + act.duration;
     const m = marksOf(store.scene, act, a)!;

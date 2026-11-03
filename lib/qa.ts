@@ -175,7 +175,14 @@ function recordingsAt(a: Animation, figure: string, t: number) {
 function inRecording(a: Animation, figure: string, t: number) {
   const mine = a.actions.filter((x) => !x.layer && x.roles.some((r) => r.figure === figure) && x.start <= t + 1e-6);
   const now = mine.find((x) => t < x.start + x.duration + 1e-6) ?? mine.sort((p, q) => p.start + p.duration - (q.start + q.duration)).at(-1);
-  return !!now && now.source.kind === 'clip' && now.source.clip.startsWith(LIBRARY);
+  // (Not while easing into it from what was before, before it starts: that is the scene's.)
+  return !!now && now.source.kind === 'clip' && now.source.clip.startsWith(LIBRARY) && t >= now.start - 1e-6;
+}
+
+/** Whether a figure at t is easing into a Library recording about to start (within its blend-in, or the second before it). */
+function intoRecording(a: Animation, figure: string, t: number) {
+  const next = a.actions.filter((x) => !x.layer && x.roles.some((r) => r.figure === figure) && x.start > t).sort((p, q) => p.start - q.start)[0];
+  return !!next && next.source.kind === 'clip' && next.source.clip.startsWith(LIBRARY) && next.start - t <= Math.max(1, next.blendIn ?? 0);
 }
 
 /** How far a joint is bent past its natural range (degrees, 0: within it). */
@@ -449,7 +456,9 @@ export function checkMotion(scene: Scene): Issue[] {
     message: `${names.get(m.figure) ?? 'Someone'} misses ${scene.props.find((p) => p.id === m.prop)?.name ?? 'the prop'}`,
   }));
   // (A body's own: in a recording, or standing as one left them.)
-  const asRecorded = (i: Issue) => (i.kind === 'slide' || i.kind === 'limit' || i.kind === 'pop') && inRecording(a, i.figure, i.start);
+  // (A joint past its range easing into a recording is on its way to the recording's own.)
+  const asRecorded = (i: Issue) => ((i.kind === 'slide' || i.kind === 'limit' || i.kind === 'pop') && inRecording(a, i.figure, i.start))
+    || (i.kind === 'limit' && intoRecording(a, i.figure, i.start));
   return [...ranges.finish().map((i) => (asRecorded(i) ? { ...i, recorded: true as const } : i)), ...checkShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }
 

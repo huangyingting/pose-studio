@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { expect } from 'vitest';
+import { issueFix } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { frameTimes } from '@/lib/animation';
 import { sceneAt, propWorldAt } from '@/lib/evaluate';
@@ -81,7 +82,17 @@ export function audit(scene: Scene) {
     }
   }
   sv.dispose();
-  return { issues: checkMotion(scene).map((i) => i.message), lowest, handGap, rootStep };
+  // (Not what the people recorded did themselves: the motion check folds those away, as recorded.)
+  return { issues: checkMotion(scene).filter((i) => !i.recorded).map((i) => i.message), lowest, handGap, rootStep };
+}
+
+/** The motion check's Fix all, as the user takes it until it offers none (a blend into a motion eased, then more). */
+export function fixAll(store: Store) {
+  for (let n = 0; n < 3; n++) {
+    const fixes = checkMotion(store.scene).map((i) => issueFix(store, i)).filter((x) => !!x);
+    if (!fixes.length) return;
+    store.group(() => { for (const i of checkMotion(store.scene)) issueFix(store, i)?.run(); });
+  }
 }
 
 /** Clean: no issues, on or above the floor, props in the hand (a ball's centre sits a palm away), no frame-to-frame jumps beyond a sprint. */
