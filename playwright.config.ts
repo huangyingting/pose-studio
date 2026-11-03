@@ -30,7 +30,8 @@ export default defineConfig({
   fullyParallel: true,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  // (In CI also each test as it passes, in the job's log: which ran, not only how many.)
+  reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
     baseURL,
     // Software WebGL so the suite also runs on GPU-less CI machines.
