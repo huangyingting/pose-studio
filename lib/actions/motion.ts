@@ -1,6 +1,6 @@
 import { wrapDeg } from '../joints';
 import { MAX_LINE, newAnimation, snapTime } from '../animation';
-import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
+import { BUILT_IN, LIBRARY, clipById, hasClip, loopsOf } from '../assets';
 import { figurePoseAt, actionsOf, marksOf, warpOf, naturalEnd } from '../evaluate';
 import { newProp, nextName } from '../doc';
 import { seatAt } from '../sets';
@@ -297,6 +297,8 @@ export function sayLine(store: Store, figureId: string, text: string): string | 
     if (!applyMotion(store, figureId, clip)) return null;
     const act = actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === clip && Math.abs(x.start - t) < 1e-3);
     if (!act) return null;
+    // (Going round, at its own pace, for as long as the line takes: not sped up or slowed to fit.)
+    if (act.source.kind === 'clip' && !loopsOf(act.source)) setClipOptions(store, act.id, { loops: true });
     retime(store, act.id, lineTime(words));
     setLine(store, act.id, words);
     return act.id;

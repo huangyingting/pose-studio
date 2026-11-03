@@ -41,6 +41,10 @@ describe('lines of dialogue', () => {
     expect(sitOn(store, a, store.scene.props[0].id)).toBeTruthy();
     store.setTime(store.getState().time + 1);
     const id = sayLine(store, a, 'Sit down.')!;
-    expect(store.scene.animation!.actions.find((x) => x.id === id)!.source).toMatchObject({ clip: 'library:sitting-talking' });
+    const said = store.scene.animation!.actions.find((x) => x.id === id)!;
+    // (At its own pace, going round for as long as it is said.)
+    expect(said.source).toMatchObject({ clip: 'library:sitting-talking', loops: true });
+    expect((said.source as { speed?: number }).speed).toBeUndefined();
+    expect(said.duration).toBeCloseTo(lineTime('Sit down.'), 1);
   });
 });
