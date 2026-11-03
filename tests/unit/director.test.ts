@@ -169,4 +169,28 @@ describe('a film of a chosen length', () => {
     clock.pause();
     vi.unstubAllGlobals();
   });
+
+  it('plays in real time however fast frames come; a frame slower than a tenth of a second moves it on a tenth (no jump); it stops at the end, or goes round', async () => {
+    const { Clock } = await import('@/components/clock');
+    let frame: ((t: number) => void) | null = null;
+    vi.stubGlobal('requestAnimationFrame', (f: (t: number) => void) => { frame = f; return 1; });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    // Frames `ms` apart for `seconds` from play: where the playhead is then.
+    const run = (ms: number, seconds: number, range = { start: 0, end: 10, loop: false }) => {
+      const clock = new Clock();
+      const t0 = performance.now();
+      clock.play(() => range);
+      for (let t = ms; t <= seconds * 1000 + 1e-6 && clock.playing; t += ms) frame!(t0 + t);
+      clock.pause();
+      return clock.time;
+    };
+    // 60, 30 and 12 frames a second: three seconds of it.
+    for (const ms of [1000 / 60, 1000 / 30, 1000 / 12]) expect(run(ms, 3)).toBeCloseTo(3, 1);
+    // One frame a second (a machine without a GPU drawing a full set): three tenths, not three seconds of jumps.
+    expect(run(1000, 3)).toBeCloseTo(0.3, 5);
+    // At its end it stops there; going round, it comes back to the start.
+    expect(run(1000 / 60, 12, { start: 0, end: 2, loop: false })).toBe(2);
+    expect(run(1000 / 60, 2.5, { start: 0, end: 2, loop: true })).toBeCloseTo(0.5, 1);
+    vi.unstubAllGlobals();
+  });
 });
