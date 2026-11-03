@@ -30,7 +30,7 @@ const to = 'public/motions';
 const MIRRORED = ['Walk Right', 'Strafe Right', 'Turn 90 Right'];
 
 /** Left out: one person's half of a motion of two (alone, it is not the motion; those PAIRS has are put together). */
-const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim'];
+const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr'];
 
 /**
  * Motions of two people put together from halves captured apart, each at the place it starts
@@ -41,6 +41,8 @@ const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain
  */
 const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; partner: string; roles: [string, string]; at: [number, number]; facing: number }[] = [
   { file: 'Shaking Hands', name: 'Shake hands', group: 'Talking & gestures', lead: 'Shaking Hands 1', partner: 'Shaking Hands 2', roles: ['Lead', 'Partner'], at: [0.03, 1.04], facing: 180 },
+  // (The rescuer kneeling by the patient's chest, hands on it: placed where both, played in the app, keep out of each other.)
+  { file: 'Cpr', name: 'Give CPR', group: 'Sitting & lying', lead: 'Administering Cpr', partner: 'Receiving Cpr', roles: ['Rescuer', 'Patient'], at: [-0.2, 0.55], facing: 200 },
   { file: 'Hostage Situation', name: 'Hold someone hostage', group: 'Fighting', lead: 'Hostage Situation Villain', partner: 'Hostage Situation Hostage', roles: ['Captor', 'Hostage'], at: [-0.03, 0.44], facing: 0 },
 ];
 

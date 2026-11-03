@@ -174,7 +174,9 @@ function recordingsAt(a: Animation, figure: string, t: number) {
 /** Whether a figure at t plays a Library recording (with whatever is over it), or stands as the last thing it did, one, left it. */
 function inRecording(a: Animation, figure: string, t: number) {
   const mine = a.actions.filter((x) => !x.layer && x.roles.some((r) => r.figure === figure) && x.start <= t + 1e-6);
-  const now = mine.find((x) => t < x.start + x.duration + 1e-6) ?? mine.sort((p, q) => p.start + p.duration - (q.start + q.duration)).at(-1);
+  // (A pose keyed as the scene starts, of no length, gives way to what plays from then.)
+  const on = mine.filter((x) => t < x.start + x.duration + 1e-6);
+  const now = on.find((x) => x.duration > 0) ?? on[0] ?? mine.sort((p, q) => p.start + p.duration - (q.start + q.duration)).at(-1);
   // (Not while easing into it from what was before, before it starts: that is the scene's.)
   return !!now && now.source.kind === 'clip' && now.source.clip.startsWith(LIBRARY) && t >= now.start - 1e-6;
 }

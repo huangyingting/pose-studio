@@ -18,7 +18,8 @@ function given(slug: string, [pa, pb]: (typeof PAIRS)[number]) {
   return store.scene;
 }
 
-const problems = (scene: Parameters<typeof checkMotion>[0]) => checkMotion(scene).filter((i) => i.kind !== 'camera' && i.kind !== 'hidden').map((i) => i.message);
+// (What the people recorded did themselves is folded away, as recorded.)
+const problems = (scene: Parameters<typeof checkMotion>[0]) => checkMotion(scene).filter((i) => i.kind !== 'camera' && i.kind !== 'hidden' && !i.recorded).map((i) => i.message);
 // (A child holding someone taller hostage is not done.)
 const adults = PAIRS.filter(([pa]) => pa.name !== 'Child');
 
@@ -31,6 +32,22 @@ describe('captured motions of two on every pairing of builds', () => {
       for (const t of [1.9, 2.3]) {
         const [p, q] = sceneAt(scene, t).figures.map((f) => rig.model(f).joints.rightHand.getWorldPosition(new THREE.Vector3()));
         expect(p.distanceTo(q), `${pair[0].name} with ${pair[1].name} at ${t} s`).toBeLessThan(0.06);
+      }
+      expect(problems(scene), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
+    }
+    rig.dispose();
+  }, 1_200_000);
+
+  it('giving CPR: the rescuer kneels by the patient, hands at the chest, and it is clean', () => {
+    const rig = new Rig();
+    for (const pair of PAIRS) {
+      const scene = given('cpr', pair);
+      // (Pushing on it: the hands within a hand's breadth or so of the chest's surface.)
+      for (const t of [1, 4, 7]) {
+        const [r, p] = sceneAt(scene, t).figures.map((f) => rig.model(f));
+        const chest = p.joints.chest.getWorldPosition(new THREE.Vector3());
+        const near = Math.min(...(['leftHand', 'rightHand'] as const).map((h) => r.joints[h].getWorldPosition(new THREE.Vector3()).distanceTo(chest)));
+        expect(near, `${pair[0].name} with ${pair[1].name} at ${t} s`).toBeLessThan(0.35);
       }
       expect(problems(scene), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
     }

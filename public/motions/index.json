@@ -394,6 +394,25 @@
   "turn": -66
  },
  {
+  "id": "library:cpr",
+  "name": "Give CPR",
+  "duration": 8.633,
+  "people": 2,
+  "group": "Sitting & lying",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "partner": {
+   "at": [
+    -0.204,
+    0.56
+   ],
+   "facing": 90
+  }
+ },
+ {
   "id": "library:golf-drive",
   "name": "Golf drive",
   "duration": 5.3,
