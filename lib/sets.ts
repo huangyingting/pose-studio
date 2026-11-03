@@ -326,9 +326,9 @@ export const SETS: SetDef[] = [
         M('meeting-table', 4.4, -3.6, 90),
         M('dining-chair', 3.8, -2.3, 180), M('dining-chair', 5, -2.3, 180), M('dining-chair', 3.8, -4.9), M('dining-chair', 5, -4.9),
         M('projector-screen', 4.4, -6.05), M('chalkboard', 6.3, -2.2, -60),
-        // Storage, plants and the water cooler.
+        // Storage, plants and the water cooler, against the walls (the floor in front kept clear for people).
         M('drawer-cabinet', -6.6, -5.6, 90), M('drawer-cabinet', -6.6, -4.4, 90), M('steel-shelves', -6.65, -0.8, 90),
-        M('tall-plant', -6.4, -6.1), M('tall-plant', 6.5, -6.1), M('potted-plant', -1, 1.6),
+        M('tall-plant', -6.4, -6.1), M('tall-plant', 6.5, -6.1), M('potted-plant', -6.45, 2.6),
         ...waterCooler(6.5, -0.6),
         M('wall-clock', -6.89, -2.6, 90, 2.1),
         // Carpet tiles under the desks; strip lights hung over them, lit.
