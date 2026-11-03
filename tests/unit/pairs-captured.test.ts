@@ -54,10 +54,18 @@ describe('captured motions of two on every pairing of builds', () => {
     rig.dispose();
   }, 1_200_000);
 
-  it('holding someone hostage: clean but for an arm round a big build a little into them', () => {
+  it('holding someone hostage: the arm round them, not into them, and it is clean', () => {
+    for (const pair of adults) expect(problems(given('hostage-situation', pair)), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
+  }, 1_200_000);
+
+  it('letting a hostage go: from the same hold, the captor\'s hand at their chest, then away, and it is clean', () => {
+    const rig = new Rig();
     for (const pair of adults) {
-      const left = problems(given('hostage-situation', pair)).filter((m) => !/forearm passes [1-9] cm into/.test(m));
-      expect(left, `${pair[0].name} with ${pair[1].name}`).toEqual([]);
+      const scene = given('release-hostage', pair);
+      const [c, h] = sceneAt(scene, 0.1).figures.map((f) => rig.model(f));
+      expect(c.joints.leftHand.getWorldPosition(new THREE.Vector3()).distanceTo(h.joints.chest.getWorldPosition(new THREE.Vector3())), `${pair[0].name} with ${pair[1].name}`).toBeLessThan(0.35);
+      expect(problems(scene), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
     }
+    rig.dispose();
   }, 1_200_000);
 });

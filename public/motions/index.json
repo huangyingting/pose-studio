@@ -556,8 +556,8 @@
   "turn": 0,
   "partner": {
    "at": [
-    -0.031,
-    0.448
+    -0.061,
+    0.488
    ],
    "facing": 0
   }
@@ -724,6 +724,25 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:release-hostage",
+  "name": "Let a hostage go",
+  "duration": 3.067,
+  "people": 2,
+  "group": "Fighting",
+  "move": [
+   0.257,
+   -0.534
+  ],
+  "turn": -14,
+  "partner": {
+   "at": [
+    -0.061,
+    0.488
+   ],
+   "facing": 0
+  }
  },
  {
   "id": "library:lying-down",
