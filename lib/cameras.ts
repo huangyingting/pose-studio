@@ -213,6 +213,7 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
     let view = views.get(key);
     if (!view) {
       const v = rigView(scene, cam, cam.rig, t, aspect);
+      const framed = v.position.distanceTo(v.target);
       // (Never in a wall nor under the floor: in front of a wall between it and what it looks at, #16,
       // coming in as the wall comes between, a little before, not at once.)
       if (scene.set) {
@@ -248,6 +249,13 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
           moved = true;
         }
         if (!moved) break;
+      }
+      // (Brought in much closer than it framed them from, by walls and those standing by, any shot
+      // takes a wider lens to keep them in it, as a wide one does by a wall.)
+      const by = v.position.distanceTo(v.target) / Math.max(1e-6, framed);
+      if (!WIDE.includes(cam.rig.size) && by < 0.6) {
+        const tan = Math.tan((lensFov(v.lens, aspect) * D2R) / 2) / Math.max(0.2, by);
+        v.lens = Math.max(12, Math.round(fovLens((2 * Math.atan(tan)) / D2R, aspect) * 10) / 10);
       }
       // (Its subject always in the picture: where the set's walls bring it in closer than its
       // framing of everyone needs, or than where it sits in the frame was measured for, it turns to
@@ -613,7 +621,7 @@ export function firstFilmed(scene: Scene, cam: Camera) {
 
 /**
  * Which way a rig's angles are measured from at t (world degrees): the subject's facing, or the
- * direction from it towards another figure, then (turning) or at the camera's first shot.
+ * direction from it towards another figure, then (turning) or as the shot it films began.
  */
 function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth = r.smooth ?? 0): number {
   // (Turning with its subject, eased: no faster than a camera operator swings round, however fast they turn.)
@@ -621,9 +629,20 @@ function rigHeading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Bo
   return heading(scene, cam, r, t, body, smooth);
 }
 
+/** When the shot a camera films at t (or last filmed before it, or first films) begins: where a camera that does not turn takes its angle from. */
+function shotStart(scene: Scene, cam: Camera, t: number) {
+  const a = scene.animation;
+  const spans = a ? shotSpans(a) : [];
+  // (Shots of it one after another, as one.)
+  const runs = spans.filter((s, i) => s.shot.camera === cam.id && spans[i - 1]?.shot.camera !== cam.id);
+  return runs.filter((s) => s.start <= t + 1e-6).at(-1)?.start ?? runs[0]?.start ?? 0;
+}
+
 function heading(scene: Scene, cam: Camera, r: CameraRig, t: number, body: Body, smooth: number): number {
   const subject = cameraSubject(scene, cam);
-  const at = r.turn ? t : firstFilmed(scene, cam);
+  // (Not turning: as its subject faced when its shot began. Cut to again later, it is set up anew for
+  // how they face then, not left behind them.)
+  const at = r.turn ? t : shotStart(scene, cam, t);
   const from = at === t ? body : framedBody(scene, cam, at, smooth);
   const other = r.toward && r.toward !== subject && scene.figures.some((f) => f.id === r.toward && !f.hidden) ? smoothBody(scene, [r.toward], at, smooth) : null;
   return other ? Math.atan2(other.x - from.x, other.z - from.z) * R2D : from.facing;

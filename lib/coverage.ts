@@ -372,6 +372,8 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   let merged = [...pins.map((p) => p.shot), ...fresh].sort((p, q) => p.start - q.start);
   merged = merged.filter((s, i) => s.pinned || i === 0 || s.camera !== merged[i - 1].camera);
   merged = merged.filter((s, i) => s.pinned || i === 0 || (merged[i + 1]?.start ?? a.duration) - s.start >= (c.hold ?? MIN_SHOT));
+  // (A shot too short gone, those either side of it may be one camera's: one shot.)
+  merged = merged.filter((s, i) => s.pinned || i === 0 || s.camera !== merged[i - 1].camera);
   // A shot that still starts where one did keeps what was given it: its id (what was selected stays
   // so), a name of its own, its blend.
   const was = new Map(a.shots.filter((s) => !s.pinned).map((s) => [Math.round(s.start * a.fps), s]));
