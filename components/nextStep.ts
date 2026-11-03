@@ -68,7 +68,7 @@ export function nextStep(store: Store): Suggestion | null {
     (!figures.length && offer('figure', { text: 'Empty scene: add a figure', actions: [] }))
     // (A new project: a first shot in a minute, from a scene ready to shoot.)
     || (untouched && store.getState().library.scenes.length === 1
-      && offer('start', { text: 'New here? Start from a scene ready to shoot: it plays, is filmed and exports as it is', actions: [] }))
+      && offer('start', { text: 'New here? Start from a scene ready to shoot', actions: [] }))
     || (untouched
       && offer('pose', { text: `Pose ${lead.name}: drag a part, or pick a pose`, actions: [] }))
     || (lead && !acting && offer('act', { text: `Give ${lead.name} something to do`, actions: [] }))
