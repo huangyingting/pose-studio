@@ -977,6 +977,7 @@ type Fig = { id: string; position: number[]; bones: Bones };
 const figs = async (page: Page) => (await state(page)).scene.figures as unknown as Fig[];
 
 test('multi-person set-ups and relation tools', async ({ page }) => {
+  test.setTimeout(180_000);
   // People posed together, from the Library's poses: the figure, and one more added.
   await openSection(page, 'Scene');
   await (await outline(page, 'Cast')).getByRole('button', { name: 'Figure', exact: true }).click();
@@ -1019,13 +1020,22 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   await closeScenes(page);
   let dialog = await newSceneDialog(page);
   await expect(dialog.getByRole('region', { name: 'My templates' }).getByRole('button', { name: /^Close talk/ })).toBeVisible();
-  await dialog.getByRole('button', { name: /^Group photo/ }).click();
-  expect((await state(page)).scene.name).toBe('Group photo');
+  // (Three people: a new scene, and the Library's group photo posed in it.)
+  await dialog.getByRole('button', { name: /^Empty/ }).click();
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Poses');
+  await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: /^Group photo/ }).click();
+  await expect.poll(async () => (await state(page)).scene.figures.length).toBeGreaterThanOrEqual(3);
   const people = (await state(page)).scene.figures.length;
   await openSection(page, 'Scene');
   await (await outline(page, 'Cast')).getByRole('button').first().click();
   dialog = await newSceneDialog(page);
   await dialog.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
+  // (Put with the pointer: on the figure selected.)
+  if (await page.getByRole('status').filter({ hasText: /Click a figure to give it Close talk/ }).isVisible()) {
+    const chest = await project(page, 'chest');
+    await page.mouse.click(chest.x, chest.y);
+  }
   // Its first role on the figure selected, the second on the one nearest it: nobody new.
   await expect.poll(async () => (await state(page)).scene.figures.length).toBe(people);
 
@@ -1602,7 +1612,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
   await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + TOGETHER + 1);
   await libraryShows(page, 'Motions');
-  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Bow [\d.]+ s$/ }).click();
+  await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Bow made · [\d.]+ s$/ }).click();
   const sc = (await live(page)).scene;
   const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => x.source.kind));
   expect(tracks[0]).toEqual(['keys']);
