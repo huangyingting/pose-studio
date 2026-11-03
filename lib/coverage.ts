@@ -19,16 +19,16 @@ const waiting = (x: Action) => x.source.kind === 'clip' && IDLES.has(x.source.cl
  */
 
 type CoverageRole = 'A' | 'B';
-/** A role; in a group's coverage, `each` person in it (a camera and its cuts for each), or (where its
- * cameras look from) the one `nearest` them. Cast, a person is the role `@` and their id. */
-type Who = CoverageRole | 'each' | 'nearest' | `@${string}`;
+/** A role; in a group's coverage, `each` person in it (a camera and its cuts for each). Cast, a person is the role `@` and their id. */
+type Who = CoverageRole | 'each' | `@${string}`;
 
-/** A camera of a coverage: on a role (with the other in frame, for a two-shot), or everyone (none), placed by a rig. */
+/** A camera of a coverage: on a role (with the other in frame, for a two-shot, or everyone), placed by a rig. */
 interface CoverageCamera {
   key: string;
   /** Its name, with {A}, {B} or {each} for the figures playing them. */
   name: string;
-  subject?: Who;
+  subject: Who;
+  /** Who it frames with the subject (`each`: everyone in the group). */
   also?: Who;
   /** Hand-held shake, 0–1. */
   shake?: number;
@@ -156,8 +156,11 @@ export const COVERAGES: Coverage[] = [
     description: 'A wide shot of everyone, and a single on whoever talks or does something, cutting as they do',
     roles: ['A'],
     cameras: [
-      { key: 'wide', name: 'Wide on everyone', rig: { yaw: 20, pitch: 10, size: 'fs', lens: 28, smooth: 1.5 } },
-      { key: 'single', name: '{each} single', subject: 'each', rig: { yaw: 25, pitch: 3, toward: 'nearest', size: 'ms', place: 'right', lens: 50, smooth: 0.8 } },
+      // (On the one it is about and everyone about them: one gone off to the far end is let go of, not all of them tiny.)
+      { key: 'wide', name: 'Wide on everyone', subject: 'A', also: 'each', rig: { yaw: 20, pitch: 10, size: 'fs', lens: 28, smooth: 1.5 } },
+      // (From their front as they turn: a dance goes all ways round. Not from beside the one nearest
+      // them, who would then stand in front of it.)
+      { key: 'single', name: '{each} single', subject: 'each', rig: { yaw: 20, pitch: 3, turn: true, size: 'ms', place: 'right', lens: 50, smooth: 1 } },
     ],
     // (Whoever talks, or starts doing something, in their single; someone going somewhere, and every
     // few seconds of nothing, all of them.)
@@ -209,27 +212,19 @@ function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): O
   const name = cc.name.replace(/\{(A|B|each)\}/g, (_, r: string) => roles[`name:${r === 'each' ? cc.subject : r}`] ?? r);
   const { toward, clear, ...rig } = cc.rig;
   return {
-    name, ...(cc.subject ? { subject: roles[cc.subject] } : {}), ...(cc.also ? { also: [roles[cc.also]] } : {}), ...(cc.shake ? { shake: cc.shake } : {}), made: `${c.id}:${cc.key}`,
+    name, subject: roles[cc.subject],
+    // (With `each`: everyone in the group but the subject.)
+    ...(cc.also === 'each' ? { also: Object.entries(roles).filter(([r, f]) => r.startsWith('@') && f !== roles[cc.subject]).map(([, f]) => f) } : cc.also ? { also: [roles[cc.also]] } : {}), ...(cc.shake ? { shake: cc.shake } : {}), made: `${c.id}:${cc.key}`,
     kind: 'rig', rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}), ...(clear ? { clear: roles[clear] } : {}) },
   };
 }
 
-/**
- * A coverage as cast in a scene: a group's cameras and cuts for `each` person, one of each per
- * person (their roles `@` and their id; the one `nearest` each, where they stand as it starts).
- */
+/** A coverage as cast in a scene: a group's cameras and cuts for `each` person, one of each per person (their roles `@` and their id). */
 function cast(c: Coverage, scene: Scene, roles: Record<string, string>): { c: Coverage; roles: Record<string, string> } {
   if (!c.cameras.some((cc) => cc.subject === 'each')) return { c, roles };
   const people = scene.figures.filter((f) => !f.hidden && !f.proxy);
   const all = { ...roles, ...Object.fromEntries(people.flatMap((f) => [[`@${f.id}`, f.id], [`name:@${f.id}`, f.name]])) };
-  const at = (id: string) => figurePoseAt(scene, id, 0)?.position ?? [0, 0, 0];
-  const nearest = (id: string) => people.filter((f) => f.id !== id).sort((p, q) => Math.hypot(at(p.id)[0] - at(id)[0], at(p.id)[2] - at(id)[2]) - Math.hypot(at(q.id)[0] - at(id)[0], at(q.id)[2] - at(id)[2]))[0]?.id;
-  const whose = (cc: CoverageCamera, id: string): CoverageCamera => {
-    const near = nearest(id);
-    const { toward, clear, ...rig } = cc.rig;
-    const to = (w?: Who): Who | undefined => (w === 'nearest' ? (near ? `@${near}` : undefined) : w);
-    return { ...cc, key: `${cc.key}:${id}`, subject: `@${id}`, rig: { ...rig, ...(to(toward) ? { toward: to(toward) } : {}), ...(to(clear) ? { clear: to(clear) } : {}) } };
-  };
+  const whose = (cc: CoverageCamera, id: string): CoverageCamera => ({ ...cc, key: `${cc.key}:${id}`, subject: `@${id}` });
   const each = new Set(c.cameras.filter((cc) => cc.subject === 'each').map((cc) => cc.key));
   const camera = (key: string, id: string) => (each.has(key) ? `${key}:${id}` : key);
   const cuts = c.cuts.flatMap((r): CutRule[] => (r.on === 'beat' || r.on === 'start' || r.role !== 'each' ? [r]

@@ -50,7 +50,7 @@ describe('coverage: cameras on roles and cuts on what happens', () => {
     expect(cams().map((x) => x.name)).toEqual(['Wide on everyone', 'Figure single', 'Figure 2 single', 'Figure 3 single']);
     const spans = shotSpans(store.scene.animation!);
     expect(spans.map((s) => [s.start, cams().find((x) => x.id === s.shot.camera)!.name])).toEqual([[0, 'Wide on everyone'], [3, 'Figure 2 single'], [8, 'Figure 3 single']]);
-    // (Each single on their own, looking from the one nearest them.)
+    // (Each single on their own.)
     expect(cams()[3]).toMatchObject({ subject: c, kind: 'rig' });
     deleteFigure(store, c);
     expect(coverScene(store, 'group')).toEqual({ A: a });

@@ -4,6 +4,7 @@ import { wrapDeg } from './joints';
 import { Rig } from './relations';
 import { facingOf } from './pose';
 import { defaultCamera } from './doc';
+import { localBounds } from './props';
 import { setBlocks } from './sets';
 import { shotSpans, spanAt, type ShotSpan } from './shots';
 import { projectSettings } from './project';
@@ -748,12 +749,13 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
       .filter((p) => !p.hold && STANDING[p.kind] !== undefined)
       .map(placed)
       .filter((at): at is Vec3 => !!at && mine.every((m) => Math.hypot(m[0] - at[0], m[2] - at[2]) >= 1.25))];
-    // (Nor looking at them through a table, a chair's back or the like further off (not one they sit
-    // on or are by): the line of sight to where they stand, at the height it looks at, passing over it.)
+    // (Nor looking at them through a table, a chair's back, a hoop's post or the like further off (not
+    // one they sit on or are by): the line of sight to where they stand, at the height it looks at,
+    // passing over it.)
     const seat = (p: Prop) => p.kind === 'chair' || p.kind === 'stool';
     const tops = scene.props.filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length
       && (!seat(p) || mine.every((m) => Math.hypot(m[0] - p.position[0], m[2] - p.position[2]) >= 1.25)))
-      .map((p) => ({ at: p.position, r: STANDING[p.kind]! * Math.max(p.scale[0], p.scale[2]), top: p.position[1] + p.scale[1] }));
+      .map((p) => ({ at: p.position, r: STANDING[p.kind]! * Math.max(p.scale[0], p.scale[2]), top: p.position[1] + localBounds(p.kind).max.y * p.scale[1] }));
     // (To their chest: a child, or someone sitting, is lower than where it looks.)
     const chests = (subject ?? []).map((id) => extent(scene, id, time).head).map((h) => [h.x, h.y - 0.25, h.z] as Vec3);
     const screened = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => chests.some((m) => tops.some(({ at, r, top }) => {
