@@ -189,11 +189,6 @@ async function sceneWithMotion(page: Page, motion: string, name = motion) {
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
-/** One of the Motions tabs: Mocap, Generated or Imported. */
-async function motionsTab(page: Page, tab: 'Mocap' | 'Generated' | 'Imported') {
-  await page.getByRole('tablist', { name: 'Motions from' }).getByRole('tab', { name: tab }).click();
-}
-
 /** The New scene dialog (Scenes → New → From a template…). */
 async function newSceneDialog(page: Page) {
   await openScenes(page);
@@ -241,6 +236,10 @@ test('a new project is one blank scene; the built-in poses are in the library', 
   await expect((await outline(page, 'Cast')).getByRole('button', { name: 'Figure', exact: true })).toBeVisible();
   // The canvas suggests a next step; one dismissed does not come back for the scene.
   const step = page.getByRole('status', { name: 'Next step' });
+  // (A new project: first, a scene ready to shoot.)
+  await expect(step).toContainText('New here?');
+  await expect(step.getByRole('button', { name: 'Ready-made scenes' })).toBeVisible();
+  await step.getByRole('button', { name: 'Not now' }).click();
   await expect(step).toContainText('Pose Figure');
   await step.getByRole('button', { name: 'Not now' }).click();
   await expect(step).toContainText('Give Figure something to do');
@@ -1505,7 +1504,6 @@ test('signing in syncs the library to the account (server edition)', async ({ pa
   // An imported motion's frames go up apart from the library, as a file of its own.
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Imported');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   await expect(page.getByRole('list', { name: 'My motions' })).toBeVisible();
   const motion = (await live(page)).motions[0].id;
@@ -1600,7 +1598,6 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
   await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + PAIRS + 1);
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Generated');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Bow [\d.]+ s$/ }).click();
   const sc = (await live(page)).scene;
   const tracks = sc.figures.map((f) => actionsOf(sc.animation!, f.id).map((x) => x.source.kind));
@@ -1629,6 +1626,8 @@ async function floorMenu(page: Page, at: number[], item: string | RegExp) {
   }
   const canvas = (await page.locator('.stage canvas').boundingBox())!;
   expect(p.y, 'the point is on screen').toBeLessThan(canvas.y + canvas.height - 10);
+  expect(p.x, 'the point is on screen').toBeGreaterThan(canvas.x + 10);
+  expect(p.x, 'the point is on screen').toBeLessThan(canvas.x + canvas.width - 10);
   await page.mouse.click(p.x, p.y, { button: 'right' });
   await page.getByRole('menuitem', { name: item }).click();
 }
@@ -1984,9 +1983,10 @@ test('a whole performance moves and turns as one, without a key: Ctrl + arrows, 
 
   // Right-click the floor: the whole performance there (the figure is there at the playhead).
   await page.keyboard.press('Escape');
-  await floorMenu(page, [-0.6, 0, -1.5], 'Move it all here');
+  // (Beside where it is now, in sight: the view is close on it after a short walk.)
+  await floorMenu(page, [0.2, 0, -1.5], 'Move it all here');
   s = await live(page);
-  expect(end(s)[0]).toBeCloseTo(-0.6, 1);
+  expect(end(s)[0]).toBeCloseTo(0.2, 1);
   expect(end(s)[1]).toBeCloseTo(-1.5, 1);
   expect(keyTimesOf(s.scene.animation!, id)).toEqual(keys);
 });
@@ -2433,7 +2433,6 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   const scenes = (await state(page)).library.scenes.length;
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Mocap');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Jab, cross [\d.]+ s$/ }).click();
   // In this scene (no new one), on the selected figure alone: people together each get their own motion.
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
@@ -2445,7 +2444,6 @@ test('a motion goes on the selected figure only', async ({ page }) => {
   await openSection(page, 'Scene');
   await (await outline(page, 'Cast')).getByRole('button', { name: /^Figure\b/ }).first().click();
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Mocap');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Hit, recoil [\d.]+ s$/ }).click();
   const hit = () => live(page).then((x) => x.scene.animation!.actions.find((a) => a.source.kind === 'clip' && a.roles[0].figure !== second.id)!);
   // (A captured motion: fetched, then put on.)
@@ -2582,7 +2580,6 @@ test('eyes on another figure, figure colours, a shot subject and the scene light
 test('a motion file is imported into My motions and given to the figure', async ({ page }) => {
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Imported');
   await page.getByLabel('Motion file').setInputFiles({ name: 'Step forward.bvh', mimeType: 'text/plain', buffer: Buffer.from(bvh(CMU)) });
   const mine = page.getByRole('list', { name: 'My motions' });
   await expect(mine.getByRole('button', { name: /^Step forward [\d.]+ s$/ })).toBeVisible();
@@ -2603,7 +2600,6 @@ test('a motion file is imported into My motions and given to the figure', async 
   await expect.poll(async () => Math.abs((await at(clip.start + clip.duration)) - (await at(clip.start))), { timeout: 15_000 }).toBeGreaterThan(0.1);
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Imported');
   // Deleting it takes it out of the library (the figure keeps its keys).
   await mine.getByRole('button', { name: 'Delete my motion Step forward' }).click();
   await expect(page.getByRole('list', { name: 'My motions' })).toHaveCount(0);
@@ -2723,7 +2719,6 @@ test('a wave over a walk, from the waist up; posing over a motion corrects it', 
   await expect(page.getByRole('status').filter({ hasText: /^Posing here corrects Figure's walk$/ })).toBeVisible();
   await openSection(page, 'Library');
   await libraryShows(page, 'Motions');
-  await motionsTab(page, 'Mocap');
   await page.getByRole('button', { name: /^Wave, both arms: upper body only/ }).click();
   await expect(page.locator('.tl-travel.upper')).toHaveText(/Wave, both arms · upper body/);
   await page.locator('.stage canvas').click({ position: { x: 10, y: 10 } });

@@ -15,7 +15,8 @@ A scene is animated as soon as it has a key or an action. Each figure has a **ro
    - people passing through each other or through props;
    - joints bent too far, and pops;
    - people hidden from a shot's camera.
-   Click an issue to go to it; many have a fix button.
+   Click an issue to go to it; many have a fix button, and **Fix all** takes every fix at once (one undo).
+   What the people recorded did themselves (a dancer's foot turning on the floor, a shoulder further than the mannequin's goes, a fast punch) is folded away at the end, **As recorded**: nothing in the scene to fix there; to be rid of one, play another motion.
 6. **Shots**: one block per shot, with its camera and length. Drag a cut to move it.
 7. **A block**: what the figure does.
    - **Click** it to edit it in the inspector: start, length, speed, mirrored, blend, how it gets there, who is in it.

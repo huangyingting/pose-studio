@@ -234,13 +234,19 @@ export function viewOf(scene: Scene, cam: Camera, t: number, aspect = frameAspec
         ...scene.props.filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length)
           .map((p) => ({ at: p.position, r: STANDING[p.kind]! * Math.max(p.scale[0], p.scale[2]) + 0.3 })),
       ];
-      for (const { at, r } of around) {
-        const [dx, dz] = [v.position.x - at[0], v.position.z - at[2]];
-        const d = Math.hypot(dx, dz);
-        if (d >= r) continue;
-        const [ux, uz] = d > 1e-4 ? [dx / d, dz / d] : [v.position.x - v.target.x, v.position.z - v.target.z].map((x, _, a) => x / (Math.hypot(a[0], a[1]) || 1));
-        v.position.x = at[0] + ux * r;
-        v.position.z = at[2] + uz * r;
+      // (Out of one may put it in another standing by: again until out of all, a few times at most.)
+      for (let pass = 0; pass < 4; pass++) {
+        let moved = false;
+        for (const { at, r } of around) {
+          const [dx, dz] = [v.position.x - at[0], v.position.z - at[2]];
+          const d = Math.hypot(dx, dz);
+          if (d >= r - 1e-6) continue;
+          const [ux, uz] = d > 1e-4 ? [dx / d, dz / d] : [v.position.x - v.target.x, v.position.z - v.target.z].map((x, _, a) => x / (Math.hypot(a[0], a[1]) || 1));
+          v.position.x = at[0] + ux * r;
+          v.position.z = at[2] + uz * r;
+          moved = true;
+        }
+        if (!moved) break;
       }
       // (Its subject always in the picture: where the set's walls bring it in closer than its
       // framing of everyone needs, or than where it sits in the frame was measured for, it turns to
@@ -426,11 +432,33 @@ function extent(scene: Scene, id: string, t: number) {
   return e;
 }
 
+/** Further apart than this (m), give or take a metre, one framed with a camera's subject is not kept in the frame with them. */
+const APART = 4.5;
+
+/** Who a camera keeps in frame at t: its subject, and those framed with them not gone off further than APART takes (undefined: everyone). */
+export function keptInFrame(scene: Scene, cam: Camera, t: number): string[] | undefined {
+  const ids = cameraFigures(scene, cam);
+  if (!ids) return undefined;
+  const at = (id: string) => extent(scene, id, t).box.getCenter(new THREE.Vector3()).setY(0);
+  return ids.filter((id, i) => i === 0 || at(id).distanceTo(at(ids[0])) < APART + 1);
+}
+
 /** Figures' body at t (all of them together; facing as the first does; none: everyone, facing the front). */
 function measure(scene: Scene, ids: string[] | undefined, t: number): Body {
   const box = new THREE.Box3();
   const each = (ids ?? scene.figures.filter((f) => !f.hidden).map((f) => f.id)).map((f) => extent(scene, f, t));
-  for (const e of each) box.union(e.box);
+  // (One framed with its subject who has gone off, further than a two-shot holds: the subject alone,
+  // not both, tiny. Let go of over a couple of metres as they go, and taken in again as they come:
+  // the frame does not jump.)
+  const at = (e: (typeof each)[number]) => e.box.getCenter(new THREE.Vector3()).setY(0);
+  for (const [i, e] of each.entries()) {
+    const w = !ids || i === 0 ? 1 : 1 - THREE.MathUtils.smoothstep(at(e).distanceTo(at(each[0])), APART - 1, APART + 1);
+    if (w >= 1) box.union(e.box);
+    else if (w > 0) {
+      const both = each[0].box.clone().union(e.box);
+      box.union(new THREE.Box3(each[0].box.min.clone().lerp(both.min, w), each[0].box.max.clone().lerp(both.max, w)));
+    }
+  }
   if (box.isEmpty()) box.set(new THREE.Vector3(-0.3, 0, -0.3), new THREE.Vector3(0.3, 1.8, 0.3));
   const middle = box.getCenter(new THREE.Vector3());
   return {
@@ -703,8 +731,11 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     const them = other ? smoothBody(scene, [other], time, 0) : null;
     const out = (x: number) => !them || !seen(at(x), them, r.lens, aspect);
     const keepOut = solve(time, place, at, them).extra;
-    // (Where they stand, from what they do: their holds and idle life do not move them.)
-    const people = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id)).map((f) => (basePoseAt(scene, f.id, time) ?? f).position);
+    // (Where they stand, from what they do: their holds and idle life do not move them. And where they
+    // are going and have come from, between this time and the ones either side: one walking past
+    // is not missed between them.)
+    const people = scene.figures.filter((f) => !f.hidden && !(subject ?? []).includes(f.id))
+      .flatMap((f) => [-SWING_STEP / 2, 0, SWING_STEP / 2].map((dt) => (basePoseAt(scene, f.id, Math.max(0, time + dt)) ?? f).position));
     // (And what stands on the floor, a chair's back: not one they sit on or are by.)
     const mine = (subject ?? []).map((id) => basePoseAt(scene, id, time)?.position).filter((x): x is Vec3 => !!x);
     // (A ball and the like moved in the scene, where it is then if it lies on the floor: in a hand, its holder is in the way already.)
@@ -717,12 +748,16 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
       .filter((p) => !p.hold && STANDING[p.kind] !== undefined)
       .map(placed)
       .filter((at): at is Vec3 => !!at && mine.every((m) => Math.hypot(m[0] - at[0], m[2] - at[2]) >= 1.25))];
-    // (Nor looking at them through a table or the like further off: the line of sight to where they
-    // stand, at the height it looks at, passing over it.)
-    const tops = scene.props.filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length && p.kind !== 'chair' && p.kind !== 'stool')
+    // (Nor looking at them through a table, a chair's back or the like further off (not one they sit
+    // on or are by): the line of sight to where they stand, at the height it looks at, passing over it.)
+    const seat = (p: Prop) => p.kind === 'chair' || p.kind === 'stool';
+    const tops = scene.props.filter((p) => !p.hold && STANDING[p.kind] !== undefined && !scene.animation?.props?.[p.id]?.length
+      && (!seat(p) || mine.every((m) => Math.hypot(m[0] - p.position[0], m[2] - p.position[2]) >= 1.25)))
       .map((p) => ({ at: p.position, r: STANDING[p.kind]! * Math.max(p.scale[0], p.scale[2]), top: p.position[1] + p.scale[1] }));
-    const screened = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => mine.some((m) => tops.some(({ at, r, top }) => {
-      const d = new THREE.Vector3(m[0], shot.look.y, m[2]).sub(shot.position);
+    // (To their chest: a child, or someone sitting, is lower than where it looks.)
+    const chests = (subject ?? []).map((id) => extent(scene, id, time).head).map((h) => [h.x, h.y - 0.25, h.z] as Vec3);
+    const screened = (shot: { position: THREE.Vector3; look: THREE.Vector3 }) => chests.some((m) => tops.some(({ at, r, top }) => {
+      const d = new THREE.Vector3(m[0], Math.min(m[1], shot.look.y), m[2]).sub(shot.position);
       const flat = d.x * d.x + d.z * d.z;
       if (flat < 1e-6) return false;
       const u = ((at[0] - shot.position.x) * d.x + (at[2] - shot.position.z) * d.z) / flat;

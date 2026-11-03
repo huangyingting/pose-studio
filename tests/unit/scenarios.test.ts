@@ -168,8 +168,9 @@ describe('scenes from the use case', () => {
     // lower as it lets go.
     expect(Math.min(...Array.from({ length: 32 }, (_, i) => propWorldAt(store.scene, ball, i / 96)!.position[1]))).toBeCloseTo(0, 1);
     expect(sceneAt(store.scene, 8 / 24).props[0].hold?.figure).toBe(a);
-    const wrist = (t: number) => handPosition(at(a, t)!, 'R', store.scene.props)[1];
-    expect(wrist(9 / 24) - wrist(12 / 24)).toBeGreaterThan(0.1);
+    // (Down from the body: a runner's body rises into the air as the hand pushes.)
+    const wrist = (t: number) => handPosition(at(a, t)!, 'R', store.scene.props)[1] - at(a, t)!.position[1];
+    expect(wrist(9 / 24) - wrist(12 / 24)).toBeGreaterThan(0.06);
     // Through the rim (its centre there), then down on the floor.
     const rim = rimOf(store.scene.props[1]);
     const through = propWorldAt(store.scene, ball, shot.to)!.position;

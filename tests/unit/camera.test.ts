@@ -105,7 +105,8 @@ describe('the shot camera: lens, shot sizes and an editable path', () => {
     // body's middle); a path stays where it was when restated.
     const at = cameraAt(store.scene, 0).position;
     editCamera(store, liveCamera(store.scene, 0)!.id, { subject: a, anchor: 'subject', aim: 'subject' });
-    expect(cameraAt(store.scene, 0).position.distanceTo(at)).toBeLessThan(0.01);
+    // (Within a few cm: the walker's body sways from side to side as a person's does.)
+    expect(cameraAt(store.scene, 0).position.distanceTo(at)).toBeLessThan(0.03);
     applyCameraMove(store, 'tracking');
     const cam = liveCamera(store.scene, 0);
     const beside = (t: number) => cameraAt(store.scene, t).position.sub(subjectPlace(store.scene, cam, t));

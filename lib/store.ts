@@ -3,6 +3,7 @@ import { directed } from './coverage';
 import { clipIdsOf, playedClips } from './assets';
 import { loadClips } from './assetstore';
 import { fetchLibraryClips } from './librarymotions';
+import { PRIMITIVES } from './locomotion';
 import { setProjectSettings } from './project';
 import { setModels } from './model';
 import { newScene, parseLibrary } from './doc';
@@ -207,8 +208,9 @@ export class Store {
    * Returns the ids of those not kept here (another device has them: the server may).
    */
   loadClips() {
-    // (And the Library's motion files its scenes play, from the app.)
-    void fetchLibraryClips(playedClips(this.state.library));
+    // (And the Library's motion files its scenes play, from the app; and those every walk, run, jump
+    // and turn goes with, before anyone moves.)
+    void fetchLibraryClips([...PRIMITIVES, ...playedClips(this.state.library)]);
     return loadClips(clipIdsOf(this.state.library));
   }
 

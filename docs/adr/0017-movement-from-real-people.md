@@ -43,8 +43,10 @@ The primitives:
 | Turn on the spot | Turn 90° (mirrored to the right; twice round past 135°): which foot when, the body | Angle, where each foot lands |
 | Setting off, stopping, pace | The walk's or run's own cycle, eased in and out as the pace ramps up and down (the Library has no recording of starting or stopping) | How long it takes (its pace follows: a walk made longer is slower, its strides and steps as the person's, scaled) |
 
-Nothing is generated where a recording can carry it. A primitive whose recording is not at hand yet
-(still being fetched) plays as the path alone until it comes.
+Nothing is generated where a recording can carry it: no arm swing, lean, tuck or stepping pattern
+of our own. The primitives' recordings are fetched as a project opens, before anyone moves; one not
+at hand yet (still coming, or offline) plays as the path alone until it comes (the feet stepping
+where the path has them, the body as keyed).
 
 ## Consequences
 

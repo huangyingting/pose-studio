@@ -20,7 +20,7 @@
 8. **The view gizmo**: the world's axes in 3D as the view sees them, always the same size. **Drag it** to turn the view; **click an axis end** to look from there (the end under the pointer grows). The keys `1`–`6` do the same, `6` giving a three-quarter view. Dragging empty space on the canvas also turns the view, and the wheel zooms. On the floor, the red line is the X axis and the blue line the Z axis, so you can tell which way is which.
 9. **The inspector**: what is selected, with everything about it in sections that fold. A folded section says what is in it. With nothing selected (`Esc`), the inspector shows the scene itself. Its header has the thing's menu (⋯), the same as its right-click menu.
 10. **The timeline**: always under the canvas. A still scene's is only its bar; the first key or action makes the scene animated. See [Animation](06-animation.md).
-11. **The hint**: what a click or drag on what is under the pointer would do, a pick in progress ("Click a spot…"), or the next step for where the scene is, with a button for it. **×** dismisses a next step for this scene.
+11. **The hint**: what a click or drag on what is under the pointer would do, a pick in progress ("Click a spot…"), or the next step for where the scene is, with a button for it (in a new project, first: a scene ready to shoot, which plays, is filmed and exports as it is; at the end: export it). **×** dismisses a next step for this scene.
 
 ## Selecting
 

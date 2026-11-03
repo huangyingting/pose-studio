@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { Activity, Camera, Clapperboard, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Lock, VolumeX, ChevronRight } from 'lucide-react';
+import { Activity, Camera, Clapperboard, Diamond, Scissors, TriangleAlert, X, Ellipsis, Pause, Play, Plus, Lock, VolumeX, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   setAnimationOptions, cutAnimation, issueFix, addMarker, setRange, setRangeAt, setTrack, copyKeys, pasteKeys, deleteKeys, hasCopiedKeys, 
 } from '@/lib/actions';
@@ -264,11 +264,13 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   const [snapAt, setSnapAt] = useState<number | null>(null);
   // (What a drag of an action does, said by what is dragged while it goes on, #22.)
   const [readout, setReadout] = useState<{ t: number; text: string } | null>(null);
-  // Motion check results, valid until the animation changes.
-  const [qa, setQa] = useState<{ animation: Animation; issues: Issue[] } | null>(null);
+  // Motion check results, valid until the animation changes: the scene's own, and those as recorded
+  // (a recording's own slide, reach or snap, nothing here to fix: folded away).
+  const [qa, setQa] = useState<{ animation: Animation; issues: Issue[]; recorded: Issue[] } | null>(null);
   const [qaOpen, setQaOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const issues = qa?.animation === a ? qa.issues : null;
+  const recorded = qa?.animation === a ? qa.recorded : [];
 
   const pause = () => {
     if (!clock.playing) return;
@@ -320,10 +322,12 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     setTimeout(() => {
       const scene = store.scene;
       const found = scene.animation ? checkMotion(scene) : [];
-      setQa(scene.animation ? { animation: scene.animation, issues: found } : null);
+      const folded = found.filter((i) => i.recorded && !issueFix(store, i));
+      const own = found.filter((i) => !folded.includes(i));
+      setQa(scene.animation ? { animation: scene.animation, issues: own, recorded: folded } : null);
       setChecking(false);
-      setQaOpen(found.length > 0);
-      if (!found.length) notify(`Motion check: ${none}`);
+      setQaOpen(own.length > 0);
+      if (!own.length) notify(`Motion check: ${none}${folded.length ? ` (${folded.length} as recorded: click Check to see them)` : ''}`);
     }, 30);
   };
   const check = () => {
@@ -337,6 +341,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     run();
     runCheck('no problems left');
   };
+  // (Every fix offered, as one undo step: each worked out again after those before it.)
+  const fixAll = () => fix(() => store.group(() => { for (const i of issues ?? []) issueFix(store, i)?.run(); }));
   const goTo = (i: Issue) => {
     seek(i.start);
     if (i.joint) store.select({ kind: 'joint', figure: i.figure, joint: i.joint });
@@ -558,7 +564,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
               onClick={() => command('timeline.check').run!(c)}
               disabled={checking}
               aria-label={qaLabel}
-              aria-expanded={issues?.length ? qaOpen : undefined}
+              aria-expanded={issues && issues.length + recorded.length ? qaOpen : undefined}
               data-tip="Check for sliding feet, collisions, joints bent too far and pops"
               data-tip-side="top"
             >
@@ -677,7 +683,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           )}
         </div>
       )}
-      {issues && issues.length > 0 && qaOpen && <MotionIssues issues={issues} goTo={goTo} fixOf={(i) => issueFix(store, i)} onFix={fix} onClose={() => setQaOpen(false)} />}
+      {issues && issues.length + recorded.length > 0 && qaOpen && <MotionIssues issues={issues} recorded={recorded} goTo={goTo} fixOf={(i) => issueFix(store, i)} onFix={fix} onFixAll={fixAll} onClose={() => setQaOpen(false)} />}
     </div>
   );
 }
@@ -714,29 +720,40 @@ function KeyButton({ c, on }: { c: Ctx; on?: boolean }) {
   );
 }
 
-/** What the motion check found, with a hint each; click one to go to it. */
-function MotionIssues({ issues, goTo, fixOf, onFix, onClose }: { issues: Issue[]; goTo(i: Issue): void; fixOf(i: Issue): { label: string; run(): void } | null; onFix(run: () => void): void; onClose(): void }) {
+/** What the motion check found, with a hint each; click one to go to it. Those as recorded folded away at the end. */
+function MotionIssues({ issues, recorded, goTo, fixOf, onFix, onFixAll, onClose }: { issues: Issue[]; recorded: Issue[]; goTo(i: Issue): void; fixOf(i: Issue): { label: string; run(): void } | null; onFix(run: () => void): void; onFixAll(): void; onClose(): void }) {
+  const [unfolded, setUnfolded] = useState(false);
+  const fixes = issues.map(fixOf);
+  const row = (i: Issue, n: number, list: Issue[], fix: { label: string; run(): void } | null) => (
+    <li key={n}>
+      <button type="button" onClick={() => goTo(i)}>
+        <span className={`qa-kind ${i.kind}`}>{ISSUE_LABELS[i.kind]}</span>
+        <em>{i.start.toFixed(2)}{i.end > i.start ? `–${i.end.toFixed(2)}` : ''} s</em>
+        <span className="qa-msg">{i.message}</span>
+        {!fix && !i.recorded && list.findIndex((x) => x.kind === i.kind) === n && <span className="qa-hint">{i.hint}</span>}
+      </button>
+      {fix && <button type="button" className="btn subtle qa-fix" onClick={() => onFix(fix.run)}>{fix.label}</button>}
+    </li>
+  );
   return (
     <div className="qa-card" role="dialog" aria-label="Motion check" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="qa-head">
         <strong>Motion check · {issues.length} {issues.length === 1 ? 'issue' : 'issues'}</strong>
+        {fixes.filter(Boolean).length > 1 && <button type="button" className="btn subtle qa-fix" onClick={onFixAll}>Fix all {fixes.filter(Boolean).length}</button>}
         <IconButton icon={X} label="Close" onClick={onClose} size={15} />
       </div>
       <ul>
-        {issues.map((i, n) => {
-          const fix = fixOf(i);
-          return (
-            <li key={n}>
-              <button type="button" onClick={() => goTo(i)}>
-                <span className={`qa-kind ${i.kind}`}>{ISSUE_LABELS[i.kind]}</span>
-                <em>{i.start.toFixed(2)}{i.end > i.start ? `–${i.end.toFixed(2)}` : ''} s</em>
-                <span className="qa-msg">{i.message}</span>
-                {!fix && issues.findIndex((x) => x.kind === i.kind) === n && <span className="qa-hint">{i.hint}</span>}
-              </button>
-              {fix && <button type="button" className="btn subtle qa-fix" onClick={() => onFix(fix.run)}>{fix.label}</button>}
-            </li>
-          );
-        })}
+        {issues.map((i, n) => row(i, n, issues, fixes[n]))}
+        {recorded.length > 0 && (
+          <li className="qa-fold">
+            <button type="button" aria-expanded={unfolded} onClick={() => setUnfolded(!unfolded)}>
+              {unfolded ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
+              <span>As recorded · {recorded.length}</span>
+              {unfolded && <span className="qa-hint">The people recorded did these themselves (a foot turning on the floor, a shoulder further than ours goes, a fast punch). To be rid of one, play another motion there.</span>}
+            </button>
+          </li>
+        )}
+        {unfolded && recorded.map((i, n) => row(i, n, recorded, null))}
       </ul>
     </div>
   );

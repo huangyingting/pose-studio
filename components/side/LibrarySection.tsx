@@ -46,9 +46,7 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
 
   const q = query.trim().toLowerCase();
   const items = open.items(store, ui);
-  // (On its tab, if it has them; a search finds them on all.)
-  const [kind, setKind] = useKind(open);
-  const found = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : open.kinds ? items.filter((it) => it.kind === kind) : items;
+  const found = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
   return (
     <div className="side-section library" aria-label={open.label}>
       <div className="side-head"><h2>{open.label}</h2></div>
@@ -64,71 +62,16 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
           />
         </label>
       </div>
-      {open.kinds && !q && <KindTabs category={open} kind={kind} onPick={setKind} />}
       <div className="side-scroll">
-        {!q && open.Bar && <open.Bar {...ui} kind={kind} />}
+        {!q && open.Bar && <open.Bar {...ui} />}
         {found.length ? <Items category={open} items={found} preview={preview.bind} />
-          : q ? <p className="empty-note">Nothing matches “{query.trim()}”</p>
-          : open.kinds?.find((k) => k.id === kind)?.empty && <p className="empty-note">{open.kinds.find((k) => k.id === kind)!.empty}</p>}
+          : q && <p className="empty-note">Nothing matches “{query.trim()}”</p>}
       </div>
       {preview.card}
     </div>
   );
 }
 
-/**
- * A category's tabs (where its items come from): an icon each, the open one named too and
- * widest, as wide as the search above; a tip says what each holds. ← → go between them.
- */
-function KindTabs({ category, kind, onPick }: { category: LibraryCategory; kind: string; onPick(kind: string): void }) {
-  const kinds = category.kinds!;
-  const step = (e: KeyboardEvent<HTMLDivElement>) => {
-    const by = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (!by) return;
-    e.preventDefault();
-    const next = kinds[(kinds.findIndex((k) => k.id === kind) + by + kinds.length) % kinds.length];
-    onPick(next.id);
-    (e.currentTarget.querySelector(`[data-kind="${next.id}"]`) as HTMLElement | null)?.focus();
-  };
-  return (
-    <div className="lib-tabs" role="tablist" aria-label={`${category.label} from`} onKeyDown={step}>
-      {kinds.map((k) => {
-        const on = k.id === kind;
-        return (
-          <button
-            key={k.id}
-            type="button"
-            role="tab"
-            data-kind={k.id}
-            aria-selected={on}
-            aria-label={k.label}
-            tabIndex={on ? 0 : -1}
-            className={`lib-tab${on ? ' on' : ''}`}
-            data-tip={on ? k.tip : `${k.label}: ${k.tip}`}
-            onClick={() => onPick(k.id)}
-          >
-            <k.icon size={15} strokeWidth={1.75} aria-hidden />
-            {on && <span className="lib-tab-label">{k.label}</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Which of a category's tabs is open (its first at first; kept for the next visit). */
-function useKind(category: LibraryCategory): [string, (kind: string) => void] {
-  const key = `pose-studio-libkind-${category.id}`;
-  const first = category.kinds?.[0]?.id ?? '';
-  const [kinds, setKinds] = useState<Record<string, string>>({});
-  const stored = typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
-  const kind = kinds[category.id] ?? (category.kinds?.some((k) => k.id === stored) ? stored! : first);
-  const set = (k: string) => {
-    try { localStorage.setItem(key, k); } catch { /* ignore */ }
-    setKinds((now) => ({ ...now, [category.id]: k }));
-  };
-  return [kind, set];
-}
 
 /** A category's items, in its parts (a region each) and groups (each folds, and remembers it). */
 function Items({ category, items, preview }: { category: LibraryCategory; items: LibraryItem[]; preview: Bind }) {

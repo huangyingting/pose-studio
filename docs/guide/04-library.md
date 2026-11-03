@@ -21,11 +21,13 @@ The poses are grouped by posture (standing, sitting and squatting, kneeling and 
 2. **A motion**, clicked, goes on the selected figure's track at the playhead, from where it stands and facing its way.
 3. **Its block** on the figure's row of the timeline. See [Animation](06-animation.md) for what can be done with it.
 
-Motions come from three places, each a tab (a search looks in all three, as in the picture):
+Motions are one list, grouped by what the person does (a search looks in all of it, as in the picture):
 
-- **Mocap**: 109 clips recorded from real people, such as walks and runs, stairs, fights, sport, dances, idles, sitting, talking and gestures. These come first, and the timeline's **Everyday** beats (talk, wave, nod, sit down…) are among them. Each one-person clip can also play **from the waist up** over what the figure is doing (its ⋯). One done sitting (Talk, sitting; Sit down on a chair; Clap, sitting…) given where there is nothing to sit on brings a chair to sit on; a chair, a stool or a set's seat already there is used. Two are for two people (**Shake hands**, **Hold someone hostage**, marked *2 people*): the selected figure leads, and the other is the figure selected with it, else the nearest one, else a new one; both are placed where the motion has them.
-- **Generated**: the few motions no capture covers yet (a bow, a cartwheel, a pirouette, a split leap, falling and getting up, a front kick, picking a thing up). To walk, run or jump somewhere, right-click the floor there (**Walk here**, **Run here**, **Jump here**): the steps are captured ones.
-- **Imported**: your own.
+- Most are **recorded from real people** (Mixamo's captures): walks and runs, stairs, fights, sport, dances, idles, sitting, talking and gestures. The timeline's **Everyday** beats (talk, wave, nod, sit down…) are among them. Each one-person clip can also play **from the waist up** over what the figure is doing (its ⋯). One done sitting (Talk, sitting; Sit down on a chair; Clap, sitting…) given where there is nothing to sit on brings a chair to sit on; a chair, a stool or a set's seat already there is used. Two are for two people (**Shake hands**, **Hold someone hostage**, marked *2 people*): the selected figure leads, and the other is the figure selected with it, else the nearest one, else a new one; both are placed where the motion has them.
+- A few no capture covers yet are **made here** (marked *made*), in their groups: a bow, a cartwheel, a pirouette, a split leap, falling and getting up, a front kick, picking a thing up.
+- **My motions**, your own, come last.
+
+To walk, run or jump somewhere, right-click the floor there (**Walk here**, **Run here**, **Jump here**): the steps are captured ones.
 
 **Import motion…** reads BVH, FBX or glTF animation onto the skeleton; a dialog matches any bone it cannot name. Motions of several people (a waltz, a boxing exchange) go on the selected figure, which leads, and the figures nearest it.
 

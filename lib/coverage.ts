@@ -1,4 +1,4 @@
-import { propStretchesOf } from './evaluate';
+import { figurePoseAt, propStretchesOf } from './evaluate';
 import { newCamera } from './cameras';
 import { newShot, shotSpans } from './shots';
 import { talking } from './face';
@@ -55,6 +55,8 @@ interface Coverage {
 
 /** No shot shorter than this (s). */
 const MIN_SHOT = 1;
+/** A way gone at least this far (m) is someone going somewhere, cut to; less, a step or a turn. */
+const GOING = 1.5;
 
 export const COVERAGES: Coverage[] = [
   {
@@ -70,14 +72,19 @@ export const COVERAGES: Coverage[] = [
       { key: 'single-b', name: '{B} single', subject: 'B', rig: { yaw: -30, pitch: 2, toward: 'A', clear: 'A', size: 'mcu', place: 'left', lens: 85, smooth: 0.8 } },
     ],
     // (As a conversation is cut: on whoever talks, held while they do, closer as it goes on and to
-    // the one listening a moment; the two of them when they move or do something together.)
+    // the one listening a moment; one coming or going over the other's shoulder; the two of them
+    // when they do something together.)
     cuts: [
       { on: 'start', camera: 'master' },
       { on: 'speaks', role: 'A', camera: 'ots-a', closer: 'single-a', reaction: 'single-b' },
       { on: 'speaks', role: 'B', camera: 'ots-b', closer: 'single-b', reaction: 'single-a' },
-      { on: 'action', role: 'A', camera: 'master' },
-      { on: 'action', role: 'B', camera: 'master' },
-      { on: 'beat', every: 8, cameras: ['master', 'ots-a', 'ots-b'] },
+      // (One coming or going: seen over the other's shoulder, as the one waiting sees them.)
+      { on: 'action', role: 'A', kind: 'travel', camera: 'ots-a' },
+      { on: 'action', role: 'B', kind: 'travel', camera: 'ots-b' },
+      { on: 'action', role: 'A', kind: 'motion', camera: 'master' },
+      { on: 'action', role: 'B', kind: 'motion', camera: 'master' },
+      // (In silence, the two of them: an over-the-shoulder shot of two close together, shaking hands, is a shoulder.)
+      { on: 'beat', every: 8, cameras: ['master'] },
     ],
   },
   {
@@ -193,6 +200,12 @@ const rule = (cam: Omit<Camera, 'id'> | Camera) => {
 function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t: number; camera: string }[] {
   const a = scene.animation!;
   const events: { t: number; camera: string }[] = [];
+  // (How far a figure goes over an action: from where it is as it starts to its mark.)
+  const way = (x: Action, figure: string) => {
+    const from = figurePoseAt(scene, figure, x.start)?.position;
+    const to = x.roles.find((p) => p.figure === figure)?.end?.at;
+    return from && to ? Math.hypot(to[0] - from[0], to[1] - from[2]) : 0;
+  };
   // (Each figure's actions on their track: not layered over others, after the start.)
   const mine = (figure: string) => a.actions.filter((x) => !x.layer && x.start > 1e-6 && x.roles.some((p) => p.figure === figure));
   const talks = c.cuts.some((r) => r.on === 'speaks');
@@ -200,8 +213,9 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
     if (r.on === 'action') {
       for (const x of mine(roles[r.role])) {
         const kind = x.source.kind === 'travel' ? 'travel' : x.source.kind === 'clip' ? 'motion' : null;
-        // (Not waiting in an idle; nor talking, where talking is cut to.)
+        // (Not waiting in an idle; nor talking, where talking is cut to; nor a step or two, a turn where they stand.)
         if (kind === 'motion' && (waiting(x) || (talks && talking(x)))) continue;
+        if (kind === 'travel' && way(x, roles[r.role]) < GOING) continue;
         if (kind && (!r.kind || r.kind === kind)) events.push({ t: x.start, camera: r.camera });
       }
     } else if (r.on === 'speaks') {

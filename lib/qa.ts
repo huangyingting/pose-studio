@@ -9,7 +9,7 @@ import { Rig, capsules, type Capsule } from './relations';
 import { angle, fromQuat } from './pose';
 import { SceneView } from './sceneview';
 import { groundOf } from './surfaces';
-import { cameraAt, cameraFigures, frameAspect, liveCamera, placeCamera } from './cameras';
+import { cameraAt, frameAspect, keptInFrame, liveCamera, placeCamera } from './cameras';
 import { setBlocks } from './sets';
 import { shotSpans } from './shots';
 import { JOINTS, type Action, type Animation, type Figure, type JointName, type Prop, type PropKind, type Scene, type Vec3 } from './types';
@@ -32,6 +32,8 @@ export interface Issue {
   end: number;
   message: string;
   hint: string;
+  /** In a Library recording, as the person recorded did it (or held after it): a slide, a reach or a snap of theirs. */
+  recorded?: true;
 }
 
 export const ISSUE_LABELS: Record<IssueKind, string> = {
@@ -167,6 +169,13 @@ function recordingsAt(a: Animation, figure: string, t: number) {
   if (!lib(now) || a.actions.some((x) => x.layer && x.roles.some((r) => r.figure === figure) && x.start <= t && t < x.start + x.duration)) return false;
   const before = mine.filter((x) => x !== now && x.start + x.duration <= now!.start + 1e-6).sort((p, q) => p.start + p.duration - (q.start + q.duration)).at(-1);
   return lib(before);
+}
+
+/** Whether a figure at t plays a Library recording (with whatever is over it), or stands as the last thing it did, one, left it. */
+function inRecording(a: Animation, figure: string, t: number) {
+  const mine = a.actions.filter((x) => !x.layer && x.roles.some((r) => r.figure === figure) && x.start <= t + 1e-6);
+  const now = mine.find((x) => t < x.start + x.duration + 1e-6) ?? mine.sort((p, q) => p.start + p.duration - (q.start + q.duration)).at(-1);
+  return !!now && now.source.kind === 'clip' && now.source.clip.startsWith(LIBRARY);
 }
 
 /** How far a joint is bent past its natural range (degrees, 0: within it). */
@@ -439,7 +448,9 @@ export function checkMotion(scene: Scene): Issue[] {
     kind: 'miss', figure: m.figure, start: m.t, end: m.t, hint: HINTS.miss,
     message: `${names.get(m.figure) ?? 'Someone'} misses ${scene.props.find((p) => p.id === m.prop)?.name ?? 'the prop'}`,
   }));
-  return [...ranges.finish(), ...checkShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+  // (A body's own: in a recording, or standing as one left them.)
+  const asRecorded = (i: Issue) => (i.kind === 'slide' || i.kind === 'limit' || i.kind === 'pop') && inRecording(a, i.figure, i.start);
+  return [...ranges.finish().map((i) => (asRecorded(i) ? { ...i, recorded: true as const } : i)), ...checkShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }
 
 /** What the shots' cameras get wrong: someone hidden behind a prop, the camera going through someone or something. */
@@ -469,8 +480,9 @@ function hiddenInShots(scene: Scene): Issue[] {
       const t = span.start + ((span.end - span.start) * i) / samples;
       const now = sceneAt(scene, t);
       view.sync(now);
-      // The shot's subject and whoever it frames with them (a two-shot), or everyone.
-      const framed = cameraFigures(scene, liveCamera(scene, t));
+      // The shot's subject and whoever it frames with them (a two-shot), or everyone. (Not one gone
+      // off, whom the framing lets go of: someone far behind, not in the picture as composed.)
+      const framed = keptInFrame(scene, liveCamera(scene, t), t);
       placeCamera(cam, cameraAt(scene, t), frameAspect());
       const all = now.props.filter((p) => !p.hold).flatMap((p) => (view.props.get(p.id)?.solids ?? []).map((mesh) => ({ mesh, name: p.name, prop: p })));
       if (!all.length) continue;

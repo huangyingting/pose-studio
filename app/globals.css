@@ -1127,13 +1127,18 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
   cursor: pointer;
 }
 .qa-card li button:hover { background: var(--hover); }
-.qa-card li .qa-fix { display: inline-flex; width: auto; margin: 0 0 6px 8px; padding: 0 10px; height: var(--control-s); border-radius: var(--radius-s); background: var(--panel-2); color: var(--accent); font-weight: 540; }
-.qa-card li .qa-fix:hover { background: var(--hover); }
+.qa-card .qa-fix { display: inline-flex; align-items: center; width: auto; padding: 0 10px; height: var(--control-s); border-radius: var(--radius-s); background: var(--panel-2); color: var(--accent); font-weight: 540; }
+.qa-card .qa-fix:hover { background: var(--hover); }
+.qa-card li .qa-fix { margin: 0 0 6px 8px; }
+/* Fix all, by the close button. */
+.qa-head .qa-fix { margin: 0 4px 0 auto; }
 .qa-kind { font-weight: 600; color: var(--warn); }
 .qa-kind.overlap, .qa-kind.floor { color: var(--danger); }
 .qa-card em { justify-self: end; font-size: var(--fs-s); font-weight: 540; font-style: normal; color: var(--text-3); }
 .qa-msg { grid-column: 1 / -1; color: var(--text); }
 .qa-hint { grid-column: 1 / -1; color: var(--text-2); }
+/* Those as recorded, folded at the end. */
+.qa-card .qa-fold button { align-items: center; color: var(--text-2); font-weight: 540; }
 .tl-past { position: absolute; top: 0; bottom: 0; pointer-events: none; border-left: 1px dashed var(--border-strong); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--text-3) 9%, transparent) 6px 7px); }
 /* Markers on the ruler (#22): a flag and its name; dragged along it. */
 .tl-marker {
@@ -1790,13 +1795,6 @@ button.psec-title svg { color: var(--text-3); }
 .library-target { margin: 0 14px 8px; color: var(--text-2); font-size: var(--fs-s); line-height: 1.45; }
 .library-target strong { color: var(--text); font-weight: 600; }
 .library-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 10px 8px; }
-/* A category's tabs (Motions: Mocap, Generated, Imported): an icon each, the open one named and widest; as wide as the search. */
-.lib-tabs { display: flex; gap: 2px; margin: 0 10px 8px; padding: 2px; border-radius: var(--radius); background: var(--well); flex: none; }
-.lib-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1 1 0; min-width: 0; max-width: 44px; height: var(--control-s); padding: 0 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font-size: var(--fs-s); font-weight: 540; cursor: pointer; }
-.lib-tab:hover { color: var(--text); }
-.lib-tab.on { flex: 1 0 auto; max-width: none; background: var(--raised); color: var(--text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--shade) 5%, transparent), 0 1px 3px color-mix(in srgb, var(--shade) 10%, transparent); }
-.lib-tab:focus-visible { outline: none; box-shadow: var(--focus); }
-.lib-tab-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .library-row .search { flex: 1; margin: 0; }
 .side-section .thumbs { overflow: visible; }
 .side-section .thumbs li { position: relative; }
@@ -1824,6 +1822,7 @@ button.psec-title svg { color: var(--text-3); }
 .lib-tab { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: 1 1 0; min-width: 0; max-width: 40px; height: 28px; padding: 0 6px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text-2); font-size: var(--fs-m); font-weight: 540; cursor: pointer; }
 .lib-tab:hover { color: var(--text); }
 .lib-tab.on { flex: 1 0 auto; max-width: none; background: var(--panel); color: var(--text); box-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 8%, transparent); }
+.lib-tab:focus-visible { outline: none; box-shadow: var(--focus); }
 .lib-tab-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 @container library (max-width: 219px) { .lib-tab-label { display: none; } .lib-tab.on { flex: 1 1 0; max-width: 40px; } }
 

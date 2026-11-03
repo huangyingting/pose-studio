@@ -80,12 +80,11 @@ first, then everywhere it applies.
 
 ## 5. Tabs
 
-- **A category's tabs** (Library → Motions: Mocap, Generated, Imported) are icon tabs: an icon
-  each; **the chosen tab shows its icon and its name** and takes the room left; the others show
-  their icon only. The row is as wide as the search above it, on the `--well` background with the
-  chosen tab raised (`.lib-tabs`, `.lib-tab`). Each tab has a tooltip saying what it holds;
-  `role="tablist"`/`role="tab"`, `aria-selected`, ← → between them. The chosen tab is remembered.
-  A search looks in all the tabs. (2026-10-31.)
+- **The Library is not split by where things come from**: one list for each category, grouped by
+  what they are (Motions by what the person does: Moving, Sitting & lying, Talking & gestures…),
+  whether recorded from people, made by the app or your own; one made by the app says so (*made*,
+  beside its length), your own are in the last group (My motions, with Import motion… above the
+  list). (2026-11-03; were Mocap, Generated and Imported tabs.)
 - **Choosing a property's value** is not a tab: use `Segmented`.
 
 ## 6. Menus, tooltips, popups

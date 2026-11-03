@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Ban, Castle, SunMedium, Film, Import, Layers, PersonStanding, Trash2, UserRound, UsersRound, Video, WandSparkles, type LucideIcon } from 'lucide-react';
+import { Ban, Castle, SunMedium, Film, Layers, PersonStanding, Trash2, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
 import { applyMotion, applyPose, applyUpperBody, deleteModel, deleteMotion, deletePose, applyLightingPreset, placeTemplate, setFigureModel, setSceneSet } from '@/lib/actions';
 import { BUILT_IN, clipById, clipScene, hasClip } from '@/lib/assets';
 import { fetchLibraryClip, libraryMotions } from '@/lib/librarymotions';
@@ -46,8 +46,6 @@ export interface LibraryItem {
   tab: LibraryTab;
   /** The part of its category it is in (its own list region), and its group there. */
   part: string;
-  /** Which of its category's tabs it is on (its `kinds`), if it has them. */
-  kind?: string;
   group: string;
   name: string;
   icon: LucideIcon;
@@ -82,7 +80,6 @@ export interface LibraryCategory {
   /** Above its items: what they apply to, and what adds to it. */
   Bar?: ComponentType<BarProps>;
   /** Its items on tabs of their own, by where they come from (a search looks in all of them); what an empty one says. */
-  kinds?: { id: string; label: string; icon: LucideIcon; tip: string; empty?: string }[];
 }
 
 /** A figure that can take poses, motions and characters (stand-ins cannot). */
@@ -166,11 +163,11 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       key: `motion:${m.id}`,
       tab: 'motions',
       part: 'Motions',
-      kind: 'generated',
       group: m.group,
       name: m.name,
       icon: Film,
-      meta: `${motionLength(m.id).toFixed(1)} s`,
+      // (Made by the app, not recorded from a person: said beside its length.)
+      meta: `made · ${motionLength(m.id).toFixed(1)} s`,
       disabled: !figure,
       run: () => give(m.id),
       drop: {
@@ -207,7 +204,6 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
       key: `motion:${m.id}`,
       tab: 'motions',
       part: 'Motions',
-      kind: 'captured',
       group: m.group,
       name: m.name,
       icon: Film,
@@ -230,19 +226,18 @@ function motions(store: Store, ui: LibraryUi): LibraryItem[] {
     };
   };
   // The Library's motion files: each fetched the first time it is used or shown.
-  const files = libraryMotions().map((m) => clipItem(m, () => fetchLibraryClip(m.id)))
-    // (In the groups' order, Moving first, as on the Generated tab.)
-    .sort((p, q) => MOTION_GROUPS.indexOf(p.group as never) - MOTION_GROUPS.indexOf(q.group as never));
+  const files = libraryMotions().map((m) => clipItem(m, () => fetchLibraryClip(m.id)));
   // (One person's each: an imported clip of several people is not offered.)
   const mine = (store.getState().library.clips ?? []).filter((m) => m.people.length <= 1).map((m): LibraryItem => {
     const item = clipItem({ ...m, people: 1, group: 'My motions' }, () => Promise.resolve(hasClip(m.id)));
     return {
       ...item,
-      kind: 'imported',
       actions: [...(item.actions ?? []), { icon: Trash2, label: `Delete my motion ${m.name}`, run: () => { deleteMotion(store, m.id); ui.notifyUndo(`Deleted “${m.name}”`); } }],
     };
   });
-  return [...built, ...files, ...mine];
+  // One list, by what the person does (Moving first): recorded ones, then made ones, in each group; my own last.
+  const order = (it: LibraryItem) => MOTION_GROUPS.indexOf(it.group as never);
+  return [...[...files, ...built].sort((p, q) => order(p) - order(q)), ...mine];
 }
 
 /** Sets the scene can be played in (lib/sets.ts): one at a time, or none. */
@@ -319,16 +314,8 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   // Who a figure is drawn as.
   { id: 'characters', label: 'Characters', icon: UserRound, grid: true, items: characters, Bar: CharactersBar },
   { id: 'poses', label: 'Poses', icon: PersonStanding, grid: true, items: poses, Bar: PosesBar },
-  // On the selected figure's track, at the playhead.
-  {
-    id: 'motions', label: 'Motions', icon: Film, items: motions, Bar: MotionsBar,
-    // (Recorded from people, Mixamo's; made here, posed and stepped by the app; and your own.)
-    kinds: [
-      { id: 'captured', label: 'Mocap', icon: Video, tip: 'Motion capture: recorded from real people (Mixamo)' },
-      { id: 'generated', label: 'Generated', icon: WandSparkles, tip: 'Made by Pose Studio, key by key: what no capture covers yet' },
-      { id: 'imported', label: 'Imported', icon: Import, tip: 'The motions you import (BVH, FBX, glTF or a Pose Studio motion) and save', empty: 'Motions you import, or save from a Posed block, show here.' },
-    ],
-  },
+  // On the selected figure's track, at the playhead: recorded from people (Mixamo's), made here, and your own.
+  { id: 'motions', label: 'Motions', icon: Film, items: motions, Bar: MotionsBar },
   // Where the scene is played: a set behind it.
   { id: 'sets', label: 'Sets', icon: Castle, grid: true, items: sets },
   // How the scene is lit, at once (each light itself in the outline and the inspector).

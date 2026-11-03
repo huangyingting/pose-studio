@@ -853,6 +853,7 @@ class Evaluator {
       ...(src.spin ? { spin: src.spin } : {}),
       ...(src.flip ? { flip: src.flip } : {}),
       ...cycle,
+      ...(this.handling(f) ? { holding: true } : {}),
       ...(src.mode === 'jump' && leapOf(LEAP_CLIP) ? { leap: leapOf(LEAP_CLIP)! } : {}),
       // (A turn on the spot: a real person's turning.)
       ...(src.mode === 'walk' && onTheSpot && twistOf(TWIST_CLIP, turnBy < 0) ? { twist: twistOf(TWIST_CLIP, turnBy < 0)! } : {}),
@@ -869,9 +870,10 @@ class Evaluator {
     return this.handling(f) ? p : { ...p, bones: bonesOf({ ...anglesOf(p.bones), ...CARRIAGE }) };
   }
 
-  /** Whether a figure ever holds anything in the scene (its arms then kept as posed on the way). */
+  /** Whether a figure ever holds anything in the scene, or a hand of theirs is held to something (their arms then kept as posed on the way). */
   private handling(f: Figure) {
-    return this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id));
+    return this.scene.props.some((p) => p.hold?.figure === f.id || this.a.props?.[p.id]?.some((k) => k.hold?.figure === f.id))
+      || !!this.a.constraints?.some((c) => c.figure === f.id && /Hand$/.test(c.bone));
   }
 
   private travel(f: Figure, act: Action, t: number): Pose {

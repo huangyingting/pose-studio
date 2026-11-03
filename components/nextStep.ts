@@ -63,19 +63,25 @@ export function nextStep(store: Store): Suggestion | null {
   let step = '';
   const offer = (id: string, s: Omit<Suggestion, 'id'>): Suggestion | null => (done.includes(id) ? null : ((step = id), { id, ...s }));
 
+  const untouched = !!lead && !acting && people.length === 1 && JSON.stringify(lead.bones) === DEFAULT_BONES;
   const out =
     (!figures.length && offer('figure', { text: 'Empty scene: add a figure', actions: [] }))
-    || (lead && !acting && people.length === 1 && JSON.stringify(lead.bones) === DEFAULT_BONES
+    // (A new project: a first shot in a minute, from a scene ready to shoot.)
+    || (untouched && store.getState().library.scenes.length === 1
+      && offer('start', { text: 'New here? Start from a scene ready to shoot: it plays, is filmed and exports as it is', actions: [] }))
+    || (untouched
       && offer('pose', { text: `Pose ${lead.name}: drag a part, or pick a pose`, actions: [] }))
     || (lead && !acting && offer('act', { text: `Give ${lead.name} something to do`, actions: [] }))
     || (a && acting && shotSpans(a).length === 1 && offer('cut', { text: scene.coverage?.live ? 'One shot so far: cut it where the view should change' : 'One shot so far: let the director film it, or cut it', actions: [] }))
     || (a && shotSpans(a).length > 1 && new Set(shotSpans(a).map((sp) => sp.shot.camera)).size === 1
       && offer('camera', { text: 'All shots use one camera: give shot 2 its own', actions: [] }))
     || (a && acting && offer('check', { text: 'Check for sliding feet, collisions, joints bent too far and pops', actions: [] }))
+    || (a && acting && shotSpans(a).length > 1 && offer('export', { text: 'Ready to show: export it as a video, or its storyboard', actions: [] }))
     || null;
   if (!out) return null;
   // The buttons: the commands that take the step.
   if (out.id === 'figure') out.actions = [act('floor.figure', 'Add a figure')];
+  if (out.id === 'start') out.actions = [act('app.newScene', 'Ready-made scenes')];
   if (out.id === 'pose') out.actions = [act('figure.pose', 'Poses', { store, figure: lead!.id })];
   if (out.id === 'act') out.actions = [act('figure.walk', 'Walk to…', { store, figure: lead!.id }), act('figure.motion', 'Motions', { store, figure: lead!.id })];
   if (out.id === 'cut') {
@@ -97,5 +103,6 @@ export function nextStep(store: Store): Suggestion | null {
     out.actions = [{ label: 'New camera', run: () => { stepDone(scene.id, 'camera'); store.select({ kind: 'shot', shot: second.shot.id }); newCamera.run(); } }];
   }
   if (out.id === 'check') out.actions = [act('timeline.check', 'Check')];
+  if (out.id === 'export') out.actions = [act('app.export', 'Export')];
   return out;
 }
