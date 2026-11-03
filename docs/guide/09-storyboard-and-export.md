@@ -18,7 +18,7 @@ The storyboard (`B`, or the rail's last section) is the story, shot by shot:
 
 1. **What to export**:
    - **Image**: this scene, a **turnaround** from 4 or 8 angles, **all scenes** as a sheet, **frames** of an animation (a motion study), or the **storyboard**.
-   - **Video**: this scene, or the storyboard, filmed through its shots (MP4 or WebM, 720p or 1080p, in the project's frame).
+   - **Video**: this scene, or the storyboard, filmed through its shots (MP4 or WebM, 360p to take a quick look, 720p or 1080p, in the project's frame). While it records, **Keep working** closes the dialog: it goes on, its progress in the header's hint (with **Cancel**), and the file is saved when it is done.
    - **For AI video**: a zip per shot with its first and last frame, depth and normal passes, its description and camera path, a greybox clip, and an OpenTimelineIO cut list.
    - **3D**: the scene as a `.glb` for Blender and game engines, animated.
    An option that can't be used yet is greyed out and says why.

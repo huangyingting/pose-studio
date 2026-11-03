@@ -131,12 +131,13 @@ function poses(store: Store, ui: LibraryUi): LibraryItem[] {
     thumb: poseThumb(p),
     actions: own ? [{ icon: Trash2, label: `Delete my pose ${p.name}`, run: () => { deletePose(store, p.id); ui.notifyUndo(`Deleted “${p.name}”`); } }] : undefined,
   }));
-  // Two people posed together (lib/stagings.ts): the selected figure and the one nearest it take it, figures added for the rest.
-  const two = STAGINGS.filter((t) => t.people === 2).map((t): LibraryItem => ({
+  // People posed together (lib/stagings.ts; here only, not among the new scene's templates): the
+  // selected figure and those nearest it take it, figures added for the rest.
+  const two = STAGINGS.map((t): LibraryItem => ({
     key: `pose:pair:${t.id}`,
     tab: 'poses',
     part: 'Poses',
-    group: 'Two people',
+    group: 'People together',
     name: t.name,
     about: t.description,
     icon: UsersRound,

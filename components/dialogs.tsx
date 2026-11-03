@@ -17,6 +17,7 @@ import {
 } from '@/lib/render';
 import { ASPECTS, cameraAt, frameAspect, type CameraView } from '@/lib/cameras';
 import { recordVideo, videoSupported } from '@/lib/video';
+import { setExportJob } from './exportJob';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
@@ -66,6 +67,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const abort = useRef<AbortController | null>(null);
+  // (Left to go on with the dialog closed: not stopped as it closes.)
+  const background = useRef(false);
   const preview = useRef<HTMLDivElement>(null);
   // (Its outputs a radio group: one Tab stop, the arrows choose: #20.)
   const outputList = useRef<HTMLDivElement>(null);
@@ -93,7 +96,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   const tooBig = !filmed && !model && (width * height > 120_000_000 || width > 16384 || height > 16384);
   const pass = pack ? 'beauty' : o.pass;
 
-  useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => () => { if (!background.current) abort.current?.abort(); }, []);
 
   useEffect(() => {
     try {
@@ -140,6 +143,11 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
     return () => clearTimeout(t);
   }, [o, laid, style, scope, filmed, pass, cells, width, height, shots, story]);
 
+  // (How far it has got: here, and in the header's hint should it go on with the dialog closed.)
+  const advance = (label: string) => (p: number) => {
+    setProgress(p);
+    setExportJob({ label, progress: p, cancel: () => abort.current?.abort() });
+  };
   const run = async () => {
     setBusy(true);
     setProgress(0);
@@ -157,7 +165,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         abort.current = new AbortController();
         const blob = await keyframePack(shots, whole ? 'Story' : scene.name, {
           width, height, style, lineWidth: o.lineWidth * (height / 640), greybox: o.greybox,
-        }, setProgress, abort.current.signal);
+        }, advance('Packing for AI video'), abort.current.signal);
         const name = `${title}_ai_pack.zip`;
         downloadBlob(blob, name);
         notify(`Saved ${name}`);
@@ -168,8 +176,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         abort.current = new AbortController();
         const look = { width, height, style, lineWidth: o.lineWidth * (height / 640), pass };
         const { blob, ext } = whole
-          ? await recordStory(story, { ...look, captions: o.labels }, setProgress, abort.current.signal)
-          : await recordVideo(scene, { ...look, loops: o.videoLoops, ...(ranged ? { range: [scene.animation!.range!.from, scene.animation!.range!.to] as [number, number] } : {}) }, setProgress, abort.current.signal);
+          ? await recordStory(story, { ...look, captions: o.labels }, advance('Recording the storyboard'), abort.current.signal)
+          : await recordVideo(scene, { ...look, loops: o.videoLoops, ...(ranged ? { range: [scene.animation!.range!.from, scene.animation!.range!.to] as [number, number] } : {}) }, advance('Recording the video'), abort.current.signal);
         const name = `${title}.${ext}`;
         downloadBlob(blob, name);
         notify(`Saved ${name} (${width} × ${height})`);
@@ -190,7 +198,13 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       if ((err as Error).message !== 'Cancelled') notify(`Export failed: ${(err as Error).message}`, 'error');
     } finally {
       setBusy(false);
+      setExportJob(null);
     }
+  };
+  // (Closed while it goes on: the header's hint shows how far it has got, the file saved when done.)
+  const keepWorking = () => {
+    background.current = true;
+    onClose();
   };
 
   const num = (key: 'columns' | 'width' | 'cellWidth' | 'cellHeight', min: number, max: number, label: string) => (
@@ -245,6 +259,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
           </span>
           {!filmed && !model && scope !== 'current' && <button type="button" className="btn ghost" onClick={() => setO({ ...DEFAULT_EXPORT, scope })} data-tip="4 columns of 600 × 640 cells">Reset layout</button>}
           {busy && filmed && <button type="button" className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>}
+          {busy && filmed && <button type="button" className="btn ghost" onClick={keepWorking} data-tip="Close this and go on working: it goes on, the file saved when it is done">Keep working</button>}
           <button type="button" className="btn primary" onClick={run} disabled={busy || tooBig || (video && !canRecord)} data-autofocus>
             <Download size={16} aria-hidden />
             {busy ? (filmed ? `${video ? 'Recording' : 'Packing'}… ${Math.round(progress * 100)}%` : 'Rendering…') : 'Download'}
@@ -341,7 +356,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
           )}
           {!model && (filmed ? (
             <Field label="Size">
-              <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${look.frame})` }))} />
+              <Select<VideoSize> label="Size" value={o.videoSize} onChange={(v) => set({ videoSize: v })} options={VIDEO_SIZES.map((k) => ({ value: k, label: `${videoSize(k, frameAspect()).label} (${look.frame})${k === '360p' ? ' · quick to make' : ''}` }))} />
             </Field>
           ) : (
             <Field label="Format">

@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, correctEveryRepeat, rememberSteps, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setTravel } from '@/lib/actions';
+import { clearMark, correctEveryRepeat, rememberSteps, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setLine, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById, loopsOf } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
@@ -150,6 +151,30 @@ export const motionSummary = (t: Target) => {
 };
 export const motionInfo = (t: Target) => (t.action!.layer ? undefined : 'Drag its mark on the floor to where it ends: the motion stretches up to ±25% and turns up to ±30° to get there.');
 
+/** The line of dialogue a motion says as it plays (what a conversation cuts to, and its subtitle): typed, kept on Enter or leaving it. */
+function LineField({ t }: { t: Target }) {
+  const act = t.action!;
+  const [text, setText] = useState(act.say ?? '');
+  const commit = () => { if (text.trim() !== (act.say ?? '')) setLine(t.store, act.id, text || null); };
+  return (
+    <label className="field">
+      <span>Says</span>
+      <input
+        type="text"
+        aria-label="Line said"
+        placeholder="A line of dialogue, shown as a subtitle"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          else if (e.key === 'Escape') { e.stopPropagation(); setText(act.say ?? ''); }
+        }}
+      />
+    </label>
+  );
+}
+
 export function MotionPanel({ t }: { t: Target }) {
   const act = t.action!;
   if (act.source.kind !== 'clip') return null;
@@ -166,6 +191,7 @@ export function MotionPanel({ t }: { t: Target }) {
           </div>
         </PropertyRow>
       )}
+      {!act.layer && <LineField key={act.id} t={t} />}
       <label className="field">
         <span>Speed</span>
         <NumberField prefix="×" label="Speed" value={Math.round(speed * 100) / 100} step={0.05} min={0.25} max={4} onChange={(v) => setClipOptions(t.store, act.id, { speed: v }, `act:${act.id}:speed`)} />

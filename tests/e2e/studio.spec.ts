@@ -12,7 +12,7 @@ import type { Animation, Camera, PathCamera, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
 /** The two people's poses in the Library's Poses. */
-const PAIRS = STAGINGS.filter((t) => t.people === 2).length;
+const TOGETHER = STAGINGS.length;
 
 /** The 20 reference poses as scenes. */
 const refScenes = () => referencePoses().map((p) => poseScene(p));
@@ -251,7 +251,7 @@ test('a new project is one blank scene; the built-in poses are in the library', 
   await openSection(page, 'Library');
   const poses = page.getByRole('region', { name: 'Poses' });
   // In groups (standing, sitting, kneeling, lying, two people); resting on one shows it.
-  await expect(poses.locator('li')).toHaveCount(builtInPoses().length + PAIRS);
+  await expect(poses.locator('li')).toHaveCount(builtInPoses().length + TOGETHER);
   await poses.getByRole('button', { name: 'Cobra', exact: true }).hover();
   await expect(page.locator('.lib-preview img')).toBeVisible({ timeout: 30_000 });
   await poses.getByRole('button', { name: /Hand on head/ }).click();
@@ -977,9 +977,13 @@ type Fig = { id: string; position: number[]; bones: Bones };
 const figs = async (page: Page) => (await state(page)).scene.figures as unknown as Fig[];
 
 test('multi-person set-ups and relation tools', async ({ page }) => {
-  // The New menu leads to the templates.
-  await (await newSceneDialog(page)).getByRole('region', { name: 'Standing together' }).getByRole('button', { name: /^Handshake/ }).click();
-  expect((await state(page)).scene.name).toBe('Handshake');
+  // People posed together, from the Library's poses: the figure, and one more added.
+  await openSection(page, 'Scene');
+  await (await outline(page, 'Cast')).getByRole('button', { name: 'Figure', exact: true }).click();
+  await openSection(page, 'Library');
+  await libraryShows(page, 'Poses');
+  await page.getByRole('region', { name: 'Poses' }).getByRole('button', { name: /^Handshake/ }).click();
+  await expect.poll(async () => (await state(page)).scene.figures.length).toBe(2);
   await openSection(page, 'Scene');
   let [a, b] = await figs(page);
   expect(Math.abs(facingOf(a.bones) - facingOf(b.bones))).toBeCloseTo(180, 0);
@@ -1596,7 +1600,7 @@ test('library assets apply to the selection: poses to a figure, motions to its t
   expect(a.bones).toEqual(refScenes()[0].figures[0].bones);
   // Save it, then a motion goes on this figure's track only.
   await page.getByRole('button', { name: /Save Figure 2's pose/ }).click();
-  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + PAIRS + 1);
+  await expect(page.getByRole('region', { name: 'Poses' }).locator('li')).toHaveCount(builtInPoses().length + TOGETHER + 1);
   await libraryShows(page, 'Motions');
   await page.getByRole('region', { name: 'Motions' }).getByRole('button', { name: /^Bow [\d.]+ s$/ }).click();
   const sc = (await live(page)).scene;

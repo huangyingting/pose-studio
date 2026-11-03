@@ -45,6 +45,13 @@ The timeline zooms with `Ctrl` + wheel or its zoom buttons and scrolls with `Shi
 
 **Move to…** in the figure's inspector, and a figure's right-click menu, do the same: pick the spot afterwards on the floor.
 
+## Lines of dialogue
+
+**Say a line…** in a figure's right-click menu: type what they say. They talk (sitting, if they sit then) for as long as it takes to say it, from the playhead; the block shows the words. A motion's **Says** in its inspector gives any motion a line, or changes it. A line is:
+
+- what a conversation is cut on (the director's **Conversation** and **Group** go to whoever says one);
+- a subtitle in an exported video and the storyboard's video.
+
 ## A block and its menu
 
 ![A motion's block right-clicked: selected, its menu beside it](images/action-inspector.png)

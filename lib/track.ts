@@ -927,6 +927,8 @@ export function slipAction(a: Animation, id: string, by: number): Animation {
 export function actionLabel(act: Action, scene?: Scene): string {
   const src = act.source;
   if (src.kind === 'keys') return act.layer === 'correction' ? 'Correction' : 'Posed';
+  // (A line said: its words.)
+  if (src.kind === 'clip' && act.say) return `“${act.say}”`;
   if (src.kind === 'clip') return `${clipById(src.clip)?.name ?? 'Motion'}${src.repeat ? ` ×${src.repeat}` : ''}`;
   const marks = scene && src.mode !== 'jump' ? marksOf(scene, act, act.roles[0].figure) : null;
   if (marks && Math.hypot(marks.end.at[0] - marks.start.at[0], marks.end.at[1] - marks.start.at[1]) < 0.05 && Math.abs(wrapDeg(marks.end.facing - marks.start.facing)) > 5) return 'Turn';

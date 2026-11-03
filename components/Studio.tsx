@@ -51,6 +51,7 @@ import CameraPip from './CameraPip';
 import CanvasTools from './CanvasTools';
 import { FLOOR_HINT, useCanvasPointer, usePointerHint } from './hints';
 import { nextStep, onStepDone, stepDone } from './nextStep';
+import { exportJob, onExportJob } from './exportJob';
 
 function webglAvailable() {
   try {
@@ -697,6 +698,16 @@ function Hint({ clock, pick, cancelPick, note, quiet, alert, keys }: { clock: Cl
   const overCanvas = useCanvasPointer();
   const [, setSteps] = useState(0);
   useEffect(() => onStepDone(() => setSteps((n) => n + 1)), []);
+  const job = useSyncExternalStore(onExportJob, exportJob, () => null);
+  // (An export going on with its dialog closed: how far it has got, even while the scene plays.)
+  if (job && !pick) {
+    return (
+      <Pill tone="note" icon={Download}>
+        {`${job.label}… ${Math.round(job.progress * 100)}%`}
+        <button type="button" className="hint-action" onClick={job.cancel}>Cancel</button>
+      </Pill>
+    );
+  }
   if (playing) return null;
   // (Cancelled by its button too: a touch screen has no Esc.)
   if (pick) {

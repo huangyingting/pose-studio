@@ -1,5 +1,5 @@
 import { wrapDeg } from '../joints';
-import { newAnimation, snapTime } from '../animation';
+import { MAX_LINE, newAnimation, snapTime } from '../animation';
 import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
 import { figurePoseAt, actionsOf, marksOf, warpOf, naturalEnd } from '../evaluate';
 import { newProp, nextName } from '../doc';
@@ -14,9 +14,9 @@ import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
-import type { PropKind, Travel } from '../types';
+import type { PropKind, Scene, Travel } from '../types';
 import { retime, setBlend, setClipOptions } from './timeline';
-import { addFigure } from './figures';
+import { addFigure, sittingAt } from './figures';
 
 /* Animating a scene, and walking, running and jumping from mark to mark (lib/locomotion.ts). */
 
@@ -272,6 +272,52 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
   store.updateScene((s) => insertClip(s, [figureId], BUILT_IN + motion.id, start));
   store.setTime(start);
   return true;
+}
+
+/** About how long a line takes to say (s): some 2.6 words a second, and a moment to start. */
+export function lineTime(text: string) {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(15, Math.max(1.2, Math.round((words / 2.6 + 0.6) * 10) / 10));
+}
+
+/** The Library's talking a line is said with at t: sitting, if they sit then, or standing. */
+export const talkFor = (scene: Scene, figureId: string, t: number) => (sittingAt(scene, figureId, t) ? 'library:sitting-talking' : 'library:talking');
+
+/**
+ * A line of dialogue said by a figure from the playhead: the Library's talking (sitting, if they
+ * sit then) for as long as it takes to say, with its words (what a conversation cuts to, and the
+ * subtitle). Its clip must be at hand (fetchLibraryClip). The action's id, or null.
+ */
+export function sayLine(store: Store, figureId: string, text: string): string | null {
+  const words = text.trim().slice(0, MAX_LINE);
+  const t = store.scene.animation ? snapTime(store.scene.animation, store.getState().time) : 0;
+  const clip = talkFor(store.scene, figureId, t);
+  if (!words || !hasClip(clip)) return null;
+  return store.group(() => {
+    if (!applyMotion(store, figureId, clip)) return null;
+    const act = actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === clip && Math.abs(x.start - t) < 1e-3);
+    if (!act) return null;
+    retime(store, act.id, lineTime(words));
+    setLine(store, act.id, words);
+    return act.id;
+  });
+}
+
+/** The words an action says as it plays (a line of dialogue), or none. */
+export function setLine(store: Store, id: string, text: string | null, key = '') {
+  const words = text?.trim().slice(0, MAX_LINE);
+  store.updateScene((s) => ({
+    ...s,
+    animation: s.animation && {
+      ...s.animation,
+      actions: s.animation.actions.map((x) => {
+        if (x.id !== id || x.source.kind !== 'clip') return x;
+        const { say: _was, ...rest } = x;
+        void _was;
+        return words ? { ...rest, say: words } : rest;
+      }),
+    },
+  }), key);
 }
 
 /** What a seat may be among the scene's props. */

@@ -32,7 +32,7 @@ function moodOf(act: Action) {
 
 /** Whether a motion is someone talking (what a conversation cuts to: lib/coverage.ts). */
 export function talking(act: Action) {
-  return !!moodOf(act)?.talk;
+  return !!act.say || !!moodOf(act)?.talk;
 }
 
 /** A number from a figure's id, 0–1, the same every time (its own rhythm of blinking and talking). */

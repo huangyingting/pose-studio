@@ -86,7 +86,7 @@ export function nextStep(store: Store): Suggestion | null {
   if (out.id === 'act') out.actions = [act('figure.walk', 'Walk to…', { store, figure: lead!.id }), act('figure.motion', 'Motions', { store, figure: lead!.id })];
   if (out.id === 'cut') {
     // (The director: in the style that suits who is in it.)
-    const style = people.length > 1 ? 'dialogue' : 'follow';
+    const style = people.length > 2 ? 'group' : people.length > 1 ? 'dialogue' : 'follow';
     out.actions = [
       ...(scene.coverage?.live ? [] : [{ label: 'Director', run: () => {
         // (Filming the one the hint is about: who is active is who the director follows.)

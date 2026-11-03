@@ -62,7 +62,7 @@ function cameraSubject(scene: Scene, cam: Camera): string | undefined {
 }
 
 /** The figures a camera frames: its subject and those it frames with it (none: everyone). */
-export function cameraFigures(scene: Scene, cam: Camera): string[] | undefined {
+function cameraFigures(scene: Scene, cam: Camera): string[] | undefined {
   const subject = cameraSubject(scene, cam);
   if (!subject) return undefined;
   const shown = (id: string) => id !== subject && scene.figures.some((f) => f.id === id && !f.hidden);

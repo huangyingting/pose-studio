@@ -1119,9 +1119,9 @@ export const FILMS: { id: string; name: string; people: number; build(): Scene; 
   { id: 'film-standoff', name: 'Stand-off', people: 4, build: standOff, coverage: 'dialogue', cast: [2, 0] },
   // (The shooter and the defender.)
   { id: 'film-basketball', name: 'Street basketball', people: 4, build: streetBasketball, coverage: 'sports', cast: [0, 2] },
-  // (Hand-held on the one dancing alone: nobody in front of her, the party round her.)
-  { id: 'film-party', name: 'House party', people: 6, build: houseParty, coverage: 'documentary', cast: [2] },
-  { id: 'film-office', name: 'Office deadline', people: 4, build: officeDeadline, coverage: 'documentary', cast: [3] },
+  // (All of them, and whoever is doing something: the one dancing alone first.)
+  { id: 'film-party', name: 'House party', people: 6, build: houseParty, coverage: 'group', cast: [2] },
+  { id: 'film-office', name: 'Office deadline', people: 4, build: officeDeadline, coverage: 'group', cast: [3] },
   { id: 'film-cafe', name: 'Café meeting', people: 3, build: cafeMeeting, coverage: 'dialogue', cast: [0, 1] },
   { id: 'film-kungfu', name: 'Kung fu school', people: 4, build: kungFuSchool, coverage: 'fight', cast: [0, 2] },
   { id: 'film-chase', name: 'Street chase', people: 3, build: streetChase, coverage: 'sports', cast: [0, 1] },

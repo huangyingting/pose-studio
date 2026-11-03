@@ -275,6 +275,8 @@ export interface Action {
   blendCurve?: 'linear' | 'in' | 'out';
   /** How much of it shows (#23, 0–1): an action over another (a subtler wave), a correction (half of it). All when not given. */
   strength?: number;
+  /** A line of dialogue said as it plays (a motion of someone talking): what a conversation cuts to, and the subtitle shown. */
+  say?: string;
   /** What an action over another plays on (#23): the upper body when not given, the arms, the head and neck, or the legs. */
   mask?: 'arms' | 'head' | 'legs';
   /** The strike it reacts to (#23: React to): it stays timed to its blow as that moves. */

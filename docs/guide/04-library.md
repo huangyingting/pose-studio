@@ -11,7 +11,7 @@ The Library is five sections of the rail: **Characters**, **Poses**, **Motions**
 3. **A pose**: click it to put it on the selected figure, where it stands. In an animated scene, it is keyed at the playhead. **Save Figure's pose** (above the grid) keeps your own in the library.
 4. **Resting the pointer** on an item shows a preview with its description, and the selected figure shows it as a ghost.
 
-The poses are grouped by posture (standing, sitting and squatting, kneeling and all fours, lying…): the 20 reference poses of the classic drawing sheet, 139 more after a gallery of pose drawings, and your own.
+The poses are grouped by posture (standing, sitting and squatting, kneeling and all fours, lying…): the 20 reference poses of the classic drawing sheet, 139 more after a gallery of pose drawings, and your own. **People together** (a conversation, a handshake, a hug, a group photo…) is posed on the selected figure and those nearest it, figures added for the rest.
 
 ## Motions
 

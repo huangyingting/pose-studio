@@ -41,6 +41,7 @@ On the canvas, a selected camera draws its view cone. A path camera shows its pa
 1. **Director** on the timeline's bar.
 2. **The styles**:
    - **Conversation**: a master two-shot, over-the-shoulder shots and singles.
+   - **Group**: three or more people. A wide shot of everyone, and a single on whoever talks or starts doing something.
    - **Follow the action**: wide, tracking when people set off, close for what they do.
    - **One take**.
    - **Documentary**.

@@ -60,9 +60,11 @@ interface VideoOptions {
   pass?: Pass;
   /** Only this part of the animation (seconds), played once: e.g. one shot. */
   range?: [number, number];
+  /** The lines said shown as subtitles (a video's; not a board's panels). */
+  subtitles?: boolean;
 }
 
-/** Draw one frame of a scene through its shot camera at time t. */
+/** Draw one frame of a scene through its shot camera at time t (with the line said then as its subtitle, if asked). */
 export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number, o: Omit<VideoOptions, 'loops' | 'range'>, renderer = sharedRenderer()) {
   const src = renderer.renderShot(sceneAt(scene, t, true), o.width, o.height, o.lineWidth, {
     style: o.style, pass: o.pass, camera: cameraAt(scene, t, o.width / o.height),
@@ -70,6 +72,51 @@ export function drawShot(ctx: CanvasRenderingContext2D, scene: Scene, t: number,
   ctx.fillStyle = styleDef(o.style).background;
   ctx.fillRect(0, 0, o.width, o.height);
   ctx.drawImage(src, 0, 0);
+  const line = o.subtitles ? lineAt(scene, t) : null;
+  if (line) drawSubtitle(ctx, line, o.width, o.height);
+}
+
+/** The line of dialogue said at t (the last begun, if two overlap), if any. */
+export function lineAt(scene: Scene, t: number): string | null {
+  const said = (scene.animation?.actions ?? []).filter((x) => x.say && !x.layer && x.start <= t + 1e-6 && t < x.start + x.duration - 1e-6);
+  return said.sort((p, q) => q.start - p.start)[0]?.say ?? null;
+}
+
+/** A subtitle at the bottom of a frame: white on a dark band, two lines at most. */
+export function drawSubtitle(ctx: CanvasRenderingContext2D, text: string, width: number, height: number) {
+  const size = Math.round(height / 26);
+  ctx.font = `500 ${size}px system-ui, sans-serif`;
+  const lines = wrap(ctx, text, width * 0.8, 2);
+  const h = lines.length * size * 1.35 + size * 0.8;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, height - h - size * 0.6, width, h);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  lines.forEach((l, j) => ctx.fillText(l, width / 2, height - h - size * 0.2 + j * size * 1.35));
+  ctx.textAlign = 'start';
+}
+
+/** Wrap text to lines that fit `width` (at most `max` lines, the last ellipsised). */
+export function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, max: number) {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width <= width) line = test;
+    else {
+      if (line) lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length > max) {
+    lines.length = max;
+    let last = lines[max - 1];
+    while (last && ctx.measureText(`${last}…`).width > width) last = last.slice(0, -1);
+    lines[max - 1] = `${last}…`;
+  }
+  return lines;
 }
 
 export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
@@ -85,7 +132,7 @@ export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (f
       throw new Error('Cancelled');
     }
     const t = o.range ? r0 + i / a.fps : a.loop ? (i % perLoop) / a.fps : Math.min(a.duration, (i % (perLoop + 1)) / a.fps);
-    drawShot(enc.ctx, scene, t, o, videoRenderer());
+    drawShot(enc.ctx, scene, t, { ...o, subtitles: true }, videoRenderer());
     await enc.add(i / a.fps, 1 / a.fps);
     onProgress?.((i + 1) / total);
   }

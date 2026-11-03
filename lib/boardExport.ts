@@ -2,7 +2,7 @@ import { frameAspect } from './cameras';
 import { storyLength, type StoryShot } from './board';
 import type { Pass } from './render';
 import type { Style } from './types';
-import { createEncoder, drawShot } from './video';
+import { createEncoder, drawShot, drawSubtitle, lineAt, wrap } from './video';
 import { videoRenderer } from './thumbnails';
 
 /*
@@ -17,27 +17,6 @@ interface StoryOptions {
   pass?: Pass;
 }
 
-/** Wrap text to lines that fit `width` (at most `max` lines, the last ellipsised). */
-function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, max: number) {
-  const lines: string[] = [];
-  let line = '';
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width <= width) line = test;
-    else {
-      if (line) lines.push(line);
-      line = word;
-    }
-  }
-  if (line) lines.push(line);
-  if (lines.length > max) {
-    lines.length = max;
-    let last = lines[max - 1];
-    while (last && ctx.measureText(`${last}…`).width > width) last = last.slice(0, -1);
-    lines[max - 1] = `${last}…`;
-  }
-  return lines;
-}
 
 /** When a shot is drawn on its panel: once it has blended in, so it is its own camera's view. */
 export const panelTime = (x: StoryShot) => (x.span ? Math.min(x.span.start + (x.span.shot.blend ?? 0), Math.max(x.span.start, x.span.end - 1e-3)) : 0);
@@ -100,28 +79,17 @@ export async function recordStory(shots: StoryShot[], o: StoryOptions & { width:
   const enc = await createEncoder(o.width, o.height, fps);
   const total = storyLength(shots);
   let time = 0;
-  const caption = (text: string) => {
-    if (!o.captions || !text) return;
-    const ctx = enc.ctx;
-    const size = Math.round(o.height / 26);
-    ctx.font = `500 ${size}px system-ui, sans-serif`;
-    const lines = wrap(ctx, text, o.width * 0.8, 2);
-    const h = lines.length * size * 1.35 + size * 0.8;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(0, o.height - h - size * 0.6, o.width, h);
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    lines.forEach((l, j) => ctx.fillText(l, o.width / 2, o.height - h - size * 0.2 + j * size * 1.35));
-    ctx.textAlign = 'start';
+  // (A scene's caption under its shots, unless a line is said then: that is the subtitle.)
+  const caption = (scene: StoryShot['scene'], t: number, text: string) => {
+    if (o.captions && text && !lineAt(scene, t)) drawSubtitle(enc.ctx, text, o.width, o.height);
   };
-  const draw = { width: o.width, height: o.height, style: o.style, lineWidth: o.lineWidth, pass: o.pass };
+  const draw = { width: o.width, height: o.height, style: o.style, lineWidth: o.lineWidth, pass: o.pass, subtitles: true };
   for (const x of shots) {
     if (signal?.aborted) break;
     if (!x.span) {
       // A still scene is one frame held for its time.
       drawShot(enc.ctx, x.scene, 0, draw, videoRenderer());
-      caption(x.caption);
+      caption(x.scene, 0, x.caption);
       await enc.add(time, x.length);
       time += x.length;
       onProgress?.(time / total);
@@ -131,7 +99,7 @@ export async function recordStory(shots: StoryShot[], o: StoryOptions & { width:
     for (let i = 0; i < n; i++) {
       if (signal?.aborted) break;
       drawShot(enc.ctx, x.scene, x.span.start + i / fps, draw, videoRenderer());
-      caption(x.caption);
+      caption(x.scene, x.span.start + i / fps, x.caption);
       await enc.add(time + i / fps, 1 / fps);
       onProgress?.((time + i / fps) / total);
     }

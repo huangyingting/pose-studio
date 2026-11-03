@@ -495,9 +495,10 @@ function hiddenInShots(scene: Scene): Issue[] {
         const hips = m.joints.hips.getWorldPosition(new THREE.Vector3());
         const near = [hips.x, hips.z, ...[-SEAT_TIME, SEAT_TIME].flatMap((dt) => figurePoseAt(scene, f.id, Math.min(a.duration, Math.max(0, t + dt)))?.position.filter((_, k) => k !== 1) ?? [])];
         const by = (p: Prop) => [0, 2, 4].some((k) => k < near.length && Math.hypot(p.position[0] - near[k], p.position[2] - near[k + 1]) < 1.25);
-        // (Nor a ball or the like they play with, by them: in front of them as it is dribbled, not hiding them.)
-        const theirs = (p: Prop) => Math.max(...p.scale) <= 0.4 && Math.hypot(p.position[0] - hips.x, p.position[2] - hips.z) < 0.8;
-        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && by(b.prop)) && !theirs(b.prop));
+        // (Nor a ball or the like: smaller than a person by far, it is in front of part of them at most,
+        // as it is dribbled, thrown or lies about.)
+        const small = (p: Prop) => Math.max(...p.scale) <= 0.4;
+        const blockers = all.filter((b) => !(SEATS.includes(b.prop.kind) && by(b.prop)) && !small(b.prop));
         if (!blockers.length) continue;
         let blocked = 0;
         let behind = '';

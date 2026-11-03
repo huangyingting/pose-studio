@@ -33,6 +33,8 @@ import { fingerBones } from './skeleton';
 const EPS = 1e-6;
 /** The most times a looping clip goes round (a short loop over a five-minute scene). */
 const MAX_LAPS = 1000;
+/** How much a clip's warp goes on while both feet are planted, to while one is off the floor. */
+const PLANTED_WARP = 0.08;
 /**
  * How far each clip's floor-touch correction moves a figure (by its mirroring, the clip's time and
  * the figure's body): the same wherever the figure is and whichever way it faces, so worked out
@@ -221,6 +223,8 @@ class Evaluator {
   private readonly figures: Map<string, Figure>;
   private readonly poses = new Map<string, Pose>();
   private readonly marks = new Map<string, Mark>();
+  /** How far each warped clip action has gone of its warp, by its time (see warped()). */
+  private readonly warps = new Map<string, (t: number) => number>();
   private readonly chains = new Map<string, Chain>();
   /** Each walk's upper body on the way (from the pose it leaves in to the one it arrives in). */
   private readonly uppers = new WeakMap<Chain, { t: number; pose: AnglePose }[]>();
@@ -773,9 +777,10 @@ class Evaluator {
     let pose = turned({ ...raw, position: [start.at[0] + dx, y, start.at[1] + dz] }, by);
     const role = act.roles[index];
     if (warp && role.end) {
-      // Warped to the end mark: the difference from where it would end is made up on the way.
+      // Warped to the end mark: the difference from where it would end is made up on the way (as
+      // its feet are off the floor, not sliding them where they stand: warped()).
       const natural = this.natural(f, act);
-      const w = smooth(act.duration > EPS ? (t - act.start) / act.duration : 1);
+      const w = this.warped(act, index, clip)(t);
       const turnBy = wrapDeg(role.end.facing - natural.facing) * w;
       // Turning about where it would end up, then moving the rest of the way.
       const [ox, oz] = turn(pose.position[0] - natural.at[0], pose.position[2] - natural.at[1], turnBy);
@@ -787,6 +792,38 @@ class Evaluator {
     const mark = markOf(pose);
     if (part.facing !== undefined) mark.facing = Math.round(wrapDeg(mark.facing - facingOf(first.bones) + facing0) * 10) / 10 || 0;
     return { pose, mark, part, u, mirror };
+  }
+
+  /**
+   * How far through its warp a clip action is at t (0 to 1): going on as its person's feet are off
+   * the floor, hardly while both stand on it, so the turn and shift to its mark is made in its steps
+   * and planted feet stay put. One whose feet never leave the floor (an idle) goes on evenly.
+   */
+  private warped(act: Action, index: number, clip: Clip): (t: number) => number {
+    const key = `${act.id}:${index}`;
+    let at = this.warps.get(key);
+    if (at) return at;
+    const src = act.source as Extract<Action['source'], { kind: 'clip' }>;
+    const feet = (clip.contacts ?? []).filter((c) => c.part === index && (c.bone === 'leftFoot' || c.bone === 'rightFoot'));
+    const planted = (u: number) => ['leftFoot', 'rightFoot'].every((b) => feet.some((c) => c.bone === b && c.start - EPS <= u && u <= c.end + EPS));
+    const N = 96;
+    const clipTime = (k: number) => {
+      const u = Math.max(0, (act.duration * k) / N - (src.lead ?? 0)) * (src.speed ?? 1);
+      return clip.loop || src.repeat ? u - Math.floor(u / Math.max(EPS, clip.duration)) * clip.duration : Math.min(u, clip.duration);
+    };
+    const weights = Array.from({ length: N }, (_, k) => (planted(clipTime(k + 0.5)) ? PLANTED_WARP : 1));
+    const free = weights.filter((x) => x === 1).length;
+    const sums = [0];
+    for (const x of weights) sums.push(sums[sums.length - 1] + (free >= N * 0.1 ? x : 1));
+    const total = sums[N] || 1;
+    at = (t: number) => {
+      if (act.duration <= EPS) return 1;
+      const k = Math.min(N, Math.max(0, ((t - act.start) / act.duration) * N));
+      const i = Math.min(N - 1, Math.floor(k));
+      return smooth((sums[i] + (sums[i + 1] - sums[i]) * (k - i)) / total);
+    };
+    this.warps.set(key, at);
+    return at;
   }
 
   /** Where a clip action would leave a figure, unwarped. */

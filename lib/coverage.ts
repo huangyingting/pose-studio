@@ -19,17 +19,20 @@ const waiting = (x: Action) => x.source.kind === 'clip' && IDLES.has(x.source.cl
  */
 
 type CoverageRole = 'A' | 'B';
+/** A role; in a group's coverage, `each` person in it (a camera and its cuts for each), or (where its
+ * cameras look from) the one `nearest` them. Cast, a person is the role `@` and their id. */
+type Who = CoverageRole | 'each' | 'nearest' | `@${string}`;
 
-/** A camera of a coverage: on a role (with the other in frame, for a two-shot), placed by a rig. */
+/** A camera of a coverage: on a role (with the other in frame, for a two-shot), or everyone (none), placed by a rig. */
 interface CoverageCamera {
   key: string;
-  /** Its name, with {A} and {B} for the figures playing them. */
+  /** Its name, with {A}, {B} or {each} for the figures playing them. */
   name: string;
-  subject: CoverageRole;
-  also?: CoverageRole;
+  subject?: Who;
+  also?: Who;
   /** Hand-held shake, 0–1. */
   shake?: number;
-  rig: Omit<CameraRig, 'toward' | 'clear'> & { toward?: CoverageRole; clear?: CoverageRole };
+  rig: Omit<CameraRig, 'toward' | 'clear'> & { toward?: Who; clear?: Who };
 }
 
 /**
@@ -39,9 +42,9 @@ interface CoverageCamera {
  */
 type CutRule =
   | { on: 'start'; camera: string }
-  | { on: 'action'; role: CoverageRole; kind?: 'travel' | 'motion'; camera: string }
-  | { on: 'speaks'; role: CoverageRole; camera: string; closer?: string; reaction?: string }
-  | { on: 'release' | 'catch'; role: CoverageRole; camera: string }
+  | { on: 'action'; role: Who; kind?: 'travel' | 'motion'; camera: string }
+  | { on: 'speaks'; role: Who; camera: string; closer?: string; reaction?: string }
+  | { on: 'release' | 'catch'; role: Who; camera: string }
   | { on: 'beat'; every: number; cameras: string[] };
 
 interface Coverage {
@@ -51,6 +54,8 @@ interface Coverage {
   roles: CoverageRole[];
   cameras: CoverageCamera[];
   cuts: CutRule[];
+  /** No shot shorter than this (s; else MIN_SHOT): a group's cuts, with so many doing things, held longer. */
+  hold?: number;
 }
 
 /** No shot shorter than this (s). */
@@ -121,7 +126,8 @@ export const COVERAGES: Coverage[] = [
       { on: 'release', role: 'A', camera: 'single-b' },
       { on: 'release', role: 'B', camera: 'single-a' },
       { on: 'action', role: 'A', kind: 'travel', camera: 'track-a' },
-      { on: 'beat', every: 4, cameras: ['wide'] },
+      // (Between plays, each of them and the two together: not one long wide shot.)
+      { on: 'beat', every: 4, cameras: ['single-a', 'wide', 'single-b', 'wide'] },
     ],
   },
   {
@@ -141,8 +147,28 @@ export const COVERAGES: Coverage[] = [
       { on: 'action', role: 'A', kind: 'travel', camera: 'wide' },
       { on: 'action', role: 'A', kind: 'motion', camera: 'low-a' },
       { on: 'action', role: 'B', kind: 'motion', camera: 'low-b' },
-      { on: 'beat', every: 2, cameras: ['close-a', 'close-b', 'wide'] },
+      { on: 'beat', every: 3, cameras: ['close-a', 'close-b', 'wide'] },
     ],
+  },
+  {
+    id: 'group',
+    name: 'Group',
+    description: 'A wide shot of everyone, and a single on whoever talks or does something, cutting as they do',
+    roles: ['A'],
+    cameras: [
+      { key: 'wide', name: 'Wide on everyone', rig: { yaw: 20, pitch: 10, size: 'fs', lens: 28, smooth: 1.5 } },
+      { key: 'single', name: '{each} single', subject: 'each', rig: { yaw: 25, pitch: 3, toward: 'nearest', size: 'ms', place: 'right', lens: 50, smooth: 0.8 } },
+    ],
+    // (Whoever talks, or starts doing something, in their single; someone going somewhere, and every
+    // few seconds of nothing, all of them.)
+    cuts: [
+      { on: 'start', camera: 'wide' },
+      { on: 'speaks', role: 'each', camera: 'single' },
+      { on: 'action', role: 'each', kind: 'motion', camera: 'single' },
+      { on: 'action', role: 'each', kind: 'travel', camera: 'wide' },
+      { on: 'beat', every: 7, cameras: ['wide'] },
+    ],
+    hold: 2.5,
   },
   {
     id: 'one-take',
@@ -175,17 +201,42 @@ export const COVERAGES: Coverage[] = [
 export const coverageById = (id: string) => COVERAGES.find((c) => c.id === id) ?? null;
 
 /** The director's styles (#14): a coverage each, cast and kept up to date as what they do changes. */
-export const DIRECTOR_STYLES: { id: string; label: string }[] = ['dialogue', 'follow', 'one-take', 'documentary', 'sports', 'fight']
+export const DIRECTOR_STYLES: { id: string; label: string }[] = ['dialogue', 'group', 'follow', 'one-take', 'documentary', 'sports', 'fight']
   .map((id) => ({ id, label: coverageById(id)!.name }));
 
 /** The camera a coverage makes for one of its cameras, with these figures in its roles. */
 function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): Omit<RigCamera, 'id'> {
-  const name = cc.name.replace(/\{(A|B)\}/g, (_, r: string) => roles[`name:${r}`] ?? r);
+  const name = cc.name.replace(/\{(A|B|each)\}/g, (_, r: string) => roles[`name:${r === 'each' ? cc.subject : r}`] ?? r);
   const { toward, clear, ...rig } = cc.rig;
   return {
-    name, subject: roles[cc.subject], ...(cc.also ? { also: [roles[cc.also]] } : {}), ...(cc.shake ? { shake: cc.shake } : {}), made: `${c.id}:${cc.key}`,
+    name, ...(cc.subject ? { subject: roles[cc.subject] } : {}), ...(cc.also ? { also: [roles[cc.also]] } : {}), ...(cc.shake ? { shake: cc.shake } : {}), made: `${c.id}:${cc.key}`,
     kind: 'rig', rig: { ...rig, ...(toward ? { toward: roles[toward] } : {}), ...(clear ? { clear: roles[clear] } : {}) },
   };
+}
+
+/**
+ * A coverage as cast in a scene: a group's cameras and cuts for `each` person, one of each per
+ * person (their roles `@` and their id; the one `nearest` each, where they stand as it starts).
+ */
+function cast(c: Coverage, scene: Scene, roles: Record<string, string>): { c: Coverage; roles: Record<string, string> } {
+  if (!c.cameras.some((cc) => cc.subject === 'each')) return { c, roles };
+  const people = scene.figures.filter((f) => !f.hidden && !f.proxy);
+  const all = { ...roles, ...Object.fromEntries(people.flatMap((f) => [[`@${f.id}`, f.id], [`name:@${f.id}`, f.name]])) };
+  const at = (id: string) => figurePoseAt(scene, id, 0)?.position ?? [0, 0, 0];
+  const nearest = (id: string) => people.filter((f) => f.id !== id).sort((p, q) => Math.hypot(at(p.id)[0] - at(id)[0], at(p.id)[2] - at(id)[2]) - Math.hypot(at(q.id)[0] - at(id)[0], at(q.id)[2] - at(id)[2]))[0]?.id;
+  const whose = (cc: CoverageCamera, id: string): CoverageCamera => {
+    const near = nearest(id);
+    const { toward, clear, ...rig } = cc.rig;
+    const to = (w?: Who): Who | undefined => (w === 'nearest' ? (near ? `@${near}` : undefined) : w);
+    return { ...cc, key: `${cc.key}:${id}`, subject: `@${id}`, rig: { ...rig, ...(to(toward) ? { toward: to(toward) } : {}), ...(to(clear) ? { clear: to(clear) } : {}) } };
+  };
+  const each = new Set(c.cameras.filter((cc) => cc.subject === 'each').map((cc) => cc.key));
+  const camera = (key: string, id: string) => (each.has(key) ? `${key}:${id}` : key);
+  const cuts = c.cuts.flatMap((r): CutRule[] => (r.on === 'beat' || r.on === 'start' || r.role !== 'each' ? [r]
+    : people.map((f) => (r.on === 'speaks'
+      ? { ...r, role: `@${f.id}` as const, camera: camera(r.camera, f.id), ...(r.closer ? { closer: camera(r.closer, f.id) } : {}), ...(r.reaction ? { reaction: camera(r.reaction, f.id) } : {}) }
+      : { ...r, role: `@${f.id}` as const, camera: camera(r.camera, f.id) }))));
+  return { c: { ...c, cameras: c.cameras.flatMap((cc) => (cc.subject === 'each' ? people.map((f) => whose(cc, f.id)) : [cc])), cuts }, roles: all };
 }
 
 /** What the camera is apart from its id and name, in any key order (to tell whether it was edited by hand). */
@@ -251,7 +302,7 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
   let b = 0;
   const cutTo = (t: number, camera: string) => {
     const last = out[out.length - 1];
-    if (camera === last.camera || t - last.t < MIN_SHOT || a.duration - t < MIN_SHOT) return false;
+    if (camera === last.camera || t - last.t < (c.hold ?? MIN_SHOT) || a.duration - t < MIN_SHOT) return false;
     out.push({ t, camera });
     return true;
   };
@@ -269,29 +320,34 @@ function cutsFor(scene: Scene, c: Coverage, roles: Record<string, string>): { t:
 }
 
 /**
- * ProjectSettings a scene with a coverage, with these figures in its roles: its cameras and its cuts over
+ * Shoot a scene with a coverage, with these figures in its roles: its cameras and its cuts over
  * the whole animation. Applied again, it cuts anew and puts back the cameras it made, except
  * those edited by hand since (they are left as they are, and still cut to). Applied over another
  * coverage, that one's cameras go, except those edited by hand; cameras made otherwise are left
  * alone. Captions stay with shots that still start where they did.
  */
 export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRole, string> | Record<'A', string>, director = false): Scene {
-  const c = coverageById(id);
+  const plan = coverageById(id);
   const a = scene.animation;
-  if (!c || !a || c.roles.some((r) => !(r in roles))) return scene;
-  const named = (rs: Record<string, string>) => ({ ...rs, ...Object.fromEntries(Object.entries(rs).map(([r, f]) => [`name:${r}`, scene.figures.find((x) => x.id === f)?.name ?? r])) });
-  const before = scene.coverage?.id === id ? named(scene.coverage.roles) : null;
+  if (!plan || !a || plan.roles.some((r) => !(r in roles))) return scene;
+  // (A group's cameras and cuts, one of each for each person in it.)
+  const { c, roles: everyone } = cast(plan, scene, roles);
+  const named = (rs: Record<string, string>) => ({ ...rs, ...Object.fromEntries(Object.entries(rs).filter(([r]) => !r.startsWith('name:')).map(([r, f]) => [`name:${r}`, scene.figures.find((x) => x.id === f)?.name ?? r])) });
+  const before = scene.coverage?.id === id ? named(cast(plan, scene, scene.coverage.roles).roles) : null;
   let cameras = [...scene.cameras];
   // Over another coverage: its cameras go, except those edited by hand since (and the last camera).
-  const last = scene.coverage && scene.coverage.id !== id ? coverageById(scene.coverage.id) : null;
-  if (last) {
-    const was = named(scene.coverage!.roles);
-    const untouched = new Set(last.cameras.map((cc) => made(last, cc, was)).map(rule));
+  const lastPlan = scene.coverage && scene.coverage.id !== id ? coverageById(scene.coverage.id) : null;
+  if (lastPlan) {
+    const { c: last, roles: was } = cast(lastPlan, scene, scene.coverage!.roles);
+    const untouched = new Set(last.cameras.map((cc) => made(last, cc, named(was))).map(rule));
     cameras = cameras.filter((x) => !x.made?.startsWith(`${last.id}:`) || !untouched.has(rule(x)));
   }
+  // (Again, someone no longer in a group: their camera goes too.)
+  const now = new Set(c.cameras.map((cc) => `${c.id}:${cc.key}`));
+  cameras = cameras.filter((x) => !x.made?.startsWith(`${c.id}:`) || now.has(x.made));
   const ids = new Map<string, string>();
   for (const cc of c.cameras) {
-    const want = made(c, cc, named(roles));
+    const want = made(c, cc, named(everyone));
     const old = cameras.find((x) => x.made === want.made);
     if (old && !(before && rule(old) === rule(made(c, cc, before)))) {
       // Edited by hand since it was made.
@@ -310,7 +366,7 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   const keep = director && !!scene.coverage?.live && scene.coverage.id === id;
   const pins = shotSpans(a).filter((s) => keep && s.shot.pinned && cameras.some((x) => x.id === s.shot.camera)).map((s) => ({ shot: s.shot, start: s.start, end: Math.min(a.duration, s.start + s.shot.pinned!) }));
   const inPin = (t: number) => pins.some((p) => t >= p.start - 1e-6 && t < p.end - 1e-6);
-  const cuts = cutsFor(scene, c, roles);
+  const cuts = cutsFor(scene, c, everyone);
   const cameraAt = (t: number) => [...cuts].reverse().find((x) => x.t <= t + 1e-6)?.camera ?? cuts[0].camera;
   const fresh: Shot[] = [
     ...cuts.filter((cut) => !inPin(cut.t)).map((cut) => ({ ...newShot(cut.t, '', ids.get(cut.camera) ?? cameras[0].id) })),
@@ -320,7 +376,7 @@ export function applyCoverage(scene: Scene, id: string, roles: Record<CoverageRo
   // already filming (a pinned shot stays whatever its length).
   let merged = [...pins.map((p) => p.shot), ...fresh].sort((p, q) => p.start - q.start);
   merged = merged.filter((s, i) => s.pinned || i === 0 || s.camera !== merged[i - 1].camera);
-  merged = merged.filter((s, i) => s.pinned || i === 0 || (merged[i + 1]?.start ?? a.duration) - s.start >= MIN_SHOT);
+  merged = merged.filter((s, i) => s.pinned || i === 0 || (merged[i + 1]?.start ?? a.duration) - s.start >= (c.hold ?? MIN_SHOT));
   // A shot that still starts where one did keeps what was given it: its id (what was selected stays
   // so), a name of its own, its blend.
   const was = new Map(a.shots.filter((s) => !s.pinned).map((s) => [Math.round(s.start * a.fps), s]));

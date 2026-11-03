@@ -2,7 +2,7 @@ import {
   Activity, Aperture, Magnet, Flag, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
-  Lightbulb, Spline, Bone, Move, Pin, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
+  Lightbulb, MessageSquareQuote, Spline, Bone, Move, Pin, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
 } from 'lucide-react';
 import {
   addCamera, stepRig, addFigure, addMarker, editAsKeys, unlinkReaction, setTrack, setRange, setRangeAt, applyUpperBody, reactTo, splitAt, splitIntoRepeats, trim, rippleDeleteActions, duplicateBlocks, copyActions, pasteActions, hasCopiedActions, moveAction, addKey, addProp, addStandIn, setInStory, carryProblem, copyMotion, copyPose, cutShot, deleteAction, deleteCamera, deleteCameraPoint, deleteFigure,
@@ -10,6 +10,7 @@ import {
   holdKey, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
+  sayLine, talkFor,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
@@ -823,6 +824,18 @@ export const COMMANDS: Command[] = [
     })),
   },
   {
+    // (A line of dialogue: they say it, talking for as long as it takes; a conversation cuts to it, a video shows it.)
+    id: 'figure.say', title: 'Say a line…', icon: MessageSquareQuote, when: (c) => movable(c),
+    run: (c) => {
+      const f = c.figure ? figureOf(c) : activeFigure(c);
+      const words = f && window.prompt(`What ${f.name} says`)?.trim();
+      if (!f || !words) return;
+      void fetchLibraryClip(talkFor(c.store.scene, f.id, c.store.getState().time)).then((ok) => {
+        if (!ok || !sayLine(c.store, f.id, words)) App().notify('Could not load the talking: try again when online');
+      });
+    },
+  },
+  {
     // (Stepping round where it stands, #18.)
     id: 'figure.turn', title: (c) => (c.floor ? 'Turn to face here' : 'Turn to face…'), icon: RotateCw, when: (c) => movable(c),
     run: (c) => {
@@ -1567,7 +1580,7 @@ const MENUS = {
   figure: [
     'rename', 'duplicate', 'figure.hide', '-', 'figure.pose', 'figure.motion', 'figure.savePose',
     { group: 'Move to' }, 'figure.walk', 'figure.run', 'figure.jump', 'figure.step', 'figure.turn', 'figure.throw', 'figure.wholeTo', 'figure.standUp',
-    'figure.strike', 'figure.eyes', 'figure.holdOn', 'figure.copyMoves', { group: 'Timeline' }, 'figure.lockTrack', 'figure.muteTrack', '-', 'figure.delete',
+    'figure.strike', 'figure.say', 'figure.eyes', 'figure.holdOn', 'figure.copyMoves', { group: 'Timeline' }, 'figure.lockTrack', 'figure.muteTrack', '-', 'figure.delete',
   ],
   // A selected part of a figure: added to the figure's menu (see figureMenu).
   joint: ['hand.letGo', 'joint.pin', 'joint.reset', 'joint.mirror', 'joint.parent', 'joint.child', 'joint.otherSide'],

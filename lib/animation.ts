@@ -43,6 +43,8 @@ export function newAnimation(scene: Scene, duration = 2): Animation {
 
 /** The longest a scene's animation can be (s): five minutes. */
 export const MAX_DURATION = 300;
+/** The most a line of dialogue says (characters). */
+export const MAX_LINE = 300;
 /** How far past its end the playhead goes (s): a key or an action added there lengthens the animation. */
 export const PAST_END = 2;
 

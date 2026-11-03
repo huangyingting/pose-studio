@@ -110,17 +110,17 @@ export interface ExportOptions {
   margin: number;
 }
 
-export type VideoSize = '720p' | '1080p';
+export type VideoSize = '360p' | '720p' | '1080p';
 
-/** A video's size in pixels: 720 or 1080 on its short side, in the shot's frame shape (even numbers, as encoders want). */
+/** A video's size in pixels: 360 (a quick look), 720 or 1080 on its short side, in the shot's frame shape (even numbers, as encoders want). */
 export function videoSize(size: VideoSize, aspect: number) {
-  const short = size === '1080p' ? 1080 : 720;
+  const short = size === '1080p' ? 1080 : size === '360p' ? 360 : 720;
   const long = Math.round((short * Math.max(aspect, 1 / aspect)) / 2) * 2;
   const [width, height] = aspect >= 1 ? [long, short] : [short, long];
   return { width, height, label: `${width} × ${height}` };
 }
 
-export const VIDEO_SIZES: VideoSize[] = ['720p', '1080p'];
+export const VIDEO_SIZES: VideoSize[] = ['360p', '720p', '1080p'];
 
 /** Matches the layout of the original Pose.jpg: 4 × 5 cells of 600 × 640. */
 export const DEFAULT_EXPORT: ExportOptions = {

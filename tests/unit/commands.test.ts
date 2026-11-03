@@ -107,8 +107,8 @@ describe('the Library: categories as data, one search', () => {
     const ui = { notify: () => {}, notifyUndo: () => {} };
     const found = searchLibrary(store, ui, 'cartwheel');
     expect(new Set(found.map((it) => it.tab))).toEqual(new Set(['motions']));
-    // Two people's poses with the poses: the selected figure and a new one take it.
-    expect(searchLibrary(store, ui, 'hug').map((it) => [it.tab, it.group])).toContainEqual(['poses', 'Two people']);
+    // People posed together with the poses: the selected figure and a new one take it.
+    expect(searchLibrary(store, ui, 'hug').map((it) => [it.tab, it.group])).toContainEqual(['poses', 'People together']);
     expect(searchLibrary(store, ui, 'cartwheel', 'motions').every((it) => it.tab === 'motions')).toBe(true);
     // Every category's items say where they are listed.
     for (const c of LIBRARY_CATEGORIES) for (const it of c.items(store, ui)) expect(it.tab).toBe(c.id);

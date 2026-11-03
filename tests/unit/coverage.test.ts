@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, applyMotion, arrange, coverScene, editRig, holdProp, moveProp, removeShotCut, retime, startAnimation, throwProp, travelTo } from '@/lib/actions';
+import { addFigure, addProp, applyMotion, arrange, coverScene, deleteFigure, sayLine, editRig, holdProp, moveProp, removeShotCut, retime, startAnimation, throwProp, travelTo } from '@/lib/actions';
 import { actionsOf } from '@/lib/evaluate';
 import { parseScene } from '@/lib/doc';
 import { sceneAt } from '@/lib/evaluate';
@@ -34,6 +34,29 @@ function twoPeople() {
 const byKey = (scene: Scene, key: string) => scene.cameras.find((c) => c.made?.endsWith(`:${key}`))!;
 
 describe('coverage: cameras on roles and cuts on what happens', () => {
+  it('covers a group: a wide shot of everyone and a single each, cut to whoever says a line; one gone, their camera goes', () => {
+    const { store, a, b } = twoPeople();
+    addFigure(store, [-1.5, 0, 0.5]);
+    const c = store.getState().activeFigure!;
+    startAnimation(store, 14);
+    captured('talking');
+    store.setTime(3);
+    expect(sayLine(store, b, 'Where were you last night?')).toBeTruthy();
+    store.setTime(8);
+    expect(sayLine(store, c, 'Out.')).toBeTruthy();
+    store.select({ kind: 'figure', figure: a });
+    expect(coverScene(store, 'group')).toEqual({ A: a });
+    const cams = () => store.scene.cameras.filter((x) => x.made?.startsWith('group:'));
+    expect(cams().map((x) => x.name)).toEqual(['Wide on everyone', 'Figure single', 'Figure 2 single', 'Figure 3 single']);
+    const spans = shotSpans(store.scene.animation!);
+    expect(spans.map((s) => [s.start, cams().find((x) => x.id === s.shot.camera)!.name])).toEqual([[0, 'Wide on everyone'], [3, 'Figure 2 single'], [8, 'Figure 3 single']]);
+    // (Each single on their own, looking from the one nearest them.)
+    expect(cams()[3]).toMatchObject({ subject: c, kind: 'rig' });
+    deleteFigure(store, c);
+    expect(coverScene(store, 'group')).toEqual({ A: a });
+    expect(cams().map((x) => x.name)).toEqual(['Wide on everyone', 'Figure single', 'Figure 2 single']);
+  });
+
   it('covers a dialogue from one side of the line between the two, singles clean, cut on who talks', () => {
     const { store, a, b } = twoPeople();
     startAnimation(store, 12);

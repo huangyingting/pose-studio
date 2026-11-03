@@ -29,8 +29,8 @@ interface Tile {
 }
 
 /**
- * A new scene (the one way to start one, #14): empty, a scene template (a staged one, people standing
- * together, a set-up, one of mine) or a shoot preset (a template filmed a way). As made, or animated to
+ * A new scene (the one way to start one, #14): empty, a scene template (a staged one, a set-up, one
+ * of mine) or a shoot preset (a template filmed a way). As made, or animated to
  * a length, filmed by the director.
  */
 export function StartDialog({ onClose }: { onClose(): void }) {
@@ -77,7 +77,8 @@ export function StartDialog({ onClose }: { onClose(): void }) {
   }));
   const groups: [string, Tile[]][] = [
     ['Ready to shoot', [empty, ...presets.filter((p) => !p.actions)]],
-    ...TEMPLATE_GROUPS.map((g): [string, Tile[]] => [g, scenes(g)]),
+    // (People posed together are the Library's poses: there, not here too.)
+    ...TEMPLATE_GROUPS.filter((g) => g !== 'Standing together').map((g): [string, Tile[]] => [g, scenes(g)]),
     ['My templates', [...presets.filter((p) => p.actions), ...scenes('Mine')]],
   ];
 
