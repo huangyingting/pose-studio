@@ -4,13 +4,16 @@ import { useRef, useState, type ReactNode } from 'react';
 import { rovingKey, useRoving, type Roving } from './roving';
 import { Clapperboard, FilePlus2, Layers, PersonStanding, Trash2, UsersRound, type LucideIcon } from 'lucide-react';
 import { addScene, deleteShoot, deleteTemplate, newShoot, placeTemplate, sceneFromTemplate, startAnimatedScene } from '@/lib/actions';
+import { clipsPlayedIn } from '@/lib/assets';
 import { COVERAGES } from '@/lib/coverage';
+import { fetchLibraryClips } from '@/lib/librarymotions';
 import { templateThumb } from '@/lib/previews';
 import { SHOOT_PRESETS, TEMPLATE_GROUPS, shootsOf, templatesOf } from '@/lib/templates';
 import { placeOrAdd } from './commands';
 import { placingTemplate } from './placing';
 import { Thumbnail } from './side/LibrarySection';
 import type { Thumb } from './side/libraryItems';
+import type { Scene } from '@/lib/types';
 import { useStore, useStudio } from './store-context';
 import { Modal, Segmented } from './ui';
 
@@ -23,6 +26,8 @@ interface Tile {
   meta: string;
   icon: LucideIcon;
   thumb?: Thumb;
+  /** What it is made from: a template (its Library motions fetched before it is made, as it times what they do). */
+  build?: () => Scene;
   open(): boolean;
   /** Small buttons on it: put it into this scene, delete one of mine. */
   actions?: { icon: LucideIcon; label: string; run(): void }[];
@@ -43,7 +48,12 @@ export function StartDialog({ onClose }: { onClose(): void }) {
   const templates = templatesOf(library);
   const shoots = shootsOf(library);
 
-  const start = (tile: Tile) => {
+  const opening = useRef(false);
+  const start = async (tile: Tile) => {
+    if (opening.current) return;
+    opening.current = true;
+    await motionsFor(tile.build);
+    opening.current = false;
     if (!tile.open()) return;
     onClose();
   };
@@ -55,7 +65,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
     const t = templates.find((x) => x.id === p.template)!;
     const mine = !SHOOT_PRESETS.includes(p);
     return {
-      key: `shoot:${p.id}`, name: p.name, meta: COVERAGES.find((c) => c.id === p.coverage)!.name, icon: Clapperboard, thumb: templateThumb(t.id, t.build),
+      key: `shoot:${p.id}`, name: p.name, meta: COVERAGES.find((c) => c.id === p.coverage)!.name, icon: Clapperboard, thumb: templateThumb(t.id, t.build), build: t.build,
       open: () => (seconds ? startAnimatedScene(store, { shoot: p.id }, seconds) : !!newShoot(store, p.id)),
       actions: mine ? [{ icon: Trash2, label: `Delete the shoot preset ${p.name}`, run: () => deleteShoot(store, p.id) }] : undefined,
     };
@@ -63,14 +73,14 @@ export function StartDialog({ onClose }: { onClose(): void }) {
   // (A template once: as the preset of the same name that films it, where there is one: a staged one.)
   const filmed = new Set(shoots.filter((p) => templates.find((t) => t.id === p.template)?.name === p.name).map((p) => p.template));
   const scenes = (group: string) => templates.filter((t) => t.group === group && !filmed.has(t.id)).map((t): Tile => ({
-    key: `template:${t.id}`, name: t.name, meta: t.people === 1 ? '1 person' : `${t.people} people`, icon: t.people > 1 ? UsersRound : PersonStanding, thumb: templateThumb(t.id, t.build),
+    key: `template:${t.id}`, name: t.name, meta: t.people === 1 ? '1 person' : `${t.people} people`, icon: t.people > 1 ? UsersRound : PersonStanding, thumb: templateThumb(t.id, t.build), build: t.build,
     open: () => (seconds ? startAnimatedScene(store, { template: t.id }, seconds) : sceneFromTemplate(store, t.id)),
     actions: [
       {
         icon: Layers,
         label: figure ? `Put ${t.name} into this scene, ${figure.name} in its first role` : `Put ${t.name} into this scene`,
         // (Placed with the pointer: onto a figure, its first role, or the floor.)
-        run: () => { onClose(); placeOrAdd(placingTemplate(store, t.id), () => { placeTemplate(store, t.id); }); },
+        run: () => { onClose(); void motionsFor(t.build).then(() => placeOrAdd(placingTemplate(store, t.id), () => { placeTemplate(store, t.id); })); },
       },
       ...(t.group === 'Mine' ? [{ icon: Trash2, label: `Delete the template ${t.name}`, run: () => { deleteTemplate(store, t.id); } }] : []),
     ],
@@ -95,7 +105,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
             <TileGrid>
               {tiles.map((tile) => (
                 <div key={tile.key} className="start-tile" role="listitem">
-                  <button type="button" className="start-open" onClick={() => start(tile)}>
+                  <button type="button" className="start-open" onClick={() => void start(tile)}>
                     <span className="start-thumb"><Thumbnail thumb={tile.thumb} fallback={<tile.icon size={24} aria-hidden />} /></span>
                     <span className="start-name">{tile.name}</span>
                     <span className="start-meta">{tile.meta}</span>
@@ -118,6 +128,9 @@ export function StartDialog({ onClose }: { onClose(): void }) {
     </Modal>
   );
 }
+
+/** The Library's motions a template plays, to hand (staged ones time what they do by them): when they are. */
+const motionsFor = (build?: () => Scene) => (build ? fetchLibraryClips(clipsPlayedIn([build()])) : Promise.resolve());
 
 /** A group's tiles: one Tab stop, the arrows between them, Enter opens one (#20). */
 function TileGrid({ children }: { children: ReactNode }) {

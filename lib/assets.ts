@@ -77,7 +77,10 @@ export function clipIdsOf(lib: Library): string[] {
 }
 
 /** The ids of the clips a library's scenes play. */
-export function playedClips(lib: Library): string[] {
+export const playedClips = (lib: Library) => clipsPlayedIn(lib.scenes);
+
+/** The ids of the clips scenes play. */
+export function clipsPlayedIn(scenes: Scene[]): string[] {
   // (A walk or run plays its captured cycle too, #26, and keeping its facing, those that back up and step sideways; a jump, the captured jump.)
   const gaits = (x: Action['source']) => {
     if (x.kind !== 'travel') return [];
@@ -87,7 +90,7 @@ export function playedClips(lib: Library): string[] {
     // (A walk may be a turn on the spot: the captured turn too.)
     return [gait, ...(x.strafe ? [GAIT_WAYS[x.mode].side, ...(back ? [back] : [])] : []), ...(x.mode === 'walk' ? [TWIST_CLIP] : [])];
   };
-  return [...new Set(lib.scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : gaits(x.source)))))];
+  return [...new Set(scenes.flatMap((s) => (s.animation?.actions ?? []).flatMap((x) => (x.source.kind === 'clip' ? [x.source.clip] : gaits(x.source)))))];
 }
 
 /** A clip playing on its own people, where it has them. */

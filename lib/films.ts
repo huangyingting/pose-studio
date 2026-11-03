@@ -56,6 +56,8 @@ const FPS = 24;
 const frame = (t: number) => Math.round(t * FPS) / FPS;
 /** How far in front of someone's middle a blow lands on them (their chest, their face). */
 const SURFACE = 0.14;
+/** How much further out a blow is met by a guard held up in front (a forearm blocking a kick). */
+const GUARD = 0.08;
 /** How far someone shifts into range for a strike as their stance plays (m); further, they step there. */
 const STEP_IN = 0.3;
 /** How long someone squares up in their stance before a strike (s). */
@@ -352,7 +354,7 @@ class Stage {
    * running there if far) to where the blow reaches, turned so that it lands on them. When it
    * lands, and when the strike ends.
    */
-  strike(who: string, slug: string, t: number, target: string, o: { mirror?: boolean; stance?: string } = {}): { lands: number; end: number } {
+  strike(who: string, slug: string, t: number, target: string, o: { mirror?: boolean; stance?: string; guarded?: boolean } = {}): { lands: number; end: number } {
     const m = motion(slug);
     if (!m.reach || m.impact === undefined) throw new Error(`${slug} is not a strike`);
     const legs = this.legs(who);
@@ -362,7 +364,9 @@ class Stage {
     const d0 = Math.hypot(me[0] - them[0], me[1] - them[1]);
     const back: Spot = d0 > 1e-3 ? [(me[0] - them[0]) / d0, (me[1] - them[1]) / d0] : turn(0, 1, this.where(target).facing);
     // The blow lands on them; they are hit from where it comes: so far back from it, turned so it points there.
-    const hit: Spot = [them[0] + back[0] * SURFACE, them[1] + back[1] * SURFACE];
+    // (Met by their guard, held up in front: that much further out.)
+    const out = SURFACE + (o.guarded ? GUARD : 0);
+    const hit: Spot = [them[0] + back[0] * out, them[1] + back[1] * out];
     const far = Math.hypot(rx, rz);
     const at: Spot = [hit[0] + back[0] * far, hit[1] + back[1] * far];
     const facing = toward(at, hit) - Math.atan2(rx, rz) / D2R;
@@ -490,7 +494,7 @@ function wuxiaDuel(): Scene {
   // They close in slowly, then Lin's kick, blocked.
   s.go('Lin', [0, 1.8], s.until('Lin'));
   s.go('Mei', [0, -1.6], s.until('Mei') + 0.3);
-  let x = s.strike('Lin', 'roundhouse-kick', Math.max(s.until('Lin'), s.until('Mei')) + 0.6, 'Mei');
+  let x = s.strike('Lin', 'roundhouse-kick', Math.max(s.until('Lin'), s.until('Mei')) + 0.6, 'Mei', { guarded: true });
   s.react('Mei', 'standing-block', x.lands, 0.45);
   // Her hook, his guard up.
   x = s.strike('Mei', 'hook-punch', s.until('Mei') + 0.3, 'Lin');

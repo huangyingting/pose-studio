@@ -1,4 +1,4 @@
-import { LIBRARY, hasClip } from './assets';
+import { LIBRARY, clipsPlayedIn, hasClip } from './assets';
 import { loadThumb, saveThumb } from './assetstore';
 import { fetchLibraryClips } from './librarymotions';
 
@@ -114,7 +114,7 @@ export function templatePreview(id: string, build: () => Scene, style: Style): P
   const scene = build();
   if (scene.animation) {
     // (The Library's motions it plays, fetched first: a staged one's.)
-    const clips = [...new Set(scene.animation.actions.flatMap((x) => (x.source.kind === 'clip' && x.source.clip.startsWith(LIBRARY) ? [x.source.clip] : [])))];
+    const clips = clipsPlayedIn([scene]).filter((id) => id.startsWith(LIBRARY));
     void fetchLibraryClips(clips);
     return { ...filmed(key, () => filmWith(scene, 'static', { follow: true }), style), ready: () => clips.every(hasClip) };
   }

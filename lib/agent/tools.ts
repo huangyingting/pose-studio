@@ -148,6 +148,14 @@ function findTemplate(store: Store, q: string) {
   return t;
 }
 
+/** The template a new_scene or use_template call makes from (a shoot preset's, by id or name), if any. */
+export function templateFor(store: Store, q: string) {
+  const lib = store.getState().library;
+  const name = q.trim().toLowerCase();
+  const preset = shootsOf(lib).find((p) => p.id === q || p.name.toLowerCase() === name);
+  return templatesOf(lib).find((x) => x.id === (preset?.template ?? q) || (!preset && x.name.toLowerCase() === name)) ?? null;
+}
+
 const RELATIONS = ['turn_to', 'face_each_other', 'look_at', 'beside_left', 'beside_right', 'back_to_back', 'in_front', 'distance'] as const;
 
 /** The Library's captured motions (public/motions): offered first, by name. */

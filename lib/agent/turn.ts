@@ -1,7 +1,7 @@
 import { withBase } from '../paths';
 import type { Store } from '../store';
-import { motionFor, runTool } from './tools';
-import { LIBRARY } from '../assets';
+import { motionFor, runTool, templateFor } from './tools';
+import { LIBRARY, clipsPlayedIn } from '../assets';
 import { STRIKES } from '../actions';
 import { fetchLibraryClips } from '../librarymotions';
 
@@ -59,6 +59,14 @@ export async function assistantTurn(previous: string | null, text: string, store
       try { return [motionFor(store, (JSON.parse(c.arguments || '{}') as { motion?: unknown }).motion)?.id ?? '']; } catch { return []; }
     });
     if (asked.some((id) => id.startsWith(LIBRARY))) await fetchLibraryClips(asked);
+    // (And a template's: a staged one times what its people do by them.)
+    const made = calls.filter((c) => c.name === 'new_scene' || c.name === 'use_template').flatMap((c) => {
+      try {
+        const t = templateFor(store, String((JSON.parse(c.arguments || '{}') as { template?: unknown }).template ?? ''));
+        return t ? clipsPlayedIn([t.build()]) : [];
+      } catch { return []; }
+    });
+    if (made.length) await fetchLibraryClips(made);
     input = calls.map((call) => {
       let args: unknown = {};
       try {

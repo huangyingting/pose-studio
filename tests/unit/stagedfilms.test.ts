@@ -109,6 +109,18 @@ describe('films: templates staged as a director would', () => {
     rig.dispose();
   }, 600_000);
 
+  it('opens every preset clean in the motion check, made as the app makes it: its motions to hand first', () => {
+    for (const p of SHOOT_PRESETS) {
+      const first = new Store(new MemoryStorage());
+      expect(newShoot(first, p.id), p.name).toBe(true);
+      load(first.scene);
+      // (A staged one times what its people do, a pass caught, by the motions they play.)
+      const store = new Store(new MemoryStorage());
+      newShoot(store, p.id);
+      expect(checkMotion(store.scene).filter((i) => !i.recorded).map((i) => `${i.message} at ${i.start.toFixed(1)} s`), p.name).toEqual([]);
+    }
+  }, 1_200_000);
+
   it('never has a fight\'s single on one hidden behind the other, swinging round them as they move', () => {
     const rig = new Rig();
     for (const film of ['film-wuxia', 'film-kungfu']) {

@@ -687,12 +687,12 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
   const away = r.yaw < 0 ? -1 : 1;
   /**
    * Where it films from at a time, turned `extra` degrees round its subject from its rig's own
-   * angle (`rough`: from where they are then, not eased over its smoothing: to choose how far round).
+   * angle (`rough`: from where they are then, not eased over its smoothing: to choose how far round;
+   * its angle still the one it films from, as eased, so that how far round is from there).
    */
   const turnedBy = (time: number, place: Placement | undefined, rough = false, o: { size?: ShotSize | SizeBlend; pitch?: number; lens?: number } = {}) => {
-    const smooth = rough ? 0 : r.smooth ?? 0;
-    const body = cam.point ? pointBody(cam.point) : smoothBody(scene, subject, time, smooth);
-    const yaw = rigHeading(scene, cam, r, time, body, smooth) + r.yaw;
+    const body = cam.point ? pointBody(cam.point) : smoothBody(scene, subject, time, rough ? 0 : r.smooth ?? 0);
+    const yaw = rigHeading(scene, cam, r, time, body, r.smooth ?? 0) + r.yaw;
     return (extra: number) => compose(body, o.size ?? r.size, yaw + extra, o.pitch ?? r.pitch, o.lens ?? r.lens, place, aspect);
   };
   const solve = (time: number, place: Placement | undefined, at = turnedBy(time, place), them = other ? smoothBody(scene, [other], time, r.smooth ?? 0) : null) => {
