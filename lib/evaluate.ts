@@ -1145,6 +1145,23 @@ export function naturalEnd(scene: Scene, act: Action, id: string): Mark | null {
   return evaluator(scene).natural(f, act);
 }
 
+/**
+ * Whether a clip action, left to turn its figure as the person recorded turned (not held to its end
+ * mark's way), would turn them by itself, nobody else within reach as it starts (who they would
+ * turn into): the way it ends then, or null.
+ */
+export function turnsFreely(scene: Scene, act: Action, id: string, reach = 1.2): Mark | null {
+  const end = act.roles.find((r) => r.figure === id)?.end;
+  const natural = end && naturalEnd(scene, act, id);
+  if (!natural || Math.abs(wrapDeg(natural.facing - end.facing)) < NATURAL_TURN) return null;
+  const at = (fid: string) => basePoseAt(scene, fid, act.start)?.position ?? scene.figures.find((f) => f.id === fid)!.position;
+  const me = at(id);
+  return scene.figures.some((f) => f.id !== id && !f.hidden && Math.hypot(at(f.id)[0] - me[0], at(f.id)[2] - me[2]) < reach) ? null : natural;
+}
+
+/** How far a recorded motion turns by itself before holding it to another way slides its feet (degrees). */
+const NATURAL_TURN = 10;
+
 /** How far a clip action is warped for a figure, from where the clip by itself would leave them to its end mark (m, degrees); null: not a warped clip. */
 export function warpOf(scene: Scene, act: Action, id: string): { distance: number; angle: number } | null {
   const f = scene.figures.find((x) => x.id === id);

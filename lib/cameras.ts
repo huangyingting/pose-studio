@@ -805,7 +805,7 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
     const alone = !cam.also?.length;
     const person = (p: Vec3) => alone && people.includes(p);
     const blocked = (shot: { position: THREE.Vector3; look: THREE.Vector3 }, people: Vec3[]) => inWay(shot, people, person) || inWay(pulled(shot), people, person) || screened(shot);
-    if (!others.length && !walled(at(keepOut))) return { x: keepOut, blocked: [] };
+    if (!others.length && !walled(at(keepOut))) return { x: keepOut, blocked: [], stuck: false };
     // One way round only (no swinging back across), further than for people if a wall is in the way.
     const tries = [0, 20, 40, 60, 90].map((x) => keepOut + away * x);
     const unblocked = tries.filter((x) => !blocked(at(x), others) && !walled(at(x)));
@@ -825,14 +825,16 @@ function rigView(scene: Scene, cam: Camera, r: CameraRig, t: number, aspect: num
       ?? (walledIn ? (free.some(out) ? free.filter(out) : free).reduce((x, y) => (room(y) > room(x) ? y : x))
         : others.length ? tries.reduce((x, y) => (clearance(at(y), others) > clearance(at(x), others) ? y : x)) : keepOut);
     // (And which of the ways round it tried are in someone's way: not to be swung back across.)
-    return { x, blocked: tries.filter((y) => !unblocked.includes(y)) };
+    return { x, blocked: tries.filter((y) => !unblocked.includes(y)), stuck: !unblocked.length };
   };
   const reach = Math.round(SWING_EASE / 2 / SWING_STEP);
   // (Coming back round, not across where someone then is: held further round until the way back is
   // clear, looking back a few seconds.)
+  // (A moment with no way round clear of everyone, as far as it gets from them, is not held either
+  // side of it, where there is a clear way.)
   const held = (i: number, back = 0): number => {
-    let x = 0;
-    for (let j = Math.max(0, i - reach); j <= i + reach; j++) if (Math.abs(raw(j)) > Math.abs(x)) x = raw(j);
+    let x = sample(i).stuck ? raw(i) : 0;
+    for (let j = Math.max(0, i - reach); j <= i + reach; j++) if (!sample(j).stuck && Math.abs(raw(j)) > Math.abs(x)) x = raw(j);
     if (i === 0 || back >= HOLD_BACK) return x;
     const before = held(i - 1, back + 1);
     const across = (y: number) => (y - x) * (y - before) < 0 && Math.abs(y - x) > 1 && Math.abs(y - before) > 1;
@@ -980,7 +982,7 @@ function wallKeep(scene: Scene, cam: RigCamera, t: number, aspect: number): numb
 }
 
 // SWING_STEP seconds, and which ways round it tried were in someone's way, worked out as it is needed (per how the figures move, camera and rig).
-const swings = new WeakMap<object, Map<string, Map<number, { x: number; blocked: number[] }>>>();
+const swings = new WeakMap<object, Map<string, Map<number, { x: number; blocked: number[]; stuck: boolean }>>>();
 const SWING_STEP = 0.5;
 const SWING_EASE = 1.5;
 /** How many swing samples back a swing is held while the way back round is in someone's way. */

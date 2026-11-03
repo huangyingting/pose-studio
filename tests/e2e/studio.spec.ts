@@ -200,6 +200,8 @@ async function newSceneDialog(page: Page) {
 /** A new scene from a scene template, as made. */
 async function templateScene(page: Page, template: string) {
   await (await newSceneDialog(page)).getByRole('button', { name: new RegExp(`^${template}`) }).first().click();
+  // (Made once the Library motions it plays have come: the dialog closes then.)
+  await expect(page.getByRole('dialog', { name: 'New scene' })).toBeHidden();
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
 }
 
@@ -1032,7 +1034,8 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
   dialog = await newSceneDialog(page);
   await dialog.getByRole('button', { name: /^Put Close talk into this scene/ }).click();
   // (Put with the pointer: on the figure selected.)
-  if (await page.getByRole('status').filter({ hasText: /Click a figure to give it Close talk/ }).isVisible()) {
+  // (Once the Library motions it plays have come.)
+  if (await page.getByRole('status').filter({ hasText: /Click a figure to give it Close talk/ }).waitFor({ timeout: 5000 }).then(() => true, () => false)) {
     const chest = await project(page, 'chest');
     await page.mouse.click(chest.x, chest.y);
   }
@@ -1041,6 +1044,7 @@ test('multi-person set-ups and relation tools', async ({ page }) => {
 
   // A shoot preset: a template opened and filmed with a coverage in one go.
   await (await newSceneDialog(page)).getByRole('region', { name: 'Ready to shoot' }).getByRole('button', { name: /^Interview/ }).click();
+  await expect(page.getByRole('dialog', { name: 'New scene' })).toBeHidden();
   const shoot = (await live(page)).scene;
   expect(shoot.name).toBe('Interview');
   expect(shoot.cameras.filter((c) => c.made?.startsWith('dialogue:'))).toHaveLength(5);

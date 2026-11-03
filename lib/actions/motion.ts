@@ -1,7 +1,7 @@
 import { wrapDeg } from '../joints';
 import { MAX_LINE, newAnimation, snapTime } from '../animation';
 import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
-import { figurePoseAt, actionsOf, marksOf, warpOf, naturalEnd } from '../evaluate';
+import { figurePoseAt, actionsOf, marksOf, naturalEnd, turnsFreely } from '../evaluate';
 import { newProp, nextName } from '../doc';
 import { seatAt } from '../sets';
 import { addTravel, insertClip, insertLine, turnArriving, moments, ripple, setTravelMode, travelInto, moveMarkTo } from '../track';
@@ -14,7 +14,7 @@ import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
-import type { PropKind, Scene, Travel } from '../types';
+import type { Action, PropKind, Scene, Travel } from '../types';
 import { retime, setBlend, setClipOptions } from './timeline';
 import { addFigure, sittingAt } from './figures';
 
@@ -110,8 +110,8 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
   if (issue.kind === 'slide') {
     // (Its motion, or the one it ends as its last frames are drawn: a frame or two after it, its feet still on it.)
     const act = mine.find((x) => x.source.kind === 'clip' && x.start <= issue.start + 1e-6 && issue.start < x.start + x.duration + 2 / a.fps);
-    const w = act && warpOf(store.scene, act, issue.figure);
-    if (!act || !w || w.angle < 10) return null;
+    // (Not with someone within reach: it would turn them into them.)
+    if (!act || !turnsFreely(store.scene, act, issue.figure)) return null;
     return {
       label: 'Step round instead',
       run: () => store.group(() => {
@@ -131,7 +131,9 @@ export function issueFix(store: Store, issue: Issue): { label: string; run(): vo
     // (Over half a second; already so, over a second: a step into a wide stance, a cartwheel's, takes that.)
     const more = (x: { blendIn?: number }) => ((x.blendIn ?? 0) < 0.5 ? 0.5 : 1);
     // (With the time before it to ease over.)
-    const act = mine.find((x) => !x.layer && x.source.kind === 'clip' && Math.abs(x.start - issue.start) < 0.6 && (x.blendIn ?? 0) < 1 && x.start >= more(x));
+    // (Not a blow's: its fist as fast as the one recorded threw it; eased into for longer, it would not land.)
+    const blow = (x: Action) => x.source.kind === 'clip' && (LIBRARY_INDEX as unknown as { id: string; impact?: number }[]).some((m) => m.id === (x.source as { clip: string }).clip && m.impact !== undefined);
+    const act = mine.find((x) => !x.layer && x.source.kind === 'clip' && !blow(x) && Math.abs(x.start - issue.start) < 0.6 && (x.blendIn ?? 0) < 1 && x.start >= more(x));
     if (act) return { label: (act.blendIn ?? 0) < 0.5 ? 'Ease into it' : 'Ease into it more slowly', run: () => setBlend(store, act.id, more(act)) };
     // (At a repeat's start, #23: a blend between the repeats.)
     const rep = mine.find((x) => x.source.kind === 'clip' && (x.source.repeat ?? 1) > 1 && x.start < issue.start && issue.start < x.start + x.duration

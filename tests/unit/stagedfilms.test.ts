@@ -1,11 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { newShoot, startAnimatedScene } from '@/lib/actions';
+import { issueFix, newShoot, startAnimatedScene } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { cameraAt, liveCamera, viewOf } from '@/lib/cameras';
 import { parseClip } from '@/lib/doc';
 import { actionsOf, figurePoseAt, sceneAt } from '@/lib/evaluate';
 import { FILMS } from '@/lib/films';
+import { PRIMITIVES } from '@/lib/locomotion';
 import { checkMotion, segmentDistance } from '@/lib/qa';
 import { shotSpans, spanAt } from '@/lib/shots';
 import * as THREE from 'three';
@@ -110,6 +111,8 @@ describe('films: templates staged as a director would', () => {
   }, 600_000);
 
   it('opens every preset clean in the motion check, made as the app makes it: its motions to hand first', () => {
+    // (The walks and runs the app has to hand from the start; then each preset's own motions.)
+    putClips(PRIMITIVES.map((id) => parseClip(JSON.parse(readFileSync(`public/motions/${id.slice(8)}.json`, 'utf8')))!));
     for (const p of SHOOT_PRESETS) {
       const first = new Store(new MemoryStorage());
       expect(newShoot(first, p.id), p.name).toBe(true);
@@ -117,7 +120,9 @@ describe('films: templates staged as a director would', () => {
       // (A staged one times what its people do, a pass caught, by the motions they play.)
       const store = new Store(new MemoryStorage());
       newShoot(store, p.id);
-      expect(checkMotion(store.scene).filter((i) => !i.recorded).map((i) => `${i.message} at ${i.start.toFixed(1)} s`), p.name).toEqual([]);
+      // (As the app's check shows them: its own, and those of the recordings it has a fix for.)
+      const shown = checkMotion(store.scene).filter((i) => !i.recorded || issueFix(store, i));
+      expect(shown.map((i) => `${i.message} at ${i.start.toFixed(1)} s`), p.name).toEqual([]);
     }
   }, 1_200_000);
 

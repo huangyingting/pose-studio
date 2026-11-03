@@ -3,7 +3,7 @@ import { BUILT_IN, LIBRARY, clipById } from './assets';
 import { BODY_PRESETS, DEFAULT_BODY } from './body';
 import { newAnimation, propKeyOf } from './animation';
 import { newFigure, newProp, newScene, nextName } from './doc';
-import { arrivalAt } from './evaluate';
+import { arrivalAt, turnsFreely } from './evaluate';
 import { held } from './hold';
 import { fromPreset } from './lighting';
 import { legsOf, travelTime, turnTime } from './locomotion';
@@ -174,7 +174,7 @@ class Stage {
     if (same || moment) {
       const longer = { ...last, duration: frame(t - last.start) };
       this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x.id === last.id ? longer : x)), duration: Math.max(a.duration, t) } };
-      this.moved(who, from, t, here.at, [], here);
+      this.moved(who, from, t, here.at, [], this.turned(who, longer));
       return;
     }
     // (Turned to whom they watch, if there is the time to step round; else as they are.)
@@ -227,11 +227,29 @@ class Stage {
       end = { at: [from.at[0] + dx, from.at[1] + dz], facing: wrap(from.facing + k * m.turn) };
     }
     end = { at: [r3(end.at[0]), r3(end.at[1])], facing: Math.round(wrap(end.facing) * 10) / 10 || 0 };
-    this.moved(who, t, t + seconds, from.at, [], end);
-    return this.add({
+    const act: Action = {
       id: uid('act'), start: t, duration: seconds, blendIn: o.blend ?? 0.25, roles: [{ figure: this.id(who), end }],
       source: { kind: 'clip', clip: m.id, ...(o.mirror ? { mirror: true } : {}), ...(o.inPlace ? { inPlace: true } : {}) },
-    });
+    };
+    const ends = this.add(act);
+    this.moved(who, t, t + seconds, from.at, [], o.inPlace || o.at ? end : this.turned(who, act));
+    return ends;
+  }
+
+  /**
+   * A recorded motion held to a way it does not end facing by itself, as the person recorded turned
+   * as they did it, turned back as it plays, would slide their feet round: it ends as it turns
+   * instead, unless that would turn them into someone (they stepped round to face what they face
+   * first). Where it leaves them.
+   */
+  private turned(who: string, act: Action): Mark {
+    const end = act.roles[0].end!;
+    const natural = turnsFreely(this.scene, act, this.id(who));
+    if (!natural) return end;
+    const mark = { ...end, facing: Math.round(wrap(natural.facing) * 10) / 10 || 0 };
+    const a = this.scene.animation!;
+    this.scene = { ...this.scene, animation: { ...a, actions: a.actions.map((x) => (x.id === act.id ? { ...x, roles: [{ ...x.roles[0], end: mark }] } : x)) } };
+    return mark;
   }
 
   /** `who` turns to face this way from t, stepping round where they stand (taking `seconds` at least). When they have. */
@@ -474,6 +492,14 @@ class Stage {
     const a = this.scene.animation!;
     const end = frame(Math.max(...a.actions.map((x) => x.start + x.duration)) + tail);
     for (const who of this.ids.keys()) this.wait(who, end);
+    // (Now that everyone is where they go: one with nobody within reach after all, at a motion before
+    // a walk or the end (which sets off from however it leaves them), turns as it turns.)
+    for (const [who, id] of this.ids) {
+      const mine = this.scene.animation!.actions.filter((x) => x.roles[0].figure === id && !x.layer && x.roles.length === 1).sort((p, q) => p.start - q.start);
+      mine.forEach((x, i) => {
+        if (x.source.kind === 'clip' && !x.source.inPlace && (!mine[i + 1] || mine[i + 1].source.kind === 'travel')) this.turned(who, x);
+      });
+    }
     return { ...this.scene, animation: { ...this.scene.animation!, duration: end } };
   }
 }
