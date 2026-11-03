@@ -158,9 +158,9 @@ export const COVERAGES: Coverage[] = [
     cameras: [
       // (On the one it is about and everyone about them: one gone off to the far end is let go of, not all of them tiny.)
       { key: 'wide', name: 'Wide on everyone', subject: 'A', also: 'each', rig: { yaw: 20, pitch: 10, size: 'fs', lens: 28, smooth: 1.5 } },
-      // (From their front as they turn: a dance goes all ways round. Not from beside the one nearest
-      // them, who would then stand in front of it.)
-      { key: 'single', name: '{each} single', subject: 'each', rig: { yaw: 20, pitch: 3, turn: true, size: 'ms', place: 'right', lens: 50, smooth: 1 } },
+      // (From their front as they face when it is cut to, held there: one spinning in a dance is not
+      // circled round. Not from beside the one nearest them, who would then stand in front of it.)
+      { key: 'single', name: '{each} single', subject: 'each', rig: { yaw: 20, pitch: 3, size: 'ms', place: 'right', lens: 50, smooth: 1 } },
     ],
     // (Whoever talks, or starts doing something, in their single; someone going somewhere, and every
     // few seconds of nothing, all of them.)
