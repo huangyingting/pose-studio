@@ -85,4 +85,4 @@ CI (`.github/workflows/ci.yml`) runs the checks, the slow tests in 3 shards and 
 
 ## Credits
 
-The characters, sets, textures and skies come from Quaternius, MakeHuman, Mixamo, Poly Haven, ambientCG and Sketchfab authors, under CC0, CC BY 4.0 and their own terms. Each is credited in [`public/characters/CREDITS.txt`](public/characters/CREDITS.txt) and [`public/sets/CREDITS.txt`](public/sets/CREDITS.txt), and in the app beside the item.
+The Library's recorded motions are Mixamo's captures, and Walk down stairs is from the [CMU Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu) (created with funding from NSF EIA-0196217). The characters, sets, textures and skies come from Quaternius, MakeHuman, Mixamo, Poly Haven, ambientCG and Sketchfab authors, under CC0, CC BY 4.0 and their own terms. Each is credited in [`public/characters/CREDITS.txt`](public/characters/CREDITS.txt) and [`public/sets/CREDITS.txt`](public/sets/CREDITS.txt), and in the app beside the item.
