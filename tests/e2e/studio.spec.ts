@@ -214,13 +214,15 @@ test.beforeEach(async ({ page }) => {
   errors.length = 0;
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/');
+  // (Kept there from a page of the site's that is not the app: the app, left, would save its own
+  // project over it; over a slow connection, after it.)
+  await page.goto('/manifest.webmanifest');
   await page.evaluate((lib) => {
     localStorage.clear();
     localStorage.setItem('pose-studio-library', lib);
     localStorage.setItem('pose-studio-settings', JSON.stringify({}));
   }, SEEDED);
-  await page.reload();
+  await page.goto('/');
   await page.locator('.stage canvas').waitFor();
   await expect(page.getByLabel('Scene name')).toHaveValue('Hand on head');
   await page.waitForTimeout(800); // first frames + framing
@@ -1670,6 +1672,15 @@ test('a menu open when a key opens a dialog closes: nothing left over the dialog
 
 test('a right-click menu taller than the window scrolls with the wheel and shows which way there is more', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 440 });
+  // (Once the canvas has taken the window's new size: clicked as it changes, the click can go astray.)
+  let last = '';
+  await expect.poll(async () => {
+    const b = await page.locator('.stage canvas').boundingBox();
+    const now = JSON.stringify(b);
+    const settled = !!b && b.y + b.height <= 440 && now === last;
+    last = now;
+    return settled;
+  }, { intervals: [300] }).toBe(true);
   const canvas = (await page.locator('.stage canvas').boundingBox())!;
   await page.mouse.click(canvas.x + 40, canvas.y + 40, { button: 'right' });
   const list = page.locator('.context-menu');
