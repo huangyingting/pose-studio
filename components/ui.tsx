@@ -128,6 +128,22 @@ export type MenuItem =
 export const inPopup = (t: EventTarget | null) => !!(t as Element | null)?.closest?.('.menu-list, .select-list, .context-menu');
 
 /**
+ * Whether a pop-up's button is still in sight as what holds it scrolls: in the window, not scrolled
+ * out of a panel it is in, and not gone under something over it there (a panel's sticky header).
+ */
+export function inSight(button: Element): boolean {
+  const b = button.getBoundingClientRect();
+  if (b.bottom < 0 || b.top > window.innerHeight) return false;
+  for (let p = button.parentElement; p; p = p.parentElement) {
+    if (!/auto|scroll|hidden/.test(getComputedStyle(p).overflowY)) continue;
+    const r = p.getBoundingClientRect();
+    if (b.bottom <= r.top || b.top >= r.bottom) return false;
+  }
+  const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+  return !top || button.contains(top) || !!top.closest('[role=menu], [role=listbox]');
+}
+
+/**
  * Where a pop-up list goes on the screen, by the screen and not by what holds its button: next to
  * `anchor` on its `side` (the other side if that has more room and this not enough), lined up with
  * its start or end, kept inside the window; as tall as the room it has (it scrolls, ▲ ▼ showing
@@ -180,15 +196,14 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); root.current?.querySelector<HTMLElement>('button')?.focus(); }
     };
-    // (What it is in scrolled: the list goes with its button, closed once that is out of sight, as a
+    // (What it is in scrolled: the list goes with its button, closed once that is out of sight (inSight), as a
     // Select's does. A scroll just ending as it opens, the panel brought round to its button, leaves it open.)
     const onScroll = (e: Event) => {
       const el = list.current;
       const button = root.current?.querySelector('button');
       if (!el || !button || el.contains(e.target as Node)) return;
-      const b = button.getBoundingClientRect();
-      if (b.bottom < 0 || b.top > window.innerHeight) setOpen(false);
-      else placePopup(el, b, side, align);
+      if (!inSight(button)) setOpen(false);
+      else placePopup(el, button.getBoundingClientRect(), side, align);
     };
     const onResize = () => setOpen(false);
     document.addEventListener('pointerdown', onDown, true);
@@ -750,9 +765,8 @@ export function Select<T extends string>({ value, options, onChange, label }: {
     const onScroll = (e: Event) => {
       const el = list.current;
       if (!el || !button.current || el.contains(e.target as Node)) return;
-      const b = button.current.getBoundingClientRect();
-      if (b.bottom < 0 || b.top > window.innerHeight) setOpen(false);
-      else placePopup(el, b, 'bottom', 'start', 4);
+      if (!inSight(button.current)) setOpen(false);
+      else placePopup(el, button.current.getBoundingClientRect(), 'bottom', 'start', 4);
     };
     const onResize = () => setOpen(false);
     window.addEventListener('pointerdown', onDown, true);
