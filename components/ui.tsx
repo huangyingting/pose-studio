@@ -180,7 +180,16 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); root.current?.querySelector<HTMLElement>('button')?.focus(); }
     };
-    const onScroll = (e: Event) => { if (!list.current?.contains(e.target as Node)) setOpen(false); };
+    // (What it is in scrolled: the list goes with its button, closed once that is out of sight, as a
+    // Select's does. A scroll just ending as it opens, the panel brought round to its button, leaves it open.)
+    const onScroll = (e: Event) => {
+      const el = list.current;
+      const button = root.current?.querySelector('button');
+      if (!el || !button || el.contains(e.target as Node)) return;
+      const b = button.getBoundingClientRect();
+      if (b.bottom < 0 || b.top > window.innerHeight) setOpen(false);
+      else placePopup(el, b, side, align);
+    };
     const onResize = () => setOpen(false);
     document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('focusin', onFocus);
@@ -195,7 +204,7 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onResize);
     };
-  }, [open]);
+  }, [open, side, align]);
 
   const onListKey = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
