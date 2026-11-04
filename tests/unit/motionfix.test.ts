@@ -40,8 +40,8 @@ describe('motion capture made ready (lib/motionfix.ts)', () => {
   });
 
   it('faces a clip where its person looks: a stance turned at the pelvis still walks straight ahead', () => {
-    const walk = motion('walk-forward');
-    // (Captured with the pelvis turned well away from the way it walks and looks.)
+    const walk = motion('crouch-walk-forward');
+    // (A sneak captured with the pelvis turned well away from the way it walks and looks.)
     expect(Math.abs(facingOf(keyPose(walk.parts[0], 0).bones))).toBeGreaterThan(20);
     expect(walk.parts[0].facing).toBe(0);
     expect(lookFacing(walk.parts[0])).toBe(0);

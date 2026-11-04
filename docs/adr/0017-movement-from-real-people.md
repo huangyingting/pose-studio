@@ -28,7 +28,10 @@ path the scene sets.
 - **The recording sets the body**: the person's legs swinging, the back, the arms, the head, their
   crouch, swing and tuck. It is played in phase with the path: a walk's cycle at the phase its
   distance gives, its planted feet held where the plan has them (IK), its swinging legs its own; a
-  jump's take-off, flight and landing each in the jump's own time.
+  jump's take-off, flight and landing each in the jump's own time. Stepping sideways is the one
+  exception: the legs take the plan's short steps, which never cross (IK all through), the rest of
+  the body the recorded side-step's. A recorded side-step steps out and closes far wider than those
+  steps, so its own legs would be dragged to them.
 - **Where the two meet**: setting off and arriving, the body eases out of the pose before and into
   the one after (the legs over a few frames, the arms and back over up to half a second); joints are
   kept within their ranges (a recording retargeted to our skeleton may read past one); keeping its

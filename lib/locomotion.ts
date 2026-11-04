@@ -844,8 +844,11 @@ function cycleGait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Gro
     return 1 - smooth(off / CONTACT_EASE);
   }));
   // (A step up or down: the foot taken over the edge as the plan lifts it, not through it as the person's level steps would.)
+  // (Stepping sideways, the legs the plan's own steps all through, short and never crossing: a
+  // captured side-step's feet, out and closing, wider than the plan's, would be dragged to its.)
+  const sideways = Math.abs(c.way ?? 0) === 90;
   for (const side of ['L', 'R'] as const) {
-    const held = (1 - smooth(feet[side].swing * 2.5)) * (plan.timed ? lerp(1, down(side), w) : 1);
+    const held = sideways ? 1 : (1 - smooth(feet[side].swing * 2.5)) * (plan.timed ? lerp(1, down(side), w) : 1);
     plantLeg(mixed, legs, side, feet[side].world, Math.max(held, smooth((feet[side].rise ?? 0) / STEP_RISE)));
   }
   // (Every joint within its range: a captured one past ours, as recorded and retargeted, would read as bent too far.)
