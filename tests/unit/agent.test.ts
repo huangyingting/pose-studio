@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { saveShoot } from '@/lib/actions';
+import { saveShoot, setCameraStand } from '@/lib/actions';
 import { liveCamera } from '@/lib/cameras';
 import { assistantTurn } from '@/lib/agent/turn';
 import { TOOLS, runTool } from '@/lib/agent/tools';
@@ -151,6 +151,9 @@ describe('assistant tools', () => {
     run(store, 'add_prop', { kind: 'sphere', x: 0, z: 0, facing: null, name: 'Ball', held_by: id, hand: 'R' });
     run(store, 'add_prop', { kind: 'hoop', x: 1, z: 7, facing: null, name: 'Hoop', held_by: null, hand: null });
     store.setTime(store.scene.animation!.duration);
+    // (Nowhere to throw it, or to face: said, not thrown to or turned to the middle of the floor.)
+    expect(runTool(store, 'throw_prop', { prop: 'Ball', to_figure: null, hand: null, hoop: null, miss: null, dribble: null, x: null, z: null })).toMatchObject({ ok: false, text: expect.stringMatching(/where to throw it/) });
+    expect(runTool(store, 'turn_to', { figure: id, toward: null, x: null, z: null })).toMatchObject({ ok: false, text: expect.stringMatching(/to face/) });
     expect(run(store, 'throw_prop', { prop: 'Ball', to_figure: null, hand: null, hoop: 'Hoop', miss: null, dribble: null, x: null, z: null })).toMatch(/let go at .* arriving at/);
     expect(edit({ remove: true })).toBe('Removed Walk.');
     // A motion's part, its split, in place, a layer's body parts and strength (#22, #23).
@@ -182,6 +185,15 @@ describe('assistant tools', () => {
     expect(run(store, 'edit_shot', { time: 0, name: null, caption: 'They meet', camera: null, blend: null })).toMatch(/^Shot 1: 0\.00–8\.00 s, filmed by Master, cut in\.$/);
     expect(store.scene.animation!.shots![0].caption).toBe('They meet');
     expect(runTool(store, 'edit_camera', { ...{ camera: null, time: 0, subject: null, everyone: null, size: null, place: null, lens: null, moves: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null }, camera: 'Nobody' }).ok).toBe(false);
+    // A fixed camera (a tripod): its moves are a tripod's; another is said, nothing changed.
+    const master = store.scene.cameras.find((c) => c.name === 'Master')!;
+    setCameraStand(store, master.id, 'fixed');
+    const none = { camera: 'Master', time: 0, subject: null, everyone: null, size: null, place: null, lens: null, move: null, move_amount: null, move_size: null, move_to: null, pace: null, angle: null, height: null, turn: null, anchor: null, aim: null, shake: null };
+    const before = JSON.stringify(store.scene.cameras);
+    expect(runTool(store, 'edit_camera', { ...none, move: 'arc', move_amount: 30, subject: b.name })).toMatchObject({ ok: false, text: expect.stringMatching(/fixed .*not arc/) });
+    expect(JSON.stringify(store.scene.cameras)).toBe(before);
+    run(store, 'edit_camera', { ...none, move: 'pan', move_amount: 20 });
+    expect((store.scene.cameras.find((c) => c.id === master.id) as { rig: { move?: { kind: string } } }).rig.move?.kind).toBe('pan');
     expect(run(store, 'new_scene', { template: 'shoot-film-interview', name: null })).toMatch(/^Opened "Interview", filmed in \d+ shots/);
   });
 

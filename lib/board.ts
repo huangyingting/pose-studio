@@ -35,3 +35,6 @@ export function sceneShots(scene: Scene): StoryShot[] {
 export const storyShots = (lib: Library): StoryShot[] => storyScenes(lib).flatMap(sceneShots);
 
 export const storyLength = (shots: StoryShot[]) => shots.reduce((sum, x) => sum + x.length, 0);
+
+/** How many frames a shot is given in the story's video, and so in its cut list (whole frames: the cuts fall where the video's do). */
+export const shotFrames = (shot: StoryShot, fps: number) => Math.max(1, Math.round(shot.length * fps));

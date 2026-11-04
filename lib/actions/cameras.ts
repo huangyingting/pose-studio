@@ -386,7 +386,9 @@ export function addCamera(store: Store, view?: CameraView, film = true): string 
   store.updateScene((x) => {
     const a = x.animation;
     const withIt = { ...x, cameras: [...x.cameras, cam] };
-    return a && film ? { ...withIt, animation: updateShot(a, spanAt(a, t).shot.id, { camera: cam.id }) } : withIt;
+    // (Its shot pinned, as a camera given to a shot by hand is: the director cutting again keeps it.)
+    const id = a && spanAt(a, t).shot.id;
+    return a && film && id ? { ...withIt, animation: pinShots(updateShot(a, id, { camera: cam.id }), [id]) } : withIt;
   });
   return cam.id;
 }

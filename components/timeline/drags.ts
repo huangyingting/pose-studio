@@ -177,7 +177,10 @@ export function useDrags(d: DragsOf) {
       }
       if (ripple) rippleKeys(store, figureId, from, to - from, `ripple:${figureId}`);
       else moveKey(store, from, to, figureId);
-      const now = moments(store.scene.animation!, figureId).find((k) => Math.abs(k - to) < 0.5 / a.fps);
+      // (Followed where it went; not taken over by a key already there, where it could not go.)
+      const keys = moments(store.scene.animation!, figureId);
+      const went = ripple || !keys.some((k) => Math.abs(k - from) < 0.5 / a.fps);
+      const now = went ? keys.find((k) => Math.abs(k - to) < 0.5 / a.fps) : undefined;
       if (now !== undefined) {
         from = now;
         store.setTime(now);

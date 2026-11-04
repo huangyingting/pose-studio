@@ -37,19 +37,25 @@ export async function PUT(req: Request) {
     return Response.json({ error: (err as Error).message }, { status: 400 });
   }
 
+  // (The server's copy, to merge with: another device saved since this one last synced.)
+  const conflict = async () => {
+    const latest = await prisma.library.findUnique({ where: { userId } });
+    return Response.json({ error: 'Changed on another device', library: latest ? JSON.parse(latest.data) : null, version: latest?.version ?? 0 }, { status: 409 });
+  };
   const current = await prisma.library.findUnique({ where: { userId } });
-  if ((current?.version ?? 0) !== base) {
-    return Response.json({ error: 'Changed on another device', library: current ? JSON.parse(current.data) : null, version: current?.version ?? 0 }, { status: 409 });
-  }
+  if ((current?.version ?? 0) !== base) return conflict();
   if (!current) {
-    await prisma.library.create({ data: { userId, data, version: 1 } });
+    // (Two devices' first syncs at once: the second finds the first's there.)
+    try {
+      await prisma.library.create({ data: { userId, data, version: 1 } });
+    } catch (err) {
+      if (!(await prisma.library.findUnique({ where: { userId }, select: { version: true } }))) throw err;
+      return conflict();
+    }
     return Response.json({ version: 1 });
   }
   // Only if nobody saved in between (compare-and-set on the version).
   const { count } = await prisma.library.updateMany({ where: { userId, version: base }, data: { data, version: base + 1 } });
-  if (!count) {
-    const latest = await prisma.library.findUnique({ where: { userId } });
-    return Response.json({ error: 'Changed on another device', library: latest ? JSON.parse(latest.data) : null, version: latest?.version ?? 0 }, { status: 409 });
-  }
+  if (!count) return conflict();
   return Response.json({ version: base + 1 });
 }

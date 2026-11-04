@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addFigure, addProp, deleteFigure, deleteScene, duplicateCurrentScene, moveScene } from '@/lib/actions';
+import { addFigure, addKey, addProp, deleteFigure, deleteScene, duplicateCurrentScene, moveScene, startAnimation } from '@/lib/actions';
 import { poseScene, referencePoses } from '@/lib/poses';
 
 /** The 20 reference poses as scenes. */
@@ -169,6 +169,26 @@ describe('Store', () => {
     expect(b.scene.id).toBe(id);
     expect(b.getState().canUndo).toBe(false);
     expect(b.adoptExternal('{nonsense')).toBe(false);
+  });
+
+  it('adopted, the people of the scene open here stand as they are at its playhead (not the other tab\'s)', () => {
+    const storage = seeded();
+    const a = new Store(storage);
+    startAnimation(a, 3);
+    a.setTime(0);
+    addKey(a);
+    a.setTime(2);
+    const id = a.scene.figures[0].id;
+    a.updateFigure(id, (f) => ({ ...f, position: [f.position[0] + 2, f.position[1], f.position[2]] }));
+    addKey(a);
+    a.setTime(0);
+    a.save();
+    const b = new Store(storage);
+    b.setTime(2);
+    const here = b.scene.figures[0].position;
+    expect(here[0]).toBeCloseTo(a.scene.figures[0].position[0] + 2, 4);
+    expect(b.adoptExternal(storage.getItem(Store.LIBRARY_KEY))).toBe(true);
+    expect(b.scene.figures[0].position).toEqual(here);
   });
 });
 

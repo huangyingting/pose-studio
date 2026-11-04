@@ -125,7 +125,8 @@ export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (f
   const enc = await createEncoder(o.width, o.height, a.fps);
   const perLoop = Math.max(1, Math.round(a.duration * a.fps));
   const [r0, r1] = o.range ?? [0, a.duration];
-  const total = o.range ? Math.max(1, Math.round((r1 - r0) * a.fps)) : perLoop * o.loops + (a.loop ? 0 : 1);
+  // (One that does not go round plays through to its last pose each time: a frame more each play.)
+  const total = o.range ? Math.max(1, Math.round((r1 - r0) * a.fps)) : a.loop ? perLoop * o.loops : (perLoop + 1) * o.loops;
   for (let i = 0; i < total; i++) {
     if (signal?.aborted) {
       await enc.cancel();

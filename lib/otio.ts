@@ -1,6 +1,6 @@
 import { describeShot, describeSpan } from './prompt';
 import { cameraById } from './cameras';
-import { storyLength, type StoryShot } from './board';
+import { shotFrames, type StoryShot } from './board';
 
 /*
  * OpenTimelineIO cut list: one clip per shot (of a scene, or of the whole story), pointing at the
@@ -12,22 +12,22 @@ import { storyLength, type StoryShot } from './board';
 const time = (value: number, rate: number) => ({ OTIO_SCHEMA: 'RationalTime.1', rate, value });
 
 export function buildOtio(shots: StoryShot[], name: string, mediaUrl: string, rate = 24) {
-  const frames = (s: number) => Math.round(s * rate);
-  const total = storyLength(shots);
+  // (In the whole frames each shot has in the video: its cuts where the video's are.)
+  const total = shots.reduce((n, x) => n + shotFrames(x, rate), 0);
   let at = 0;
   const clips = shots.map((x) => {
     const start = at;
-    at += x.length;
+    at += shotFrames(x, rate);
     const camera = cameraById(x.scene, x.span?.shot.camera ?? x.scene.cameras[0].id);
     return {
       OTIO_SCHEMA: 'Clip.2',
       name: x.span ? x.span.shot.name : x.scene.name,
-      source_range: { OTIO_SCHEMA: 'TimeRange.1', start_time: time(frames(start), rate), duration: time(frames(start + x.length) - frames(start), rate) },
+      source_range: { OTIO_SCHEMA: 'TimeRange.1', start_time: time(start, rate), duration: time(shotFrames(x, rate), rate) },
       media_references: {
         DEFAULT_MEDIA: {
           OTIO_SCHEMA: 'ExternalReference.1',
           target_url: mediaUrl,
-          available_range: { OTIO_SCHEMA: 'TimeRange.1', start_time: time(0, rate), duration: time(frames(total), rate) },
+          available_range: { OTIO_SCHEMA: 'TimeRange.1', start_time: time(0, rate), duration: time(total, rate) },
         },
       },
       active_media_reference_key: 'DEFAULT_MEDIA',
@@ -48,7 +48,7 @@ export function buildOtio(shots: StoryShot[], name: string, mediaUrl: string, ra
     OTIO_SCHEMA: 'Timeline.1',
     name,
     global_start_time: time(0, rate),
-    metadata: { pose_studio: { fps: rate, duration: total } },
+    metadata: { pose_studio: { fps: rate, duration: total / rate } },
     tracks: {
       OTIO_SCHEMA: 'Stack.1',
       name: 'tracks',

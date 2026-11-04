@@ -17,7 +17,7 @@ import {
 } from '@/lib/render';
 import { ASPECTS, cameraAt, frameAspect, type CameraView } from '@/lib/cameras';
 import { recordVideo, videoSupported } from '@/lib/video';
-import { setExportJob } from './exportJob';
+import { endExportJob, setExportJob } from './exportJob';
 import { fromMediaPipe, retarget } from '@/lib/retarget';
 import { STYLE_LIST, styleDef } from '@/lib/styles';
 import { sharedRenderer } from '@/lib/thumbnails';
@@ -146,9 +146,14 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
   // (How far it has got: here, and in the header's hint should it go on with the dialog closed.)
   const advance = (label: string) => (p: number) => {
     setProgress(p);
-    setExportJob({ label, progress: p, cancel: () => abort.current?.abort() });
+    setExportJob({ label, progress: p, cancel: () => abort.current?.abort(), run: runOf.current });
   };
+  // (This dialog's run, and whether it was sent on in the background: done, it closes this dialog
+  // only if it is still open for it, and clears only its own progress.)
+  const runOf = useRef<object>({});
+  const done = () => { if (!background.current) onClose(); };
   const run = async () => {
+    runOf.current = {};
     setBusy(true);
     setProgress(0);
     await new Promise((r) => setTimeout(r, 30)); // let the button state paint
@@ -157,7 +162,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         const { sceneToGlb } = await import('@/lib/model3d');
         downloadBlob(await sceneToGlb(scene, time), `${safeFilename(scene.name)}.glb`);
         notify(scene.animation ? '3D model saved, animated (.glb)' : '3D model saved (.glb)');
-        onClose();
+        done();
         return;
       }
       const title = whole ? 'Story' : safeFilename(scene.name);
@@ -169,7 +174,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         const name = `${title}_ai_pack.zip`;
         downloadBlob(blob, name);
         notify(`Saved ${name}`);
-        onClose();
+        done();
         return;
       }
       if (video) {
@@ -181,7 +186,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         const name = `${title}.${ext}`;
         downloadBlob(blob, name);
         notify(`Saved ${name} (${width} × ${height})`);
-        onClose();
+        done();
         return;
       }
       const canvas = scope === 'board'
@@ -193,12 +198,12 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
       const name = `${base}${scope === 'turnaround' ? '_turnaround' : scope === 'frames' ? '_frames' : ''}.${ext}`;
       downloadBlob(blob, name);
       notify(`Saved ${name} (${canvas.width} × ${canvas.height})`);
-      onClose();
+      done();
     } catch (err) {
       if ((err as Error).message !== 'Cancelled') notify(`Export failed: ${(err as Error).message}`, 'error');
     } finally {
       setBusy(false);
-      setExportJob(null);
+      endExportJob(runOf.current);
     }
   };
   // (Closed while it goes on: the header's hint shows how far it has got, the file saved when done.)

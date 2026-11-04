@@ -492,7 +492,10 @@ export class Store {
     const id = this.scene.id;
     const same = library.scenes.findIndex((s) => s.id === id);
     this.savedLibrary = library;
-    this.set({ library, sceneIndex: same >= 0 ? same : this.state.sceneIndex, saveStatus: 'saved' }, false);
+    // (As adoptLibrary: the scene open here if it is still there, else the nearest; its people posed
+    // as they are at this tab's playhead, not the other tab's.)
+    const sceneIndex = same >= 0 ? same : Math.max(0, Math.min(this.state.sceneIndex, library.scenes.length - 1));
+    this.set({ library: this.withFrame(library, sceneIndex, this.state.time), sceneIndex, saveStatus: 'saved' }, false);
     void this.loadClips();
     return true;
   }

@@ -25,7 +25,7 @@ beforeAll(async () => {
   for (const m of readdirSync('prisma/migrations').filter((d) => d !== 'migration_lock.toml').sort()) {
     db.exec(readFileSync(join('prisma/migrations', m, 'migration.sql'), 'utf8'));
   }
-  db.prepare("insert into User (id, email, createdAt) values ('u1', 'a@test', 0), ('u2', 'b@test', 0)").run();
+  db.prepare("insert into User (id, email, createdAt) values ('u1', 'a@test', 0), ('u2', 'b@test', 0), ('u3', 'c@test', 0)").run();
   db.close();
   routes = {
     library: await import('@/app/api/library/route.server'), ai: await import('@/app/api/ai/route.server'), asset: await import('@/app/api/assets/[id]/route.server'),
@@ -62,6 +62,15 @@ describe('library API', () => {
     // Someone else's library is separate.
     user = 'u2';
     expect((await (await routes.library.GET()).json()).version).toBe(0);
+  });
+
+  it('two devices\' first saves at once: one is stored, the other told to merge with it', async () => {
+    user = 'u3';
+    const both = await Promise.all([put({ library: lib('P'), baseVersion: 0 }), put({ library: lib('Q'), baseVersion: 0 })]);
+    expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
+    const lost = await both.find((r) => r.status === 409)!.json();
+    expect(lost.version).toBe(1);
+    expect(lost.library.scenes).toHaveLength(1);
   });
 
   it('validates what it stores', async () => {

@@ -75,7 +75,7 @@ export function setPoseAt(scene: Scene, figure: string, time: number, pose: Pose
   const prev = acts.filter((x) => end(x) < t).at(-1);
   if (prev && isKeys(prev)) {
     const keys = [...keysOf(prev), { t, pose }];
-    return sorted(replace(a, prev, [{ ...keysAction(figure, keys), id: prev.id }]));
+    return sorted(replace(a, prev, [rekeyed(prev, keys)]));
   }
   return sorted({ ...a, actions: [...a.actions, keysAction(figure, [{ t, pose }])] });
 }
@@ -217,13 +217,25 @@ function syncMarks(scene: Scene, a: Animation, figure: string): Animation {
   return sorted(out);
 }
 
+/**
+ * A keyed block made again from its keys (one moved, taken out, eased, held…): what it is as a
+ * block kept with it, its blend into it, how much of it shows, its line said, what it is over.
+ */
+function rekeyed(act: Action, keys: Key[]): Action {
+  const { blendIn, blendCurve, strength, say, mask } = act;
+  return {
+    ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id,
+    ...(blendIn ? { blendIn } : {}), ...(blendCurve ? { blendCurve } : {}), ...(strength !== undefined ? { strength } : {}), ...(say ? { say } : {}), ...(mask ? { mask } : {}),
+  };
+}
+
 /** Remove a figure's key at t (an action left without keys goes; the figure keeps one). */
 export function removeKeyAt(a: Animation, figure: string, t: number): Animation {
   const hit = keyAtTime(a, figure, t);
   if (!hit) return a;
   const keys = keysOf(hit.act).filter((_, i) => i !== hit.i);
   if (!keys.length) return actionsOf(a, figure).length > 1 ? replace(a, hit.act, []) : a;
-  return sorted(replace(a, hit.act, [{ ...keysAction(figure, keys), id: hit.act.id }]));
+  return sorted(replace(a, hit.act, [rekeyed(hit.act, keys)]));
 }
 
 /** Move several of a figure's keys (at `times`) by `by` seconds together (refused onto other keys or actions). */
@@ -236,7 +248,7 @@ export function moveKeysBy(a: Animation, figure: string, times: number[], by: nu
     const moved = keysOf(act).map((k) => (picked(k.t) ? { ...k, t: Math.round((k.t + by) * a.fps) / a.fps } : k)).sort((p, q) => p.t - q.t);
     // (All of them go, or none: not past either end, not onto another key.)
     if (moved[0].t < -EPS || moved[moved.length - 1].t > MAX_DURATION + EPS || moved.some((k, i) => i > 0 && k.t - moved[i - 1].t < tol)) return a;
-    nexts.push({ ...keysAction(figure, moved, act.layer), id: act.id });
+    nexts.push(rekeyed(act, moved));
   }
   // Not over another action, staying or moved.
   const after = [...actionsOf(a, figure).filter((x) => !touched.includes(x)), ...nexts];
@@ -268,7 +280,7 @@ export function setKeyEase(a: Animation, figure: string, t: number, ease: NonNul
   const hit = keyAtTime(a, figure, t);
   if (!hit) return a;
   const keys = keysOf(hit.act).map((k, i) => (i === hit.i ? { ...k, ease } : k));
-  return replace(a, hit.act, [{ ...keysAction(figure, keys, hit.act.layer), id: hit.act.id }]);
+  return replace(a, hit.act, [rekeyed(hit.act, keys)]);
 }
 
 /** Hold a figure's key at t for `by` seconds: a copy of it then, and what comes after moved on by as much. */
@@ -281,7 +293,7 @@ export function holdKeyFor(a: Animation, figure: string, t: number, by: number):
   const moved = ripple(a, figure, key.t - 0.5 / a.fps, Math.round(by * a.fps) / a.fps);
   const act = moved.actions.find((x) => x.id === hit.act.id)!;
   const keys = [{ t: key.t, pose: key.pose }, ...keysOf(act)].sort((p, q) => p.t - q.t);
-  const next = { ...keysAction(figure, keys, act.layer), id: act.id };
+  const next = rekeyed(act, keys);
   return longer(sorted(replace(moved, act, [next])), end(next));
 }
 
@@ -323,7 +335,7 @@ export function repeatAction(a: Animation, id: string, times: number): Animation
   const by = span * (times - 1);
   const moved = rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
   const now = moved.actions.find((x) => x.id === id)!;
-  const next = { ...keysAction(act.roles[0].figure, all, act.layer), id };
+  const next = rekeyed(act, all);
   return longer(sorted(replace(moved, now, [next])), end(next));
 }
 
@@ -333,7 +345,7 @@ export function moveKeyTo(a: Animation, figure: string, from: number, to: number
   const time = snapTime(a, to);
   if (!hit || keyAtTime(a, figure, time)) return a;
   const keys = keysOf(hit.act).map((k, i) => (i === hit.i ? { ...k, t: time } : k)).sort((p, q) => p.t - q.t);
-  const next = { ...keysAction(figure, keys), id: hit.act.id };
+  const next = rekeyed(hit.act, keys);
   const others = actionsOf(a, figure).filter((x) => x !== hit.act);
   if (others.some((x) => x.start < end(next) - EPS && end(x) > next.start + EPS)) return a;
   return sorted(replace(a, hit.act, [next]));
@@ -351,7 +363,7 @@ export function ripple(a: Animation, figure: string | string[], from: number, by
     if (!x.roles.some((r) => who.includes(r.figure))) return x;
     if (x.source.kind === 'keys' && x.start < from - EPS && end(x) >= from - EPS) {
       const keys = keysOf(x).map((k) => (k.t >= from - EPS ? { ...k, t: shift(k.t) } : k));
-      return { ...keysAction(x.roles[0].figure, keys, x.layer), id: x.id };
+      return rekeyed(x, keys);
     }
     return x.start >= from - EPS ? { ...x, start: shift(x.start) } : x;
   });
@@ -389,7 +401,13 @@ export function rippleInStep(a: Animation, figures: string[], from: number, by: 
   const actions = a.actions.map((x) => {
     if (x.source.kind === 'keys' && x.roles.length === 1 && since.has(x.roles[0].figure)) {
       const t0 = since.get(x.roles[0].figure)! - half;
-      if (x.start < t0 && end(x) >= t0) return { ...keysAction(x.roles[0].figure, keysOf(x).map((k) => (k.t >= t0 ? { ...k, t: shift(k.t) } : k)), x.layer), id: x.id };
+      // (A keyed block going on past where it moves, the keys from then on moved with it; not one
+      // ending just there, which would be stretched over what comes in. Going back, the keys in
+      // the time taken out go, not left among those moved.)
+      if (x.start < t0 && end(x) > t0 + 2 * half) {
+        const gone = (t: number) => by < 0 && t < t0 && t > t0 + by + half;
+        return rekeyed(x, keysOf(x).filter((k) => !gone(k.t)).map((k) => (k.t >= t0 ? { ...k, t: shift(k.t) } : k)));
+      }
     }
     return moves(x) ? { ...x, start: shift(x.start) } : x;
   });
@@ -411,7 +429,7 @@ function splitAt(scene: Scene, figure: string, t: number): { a: Animation; after
   const before = [...keys.filter((k) => k.t < t - EPS), { t, pose: here }];
   const later = keys.filter((k) => k.t > t + EPS);
   const after = later.length ? keysAction(figure, later) : null;
-  return { a: sorted(replace(a, act, [{ ...keysAction(figure, before), id: act.id }, ...(after ? [after] : [])])), after };
+  return { a: sorted(replace(a, act, [rekeyed(act, before), ...(after ? [after] : [])])), after };
 }
 
 /** Play a clip from the waist up over what a figure is doing (waving while walking), from `start`. */
@@ -540,7 +558,7 @@ export function setTravelMode(scene: Scene, figure: string, t: number, mode: Tra
   let start: number;
   if (hit.i > 0) {
     start = keys[hit.i - 1].t;
-    next = replace(next, hit.act, [{ ...keysAction(figure, keys.slice(0, hit.i)), id: hit.act.id }, keysAction(figure, keys.slice(hit.i))]);
+    next = replace(next, hit.act, [rekeyed(hit.act, keys.slice(0, hit.i)), keysAction(figure, keys.slice(hit.i))]);
   } else {
     const prev = actionsOf(a, figure).filter((x) => end(x) <= hit.act.start + EPS && x !== hit.act).at(-1);
     if (!prev) return a;
@@ -574,7 +592,7 @@ export function moveMarkTo(scene: Scene, figure: string, t: number, to: [number,
   }
   if (hit) {
     const keys = keysOf(hit.act).map((k, i) => (i === hit.i ? { ...k, pose: { ...k.pose, position: [r3(to[0]), k.pose.position[1], r3(to[1])] as Pose['position'] } } : k));
-    out = sorted(replace(out, hit.act, [{ ...keysAction(figure, keys), id: hit.act.id }]));
+    out = sorted(replace(out, hit.act, [rekeyed(hit.act, keys)]));
   }
   return out;
 }
@@ -596,11 +614,12 @@ export function retimeAction(a: Animation, id: string, duration: number): Animat
   const src = act.source;
   if (src.kind === 'clip') {
     const clip = playedClip(src);
-    if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round(((clip.duration * (src.repeat ?? 1)) / d) * 1000) / 1000 } };
+    // (Played over what is left after its first pose held for its lead, #23.)
+    if (clip && !clip.loop) next = { ...next, source: { ...src, speed: Math.round(((clip.duration * (src.repeat ?? 1)) / Math.max(EPS, d - (src.lead ?? 0))) * 1000) / 1000 } };
   } else if (src.kind === 'keys') {
     const k = d / Math.max(EPS, act.duration);
     const keys = keysOf(act).map((x) => ({ ...x, t: snapTime({ ...a, duration: MAX_DURATION }, act.start + (x.t - act.start) * k) }));
-    next = { ...keysAction(act.roles[0].figure, keys, act.layer), id: act.id, duration: d };
+    next = { ...rekeyed(act, keys), duration: d };
   }
   // (A correction is retimed by itself: it is over what it corrects, which stays.)
   const moved = act.layer === 'correction' ? a : rippleInStep(a, act.roles.map((r) => r.figure), end(act), by, [end(act)]);
@@ -801,10 +820,15 @@ export function splitAction(a: Animation, id: string, t: number): Animation {
     if (!whole) return a;
     if (!loopsOf(src)) {
       const speed = src.speed ?? 1;
-      const cut = Math.round(((src.from ?? 0) + (time - act.start) * speed) * 1000) / 1000;
+      // (At the time playing then: after its first pose held for its lead, #23; the second half holds
+      // only what is left of that.)
+      const lead = src.lead ?? 0;
+      const into = time - act.start;
+      const cut = Math.round(((src.from ?? 0) + Math.max(0, into - lead) * speed) * 1000) / 1000;
       first.source = { ...src, to: cut };
-      second.source = { ...src, from: cut };
+      second.source = { ...src, from: cut, lead: Math.max(0, lead - into) };
       if ((second.source as { to?: number }).to === undefined) delete (second.source as { to?: number }).to;
+      if (!(second.source as { lead?: number }).lead) delete (second.source as { lead?: number }).lead;
     }
   } else if (src.kind === 'keys') {
     const keys = keysOf(act);

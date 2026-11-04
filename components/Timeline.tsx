@@ -413,7 +413,8 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
       i: () => setRangeAt(store, 'in', at),
       o: () => setRangeAt(store, 'out', at),
       x: () => setRange(store, null),
-      Escape: () => (e.currentTarget as HTMLElement).blur(),
+      // (What has the focus in it, a block or the tracks: blurring the tracks did not take it from a block.)
+      Escape: () => (document.activeElement as HTMLElement | null)?.blur(),
     };
     const run = keys[e.key];
     if (!run) return;

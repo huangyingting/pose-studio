@@ -8,6 +8,8 @@ interface ExportJob {
   /** 0 to 1. */
   progress: number;
   cancel(): void;
+  /** The run it is of: only it clears it, not one that started after it. */
+  run: object;
 }
 
 let job: ExportJob | null = null;
@@ -20,6 +22,11 @@ export const exportJob = () => job;
 export function setExportJob(next: ExportJob | null) {
   job = next;
   listeners.forEach((f) => f());
+}
+
+/** A run's export over: the hint cleared, unless another has started since. */
+export function endExportJob(run: object) {
+  if (job?.run === run) setExportJob(null);
 }
 
 /** Call `f` whenever the export going on changes. Returns a function that stops it. */

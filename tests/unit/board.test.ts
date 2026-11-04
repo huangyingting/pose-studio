@@ -67,6 +67,25 @@ describe('storyboard', () => {
     expect(otio.metadata.pose_studio.duration).toBe(5);
   });
 
+  it('shots between frames (a still held 2.1 s): the cut list in the whole frames the video has, each clip where the one before ends', () => {
+    const store = new Store(new MemoryStorage());
+    setHold(store, store.scene.id, 2.1);
+    addScene(store);
+    setHold(store, store.scene.id, 1.3);
+    addScene(store);
+    startAnimation(store, 3);
+    const shots = storyShots(store.getState().library);
+    const clips = buildOtio(shots, 'Story', 'story.mp4').tracks.children[0].children;
+    // (The video gives each shot its length in whole frames: 2.1 s is 50, 1.3 s 31.)
+    expect(clips.map((c) => c.source_range.duration.value)).toEqual(shots.map((x) => Math.round(x.length * 24)));
+    const ranges = clips.map((c) => [c.source_range.start_time.value, c.source_range.duration.value]);
+    ranges.forEach(([start, length], i) => {
+      expect(Number.isInteger(start) && Number.isInteger(length)).toBe(true);
+      if (i) expect(start).toBe(ranges[i - 1][0] + ranges[i - 1][1]);
+    });
+    expect(clips[0].media_references.DEFAULT_MEDIA.available_range.duration.value).toBe(ranges.at(-1)![0] + ranges.at(-1)![1]);
+  });
+
   it('round-trips through the library file and survives bad input', () => {
     const store = new Store(new MemoryStorage());
     const id = store.scene.id;

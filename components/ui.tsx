@@ -442,7 +442,9 @@ export function Info({ text, label = 'More about this' }: { text: string; label?
   const [open, setOpen] = useState(false);
   return (
     <span className="info-wrap">
-      <button type="button" className="info-btn" aria-label={label} aria-expanded={open} data-tip={open ? undefined : text} onClick={() => setOpen(!open)} onBlur={() => setOpen(false)}>
+      {/* (Esc closes it, as a drop-down's: a dialog it is in leaves Esc to what is open in it.) */}
+      <button type="button" className="info-btn" aria-label={label} aria-expanded={open} data-tip={open ? undefined : text} onClick={() => setOpen(!open)} onBlur={() => setOpen(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
         <Info16 aria-hidden />
       </button>
       {open && <span className="info-pop" role="note">{text}</span>}
@@ -510,11 +512,10 @@ export function NumberInput({ value, onChange, min = -Infinity, max = Infinity, 
   const [text, setText] = useState<string | null>(null);
   const round = (v: number) => Math.round(v * 10 ** digits) / 10 ** digits;
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  // (What is typed, a comma as a point; NaN if it is not a number.)
+  const typed = () => (text === null || text.trim() === '' ? NaN : Number(text.replace(',', '.')));
   const commit = () => {
-    if (text !== null) {
-      const v = Number(text.replace(',', '.'));
-      if (text.trim() !== '' && Number.isFinite(v)) onChange(clamp(round(v)));
-    }
+    if (Number.isFinite(typed())) onChange(clamp(round(typed())));
     setText(null);
   };
   return (
@@ -533,7 +534,7 @@ export function NumberInput({ value, onChange, min = -Infinity, max = Infinity, 
         else if (e.key === 'Escape') { e.stopPropagation(); setText(null); requestAnimationFrame(() => (e.target as HTMLInputElement).blur()); }
         else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault();
-          const v = clamp(round((text !== null && Number.isFinite(Number(text)) ? Number(text) : value) + (e.key === 'ArrowUp' ? step : -step) * (e.shiftKey ? 10 : 1)));
+          const v = clamp(round((Number.isFinite(typed()) ? typed() : value) + (e.key === 'ArrowUp' ? step : -step) * (e.shiftKey ? 10 : 1)));
           onChange(v);
           setText(String(v));
         }

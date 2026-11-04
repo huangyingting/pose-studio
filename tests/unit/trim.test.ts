@@ -5,7 +5,7 @@ import { clipById, playedClip, putClips } from '@/lib/assets';
 import { clipRange, keysClip, samplePart } from '@/lib/clip';
 import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
-import { keyTimesOf } from '@/lib/track';
+import { holdKeyFor, keyTimesOf, moveKeysBy, removeKeyAt, setKeyEase } from '@/lib/track';
 import { withAngles } from '@/lib/pose';
 import type { Action, Clip, Pose } from '@/lib/types';
 import { fresh } from '../fixtures/scenes';
@@ -183,6 +183,42 @@ describe('splitting at the playhead (#22)', () => {
     expect(Math.hypot(...[0, 2].map((k) => figurePoseAt(store.scene, a, at + 1 / 24)!.position[k] - was[1].position[k]))).toBeLessThan(0.02);
   });
 
+  it('a motion trimmed to start early (its first pose held): split after the hold or in it, it plays as it did', () => {
+    for (const into of [1.0, 0.25]) {
+      const { store, a } = fresh();
+      startAnimation(store, 4);
+      store.setTime(1);
+      applyMotion(store, a, JAB);
+      const id = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!.id;
+      trim(store, id, 'start', 0.5);
+      const held = actionsOf(store.scene.animation!, a).find((x) => x.id === id)!;
+      expect((held.source as { lead?: number }).lead).toBeCloseTo(0.5, 3);
+      const at = Math.round((held.start + into) * 24) / 24;
+      const times = [at - 1 / 24, at + 1 / 24, at + 0.5];
+      const was = times.map((t) => figurePoseAt(store.scene, a, t)!);
+      store.setTime(at);
+      expect(splitAt(store, id)).toBeNull();
+      expect(actionsOf(store.scene.animation!, a).filter((x) => x.source.kind === 'clip')).toHaveLength(2);
+      times.forEach((t, i) => expect(apart(figurePoseAt(store.scene, a, t)!, was[i], true), `${into}: at ${t}`).toBeLessThan(2));
+    }
+  });
+
+  it('a motion with its first pose held, stretched: it still plays to its last pose at its end', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    store.setTime(1);
+    applyMotion(store, a, JAB);
+    const id = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!.id;
+    const end = (x: Action) => x.start + x.duration;
+    const last = figurePoseAt(store.scene, a, end(actionsOf(store.scene.animation!, a).find((x) => x.id === id)!) - 1e-3)!;
+    trim(store, id, 'start', 0.5);
+    const held = actionsOf(store.scene.animation!, a).find((x) => x.id === id)!;
+    retime(store, id, held.duration + 1);
+    const after = actionsOf(store.scene.animation!, a).find((x) => x.id === id)!;
+    expect(after.duration).toBeCloseTo(held.duration + 1, 3);
+    expect(apart(figurePoseAt(store.scene, a, end(after) - 1e-3)!, last, true)).toBeLessThan(2);
+  });
+
   it('a repeated motion splits into its repeats, then the one under the playhead', () => {
     const { store, a, id, act } = jabbed();
     const once = act().duration;
@@ -214,6 +250,31 @@ describe('splitting at the playhead (#22)', () => {
     const walking = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'travel')!;
     store.setTime((walk.from + walk.to) / 2);
     expect(splitAt(store, walking.id)).toMatch(/is not split/);
+  });
+});
+
+describe('keys edited (#22)', () => {
+  it('a Posed block keeps its blend, strength and mask as its keys are added, moved, eased, held or taken away', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    for (const t of [0, 1, 2, 3]) {
+      store.setTime(t);
+      store.updateFigure(a, (f) => ({ ...f, position: [t, f.position[1], f.position[2]] }));
+      addKey(store);
+    }
+    const posed = actionsOf(store.scene.animation!, a)[0];
+    const kept = { blendIn: 0.4, strength: 0.7, mask: 'arms' as const };
+    const anim = { ...store.scene.animation!, actions: store.scene.animation!.actions.map((x) => (x.id === posed.id ? { ...x, ...kept } : x)) } as typeof store.scene.animation & {};
+    const edits = [
+      (x: typeof anim) => setKeyEase(x, a, 1, 'linear'),
+      (x: typeof anim) => holdKeyFor(x, a, 1, 0.5),
+      (x: typeof anim) => moveKeysBy(x, a, [2], 0.25),
+      (x: typeof anim) => removeKeyAt(x, a, 1),
+    ];
+    for (const edit of edits) {
+      const after = actionsOf(edit(anim), a).find((x) => x.id === posed.id)!;
+      expect({ blendIn: after.blendIn, strength: after.strength, mask: after.mask }, String(edit)).toEqual(kept);
+    }
   });
 });
 

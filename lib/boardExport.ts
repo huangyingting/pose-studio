@@ -1,5 +1,5 @@
 import { frameAspect } from './cameras';
-import { storyLength, type StoryShot } from './board';
+import { shotFrames, storyLength, type StoryShot } from './board';
 import type { Pass } from './render';
 import type { Style } from './types';
 import { createEncoder, drawShot, drawSubtitle, lineAt, wrap } from './video';
@@ -90,12 +90,13 @@ export async function recordStory(shots: StoryShot[], o: StoryOptions & { width:
       // A still scene is one frame held for its time.
       drawShot(enc.ctx, x.scene, 0, draw, videoRenderer());
       caption(x.scene, 0, x.caption);
-      await enc.add(time, x.length);
-      time += x.length;
+      // (Its whole frames, as a filmed shot's: the cut list's cuts fall where the video's do.)
+      await enc.add(time, shotFrames(x, fps) / fps);
+      time += shotFrames(x, fps) / fps;
       onProgress?.(time / total);
       continue;
     }
-    const n = Math.max(1, Math.round(x.length * fps));
+    const n = shotFrames(x, fps);
     for (let i = 0; i < n; i++) {
       if (signal?.aborted) break;
       drawShot(enc.ctx, x.scene, x.span.start + i / fps, draw, videoRenderer());

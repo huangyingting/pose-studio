@@ -23,7 +23,7 @@ import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { anglesOf, withAngles, type Angles } from '../pose';
-import { CAMERA_MOVES, SHOT_SIZES, liveCamera, rigRule, type Placement, type ShotSize } from '../cameras';
+import { CAMERA_MOVES, SHOT_SIZES, TRIPOD_MOVES, liveCamera, rigRule, type Placement, type ShotSize } from '../cameras';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, shootsOf, templatesOf } from '../templates';
@@ -276,7 +276,8 @@ export const TOOLS: AgentTool[] = [
         const where = other ? figurePoseAt(store.scene, other.id, t)?.position : propNow(store, findProp(store, i.toward).id)?.position;
         if (!where) throw new Error(`No "${i.toward}" to face`);
         at = [where[0], where[2]];
-      } else at = [Number(i.x), Number(i.z)];
+      } else if (typeof i.x === 'number' && typeof i.z === 'number') at = [i.x, i.z];
+      else throw new Error('Give a figure or prop to face (toward), or a floor point (x and z)');
       if (!turnTo(store, f.id, at)) return `${f.name} already faces that way.`;
       return `${f.name} turns to face ${i.toward ?? `(${r2(at[0])}, ${r2(at[1])})`}; the playhead is at ${r2(store.getState().time)} s.`;
     },
@@ -471,6 +472,11 @@ export const TOOLS: AgentTool[] = [
       if (typeof i.camera === 'string' && !named) throw new Error(`No camera called ${i.camera}. Cameras: ${store.scene.cameras.map((c) => c.name).join(', ')}`);
       const id = named?.id ?? liveCamera(store.scene, t).id;
       const cam = () => store.scene.cameras.find((c) => c.id === id)!;
+      // (A fixed camera stands where it is put: its moves are a tripod's, any other would not show.)
+      const was = cam();
+      if (was.kind === 'rig' && was.rig.fixed && i.move && i.move !== 'none' && i.move !== 'path' && !TRIPOD_MOVES.includes(i.move as MoveKind)) {
+        throw new Error(`${was.name} is fixed (on a tripod): it can ${TRIPOD_MOVES.join(', ')} or hold, not ${i.move}. Use another camera, or a path`);
+      }
       if (i.subject || i.everyone) editCamera(store, id, { subject: i.everyone ? '' : findFigure(store, i.subject).id });
       if (i.move === 'path') editAsPath(store, id);
       else if (i.move === 'none') setCameraMove(store, id, null);
@@ -555,7 +561,8 @@ export const TOOLS: AgentTool[] = [
         }
         if (n(i.brightness) !== undefined) next.intensity = n(i.brightness)!;
         if (n(i.kelvin) !== undefined) Object.assign(next, { kelvin: n(i.kelvin), color: kelvinColor(n(i.kelvin)!) });
-        editLight(store, l.id, next);
+        // (Only a light asked to change: an edit of it makes the scheme a custom one, and is a step to undo.)
+        if (JSON.stringify(next) !== JSON.stringify(l)) editLight(store, l.id, next);
       }
       const now = lightingOf(store.scene);
       const e = now.environment ?? {};
@@ -618,7 +625,10 @@ export const TOOLS: AgentTool[] = [
       }
       const target = i.hoop
         ? { hoop: findProp(store, i.hoop).id, ...(i.miss ? { miss: true } : {}) }
-        : i.to_figure ? { figure: findFigure(store, i.to_figure).id, hand: (i.hand === 'L' ? 'L' : 'R') as Side } : { at: [Number(i.x ?? 0), Number(i.z ?? 0)] as [number, number] };
+        : i.to_figure ? { figure: findFigure(store, i.to_figure).id, hand: (i.hand === 'L' ? 'L' : 'R') as Side }
+        : typeof i.x === 'number' && typeof i.z === 'number' ? { at: [i.x, i.z] as [number, number] }
+        : null;
+      if (!target) throw new Error('Give where to throw it: a hoop, a figure (to_figure), or a floor point (x and z)');
       const span = throwProp(store, p.id, target);
       if (!span) throw new Error(`Could not throw ${p.name}`);
       const missed = missedCatchesOf(store.scene).some((m) => m.prop === p.id && m.t > span.from);
