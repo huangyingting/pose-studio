@@ -1747,6 +1747,15 @@ test('the view widget, isolate, hover links, dragging from the Library, resizabl
   await expect.poll(yaw).toBe(90);
   await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' }).click();
   await expect.poll(yaw).toBe(0);
+  // Straight after a drag that turned the view: there it stays, not turned on by what was left of the drag.
+  const stage = (await page.locator('.stage canvas').boundingBox())!;
+  await drag(page, { x: stage.x + 60, y: stage.y + stage.height - 60 }, { x: stage.x + 260, y: stage.y + stage.height - 60 });
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the left' }).click();
+  await expect.poll(yaw).toBe(90);
+  await page.waitForTimeout(2000);
+  expect(await yaw()).toBe(90);
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'From the front' }).click();
+  await expect.poll(yaw).toBe(0);
 
   // Isolate (/): only the selected figure on the canvas, and back.
   await addLayer(page, 'Figure');

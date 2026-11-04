@@ -102,7 +102,18 @@ interface Props {
   placing?: Placing | null;
 }
 
-type Controls = { target: THREE.Vector3; enabled: boolean; update(): void } | null;
+type Controls = { target: THREE.Vector3; enabled: boolean; enableDamping: boolean; update(): void } | null;
+
+/**
+ * What a drag left of its motion to ease out, dropped: a view set now (from the left, framed) stays
+ * as set, not turned on by the drag before it, a few degrees more over the next seconds.
+ */
+function stopEasing(controls: NonNullable<Controls>) {
+  if (!controls.enableDamping) return;
+  controls.enableDamping = false;
+  controls.update();
+  controls.enableDamping = true;
+}
 
 /** Whether a set's parts stand between two points (its parts are not picked: their own ray test, not their outlines'). */
 function setBetween(set: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3) {
@@ -1219,6 +1230,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       getView: () => viewFromCamera(camera, controls?.target ?? new THREE.Vector3(0, 1, 0)),
       turnView: (yaw, pitch) => {
         if (!controls) return;
+        stopEasing(controls);
         const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
         s.theta -= (yaw * Math.PI) / 180;
         // (Not past straight down, nor under the floor: as the canvas's own orbit.)
@@ -1320,6 +1332,7 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
     if (!controls) return 0;
     // Wait a frame so the scene has been synced.
     return requestAnimationFrame(() => {
+      stopEasing(controls);
       // (A light, a camera or a part of a figure: close up round it, in the middle.)
       const [kind, id, part] = typeof only === 'string' && /^(light|camera|joint):/.test(only) ? only.split(':') : [];
       let near: THREE.Vector3 | null = null;

@@ -959,15 +959,17 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .tl-fixband { position: absolute; bottom: 1px; height: 6px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--fix) 45%, transparent); cursor: pointer; }
 .tl-fixband.sel { background: var(--fix); }
 .tl-fixband .tl-edge { width: 5px; }
-/* Over the keys on the row: a key at a block's end is still taken by its half outside the block. */
-.tl-edge { position: absolute; z-index: 2; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
+.tl-edge { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; cursor: ew-resize; }
+/* A walk's, a run's or a motion's over the keys on the row: a key at its end (a pose put on as it
+   ends) is still taken by its half outside the block. A keyed block's are under its keys, at its ends. */
+.tl-travel:not(.keys) .tl-edge { z-index: 2; }
 .tl-edge.start { right: auto; left: 0; }
 /* A short block keeps room to be picked and moved (#22): thinner edges; a tiny one none (its inspector trims it). */
 .tl-travel.tight .tl-edge { width: 3px; }
 .tl-travel.tiny .tl-edge { display: none; }
 .tl-edge:hover { background: color-mix(in srgb, var(--shade) 12%, transparent); }
 /* An action's buttons (edit, remove, more): while the pointer is over it (always on touch). */
-.tl-ramp { position: absolute; top: 5px; bottom: 5px; z-index: 1; clip-path: polygon(0 100%, 100% 0, 100% 100%); background: currentColor; opacity: 0.35; cursor: w-resize; }
+.tl-ramp { position: absolute; top: 5px; bottom: 5px; z-index: 3; clip-path: polygon(0 100%, 100% 0, 100% 100%); background: currentColor; opacity: 0.35; cursor: w-resize; }
 .tl-ramp.none { width: 6px !important; margin-left: -6px; opacity: 0.12; }
 .tl-ramp:hover { opacity: 0.6; }
 .tl-ramp.walk { color: var(--walk); }

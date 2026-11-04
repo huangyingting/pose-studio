@@ -127,9 +127,10 @@ first, then everywhere it applies.
 - **What is refused says why** (a locked row: "…row is locked"), as a toast, not silence.
 - **While dragging, say what the drag does** next to what is dragged (the timeline's
   "Trim end · plays 0.00–2.10 s of …", the canvas's drag readout) and show the result live.
-- **What can be dragged can be reached**, whatever lies over it: on the timeline a block's edges
-  are over the keys (a key at a block's end is taken by its half outside the block), and a
-  hovered block shades without a `filter` (one would put what is in it under the keys).
+- **What can be dragged can be reached**, whatever lies over it: on the timeline a walk's, a run's
+  or a motion's edges are over the keys (a key at its end is taken by its half outside the block),
+  a keyed block's keys over its edges (they are its ends), the next block's ramp over them all;
+  a hovered block shades without a `filter` (one would put what is in it under the keys).
 - **Things that take time** show that they are working (a button's busy state), and things that
   arrive later (a character, a set's models and textures) draw a stand-in until they do.
 
