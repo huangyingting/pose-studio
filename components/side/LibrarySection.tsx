@@ -171,7 +171,7 @@ export function Thumbnail({ thumb, small, fallback }: { thumb?: Thumb; small?: b
     io.observe(el.current);
     return () => io.disconnect();
   }, [key, seen]);
-  useEffect(() => (drawn && seen ? requestThumb(drawn.key, drawn.make, (u) => setUrl({ key: drawn.key, url: u })) : undefined), [drawn?.key, seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => (drawn && seen ? requestThumb(drawn.key, drawn.make, (u) => setUrl({ key: drawn.key, url: u }), drawn.ready) : undefined), [drawn?.key, seen]); // eslint-disable-line react-hooks/exhaustive-deps
   const src = thumb && 'url' in thumb ? thumb.url : url && url.key === drawn?.key ? url.url : null;
   return (
     <span ref={el} className={small ? 'lib-thumb small' : 'lib-thumb'} aria-hidden>

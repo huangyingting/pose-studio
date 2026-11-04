@@ -1,6 +1,8 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { addFigure, addProp, arrange, coverScene, deleteTemplate, newShoot, placeTemplate, saveAsShoot, saveShoot, saveTemplate, sceneFromTemplate, startAnimation, travelTo } from '@/lib/actions';
 import { parseLibrary } from '@/lib/doc';
+import { templateThumb } from '@/lib/previews';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
 import { facingOf } from '@/lib/pose';
 import { checkMotion, checkShots } from '@/lib/qa';
@@ -28,6 +30,17 @@ describe('scene templates: what is filmed, without how', () => {
     }
     expect(checkMotion(SCENE_TEMPLATES.find((t) => t.id === 'high-jump')!.build()).filter((i) => i.kind !== 'camera')).toEqual([]);
   }, 60_000);
+
+  it('has a thumbnail for each one New scene shows, made by `npm run thumbs`; people standing together are drawn', () => {
+    for (const t of SCENE_TEMPLATES) {
+      const thumb = templateThumb(t.id, t.build);
+      if (t.group === 'Standing together') expect('make' in thumb, t.id).toBe(true);
+      else {
+        expect(thumb, t.id).toEqual({ url: `/templates/thumbs/${t.id}.webp` });
+        expect(existsSync(`public/templates/thumbs/${t.id}.webp`), t.id).toBe(true);
+      }
+    }
+  });
 
   it('saves any scene as a template, without its cameras, around the stage origin', () => {
     const { store, a } = fresh();

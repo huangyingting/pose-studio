@@ -39,7 +39,7 @@ export interface LibraryUi {
 }
 
 /** A thumbnail: drawn when the page is idle (and kept), or an image that comes with the app. */
-export type Thumb = { key: string; make(): string } | { url: string };
+export type Thumb = { key: string; make(): string; ready?(): boolean } | { url: string };
 
 export interface LibraryItem {
   key: string;

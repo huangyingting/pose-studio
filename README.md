@@ -81,7 +81,7 @@ CI (`.github/workflows/ci.yml`) runs the checks, the slow tests in 3 shards and 
 
 ### Asset scripts
 
-`npm run sets`, `npm run set-thumbs`, `npm run motions`, `npm run setup:mediapipe` and `npm run doc-shots` prepare the committed assets and the guide's screenshots; see [Architecture → Assets](docs/architecture.md#assets).
+`npm run sets`, `npm run set-thumbs`, `npm run thumbs`, `npm run motions`, `npm run setup:mediapipe` and `npm run doc-shots` prepare the committed assets and the guide's screenshots; see [Architecture → Assets](docs/architecture.md#assets).
 
 ## Credits
 

@@ -10,6 +10,7 @@ import { angleAt, cameraAt, filmWith } from './cameras';
 
 import { withBase } from './paths';
 import { setFurnished } from './sets';
+import { SCENE_TEMPLATES } from './templates';
 import { sharedRenderer } from './thumbnails';
 import type { Lighting, PoseAsset, Scene, Style, View } from './types';
 
@@ -126,11 +127,14 @@ export function lightingPreview(id: string, lighting: Lighting): PreviewJob {
   return { key: `lighting:${id}`, count: 1, frame: () => sharedRenderer().render(lightingScene(lighting), W, H, LINE, { style: 'shaded', margin: 0.1, angle: LIGHTING_VIEW }).toDataURL('image/png') };
 }
 
-/** A lighting scheme's thumbnail. */
-export const lightingThumb = (id: string, lighting: Lighting) => ({
-  key: `lighting:${id}:${JSON.stringify(lighting)}`,
-  make: () => sharedRenderer().render(lightingScene(lighting), 144, 144, 1.2, { style: 'shaded', margin: 0.08, angle: LIGHTING_VIEW }).toDataURL('image/png'),
-});
+/** Built-in thumbnails drawn here all the same (?draw-thumbs): how `npm run thumbs` takes them from the app. */
+const drawThumbs = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('draw-thumbs');
+
+/** A lighting scheme's thumbnail: made by `npm run thumbs` (drawn here with ?draw-thumbs, as for a template's). */
+export const lightingThumb = (id: string, lighting: Lighting): { url: string } | { key: string; make(): string } =>
+  drawThumbs()
+    ? { key: `lighting:${id}:${JSON.stringify(lighting)}`, make: () => sharedRenderer().render(lightingScene(lighting), 144, 144, 1.2, { style: 'shaded', margin: 0.08, angle: LIGHTING_VIEW }).toDataURL('image/png') }
+    : { url: withBase(`/lighting/thumbs/${id}.webp`) };
 const LIGHTING_VIEW = { yaw: 20, pitch: 10, fov: 30 };
 const lightingScene = (lighting: Lighting): Scene => ({ ...poseScene(builtInPoses()[0]), lighting });
 
@@ -160,41 +164,55 @@ export function motionPreview(id: string, build: () => Scene, style: Style): Pre
 
 const THUMB = 144;
 const thumbs = new Map<string, string>();
-const waiting = new Map<string, { make(): string; done: Set<(url: string) => void> }>();
+/** (`ready`: whether what it shows has come, a set's models: waited for, WAIT_MS at most. `kept`: what an earlier visit kept, once looked for.) */
+interface ThumbJob { make(): string; ready?(): boolean; since: number; kept?: string | null; done: Set<(url: string) => void> }
+const waiting = new Map<string, ThumbJob>();
 let draining = false;
 // When the page is idle (not waiting for long).
 const idle = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 100 }) : setTimeout(fn, 0));
 
-async function drain() {
-  const next = waiting.entries().next();
-  if (next.done) {
-    draining = false;
-    return;
-  }
-  const [key, job] = next.value;
+function finish(key: string, job: ThumbJob, url: string) {
   waiting.delete(key);
-  try {
-    // Kept from an earlier visit (this build's); or drawn now, and kept.
-    const kept = await loadThumb(key);
-    const url = kept ?? job.make();
-    if (!kept) void saveThumb(key, url).catch(() => {});
-    thumbs.set(key, url);
-    job.done.forEach((fn) => fn(url));
-  } catch (err) {
-    // One that cannot be drawn (a template that fails to build) stays blank; the others still come.
-    console.warn(`Could not draw the thumbnail ${key}:`, err);
+  thumbs.set(key, url);
+  job.done.forEach((fn) => fn(url));
+}
+
+async function drain() {
+  for (const [key, job] of waiting) {
+    try {
+      // Kept from an earlier visit (this build's): at once, whatever it shows still to come.
+      if (job.kept === undefined) {
+        job.kept = await loadThumb(key);
+        if (job.kept) {
+          finish(key, job, job.kept);
+          return idle(() => void drain());
+        }
+      }
+      // Else drawn, and kept: once what it shows has come (its set's models), or it has waited long enough.
+      if (job.ready && !job.ready() && Date.now() - job.since < WAIT_MS) continue;
+      const url = job.make();
+      void saveThumb(key, url).catch(() => {});
+      finish(key, job, url);
+    } catch (err) {
+      // One that cannot be drawn (a template that fails to build) stays blank; the others still come.
+      waiting.delete(key);
+      console.warn(`Could not draw the thumbnail ${key}:`, err);
+    }
+    return idle(() => void drain());
   }
-  idle(() => void drain());
+  // (Those left wait for what they show.)
+  if (waiting.size) setTimeout(() => idle(() => void drain()), 250);
+  else draining = false;
 }
 
 /** A thumbnail: at once if it was drawn before, or later (`onUrl`). Returns a function that stops waiting. */
-export function requestThumb(key: string, make: () => string, onUrl: (url: string) => void): () => void {
+export function requestThumb(key: string, make: () => string, onUrl: (url: string) => void, ready?: () => boolean): () => void {
   const had = thumbs.get(key);
   if (had) {
     onUrl(had);
     return () => {};
   }
-  const job = waiting.get(key) ?? { make, done: new Set() };
+  const job: ThumbJob = waiting.get(key) ?? { make, ...(ready ? { ready } : {}), since: Date.now(), done: new Set() };
   job.done.add(onUrl);
   waiting.set(key, job);
   if (!draining) {
@@ -216,14 +234,23 @@ function drawThumb(scene: Scene, angle: View, people = false) {
 /** A pose's thumbnail: its key and how to draw it. */
 export const poseThumb = (p: PoseAsset) => ({ key: `pose:${p.id}:${JSON.stringify(p.bones)}`, make: () => drawThumb(poseScene(p), p.view) });
 
-/** A template's: its people as they start, from the angle it is filmed from. */
-export const templateThumb = (id: string, build: () => Scene) => ({
-  key: `template:${id}`,
-  make: () => {
-    const scene = build();
-    return drawThumb(scene.animation ? sceneAt(scene, 0) : scene, angleAt(scene), true);
-  },
-});
+/**
+ * A template's: its people as they start, from the angle it is filmed from. The built-in ones' (but
+ * people standing together: two, and no set) are made by `npm run thumbs`: drawn here,
+ * their sets would hold the page up for seconds where the GPU is slow or there is none. Drawn here
+ * all the same with ?draw-thumbs, which is how that takes them from the app.
+ */
+export function templateThumb(id: string, build: () => Scene): { url: string } | { key: string; make(): string; ready(): boolean } {
+  if (SCENE_TEMPLATES.some((t) => t.id === id && t.group !== 'Standing together') && !drawThumbs()) return { url: withBase(`/templates/thumbs/${id}.webp`) };
+  let scene: Scene | null = null;
+  const built = () => (scene ??= build());
+  return {
+    key: `template:${id}`,
+    // (Its set's models come first: drawn without them, it would be kept so.)
+    ready: () => !built().set || setFurnished(built().set!),
+    make: () => drawThumb(built().animation ? sceneAt(built(), 0) : built(), angleAt(built()), true),
+  };
+}
 
 /** A character's (drawn when its file is here: the mannequin's always, an imported one's as it is imported). */
 export const characterThumb = (id: string | null) => ({

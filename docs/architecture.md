@@ -124,6 +124,7 @@ Prepared assets are made by scripts and committed; the app fetches them the firs
 | --- | --- | --- |
 | Sets (models, surfaces, skies, the index of tops and seats) | `npm run sets` (`scripts/sets.ts`, from `lib/setassets.ts`) | `public/sets` |
 | Sets' Library thumbnails | `npm run set-thumbs` (with `npm run dev` going) | `public/sets/thumbs` |
+| Built-in scene templates' and lighting schemes' thumbnails | `npm run thumbs` (with `npm run dev` going), after changing a template or a scheme | `public/templates/thumbs`, `public/lighting/thumbs` |
 | The motion library (Mocap clips) | `npm run motions` (from `.clip.json` clips in `data/library/motions`) | `public/motions` |
 | Characters | `scripts/characters/` | `public/characters` |
 | The pose model for photos | `npm run setup:mediapipe` (run on install) | `public/mediapipe` |

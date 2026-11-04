@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { clampLight, DEFAULT_LIGHTING, LIGHTING_PRESETS, LightRig, kelvinColor, keyLight, lightingOf, lookOf, parseLighting, skyAt, withLook } from '@/lib/lighting';
@@ -11,6 +12,7 @@ import { poseScene, referencePoses } from '@/lib/poses';
 /** The 20 reference poses as scenes. */
 const refScenes = () => referencePoses().map((p) => poseScene(p));
 import { DEFAULT_EXPORT, exportCells, laidOut, parseExportOptions, sheetSize } from '@/lib/render';
+import { lightingThumb } from '@/lib/previews';
 import { Store } from '@/lib/store';
 import { addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setEnvironment, setLightRole, setSceneSet } from '@/lib/actions';
 
@@ -183,6 +185,11 @@ describe('scene lighting', () => {
     expect(parseScene({ ...newScene('None'), lighting: { lights: [] } }).lighting).toBeUndefined();
     expect(parseScene(newScene('Plain')).lighting).toBeUndefined();
     expect(LIGHTING_PRESETS[0].lighting).toEqual(DEFAULT_LIGHTING);
+    // (Each scheme's thumbnail, made by `npm run thumbs`.)
+    for (const p of LIGHTING_PRESETS) {
+      expect(lightingThumb(p.id, p.lighting), p.id).toEqual({ url: `/lighting/thumbs/${p.id}.webp` });
+      expect(existsSync(`public/lighting/thumbs/${p.id}.webp`), p.id).toBe(true);
+    }
   });
 
   it('lights are added (a sun, a lamp, a window, a fill or a rim), put where a key, fill or rim goes, changed and deleted (not the last); a scheme sets them round the people', () => {
