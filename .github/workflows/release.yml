@@ -1,0 +1,40 @@
+# A version tag pushed (vX.Y.Z): its GitHub release, with that version's section of the changelog as
+# its notes. The tag must be package.json's version, and the changelog must have a section for it.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: The tag is package.json's version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME is not package.json's version (v$version)"
+            exit 1
+          fi
+      - name: Its notes, from the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # (From the line after "## X.Y.Z…" to the next "## ".)
+          awk -v v="$version" '
+            /^## / { if (on) exit; if (index($0, "## " v " ") == 1 || $0 == "## " v) { on = 1; next } }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+      - name: The release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "Film Studio ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag

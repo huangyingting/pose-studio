@@ -86,7 +86,7 @@ CI (`.github/workflows/ci.yml`) runs the checks, the slow tests in 3 shards and 
 
 ## Versions
 
-The version is in `package.json` and follows [semantic versioning](https://semver.org). Each release is a tag (`v0.1.0`), a [GitHub release](https://github.com/vibewatch/filmstudio/releases) and an entry in [`CHANGELOG.md`](CHANGELOG.md). To make one: `npm version <version> --no-git-tag-version`, add its entry to the changelog, commit, then `git tag -a v<version>`, push the commit and the tag, and publish the release from the tag.
+The version is in `package.json` and follows [semantic versioning](https://semver.org). Each release is a tag (`v0.1.0`), a [GitHub release](https://github.com/vibewatch/filmstudio/releases) and an entry in [`CHANGELOG.md`](CHANGELOG.md). To make one: `npm version <version> --no-git-tag-version`, add its section to the changelog (`## <version> (date)`), commit, then `git tag -a v<version>` and push the commit and the tag. The tag publishes the release (`.github/workflows/release.yml`): its notes are that section, and a tag that is not package.json's version, or has no section, fails.
 
 ## Credits
 
