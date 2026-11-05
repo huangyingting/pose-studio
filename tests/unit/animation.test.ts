@@ -233,3 +233,32 @@ describe('per-figure tracks', () => {
     expect(knee(store, c, 0)).toBe(knee(store, c, 2));
   });
 });
+
+describe('a looping motion played longer than once', () => {
+  it('climbs on, a ladder or stairs, each lap from where the one before got to; one on the spot keeps its height', async () => {
+    const { applyMotion, retime } = await import('@/lib/actions');
+    const { actionsOf } = await import('@/lib/evaluate');
+    const { captured, fresh } = await import('../fixtures/scenes');
+    const run = (slug: string, seconds: number) => {
+      const { store, a } = fresh();
+      startAnimation(store, seconds + 1);
+      store.setTime(0);
+      applyMotion(store, a, captured(slug));
+      const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'clip')!;
+      retime(store, act.id, seconds);
+      const y = (t: number) => figurePoseAt(store.scene, a, t)!.position[1];
+      // (No jump from frame to frame: the laps join where they meet.)
+      let step = 0;
+      for (let t = 0; t < seconds; t += 1 / 24) step = Math.max(step, Math.abs(y(t + 1 / 24) - y(t)));
+      return { rise: y(seconds - 1e-3) - y(0), step };
+    };
+    // A ladder's rungs: 0.46 m a lap of 0.77 s, on up for as long as it is given.
+    const ladder = run('climbing-ladder', 3);
+    expect(ladder.rise).toBeGreaterThan(1.6);
+    expect(ladder.rise).toBeLessThan(2);
+    expect(ladder.step).toBeLessThan(0.08);
+    expect(run('running-up-stairs', 3).rise).toBeGreaterThan(2);
+    // On the spot: its height its own, lap after lap.
+    expect(Math.abs(run('breathing-idle', 30).rise)).toBeLessThan(0.02);
+  });
+});

@@ -194,6 +194,7 @@
   "duration": 0.767,
   "people": 1,
   "group": "Moving",
+  "loop": true,
   "move": [
    0.002,
    -0.043
@@ -1029,6 +1030,19 @@
   "turn": 0
  },
  {
+  "id": "library:running-up-stairs",
+  "name": "Run up stairs",
+  "duration": 0.6,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.002,
+   0.528
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:sad-idle",
   "name": "Sad",
   "duration": 2.8,
@@ -1426,6 +1440,20 @@
   "turn": -180
  },
  {
+  "id": "library:typing",
+  "name": "Type, sitting",
+  "duration": 16.467,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:uppercut",
   "name": "Uppercut",
   "duration": 1.333,
@@ -1487,6 +1515,7 @@
   "duration": 1.367,
   "people": 1,
   "group": "Moving",
+  "loop": true,
   "move": [
    -0.002,
    0.513

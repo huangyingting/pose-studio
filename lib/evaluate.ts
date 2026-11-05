@@ -31,6 +31,8 @@ import { fingerBones } from './skeleton';
  */
 
 const EPS = 1e-6;
+/** How far a loop's lap must climb (or go down, m) for the next to go on from there: a ladder's rungs, not an idle's drift. */
+const CLIMB = 0.05;
 /** The most times a looping clip goes round (a short loop over a five-minute scene). */
 const MAX_LAPS = 1000;
 /** How much a clip's warp goes on while both feet are planted, to while one is off the floor. */
@@ -753,14 +755,17 @@ class Evaluator {
     const steps = [0, 1].map((p) => {
       const from = sample(0, clip.loop, p);
       const last = sample(clip.duration, false, p + 1);
-      return { from, last, turn: facingOf(last.bones) - facingOf(from.bones) };
+      // (A loop that climbs, a ladder's rungs, goes on up from where the lap before got to; one that
+      // ends as high as it starts, nearly, keeps its own height: an idle's few millimetres do not creep.)
+      const rise = clip.loop && Math.abs(last.position[1] - from.position[1]) > CLIMB ? last.position[1] - from.position[1] : 0;
+      return { from, last, rise, turn: facingOf(last.bones) - facingOf(from.bones) };
     });
     const lapPose = (lap: number, at: number) => {
       let raw = sample(at, at < clip.duration - EPS ? clip.loop : false, lap);
       for (let k = lap; k >= 1; k--) {
-        const { from, last, turn: by } = steps[k % 2];
+        const { from, last, rise, turn: by } = steps[k % 2];
         const [dx, dz] = turn(raw.position[0] - from.position[0], raw.position[2] - from.position[2], by);
-        raw = turned({ ...raw, position: [last.position[0] + dx, raw.position[1], last.position[2] + dz] }, by);
+        raw = turned({ ...raw, position: [last.position[0] + dx, raw.position[1] + rise, last.position[2] + dz] }, by);
       }
       return raw;
     };

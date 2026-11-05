@@ -73,6 +73,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Walking Turn 180': ['Turn around, walking', 'Moving'],
   'Ascending Stairs': ['Walk up stairs', 'Moving'],
   'Descending Stairs': ['Walk down stairs', 'Moving'],
+  'Running Up Stairs': ['Run up stairs', 'Moving'],
   'Climbing Ladder': ['Climb a ladder', 'Moving'],
   'Idle': ['Stand, idle', 'Standing & waiting'],
   'Standing Idle': ['Stand, shifting weight', 'Standing & waiting'],
@@ -133,6 +134,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Drinking': ['Drink', 'Using things'],
   'Sitting Drinking': ['Drink, sitting', 'Using things'],
   'Talking On Phone': ['Talk on the phone', 'Using things'],
+  'Typing': ['Type, sitting', 'Using things'],
   'Aim Pistol': ['Aim a pistol, sitting', 'Weapons'],
   'Shooting': ['Fire a pistol', 'Weapons'],
   'Sword And Shield Idle': ['Sword and shield, ready', 'Weapons'],
@@ -181,7 +183,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
  */
 const SEATED: Record<string, 'start' | 'end'> = {
   'Sitting Idle': 'start', 'Sitting Talking': 'start', 'Clapping': 'start', 'Cheering While Sitting': 'start', 'Aim Pistol': 'start',
-  'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start',
+  'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start', 'Typing': 'start',
 };
 for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -200,8 +202,16 @@ const ONCE = [
   'Jump', 'Hit Reaction', 'Hook Punch', 'Jab Cross', 'Receive Punch To The Face', 'Roundhouse Kick', 'Uppercut', 'Lifting Object', 'Button Pushing', 'Pulling Lever', 'Throw Object',
 ];
 
-/** Whether a clip goes round (lib/motionfix.ts), unless it is done once. */
-const loops = (clip: Clip) => !ONCE.includes(clip.name) && goesRound(clip);
+/**
+ * Climbing, a lap at a time: each lap ends higher than it starts, as it should (a ladder's rungs,
+ * a flight of stairs), and played longer it goes on up (lib/evaluate.ts: a loop's laps carry a
+ * climb on). Not levelled as a walk is, nor its end eased into its start as a loop on the spot is:
+ * either would take the climb out (their laps join within a few degrees as they are).
+ */
+const CLIMBS = ['Climbing Ladder', 'Ascending Stairs', 'Running Up Stairs'];
+
+/** Whether a clip goes round (lib/motionfix.ts), unless it is done once; a climb does. */
+const loops = (clip: Clip) => CLIMBS.includes(clip.name) || (!ONCE.includes(clip.name) && goesRound(clip));
 
 /**
  * A walk or run cycle level: captured, its hips often sink or rise a few centimetres over a cycle
@@ -209,7 +219,7 @@ const loops = (clip: Clip) => !ONCE.includes(clip.name) && goesRound(clip);
  * floor all the way, so that it goes round without a jump.
  */
 function level(clip: Clip): Clip {
-  if (!isCycle(clip.name)) return clip;
+  if (!isCycle(clip.name) || CLIMBS.includes(clip.name)) return clip;
   const parts = clip.parts.map((part) => {
     const t = part.tracks.find((x) => x.name === 'hips.position');
     if (!t) return part;
@@ -304,7 +314,7 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
   if (index.some((m) => m.name === clip.name)) throw new Error(`Two motions are called ${clip.name}`);
   // (One that goes round where it stands, seamless: its end eased into its start. Not a walk or
   // run, which goes on from where it got to: by the file's name, what it is.)
-  const ready: Clip = { ...(loop && !isCycle(file) ? seamless(clip) : clip), id, loop };
+  const ready: Clip = { ...(loop && !isCycle(file) && !CLIMBS.includes(file) ? seamless(clip) : clip), id, loop };
   await writeFile(join(to, `${slug(file)}.json`), JSON.stringify(ready));
   index.push({
     id, name: ready.name, duration: ready.duration, people: ready.parts.length, group,
