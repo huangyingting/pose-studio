@@ -45,8 +45,8 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
  * given an animation this long first.
  */
 export const SHOOT_PRESETS: ShootPreset[] = [
-  ...FILMS.map((f) => ({ id: `shoot-${f.id}`, name: f.name, template: f.id, coverage: f.coverage, ...(f.cast ? { cast: f.cast } : {}) })),
-  { id: 'shoot-jump', name: 'Over the bar', template: 'high-jump', coverage: 'follow' },
+  ...FILMS.map((f) => ({ id: `shoot-${f.id}`, name: f.name, kind: f.kind, template: f.id, coverage: f.coverage, ...(f.cast ? { cast: f.cast } : {}) })),
+  { id: 'shoot-jump', name: 'Over the bar', kind: 'Sport', template: 'high-jump', coverage: 'follow' },
 ];
 
 /** The shoot presets there are: the built-in ones and the library's (those whose template and coverage are there). */

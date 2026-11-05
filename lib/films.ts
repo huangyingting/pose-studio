@@ -1357,24 +1357,24 @@ function footsteps(): Scene {
 }
 
 /** The films, as scene templates (people, set, light, what they do), with how each is filmed. */
-export const FILMS: { id: string; name: string; people: number; build(): Scene; coverage: string; cast?: number[] }[] = [
-  { id: 'film-wuxia', name: 'Wuxia duel', people: 2, build: wuxiaDuel, coverage: 'fight' },
+export const FILMS: { id: string; name: string; kind: string; people: number; build(): Scene; coverage: string; cast?: number[] }[] = [
+  { id: 'film-wuxia', name: 'Wuxia duel', kind: 'Fight', people: 2, build: wuxiaDuel, coverage: 'fight' },
   // (The officer and the man holding the hostage.)
-  { id: 'film-standoff', name: 'Stand-off', people: 4, build: standOff, coverage: 'dialogue', cast: [2, 0] },
+  { id: 'film-standoff', name: 'Stand-off', kind: 'Action', people: 4, build: standOff, coverage: 'dialogue', cast: [2, 0] },
   // (The shooter and the defender.)
-  { id: 'film-basketball', name: 'Street basketball', people: 4, build: streetBasketball, coverage: 'sports', cast: [0, 2] },
+  { id: 'film-basketball', name: 'Street basketball', kind: 'Sport', people: 4, build: streetBasketball, coverage: 'sports', cast: [0, 2] },
   // (All of them, and whoever is doing something: the one dancing alone first.)
-  { id: 'film-party', name: 'House party', people: 6, build: houseParty, coverage: 'group', cast: [2] },
-  { id: 'film-office', name: 'Office deadline', people: 4, build: officeDeadline, coverage: 'group', cast: [3] },
-  { id: 'film-cafe', name: 'Café meeting', people: 3, build: cafeMeeting, coverage: 'dialogue', cast: [0, 1] },
-  { id: 'film-kungfu', name: 'Kung fu school', people: 4, build: kungFuSchool, coverage: 'fight', cast: [0, 2] },
-  { id: 'film-chase', name: 'Street chase', people: 3, build: streetChase, coverage: 'sports', cast: [0, 1] },
-  { id: 'film-interview', name: 'Interview', people: 2, build: interview, coverage: 'dialogue', cast: [0, 1] },
-  { id: 'film-deal', name: 'Closing the deal', people: 2, build: closingTheDeal, coverage: 'dialogue', cast: [0, 1] },
+  { id: 'film-party', name: 'House party', kind: 'Group', people: 6, build: houseParty, coverage: 'group', cast: [2] },
+  { id: 'film-office', name: 'Office deadline', kind: 'Group', people: 4, build: officeDeadline, coverage: 'group', cast: [3] },
+  { id: 'film-cafe', name: 'Café meeting', kind: 'Conversation', people: 3, build: cafeMeeting, coverage: 'dialogue', cast: [0, 1] },
+  { id: 'film-kungfu', name: 'Kung fu school', kind: 'Fight', people: 4, build: kungFuSchool, coverage: 'fight', cast: [0, 2] },
+  { id: 'film-chase', name: 'Street chase', kind: 'Action', people: 3, build: streetChase, coverage: 'sports', cast: [0, 1] },
+  { id: 'film-interview', name: 'Interview', kind: 'Conversation', people: 2, build: interview, coverage: 'dialogue', cast: [0, 1] },
+  { id: 'film-deal', name: 'Closing the deal', kind: 'Conversation', people: 2, build: closingTheDeal, coverage: 'dialogue', cast: [0, 1] },
   // (The couple; the jogger only warms up and goes.)
-  { id: 'film-date', name: 'Date in the park', people: 3, build: parkDate, coverage: 'dialogue', cast: [0, 1] },
+  { id: 'film-date', name: 'Date in the park', kind: 'Romance', people: 3, build: parkDate, coverage: 'dialogue', cast: [0, 1] },
   // (Whoever does something: the guest of honour first.)
-  { id: 'film-surprise', name: 'Surprise party', people: 5, build: surpriseParty, coverage: 'group', cast: [0] },
+  { id: 'film-surprise', name: 'Surprise party', kind: 'Comedy', people: 5, build: surpriseParty, coverage: 'group', cast: [0] },
   // (Her, followed: from behind her, and him coming.)
-  { id: 'film-footsteps', name: 'Footsteps', people: 2, build: footsteps, coverage: 'follow', cast: [0] },
+  { id: 'film-footsteps', name: 'Footsteps', kind: 'Suspense', people: 2, build: footsteps, coverage: 'follow', cast: [0] },
 ];

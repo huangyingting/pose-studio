@@ -1701,6 +1701,11 @@ button.psec-title svg { color: var(--text-3); }
 
 @media (max-width: 860px) {
   .studio { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'top' 'stage'; }
+  /* (The hint on a card: the figure fills a phone's canvas, so words on it would sit on its feet.) */
+  .stage-hint .bar-hint, .stage-hint .bar-hint.plain, .stage-hint .bar-hint.note, .stage-hint .bar-hint.accent, .stage-hint .bar-hint.warn {
+    padding: 4px 4px 4px 10px; background: var(--panel); border-radius: var(--radius-l); box-shadow: var(--shadow-float); color: var(--text); text-shadow: none; font-size: var(--fs-s); line-height: 16px;
+  }
+  .stage-hint .bar-hint-icon { filter: none; }
   .only-mobile { display: inline-flex !important; }
   .hide-mobile, .brand-name, .brand-chevron, .save-status { display: none !important; }
   .topbar { grid-template-columns: auto minmax(0, 1fr) auto; padding: 0 4px; gap: 4px; }

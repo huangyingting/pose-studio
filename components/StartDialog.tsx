@@ -77,7 +77,7 @@ export function StartDialog({ onClose }: { onClose(): void }) {
     const t = templates.find((x) => x.id === p.template)!;
     const mine = !SHOOT_PRESETS.includes(p);
     return {
-      key: `shoot:${p.id}`, name: p.name, meta: COVERAGES.find((c) => c.id === p.coverage)!.name, icon: Clapperboard, thumb: templateThumb(t.id, t.build), build: t.build,
+      key: `shoot:${p.id}`, name: p.name, meta: p.kind ?? COVERAGES.find((c) => c.id === p.coverage)!.name, icon: Clapperboard, thumb: templateThumb(t.id, t.build), build: t.build,
       open: () => (seconds ? startAnimatedScene(store, { shoot: p.id }, seconds) : !!newShoot(store, p.id)),
       actions: mine ? [{ icon: Trash2, label: `Delete the shoot preset ${p.name}`, run: () => deleteShoot(store, p.id) }] : undefined,
     };

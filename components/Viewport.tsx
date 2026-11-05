@@ -1353,7 +1353,9 @@ function Bridge({ sv, apiRef, frameRequest, sceneId, sceneView, shotMode, captur
       const things = ids.flatMap((id) => { const t = sv.figures.get(id) ?? sv.props.get(id); return t ? [t] : []; });
       const one = things.length ? { forEachPoint: (cb: (p: THREE.Vector3) => void) => things.forEach((t) => t.forEachPoint(cb)) } : undefined;
       const source = around ?? one ?? sv;
-      const fit = (cam: THREE.PerspectiveCamera, yaw: number) => fitCamera(cam, source, { yaw, pitch: view.pitch, fov: view.fov ?? 35 }, around ? 0.1 : one ? 0.45 : 0.2);
+      // (On a canvas taller than it is wide, a phone's, the people's height fits it: a little more
+      // room round them, so the gizmo at their feet is not off its sides.)
+      const fit = (cam: THREE.PerspectiveCamera, yaw: number) => fitCamera(cam, source, { yaw, pitch: view.pitch, fov: view.fov ?? 35 }, around ? 0.1 : one ? 0.45 : cam.aspect < 0.75 ? 0.3 : 0.2);
       // (In a set, from the angle nearest the one asked for whose view of the people no wall or
       // pillar of the set stands across: the angle a scene is filmed from may look in from outside.)
       let yaw = view.yaw;

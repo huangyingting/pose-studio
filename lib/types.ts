@@ -542,6 +542,8 @@ export interface ShootPreset {
   duration?: number;
   /** Who plays its coverage's roles (A, B), by their place in the template's cast: else the first and the one nearest them. */
   cast?: number[];
+  /** What kind of scene it is (a built-in one: Fight, Romance…), its tile's caption; else its coverage's name. */
+  kind?: string;
 }
 
 /** A scene saved as a template: its cast, set, actions and light, around the stage origin; no cameras or cuts. */
