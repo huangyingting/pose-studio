@@ -10,7 +10,7 @@ Much of Film Studio's behaviour is geometry and timing: IK, contacts between bod
 ## Decision
 
 - **Unit tests** (Vitest, `tests/unit`) cover the `lib/` modules directly. They run locally before every commit, as `npm run test:related` (those affected by the change) or `npm test`.
-- **Slow unit tests** (`npm run test:slow`): every motion on every build and every pair of builds, every coverage on every build, whole films. They run in CI in 3 shards.
+- **Slow unit tests** (`npm run test:slow`): every motion on every build and every pair of builds, every coverage on every build, whole films. They run in CI in 4 shards, split by how long each file takes (`vitest.config.mts`).
 - **Browser tests** (Playwright, `tests/e2e`) drive the real app, server edition, with a fresh test database, a test sign-in and a mock AI. They run in CI in 4 shards on every push. Locally they are run only to reproduce a failure or check a fix (`BASE_URL=… npx playwright test -g …`).
 - **The check job**: typecheck, lint with no warnings, and knip (no unused files or exports).
 - A fix comes with a test that fails without it.
