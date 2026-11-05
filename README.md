@@ -78,7 +78,7 @@ The image applies pending migrations on start, keeps the database on the `/data`
 | `npm run test:slow` | The slow unit tests (every motion and coverage on every body build); CI runs them on every push |
 | `npm run test:e2e` | Browser tests (Playwright) against the server edition; starts the app unless `BASE_URL` is set |
 
-CI (`.github/workflows/ci.yml`) runs the checks, the slow tests in 4 shards (split by each file's time: `vitest.config.mts`) and the browser tests in 4 shards on every push.
+CI (`.github/workflows/ci.yml`) runs the checks, the slow tests in 4 shards (split by each file's time: `vitest.config.mts`) and the browser tests in 4 shards (weighted by the tests' times) on every push.
 
 ### Asset scripts
 

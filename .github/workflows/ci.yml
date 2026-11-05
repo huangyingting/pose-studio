@@ -26,6 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # (Nothing left unused: files, exports, dependencies.)
+      - run: npm run knip
       - run: npm test
       # The static edition (GitHub Pages) must not contain any account, sync or AI code.
       - run: npm run build:static && ! grep -rlE "next-auth|/api/ai|/api/library" out
@@ -62,7 +64,12 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
         timeout-minutes: 10
+      # (Shards by time, not by count: Playwright takes the tests in order, each shard as many as
+      # fill about the same time; 32, 14, 24 and 18 of 88 at a run's times, some 5 minutes each.
+      # Weigh them again from a run's times when tests are added.)
       - run: npx playwright test --shard=${{ matrix.shard }}/4
+        env:
+          PWTEST_SHARD_WEIGHTS: '32:14:24:18'
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

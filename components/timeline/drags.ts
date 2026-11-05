@@ -97,7 +97,9 @@ export function useDrags(d: DragsOf) {
     const at = (ev: PointerEvent) => { x = ev.clientX; };
     let raf = 0;
     const tick = (now: number) => {
-      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+      // (By the clock: on a slow machine each of its few frames goes further; only a stall of
+      // over a quarter of a second is not made up in one jump.)
+      const dt = last ? Math.min(0.25, (now - last) / 1000) : 0;
       last = now;
       const v = view.current;
       const el = track.current;
