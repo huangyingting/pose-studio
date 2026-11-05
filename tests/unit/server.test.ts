@@ -17,6 +17,7 @@ vi.mock('@/lib/server/auth', () => ({ currentUserId: async () => user }));
 type Routes = {
   library: typeof import('@/app/api/library/route.server'); ai: typeof import('@/app/api/ai/route.server'); asset: typeof import('@/app/api/assets/[id]/route.server');
   reviews: typeof import('@/app/api/reviews/route.server'); review: typeof import('@/app/api/reviews/[id]/route.server'); notes: typeof import('@/app/api/reviews/[id]/comments/route.server');
+  aNote: typeof import('@/app/api/reviews/[id]/comments/[comment]/route.server');
 };
 let routes: Routes;
 
@@ -30,6 +31,7 @@ beforeAll(async () => {
   routes = {
     library: await import('@/app/api/library/route.server'), ai: await import('@/app/api/ai/route.server'), asset: await import('@/app/api/assets/[id]/route.server'),
     reviews: await import('@/app/api/reviews/route.server'), review: await import('@/app/api/reviews/[id]/route.server'), notes: await import('@/app/api/reviews/[id]/comments/route.server'),
+    aNote: await import('@/app/api/reviews/[id]/comments/[comment]/route.server'),
   };
 });
 
@@ -113,6 +115,56 @@ describe('reviews API', () => {
     expect((await note(id, { t: 1, text: '  ' })).status).toBe(400);
     expect((await get('nope')).status).toBe(404);
     expect((await note('nope', { t: 1, text: 'x' })).status).toBe(404);
+  });
+
+  // (Each from an address of its own: the notes a minute are counted by who, or where from.)
+  const from = (ip: string, id: string, body: unknown, headers: Record<string, string> = {}) =>
+    routes.notes.POST(new Request(`http://x/api/reviews/${id}/comments`, { method: 'POST', headers: { 'x-forwarded-for': ip, ...headers }, body: JSON.stringify(body) }), at(id));
+
+  it('takes a small note only, and so many a minute from one person or one address', async () => {
+    user = 'u1';
+    const { id } = await (await share({ scene: newScene('Limits') })).json();
+    user = null;
+    // Too big: by what it says it is, before it is read; and by what it is.
+    expect((await from('10.0.0.1', id, { t: 1, text: 'x' }, { 'content-length': '100000' })).status).toBe(413);
+    expect((await from('10.0.0.1', id, { t: 1, text: 'x'.repeat(9000) })).status).toBe(413);
+    // A thousand characters of any script fit.
+    expect((await from('10.0.0.2', id, { t: 1, text: '字'.repeat(1000), author: '读者' })).status).toBe(200);
+    // Ten a minute from one address; the eleventh waits; another address is not held up.
+    for (let i = 0; i < 9; i++) expect((await from('10.0.0.2', id, { t: 1, text: `n${i}` })).status).toBe(200);
+    expect((await from('10.0.0.2', id, { t: 1, text: 'one more' })).status).toBe(429);
+    expect((await from('10.0.0.3', id, { t: 1, text: 'elsewhere' })).status).toBe(200);
+    // Signed in, counted by who, wherever from.
+    user = 'u3';
+    for (let i = 0; i < 10; i++) expect((await from(`10.1.0.${i}`, id, { t: 2, text: `u${i}` })).status).toBe(200);
+    expect((await from('10.1.0.99', id, { t: 2, text: 'again' })).status).toBe(429);
+  });
+
+  it('lets who shared it delete a note, or the review with its notes; nobody else', async () => {
+    user = 'u1';
+    const { id } = await (await share({ scene: newScene('Mine') })).json();
+    user = null;
+    await from('10.2.0.1', id, { t: 1, text: 'Spam' });
+    await from('10.2.0.1', id, { t: 2, text: 'Useful' });
+    const notes = (await (await get(id)).json()).comments as { id: string; text: string }[];
+    const spam = notes.find((n) => n.text === 'Spam')!.id;
+    const del = (comment?: string) => (comment
+      ? routes.aNote.DELETE(new Request(`http://x/api/reviews/${id}/comments/${comment}`, { method: 'DELETE' }), { params: Promise.resolve({ id, comment }) })
+      : routes.review.DELETE(new Request(`http://x/api/reviews/${id}`, { method: 'DELETE' }), at(id)));
+    // Not signed in, or not who shared it: refused, and told it is not theirs.
+    expect((await del(spam)).status).toBe(401);
+    user = 'u2';
+    expect((await (await get(id)).json()).mine).toBe(false);
+    expect((await del(spam)).status).toBe(403);
+    expect((await del()).status).toBe(403);
+    // Who shared it.
+    user = 'u1';
+    expect((await (await get(id)).json()).mine).toBe(true);
+    expect((await del(spam)).status).toBe(200);
+    expect((await del(spam)).status).toBe(404);
+    expect(((await (await get(id)).json()).comments as { text: string }[]).map((n) => n.text)).toEqual(['Useful']);
+    expect((await del()).status).toBe(200);
+    expect((await get(id)).status).toBe(404);
   });
 });
 

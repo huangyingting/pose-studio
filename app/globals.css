@@ -1151,8 +1151,9 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .review-card { position: absolute; top: 12px; left: 12px; z-index: var(--z-float); width: min(320px, calc(100% - 24px)); max-height: min(60%, 420px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; padding: 12px 6px 8px 12px; background: var(--panel); border-radius: var(--radius-l); box-shadow: var(--shadow-pop); }
 .review-card .qa-head strong { display: inline-flex; align-items: center; gap: 6px; }
 .review-card ul { list-style: none; margin: 0; padding: 0 6px 0 0; overflow-y: auto; }
-.review-card li button { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); text-align: left; cursor: pointer; }
-.review-card li button:hover { background: var(--hover); }
+.review-card li { display: flex; align-items: flex-start; gap: 2px; }
+.review-card li button:not(.ibtn) { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); text-align: left; cursor: pointer; }
+.review-card li button:not(.ibtn):hover { background: var(--hover); }
 .review-card li em { font-style: normal; font-size: var(--fs-s); color: var(--text-3); }
 .review-card li span { grid-column: 1 / -1; }
 .review-card form { display: grid; gap: 6px; padding-right: 6px; }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare, Trash2, X } from 'lucide-react';
 import { appendScenes } from '@/lib/actions';
 import { parseScene } from '@/lib/doc';
 import { withBase } from '@/lib/paths';
@@ -16,7 +16,8 @@ import { IconButton } from '../ui';
 /*
  * Reviews (server edition): a scene shared for review opens from its link (?review=<id>) with its
  * notes beside it, each at a moment of the scene (clicked, the playhead goes there); a new one is
- * said at the playhead. Shared from the account menu (shareForReview).
+ * said at the playhead. Shared from the account menu (shareForReview). Who shared it may delete
+ * its notes and the review (asked first: it is on the server, not undone).
  */
 
 interface Note {
@@ -48,7 +49,7 @@ export default function Review() {
   const store = useStore();
   const open = useStudio((s) => s.library.scenes[s.sceneIndex]?.id);
   const { data } = useSession();
-  const [review, setReview] = useState<{ id: string; name: string; scene: string; notes: Note[] } | null>(null);
+  const [review, setReview] = useState<{ id: string; name: string; scene: string; notes: Note[]; mine: boolean } | null>(null);
   const [text, setText] = useState('');
   const [name, setName] = useState(() => (typeof localStorage === 'undefined' ? '' : localStorage.getItem(NAME_KEY) ?? ''));
   const [shut, setShut] = useState(false);
@@ -64,7 +65,7 @@ export default function Review() {
         if (!res.ok) throw new Error(body.error ?? res.statusText);
         const scene: Scene = { ...parseScene(body.scene), id: uid('s') };
         appendScenes(store, [scene]);
-        setReview({ id, name: body.name, scene: scene.id, notes: body.comments });
+        setReview({ id, name: body.name, scene: scene.id, notes: body.comments, mine: !!body.mine });
         App().notify(`Opened “${body.name}” for review`);
       })
       .catch((err) => App().notify(`Could not open the review: ${(err as Error).message}`, 'error'));
@@ -88,10 +89,28 @@ export default function Review() {
       App().notify(`Could not leave the note: ${(err as Error).message}`, 'error');
     }
   };
+  // (Who shared it: a note, or the review with all its notes, deleted on the server.)
+  const remove = async (note: Note | null) => {
+    if (!confirm(note ? `Delete ${note.author}'s note at ${clock(note.t)}? It cannot be undone.` : `Delete the review of “${review.name}” and its ${review.notes.length} notes? The link stops working. It cannot be undone.`)) return;
+    const path = `/api/reviews/${encodeURIComponent(review.id)}${note ? `/comments/${encodeURIComponent(note.id)}` : ''}`;
+    try {
+      const res = await fetch(withBase(path), { method: 'DELETE' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? res.statusText);
+      if (note) setReview({ ...review, notes: review.notes.filter((n) => n.id !== note.id) });
+      else {
+        setShut(true);
+        App().notify(`Deleted the review of “${review.name}”`);
+      }
+    } catch (err) {
+      App().notify(`Could not delete it: ${(err as Error).message}`, 'error');
+    }
+  };
   return (
     <section className="review-card" aria-label="Review">
       <div className="qa-head">
         <strong><MessageSquare size={14} aria-hidden /> Review · {review.notes.length} {review.notes.length === 1 ? 'note' : 'notes'}</strong>
+        {review.mine && <IconButton icon={Trash2} label="Delete the review" onClick={() => void remove(null)} size={15} />}
         <IconButton icon={X} label="Close the review" onClick={() => setShut(true)} size={15} />
       </div>
       <ul aria-label="Notes">
@@ -101,6 +120,7 @@ export default function Review() {
               <em>{clock(n.t)}</em> <strong>{n.author}</strong>
               <span>{n.text}</span>
             </button>
+            {review.mine && <IconButton icon={Trash2} label={`Delete ${n.author}'s note`} onClick={() => void remove(n)} size={13} />}
           </li>
         ))}
       </ul>
