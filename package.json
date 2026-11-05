@@ -64,8 +64,13 @@
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },
-  "description": "Posable 3D art mannequin for drawing reference, with line-art pose sheet export",
+  "description": "Film Studio: block and film scenes with posable 3D people, and a posable mannequin for drawing reference",
   "engines": {
     "node": ">=20.9"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   }
 }

@@ -131,7 +131,7 @@ export const inPopup = (t: EventTarget | null) => !!(t as Element | null)?.close
  * Whether a pop-up's button is still in sight as what holds it scrolls: in the window, not scrolled
  * out of a panel it is in, and not gone under something over it there (a panel's sticky header).
  */
-export function inSight(button: Element): boolean {
+function inSight(button: Element): boolean {
   const b = button.getBoundingClientRect();
   if (b.bottom < 0 || b.top > window.innerHeight) return false;
   for (let p = button.parentElement; p; p = p.parentElement) {
