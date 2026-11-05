@@ -10,7 +10,7 @@ import * as THREE from 'three';
  * time (scrubbing, a still) lets it settle where it hangs at that pose.
  */
 
-export interface SpringJoint {
+interface SpringJoint {
   /** The bone, by name; its tip is its child's place (or, the last, a little along it). */
   bone: string;
   stiffness: number;
@@ -20,7 +20,7 @@ export interface SpringJoint {
   hitRadius: number;
 }
 
-export type SpringCollider = { bone: string; offset: [number, number, number]; radius: number; tail?: [number, number, number] };
+type SpringCollider = { bone: string; offset: [number, number, number]; radius: number; tail?: [number, number, number] };
 
 export interface SpringSpec {
   /** Chains of joints, root first, and the colliders each chain is kept out of (by index). */

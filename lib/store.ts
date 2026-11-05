@@ -42,12 +42,12 @@ export interface Settings {
 }
 
 export const THEMES = ['system', 'light', 'dark'] as const;
-export type Theme = (typeof THEMES)[number];
+type Theme = (typeof THEMES)[number];
 
 /** How wide a side panel can be dragged. */
 export const PANEL_WIDTH = { min: 200, max: 520 };
 
-export const LIBRARY_TABS = ['characters', 'poses', 'motions', 'sets', 'lighting'] as const;
+const LIBRARY_TABS = ['characters', 'poses', 'motions', 'sets', 'lighting'] as const;
 export type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export const SIDE_SECTIONS = ['scene', ...LIBRARY_TABS, 'ai'] as const;

@@ -20,8 +20,7 @@ export const MAX_LIGHTS = 6;
 export const KIND_NAMES: Record<LightKind, string> = { sun: 'Sun', lamp: 'Lamp', window: 'Window' };
 
 /** Where a light can be put for what it does (placeLight). */
-export const PLACES = ['key', 'fill', 'rim'] as const;
-export type Place = (typeof PLACES)[number];
+export type Place = 'key' | 'fill' | 'rim';
 const PLACE_NAMES: Record<Place, string> = { key: 'Key light', fill: 'Fill light', rim: 'Rim light' };
 
 /**

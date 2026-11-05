@@ -35,7 +35,7 @@ export type Side = 'L' | 'R';
 
 /** Finger order used by curl arrays. */
 export const FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'] as const;
-export type Curl = [number, number, number, number, number];
+type Curl = [number, number, number, number, number];
 
 export interface Hand {
   /** 0 = straight, 1 = fully curled, per finger (thumb → pinky). */
