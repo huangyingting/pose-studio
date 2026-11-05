@@ -98,6 +98,13 @@ const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
   phone: [1, 1, 1],
   cup: [1, 1, 1],
   book: [1, 1, 1],
+  pistol: [1, 1, 1],
+  rifle: [1, 1, 1],
+  sword: [1, 1, 1],
+  shield: [1, 1, 1],
+  bat: [1, 1, 1],
+  club: [1, 1, 1],
+  bag: [1, 1, 1],
 };
 
 export function newProp(kind: PropKind, position: Vec3 = [0.9, 0, 0], name: string = PROP_LABELS[kind]): Prop {

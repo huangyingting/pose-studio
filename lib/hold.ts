@@ -3,7 +3,7 @@ import { HAND_PRESETS } from './hands';
 import { scaleOf } from './mannequin';
 import { Rig } from './relations';
 import { handlesOf } from './props';
-import type { BodyParams, Figure, Prop, PropKind, Scene, Side, Vec3 } from './types';
+import type { BodyParams, Figure, Pose, Prop, PropKind, Scene, Side, Vec3 } from './types';
 
 /*
  * Props in a hand. A held prop's position and rotation are relative to the wrist (the hand hangs
@@ -14,7 +14,7 @@ import type { BodyParams, Figure, Prop, PropKind, Scene, Side, Vec3 } from './ty
 const D2R = Math.PI / 180;
 
 /** Kinds that make sense in a hand (the handheld ones, a ball, a small box). */
-export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'sphere', 'box'];
+export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'pistol', 'rifle', 'sword', 'shield', 'bat', 'club', 'bag', 'sphere', 'box'];
 
 /**
  * Where a prop sits in the hand of a figure with `body`: by its first handle (in the fist, its
@@ -43,6 +43,18 @@ export function grip(prop: Pick<Prop, 'kind' | 'scale' | 'handles'>, hand: Side,
       return { position: at(0.035, -0.02, 0), rotation: [180, 90, 0] };
     case 'cup': // upright in the fingers, handle away from the palm
       return { position: at(0.06, -0.14, 0.01), rotation: [0, s > 0 ? 180 : 0, 0] };
+    case 'pistol': // the grip through the fist, the barrel along the fingers (ahead, the arm out)
+    case 'rifle':
+      return { position: at(0.02, -0.085, -0.055), rotation: [90, 0, 0] };
+    case 'sword': // the handle through the fist, the blade on from the thumb
+      return { position: at(0.02, -0.085, -0.1), rotation: [90, 0, 0] };
+    case 'bat':
+    case 'club':
+      return { position: at(0.02, -0.085, -0.08), rotation: [90, 0, 0] };
+    case 'shield': // on the back of the forearm, its face out
+      return { position: at(-0.07, -0.18, 0), rotation: [0, s > 0 ? 90 : -90, 0] };
+    case 'bag': // hanging from the fingers by its handle
+      return { position: at(0.03, -0.37, 0), rotation: [0, 90, 0] };
     case 'ring': // by its rim, hanging down beside the hand
       return { position: at(0.02, -0.07, 0), rotation: [0, 90, 0] };
     case 'sphere':
@@ -62,6 +74,50 @@ export function held(prop: Prop, figure: Figure, hand: Side): { prop: Prop; figu
     prop: { ...prop, position: g.position, rotation: g.rotation, scale: g.scale ?? prop.scale, hold: { figure: figure.id, hand } },
     figure: { ...figure, hands: { ...figure.hands, [hand]: { curl: [...grab.curl], spread: grab.spread } } },
   };
+}
+
+/**
+ * What the Library's motions hold (by the file's name), in which hand: given someone, it comes to
+ * that hand (lib/actions/motion.ts). `between`: in both, where the motion first has them (a box carried).
+ */
+export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolean }[]> = {
+  ...Object.fromEntries(['aim-pistol', 'pistol-idle', 'pistol-walk', 'pistol-whip', 'shooting'].map((m) => [m, [{ kind: 'pistol' as const, hand: 'R' as const }]])),
+  ...Object.fromEntries(['sword-and-shield-idle', 'sword-and-shield-attack', 'sword-and-shield-block', 'sword-and-shield-impact', 'sword-and-shield-death'].map((m) => [m, [{ kind: 'sword' as const, hand: 'R' as const }, { kind: 'shield' as const, hand: 'L' as const }]])),
+  'baseball-hit': [{ kind: 'bat', hand: 'R' }],
+  'golf-drive': [{ kind: 'club', hand: 'R' }],
+  'talking-on-phone': [{ kind: 'phone', hand: 'R' }],
+  'texting-while-standing': [{ kind: 'phone', hand: 'R' }],
+  'texting-and-walking': [{ kind: 'phone', hand: 'R' }],
+  drinking: [{ kind: 'cup', hand: 'L' }],
+  'sitting-drinking': [{ kind: 'cup', hand: 'R' }],
+  carrying: [{ kind: 'box', hand: 'R', between: true }],
+};
+
+/**
+ * A box held in both hands of `figure` posed as `pose` (a motion's start): in `hand`'s grip, level
+ * and square to the line between them, as wide as they are apart (less the palms), its bottom below them.
+ */
+export function heldBetween(prop: Prop, figure: Figure, pose: Pose, hand: Side): Prop {
+  const rig = new Rig();
+  try {
+    const m = rig.model({ ...figure, ...pose, id: `${figure.id}:between` });
+    const [l, r] = (['leftHand', 'rightHand'] as const).map((j) => m.joints[j].getWorldPosition(new THREE.Vector3()));
+    const width = Math.max(0.15, l.distanceTo(r) - 0.06);
+    const height = round(width * 0.7);
+    const mid = l.clone().add(r).multiplyScalar(0.5);
+    const across = r.clone().sub(l).setY(0);
+    const yaw = Math.atan2(-across.z, across.x);
+    const world = new THREE.Matrix4().compose(mid.sub(new THREE.Vector3(0, height / 2, 0)), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1));
+    const wrist = m.joints[hand === 'L' ? 'leftHand' : 'rightHand'];
+    wrist.updateWorldMatrix(true, false);
+    const local = wrist.matrixWorld.clone().invert().multiply(world);
+    const p = new THREE.Vector3(), q = new THREE.Quaternion();
+    local.decompose(p, q, new THREE.Vector3());
+    const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+    return { ...prop, position: [round(p.x), round(p.y), round(p.z)], rotation: [e.x, e.y, e.z].map((v) => Math.round((v / D2R) * 10) / 10 || 0) as Vec3, scale: [round(width), height, round(width * 0.8)], hold: { figure: figure.id, hand } };
+  } finally {
+    rig.dispose();
+  }
 }
 
 /** The prop let go: it lands upright on the floor under where it was, keeping its heading. */

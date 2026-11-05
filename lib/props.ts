@@ -91,6 +91,28 @@ function pieces(kind: PropKind): Piece[] {
       ];
     case 'book':
       return [[box(0.15, 0.22, 0.03, 0.004), [0, 0.11, 0]]];
+    // (Guns: the grip up from the base, the barrel ahead along +z over it; held, the grip goes
+    // through the fist and the barrel along the fingers: lib/hold.ts.)
+    case 'pistol':
+      return [[box(0.03, 0.11, 0.028, 0.006), [0, 0.055, 0]], [box(0.03, 0.034, 0.19, 0.006), [0, 0.125, 0.05]]];
+    case 'rifle':
+      return [
+        [box(0.03, 0.1, 0.03, 0.006), [0, 0.05, 0]],
+        [box(0.05, 0.075, 0.5, 0.01), [0, 0.12, 0.05]],
+        [box(0.045, 0.12, 0.26, 0.01), [0, 0.1, -0.32]],
+        [cylinder(0.011, 0.42, 0.003).rotateX(Math.PI / 2), [0, 0.135, 0.5]],
+      ];
+    // (Held at the base: the handle through the fist, the rest on from it.)
+    case 'sword':
+      return [[cylinder(0.016, 0.2, 0.005), [0, 0.1, 0]], [box(0.2, 0.025, 0.03, 0.005), [0, 0.21, 0]], [box(0.05, 0.75, 0.008, 0.003), [0, 0.6, 0]]];
+    case 'bat':
+      return [[cylinder(0.015, 0.42, 0.005), [0, 0.21, 0]], [cylinder(0.033, 0.46, 0.014), [0, 0.6, 0]], [cylinder(0.022, 0.02, 0.006), [0, 0.01, 0]]];
+    case 'club':
+      return [[cylinder(0.012, 0.26, 0.004), [0, 0.13, 0]], [cylinder(0.006, 0.8, 0.002), [0, 0.66, 0]], [box(0.11, 0.035, 0.05, 0.012), [0.04, 1.07, 0]]];
+    case 'shield': // standing on its rim, its face ahead (+z): held on the forearm
+      return [[cylinder(0.3, 0.03, 0.012).rotateX(Math.PI / 2), [0, 0.3, 0]], [cylinder(0.06, 0.02, 0.008).rotateX(Math.PI / 2), [0, 0.3, 0.025]]];
+    case 'bag': // a handbag, its handle over the top
+      return [[box(0.32, 0.24, 0.12, 0.03), [0, 0.12, 0]], [new THREE.TorusGeometry(0.09, 0.008, 8, 24, Math.PI), [0, 0.24, 0]]];
     case 'chair': {
       const legs: Piece[] = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => [cylinder(0.02, 0.44, 0.006), [x * 0.19, 0.22, z * 0.19]]);
       return [

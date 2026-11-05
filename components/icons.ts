@@ -1,6 +1,6 @@
 import {
   Armchair, BookOpen, Box, BrickWall, Brush, Circle, CircleDashed, Coffee, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
-  Droplets, Grid2x2, Ribbon, Smartphone, Smile, SeparatorHorizontal, Sun, Wand,
+  Crosshair, Droplets, FlagTriangleRight, Grid2x2, Handbag, Ribbon, Shield, Slash, Smartphone, Smile, SeparatorHorizontal, Sun, Sword, Target, Wand,
   type LucideIcon,
 } from 'lucide-react';
 import type { PropKind, Style } from '@/lib/types';
@@ -23,6 +23,13 @@ export const PROP_ICONS: Record<PropKind, LucideIcon> = {
   phone: Smartphone,
   cup: Coffee,
   book: BookOpen,
+  pistol: Crosshair,
+  rifle: Target,
+  sword: Sword,
+  shield: Shield,
+  bat: Slash,
+  club: FlagTriangleRight,
+  bag: Handbag,
 };
 
 /** Icon per render style (toolbar menu, export / practice pickers). */

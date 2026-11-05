@@ -2,7 +2,7 @@
 
 ![Adding a figure: it follows the pointer until a click puts it down](images/placing.png)
 
-1. **Add to cast** (the Cast heading's **+** in the Scene outline): a figure, or a stand-in for blocking (an extra, a crowd), standing, sitting or lying. **Add to set** (the Set heading's **+**) adds props: a box, ball, cylinder, chair, stool, step, wall, sports gear (a mat, a basketball hoop, high-jump uprights), and things held in a hand (a stick, a gym hoop, a ribbon, a phone, a cup, a book).
+1. **Add to cast** (the Cast heading's **+** in the Scene outline): a figure, or a stand-in for blocking (an extra, a crowd), standing, sitting or lying. **Add to set** (the Set heading's **+**) adds props: a box, ball, cylinder, chair, stool, step, wall, sports gear (a mat, a basketball hoop, high-jump uprights), and things held in a hand (a stick, a gym hoop, a ribbon, a phone, a cup, a book, a pistol, a rifle, a sword, a shield, a bat, a golf club, a bag). A motion from the Library that holds something brings it to the hand that holds it, unless that hand holds something already: a pistol to one aiming, a sword and a shield, a bat, a golf club, a phone, a cup, and a box between both hands for Hold a box.
 2. **Adding is placing**: what you add follows the pointer as a ghost on the floor, snapping to the 25 cm grid (`Alt`: off it) and beside or facing the nearest figure. The wheel or `R` turns it 15°, a click puts it down, and `Esc` cancels. A hand prop goes into the hand of the figure you click.
 3. **The hint** says what the click, the wheel and `Esc` do while placing.
 
