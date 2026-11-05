@@ -164,8 +164,14 @@ export function motionPreview(id: string, build: () => Scene, style: Style): Pre
 
 const THUMB = 144;
 const thumbs = new Map<string, string>();
-/** (`ready`: whether what it shows has come, a set's models: waited for, WAIT_MS at most from its turn (`since`). `kept`: what an earlier visit kept, once looked for.) */
-interface ThumbJob { make(): string; ready?(): boolean; since?: number; kept?: string | null; done: Set<(url: string) => void> }
+/**
+ * (`ready`: whether what it shows has come, a set's models: waited for from its turn (`since`). Not
+ * come in WAIT_MS, it is drawn as it is for now (`shown`), not kept, and drawn again and kept when it
+ * has come; given up on, unkept, after THUMB_GIVE_UP. `kept`: what an earlier visit kept, once looked for.)
+ */
+interface ThumbJob { make(): string; ready?(): boolean; since?: number; shown?: boolean; kept?: string | null; done: Set<(url: string) => void> }
+/** How long a thumbnail drawn before what it shows has come is waited on, to be drawn again (ms from its turn). */
+const THUMB_GIVE_UP = 120_000;
 const waiting = new Map<string, ThumbJob>();
 let draining = false;
 // When the page is idle (not waiting for long).
@@ -188,9 +194,19 @@ async function drain() {
           return idle(() => void drain());
         }
       }
-      // Else drawn, and kept: once what it shows has come (its set's models), or it has waited long enough.
-      // (Counted from its turn: those before it, drawn slowly, do not use up its wait.)
-      if (job.ready && !job.ready() && Date.now() - (job.since ??= Date.now()) < WAIT_MS) continue;
+      // Else drawn, and kept, once what it shows has come (its set's models…). (Waited for from its
+      // turn: those before it, drawn slowly, do not use up its wait. With ?draw-thumbs, for as long
+      // as it takes: what `npm run thumbs` ships is never drawn without them.)
+      if (job.ready && !job.ready()) {
+        const waited = Date.now() - (job.since ??= Date.now());
+        if (waited >= THUMB_GIVE_UP && !drawThumbs()) { waiting.delete(key); continue; }
+        if (job.shown || waited < WAIT_MS || drawThumbs()) continue;
+        // (Shown as it is for now, not kept: drawn again when it has come.)
+        job.shown = true;
+        const url = job.make();
+        job.done.forEach((fn) => fn(url));
+        return idle(() => void drain());
+      }
       const url = job.make();
       void saveThumb(key, url).catch(() => {});
       finish(key, job, url);
