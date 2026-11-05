@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { newScene, parseScene } from '@/lib/doc';
 import { Ink, InkedParts, outlineNormals } from '@/lib/ink';
 import { SceneView } from '@/lib/sceneview';
-import { SETS, SET_GROUPS, isEffect, mergeParts, seatNear, setModels, setTops, type Part } from '@/lib/sets';
+import { SETS, SET_GROUPS, isEffect, mergeParts, seatNear, setBlocks, setModels, setTops, type Part } from '@/lib/sets';
 import { groundOf } from '@/lib/surfaces';
 import { MODELS, SET_BUDGET, SKIES, SURFACES, type SetIndex } from '@/lib/setassets';
 import INDEX from '../../public/sets/index.json';
@@ -111,6 +111,24 @@ describe('sets', () => {
     // High over it, or out on the floor: no seat.
     expect(seatNear('living-room', [-0.6, 1.6, -4.05])).toBeNull();
     expect(seatNear('living-room', [3, 0.1, 0])).toBeNull();
+  });
+
+  it('a room\'s side walls where they are built, back to front, their doors and windows in their gaps (they were the wrong way round)', () => {
+    const at = (x: number, z: number) => new THREE.Vector3(x, 0.5, z);
+    // The living room: its left wall from the back (−4.5) to its open front (2.5), the right one to z 1; behind the sofa, met.
+    expect(setBlocks('living-room', at(0, -3.5), at(-7, -3.5))).toBeCloseTo(4.4, 1);
+    expect(setBlocks('living-room', at(0, -3.5), at(7, -3.5))).toBeCloseTo(4.4, 1);
+    expect(setBlocks('living-room', at(0, 2), at(7, 2))).toBeNull();
+    // Its doorway (z −2.5 to −1.5): through it; its door's frame there, not across the wall.
+    expect(setBlocks('living-room', at(0, -2), at(-7, -2))).toBeNull();
+    const frame = SETS.find((s) => s.id === 'living-room')!.build().filter((p) => p.shape[0] === 'box' && Math.abs(p.at[0] + 4.5) < 0.2 && Math.abs(p.at[1] - 2.1) < 0.1);
+    expect(frame.length).toBeGreaterThan(0);
+    for (const p of frame) expect(Math.abs(p.at[2] + 2)).toBeLessThan(0.6);
+    // The office's side door (z 0 to 1) and the castle hall's arched windows (z −14 to −12…): through them.
+    expect(setBlocks('office', at(0, 0.5), at(9, 0.5))).toBeNull();
+    expect(setBlocks('office', at(0, -2), at(9, -2))).not.toBeNull();
+    expect(setBlocks('castle-hall', new THREE.Vector3(0, 5, -13), new THREE.Vector3(-10, 5, -13))).toBeNull();
+    expect(setBlocks('castle-hall', new THREE.Vector3(0, 5, -10), new THREE.Vector3(-10, 5, -10))).not.toBeNull();
   });
 
   it('a ready-made scene\'s light effect (a sunbeam\'s shaft: see-through, glowing) is told from its glass and its things', () => {

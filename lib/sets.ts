@@ -135,9 +135,9 @@ function wall(x0: number, x1: number, z: number, h: number, t = 0.2, openings: [
   if (x1 > at) out.push(B(x1 - at, h, t, (at + x1) / 2, 0, z));
   return out;
 }
-/** The same along z (at x), from z0 to z1. */
+/** The same along z (at x), from z0 to z1 (its openings too): turned so that its x runs along +z. */
 const sideWall = (z0: number, z1: number, x: number, h: number, t = 0.2, openings: [number, number, number, number][] = []) =>
-  place(wall(z0, z1, 0, h, t, openings), x, 0, 0, 90);
+  place(wall(z0, z1, 0, h, t, openings), x, 0, 0, -90);
 
 /** Paint: white woodwork (frames, skirting); a door's wood; brushed metal; black glass (a screen). */
 const WHITE: Look = { color: '#f2f0ec', rough: 0.45 };
@@ -273,9 +273,10 @@ export const SETS: SetDef[] = [
         ...sideWall(-4.5, 1, 4.5, 2.8),
       ]),
       ...windowIn(-1.4, 1.4, 0.8, 2.3, -4.5),
-      ...place(doorIn(-2.5, -1.5, 2.1, 0), -4.5, 0, 0, 90),
+      // (On the left wall, facing into the room: turned that way, its x runs along −z.)
+      ...place(doorIn(1.5, 2.5, 2.1, 0), -4.5, 0, 0, 90),
       skirting(-4.4, -1.4, -4.39), skirting(1.4, 4.4, -4.39),
-      ...place([skirting(-4.4, -2.5, 0), skirting(-1.5, 2.5, 0)], -4.39, 0, 0, 90),
+      ...place([skirting(2.5, 4.4, 0), skirting(-2.5, 1.5, 0)], -4.39, 0, 0, 90),
       ...place([skirting(-4.4, 1, 0)], 4.39, 0, 0, -90),
       { ...B(3.2, 0.012, 2.3, 0, 0, -2.4), look: 'rug' },
       // The sofa, its back to the window; an armchair turned to the table; the TV on the right wall.
@@ -315,7 +316,7 @@ export const SETS: SetDef[] = [
         ]),
         ...[[-6, -3], [-2.5, 0.5], [1, 4], [4.5, 6.5]].flatMap(([a, b]) => windowIn(a, b, 0.9, 2.6, -6.5)),
         ...place(doorIn(0, 1, 2.2, 0), 7, 0, 0, -90),
-        skirting(-6.9, 6.9, -6.39), ...place([skirting(-6.4, 3.5, 0)], -6.89, 0, 0, 90), ...place([skirting(-6.4, 0, 0), skirting(1, 3.5, 0)], 6.89, 0, 0, -90),
+        skirting(-6.9, 6.9, -6.39), ...place([skirting(-3.5, 6.4, 0)], -6.89, 0, 0, 90), ...place([skirting(-6.4, 0, 0), skirting(1, 3.5, 0)], 6.89, 0, 0, -90),
         // Three pairs of desks back to back, a low partition between each pair.
         ...[-4.6, -2.2, 0.2].flatMap((x, i) => [
           ...desk(x, -4.75, 0, i === 1 ? [M('laptop', 0.55, -0.1, 0, 0.787)] : [M('stationery', -0.7, -0.25, 0, 0.787)]),
@@ -356,7 +357,8 @@ export const SETS: SetDef[] = [
         { ...floor(12, 9, -1.5), look: 'cafe-floor' },
         ...made({ surface: 'brick', color: '#d9c9bd' }, wall(-6, 6, -6, 3.2)),
         ...made({ surface: 'plaster', color: '#efe4d2' }, [...sideWall(-6, 3, -6, 3.2, 0.2, [[-4.5, 1.5, 0.5, 2.6]]), ...sideWall(-6, 3, 6, 3.2, 0.2, [[0.5, 1.6, 0, 2.2]])]),
-        ...place(windowIn(-4.5, 1.5, 0.5, 2.6, 0), -6, 0, 0, 90),
+        // (On the left wall, facing into the room: turned that way, its x runs along −z.)
+        ...place(windowIn(-1.5, 4.5, 0.5, 2.6, 0), -6, 0, 0, 90),
         ...place(doorIn(0.5, 1.6, 2.2, 0, 0.2, { color: '#2f3a33', rough: 0.5 }), 6, 0, 0, -90),
         // The counter: wood below, a stone top; the till and the coffee machine on it.
         { ...B(4.5, 1.05, 0.7, 1.5, 0, -4.4), look: { surface: 'dark-wood', color: '#c9b7a5' } },

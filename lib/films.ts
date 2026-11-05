@@ -1235,14 +1235,14 @@ function surpriseParty(): Scene {
   // The plan: Max tells them, and points at the door: she is coming.
   s.play('Max', 'talking', 0.5, { seconds: 4, face: 'Pia' });
   s.play('Max', 'pointing', s.until('Max'), { face: door });
-  // Everyone hides: Pia by the TV, Kit behind the ottoman, Ray behind the floor lamp (no use at all).
+  // Everyone hides: Pia by the TV, Kit by the coffee table, Ray behind the floor lamp (no use at all).
   const hide = (who: string, at: Spot, t: number) => {
     s.go(who, at, t);
     s.play(who, 'crouch-idle', s.until(who), { seconds: 0.5, face: door, blend: 0.4 });
     s.idle(who, 'crouch-idle', door);
   };
   hide('Pia', [3.5, -0.9], 5);
-  hide('Kit', [-1.0, -0.6], 5.3);
+  hide('Kit', [1.0, -1.1], 5.3);
   hide('Ray', [2.1, -3.0], 5.6);
   // Max last: a look round for somewhere left, and down in the corner, behind nothing.
   s.play('Max', 'look-around', s.until('Max'), { seconds: 2.5, face: 0 });
@@ -1257,6 +1257,8 @@ function surpriseParty(): Scene {
     s.idle(who, 'laughing', 'Jo');
     s.play(who, 'victory', s.until(who), { seconds: 3, face: 'Jo' });
   }
+  // (Kit out from behind the table to the front, clear of the dancing to come.)
+  s.go('Kit', [-1.6, 0.9], s.until('Kit') + 0.6);
   s.play('Jo', 'surprised', out + 0.6, { seconds: 1.4, face: 'Max' });
   s.play('Jo', 'falling-down', s.until('Jo'));
   s.idle('Jo', 'laying-idle');
