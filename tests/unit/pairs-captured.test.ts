@@ -68,4 +68,30 @@ describe('captured motions of two on every pairing of builds', () => {
     }
     rig.dispose();
   }, 1_200_000);
+
+  it('a hug: both arms round the other while they hold it (their hands at the other\'s back), and it is clean', () => {
+    const rig = new Rig();
+    for (const pair of PAIRS) {
+      const scene = given('hug', pair);
+      const ms = sceneAt(scene, 1.8).figures.map((f) => rig.model(f));
+      ms.forEach((m, n) => {
+        const chest = ms[1 - n].joints.chest.getWorldPosition(new THREE.Vector3());
+        for (const h of ['leftHand', 'rightHand'] as const) expect(m.joints[h].getWorldPosition(new THREE.Vector3()).distanceTo(chest), `${pair[0].name} with ${pair[1].name}: ${n ? 'partner' : 'lead'}'s ${h}`).toBeLessThan(0.35);
+      });
+      expect(problems(scene), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
+    }
+    rig.dispose();
+  }, 1_200_000);
+
+  it('a high five: the right palms meet up high (a grown-up\'s coming down to a child\'s), and it is clean', () => {
+    const rig = new Rig();
+    for (const pair of PAIRS) {
+      const scene = given('high-five', pair);
+      const [p, q] = sceneAt(scene, 0.56).figures.map((f) => rig.model(f).joints.rightHand.getWorldPosition(new THREE.Vector3()));
+      // (Wrist to wrist: palms flat together, as staged, are some 15 cm.)
+      expect(p.distanceTo(q), `${pair[0].name} with ${pair[1].name}`).toBeLessThan(0.19);
+      expect(problems(scene), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
+    }
+    rig.dispose();
+  }, 1_200_000);
 });

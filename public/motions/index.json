@@ -501,6 +501,25 @@
   "turn": 0
  },
  {
+  "id": "library:high-five",
+  "name": "High five",
+  "duration": 1.25,
+  "people": 2,
+  "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "partner": {
+   "at": [
+    0,
+    0.804
+   ],
+   "facing": -180
+  }
+ },
+ {
   "id": "library:hip-hop-dancing",
   "name": "Hip hop",
   "duration": 11.967,
@@ -617,6 +636,25 @@
    1.206,
    0.753
   ]
+ },
+ {
+  "id": "library:hug",
+  "name": "Hug",
+  "duration": 3.5,
+  "people": 2,
+  "group": "Feelings",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "partner": {
+   "at": [
+    0,
+    0.387
+   ],
+   "facing": -180
+  }
  },
  {
   "id": "library:jab-cross",

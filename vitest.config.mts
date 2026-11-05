@@ -13,7 +13,7 @@ const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 
  * not listed counts a minute; list it once it has run.
  */
 const SECONDS: Record<string, number> = {
-  'stagedfilms.test.ts': 300, 'pairs-captured.test.ts': 60, 'films.test.ts': 30, 'pairs-carry.test.ts': 15, 'scenarios.test.ts': 10, 'builds-matrix.test.ts': 5,
+  'stagedfilms.test.ts': 300, 'pairs-captured.test.ts': 80, 'films.test.ts': 30, 'pairs-carry.test.ts': 15, 'scenarios.test.ts': 10, 'builds-matrix.test.ts': 5,
   'coverage-woman.test.ts': 180, 'coverage-man.test.ts': 180, 'coverage-tall-man.test.ts': 180, 'coverage-big-man.test.ts': 180, 'coverage-tall-woman.test.ts': 180, 'coverage-child.test.ts': 180,
 };
 

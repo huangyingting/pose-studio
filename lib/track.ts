@@ -1008,13 +1008,18 @@ export function insertClip(scene: Scene, cast: string[], clipId: string, start: 
   const act: Action = { id: uid('act'), start: t0, duration: t1 - t0, blendIn: BLEND, roles: cast.map((figure) => ({ figure })), source: { kind: 'clip', clip: clipId } };
   let s: Scene = { ...scene, animation: sorted({ ...a, actions: [...a.actions, act] }) };
   // Where the partners go: placed around the lead as in the clip (from where the lead starts it,
-  // turned as the lead's part is turned there), spaced for the biggest of them.
+  // turned as the lead's part is turned there), spaced for the biggest of them; where they only
+  // meet hand to hand (a high five), for the two of them (a child's raised hand where a grown-up
+  // can reach it).
   const lead = marksOf(s, act, cast[0])!.start;
   const firsts = clip.parts.map((p) => keyPose(p, 0));
   const by = lead.facing - startFacing(clip.parts[0], firsts[0]);
-  const size = Math.max(...cast.map((id, n) => legsOf(scene.figures.find((f) => f.id === id)!.body).rootY / legsOf(clip.parts[n].body ?? scene.figures.find((f) => f.id === id)!.body).rootY));
+  const sizes = cast.map((id, n) => legsOf(scene.figures.find((f) => f.id === id)!.body).rootY / legsOf(clip.parts[n].body ?? scene.figures.find((f) => f.id === id)!.body).rootY);
+  const holds = clip.contacts.filter((c) => c.on);
+  const handToHand = holds.length > 0 && holds.every((c) => c.on!.bone === 'leftHand' || c.on!.bone === 'rightHand');
   for (const [n, id] of cast.entries()) {
     if (!n) continue;
+    const size = handToHand ? (sizes[0] + sizes[n]) / 2 : Math.max(...sizes);
     const off = turn((firsts[n].position[0] - firsts[0].position[0]) * size, (firsts[n].position[2] - firsts[0].position[2]) * size, by);
     const spot: Mark = { at: [r3(lead.at[0] + off[0]), r3(lead.at[1] + off[1])], facing: Math.round(wrapDeg(startFacing(clip.parts[n], firsts[n]) + by) * 10) / 10 };
     s = { ...s, animation: goTo(s, id, spot, t0) };

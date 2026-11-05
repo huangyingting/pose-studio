@@ -10,7 +10,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import * as THREE from 'three';
-import { samplePart } from '../lib/clip';
+import { partFromPoses, samplePart } from '../lib/clip';
 import { newFigure, parseClip } from '../lib/doc';
 import { DEFAULT_BODY } from '../lib/body';
 import { legsOf } from '../lib/locomotion';
@@ -20,8 +20,11 @@ import { Rig } from '../lib/relations';
 import { BOTS_FILE } from '../lib/bots';
 import { setBotMeshes } from '../lib/mannequin';
 import { detectGrips } from '../lib/constraints';
+import { HAND_PRESETS, cloneHand } from '../lib/hands';
+import { anglesOf, bonesOf, type Angles } from '../lib/pose';
+import { STAGINGS } from '../lib/stagings';
 import type { MOTION_GROUPS } from '../lib/motions';
-import type { Clip } from '../lib/types';
+import type { Clip, ClipContact, Figure, JointName, Pose } from '../lib/types';
 
 type MotionGroup = (typeof MOTION_GROUPS)[number];
 
@@ -289,6 +292,48 @@ async function paired(p: (typeof PAIRS)[number]): Promise<Clip> {
   return { ...both, contacts: [...(both.contacts ?? []), ...detectGrips(both, 30)] };
 }
 
+/**
+ * Motions of two made here, from People together's poses (there is no capture of them): the two
+ * standing where the pose has them, their arms at rest, into the pose, held, and out again. A hug
+ * goes in and out through arms opened wide (round the other, not through them).
+ */
+const MADE_PAIRS: { file: string; name: string; group: MotionGroup; staging: string; roles: [string, string]; keys: [number, 'rest' | 'open' | 'peak'][]; meet?: JointName }[] = [
+  { file: 'Hug', name: 'Hug', group: 'Feelings', staging: 'hug', roles: ['Lead', 'Partner'], keys: [[0, 'rest'], [0.45, 'open'], [0.95, 'peak'], [2.6, 'peak'], [3.05, 'open'], [3.5, 'rest']] },
+  { file: 'High Five', name: 'High five', group: 'Talking & gestures', staging: 'highfive', roles: ['Lead', 'Partner'], keys: [[0, 'rest'], [0.5, 'peak'], [0.62, 'peak'], [1.25, 'rest']], meet: 'rightHand' },
+];
+
+const ARMS = ['leftShoulder', 'rightShoulder', 'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand', 'neck', 'head'] as const;
+const AT_REST: Angles = { leftUpperArm: [0, 0, 8], rightUpperArm: [0, 0, -8], leftLowerArm: [-10, 0, 0], rightLowerArm: [-10, 0, 0] };
+const OPEN: Angles = { ...AT_REST, leftUpperArm: [-45, 0, 50], rightUpperArm: [-45, 0, -50], leftLowerArm: [-35, 0, 0], rightLowerArm: [-35, 0, 0] };
+const relaxedHand = () => cloneHand(HAND_PRESETS.find((h) => h.name === 'Relaxed')!.hand);
+
+/** A made pair's clip: each person's keys as poses, where their hips are in the pose; the hands each holds of the other found. */
+function madePair(p: (typeof MADE_PAIRS)[number]): Clip {
+  const staged = STAGINGS.find((x) => x.id === p.staging)!.build();
+  const parts = staged.figures.map((f, n) => {
+    const hips = rig.model(f).joints.hips.getWorldPosition(new THREE.Vector3());
+    const position: [number, number, number] = [round(hips.x), round(hips.y), round(hips.z)];
+    const peak = anglesOf(f.bones);
+    const without = Object.fromEntries(Object.entries(peak).filter(([j]) => !(ARMS as readonly string[]).includes(j)));
+    const as = (arms: Angles | null): Pose => ({
+      bones: arms ? bonesOf({ ...without, ...arms }) : f.bones,
+      position, grounded: false,
+      hands: arms ? { L: relaxedHand(), R: relaxedHand() } : (f as Figure).hands,
+    });
+    const keys = p.keys.map(([t, what]) => ({ t, pose: as(what === 'peak' ? null : what === 'open' ? OPEN : AT_REST) }));
+    return { ...partFromPoses(p.roles[n], keys, 'smooth', { sex: f.body.sex, height: f.body.height }), name: p.roles[n] };
+  });
+  const duration = p.keys[p.keys.length - 1][0];
+  const clip = refineClip({ id: p.file, name: p.file, duration, loop: false, parts, events: [], contacts: [] });
+  // Held while the pose is: an arm passing the other's on its way in or out holds nothing. Hands that
+  // meet each other (a high five's palms) are held both ways (a hand is not a bone grips are found on).
+  const peaks = p.keys.filter(([, what]) => what === 'peak').map(([t]) => t);
+  const [from, to] = [Math.min(...peaks), Math.max(...peaks)];
+  const grips = detectGrips(clip, 30).filter((c) => c.start < to && c.end > from);
+  const meet = p.meet ? [0, 1].map((n): ClipContact => ({ part: n, bone: p.meet!, start: from, end: to, on: { part: 1 - n, bone: p.meet! } })) : [];
+  return { ...clip, name: p.name, contacts: [...(clip.contacts ?? []), ...grips, ...meet] };
+}
+
 /** When a strike lands (s): only for strikes (for scenes made with them, the one struck reacting then: lib/films.ts). */
 const impactOf = (clip: Clip) => (/kick|punch|jab|uppercut|cross|hook/i.test(clip.name) && !/^receive/i.test(clip.name) ? strikeTime(clip) : undefined);
 
@@ -304,6 +349,7 @@ for (const p of PAIRS) {
   const clip = await paired(p);
   out.push({ file: p.file, clip: { ...clip, name: p.name }, group: p.group, loop: false });
 }
+for (const p of MADE_PAIRS) out.push({ file: p.file, clip: madePair(p), group: p.group, loop: false });
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
@@ -327,4 +373,4 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
 }
 await writeFile(join(to, 'index.json'), JSON.stringify(index, null, 1) + '\n');
 rig.dispose();
-console.log(`${index.length} motions in ${to} (${index.filter((m) => m.loop).length} loop, ${PAIRS.length} of two people, ${MIRRORED.length} left out as mirrored, ${HALVES.length} halves of two people's, put together or left out)`);
+console.log(`${index.length} motions in ${to} (${index.filter((m) => m.loop).length} loop, ${PAIRS.length + MADE_PAIRS.length} of two people, ${MIRRORED.length} left out as mirrored, ${HALVES.length} halves of two people's, put together or left out)`);
