@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { issueFix, newShoot, startAnimatedScene } from '@/lib/actions';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { newShoot, startAnimatedScene } from '@/lib/actions';
 import { putClips } from '@/lib/assets';
 import { cameraAt, liveCamera, viewOf } from '@/lib/cameras';
 import { parseClip } from '@/lib/doc';
@@ -31,6 +31,9 @@ function load(scene: Scene) {
   for (const id of ids) expect(existsSync(`public/motions/${id.slice(8)}.json`), id).toBe(true);
   putClips(ids.map((id) => parseClip(JSON.parse(readFileSync(`public/motions/${id.slice(8)}.json`, 'utf8')))!));
 }
+
+// (The walks and runs the app has to hand from the start.)
+beforeAll(() => putClips(PRIMITIVES.map((id) => parseClip(JSON.parse(readFileSync(`public/motions/${id.slice(8)}.json`, 'utf8')))!)));
 
 describe('films: templates staged as a director would', () => {
   it('play what they stage with nobody going through anyone, and each is ready to shoot its way', () => {
@@ -109,22 +112,6 @@ describe('films: templates staged as a director would', () => {
     }
     rig.dispose();
   }, 600_000);
-
-  it('opens every preset clean in the motion check, made as the app makes it: its motions to hand first', () => {
-    // (The walks and runs the app has to hand from the start; then each preset's own motions.)
-    putClips(PRIMITIVES.map((id) => parseClip(JSON.parse(readFileSync(`public/motions/${id.slice(8)}.json`, 'utf8')))!));
-    for (const p of SHOOT_PRESETS) {
-      const first = new Store(new MemoryStorage());
-      expect(newShoot(first, p.id), p.name).toBe(true);
-      load(first.scene);
-      // (A staged one times what its people do, a pass caught, by the motions they play.)
-      const store = new Store(new MemoryStorage());
-      newShoot(store, p.id);
-      // (As the app's check shows them: its own, and those of the recordings it has a fix for.)
-      const shown = checkMotion(store.scene).filter((i) => !i.recorded || issueFix(store, i));
-      expect(shown.map((i) => `${i.message} at ${i.start.toFixed(1)} s`), p.name).toEqual([]);
-    }
-  }, 1_200_000);
 
   it('never has a fight\'s single on one hidden behind the other, swinging round them as they move', () => {
     const rig = new Rig();

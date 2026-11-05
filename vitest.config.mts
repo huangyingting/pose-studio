@@ -3,8 +3,8 @@ import { BaseSequencer, type TestSpecification } from 'vitest/node';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** The slow ones: two-person motions on every pair of builds, one-person motions on every build, the coverages on every build, whole films and scenarios. */
-const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 'tests/unit/coverage-*.test.ts', 'tests/unit/films.test.ts', 'tests/unit/stagedfilms.test.ts', 'tests/unit/scenarios.test.ts'];
+/** The slow ones: two-person motions on every pair of builds, one-person motions on every build, the coverages on every build, whole films, the ready-to-shoot presets and scenarios. */
+const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 'tests/unit/coverage-*.test.ts', 'tests/unit/films.test.ts', 'tests/unit/stagedfilms.test.ts', 'tests/unit/shootpresets.test.ts', 'tests/unit/scenarios.test.ts'];
 
 /**
  * About how long each slow file takes alone in CI (seconds): CI's shards (--shard) take them by it,
@@ -13,7 +13,7 @@ const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 
  * not listed counts a minute; list it once it has run.
  */
 const SECONDS: Record<string, number> = {
-  'stagedfilms.test.ts': 300, 'pairs-captured.test.ts': 80, 'films.test.ts': 30, 'pairs-carry.test.ts': 15, 'scenarios.test.ts': 10, 'builds-matrix.test.ts': 5,
+  'stagedfilms.test.ts': 330, 'shootpresets.test.ts': 270, 'pairs-captured.test.ts': 80, 'films.test.ts': 30, 'pairs-carry.test.ts': 15, 'scenarios.test.ts': 10, 'builds-matrix.test.ts': 5,
   'coverage-woman.test.ts': 180, 'coverage-man.test.ts': 180, 'coverage-tall-man.test.ts': 180, 'coverage-big-man.test.ts': 180, 'coverage-tall-woman.test.ts': 180, 'coverage-child.test.ts': 180,
 };
 

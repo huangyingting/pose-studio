@@ -64,6 +64,8 @@ const STEP_IN = 0.3;
 const SQUARE_UP = 0.8;
 /** A wait shorter than this (s) holds what someone did last instead of starting their idle. */
 const MOMENT = 0.5;
+/** How far before a hug's place someone stops to step into it (m): clear of the other's feet. */
+const STEP_UP = 0.45;
 
 /** A scene being staged: its people by name and where each is, what they do added in time. */
 class Stage {
@@ -280,9 +282,10 @@ class Stage {
 
   /**
    * `who` walks or runs from t (they wait till then) to a spot, facing the way they go (or,
-   * `strafe`, still facing the way they do: stepping back or aside). The time they get there.
+   * `strafe`, still facing the way they do: stepping back or aside); `near`: whom they step up to
+   * or back from (into a hug, out of it), not in their way. The time they get there.
    */
-  go(who: string, to: Spot, t: number, mode: Travel = 'walk', strafe = false): number {
+  go(who: string, to: Spot, t: number, mode: Travel = 'walk', strafe = false, near?: string): number {
     t = frame(t);
     this.wait(who, t);
     const from = this.where(who).at;
@@ -290,7 +293,7 @@ class Stage {
     const d = Math.hypot(to[0] - from[0], to[1] - from[1]);
     if (d < 0.05) return t;
     // (Setting off the way they have their back to: stepping round first, not spun round on the first step.)
-    if (!strafe && Math.abs(wrap(toward(from, to) - facing)) > 120) return this.go(who, to, this.turn(who, toward(from, to), t), mode);
+    if (!strafe && Math.abs(wrap(toward(from, to) - facing)) > 120) return this.go(who, to, this.turn(who, toward(from, to), t), mode, false, near);
     // Round anyone in the way (where they are as they pass) and the chairs and tables, on the side away from them.
     const length = (pts: Spot[]) => pts.slice(1).reduce((n, q, i) => n + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0);
     const sideways = strafe ? Math.abs(Math.sin((toward(from, to) - facing) * D2R)) : 0;
@@ -303,7 +306,7 @@ class Stage {
       let gone = 0;
       for (let i = 0; i < pts.length - 1 && !found; i++) {
         const leg = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
-        const c = this.crowded(who, t + (seconds * gone) / Math.max(1e-6, length(pts)), (seconds * leg) / Math.max(1e-6, length(pts)), pts[i], pts[i + 1]);
+        const c = this.crowded(who, t + (seconds * gone) / Math.max(1e-6, length(pts)), (seconds * leg) / Math.max(1e-6, length(pts)), pts[i], pts[i + 1], near);
         if (c) found = { leg: i, ...c };
         gone += leg;
       }
@@ -353,12 +356,12 @@ class Stage {
   }
 
   /** The first moment someone going straight from `from` to `to` over these seconds comes too near another: where, and where they are. */
-  private crowded(who: string, t: number, seconds: number, from: Spot, to: Spot): { at: Spot; them: Spot; clear: number } | null {
+  private crowded(who: string, t: number, seconds: number, from: Spot, to: Spot, near?: string): { at: Spot; them: Spot; clear: number } | null {
     for (let k = 1; k < 20; k++) {
       const u = k / 20;
       const at: Spot = [from[0] + (to[0] - from[0]) * u, from[1] + (to[1] - from[1]) * u];
       for (const o of this.ids.keys()) {
-        if (o === who) continue;
+        if (o === who || o === near) continue;
         const them = this.at(o, t + seconds * u);
         if (Math.hypot(them[0] - at[0], them[1] - at[1]) < 0.7) return { at, them, clear: 0.85 };
       }
@@ -422,8 +425,21 @@ class Stage {
     const spot: Spot = [r3(here.at[0] + dx), r3(here.at[1] + dz)];
     let t1 = Math.max(frame(t), this.until(partner));
     const there = this.where(partner).at;
-    if (Math.hypot(spot[0] - there[0], spot[1] - there[1]) > 0.05) t1 = this.go(partner, spot, t1, 'walk', Math.hypot(spot[0] - there[0], spot[1] - there[1]) < 1);
-    t1 = this.face(partner, wrap(here.facing + m.partner.facing), t1, 0.3);
+    const facing = wrap(here.facing + m.partner.facing);
+    const far = Math.hypot(spot[0] - there[0], spot[1] - there[1]);
+    if (Math.hypot(dx, dz) < 0.7) {
+      // Close as a hug has them: to a step in front of the lead first, turned to them there; then
+      // (the lead ready) the step in, straight up to them (not round them), and into it as it ends.
+      const [fx, fz] = turn(0, STEP_UP, here.facing);
+      const before: Spot = [r3(spot[0] + fx), r3(spot[1] + fz)];
+      if (Math.hypot(before[0] - there[0], before[1] - there[1]) > 0.05) t1 = this.go(partner, before, t1, 'walk', Math.hypot(before[0] - there[0], before[1] - there[1]) < 1);
+      t1 = frame(Math.max(this.face(partner, facing, t1, 0.3), this.until(lead)));
+      this.wait(lead, t1);
+      t1 = this.go(partner, spot, t1, 'walk', true, lead);
+    } else {
+      if (far > 0.05) t1 = this.go(partner, spot, t1, 'walk', far < 1);
+      t1 = this.face(partner, facing, t1, 0.3);
+    }
     t1 = frame(Math.max(t1, this.until(lead)));
     this.wait(lead, t1);
     this.wait(partner, t1);
@@ -1142,6 +1158,203 @@ function closingTheDeal(): Scene {
   return s.done(1.5);
 }
 
+/**
+ * A date in the park at dusk: she waits by the fountain, checking her phone; he comes along the
+ * path and waves, bows to her, and they talk, laughing, as a jogger warms up and runs off; they
+ * stroll on together; he asks her to dance and they do, a spin, and a hug.
+ */
+function parkDate(): Scene {
+  const s = new Stage('Date in the park', [
+    { name: 'Eva', body: 'Woman', at: [2, -1.9], facing: [-10, 1.2] },
+    { name: 'Noah', body: 'Man', at: [-8, 1.2], facing: 90 },
+    { name: 'Jogger', body: 'Tall man', at: [6.5, 2.4], facing: 'Eva', idle: 'breathing-idle' },
+  ], 'dusk', 'park');
+  // (The benches and the flower beds either side of the way to the fountain, to go round.)
+  for (const at of [[-1.8, -0.55], [4.2, -0.55], [-0.6, -2.1], [4.6, -2.1]] as Spot[]) s.block(at, at[1] < -1 ? 1.3 : 0.9);
+  // She waits, looking out for him, and checks her phone.
+  s.play('Eva', 'look-around', 0.5, { seconds: 5, face: [-10, 1.2] });
+  s.play('Eva', 'talking-on-phone', s.until('Eva'), { seconds: 5, face: [-10, 1.2] });
+  // He comes along the path and waves; she waves back and comes to meet him.
+  s.go('Noah', [-2.6, 1.2], 5);
+  s.play('Noah', 'waving', s.until('Noah'), { face: 'Eva' });
+  s.play('Eva', 'waving', Math.max(s.until('Eva'), s.until('Noah') - 2.4), { seconds: 2.4, face: 'Noah' });
+  s.go('Eva', [1.2, 0.9], s.until('Eva'));
+  s.idle('Eva', 'idle', 'Noah');
+  s.go('Noah', [0, 1.1], s.until('Noah') + 0.2);
+  s.idle('Noah', 'idle', 'Eva');
+  s.face('Noah', 'Eva', s.until('Noah'));
+  s.play('Noah', 'quick-informal-bow', Math.max(s.until('Noah'), s.until('Eva')) + 0.2, { face: 'Eva' });
+  // They talk, laughing.
+  s.play('Noah', 'talking', s.until('Noah') + 0.2, { seconds: 5, face: 'Eva' });
+  s.play('Eva', 'laughing', s.until('Noah'), { seconds: 3, face: 'Noah' });
+  s.play('Eva', 'talking', s.until('Eva'), { seconds: 6, face: 'Noah' });
+  s.play('Noah', 'laughing', s.until('Eva') - 2, { seconds: 4, face: 'Eva' });
+  s.play('Noah', 'talking', s.until('Noah'), { seconds: 4, face: 'Eva' });
+  s.play('Eva', 'head-nod-yes', s.until('Noah') - 1, { face: 'Noah' });
+  // The jogger runs off; they stroll on along the path side by side.
+  const stroll = Math.max(s.until('Noah'), s.until('Eva')) + 0.3;
+  s.go('Noah', [8.5, 0.9], stroll);
+  s.go('Eva', [8.5, 2.3], stroll + 0.2);
+  s.play('Jogger', 'jumping-jacks', 6, { seconds: 8 });
+  s.go('Jogger', [-19, 2.6], stroll - 2, 'run');
+  s.idle('Noah', 'idle', 'Eva');
+  s.idle('Eva', 'idle', 'Noah');
+  // He holds out his hand, asking her to dance; she laughs, and they do.
+  s.face('Noah', 'Eva', s.until('Noah'));
+  s.face('Eva', 'Noah', s.until('Eva'));
+  s.play('Noah', 'pointing', Math.max(s.until('Noah'), s.until('Eva')) + 0.3, { face: 'Eva' });
+  s.play('Eva', 'laughing', s.until('Noah') - 1.2, { seconds: 2.5, face: 'Noah' });
+  const dance = Math.max(s.until('Noah'), s.until('Eva')) + 0.2;
+  s.play('Noah', 'salsa-dancing', dance, { seconds: 12, face: 'Eva' });
+  s.play('Eva', 'salsa-dancing', dance, { seconds: 9, face: 'Noah' });
+  s.play('Eva', 'spinning', s.until('Eva'), { face: 'Noah' });
+  s.play('Eva', 'happy-idle', s.until('Eva'), { seconds: s.until('Noah') - s.until('Eva') + 0.5, face: 'Noah' });
+  // And a hug. (The end: in the idle after it, so close, they would sway into each other.)
+  s.pair('Noah', 'Eva', 'hug', Math.max(s.until('Noah'), s.until('Eva')) + 0.3);
+  return s.done(0);
+}
+
+/**
+ * A surprise party in the living room: the host hurries everyone into hiding, the big man behind
+ * a floor lamp; she comes in to a quiet room, they jump out, and she falls over with fright. Up
+ * again, laughing: a high five, the host's dance ends on the floor, the child's cartwheel goes
+ * well and the big man's does not; she hugs him.
+ */
+function surpriseParty(): Scene {
+  const s = new Stage('Surprise party', [
+    { name: 'Jo', body: 'Woman', at: [-5.4, -2], facing: 90 },
+    { name: 'Max', body: 'Man', at: [0.4, 0.6], facing: 'Pia' },
+    { name: 'Pia', body: 'Tall woman', at: [1.7, 0.1], facing: 'Max' },
+    { name: 'Ray', body: 'Big man', at: [-0.9, 0.9], facing: 'Max' },
+    { name: 'Kit', body: 'Child', at: [1.3, 1.5], facing: 'Max' },
+  ], 'dusk', 'living-room');
+  const door: Spot = [-4.5, -2];
+  // (The sofa, the coffee table, the armchair and the ottoman, to go round.)
+  for (const [at, r] of [[[-0.6, -3.75], 0.6], [[0.6, -3.75], 0.6], [[0, -2.35], 0.65], [[-2.4, -2.1], 0.6], [[-1.6, -0.9], 0.35]] as [Spot, number][]) s.block(at, r);
+  // The plan: Max tells them, and points at the door: she is coming.
+  s.play('Max', 'talking', 0.5, { seconds: 4, face: 'Pia' });
+  s.play('Max', 'pointing', s.until('Max'), { face: door });
+  // Everyone hides: Pia by the TV, Kit behind the ottoman, Ray behind the floor lamp (no use at all).
+  const hide = (who: string, at: Spot, t: number) => {
+    s.go(who, at, t);
+    s.play(who, 'crouch-idle', s.until(who), { seconds: 0.5, face: door, blend: 0.4 });
+    s.idle(who, 'crouch-idle', door);
+  };
+  hide('Pia', [3.5, -0.9], 5);
+  hide('Kit', [-1.0, -0.6], 5.3);
+  hide('Ray', [2.1, -3.0], 5.6);
+  // Max last: a look round for somewhere left, and down in the corner, behind nothing.
+  s.play('Max', 'look-around', s.until('Max'), { seconds: 2.5, face: 0 });
+  hide('Max', [-3.4, 1.4], s.until('Max'));
+  // She comes in to a quiet room and looks round.
+  s.go('Jo', [-3.2, -1.2], 12);
+  s.play('Jo', 'look-around', s.until('Jo'), { seconds: 3, face: [0, -1] });
+  // Surprise! They jump out, cheering; she falls over with fright.
+  const out = s.until('Jo') - 0.4;
+  for (const [i, who] of ['Max', 'Pia', 'Kit', 'Ray'].entries()) {
+    s.play(who, 'crouch-to-stand', out + i * 0.15);
+    s.idle(who, 'laughing', 'Jo');
+    s.play(who, 'victory', s.until(who), { seconds: 3, face: 'Jo' });
+  }
+  s.play('Jo', 'surprised', out + 0.6, { seconds: 1.4, face: 'Max' });
+  s.play('Jo', 'falling-down', s.until('Jo'));
+  s.idle('Jo', 'laying-idle');
+  s.play('Jo', 'laying-idle', s.until('Jo'), { seconds: 2 });
+  // Up again, laughing too; Kit's high five.
+  s.play('Jo', 'getting-up', s.until('Jo'));
+  s.idle('Jo', 'idle', 'Kit');
+  s.play('Jo', 'laughing', s.until('Jo'), { seconds: 3, face: 'Ray' });
+  s.idle('Kit', 'idle', 'Jo');
+  s.face('Jo', 'Kit', s.until('Jo'));
+  s.pair('Jo', 'Kit', 'high-five', Math.max(s.until('Jo'), s.until('Kit')) + 0.3);
+  // Max's dance: a spin, and he is on the floor; they laugh, he bows.
+  s.idle('Kit', 'idle', 'Max');
+  s.idle('Pia', 'idle', 'Max');
+  s.idle('Jo', 'idle', 'Max');
+  s.go('Max', [0.4, 0.3], s.until('Max') + 0.5);
+  s.play('Max', 'hip-hop-dancing', s.until('Max'), { seconds: 6, face: 'Jo' });
+  s.play('Max', 'spinning', s.until('Max'));
+  s.play('Max', 'falling-down', s.until('Max'));
+  for (const who of ['Pia', 'Jo', 'Kit', 'Ray']) s.play(who, 'laughing', Math.max(s.until(who), s.until('Max') - 0.8), { seconds: 4, face: 'Max' });
+  s.play('Max', 'getting-up', s.until('Max') + 0.8);
+  s.idle('Max', 'idle', 'Kit');
+  s.play('Max', 'quick-informal-bow', s.until('Max'), { face: 'Jo' });
+  // Kit's cartwheel across the room; Ray tries one, and ends up on the floor.
+  for (const who of ['Pia', 'Jo', 'Ray', 'Max']) s.idle(who, 'idle', 'Kit');
+  s.go('Kit', [-2.4, 1.2], s.until('Kit') + 0.3);
+  s.face('Kit', 90, s.until('Kit'));
+  s.play('Kit', 'cartwheel', s.until('Kit') + 0.3);
+  s.idle('Kit', 'happy-idle', 'Ray');
+  for (const who of ['Pia', 'Jo', 'Max']) s.play(who, 'clapping', Math.max(s.until(who), s.until('Kit')), { seconds: 2.4, face: 'Kit' });
+  for (const who of ['Pia', 'Jo', 'Max', 'Kit']) s.idle(who, 'idle', 'Ray');
+  s.go('Ray', [-2.4, 1.0], Math.max(s.until('Ray'), s.until('Kit')) + 0.5);
+  s.face('Ray', 90, s.until('Ray'));
+  s.play('Ray', 'falling-down', s.until('Ray') + 0.6);
+  for (const who of ['Pia', 'Jo', 'Max', 'Kit']) s.play(who, 'laughing', Math.max(s.until(who), s.until('Ray') - 1.2), { seconds: 5, face: 'Ray' });
+  s.play('Ray', 'getting-up', s.until('Ray') + 0.5);
+  s.idle('Ray', 'happy-idle', 'Jo');
+  s.play('Ray', 'shrugging', s.until('Ray'), { face: 'Jo' });
+  // She goes to him and hugs him.
+  s.idle('Jo', 'idle', 'Ray');
+  s.face('Ray', 'Jo', s.until('Ray'));
+  s.pair('Ray', 'Jo', 'hug', Math.max(s.until('Ray'), s.until('Jo')) + 0.3);
+  return s.done(0);
+}
+
+/**
+ * Footsteps, a park at night: she walks home along the path and hears someone behind her; she
+ * turns and nobody is there (he is down behind a bush). On again, faster, and there he is, standing
+ * in the dark; she runs, he runs after her, she turns to face him: it is her brother, waving.
+ * Furious, then laughing, and a hug.
+ */
+function footsteps(): Scene {
+  const s = new Stage('Footsteps', [
+    { name: 'Nina', body: 'Woman', at: [-17, 1.0], facing: 90 },
+    { name: 'Theo', body: 'Man', at: [-21.5, 1.6], facing: 90 },
+  ], 'night', 'park');
+  for (const at of [[-1.8, -0.55], [4.2, -0.55], [-4.4, -1.4], [-13, -2]] as Spot[]) s.block(at, 0.9);
+  // She walks along the path; someone comes after her.
+  s.go('Nina', [-9.5, 1.0], 0.5);
+  s.go('Theo', [-15.5, 1.4], 3);
+  // He ducks down behind the bush as she stops; she turns: nobody.
+  s.go('Theo', [-13.4, -3.0], s.until('Theo'));
+  s.play('Theo', 'crouch-idle', s.until('Theo'), { seconds: 0.5, face: 'Nina', blend: 0.4 });
+  s.idle('Theo', 'crouch-idle', 'Nina');
+  s.idle('Nina', 'idle', [-20, 1.0]);
+  s.face('Nina', [-20, 1.0], Math.max(s.until('Nina'), s.until('Theo') - 1));
+  s.play('Nina', 'look-around', s.until('Nina'), { seconds: 4, face: [-20, 1.0] });
+  s.play('Nina', 'scared', s.until('Nina'), { seconds: 2.5, face: [-20, 1.0] });
+  // On, faster; he comes out and after her.
+  s.go('Nina', [3.4, 1.0], s.until('Nina') + 0.2);
+  s.play('Theo', 'crouch-to-stand', s.until('Nina') - 9);
+  s.go('Theo', [-3.6, 1.5], s.until('Theo') + 0.3);
+  s.idle('Theo', 'breathing-idle', 'Nina');
+  // She turns again: there he is, standing in the dark, still.
+  s.idle('Nina', 'idle', 'Theo');
+  s.face('Nina', 'Theo', Math.max(s.until('Nina'), s.until('Theo') - 0.5));
+  s.play('Nina', 'surprised', s.until('Nina'), { seconds: 2.5, face: 'Theo' });
+  // She runs; he runs after her.
+  s.go('Nina', [11.5, 1.0], s.until('Nina'), 'run');
+  s.go('Theo', [5.2, 1.4], s.until('Nina') - 3.2, 'run');
+  // Cornered by the lamp, she turns to face him, fists up; he stops and waves: it is Theo.
+  s.idle('Nina', 'fight-idle', 'Theo');
+  s.idle('Theo', 'idle', 'Nina');
+  s.face('Nina', 'Theo', s.until('Nina'));
+  s.play('Nina', 'fight-idle', s.until('Nina'), { seconds: 2, face: 'Theo' });
+  s.play('Theo', 'waving', Math.max(s.until('Theo'), s.until('Nina') - 1), { seconds: 3.2, face: 'Nina' });
+  s.play('Theo', 'talking', s.until('Theo'), { seconds: 5, face: 'Nina' });
+  s.idle('Nina', 'idle', 'Theo');
+  s.play('Nina', 'angry', s.until('Theo') - 2, { seconds: 4, face: 'Theo' });
+  s.play('Nina', 'shake-fist', s.until('Nina'), { face: 'Theo' });
+  s.play('Theo', 'shrugging', s.until('Nina') - 1.4, { face: 'Nina' });
+  s.play('Nina', 'laughing', s.until('Nina') + 0.3, { seconds: 4, face: 'Theo' });
+  // A hug.
+  s.go('Theo', [9.6, 1.2], s.until('Theo') + 0.5);
+  s.face('Theo', 'Nina', s.until('Theo'));
+  s.pair('Theo', 'Nina', 'hug', Math.max(s.until('Theo'), s.until('Nina')) + 0.3);
+  return s.done(0);
+}
+
 /** The films, as scene templates (people, set, light, what they do), with how each is filmed. */
 export const FILMS: { id: string; name: string; people: number; build(): Scene; coverage: string; cast?: number[] }[] = [
   { id: 'film-wuxia', name: 'Wuxia duel', people: 2, build: wuxiaDuel, coverage: 'fight' },
@@ -1157,4 +1370,10 @@ export const FILMS: { id: string; name: string; people: number; build(): Scene; 
   { id: 'film-chase', name: 'Street chase', people: 3, build: streetChase, coverage: 'sports', cast: [0, 1] },
   { id: 'film-interview', name: 'Interview', people: 2, build: interview, coverage: 'dialogue', cast: [0, 1] },
   { id: 'film-deal', name: 'Closing the deal', people: 2, build: closingTheDeal, coverage: 'dialogue', cast: [0, 1] },
+  // (The couple; the jogger only warms up and goes.)
+  { id: 'film-date', name: 'Date in the park', people: 3, build: parkDate, coverage: 'dialogue', cast: [0, 1] },
+  // (Whoever does something: the guest of honour first.)
+  { id: 'film-surprise', name: 'Surprise party', people: 5, build: surpriseParty, coverage: 'group', cast: [0] },
+  // (Her, followed: from behind her, and him coming.)
+  { id: 'film-footsteps', name: 'Footsteps', people: 2, build: footsteps, coverage: 'follow', cast: [0] },
 ];
