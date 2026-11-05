@@ -164,8 +164,8 @@ export function motionPreview(id: string, build: () => Scene, style: Style): Pre
 
 const THUMB = 144;
 const thumbs = new Map<string, string>();
-/** (`ready`: whether what it shows has come, a set's models: waited for, WAIT_MS at most. `kept`: what an earlier visit kept, once looked for.) */
-interface ThumbJob { make(): string; ready?(): boolean; since: number; kept?: string | null; done: Set<(url: string) => void> }
+/** (`ready`: whether what it shows has come, a set's models: waited for, WAIT_MS at most from its turn (`since`). `kept`: what an earlier visit kept, once looked for.) */
+interface ThumbJob { make(): string; ready?(): boolean; since?: number; kept?: string | null; done: Set<(url: string) => void> }
 const waiting = new Map<string, ThumbJob>();
 let draining = false;
 // When the page is idle (not waiting for long).
@@ -189,7 +189,8 @@ async function drain() {
         }
       }
       // Else drawn, and kept: once what it shows has come (its set's models), or it has waited long enough.
-      if (job.ready && !job.ready() && Date.now() - job.since < WAIT_MS) continue;
+      // (Counted from its turn: those before it, drawn slowly, do not use up its wait.)
+      if (job.ready && !job.ready() && Date.now() - (job.since ??= Date.now()) < WAIT_MS) continue;
       const url = job.make();
       void saveThumb(key, url).catch(() => {});
       finish(key, job, url);
@@ -212,7 +213,7 @@ export function requestThumb(key: string, make: () => string, onUrl: (url: strin
     onUrl(had);
     return () => {};
   }
-  const job: ThumbJob = waiting.get(key) ?? { make, ...(ready ? { ready } : {}), since: Date.now(), done: new Set() };
+  const job: ThumbJob = waiting.get(key) ?? { make, ...(ready ? { ready } : {}), done: new Set() };
   job.done.add(onUrl);
   waiting.set(key, job);
   if (!draining) {
@@ -242,12 +243,24 @@ export const poseThumb = (p: PoseAsset) => ({ key: `pose:${p.id}:${JSON.stringif
  */
 export function templateThumb(id: string, build: () => Scene): { url: string } | { key: string; make(): string; ready(): boolean } {
   if (SCENE_TEMPLATES.some((t) => t.id === id && t.group !== 'Standing together') && !drawThumbs()) return { url: withBase(`/templates/thumbs/${id}.webp`) };
+  // (Made as the app makes it, its Library motions to hand first: a staged one times what its
+  // people do by them. Then drawn once what it shows has come: its set's models and its people's
+  // characters, each fetched now. Drawn without them, it would be kept so: a mannequin is another
+  // shape, and what is cut away for them to be seen another too.)
   let scene: Scene | null = null;
   const built = () => (scene ??= build());
+  const ready = () => {
+    const missing = clipsPlayedIn([built()]).filter((c) => c.startsWith(LIBRARY) && !hasClip(c));
+    if (missing.length) {
+      void fetchLibraryClips(missing).then(() => { scene = null; });
+      return false;
+    }
+    const cast = built().figures.every((f) => !f.model || !!modelTemplate(f.model));
+    return cast && (!built().set || setFurnished(built().set!));
+  };
   return {
     key: `template:${id}`,
-    // (Its set's models come first: drawn without them, it would be kept so.)
-    ready: () => !built().set || setFurnished(built().set!),
+    ready,
     make: () => drawThumb(built().animation ? sceneAt(built(), 0) : built(), angleAt(built()), true),
   };
 }
