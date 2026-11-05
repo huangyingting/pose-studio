@@ -10,8 +10,8 @@ import { anglesOf, bonesOf, facingOf, mirrorBones, toQuat, type Angles, type Bon
 import { parseLighting } from './lighting';
 import { setById } from './sets';
 import {
-  BONES, FINGERS, HOLDERS, JOINTS, MARKER_COLORS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
-  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type MarkerColor, type ModelInfo, type PoseAsset,
+  BONES, FEELINGS, FINGERS, HOLDERS, JOINTS, MARKER_COLORS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
+  type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Feeling, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type MarkerColor, type ModelInfo, type PoseAsset,
   type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
 } from './types';
 
@@ -407,7 +407,8 @@ function parseAction(v: unknown, figures: Set<string>, duration: number, props: 
   if (!isObj(v) || !Array.isArray(v.roles) || !isObj(v.source)) return null;
   const roles = v.roles.slice(0, 8).filter(isObj).map((r) => {
     const end = parseMark(r.end);
-    return { figure: str(r.figure, ''), ...(end ? { end } : {}) };
+    const face = r.face === 'neutral' || FEELINGS.includes(r.face as Feeling) ? (r.face as Feeling | 'neutral') : null;
+    return { figure: str(r.figure, ''), ...(end ? { end } : {}), ...(face ? { face } : {}) };
   });
   if (!roles.length || roles.some((r) => !figures.has(r.figure)) || new Set(roles.map((r) => r.figure)).size < roles.length) return null;
   const o = v.source;

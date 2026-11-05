@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { BookmarkPlus, ChevronDown, Diamond, Ellipsis, Film, Footprints, Layers, Repeat, TriangleAlert, Users } from 'lucide-react';
-import { clearMark, correctEveryRepeat, rememberSteps, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setLine, setTravel } from '@/lib/actions';
+import { clearMark, correctEveryRepeat, rememberSteps, setGait, fitWarp, moveAction, recastRole, retime, setActionTarget, setBlend, setClipOptions, setCorrectionThroughout, setJumpHeight, setPlayRange, setBlendCurve, setActionLook, setFace, setLine, setTravel } from '@/lib/actions';
 import { MAX_DURATION } from '@/lib/animation';
 import { clipById, loopsOf } from '@/lib/assets';
 import { overWarp, warpOf } from '@/lib/evaluate';
 import { GAITS, JUMP_PREP, gaitOf, jumpHeight } from '@/lib/locomotion';
 import LIBRARY_INDEX from '@/public/motions/index.json';
 import { actionLabel, correctionHeld, reachOf, repeatedUnder } from '@/lib/track';
-import type { Action, Travel } from '@/lib/types';
+import { FEELINGS, type Action, type Feeling, type Travel } from '@/lib/types';
 import { applies, command, menu, menuItems, type Ctx } from '../commands';
 import { Hint, Menu, NumberField, PropertyRow, Segmented, Select, Slider, Toggle, type HeaderChrome } from '../ui';
 import type { Target } from './target';
@@ -51,6 +51,17 @@ export function TimingPanel({ t }: { t: Target }) {
       <PropertyRow label="Who">
         <span className="shot-time">{who?.name}{act.layer === 'upper' ? ' · upper body' : act.layer === 'correction' ? ' · correction' : ''}</span>
       </PropertyRow>
+      {/* (A character's face while it plays: the mannequin has none.) */}
+      {who?.model && !act.layer && (
+        <PropertyRow label="Face" info="How they look while it plays: as the motion has it, or a feeling set here (on a character with a face)">
+          <Select<Feeling | 'neutral' | 'auto'>
+            label="Face"
+            value={act.roles.find((r) => r.figure === who.id)?.face ?? 'auto'}
+            options={[{ value: 'auto', label: 'As it plays' }, { value: 'neutral', label: 'Neutral' }, ...FEELINGS.map((f) => ({ value: f, label: f[0].toUpperCase() + f.slice(1) }))]}
+            onChange={(v) => setFace(t.store, id, who.id, v === 'auto' ? null : v)}
+          />
+        </PropertyRow>
+      )}
       <label className="field">
         <span>Starts</span>
         <NumberField prefix="s" label="Start" value={act.start} step={1 / a.fps} min={0} max={MAX_DURATION} onChange={(v) => moveAction(t.store, id, v, `act:${id}:start`)} />

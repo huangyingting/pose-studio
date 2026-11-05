@@ -10,7 +10,7 @@ import { Rig } from '../relations';
 import { fromQuat, toQuat, facingOf } from '../pose';
 import type { Store } from '../store';
 import { strikeTime, REACT_LEAD } from '../strike';
-import type { Action, Scene, Pose, Vec3, PropTarget, Marker } from '../types';
+import type { Action, Scene, Pose, Vec3, PropTarget, Marker, Role } from '../types';
 
 /* The timeline: keys and actions moved, retimed, blended and recast; markers; the in and out, locked and muted rows. */
 
@@ -191,6 +191,18 @@ export function setCorrectionThroughout(store: Store, id: string, throughout: bo
 export function correctEveryRepeat(store: Store, id: string) {
   store.updateScene((s) => (s.animation ? { ...s, animation: correctionEveryRepeat(s, id) } : s));
   store.setTime(store.getState().time);
+}
+
+/** How a figure looks while an action plays (#56, a character with a face): a feeling set by hand, or (null) as its motion has it. */
+export function setFace(store: Store, id: string, figure: string, face: Role['face'] | null) {
+  store.updateScene((s) => (s.animation ? { ...s, animation: { ...s.animation, actions: s.animation.actions.map((x) => (x.id !== id ? x : {
+    ...x, roles: x.roles.map((r) => {
+      if (r.figure !== figure) return r;
+      const { face: _, ...rest } = r;
+      void _;
+      return face ? { ...rest, face } : rest;
+    }),
+  })) } } : s));
 }
 
 /** How much of an action over another (or a correction) shows, and what an action over another plays on (#23). */

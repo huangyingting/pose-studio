@@ -249,6 +249,8 @@ export type ActionSource =
 export interface Role {
   figure: string;
   end?: Mark;
+  /** How they look while it plays (#56, a character with a face): a feeling over the motion's own, or none ('neutral'). */
+  face?: Feeling | 'neutral';
 }
 
 /** The upper body: what an upper-body action plays over the base (waving while walking). */
@@ -626,6 +628,9 @@ export type Selection =
 /** A character's face (#15): what a VRM avatar's shape keys show (its eyes shut, the mouth's vowels, a feeling). */
 export const EXPRESSIONS = ['blink', 'aa', 'ih', 'ou', 'ee', 'oh', 'happy', 'angry', 'sad', 'relaxed', 'surprised'] as const;
 export type Expression = (typeof EXPRESSIONS)[number];
+/** The expressions that are feelings (a face set by hand: Role.face). */
+export const FEELINGS = ['happy', 'sad', 'angry', 'surprised', 'relaxed'] as const;
+export type Feeling = (typeof FEELINGS)[number];
 /** How far each expression shows, 0–1. */
 export type Face = Partial<Record<Expression, number>>;
 

@@ -36,4 +36,4 @@ Dragging a hand onto someone else does the same as Reach: it holds on at the nea
 
 ## Characters
 
-A figure can be drawn as a character instead of the mannequin: pick one in **Body & colour**, or drag one from **Library → Characters** onto it. Eighteen come with the app; **Import character…** takes a VRM, glTF/GLB or FBX with a skeleton (VRoid, Mixamo…). A character is posed and animated exactly as the mannequin would be.
+A figure can be drawn as a character instead of the mannequin: pick one in **Body & colour**, or drag one from **Library → Characters** onto it. Eighteen come with the app; **Import character…** takes a VRM, glTF/GLB or FBX with a skeleton (VRoid, Mixamo…). A character is posed and animated exactly as the mannequin would be. One with a face (a VRM's expressions) blinks, moves its mouth as it talks and shows what it feels by what it does: happy hugging or laughing, angry in a fight, frightened held hostage, eyes shut asleep. A block's **Face** in its inspector sets a feeling for as long as it plays (or Neutral), in place of the motion's own.
