@@ -11,7 +11,7 @@ import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam } from '@/lib/share';
 import { Store } from '@/lib/store';
-import { loadPhysics, onPhysicsReady } from '@/lib/physics';
+import { loadPhysics, needsPhysics, onPhysicsReady } from '@/lib/physics';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionLabel } from '@/lib/track';
@@ -139,7 +139,7 @@ function App() {
   useEffect(() => stopPlayback, [scene.id, stopPlayback]);
   // Props that fly free need the physics engine: loaded when a scene first lets one go, and the
   // frame on show worked out again once it is there.
-  const flies = !!scene.animation && (scene.animation.actions.some((x) => x.prop) || Object.values(scene.animation.props ?? {}).some((keys) => keys.some((k) => k.release)));
+  const flies = needsPhysics(scene);
   useEffect(() => {
     if (!flies) return;
     void loadPhysics();

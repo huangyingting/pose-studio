@@ -1,5 +1,5 @@
 import { BUILT_IN, clipById, clipsVersion, playedClips } from './assets';
-import { physicsReady } from './physics';
+import { withPhysics } from './physics';
 import type { Clip, Figure, Prop, Scene } from './types';
 
 /*
@@ -86,8 +86,13 @@ export class PlayAhead {
       worker.postMessage({ type: 'frames', gen: this.gen, frames: wanted.filter((j) => !this.frames.has(j)) } satisfies PlayAheadRequest);
     }
     const f = this.frames.get(k);
-    // (Worked out without the physics the page has, or the other way round: not the same.)
-    if (!f || f.physics !== physicsReady()) return null;
+    if (!f) return null;
+    // (Worked out without the physics the page has, or the other way round: not the same; dropped,
+    // so that it is asked for again.)
+    if (f.physics !== withPhysics(scene)) {
+      this.frames.delete(k);
+      return null;
+    }
     return { ...scene, figures: f.figures, props: f.props };
   }
 

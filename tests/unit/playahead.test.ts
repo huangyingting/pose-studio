@@ -3,7 +3,7 @@ import { newAnimation } from '@/lib/animation';
 import { newFigure, newScene } from '@/lib/doc';
 import { sceneAt } from '@/lib/evaluate';
 import { PlayAhead, onGrid, type PlayAheadReply, type PlayAheadRequest } from '@/lib/playahead';
-import { physicsReady } from '@/lib/physics';
+import { withPhysics } from '@/lib/physics';
 
 /** A worker that keeps what it is asked, and answers when told to (as lib/playahead.worker.ts would). */
 class FakeWorker {
@@ -17,7 +17,7 @@ class FakeWorker {
   answer(k: number) {
     const s = [...this.asked].reverse().find((m) => m.type === 'scene') as Extract<PlayAheadRequest, { type: 'scene' }>;
     const at = sceneAt(s.scene, k / s.scene.animation!.fps / 2, true);
-    this.onmessage?.({ data: { gen: s.gen, k, physics: physicsReady(), figures: at.figures, props: at.props } } as MessageEvent<PlayAheadReply>);
+    this.onmessage?.({ data: { gen: s.gen, k, physics: withPhysics(s.scene), figures: at.figures, props: at.props } } as MessageEvent<PlayAheadReply>);
   }
 }
 

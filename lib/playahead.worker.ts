@@ -2,14 +2,15 @@
 import { putClips } from './assets';
 import { sceneAt } from './evaluate';
 import { loadBots } from './mannequin';
-import { loadPhysics, physicsReady } from './physics';
+import { loadPhysics, needsPhysics, withPhysics } from './physics';
 import type { PlayAheadReply, PlayAheadRequest } from './playahead';
 import type { Scene } from './types';
 
 /*
  * Playback's other thread (lib/playahead.ts): where the playing scene is at the moments asked for
  * next, worked out here so the page's own thread only draws them. The same evaluation as the page's
- * (lib/evaluate.ts sceneAt), from the same scene and clips, the physics loaded here too.
+ * (lib/evaluate.ts sceneAt), from the same scene and clips, the physics loaded here too when the
+ * scene needs it (as the page does: lib/physics.ts needsPhysics), not for every scene played.
  */
 
 let scene: Scene | null = null;
@@ -17,7 +18,6 @@ let gen = -1;
 /** The frames asked for and not yet worked out, the next first. */
 let queue: number[] = [];
 let busy = false;
-void loadPhysics();
 // (No frame before the mannequin's meshes have come: it is what a frame's people are measured by.)
 let bots = false;
 void loadBots().then(() => {
@@ -33,7 +33,7 @@ function work() {
   while (scene?.animation && queue.length && performance.now() < until) {
     const k = queue.shift()!;
     const at = sceneAt(scene, k / scene.animation.fps / 2, true);
-    const reply: PlayAheadReply = { gen, k, physics: physicsReady(), figures: at.figures, props: at.props };
+    const reply: PlayAheadReply = { gen, k, physics: withPhysics(scene), figures: at.figures, props: at.props };
     postMessage(reply);
   }
   if (queue.length) {
@@ -47,6 +47,7 @@ self.onmessage = (e: MessageEvent<PlayAheadRequest>) => {
   if (m.type === 'scene') {
     putClips(m.clips);
     scene = m.scene;
+    if (needsPhysics(scene)) void loadPhysics();
     gen = m.gen;
     queue = [];
     return;

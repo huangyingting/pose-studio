@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { BaseSequencer, type TestSpecification } from 'vitest/node';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import wasm from 'vite-plugin-wasm';
 
 /** The slow ones: two-person motions on every pair of builds, one-person motions on every build, the coverages on every build, whole films, the ready-to-shoot presets and scenarios. */
 const SLOW = ['tests/unit/pairs-*.test.ts', 'tests/unit/builds-matrix.test.ts', 'tests/unit/coverage-*.test.ts', 'tests/unit/films.test.ts', 'tests/unit/stagedfilms.test.ts', 'tests/unit/shootpresets.test.ts', 'tests/unit/scenarios.test.ts'];
@@ -32,14 +33,20 @@ class Balanced extends BaseSequencer {
 }
 
 export default defineConfig({
+  // (The physics engine is WebAssembly imported as a module, as the app's bundler takes it.)
+  plugins: [wasm()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./', import.meta.url)),
       'server-only': fileURLToPath(new URL('./tests/unit/stubs/server-only.ts', import.meta.url)),
+      // (Its package names only a module entry, which resolving for Node passes over.)
+      '@dimforge/rapier3d': fileURLToPath(new URL('./node_modules/@dimforge/rapier3d/rapier.js', import.meta.url)),
     },
   },
   test: {
     setupFiles: ['tests/unit/setup.ts'],
+    // (Through the plugin, not to Node as it is: Node does not import WebAssembly modules.)
+    server: { deps: { inline: [/@dimforge\/rapier3d/] } },
     environment: 'node',
     // The suite runs its files side by side: under that load even a light test can take seconds.
     testTimeout: 60_000,

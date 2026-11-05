@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type RapierModule from '@dimforge/rapier3d-compat';
-import type { Vec3 } from './types';
+import type * as RapierModule from '@dimforge/rapier3d';
+import type { Scene, Vec3 } from './types';
 
 /*
  * Physics for props that fly free (thrown, let go, knocked loose): Rapier (WebAssembly), loaded
@@ -17,9 +17,8 @@ const waiting = new Set<() => void>();
 
 /** Load the physics engine (once); resolves when it is ready. */
 export function loadPhysics(): Promise<void> {
-  loading ??= import('@dimforge/rapier3d-compat').then(async (m) => {
-    await m.default.init();
-    rapier = m.default;
+  loading ??= import('@dimforge/rapier3d').then((m) => {
+    rapier = m;
     for (const f of waiting) f();
     waiting.clear();
   });
@@ -27,6 +26,12 @@ export function loadPhysics(): Promise<void> {
 }
 
 export const physicsReady = () => rapier !== null;
+
+/** Whether a scene lets a prop fly free (one handled by a motion, or keyed to be let go): only then is the engine loaded for it. */
+export const needsPhysics = (scene: Scene) => !!scene.animation && (scene.animation.actions.some((x) => x.prop) || Object.values(scene.animation.props ?? {}).some((keys) => keys.some((k) => k.release)));
+
+/** Whether what is worked out for a scene now is as with the engine: only a scene that needs it differs. */
+export const withPhysics = (scene: Scene) => needsPhysics(scene) && physicsReady();
 
 /** Call `f` when the physics engine is ready (now, if it is). Returns a function that cancels it. */
 export function onPhysicsReady(f: () => void) {
