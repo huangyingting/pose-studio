@@ -67,6 +67,8 @@ export interface Figure {
   hidden?: boolean;
   /** A capsule stand-in for blocking (no joints to pose), in the given posture. */
   proxy?: Posture;
+  /** An extra (#57): someone passing by in the background, never filmed as a subject. */
+  extra?: boolean;
   /** Holds still in the gaps of an animated scene (no idle life: breathing, shifting, glances). */
   still?: boolean;
   /** Its row on the timeline is locked (#22): what it does can't be changed until unlocked. */

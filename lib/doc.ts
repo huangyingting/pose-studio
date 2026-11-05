@@ -234,6 +234,7 @@ function parseFigure(v: unknown, i: number): Figure {
     ...(o.locked === true ? { locked: true } : {}),
     ...(o.muted === true ? { muted: true } : {}),
     ...(POSTURES.includes(o.proxy as Posture) ? { proxy: o.proxy as Posture } : {}),
+    ...(o.extra === true ? { extra: true } : {}),
     ...(isObj(o.gaze) && typeof o.gaze.figure === 'string' ? { gaze: { figure: o.gaze.figure } }
       : isObj(o.gaze) && typeof o.gaze.prop === 'string' ? { gaze: { prop: o.gaze.prop } } : {}),
     ...(typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? { color: o.color.toLowerCase() } : {}),

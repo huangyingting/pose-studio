@@ -461,7 +461,10 @@ export function checkMotion(scene: Scene): Issue[] {
   // (A joint past its range easing into a recording is on its way to the recording's own.)
   const asRecorded = (i: Issue) => ((i.kind === 'slide' || i.kind === 'limit' || i.kind === 'pop') && inRecording(a, i.figure, i.start))
     || (i.kind === 'limit' && intoRecording(a, i.figure, i.start));
-  return [...ranges.finish().map((i) => (asRecorded(i) ? { ...i, recorded: true as const } : i)), ...checkShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
+  // (An extra's own steps are not the cast's to fix, #57: someone walking into them still is.)
+  const extras = new Set(scene.figures.filter((f) => f.extra).map((f) => f.id));
+  const theirs = (i: Issue) => (i.kind === 'slide' || i.kind === 'limit' || i.kind === 'pop') && !!i.figure && extras.has(i.figure);
+  return [...ranges.finish().filter((i) => !theirs(i)).map((i) => (asRecorded(i) ? { ...i, recorded: true as const } : i)), ...checkShots(scene), ...misses].sort((p, q) => p.start - q.start || order2.indexOf(p.kind) - order2.indexOf(q.kind));
 }
 
 /** What the shots' cameras get wrong: someone hidden behind a prop, the camera going through someone or something. */

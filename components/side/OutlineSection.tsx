@@ -1,9 +1,9 @@
 'use client';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Camera, Castle, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound, X } from 'lucide-react';
+import { Camera, Castle, Ellipsis, Eye, EyeOff, Film, Hand, type LucideIcon, PersonStanding, Plus, ScanFace, Scissors, SunMedium, UserRound, UsersRound, X } from 'lucide-react';
 import {
-  addCamera, addFigure, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
+  addCamera, addExtras, addFigure, addProp, setSceneSet, addStandIn, editCamera, editShot, renameFigure, renameProp, setFigureHidden, toggleSelected,
 } from '@/lib/actions';
 import { moments } from '@/lib/track';
 import { liveCamera } from '@/lib/cameras';
@@ -36,7 +36,7 @@ const OUTLINE_KEYS: Roving = {
  * cameras and its shots. Selecting an item shows it in the inspector; the library applies to what is selected.
  * Double-click (or F2) renames; right-click opens the item's menu.
  */
-export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto' | 'notify' | 'notifyUndo'>) {
+export default function OutlineSection({ onPhoto, notify, notifyUndo }: Pick<SectionProps, 'onPhoto' | 'notify' | 'notifyUndo'>) {
   const store = useStore();
   const scene = useScene();
   // Shots are flagged as longer than the project's video model allows: follow it.
@@ -48,6 +48,12 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
   const spans = a ? shotSpans(a) : [];
   const lighting = lightingOf(scene);
   const renaming = useRenaming();
+  // Extras passing by (#57): how many came, or why none.
+  const extras = (n: number) => {
+    const came = addExtras(store, n);
+    if (came) notifyUndo(`${came} extra${came === 1 ? '' : 's'} passing by behind the cast`);
+    else notify('No room for extras here: the set closes in behind the cast');
+  };
   // Resting on a row outlines its figure, prop or camera on the canvas (and the canvas marks the row).
   const linked = useStudio((s) => s.linked);
   const link = (id: string) => ({ onPointerEnter: () => store.setLinked(id), onPointerLeave: () => store.setLinked(null) });
@@ -79,11 +85,12 @@ export default function OutlineSection({ onPhoto }: Pick<SectionProps, 'onPhoto'
               label="Add to cast"
               className="ibtn"
               align="end"
-              tip="Add a figure, a stand-in, or figures from a photo"
+              tip="Add a figure, a stand-in, extras passing by, or figures from a photo"
               items={[
                 // Placed with the pointer (from the keyboard: beside the others, framed).
                 { label: 'Figure', icon: PersonStanding, onSelect: () => placeOrAdd(placingFigure(store), () => addFigure(store)) },
                 { label: 'Stand-in (for blocking)', icon: UserRound, onSelect: () => placeOrAdd(placingFigure(store, true), () => addStandIn(store)) },
+                { label: 'Extras passing by', icon: UsersRound, onSelect: () => extras(4) },
                 '-',
                 { label: 'From a photo…', icon: ScanFace, onSelect: onPhoto },
               ]}

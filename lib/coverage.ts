@@ -222,7 +222,7 @@ function made(c: Coverage, cc: CoverageCamera, roles: Record<string, string>): O
 /** A coverage as cast in a scene: a group's cameras and cuts for `each` person, one of each per person (their roles `@` and their id). */
 function cast(c: Coverage, scene: Scene, roles: Record<string, string>): { c: Coverage; roles: Record<string, string> } {
   if (!c.cameras.some((cc) => cc.subject === 'each')) return { c, roles };
-  const people = scene.figures.filter((f) => !f.hidden && !f.proxy);
+  const people = scene.figures.filter((f) => !f.hidden && !f.proxy && !f.extra);
   const all = { ...roles, ...Object.fromEntries(people.flatMap((f) => [[`@${f.id}`, f.id], [`name:@${f.id}`, f.name]])) };
   const whose = (cc: CoverageCamera, id: string): CoverageCamera => ({ ...cc, key: `${cc.key}:${id}`, subject: `@${id}` });
   const each = new Set(c.cameras.filter((cc) => cc.subject === 'each').map((cc) => cc.key));
@@ -410,9 +410,9 @@ export function directed(scene: Scene): Scene {
   return cast ? applyCoverage(scene, c.id, cast as Record<'A', string>, true) : scene;
 }
 
-/** Who plays a coverage's roles: A the given figure (else the first), B the one nearest A. */
+/** Who plays a coverage's roles: A the given figure (else the first), B the one nearest A; never an extra (#57). */
 export function castCoverage(scene: Scene, c: Coverage, first?: string): Record<string, string> | null {
-  const shown = scene.figures.filter((f) => !f.hidden);
+  const shown = scene.figures.filter((f) => !f.hidden && !f.extra);
   const a = shown.find((f) => f.id === first) ?? shown[0];
   if (!a) return null;
   if (c.roles.length < 2) return { A: a.id };

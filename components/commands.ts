@@ -1,5 +1,5 @@
 import {
-  Activity, Aperture, Magnet, Flag, Music, Volume2, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, Magnet, Flag, Music, UsersRound, Volume2, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, MessageSquareQuote, Spline, Bone, Move, Pin, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
@@ -10,7 +10,7 @@ import {
   holdKey, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
-  sayLine, talkFor, setSoundOptions, removeSound,
+  sayLine, talkFor, setSoundOptions, removeSound, addExtras,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
@@ -1323,6 +1323,10 @@ export const COMMANDS: Command[] = [
 
   // Empty floor: add things there.
   { id: 'floor.figure', title: 'Add figure', icon: PersonStanding, when: onScene, run: (c) => (c.floor ? addFigure(c.store, c.floor) : placeOrAdd(placingFigure(c.store), () => addFigure(c.store))) },
+  {
+    id: 'cast.extras', title: 'Add extras passing by', help: 'People walking to and fro behind the cast, never filmed as the subject', icon: UsersRound, when: onScene,
+    items: (c) => [3, 6, 10].map((n) => ({ title: `${n} extras`, run: () => { const came = addExtras(c.store, n); if (came) App().notifyUndo(`${came} extras passing by behind the cast`); else App().notify('No room for extras here: the set closes in behind the cast'); } })),
+  },
   { id: 'floor.standIn', title: 'Add stand-in', icon: UserRound, when: onScene, run: (c) => (c.floor ? addStandIn(c.store, c.floor) : placeOrAdd(placingFigure(c.store, true), () => addStandIn(c.store))) },
   {
     id: 'floor.prop', title: 'Add a prop', when: onScene,

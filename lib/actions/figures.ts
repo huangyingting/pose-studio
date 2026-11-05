@@ -3,6 +3,7 @@ import { cloneHand } from '../hands';
 import { sided } from '../joints';
 import { newFigure, nextName, withPosture, uid, NEUTRAL_ANGLES, mirrorFigure, symmetrize } from '../doc';
 import { snapTime, newAnimation, MAX_DURATION } from '../animation';
+import { withExtras } from '../extras';
 import { partKeys } from '../clip';
 import { actionsOf, figurePoseAt } from '../evaluate';
 import { handlesOf, localBounds } from '../props';
@@ -41,6 +42,13 @@ export function addFigure(store: Store, at = besideFigures(store, 0.8), yaw = 0)
 export function addStandIn(store: Store, at = besideFigures(store, 0.8), yaw = 0) {
   const f = withPosture(newFigure({ name: nextName('Stand-in', store.scene.figures.map((x) => x.name)), position: at }), 'stand');
   addFigures(store, [yaw ? withFacing(f, yaw) : f]);
+}
+
+/** Extras passing by behind the cast (#57): `count` of them, to and fro (lib/extras.ts). How many came: fewer where the set has no room. */
+export function addExtras(store: Store, count: number) {
+  const before = store.scene.figures.length;
+  store.updateScene((s) => withExtras(s, count));
+  return store.scene.figures.length - before;
 }
 
 /** Change a stand-in's posture, or (null) turn it into a posable figure. */
