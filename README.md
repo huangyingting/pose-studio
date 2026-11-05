@@ -12,6 +12,7 @@ Live: **https://filmstudio.genisisiq.com** (the static edition).
 - **[Architecture](docs/architecture.md)**: how the code is laid out, its modules, its conventions and its assets.
 - **[Architecture decision records](docs/adr/README.md)**: the decisions the code is built on, and why.
 - **[UI rules](docs/UI.md)**: the standard every part of the interface follows.
+- **[Changelog](CHANGELOG.md)**: what changed in each release (current: 0.1.0).
 
 ## Editions
 
@@ -82,6 +83,10 @@ CI (`.github/workflows/ci.yml`) runs the checks, the slow tests in 3 shards and 
 ### Asset scripts
 
 `npm run sets`, `npm run set-thumbs`, `npm run thumbs`, `npm run motions`, `npm run setup:mediapipe` and `npm run doc-shots` prepare the committed assets and the guide's screenshots; see [Architecture → Assets](docs/architecture.md#assets).
+
+## Versions
+
+The version is in `package.json` and follows [semantic versioning](https://semver.org). Each release is a tag (`v0.1.0`), a [GitHub release](https://github.com/vibewatch/filmstudio/releases) and an entry in [`CHANGELOG.md`](CHANGELOG.md). To make one: `npm version <version> --no-git-tag-version`, add its entry to the changelog, commit, then `git tag -a v<version>`, push the commit and the tag, and publish the release from the tag.
 
 ## Credits
 

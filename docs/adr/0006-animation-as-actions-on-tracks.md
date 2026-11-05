@@ -12,8 +12,8 @@ People in a scene walk to places, play motions (a wave, a dance, a fight), hold 
 An `Animation` is a list of **actions**, each placed on the tracks of the figures in it (`roles`), with a start and a length. An action's `source` is one of:
 
 - **keys**: poses keyed by hand, as a small clip of the action's own;
-- **clip**: a motion from the Library (built in, Mocap or imported), with speed, mirroring, the part played, repeats and blending;
-- **travel**: walk, run or jump to a mark, its steps generated (`lib/locomotion.ts`) or a Mocap gait, with the feet planted.
+- **clip**: a motion from the Library (recorded, made here or imported), with speed, mirroring, the part played, repeats and blending;
+- **travel**: walk, run or jump to a mark, its path planned (`lib/locomotion.ts`) and its body a recorded walk, run or jump ([0017](0017-movement-from-real-people.md)), with the feet planted.
 
 Layers go over a track:
 

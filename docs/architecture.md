@@ -80,7 +80,7 @@ lib/
   project.ts            The project's settings (frame, style)
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
-  locomotion.ts         Generated walking, running and jumping between keys: footstep plan, leg IK, jump arcs
+  locomotion.ts         Walking, running and jumping between keys: the footstep plan, leg IK and jump arcs, the body a recorded cycle
   surfaces.ts           What figures stand on: the tops of props, seen from above
   propmotion.ts         Props over time: held, flying, resting; releases, catches, handoffs, handles
   importmotion.ts       Motion import: BVH/FBX/glTF read bone by bone onto the skeleton (several people: several parts)
@@ -125,7 +125,7 @@ Prepared assets are made by scripts and committed; the app fetches them the firs
 | Sets (models, surfaces, skies, the index of tops and seats) | `npm run sets` (`scripts/sets.ts`, from `lib/setassets.ts`) | `public/sets` |
 | Sets' Library thumbnails | `npm run set-thumbs` (with `npm run dev` going) | `public/sets/thumbs` |
 | Built-in scene templates' and lighting schemes' thumbnails | `npm run thumbs` (with `npm run dev` going), after changing a template or a scheme | `public/templates/thumbs`, `public/lighting/thumbs` |
-| The motion library (Mocap clips) | `npm run motions` (from `.clip.json` clips in `data/library/motions`) | `public/motions` |
+| The motion library (recorded clips: Mixamo's, and Walk down stairs from the CMU database; credited in the README) | `npm run motions` (from `.clip.json` clips in `data/library/motions`, kept out of the repository: made from the source files by Import motion's reader, `lib/importmotion.ts`) | `public/motions` |
 | Characters | `scripts/characters/` | `public/characters` |
 | The pose model for photos | `npm run setup:mediapipe` (run on install) | `public/mediapipe` |
 | The guide's screenshots | `npm run doc-shots` (with `npm run dev` going) | `docs/guide/images` |

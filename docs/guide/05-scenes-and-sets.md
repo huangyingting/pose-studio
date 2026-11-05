@@ -8,7 +8,7 @@ A **project** holds any number of **scenes**. Each scene has its own cast, set, 
 
 **Main menu → New scene…** opens a blank scene, or one made from a template:
 
-- **Ready to shoot**: a scene already filmed by the director in a style that suits it. These include eight staged scenes of a minute or more (a wuxia duel, a stand-off, street basketball, a house party, an office deadline, a café meeting, a kung fu school, a street chase), an interview, and others.
+- **Ready to shoot**: a scene already filmed by the director in a style that suits it, each clean in the motion check. Ten are staged scenes of a minute or more (a wuxia duel, a stand-off, street basketball, a house party, an office deadline, a café meeting, a kung fu school, a street chase, an interview, closing a deal); **Over the bar** is a high jump.
 - **Scene templates**: a cast, a set, what they do and the light, but no coverage, so you can film it any way you like.
 - **Length**: a template as made, or stretched to 15 s, 30 s or 1 min, with idle life filling the gaps.
 
