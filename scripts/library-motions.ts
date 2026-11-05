@@ -17,11 +17,16 @@ import { legsOf } from '../lib/locomotion';
 import { goesRound, isCycle, refineClip, seamless } from '../lib/motionfix';
 import { clipCourse, strikeTime } from '../lib/strike';
 import { Rig } from '../lib/relations';
+import { BOTS_FILE } from '../lib/bots';
+import { setBotMeshes } from '../lib/mannequin';
 import { detectGrips } from '../lib/constraints';
 import type { MOTION_GROUPS } from '../lib/motions';
 import type { Clip } from '../lib/types';
 
 type MotionGroup = (typeof MOTION_GROUPS)[number];
+
+// (The mannequin's meshes, as the app fetches them.)
+setBotMeshes(await readFile(`public/mannequin/${BOTS_FILE}`));
 
 const from = process.argv[2] ?? 'data/library/motions';
 const to = 'public/motions';

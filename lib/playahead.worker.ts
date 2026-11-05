@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import { putClips } from './assets';
 import { sceneAt } from './evaluate';
+import { loadBots } from './mannequin';
 import { loadPhysics, physicsReady } from './physics';
 import type { PlayAheadReply, PlayAheadRequest } from './playahead';
 import type { Scene } from './types';
@@ -17,10 +18,17 @@ let gen = -1;
 let queue: number[] = [];
 let busy = false;
 void loadPhysics();
+// (No frame before the mannequin's meshes have come: it is what a frame's people are measured by.)
+let bots = false;
+void loadBots().then(() => {
+  bots = true;
+  if (queue.length && !busy) work();
+});
 
 /** Work out the next frames, a few at a time (between them, a newer scene or request is read). */
 function work() {
   busy = false;
+  if (!bots) return;
   const until = performance.now() + 12;
   while (scene?.animation && queue.length && performance.now() < until) {
     const k = queue.shift()!;

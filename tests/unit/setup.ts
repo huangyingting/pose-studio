@@ -1,9 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll } from 'vitest';
 import { LIBRARY, putClips } from '@/lib/assets';
+import { BOTS_FILE } from '@/lib/bots';
 import { parseClip } from '@/lib/doc';
+import { setBotMeshes } from '@/lib/mannequin';
 import { PRIMITIVES } from '@/lib/locomotion';
 import { loadPhysics } from '@/lib/physics';
+
+// The mannequin's meshes, as the app fetches them before anything is drawn.
+setBotMeshes(readFileSync(`public/mannequin/${BOTS_FILE}`));
 
 // The recordings walks, runs, jumps and turns go with, at hand as in the app once a project opens.
 putClips(PRIMITIVES.map((id) => parseClip(JSON.parse(readFileSync(`public/motions/${id.slice(LIBRARY.length)}.json`, 'utf8')))!));

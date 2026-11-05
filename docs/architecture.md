@@ -126,6 +126,7 @@ Prepared assets are made by scripts and committed; the app fetches them the firs
 | Sets' Library thumbnails | `npm run set-thumbs` (with `npm run dev` going) | `public/sets/thumbs` |
 | Built-in scene templates' and lighting schemes' thumbnails | `npm run thumbs` (with `npm run dev` going), after changing a template or a scheme | `public/templates/thumbs`, `public/lighting/thumbs` |
 | The motion library (recorded clips: Mixamo's, and Walk down stairs from the CMU database; credited in the README) | `npm run motions` (from `.clip.json` clips in `data/library/motions`, kept out of the repository: made from the source files by Import motion's reader, `lib/importmotion.ts`) | `public/motions` |
+| The mannequin's body (Mixamo's X and Y Bots: meshes, weights, joints) | `scripts/mannequin/bots.py` (in Blender; `write_bots.py` writes them) | `lib/bots.ts` (sizes, joints) and `public/mannequin/bots.<hash>.bin` (the meshes, fetched beside the code before anything is drawn: `lib/mannequin.ts` loadBots) |
 | Characters | `scripts/characters/` | `public/characters` |
 | The pose model for photos | `npm run setup:mediapipe` (run on install) | `public/mediapipe` |
 | The guide's screenshots | `npm run doc-shots` (with `npm run dev` going) | `docs/guide/images` |

@@ -3,7 +3,8 @@
 import dynamic from 'next/dynamic';
 
 // three.js needs the browser (WebGL, localStorage), so skip server rendering.
-const Studio = dynamic(() => import('@/components/Studio'), {
+// (The mannequin's meshes fetched beside the studio's code: every figure is made from them.)
+const Studio = dynamic(() => Promise.all([import('@/components/Studio'), import('@/lib/mannequin').then((m) => m.loadBots())]).then(([m]) => m.default), {
   ssr: false,
   loading: () => <div className="loading">Loading Film Studio…</div>,
 });

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildOf, widthOf } from './body';
-import { BOTS, BOT_TARGETS } from './bots';
+import { BOTS, BOTS_FILE, BOT_TARGETS } from './bots';
+import { withBase } from './paths';
 import { Ink, InkedParts, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
 import { boneToRig, fingerToRig, fromQuat, rigToBone, toQuat } from './pose';
@@ -87,14 +88,33 @@ interface Bot {
 }
 
 const decoded = new Map<string, Bot>();
+/** The bots' meshes (public/mannequin/BOTS_FILE): fetched before anything is posed or drawn (loadBots), or given (Node). */
+let meshes: Uint8Array | null = null;
 
-/** The bot a body is drawn as (decoded from lib/bots.ts once). */
+/** The bots' meshes, from their file's bytes (in Node, read from public/mannequin). */
+export function setBotMeshes(bytes: Uint8Array) {
+  // (Copied: a Node Buffer is a view on a shared pool, and its slice is too.)
+  meshes = new Uint8Array(bytes);
+  decoded.clear();
+}
+
+/** Fetch the bots' meshes, once: the app, and its play-ahead worker, wait for them before they make a figure. */
+export async function loadBots() {
+  if (meshes) return;
+  const res = await fetch(withBase(`/mannequin/${BOTS_FILE}`));
+  if (!res.ok) throw new Error(`The mannequin could not be fetched (${res.status})`);
+  setBotMeshes(new Uint8Array(await res.arrayBuffer()));
+}
+
+/** The bot a body is drawn as (decoded from its bytes once). */
 function botOf(body: BodyParams): Bot {
   const which = body.sex >= 0.5 ? 'female' : 'male';
   let bot = decoded.get(which);
   if (bot) return bot;
+  if (!meshes) throw new Error('The mannequin is not loaded yet (lib/mannequin.ts loadBots)');
   const d = BOTS[which];
-  const raw = Uint8Array.from(atob(d.data), (c) => c.charCodeAt(0));
+  // (A copy of its part: the typed arrays over it start at 0, on their boundaries.)
+  const raw = meshes.slice(d.offset, d.offset + d.bytes);
   const V = d.vertices;
   const T = d.triangles;
   const q = new Uint16Array(raw.buffer, 0, V * 3);
