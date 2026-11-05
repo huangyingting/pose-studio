@@ -71,7 +71,7 @@ export function refineClip(clip: Clip): Clip {
 }
 
 /** A walk, run or the like (not a turn), by its name: going round carries on from where it got to. */
-export const isCycle = (name: string) => /walk|run|jog|sprint|strafe/i.test(name) && !/turn/i.test(name);
+export const isCycle = (name: string) => /walk|run|jog|sprint|strafe|sneak/i.test(name) && !/turn/i.test(name);
 const quatAngle = (a: number[], b: number[]) => (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
 
 /**

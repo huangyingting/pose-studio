@@ -29,7 +29,7 @@ import { PROP_LABELS, type Action, type BodyParams, type Mark, type Prop, type P
  * motion has them. Between what they do, each waits in their own idle facing whom they watch.
  */
 
-interface Entry { id: string; name: string; duration: number; loop?: boolean; impact?: number; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: Spot; facing: number } }
+interface Entry { id: string; name: string; duration: number; loop?: boolean; impact?: number; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: Spot; facing: number; meet?: boolean } }
 const motions = INDEX as unknown as Entry[];
 
 /** One of the Library's motions, by its file's name. */
@@ -420,7 +420,8 @@ class Stage {
     const m = motion(slug);
     if (!m.partner) throw new Error(`${slug} is not a motion of two`);
     const here = this.where(lead);
-    const legs = Math.max(this.legs(lead), this.legs(partner));
+    // (Spaced for the bigger of them; where they only meet hand to hand, for the two of them, as the app spaces them.)
+    const legs = m.partner.meet ? (this.legs(lead) + this.legs(partner)) / 2 : Math.max(this.legs(lead), this.legs(partner));
     const [dx, dz] = turn(m.partner.at[0] * legs, m.partner.at[1] * legs, here.facing);
     const spot: Spot = [r3(here.at[0] + dx), r3(here.at[1] + dz)];
     let t1 = Math.max(frame(t), this.until(partner));
@@ -564,10 +565,10 @@ function wuxiaDuel(): Scene {
   x = s.strike('Mei', 'uppercut', s.until('Mei') + 0.4, 'Lin');
   s.react('Lin', 'receive-punch-to-the-face', x.lands);
   s.play('Lin', 'kneeling-idle', s.until('Lin'), { seconds: 3, blend: 0.7 });
-  // She steps back a pace, still facing him, as he goes down.
+  // She steps back a pace, still facing him, as he goes down (her guard up again first).
   const [mei, lin] = [s.where('Mei').at, s.where('Lin').at];
   const gap = Math.hypot(mei[0] - lin[0], mei[1] - lin[1]) || 1;
-  s.go('Mei', [mei[0] + ((mei[0] - lin[0]) / gap) * 0.7, mei[1] + ((mei[1] - lin[1]) / gap) * 0.7], s.until('Mei') + 0.2, 'walk', true);
+  s.go('Mei', [mei[0] + ((mei[0] - lin[0]) / gap) * 0.7, mei[1] + ((mei[1] - lin[1]) / gap) * 0.7], s.until('Mei') + 0.6, 'walk', true);
   // He gets up slowly while she waits.
   s.play('Lin', 'crouch-to-stand', s.until('Lin'));
   s.face('Lin', 'Mei', s.until('Lin'));

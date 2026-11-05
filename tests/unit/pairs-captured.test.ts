@@ -83,6 +83,20 @@ describe('captured motions of two on every pairing of builds', () => {
     rig.dispose();
   }, 1_200_000);
 
+  it('a kiss (grown-ups; the lead as tall or taller, the partner rising onto her toes): faces together, and it is clean', () => {
+    const rig = new Rig();
+    for (const pair of adults.filter(([, pb]) => pb.name !== 'Child')) {
+      const scene = given('kiss', pair);
+      expect(problems(scene), `${pair[0].name} with ${pair[1].name}`).toEqual([]);
+      const [a, b] = scene.figures;
+      if (rig.model(b).joints.head.getWorldPosition(new THREE.Vector3()).y > rig.model(a).joints.head.getWorldPosition(new THREE.Vector3()).y + 0.01) continue;
+      const [p, q] = sceneAt(scene, 2.07).figures.map((f) => rig.model(f).joints.head.getWorldPosition(new THREE.Vector3()));
+      // (Head to head, centre to centre: two faces together are some 20 cm.)
+      expect(p.distanceTo(q), `${pair[0].name} with ${pair[1].name}`).toBeLessThan(0.3);
+    }
+    rig.dispose();
+  }, 1_200_000);
+
   it('a high five: the right palms meet up high (a grown-up\'s coming down to a child\'s), and it is clean', () => {
     const rig = new Rig();
     for (const pair of PAIRS) {

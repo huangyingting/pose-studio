@@ -211,6 +211,12 @@ function extrasOf(part: ClipPart) {
   return out;
 }
 
+/** Whether the people of a motion of several only meet hand to hand (a high five): spaced, where it is put, for the two of them, not for the bigger. */
+export const handToHand = (clip: Clip) => {
+  const holds = clip.contacts.filter((c) => c.on);
+  return holds.length > 0 && holds.every((c) => c.on!.bone === 'leftHand' || c.on!.bone === 'rightHand');
+};
+
 /** A part's pose at time t (in the clip's own space). */
 export function samplePart(part: ClipPart, t: number, duration: number, loop: boolean): Pose {
   const get = (name: string, size: number, bone?: JointName) => {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mirrorBone, partOf, sideOf, wrapDeg } from './joints';
+import { clampRotation, mirrorBone, partOf, sideOf, wrapDeg } from './joints';
 import { JOINTS, type Bone, type JointName, type Vec3 } from './types';
 
 /*
@@ -102,6 +102,18 @@ export function nearer(j: JointName, v: Vec3, near: Vec3): Vec3 {
   const dist = (v: Vec3) => v.reduce((s, x, i) => s + Math.abs(wrapDeg(x - near[i])), 0);
   const [a, b] = [fix(v), fix(v.map((x, i) => (i === mid ? 180 - x : x + 180)) as Vec3)];
   return dist(b) < dist(a) ? b : a;
+}
+
+/**
+ * A joint's angles within its range, of the two sets for the same rotation the one the range
+ * changes least. (Near gimbal lock the set worked out can flip from one frame to the next; clamped
+ * as it came, a captured arm past the range would snap with it.)
+ */
+export function withinRange(j: JointName, v: Vec3): Vec3 {
+  const mid = orderOf(j) === 'YXZ' ? 0 : 2;
+  const other = v.map((x, i) => wrapDeg(i === mid ? 180 - x : x + 180)) as Vec3;
+  const cost = (u: Vec3) => clampRotation(j, u).reduce((s, x, i) => s + Math.abs(x - u[i]), 0);
+  return clampRotation(j, cost(other) < cost(v) ? other : v);
 }
 
 /** A pose's angles (only joints away from rest). */

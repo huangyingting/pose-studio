@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clampRotation, sided, wrapDeg } from './joints';
-import { angleToQuat, bonesOf, type Angles } from './pose';
+import { angleToQuat, bonesOf, withinRange, type Angles } from './pose';
 import { scaleOf } from './mannequin';
 import { Rig } from './relations';
 import type { BodyParams, Figure, Hand, JointName, Side, Travel, Vec3 } from './types';
@@ -193,7 +193,7 @@ const LEAP_LANDING = 0.6;
 
 /** The Library's captured cycles a walk or a run can go with (#26), the first the usual one. */
 export const GAITS: Record<'walk' | 'run', readonly string[]> = {
-  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward'],
+  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward', 'library:injured-walk', 'library:pistol-walk'],
   run: ['library:jog-forward', 'library:run-forward', 'library:sprint'],
 };
 /** The steps a walk or run takes unless others are chosen: a real person's. */
@@ -207,11 +207,11 @@ export function gaitOf(src: { mode: Travel; gait?: string }): string | null {
 
 /**
  * The cycles a walk or run with captured steps goes with where it keeps its facing (#26): backing
- * up (the Library's only walk backward is a sneak, so every walk backs up as one), and stepping sideways (to
- * the left as captured; to the right, mirrored).
+ * up (upright, but a sneak backs up crouched), and stepping sideways (to the left as captured; to
+ * the right, mirrored).
  */
 export const GAIT_WAYS: Record<'walk' | 'run', { back: Record<string, string>; side: string }> = {
-  walk: { back: Object.fromEntries(GAITS.walk.map((g) => [g, 'library:walk-backward'])), side: 'library:walk-left' },
+  walk: { back: Object.fromEntries(GAITS.walk.map((g) => [g, g === 'library:crouch-walk-forward' ? 'library:sneak-backward' : 'library:walk-backward'])), side: 'library:walk-left' },
   run: { back: Object.fromEntries(GAITS.run.map((g) => [g, 'library:run-backward'])), side: 'library:strafe-left' },
 };
 
@@ -852,7 +852,7 @@ function cycleGait(c: Chain, legs: Legs, t: number, pose: AnglePose, ground: Gro
     plantLeg(mixed, legs, side, feet[side].world, Math.max(held, smooth((feet[side].rise ?? 0) / STEP_RISE)));
   }
   // (Every joint within its range: a captured one past ours, as recorded and retargeted, would read as bent too far.)
-  for (const j of Object.keys(mixed.joints) as JointName[]) if (j !== 'hips') mixed.joints[j] = clampRotation(j, mixed.joints[j]!);
+  for (const j of Object.keys(mixed.joints) as JointName[]) if (j !== 'hips') mixed.joints[j] = withinRange(j, mixed.joints[j]!);
   return mixed;
 }
 

@@ -1,5 +1,18 @@
 [
  {
+  "id": "library:pistol-idle",
+  "name": "Aim a pistol",
+  "duration": 4,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:aim-pistol",
   "name": "Aim a pistol, sitting",
   "duration": 5.433,
@@ -80,6 +93,18 @@
   "duration": 2,
   "people": 1,
   "group": "Fighting",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:blow-a-kiss",
+  "name": "Blow a kiss",
+  "duration": 4.567,
+  "people": 1,
+  "group": "Talking & gestures",
   "move": [
    0,
    0
@@ -202,6 +227,19 @@
   "turn": 0
  },
  {
+  "id": "library:laying-severe-cough",
+  "name": "Cough, lying",
+  "duration": 1.767,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:crouch-idle",
   "name": "Crouch",
   "duration": 1.667,
@@ -286,6 +324,18 @@
   "move": [
    1.775,
    0.007
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:kneel",
+  "name": "Down on one knee, and up",
+  "duration": 10.8,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },
@@ -475,6 +525,19 @@
   "turn": 0
  },
  {
+  "id": "library:laying-moaning",
+  "name": "Groan in pain, lying",
+  "duration": 2.133,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:blocking",
   "name": "Guard up",
   "duration": 1.333,
@@ -516,7 +579,8 @@
     0,
     0.804
    ],
-   "facing": -180
+   "facing": -180,
+   "meet": true
   }
  },
  {
@@ -737,6 +801,25 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:kiss",
+  "name": "Kiss",
+  "duration": 3.733,
+  "people": 2,
+  "group": "Feelings",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "partner": {
+   "at": [
+    0,
+    0.58
+   ],
+   "facing": -180
+  }
  },
  {
   "id": "library:kneeling-idle",
@@ -1226,7 +1309,20 @@
   "turn": 0
  },
  {
-  "id": "library:walk-backward",
+  "id": "library:laying-sleeping",
+  "name": "Sleep, lying",
+  "duration": 1.7,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:sneak-backward",
   "name": "Sneak backward",
   "duration": 1.1,
   "people": 1,
@@ -1329,6 +1425,18 @@
   "turn": 1
  },
  {
+  "id": "library:pistol-whip",
+  "name": "Strike with a pistol",
+  "duration": 2.567,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:surprised",
   "name": "Surprised",
   "duration": 4,
@@ -1347,6 +1455,42 @@
   "people": 1,
   "group": "Dance",
   "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:sword-and-shield-block",
+  "name": "Sword and shield, block",
+  "duration": 0.667,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   -0.001,
+   -0.247
+  ],
+  "turn": 7
+ },
+ {
+  "id": "library:sword-and-shield-death",
+  "name": "Sword and shield, fall",
+  "duration": 2.3,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   -0.478,
+   -1.134
+  ],
+  "turn": 116
+ },
+ {
+  "id": "library:sword-and-shield-impact",
+  "name": "Sword and shield, hit",
+  "duration": 0.967,
+  "people": 1,
+  "group": "Weapons",
   "move": [
    0,
    0
@@ -1404,6 +1548,19 @@
   "turn": 0
  },
  {
+  "id": "library:laying-hand-gesture",
+  "name": "Talk, lying",
+  "duration": 1.967,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:sitting-talking",
   "name": "Talk, sitting",
   "duration": 30,
@@ -1412,6 +1569,19 @@
   "seat": "start",
   "move": [
    -0.001,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:texting-while-standing",
+  "name": "Text on a phone",
+  "duration": 23.567,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   0,
    0
   ],
   "turn": 0
@@ -1523,6 +1693,19 @@
   "turn": 0
  },
  {
+  "id": "library:walk-backward",
+  "name": "Walk backward",
+  "duration": 0.967,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   0.006,
+   -1.352
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:descending-stairs",
   "name": "Walk down stairs",
   "duration": 3.4000000000000004,
@@ -1561,6 +1744,19 @@
   "turn": 0
  },
  {
+  "id": "library:pistol-walk",
+  "name": "Walk, aiming a pistol",
+  "duration": 0.8,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   -0.009,
+   2.15
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:walk-forward",
   "name": "Walk, brisk",
   "duration": 1.033,
@@ -1574,6 +1770,19 @@
   "turn": 0
  },
  {
+  "id": "library:drunk-walk",
+  "name": "Walk, drunk",
+  "duration": 3,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.011,
+   2.609
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:happy-walk",
   "name": "Walk, happy",
   "duration": 1.1,
@@ -1583,6 +1792,44 @@
   "move": [
    -0.007,
    1.741
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:injured-walk",
+  "name": "Walk, hurt",
+  "duration": 1,
+  "people": 1,
+  "group": "Moving",
+  "move": [
+   -0.007,
+   1.793
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:limping-walk",
+  "name": "Walk, limping",
+  "duration": 1.167,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.004,
+   0.928
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:texting-and-walking",
+  "name": "Walk, texting",
+  "duration": 3.3,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.017,
+   4.11
   ],
   "turn": 0
  },

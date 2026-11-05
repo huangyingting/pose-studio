@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { setGait, setTravel, startAnimation, travelTo } from '@/lib/actions';
+import { GAITS } from '@/lib/locomotion';
 import { putClips } from '@/lib/assets';
 import { parseClip, parseScene } from '@/lib/doc';
 import { actionsOf, figurePoseAt } from '@/lib/evaluate';
@@ -14,7 +15,7 @@ import { fresh } from '../fixtures/scenes';
 const WALK = 'library:walk';
 const SNEAK = 'library:crouch-walk-forward';
 const clip = (id: string) => ({ ...parseClip(JSON.parse(readFileSync(`public/motions/${id}.json`, 'utf8')))!, id: `library:${id}` });
-putClips([clip('walk'), clip('crouch-walk-forward'), clip('walk-backward'), clip('walk-left')]);
+putClips([...GAITS.walk.map((g) => clip(g.slice(8))), clip('walk-backward'), clip('sneak-backward'), clip('walk-left')]);
 
 const turnOf = (p: Pose, q: Pose, j: keyof Pose['bones']) => {
   const [a, b] = [p.bones[j]!, q.bones[j]!];
@@ -66,11 +67,21 @@ describe('a walk with a captured cycle (#26)', () => {
       const mid = act.start + act.duration / 2;
       expect(Math.abs(facingOf(figurePoseAt(store.scene, a, mid)!.bones)), `${to}`).toBeLessThan(75);
     }
-    // Any walk backs up as the captured one backing up does (the Library's only one, a sneak's).
+    // A walk backs up upright, a sneak crouched (each as a captured person backing up did).
     const { store, a, act } = walked([0, -4], WALK, undefined, true);
     const g = walked([0, -4], SNEAK, undefined, true);
     const mid = act.start + act.duration / 2;
-    expect(turnOf(figurePoseAt(store.scene, a, mid)!, figurePoseAt(g.store.scene, g.a, mid)!, 'spine')).toBeLessThan(1e-3);
+    expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop')).toEqual([]);
+    expect(figurePoseAt(store.scene, a, mid)!.position[1] - figurePoseAt(g.store.scene, g.a, mid)!.position[1]).toBeGreaterThan(0.1);
+  });
+
+  it('in every walk a walk can go with (hurt, aiming a pistol…): where it is sent, its feet held', () => {
+    for (const gait of GAITS.walk) {
+      const { store, a, act } = walked([0, 6], gait);
+      const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
+      expect(Math.hypot(end.position[0], end.position[2] - 6), gait).toBeLessThan(0.1);
+      expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop').map((i) => i.message), gait).toEqual([]);
+    }
   });
 
   it('chosen in its inspector (a walk\'s cycles for a walk), kept with the scene; made a run, a walk\'s cycle goes', () => {

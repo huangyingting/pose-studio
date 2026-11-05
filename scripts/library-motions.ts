@@ -38,7 +38,7 @@ const to = 'public/motions';
 const MIRRORED = ['Walk Right', 'Strafe Right', 'Turn 90 Right'];
 
 /** Left out: one person's half of a motion of two (alone, it is not the motion; those PAIRS has are put together). */
-const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr', 'Release Hostage Villain', 'Release Hostage Hostage'];
+const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr', 'Release Hostage Villain', 'Release Hostage Hostage', 'Kiss 1', 'Kiss 2'];
 
 /**
  * Motions of two people put together from halves captured apart, each at the place it starts
@@ -53,6 +53,8 @@ const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; par
   { file: 'Cpr', name: 'Give CPR', group: 'Sitting & lying', lead: 'Administering Cpr', partner: 'Receiving Cpr', roles: ['Rescuer', 'Patient'], at: [-0.2, 0.55], facing: 200 },
   { file: 'Hostage Situation', name: 'Hold someone hostage', group: 'Fighting', lead: 'Hostage Situation Villain', partner: 'Hostage Situation Hostage', roles: ['Captor', 'Hostage'], at: [-0.06, 0.48], facing: 0 },
   { file: 'Release Hostage', name: 'Let a hostage go', group: 'Fighting', lead: 'Release Hostage Villain', partner: 'Release Hostage Hostage', roles: ['Captor', 'Hostage'], at: [-0.06, 0.48], facing: 0 },
+  // (Her head a little in front of his as she rises on her toes, her arms round his neck, his hands at her waist.)
+  { file: 'Kiss', name: 'Kiss', group: 'Feelings', lead: 'Kiss 1', partner: 'Kiss 2', roles: ['Lead', 'Partner'], at: [0, 0.57], facing: 180 },
 ];
 
 /**
@@ -63,7 +65,12 @@ const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; par
 const LIST: Record<string, [string, MotionGroup]> = {
   'Walk': ['Walk', 'Moving'],
   'Walk Forward': ['Walk, brisk', 'Moving'],
-  'Walk Backward': ['Sneak backward', 'Moving'],
+  'Walk Backward': ['Walk backward', 'Moving'],
+  'Sneak Backward': ['Sneak backward', 'Moving'],
+  'Drunk Walk': ['Walk, drunk', 'Moving'],
+  'Injured Walk': ['Walk, hurt', 'Moving'],
+  'Limping Walk': ['Walk, limping', 'Moving'],
+  'Texting And Walking': ['Walk, texting', 'Moving'],
   'Walk Left': ['Walk sideways', 'Moving'],
   'Happy Walk': ['Walk, happy', 'Moving'],
   'Crouch Walk Forward': ['Sneak, crouched', 'Moving'],
@@ -97,6 +104,11 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Getting Up': ['Get up off the floor', 'Sitting & lying'],
   'Lying Down': ['Lie down on a bed', 'Sitting & lying'],
   'Laying Idle': ['Lie, idle', 'Sitting & lying'],
+  'Laying Sleeping': ['Sleep, lying', 'Sitting & lying'],
+  'Laying Severe Cough': ['Cough, lying', 'Sitting & lying'],
+  'Laying Moaning': ['Groan in pain, lying', 'Sitting & lying'],
+  'Laying Hand Gesture': ['Talk, lying', 'Sitting & lying'],
+  'Kneel': ['Down on one knee, and up', 'Sitting & lying'],
   'Talking': ['Talk, explaining', 'Talking & gestures'],
   'Quick Informal Bow': ['Bow, quick', 'Talking & gestures'],
   'Sitting Talking': ['Talk, sitting', 'Talking & gestures'],
@@ -105,6 +117,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Shaking Head No': ['Shake head no', 'Talking & gestures'],
   'Pointing': ['Point at someone', 'Talking & gestures'],
   'Waving': ['Wave, both arms', 'Talking & gestures'],
+  'Blow A Kiss': ['Blow a kiss', 'Talking & gestures'],
   'Salute': ['Salute', 'Talking & gestures'],
   'Clapping': ['Clap, sitting', 'Sitting & lying'],
   'Shrugging': ['Shrug', 'Talking & gestures'],
@@ -137,11 +150,18 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Drinking': ['Drink', 'Using things'],
   'Sitting Drinking': ['Drink, sitting', 'Using things'],
   'Talking On Phone': ['Talk on the phone', 'Using things'],
+  'Texting While Standing': ['Text on a phone', 'Using things'],
   'Typing': ['Type, sitting', 'Using things'],
   'Aim Pistol': ['Aim a pistol, sitting', 'Weapons'],
   'Shooting': ['Fire a pistol', 'Weapons'],
   'Sword And Shield Idle': ['Sword and shield, ready', 'Weapons'],
   'Sword And Shield Attack': ['Sword and shield, jump attack', 'Weapons'],
+  'Sword And Shield Block': ['Sword and shield, block', 'Weapons'],
+  'Sword And Shield Impact': ['Sword and shield, hit', 'Weapons'],
+  'Sword And Shield Death': ['Sword and shield, fall', 'Weapons'],
+  'Pistol Idle': ['Aim a pistol', 'Weapons'],
+  'Pistol Walk': ['Walk, aiming a pistol', 'Weapons'],
+  'Pistol Whip': ['Strike with a pistol', 'Weapons'],
   'Fight Idle': ['Fighting stance', 'Fighting'],
   'Jab Cross': ['Jab, cross', 'Fighting'],
   'Hook Punch': ['Hook punch', 'Fighting'],
@@ -203,6 +223,7 @@ const ONCE = [
   'Shooting', 'Surprised', 'Head Nod Yes', 'Shaking Head No', 'Pointing', 'Salute', 'Shake Fist', 'Shrugging', 'Standing Thumbs Up', 'Dismissing Gesture',
   'Cartwheel', 'Spinning', 'Falling Down', 'Getting Up', 'Mma Kick', 'Picking Up', 'Quick Informal Bow',
   'Jump', 'Hit Reaction', 'Hook Punch', 'Jab Cross', 'Receive Punch To The Face', 'Roundhouse Kick', 'Uppercut', 'Lifting Object', 'Button Pushing', 'Pulling Lever', 'Throw Object',
+  'Kneel', 'Pistol Whip', 'Sword And Shield Impact', 'Blow A Kiss',
 ];
 
 /**

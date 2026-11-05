@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { samplePart, startFacing } from './clip';
+import { handToHand, samplePart, startFacing } from './clip';
 import { newFigure } from './doc';
 import { legsOf } from './locomotion';
 import { facingOf } from './pose';
@@ -50,9 +50,10 @@ export function strikeTime(clip: Clip): number {
  * where it ends up and how far it has turned (degrees); for a strike, where what strikes is when it
  * lands (across, up, ahead); of two, where the other starts and which way they face. Kept in the
  * Library's index (scripts/library-motions.ts) for the scenes staged with them (lib/films.ts): a
- * fighter steps in as far as the blow reaches, one shaking hands steps up to where the other is.
+ * fighter steps in as far as the blow reaches, one shaking hands steps up to where the other is
+ * (spaced for the two of them where they only meet hand to hand: lib/clip.ts handToHand).
  */
-export function clipCourse(clip: Clip, strike?: number): { move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } } {
+export function clipCourse(clip: Clip, strike?: number): { move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number; meet?: boolean } } {
   const part = clip.parts[0];
   const first = samplePart(part, 0, clip.duration, false);
   const last = samplePart(part, clip.duration, clip.duration, false);
@@ -73,7 +74,7 @@ export function clipCourse(clip: Clip, strike?: number): { move: [number, number
   if (other) {
     const o = samplePart(other, 0, clip.duration, false);
     const [ox, oz] = local(o.position[0] - first.position[0], o.position[2] - first.position[2]);
-    out.partner = { at: [r(ox), r(oz)], facing: Math.round(((((startFacing(other, o) - startFacing(part, first)) % 360) + 540) % 360) - 180) };
+    out.partner = { at: [r(ox), r(oz)], facing: Math.round(((((startFacing(other, o) - startFacing(part, first)) % 360) + 540) % 360) - 180), ...(handToHand(clip) ? { meet: true } : {}) };
   }
   if (strike === undefined) return out;
   // What strikes: the hand or foot furthest out from the hips then.
