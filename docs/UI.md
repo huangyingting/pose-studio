@@ -47,8 +47,14 @@ first, then everywhere it applies.
 - **Every colour is a token** in `app/globals.css` (`:root`, and `:root[data-theme='dark']` for
   the dark theme). Never write a colour literal outside the token block. Text: `--text`,
   `--text-2` (secondary), `--text-3` (tertiary); surfaces `--panel`, `--panel-2`, `--well`
-  (sunken), `--raised`; `--accent` (and `-hover`, `-soft`, `-ring`); `--danger`, `--warn`, `--ok`;
+  (sunken), `--raised`; `--accent` (and `-hover`, `-soft`, `-ring`) as a fill or a mark, and
+  `--accent-text` for text in the accent (a picked row, a link); `--danger`, `--warn`, `--ok`;
   the axes `--axis-x/y/z`; the timeline's kinds `--walk`, `--run`, `--jump`, `--clip`, `--fix`.
+- **Contrast:** text reads at 4.5:1 or more on every surface it sits on (`--panel` to `--press`,
+  and `--accent-soft` for the accent's text), in both themes; a mark or a control's edge at 3:1.
+  A token changed is measured so; axe over the studio, the Library, New scene and Export finds no
+  contrast, naming or landmark problem (2026-11-05, #39). A control showing its value is named
+  with it (`Menu`'s `value`: "Frame: 16:9"), so what is seen is what is said.
 - **Type:** Inter Tight; sizes only from `--fs-2xs … --fs-display` (10/11/12/13/14/16/19/25 px):
   `s` captions, hints and labels; `m` the body and controls; `l` panel and list titles. Weights:
   540 for the body, 600 for headings, titles and what is chosen; no others.

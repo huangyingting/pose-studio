@@ -518,6 +518,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           <TimeReadout clock={clock} a={a} />
           <Menu
             label="Playback speed"
+            value={`${speed}×`}
             side="top"
             className="btn ghost tl-speed"
             tip="Playback speed"

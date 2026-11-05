@@ -169,8 +169,8 @@ export function PosePanel({ t }: { t: Target }) {
   return (
     <Toolbar label="Pose">
       <CommandButton id="pose.mirror" ctx={c} />
-      <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="Left → Right" onClick={() => command('pose.leftToRight').run!(c)}>L→R</button>
-      <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="Right → Left" onClick={() => command('pose.rightToLeft').run!(c)}>R→L</button>
+      <button type="button" className="ibtn text" data-tip="Copy left side onto right" aria-label="L→R: copy left side onto right" onClick={() => command('pose.leftToRight').run!(c)}>L→R</button>
+      <button type="button" className="ibtn text" data-tip="Copy right side onto left" aria-label="R→L: copy right side onto left" onClick={() => command('pose.rightToLeft').run!(c)}>R→L</button>
       <span className="toolrow-sep" />
       <CommandButton id="pose.copy" ctx={c} />
       <CommandButton id="pose.paste" ctx={c} />

@@ -91,7 +91,7 @@ function Line({ icon: Icon, label, value, go, items, tip, children }: {
   return (
     <div className="scene-line">
       {items ? (
-        <Menu label={label} className="scene-line-main" align="end" items={items}>{inner}</Menu>
+        <Menu label={label} value={value} className="scene-line-main" align="end" items={items}>{inner}</Menu>
       ) : go ? (
         <button type="button" className="scene-line-main" data-tip={tip} onClick={go}>{inner}</button>
       ) : (

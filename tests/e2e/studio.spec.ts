@@ -1383,7 +1383,7 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   await expect(page.getByText(/1280 × 720 px · 3\.2 s at 24 fps/)).toBeVisible();
   await page.keyboard.press('Escape');
   // Filmed square (the frame, in the top bar): the video follows.
-  await page.getByRole('button', { name: 'Frame', exact: true }).click();
+  await page.locator('.topbar').getByRole('button', { name: /^Frame: / }).click();
   await page.getByRole('menuitemradio', { name: '1:1 square' }).click();
   await page.keyboard.press('Control+e');
   await page.getByRole('radio', { name: 'Video', exact: true }).click();

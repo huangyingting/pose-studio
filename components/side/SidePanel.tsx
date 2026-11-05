@@ -30,28 +30,31 @@ export default function SidePanel({ actions, drawer, ...props }: SectionProps & 
   const pick = (id: SideSection) => store.setSettings({ side: id === side ? 'none' : id });
 
   // (One Tab stop for the tabs, ↑ ↓ between them, the panel following: #20.)
-  const rail = useRef<HTMLElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
   useRoving(rail, RAIL_KEYS);
   return (
     <aside className={`side${open ? '' : ' collapsed'}`} aria-label="Side panel">
-      <nav className="rail" role="tablist" aria-orientation="vertical" aria-label="Sections" ref={rail} onKeyDown={(e) => rovingKey(e, RAIL_KEYS)}>
-        {SECTIONS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            role="tab"
-            id={`side-tab-${s.id}`}
-            aria-selected={s.id === side}
-            aria-controls={s.id === side ? 'side-panel' : undefined}
-            className={`rail-btn${s.id === side ? ' on' : ''}`}
-            data-tip={s.id === side ? `${s.label} (click to hide)` : s.label}
-            data-tip-side="right"
-            onClick={() => pick(s.id)}
-          >
-            <s.icon size={19} strokeWidth={1.75} aria-hidden />
-            <span className="rail-label">{s.label}</span>
-          </button>
-        ))}
+      <nav className="rail" aria-label="Sections">
+        {/* (The tabs a list of their own: the buttons after them are not tabs.) */}
+        <div className="rail-tabs" role="tablist" aria-orientation="vertical" aria-label="Sections" ref={rail} onKeyDown={(e) => rovingKey(e, RAIL_KEYS)}>
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              id={`side-tab-${s.id}`}
+              aria-selected={s.id === side}
+              aria-controls={s.id === side ? 'side-panel' : undefined}
+              className={`rail-btn${s.id === side ? ' on' : ''}`}
+              data-tip={s.id === side ? `${s.label} (click to hide)` : s.label}
+              data-tip-side="right"
+              onClick={() => pick(s.id)}
+            >
+              <s.icon size={19} strokeWidth={1.75} aria-hidden />
+              <span className="rail-label">{s.label}</span>
+            </button>
+          ))}
+        </div>
         <span className="rail-sep" />
         {actions.map((a) => (
           <IconButton key={a.label} icon={a.icon} label={a.label} shortcut={a.shortcut} tipSide="right" className="rail-btn" onClick={a.onSelect} />

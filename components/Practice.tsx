@@ -200,7 +200,7 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
   const progress = seconds ? Math.min(1, 1 - left / seconds) : 0;
   return (
     <div className="practice-session">
-      <header>
+      <header role="none">
         <span className="practice-count">{index + 1} / {slides.length}</span>
         <span className="practice-name">{slide.scene.name}</span>
         <span className={`practice-timer${seconds && left <= 5 ? ' ending' : ''}`} aria-live="off">
@@ -212,7 +212,7 @@ function Session({ slides, seconds, style, onExit, onRestart }: {
         <canvas ref={canvas} className={slide.mirrored ? 'mirrored' : ''} aria-label={`Pose: ${slide.scene.name}`} />
         {paused && <div className="practice-paused">Paused</div>}
       </div>
-      <footer>
+      <footer role="none">
         <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous pose" data-tip="Previous  ←">
           <SkipBack size={19} aria-hidden />
         </button>

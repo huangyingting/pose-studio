@@ -469,6 +469,7 @@ function App() {
       onPointerDownCapture={(e) => { if (!(e.target as HTMLElement).closest('.timeline')) stopPlayback(); }}
     >
       <header className="topbar">
+        <h1 className="sr-only">Film Studio</h1>
         <div className="tb-left">
           <IconButton icon={PanelLeft} label="Side panel" className="only-mobile" onClick={() => setDrawer(drawer === 'library' ? null : 'library')} />
           <Menu label="Main menu" className="brand" items={() => menu('main', cx)}>
@@ -487,11 +488,12 @@ function App() {
               <Eye size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">View</span> <ChevronDown size={14} aria-hidden />
             </Menu>
             <span className="tb-sep" />
-            <Menu label="Frame" className="btn ghost" tip="The frame every scene is filmed in" items={() => choices('view.aspect', cx)}>
+            <Menu label="Frame" value={look.frame} className="btn ghost" tip="The frame every scene is filmed in" items={() => choices('view.aspect', cx)}>
               <RectangleHorizontal size={16} strokeWidth={1.75} aria-hidden /> <span className="hide-sm">{look.frame}</span> <ChevronDown size={14} aria-hidden />
             </Menu>
             <Menu
               label="Render style"
+              value={style.label}
               className="btn ghost"
               tip={tipOf('view.nextStyle', 'Render style')}
               items={() => choices('view.style', cx)}

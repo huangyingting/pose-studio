@@ -68,12 +68,13 @@ export function Modal({ title, icon: Icon, onClose, children, footer, wide }: {
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={wide ? 'modal wide' : 'modal'} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
-        <header>
+        {/* (Not the page's banner, nor its footer the page's content info: the dialog's own.) */}
+        <header role="none">
           <h2 id={titleId}>{Icon && <Icon size={17} aria-hidden />}{title}</h2>
           <IconButton icon={X} label="Close" onClick={onClose} />
         </header>
         <div className="modal-body">{children}</div>
-        {footer && <footer>{footer}</footer>}
+        {footer && <footer role="none">{footer}</footer>}
       </div>
     </div>
   );
@@ -167,8 +168,10 @@ export function placePopup(el: HTMLElement, anchor: DOMRect, side: 'top' | 'bott
 }
 
 /** Button that opens a list of actions. Closes on selection, outside click, Escape, the focus gone elsewhere (a dialog opened by a key), or the window resized or scrolled. */
-export function Menu({ label, items, children, className = 'btn ghost', side = 'bottom', align = 'start', tip }: {
+export function Menu({ label, value, items, children, className = 'btn ghost', side = 'bottom', align = 'start', tip }: {
   label: string;
+  /** What it is set to, shown on the button: said with its name ("Frame: 16:9"), as it is seen. */
+  value?: string;
   /** Its items, or how to make them (when it opens: a menu built from the state is not built until wanted). */
   items: MenuItem[] | (() => MenuItem[]);
   /** Trigger content; defaults to the label. */
@@ -236,7 +239,7 @@ export function Menu({ label, items, children, className = 'btn ghost', side = '
         className={className}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={label}
+        aria-label={value ? `${label}: ${value}` : label}
         data-tip={open ? undefined : tip}
         data-tip-side={side === 'top' ? 'top' : 'bottom'}
         onClick={() => setOpen((o) => !o)}

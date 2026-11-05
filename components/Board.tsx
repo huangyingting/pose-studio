@@ -104,7 +104,7 @@ export default function Board({ onClose, onExport }: { onClose(): void; onExport
 
   return (
     <div className="board" role="dialog" aria-modal="true" aria-label="Storyboard">
-      <header className="board-head">
+      <header className="board-head" role="none">
         <h2><LayoutPanelTop size={19} aria-hidden /> Storyboard</h2>
         <span className="muted">{entries.length} {entries.length === 1 ? 'scene' : 'scenes'} · {shots.length} {shots.length === 1 ? 'shot' : 'shots'} · {storyLength(shots).toFixed(1)} s</span>
         <span className="spacer" />

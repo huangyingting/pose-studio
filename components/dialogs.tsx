@@ -439,7 +439,7 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
           )}
           {styleDef(style).lit && <Hint>Lit by each scene&apos;s own light</Hint>}
         </div>
-        <div className="preview" ref={preview} aria-label="Preview" />
+        <div className="preview" ref={preview} role="img" aria-label="Preview" />
       </div>
     </Modal>
   );
