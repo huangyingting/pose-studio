@@ -12,7 +12,7 @@ import { shotSpans, spanAt } from '@/lib/shots';
 import * as THREE from 'three';
 import { Rig, capsules } from '@/lib/relations';
 import { Store } from '@/lib/store';
-import { SHOOT_PRESETS } from '@/lib/templates';
+import { SCENE_TEMPLATES, SHOOT_PRESETS } from '@/lib/templates';
 import type { Scene } from '@/lib/types';
 
 class MemoryStorage implements Storage {
@@ -215,4 +215,25 @@ describe('films: templates staged as a director would', () => {
     const now = moved.cameras.find((c) => c.id === cam.id)!;
     expect(viewOf(moved, now, t).position.distanceTo(viewOf(fresh(moved), now, t).position)).toBeLessThan(1e-6);
   }, 120_000);
+});
+
+describe('playing a staged scene', () => {
+  it('works out each frame in a small part of a frame\'s time, in order as it plays', () => {
+    // (Each frame once, as playing asks for them: posing the people, their holds and planted feet.
+    // About 5 ms here, a fifth of the bound: it is there so the cost cannot grow back unnoticed.)
+    const t = SCENE_TEMPLATES.find((x) => x.id === 'film-cafe')!;
+    load(t.build());
+    const scene = t.build();
+    load(scene);
+    const fps = scene.animation!.fps;
+    for (let i = 0; i < fps; i++) sceneAt(scene, 20 + i / fps);
+    const times: number[] = [];
+    for (let i = 0; i < 10 * fps; i++) {
+      const t0 = performance.now();
+      sceneAt(scene, 30 + i / fps);
+      times.push(performance.now() - t0);
+    }
+    times.sort((a, b) => a - b);
+    expect(times[times.length >> 1]).toBeLessThan(25);
+  }, 300_000);
 });

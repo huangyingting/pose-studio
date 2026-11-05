@@ -42,17 +42,30 @@ export function rigToBone(j: JointName, q: THREE.Quaternion): THREE.Quaternion {
   return partOf(j) === 'UpperArm' ? q.clone().multiply(c.clone().invert()) : c.clone().multiply(q).multiply(c.clone().invert());
 }
 
-/** A stored rotation → as the mannequin's rig holds it. */
-export function boneToRig(j: JointName, q: THREE.Quaternion): THREE.Quaternion {
-  if (!isArm(j)) return q.clone();
-  const c = ARM_DOWN[sideOf(j)!];
-  return partOf(j) === 'UpperArm' ? q.clone().multiply(c) : c.clone().invert().multiply(q).multiply(c);
+
+
+/*
+ * A stored rotation → as the mannequin's rig holds it: the arms' in their arms-down frame (an upper
+ * arm after it, a forearm and hand within it), the others as stored. Into `out`, making no
+ * quaternions: the mannequin is posed many times a frame (holds and planted feet pose it again and
+ * again).
+ */
+const ARM_UP: Record<'L' | 'R', THREE.Quaternion> = { L: ARM_DOWN.L.clone().invert(), R: ARM_DOWN.R.clone().invert() };
+/** Each joint's frame in the rig, worked out once: as stored (null), or an arm's, its upper arm's or within it. */
+const RIG_FRAME = Object.fromEntries(JOINTS.map((j) => [j, isArm(j) ? { side: sideOf(j)!, upper: partOf(j) === 'UpperArm' } : null])) as Record<JointName, { side: 'L' | 'R'; upper: boolean } | null>;
+const stored = (q: Quat | undefined, out: THREE.Quaternion) => (q ? out.set(q[0], q[1], q[2], q[3]).normalize() : out.identity());
+
+/** A joint's stored rotation (rest if none) as the rig holds it, into `out`. */
+export function boneToRig(j: JointName, q: Quat | undefined, out: THREE.Quaternion): THREE.Quaternion {
+  stored(q, out);
+  const f = RIG_FRAME[j];
+  if (!f) return out;
+  return f.upper ? out.multiply(ARM_DOWN[f.side]) : out.premultiply(ARM_UP[f.side]).multiply(ARM_DOWN[f.side]);
 }
 
-/** A finger bone's stored rotation → as the mannequin's rig holds it (in the hand's arms-down frame, as the forearm and hand are). */
-export function fingerToRig(side: 'L' | 'R', q: THREE.Quaternion): THREE.Quaternion {
-  const c = ARM_DOWN[side];
-  return c.clone().invert().multiply(q).multiply(c);
+/** A finger bone's (in the hand's arms-down frame, as the forearm and hand are), into `out`. */
+export function fingerToRig(side: 'L' | 'R', q: Quat, out: THREE.Quaternion): THREE.Quaternion {
+  return stored(q, out).premultiply(ARM_UP[side]).multiply(ARM_DOWN[side]);
 }
 
 const r5 = (v: number) => Math.round(v * 1e5) / 1e5 || 0;
@@ -78,7 +91,7 @@ export function angleToQuat(j: JointName, v: Vec3): Quat {
  * one nearest `near` (the previous value, or rest), so values do not jump between them.
  */
 export function quatToAngle(j: JointName, q: Quat | undefined, near: Vec3 = [0, 0, 0]): Vec3 {
-  const e = new THREE.Euler().setFromQuaternion(boneToRig(j, fromQuat(q)), orderOf(j));
+  const e = new THREE.Euler().setFromQuaternion(boneToRig(j, q, new THREE.Quaternion()), orderOf(j));
   return nearer(j, [e.x * R2D, e.y * R2D, e.z * R2D], near);
 }
 

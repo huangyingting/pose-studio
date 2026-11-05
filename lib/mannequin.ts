@@ -4,10 +4,10 @@ import { BOTS, BOTS_FILE, BOT_TARGETS } from './bots';
 import { withBase } from './paths';
 import { Ink, InkedParts, type Highlight } from './ink';
 import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
-import { boneToRig, fingerToRig, fromQuat, rigToBone, toQuat } from './pose';
+import { boneToRig, fingerToRig, rigToBone, toQuat } from './pose';
 import { JOINT_PARENT } from './skeleton';
 import {
-  JOINTS, type BodyParams, type Bone, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
+  FINGER_BONES, JOINTS, type BodyParams, type Bone, type Figure, type Hand, type JointName, type Side, type Style, type Vec3,
 } from './types';
 
 const D2R = Math.PI / 180;
@@ -86,6 +86,9 @@ interface Bot {
   /** Each target's outermost vertices (see outline), found once. */
   outermost?: number[][];
 }
+
+/** A turn worked out on its way to a joint (posing makes no quaternions of its own). */
+const TURN = new THREE.Quaternion();
 
 const decoded = new Map<string, Bot>();
 /** The bots' meshes (public/mannequin/BOTS_FILE): fetched before anything is posed or drawn (loadBots), or given (Node). */
@@ -463,18 +466,31 @@ export class Mannequin {
       const s = side === 'L' ? 'left' : 'right';
       this.hands[side].segments.forEach((segs, fi) => segs.forEach((g, si) => {
         const q = bones[`${s}${FINGERS[fi]}${fi === 0 ? THUMB_SEGMENTS[si] : SEGMENTS[si]}` as Bone];
-        if (q) g.quaternion.copy(fingerToRig(side, fromQuat(q)));
+        if (q) g.quaternion.copy(fingerToRig(side, q, TURN));
       }));
     }
   }
 
+  /**
+   * What apply last put on the hands: their presets and finger bones, as given (a pose is never
+   * changed in place: a new hand or finger turn is a new object). The same again is left as it is:
+   * working out where the feet go (planted, held) poses a figure many times, its hands unchanged.
+   */
+  private handsSet: { L: Hand; R: Hand; fingers: unknown[] } | null = null;
+
   /** Pose the figure from document state. */
   apply(fig: Figure) {
-    this.setBody(fig.body);
-    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fromQuat(fig.bones[name])));
-    this.setHand('L', fig.hands.L);
-    this.setHand('R', fig.hands.R);
-    this.setFingers(fig.bones);
+    if (this.setBody(fig.body)) this.handsSet = null;
+    // (Through one quaternion kept for it, copied once: each change to a joint's own works out its angles again.)
+    for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fig.bones[name], TURN));
+    const fingers = FINGER_BONES.map((b) => fig.bones[b]);
+    const was = this.handsSet;
+    if (!was || was.L !== fig.hands.L || was.R !== fig.hands.R || fingers.some((q, i) => q !== was.fingers[i])) {
+      this.setHand('L', fig.hands.L);
+      this.setHand('R', fig.hands.R);
+      this.setFingers(fig.bones);
+      this.handsSet = { L: fig.hands.L, R: fig.hands.R, fingers };
+    }
     this.grounded = fig.grounded;
     this.joints.hips.position.set(...fig.position);
     this.ground();

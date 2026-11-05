@@ -93,6 +93,21 @@ function hermite(p0: number, p1: number, p2: number, p3: number, t0: number, t1:
 }
 
 /**
+ * The last key at or before `time` (times sorted, the first at or before it), at most `max`: found by
+ * halving, not counted along (a long capture has hundreds of keys, sampled many times a frame).
+ */
+function lastAtOrBefore(times: number[], time: number, max: number) {
+  let lo = 0;
+  let hi = max;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (times[mid] <= time) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/**
  * The keys around time t: i1 → i2 is the segment containing t, i0 and i3 its neighbours, with
  * their times (shifted by the duration when wrapping a loop; mirrored at the ends otherwise).
  */
@@ -103,14 +118,12 @@ function segment(times: number[], t: number, duration: number, loop: boolean) {
     const at = (k: number) => ({ i: ((k % n) + n) % n, t: times[((k % n) + n) % n] + Math.floor(k / n) * duration });
     let time = ((t % duration) + duration) % duration;
     if (time < times[0]) time += duration;
-    let k = 0;
-    while (k < n - 1 && at(k + 1).t <= time) k++;
+    const k = lastAtOrBefore(times, time, n - 1);
     const s = [at(k - 1), at(k), at(k + 1), at(k + 2)];
     return { i: s.map((x) => x.i), t: s.map((x) => x.t), time };
   }
   const time = Math.min(times[n - 1], Math.max(times[0], t));
-  let k = 0;
-  while (k < n - 2 && times[k + 1] <= time) k++;
+  const k = lastAtOrBefore(times, time, n - 2);
   const t1 = times[k];
   const t2 = times[k + 1];
   return {
