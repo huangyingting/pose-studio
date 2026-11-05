@@ -90,6 +90,10 @@ function useHeight(root: RefObject<HTMLDivElement | null>, setWidth?: (w: number
   }, [root, setWidth]);
 }
 
+/** A scene longer than this (s) opens with its first OPEN_SPAN seconds in the timeline, not all of it at once. */
+const LONG_SCENE = 30;
+const OPEN_SPAN = 20;
+
 /**
  * The timeline under the canvas, always there. A still scene's is its bar: a key, or an action
  * from the + picker, makes the scene animated. Each figure's row has a + at the playhead for what
@@ -177,6 +181,14 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
   // a zoomed-in window (which follows the playhead while playing).
   const total = Math.min(MAX_DURATION, a.duration + PAST_END);
   const [zoom, setZoom] = useState<{ start: number; span: number } | null>(null);
+  // (A scene opened: a long one at its first OPEN_SPAN seconds, where its blocks can be read, scrolled
+  // for the rest; a short one all of it. Fit (0) shows all of a long one.)
+  const opened = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (opened.current === scene.id) return;
+    opened.current = scene.id;
+    setZoom(total > LONG_SCENE ? { start: 0, span: OPEN_SPAN } : null);
+  }, [scene.id, total]);
   const span = zoom ? Math.min(zoom.span, total) : total;
   let v0 = zoom ? Math.min(Math.max(0, zoom.start), total - span) : 0;
   if (zoom && clock.playing && (time < v0 || time > v0 + span)) v0 = Math.min(total - span, Math.max(0, v0 + Math.floor((time - v0) / span) * span));

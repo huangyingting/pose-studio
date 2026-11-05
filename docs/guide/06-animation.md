@@ -26,7 +26,7 @@ A scene is animated as soon as it has a key or an action. Each figure has a **ro
    - **Right-click** it for more: split, repeat, mirror, copy, save as a motion, remove.
 8. **The playhead**: drag it, or click the ruler. Where it is, posing makes a key; over a motion, posing makes a **correction** to the motion around that moment.
 
-The timeline zooms with `Ctrl` + wheel or its zoom buttons and scrolls with `Shift` + wheel. With the timeline focused:
+The timeline zooms with `Ctrl` + wheel or its zoom buttons and scrolls with `Shift` + wheel. A scene longer than half a minute opens at its first 20 seconds, where its blocks can be read; `0` (or the fit button) shows all of it. With the timeline focused:
 
 - **Markers** (`M`) are beats on the ruler.
 - `I` and `O` set an in and out to loop over.
