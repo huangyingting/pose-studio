@@ -91,13 +91,19 @@ describe('library assets applied to the scene', () => {
     expect(applyMotion(store, id, 'high-jump')).toBe(false);
   });
 
-  it('syncs saved poses, keeping deletions from either side', () => {
+  it('syncs saved poses and imported sounds, keeping deletions from either side', () => {
     const scene = newScene('A');
     const p = (id: string) => ({ ...builtInPoses()[0], id, name: id });
     const base: Library = { scenes: [scene], poses: [p('kept'), p('gone-here'), p('gone-there')] };
     const server: Library = { ...base, poses: [p('kept'), p('gone-here'), p('new-there')] };
     const local: Library = { ...base, poses: [p('kept'), p('gone-there'), p('new-here')] };
     expect(mergeLibraries(server, local, syncBase(base)).poses!.map((x) => x.id)).toEqual(['kept', 'new-there', 'new-here']);
+    // Imported sounds the same (#35).
+    const snd = (id: string) => ({ id, name: id, duration: 1, peaks: [] });
+    const sBase: Library = { scenes: [scene], sounds: [snd('kept'), snd('gone-here'), snd('gone-there')] };
+    const sServer: Library = { ...sBase, sounds: [snd('kept'), snd('gone-here'), snd('new-there')] };
+    const sLocal: Library = { ...sBase, sounds: [snd('kept'), snd('gone-there'), snd('new-here')] };
+    expect(mergeLibraries(sServer, sLocal, syncBase(sBase)).sounds!.map((x) => x.id)).toEqual(['kept', 'new-there', 'new-here']);
   });
 
   it('keeps imported clips apart from the library: fifty long ones list in a few kilobytes and play', async () => {

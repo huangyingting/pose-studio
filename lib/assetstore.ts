@@ -2,7 +2,7 @@ import { hasClip, putClips } from './assets';
 import type { Clip } from './types';
 
 /*
- * Where imported clips and models are kept, apart from the library (which only lists them):
+ * Where imported clips, models and sounds are kept, apart from the library (which only lists them):
  * IndexedDB in the browser, as big as the browser allows (not the few megabytes of localStorage).
  * Signed in, the server keeps them too, as files (lib/cloud.ts, app/api/assets). Without
  * IndexedDB (tests), in memory.
@@ -12,9 +12,10 @@ const DB = 'pose-studio-assets';
 const CLIPS = 'clips';
 const MODELS = 'models';
 const THUMBS = 'thumbs';
+const SOUNDS = 'sounds';
 
 let db: Promise<IDBDatabase> | null = null;
-const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), thumbs: new Map<string, string>() };
+const memory = { clips: new Map<string, Clip>(), models: new Map<string, ArrayBuffer>(), thumbs: new Map<string, string>(), sounds: new Map<string, ArrayBuffer>() };
 
 /** Whether a newer build (in another tab) has the database: this tab can no longer keep or read anything in it. */
 let outdated = false;
@@ -39,9 +40,9 @@ function open(): Promise<IDBDatabase> | null {
   if (typeof indexedDB === 'undefined') return null;
   if (outdated) return Promise.reject(new Error(OUTDATED));
   db ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 4);
+    const req = indexedDB.open(DB, 5);
     req.onupgradeneeded = () => {
-      for (const name of [CLIPS, MODELS, THUMBS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
+      for (const name of [CLIPS, MODELS, THUMBS, SOUNDS]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
     };
     req.onsuccess = () => {
       // (Another tab of a newer build needing a newer version: this one lets it, and says so when next asked.)
@@ -103,6 +104,19 @@ export async function saveModelFile(id: string, data: ArrayBuffer) {
 export async function loadModelFile(id: string): Promise<ArrayBuffer | null> {
   const got = run<{ id: string; data: ArrayBuffer } | undefined>(MODELS, 'readonly', (s) => s.get(id));
   return got ? (await got)?.data ?? null : memory.models.get(id) ?? null;
+}
+
+/** Keep a sound's file (#35). */
+export async function saveSoundFile(id: string, data: ArrayBuffer) {
+  const done = run(SOUNDS, 'readwrite', (s) => s.put({ id, data }));
+  if (done) await done;
+  else memory.sounds.set(id, data);
+}
+
+/** A kept sound's file, or null if it is not kept here. */
+export async function loadSoundFile(id: string): Promise<ArrayBuffer | null> {
+  const got = run<{ id: string; data: ArrayBuffer } | undefined>(SOUNDS, 'readonly', (s) => s.get(id));
+  return got ? (await got)?.data ?? null : memory.sounds.get(id) ?? null;
 }
 
 /*

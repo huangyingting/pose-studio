@@ -1,5 +1,5 @@
 import { clipById, clipIdsOf } from './assets';
-import { loadModelFile, saveClips, saveModelFile } from './assetstore';
+import { loadModelFile, loadSoundFile, saveClips, saveModelFile, saveSoundFile } from './assetstore';
 import { modelArrived } from './model';
 import { parseClip, parseLibrary } from './doc';
 import { withBase } from './paths';
@@ -27,7 +27,7 @@ const KEY = 'pose-studio:sync';
 const PUSH_DELAY = 1500;
 
 const fingerprint = (lib: Library) => lib.scenes.map(sceneHash).join() + JSON.stringify(lib.settings ?? null)
-  + [lib.poses, lib.clips, lib.models, lib.templates, lib.shoots].map((list) => (list ?? []).map((x) => x.id).join()).join('|');
+  + [lib.poses, lib.clips, lib.models, lib.sounds, lib.templates, lib.shoots].map((list) => (list ?? []).map((x) => x.id).join()).join('|');
 
 export class CloudSync {
   status: CloudStatus = 'syncing';
@@ -127,12 +127,13 @@ export class CloudSync {
     await this.syncClips(true);
   }
 
-  /** Clips and models the library uses that only one side has: fetched, or sent up. */
+  /** Clips, models and sounds the library uses that only one side has: fetched, or sent up. */
   private async syncClips(force = false) {
     const lib = this.store.getState().library;
     const ids = clipIdsOf(lib);
     const models = (lib.models ?? []).map((m) => m.id);
-    const print = [...ids, ...models].sort().join();
+    const sounds = (lib.sounds ?? []).map((m) => m.id);
+    const print = [...ids, ...models, ...sounds].sort().join();
     if (!force && print === this.clips) return;
     const res = await fetch(withBase('/api/assets'), { cache: 'no-store' });
     if (!res.ok) throw new Error(String(res.status));
@@ -161,6 +162,14 @@ export class CloudSync {
           await saveModelFile(id, await got.arrayBuffer());
           modelArrived(id);
         }
+      }
+    }
+    for (const id of sounds) {
+      const file = await loadSoundFile(id);
+      if (file && !there.has(id)) await send(id, file, 'audio/octet-stream');
+      if (!file && there.has(id)) {
+        const got = await fetch(url(id));
+        if (got.ok) await saveSoundFile(id, await got.arrayBuffer());
       }
     }
     this.clips = print;

@@ -1,8 +1,9 @@
 'use client';
 
-import { Link as LinkIcon, Pencil, Pin, Plus, Repeat, Trash2, Users } from 'lucide-react';
+import { Link as LinkIcon, Pencil, Pin, Plus, Repeat, Trash2, Users, VolumeX } from 'lucide-react';
 import { correctEveryRepeat, deleteAction, deleteCorrection, editMarker, setBlendCurve, setCorrectionThroughout } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
+import { soundSpan } from '@/lib/sound';
 import { cameraById } from '@/lib/cameras';
 import { actionsOf, busySpans, propStretchesOf } from '@/lib/evaluate';
 import { propKeyTimes, removePropKey } from '@/lib/propmotion';
@@ -17,8 +18,8 @@ import { dragged, endDrag } from '../dragdrop';
 import type { Drags, KeyPick } from './drags';
 
 /*
- * The timeline's rows, under its bar: the ruler, the shots, a row per person, one per prop that
- * moves, and the path camera's. They draw the window of time on show (TrackView) and edit through
+ * The timeline's rows, under its bar: the ruler, the shots, the sound, a row per person, one per
+ * prop that moves, and the path camera's. They draw the window of time on show (TrackView) and edit through
  * its drags (./drags.ts); the timeline (../Timeline.tsx) holds what they share.
  */
 
@@ -192,6 +193,42 @@ export function ShotsRow({ tl }: { tl: TrackView }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The scene's sound (#35): its block, its waveform drawn in it, dragged along the row to move it,
+ * its edges to trim it; right-click for its menu (replace it, how loud, mute, take it off).
+ */
+export function SoundRow({ tl }: { tl: TrackView }) {
+  const { store, scene, pct, span, inSight } = tl;
+  const sound = scene.sound;
+  const info = sound && (store.getState().library.sounds ?? []).find((x) => x.id === sound.id);
+  const { dragSound } = tl.drags;
+  if (!sound || !info) return <div className="tl-row sound" aria-label="Sound" />;
+  const { t0, t1, from } = soundSpan(sound, info);
+  // (The waveform of the part played: its peaks, as bars from the middle.)
+  const n = info.peaks.length;
+  const i0 = Math.floor((from / Math.max(1e-6, info.duration)) * n);
+  const i1 = Math.max(i0 + 1, Math.ceil(((from + t1 - t0) / Math.max(1e-6, info.duration)) * n));
+  const peaks = info.peaks.slice(i0, i1);
+  const wave = peaks.map((p, i) => `M${i} ${50 - p / 2}V${50 + p / 2}`).join('');
+  return (
+    <div className="tl-row sound" aria-label="Sound">
+      <div
+        className={`tl-travel sound grab${sound.muted ? ' muted' : ''}`}
+        style={{ left: pct(t0), width: `${((t1 - t0) / span) * 100}%` }}
+        data-tip={`${info.name}: drag to move it, its edges to trim it\nRight-click for more`}
+        onPointerDown={dragSound('move')}
+        onContextMenu={(e) => openContextMenu(e, menu('sound', { store }), info.name)}
+      >
+        <svg className="tl-wave" viewBox={`0 0 ${peaks.length} 100`} preserveAspectRatio="none" aria-hidden><path d={wave} /></svg>
+        {sound.muted && <VolumeX size={11} aria-label="Muted" />}
+        <span style={inSight(t0, t1)}>{info.name}</span>
+        <i className="tl-edge start" aria-hidden onPointerDown={dragSound('start')} />
+        <i className="tl-edge" aria-hidden onPointerDown={dragSound('end')} />
+      </div>
     </div>
   );
 }

@@ -38,3 +38,18 @@ export const storyLength = (shots: StoryShot[]) => shots.reduce((sum, x) => sum 
 
 /** How many frames a shot is given in the story's video, and so in its cut list (whole frames: the cuts fall where the video's do). */
 export const shotFrames = (shot: StoryShot, fps: number) => Math.max(1, Math.round(shot.length * fps));
+
+/**
+ * Where each filmed shot of the story is in its video, at `fps` (#35: its scene's sound under it):
+ * its scene, the stretch of it played, and when that starts in the video.
+ */
+export function storyWindows(shots: StoryShot[], fps: number): { scene: Scene; t0: number; t1: number; at: number }[] {
+  const out: { scene: Scene; t0: number; t1: number; at: number }[] = [];
+  let at = 0;
+  for (const x of shots) {
+    const length = shotFrames(x, fps) / fps;
+    if (x.span) out.push({ scene: x.scene, t0: x.span.start, t1: x.span.start + length, at });
+    at += length;
+  }
+  return out;
+}

@@ -45,7 +45,7 @@ lib/
   track.ts              Editing tracks: keys, travels, clips put in, actions moved, retimed and recast
   constraints.ts        Contacts solved for the actual bodies (feet planted, hands on partners, holds)
   physics.ts            Free props: Rapier simulation, baked per flight
-  assets.ts, assetstore.ts  Clips by id (built-in and imported); imported clips and characters kept in IndexedDB
+  assets.ts, assetstore.ts  Clips by id (built-in and imported); imported clips, characters and sounds kept in IndexedDB
   model.ts              Rigs from other tools fitted to the skeleton; characters drawn as figures
   store.ts              App state, undo/redo history, persistence
   actions/              All document operations (the UI, the commands and the assistant), by part: scenes, figures,
@@ -79,6 +79,7 @@ lib/
   board.ts, boardExport.ts  The story (the scenes in order, shot by shot); storyboard image and video
   project.ts            The project's settings (frame, style)
   video.ts, prompt.ts   Frame-accurate video export (WebCodecs via Mediabunny); shot descriptions for AI video tools
+  sound.ts              A scene's sound: imported (waveform), placed on its timeline, mixed into its videos (components/soundplay.ts plays it)
   retarget.ts, photo.ts MediaPipe detection and landmark → joint retargeting
   locomotion.ts         Walking, running and jumping between keys: the footstep plan, leg IK and jump arcs, the body a recorded cycle
   surfaces.ts           What figures stand on: the tops of props, seen from above

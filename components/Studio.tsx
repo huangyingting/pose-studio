@@ -4,14 +4,16 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import {
   ChevronDown, Crosshair, Download, Ellipsis, Eye, EyeOff, Info, Keyboard, Lightbulb, Minimize2, MousePointer2, RectangleHorizontal, X, LayoutPanelTop, PanelLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react';
-import { addMotions, appendScenes, openProject } from '@/lib/actions';
-import { clipsIn, modelFilesIn, parseLibrary, toBase64, uid } from '@/lib/doc';
+import { addMotions, appendScenes, openProject, setSceneSound } from '@/lib/actions';
+import { clipsIn, filesIn, parseLibrary, toBase64, uid } from '@/lib/doc';
 import { BUILT_IN_CHARACTERS, characterImage } from '@/lib/characters';
 import { withBase } from '@/lib/paths';
 import { downloadBlob } from '@/lib/render';
 import { decodeScene, sceneParam } from '@/lib/share';
 import { Store } from '@/lib/store';
 import { loadPhysics, needsPhysics, onPhysicsReady } from '@/lib/physics';
+import { playSound } from './soundplay';
+import { SOUND_FILES, importSound } from '@/lib/sound';
 import { clipById, clipIdsOf, onClips } from '@/lib/assets';
 import { angleAt, frameAspect } from '@/lib/cameras';
 import { actionLabel } from '@/lib/track';
@@ -36,7 +38,7 @@ import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
 import { IconButton, Menu, Toasts, Toolbar, type Notify, type Toast } from './ui';
-import { loadModelFile, onOutdated, saveModelFile } from '@/lib/assetstore';
+import { loadModelFile, loadSoundFile, onOutdated, saveModelFile, saveSoundFile } from '@/lib/assetstore';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
@@ -145,6 +147,8 @@ function App() {
     void loadPhysics();
     return onPhysicsReady(() => store.setTime(store.getState().time));
   }, [flies, store]);
+  // The scene's sound heard as it plays (#35).
+  useEffect(() => playSound(clock, store), [clock, store]);
   // Imported clips come from the asset store after the first frame: what uses them is shown again.
   useEffect(() => onClips(() => store.setTime(store.getState().time)), [store]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -288,8 +292,8 @@ function App() {
   }, [store, notify]);
 
   const saveFile = useCallback(async () => {
-    // The file carries the imported clips' frames and the imported characters' files too (the
-    // library itself only lists them): opened anywhere, it is the whole project.
+    // The file carries the imported clips' frames and the imported characters' and sounds' files
+    // too (the library itself only lists them): opened anywhere, it is the whole project.
     const lib = store.getState().library;
     const frames = clipIdsOf(lib).flatMap((id) => clipById(id) ?? []);
     const clips = [...frames, ...(lib.clips ?? []).filter((c) => !clipById(c.id))];
@@ -297,7 +301,11 @@ function App() {
       const data = await loadModelFile(m.id).catch(() => null);
       return data ? [{ id: m.id, data: toBase64(data) }] : [];
     }))).flat();
-    const json = JSON.stringify({ ...lib, ...(clips.length ? { clips } : {}), ...(modelFiles.length ? { modelFiles } : {}) }, null, 2);
+    const soundFiles = (await Promise.all((lib.sounds ?? []).map(async (m) => {
+      const data = await loadSoundFile(m.id).catch(() => null);
+      return data ? [{ id: m.id, data: toBase64(data) }] : [];
+    }))).flat();
+    const json = JSON.stringify({ ...lib, ...(clips.length ? { clips } : {}), ...(modelFiles.length ? { modelFiles } : {}), ...(soundFiles.length ? { soundFiles } : {}) }, null, 2);
     downloadBlob(new Blob([json], { type: 'application/json' }), 'film-studio.json');
   }, [store]);
 
@@ -315,7 +323,8 @@ function App() {
       const what = `${lib.scenes.length} scene${lib.scenes.length === 1 ? '' : 's'}`;
       addMotions(store, clipsIn(data));
       // (Its characters' files kept before its figures are drawn as them.)
-      await Promise.all(modelFilesIn(data).map((f) => saveModelFile(f.id, f.data)));
+      await Promise.all(filesIn(data, 'modelFiles').map((f) => saveModelFile(f.id, f.data)));
+      await Promise.all(filesIn(data, 'soundFiles').map((f) => saveSoundFile(f.id, f.data)));
       openProject(store, lib, mode);
       if (mode === 'replace') notifyUndo(`Opened ${what}`);
       else notify(`Loaded ${what}`);
@@ -364,6 +373,22 @@ function App() {
   const [picked, setPick] = useState<{ hint: string; done(at: Vec3): void; take?(hit: CanvasHit): void; ghost?: Placing; selection: typeof selection; scene: string } | null>(null);
   const pick = picked && picked.selection === selection && picked.scene === scene.id ? picked : null;
 
+  // The scene's sound (#35): an audio file picked, or dropped on the timeline.
+  const soundRef = useRef<HTMLInputElement>(null);
+  const addSound = useCallback(async (file?: File) => {
+    if (!file) {
+      soundRef.current?.click();
+      return;
+    }
+    try {
+      const info = await importSound(file);
+      setSceneSound(store, info);
+      notifyUndo(`Added “${info.name}” (${info.duration.toFixed(1)} s) to the scene`);
+    } catch (err) {
+      notify(`Could not add the sound: ${(err as Error).message}`, 'error');
+    }
+  }, [store, notify, notifyUndo]);
+
   const openFilePicker = useCallback((mode: 'append' | 'replace') => {
     fileRef.current!.dataset.mode = mode;
     fileRef.current!.click();
@@ -381,8 +406,9 @@ function App() {
       place: (ghost) => setPick({ hint: ghost.hint, done: () => {}, ghost, selection: store.getState().selection, scene: store.scene.id }),
       frameSelection: () => frameSelection(),
       stageOnly: () => stageOnly, setStageOnly,
+      importSound: (file?: File) => void addSound(file),
     });
-  }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store, stageOnly]);
+  }, [notify, notifyUndo, frameCurrent, frameSelection, frame, saveFile, openFilePicker, clock, togglePlay, stopPlayback, onion, isolate, store, stageOnly, addSound]);
 
   // The keyboard: what has the focus, else the commands' keys.
   useShortcuts(store, !!dialog, !!pick, setPick);
@@ -544,6 +570,18 @@ function App() {
           </Menu>
           <IconButton icon={SlidersHorizontal} label="Inspector" className="only-mobile" onClick={() => setDrawer(drawer === 'inspector' ? null : 'inspector')} />
         </div>
+        <input
+          ref={soundRef}
+          type="file"
+          accept={SOUND_FILES}
+          hidden
+          aria-label="Sound file"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void addSound(f);
+            e.target.value = '';
+          }}
+        />
         <input
           ref={fileRef}
           type="file"

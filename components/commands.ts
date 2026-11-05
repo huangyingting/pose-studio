@@ -1,5 +1,5 @@
 import {
-  Activity, Aperture, Magnet, Flag, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
+  Activity, Aperture, Magnet, Flag, Music, Volume2, VolumeX, ArrowLeftToLine, ArrowRightToLine, SquareSplitHorizontal, CircleStop, ArrowDown, ArrowDownToLine, ArrowUp, ChevronDown, ChevronUp, ArrowLeftRight, ArrowUpFromDot, Armchair, BedSingle, BookmarkPlus, Briefcase, Camera, ChevronsDown, Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Diamond, Download,
   Crosshair, Eye, EyeOff, FilePlus2, FileUp, Film, FlipHorizontal2, Focus, FolderOpen, Frame, Footprints, Ghost, Goal, Grid3x3, Hand, Keyboard, LayoutPanelTop, Link, Lock, Maximize, Maximize2, Move3d, MoveHorizontal, MoveUpRight,
   PanelRightClose, Pause, Pencil, PenLine, RectangleHorizontal, PersonStanding, Play, Plus, Redo2, Scan, RefreshCw, Repeat, Repeat1, RotateCcw, RotateCw, Save, Scale3d, ScanFace, Scissors, Search, Send, 
   Lightbulb, MessageSquareQuote, Spline, Bone, Move, Pin, Rotate3d, StepBack, StepForward, SunMedium, SunMoon, Timer, Trash2, Undo2, UserRound, Video, Wind, X, Zap, ZoomIn, ZoomOut, type LucideIcon,
@@ -10,7 +10,7 @@ import {
   holdKey, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
-  sayLine, talkFor,
+  sayLine, talkFor, setSoundOptions, removeSound,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
@@ -93,6 +93,8 @@ export interface App {
   /** The scene alone, filling the window (no top bar, no panels). */
   stageOnly(): boolean;
   setStageOnly(on: boolean): void;
+  /** An audio file for the open scene's sound (#35): this one (dropped on the timeline), else one picked. */
+  importSound(file?: File): void;
 }
 
 // Until the studio has set it (menus are built while it first renders): nothing playing, nothing to open.
@@ -100,7 +102,7 @@ const none = () => {};
 let app: App = {
   notify: none, notifyUndo: none, dialog: none, frameAll: none, frameSelected: none, frameView: none, saveFile: none, openFile: none,
   playing: () => false, togglePlay: none, stopPlayback: none, speed: () => 1, setSpeed: none, repeatShot: () => false, setRepeatShot: none,
-  onion: () => false, setOnion: none, isolated: () => null, setIsolated: none, captureShot: () => null, stageOnly: () => false, setStageOnly: none,
+  onion: () => false, setOnion: none, isolated: () => null, setIsolated: none, captureShot: () => null, stageOnly: () => false, setStageOnly: none, importSound: none,
 };
 export function setApp(patch: Partial<App>) {
   app = { ...app, ...patch };
@@ -1428,6 +1430,14 @@ export const COMMANDS: Command[] = [
     run: (c) => addMarker(c.store, c.store.getState().time),
   },
   { id: 'timeline.repeat', title: 'Repeat this shot', icon: Repeat1, when: animated, checked: () => App().repeatShot(), run: () => App().setRepeatShot(!App().repeatShot()) },
+  // The scene's sound (#35).
+  { id: 'sound.add', title: (c) => (sceneOf(c).sound ? 'Replace the sound…' : 'Add a sound…'), help: 'Dialogue or music to time the scene to (WAV, MP3, OGG, M4A): heard as it plays, carried in its videos', icon: Music, run: () => App().importSound() },
+  { id: 'sound.mute', title: 'Mute the sound', icon: VolumeX, when: (c) => !!sceneOf(c).sound, checked: (c) => !!sceneOf(c).sound?.muted, run: (c) => setSoundOptions(c.store, { muted: !sceneOf(c).sound!.muted }) },
+  {
+    id: 'sound.volume', title: 'How loud', icon: Volume2, when: (c) => !!sceneOf(c).sound,
+    items: (c) => [1, 0.75, 0.5, 0.25].map((v) => ({ title: `${Math.round(v * 100)}%`, checked: (sceneOf(c).sound?.volume ?? 1) === v, run: () => setSoundOptions(c.store, { volume: v }) })),
+  },
+  { id: 'sound.remove', title: 'Take the sound off', help: 'The library keeps it', icon: Trash2, danger: true, when: (c) => !!sceneOf(c).sound, run: (c) => removeSound(c.store) },
   { id: 'timeline.loop', title: 'Loop the animation', icon: Repeat, when: animated, checked: (c) => !!sceneOf(c).animation?.loop, run: (c) => setAnimationOptions(c.store, { loop: !sceneOf(c).animation!.loop }) },
   {
     id: 'timeline.speed', title: 'Playback speed', when: animated,
@@ -1604,6 +1614,7 @@ const MENUS = {
     'floor.figure', 'floor.standIn', 'floor.prop', 'light.add', '-', 'view.frameAll',
   ],
   timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.rangeIn', 'timeline.rangeOut', 'timeline.clearRange', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],
+  sound: ['sound.add', 'sound.volume', 'sound.mute', '-', 'sound.remove'],
 } satisfies Record<string, MenuEntry[]>;
 
 export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name], c);

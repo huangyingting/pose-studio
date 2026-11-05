@@ -172,13 +172,19 @@ describe('assets API', () => {
   const at = (id: string) => ({ params: Promise.resolve({ id }) });
   const putAsset = (id: string, body: Uint8Array, type: string) => routes.asset.PUT(new Request(`http://x/api/assets/${id}`, { method: 'PUT', headers: { 'Content-Type': type }, body: new Blob([body as BlobPart]) }), at(id));
 
-  it('keeps a character\'s file (known by its bytes) and gives it back; not an image, and not to someone else', async () => {
+  it('keeps a character\'s or a sound\'s file (known by its bytes) and gives it back; not an image, and not to someone else', async () => {
     user = 'u1';
     const glb = new Uint8Array([...new TextEncoder().encode('glTF'), 2, 0, 0, 0]);
     expect((await putAsset('model-1', glb, 'application/octet-stream')).status).toBe(200);
     const got = await routes.asset.GET(new Request('http://x/api/assets/model-1'), at('model-1'));
     expect(new Uint8Array(await got.arrayBuffer())).toEqual(glb);
     expect((await putAsset('img-1', new Uint8Array([0x89, 0x50, 0x4e, 0x47]), 'image/png')).status).toBe(400);
+    // A sound (#35): kept as it came; a file that is not one refused.
+    const wav = new Uint8Array([...new TextEncoder().encode('RIFF\0\0\0\0WAVEfmt '), 1, 2, 3]);
+    expect((await putAsset('snd-1', wav, 'audio/octet-stream')).status).toBe(200);
+    const heard = await routes.asset.GET(new Request('http://x/api/assets/snd-1'), at('snd-1'));
+    expect(new Uint8Array(await heard.arrayBuffer())).toEqual(wav);
+    expect((await putAsset('snd-2', new TextEncoder().encode('just some text'), 'audio/octet-stream')).status).toBe(400);
     user = 'u2';
     expect((await routes.asset.GET(new Request('http://x/api/assets/model-1'), at('model-1'))).status).toBe(404);
   });

@@ -11,3 +11,4 @@ export * from './timeline';
 export * from './cameras';
 export * from './library';
 export * from './selection';
+export * from './sound';

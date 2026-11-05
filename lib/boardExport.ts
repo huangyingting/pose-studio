@@ -1,7 +1,8 @@
 import { frameAspect } from './cameras';
-import { shotFrames, storyLength, type StoryShot } from './board';
+import { shotFrames, storyLength, storyWindows, type StoryShot } from './board';
+import { mixdown, segmentsOf } from './sound';
 import type { Pass } from './render';
-import type { Style } from './types';
+import type { SoundInfo, Style } from './types';
 import { createEncoder, drawShot, drawSubtitle, lineAt, wrap } from './video';
 import { videoRenderer } from './thumbnails';
 
@@ -15,6 +16,8 @@ interface StoryOptions {
   /** Captions under the panels, or as subtitles. */
   captions: boolean;
   pass?: Pass;
+  /** The library's sounds (#35): each scene's carried under its shots. */
+  sounds?: SoundInfo[];
 }
 
 
@@ -76,8 +79,11 @@ export function boardSheet(shots: StoryShot[], o: StoryOptions & { columns: numb
 /** The story as one video: every scene's shots in story order, a still scene held for its time. */
 export async function recordStory(shots: StoryShot[], o: StoryOptions & { width: number; height: number; lineWidth: number }, onProgress?: (f: number) => void, signal?: AbortSignal) {
   const fps = 24;
-  const enc = await createEncoder(o.width, o.height, fps);
   const total = storyLength(shots);
+  // Each scene's sound under its shots (#35).
+  const heard = storyWindows(shots, fps).flatMap((w) => segmentsOf(w.scene, o.sounds?.find((x) => x.id === w.scene.sound?.id), [w]));
+  const audio = heard.length ? await mixdown(heard, total) : null;
+  const enc = await createEncoder(o.width, o.height, fps, audio);
   let time = 0;
   // (A scene's caption under its shots, unless a line is said then: that is the subtitle.)
   const caption = (scene: StoryShot['scene'], t: number, text: string) => {

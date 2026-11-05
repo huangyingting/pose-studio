@@ -5,7 +5,9 @@ import { canvasToBlob, safeFilename, type Pass } from './render';
 import { cameraAt, cameraPath } from './cameras';
 import type { StoryShot } from './board';
 import { sharedRenderer } from './thumbnails';
-import type { Scene, Style } from './types';
+import { loadSoundFile } from './assetstore';
+import { soundExt, soundSegment } from './sound';
+import type { Scene, SoundInfo, Style } from './types';
 import { recordVideo, videoSupported } from './video';
 import { zip, type ZipEntry } from './zip';
 
@@ -22,6 +24,8 @@ interface PackOptions {
   lineWidth: number;
   /** Add a clay-shaded clip of each shot (animations only; takes longest). */
   greybox: boolean;
+  /** The library's sounds (#35): each scene's file packed, and where in it each of its shots is. */
+  sounds?: SoundInfo[];
 }
 
 const README = `Film Studio keyframe pack
@@ -33,6 +37,8 @@ Each shot folder holds:
   greybox.mp4                       the shot's motion and camera in clay shading (animations)
   camera.json                       the camera for every frame: position, look-at target, vertical FOV
   prompt.txt                        the shot described for an AI video model
+  sound.json                        the scene's sound under the shot: its file (in sounds/), from
+                                    which second of it, for how long, how loud
 
 prompt.txt and cutlist.otio at the top level cover the whole sequence (the scene, or the story).
 Give a video model the first (and last) frame, the greybox clip as a motion/camera reference
@@ -63,6 +69,18 @@ export async function keyframePack(shots: StoryShot[], name: string, o: PackOpti
     return new Uint8Array(await blob.arrayBuffer());
   };
 
+  // The scenes' sounds, each file once (#35).
+  const soundFiles = new Map<string, string>();
+  for (const x of shots) {
+    const info = x.scene.sound && o.sounds?.find((s) => s.id === x.scene.sound!.id);
+    if (!info || soundFiles.has(info.id)) continue;
+    const data = await loadSoundFile(info.id);
+    if (!data) continue;
+    const file = `sounds/${safeFilename(info.name, 'sound')}.${soundExt(data)}`;
+    soundFiles.set(info.id, file);
+    entries.push({ name: file, data: new Uint8Array(data) });
+  }
+
   for (const [i, x] of shots.entries()) {
     if (signal?.aborted) throw new Error('Cancelled');
     const label = x.span ? (scenes > 1 ? `${x.scene.name} ${x.span.shot.name}` : x.span.shot.name) : x.scene.name;
@@ -78,6 +96,9 @@ export async function keyframePack(shots: StoryShot[], name: string, o: PackOpti
       tick();
     }
     entries.push({ name: `${dir}/prompt.txt`, data: (x.span ? describeSpan(x.scene, x.span) : describeShot(x.scene)) + '\n' });
+    const info = o.sounds?.find((s) => s.id === x.scene.sound?.id);
+    const heard = x.span && soundFiles.has(info?.id ?? '') ? soundSegment(x.scene, info, x.span.start, x.span.end) : null;
+    if (heard) entries.push({ name: `${dir}/sound.json`, data: JSON.stringify({ file: `../${soundFiles.get(heard.id)}`, startsAfter: round(heard.at), from: round(heard.from), length: round(heard.length), volume: heard.volume }, null, 2) });
     entries.push({ name: `${dir}/camera.json`, data: JSON.stringify(cameraPath(x.scene, first, x.span ? x.span.end : 0, o.width / o.height), null, 2) });
     if (greybox && x.span) {
       const clip = await recordVideo(x.scene, { ...o, style: 'shaded', loops: 1, range: [x.span.start, x.span.end] }, undefined, signal);
@@ -87,3 +108,5 @@ export async function keyframePack(shots: StoryShot[], name: string, o: PackOpti
   }
   return zip(entries);
 }
+
+const round = (v: number) => Math.round(v * 1000) / 1000;

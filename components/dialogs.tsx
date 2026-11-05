@@ -166,10 +166,12 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         return;
       }
       const title = whole ? 'Story' : safeFilename(scene.name);
+      // (The library's sounds: the scenes' carried in their videos and the pack, #35.)
+      const sounds = store.getState().library.sounds ?? [];
       if (pack) {
         abort.current = new AbortController();
         const blob = await keyframePack(shots, whole ? 'Story' : scene.name, {
-          width, height, style, lineWidth: o.lineWidth * (height / 640), greybox: o.greybox,
+          width, height, style, lineWidth: o.lineWidth * (height / 640), greybox: o.greybox, sounds,
         }, advance('Packing for AI video'), abort.current.signal);
         const name = `${title}_ai_pack.zip`;
         downloadBlob(blob, name);
@@ -181,8 +183,8 @@ export function ExportDialog({ onClose, notify, editorCamera, initial }: {
         abort.current = new AbortController();
         const look = { width, height, style, lineWidth: o.lineWidth * (height / 640), pass };
         const { blob, ext } = whole
-          ? await recordStory(story, { ...look, captions: o.labels }, advance('Recording the storyboard'), abort.current.signal)
-          : await recordVideo(scene, { ...look, loops: o.videoLoops, ...(ranged ? { range: [scene.animation!.range!.from, scene.animation!.range!.to] as [number, number] } : {}) }, advance('Recording the video'), abort.current.signal);
+          ? await recordStory(story, { ...look, captions: o.labels, sounds }, advance('Recording the storyboard'), abort.current.signal)
+          : await recordVideo(scene, { ...look, loops: o.videoLoops, sound: sounds.find((x) => x.id === scene.sound?.id), ...(ranged ? { range: [scene.animation!.range!.from, scene.animation!.range!.to] as [number, number] } : {}) }, advance('Recording the video'), abort.current.signal);
         const name = `${title}.${ext}`;
         downloadBlob(blob, name);
         notify(`Saved ${name} (${width} × ${height})`);

@@ -1,6 +1,6 @@
 import { useRef, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import {
-  editMarker, editShot, giveAction, moveAction, moveKey, moveKeys, moveShotCut, retime, retimeCameraPoint, retimeKeys, rippleKeys, setBlend, setRange, slip, trim,
+  editMarker, editShot, giveAction, moveAction, moveKey, moveKeys, moveShotCut, moveSound, retime, retimeCameraPoint, retimeKeys, rippleKeys, sceneSound, setBlend, setRange, slip, trim, trimSound,
 } from '@/lib/actions';
 import { snapTime } from '@/lib/animation';
 import { clipById, loopsOf } from '@/lib/assets';
@@ -8,6 +8,7 @@ import { cameraById } from '@/lib/cameras';
 import { shotSpans, type ShotSpan } from '@/lib/shots';
 import type { Store } from '@/lib/store';
 import { keyTimesOf, moments } from '@/lib/track';
+import { soundBeats, soundSpan } from '@/lib/sound';
 import type { Action, Animation, Figure } from '@/lib/types';
 import type { Notify } from '../ui';
 
@@ -54,8 +55,9 @@ interface DragsOf {
 /** The timeline's drags, for its rows (see DragsOf for what they work with). */
 export function useDrags(d: DragsOf) {
   const { store, a, figures, camTimes, track, root, view, laneWidth, snapping, keyPick, setPicked, setBox, setSnapAt, setReadout, setZoom, pause, seek, notify } = d;
-  const snapper = (skip: (t: number) => boolean = () => false) => {
+  const snapper = (skip: (t: number) => boolean = () => false, sound = true) => {
     const now = store.scene.animation!;
+    const heard = sound ? sceneSound(store) : null;
     const targets = snapping ? [
       store.getState().time,
       ...now.actions.flatMap((x) => [x.start, x.start + x.duration]),
@@ -63,6 +65,8 @@ export function useDrags(d: DragsOf) {
       ...now.shots.map((x) => x.start),
       ...(now.markers ?? []).map((m) => m.t),
       ...camTimes,
+      // (The sound's ends and beats, #35: what is timed to it lands on them.)
+      ...(heard ? soundBeats(heard.sound, heard.info) : []),
     ].filter((t) => !skip(t)) : [];
     /** Where t lands: on a target within reach (null if none: the frame it is on). */
     const near = (t: number) => {
@@ -471,11 +475,47 @@ export function useDrags(d: DragsOf) {
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
   };
+  /**
+   * Drag the scene's sound along its row (its start snapping as any drag does), or an edge of it to
+   * trim it (#35); a click without moving goes there.
+   */
+  const dragSound = (part: 'move' | 'start' | 'end') => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    pause();
+    const got = sceneSound(store);
+    if (!got) return;
+    const span = soundSpan(got.sound, got.info);
+    const x0 = e.clientX;
+    const t0 = timeAt(x0);
+    let moved = false;
+    // (Not onto its own beats or ends: they go with it.)
+    const snap = snapper(undefined, false);
+    const move = (ev: { clientX: number }) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      moved = true;
+      const t = timeAt(ev.clientX);
+      if (part === 'move') moveSound(store, snap.at(span.t0 + t - t0), 'sound:move');
+      else trimSound(store, part, snap.at(t), `sound:${part}`);
+    };
+    const stop = follow(e.clientX, move);
+    const up = () => {
+      stop();
+      snap.done();
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (!moved) seek(t0);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
   const renameMarker = (id: string, name: string) => {
     const next = window.prompt('Marker name', name)?.trim();
     if (next) editMarker(store, id, { name: next });
   };
-  return { timeAt, follow, snapper, scrub, dragKey, scaleKeys, boxKeys, dragAction, dragPoint, dragCut, dragMarker, dragRange, renameMarker };
+  return { timeAt, follow, snapper, scrub, dragKey, scaleKeys, boxKeys, dragAction, dragPoint, dragCut, dragMarker, dragRange, dragSound, renameMarker };
 }
 
 export type Drags = ReturnType<typeof useDrags>;

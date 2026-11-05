@@ -152,6 +152,31 @@ export interface Scene {
   hold?: number;
   /** Optional animation (see lib/animation.ts). */
   animation?: Animation;
+  /** Its sound (#35: dialogue, music), heard as it plays and carried in its videos. */
+  sound?: SceneSound;
+}
+
+/**
+ * A scene's sound (#35): which of the library's sounds, where it starts on the timeline (s), the
+ * part of it played (from, to: seconds of it, all of it when not given), how loud (0–1) and whether muted.
+ */
+export interface SceneSound {
+  id: string;
+  start: number;
+  from?: number;
+  to?: number;
+  volume?: number;
+  muted?: boolean;
+}
+
+/** A sound the user imported (WAV, MP3, OGG, M4A): how the library lists it; its file is an asset (lib/assetstore.ts). */
+export interface SoundInfo {
+  id: string;
+  name: string;
+  /** Seconds. */
+  duration: number;
+  /** Its waveform, for its timeline row: the loudest of each of its stretches (0–100), evenly over it. */
+  peaks: number[];
 }
 
 /* ---------- animation (see lib/evaluate.ts) ---------- */
@@ -528,6 +553,8 @@ export interface Library {
   clips?: ClipInfo[];
   /** Characters the user imported, to draw figures as (their files are assets). */
   models?: ModelInfo[];
+  /** Sounds the user imported, for scenes to play (their files are assets). */
+  sounds?: SoundInfo[];
   /** Scene templates the user saved (lib/templates.ts). */
   templates?: TemplateAsset[];
   /** Shoot presets the user made: a template paired with a coverage (lib/templates.ts). */

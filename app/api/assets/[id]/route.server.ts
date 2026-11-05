@@ -4,7 +4,7 @@ import { readAsset, validId, writeAsset } from '@/lib/server/assets';
 
 /*
  * One of the signed-in user's imported assets, kept on the server as a file: a clip's frames
- * (JSON, validated) or a character's file (as it came: glTF/GLB or FBX).
+ * (JSON, validated), a character's file (as it came: glTF/GLB or FBX) or a sound's (WAV, MP3, OGG, M4A, FLAC).
  */
 
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -25,6 +25,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!validId(id)) return Response.json({ error: 'Invalid id' }, { status: 400 });
   const data = new Uint8Array(await req.arrayBuffer());
   if (data.length > MAX_BYTES) return Response.json({ error: 'The file is too large' }, { status: 413 });
+  if (req.headers.get('content-type')?.startsWith('audio/')) {
+    // A sound (#35): WAV, MP3, OGG, M4A or FLAC, by how its file begins.
+    const head = new TextDecoder('latin1').decode(data.slice(0, 12));
+    const mp3 = data[0] === 0xff && (data[1] & 0xe0) === 0xe0;
+    if (!/^RIFF....WAVE|^ID3|^OggS|^....ftyp|^fLaC/s.test(head) && !mp3) return Response.json({ error: 'Not a sound file' }, { status: 400 });
+    await writeAsset(userId, id, 'snd', data);
+    return Response.json({ ok: true });
+  }
   if (req.headers.get('content-type')?.startsWith('application/octet-stream')) {
     // A character: a glTF (JSON or binary) or FBX file.
     const head = new TextDecoder().decode(data.slice(0, 32));

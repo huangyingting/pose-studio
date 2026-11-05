@@ -12,7 +12,7 @@ import { setById } from './sets';
 import {
   BONES, FEELINGS, FINGERS, HOLDERS, JOINTS, MARKER_COLORS, POSTURES, PROP_KINDS, PROP_LABELS, TRAVELS,
   type Action, type Animation, type Bone, type Camera, type Clip, type ClipInfo, type ClipPart, type ClipTrack, type Constraint, type ConstraintTarget, type Feeling, type Figure, type Holder, type Hand, type JointName, type Library, type Mark, type MarkerColor, type ModelInfo, type PoseAsset,
-  type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type Side, type Travel, type Vec3, type View,
+  type Posture, type Prop, type PropKind, type PropKey, type PropTarget, type Scene, type SceneSound, type Side, type SoundInfo, type Travel, type Vec3, type View,
 } from './types';
 
 export { uid };
@@ -279,6 +279,7 @@ export function parseScene(v: unknown, i = 0): Scene {
     ...(typeof v.set === 'string' && setById(v.set) ? { set: v.set } : {}),
     ...(typeof v.caption === 'string' && v.caption ? { caption: v.caption.slice(0, 500) } : {}),
     ...(v.offStory === true ? { offStory: true } : {}),
+    ...(parseSceneSound(v.sound) ? { sound: parseSceneSound(v.sound)! } : {}),
     ...(typeof v.hold === 'number' && Number.isFinite(v.hold) ? { hold: Math.min(60, Math.max(0.2, v.hold)) } : {}),
   };
   if (!scene.cameras.length) scene.cameras = [defaultCamera()];
@@ -519,6 +520,7 @@ export function parseLibrary(data: unknown): Library {
   // What the imported clips are (a file has their frames too: clipsIn).
   const clips = (Array.isArray(data.clips) ? data.clips : []).slice(0, 500).flatMap((c) => parseClipInfo(c) ?? []);
   const models = (Array.isArray(data.models) ? data.models : []).slice(0, 200).flatMap((m) => parseModelInfo(m) ?? []);
+  const sounds = (Array.isArray(data.sounds) ? data.sounds : []).slice(0, 200).flatMap((m) => parseSoundInfo(m) ?? []);
   const templates = (Array.isArray(data.templates) ? data.templates : []).slice(0, 200).filter(isObj).map((t, i) => ({
     id: typeof t.id === 'string' && t.id ? t.id.slice(0, 40) : uid('tpl'),
     name: typeof t.name === 'string' && t.name ? t.name.slice(0, 80) : `Template ${i + 1}`,
@@ -536,7 +538,26 @@ export function parseLibrary(data: unknown): Library {
     }));
   return {
     scenes, ...(settings ? { settings } : {}), ...(poses ? { poses } : {}), ...(clips.length ? { clips } : {}), ...(models.length ? { models } : {}),
-    ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}),
+    ...(sounds.length ? { sounds } : {}), ...(templates.length ? { templates } : {}), ...(shoots.length ? { shoots } : {}),
+  };
+}
+
+/** A sound the library lists (#35): its name, length and waveform. */
+function parseSoundInfo(v: unknown): SoundInfo | null {
+  if (!isObj(v) || typeof v.id !== 'string' || !v.id) return null;
+  const peaks = (Array.isArray(v.peaks) ? v.peaks : []).slice(0, 2000).map((p) => Math.round(Math.min(100, Math.max(0, num(p, 0)))));
+  return { id: v.id.slice(0, 80), name: str(v.name, 'Sound').slice(0, 80), duration: Math.min(3600, Math.max(0, num(v.duration, 0))), peaks };
+}
+
+/** A scene's sound (#35): which, where it starts, the part of it played, how loud, muted. */
+function parseSceneSound(v: unknown): SceneSound | null {
+  if (!isObj(v) || typeof v.id !== 'string' || !v.id) return null;
+  const from = Math.max(0, num(v.from, 0));
+  const to = typeof v.to === 'number' && Number.isFinite(v.to) && v.to > from ? v.to : null;
+  const volume = typeof v.volume === 'number' && Number.isFinite(v.volume) ? Math.min(1, Math.max(0, v.volume)) : null;
+  return {
+    id: v.id.slice(0, 80), start: Math.min(MAX_DURATION, Math.max(-3600, num(v.start, 0))),
+    ...(from > 0 ? { from } : {}), ...(to !== null ? { to } : {}), ...(volume !== null && volume < 1 ? { volume } : {}), ...(v.muted === true ? { muted: true } : {}),
   };
 }
 
@@ -561,14 +582,14 @@ function parseClipInfo(v: unknown): ClipInfo | null {
   return { id: v.id.slice(0, 80), name: str(v.name, 'Motion').slice(0, 80), duration: Math.min(600, Math.max(0, num(v.duration, 0))), loop: v.loop === true, people: people.length ? people : ['Part 1'] };
 }
 
-/** The imported clips whose frames a saved library file carries. */
 /**
- * The imported characters' files a project file carries (as base64: a file opened elsewhere draws
- * its figures as they were), by the id the library lists each by.
+ * The imported characters' or sounds' files a project file carries (as base64: a file opened
+ * elsewhere draws its figures and plays its scenes as they were), by the id the library lists each by.
  */
-export function modelFilesIn(data: unknown): { id: string; data: ArrayBuffer }[] {
-  if (!isObj(data) || !Array.isArray(data.modelFiles)) return [];
-  return data.modelFiles.slice(0, 200).filter(isObj).flatMap((f) => {
+export function filesIn(data: unknown, kind: 'modelFiles' | 'soundFiles'): { id: string; data: ArrayBuffer }[] {
+  const list = isObj(data) ? data[kind] : null;
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 200).filter(isObj).flatMap((f) => {
     if (typeof f.id !== 'string' || typeof f.data !== 'string') return [];
     try {
       return [{ id: f.id.slice(0, 40), data: Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0)).buffer }];
@@ -578,7 +599,7 @@ export function modelFilesIn(data: unknown): { id: string; data: ArrayBuffer }[]
   });
 }
 
-/** A file's bytes as base64 (modelFilesIn reads them back). */
+/** A file's bytes as base64 (filesIn reads them back). */
 export function toBase64(data: ArrayBuffer) {
   const bytes = new Uint8Array(data);
   let text = '';
@@ -587,6 +608,7 @@ export function toBase64(data: ArrayBuffer) {
   return btoa(text);
 }
 
+/** The imported clips whose frames a saved library file carries. */
 export function clipsIn(data: unknown): Clip[] {
   if (!isObj(data)) return [];
   return Array.isArray(data.clips) ? data.clips.slice(0, 500).map(parseClip).filter((c): c is Clip => c !== null) : [];

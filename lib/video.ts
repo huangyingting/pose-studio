@@ -3,7 +3,8 @@ import { cameraAt } from './cameras';
 import { styleDef } from './styles';
 import { sharedRenderer, videoRenderer } from './thumbnails';
 import type { Pass } from './render';
-import type { Scene, Style } from './types';
+import { mixdown, segmentsOf, type Window } from './sound';
+import type { Scene, SoundInfo, Style } from './types';
 
 /*
  * Video export: film the animation through its shot camera and encode it frame by frame with
@@ -24,12 +25,18 @@ interface Encoder {
   cancel(): Promise<void>;
 }
 
-export async function createEncoder(width: number, height: number, fps: number): Promise<Encoder> {
+/** An encoder for a video of this size and rate, carrying `audio` from its start (#35) where the browser can encode it. */
+export async function createEncoder(width: number, height: number, fps: number, audio: AudioBuffer | null = null): Promise<Encoder> {
   // Loaded on demand: only video export needs it.
   const mb = await import('mediabunny');
   const quality = new mb.Quality('high');
   const size = { width, height, quality };
-  const codec = (await mb.canEncodeVideo('avc', size)) ? 'avc' : await mb.getFirstEncodableVideoCodec(['vp9', 'vp8'], size);
+  // (With a sound: MP4 where its AAC can be made, else WebM with Opus, else MP4 without the sound.)
+  const heard = audio ? { numberOfChannels: audio.numberOfChannels, sampleRate: audio.sampleRate } : null;
+  const aac = !!heard && (await mb.canEncodeAudio('aac', heard));
+  const opus = !!heard && (await mb.canEncodeAudio('opus', heard));
+  const avc = await mb.canEncodeVideo('avc', size);
+  const codec = avc && (!heard || aac || !opus) ? 'avc' : (await mb.getFirstEncodableVideoCodec(['vp9', 'vp8'], size)) ?? (avc ? 'avc' : null);
   if (!codec) throw new Error('This browser cannot encode video');
   const format = codec === 'avc' ? new mb.Mp4OutputFormat({ fastStart: 'in-memory' }) : new mb.WebMOutputFormat();
   const output = new mb.Output({ format, target: new mb.BufferTarget() });
@@ -39,7 +46,15 @@ export async function createEncoder(width: number, height: number, fps: number):
   const ctx = canvas.getContext('2d')!;
   const source = new mb.CanvasSource(canvas, { codec, quality });
   output.addVideoTrack(source, { frameRate: fps });
+  // (The sound in the codec the container takes: AAC in MP4, Opus in WebM.)
+  const audioCodec = codec === 'avc' ? (aac ? 'aac' : null) : opus ? 'opus' : null;
+  const sound = audio && audioCodec ? new mb.AudioBufferSource({ codec: audioCodec, quality }) : null;
+  if (sound) output.addAudioTrack(sound);
   await output.start();
+  if (sound && audio) {
+    await sound.add(audio);
+    sound.close();
+  }
   return {
     ctx,
     add: (time, duration) => source.add(time, duration),
@@ -62,6 +77,8 @@ interface VideoOptions {
   range?: [number, number];
   /** The lines said shown as subtitles (a video's; not a board's panels). */
   subtitles?: boolean;
+  /** The scene's sound, as the library lists it (#35): carried in the video. */
+  sound?: SoundInfo;
 }
 
 /** Draw one frame of a scene through its shot camera at time t (with the line said then as its subtitle, if asked). */
@@ -122,11 +139,15 @@ export function wrap(ctx: CanvasRenderingContext2D, text: string, width: number,
 export async function recordVideo(scene: Scene, o: VideoOptions, onProgress?: (fraction: number) => void, signal?: AbortSignal) {
   const a = scene.animation;
   if (!a) throw new Error('This pose has no animation');
-  const enc = await createEncoder(o.width, o.height, a.fps);
   const perLoop = Math.max(1, Math.round(a.duration * a.fps));
   const [r0, r1] = o.range ?? [0, a.duration];
   // (One that does not go round plays through to its last pose each time: a frame more each play.)
   const total = o.range ? Math.max(1, Math.round((r1 - r0) * a.fps)) : a.loop ? perLoop * o.loops : (perLoop + 1) * o.loops;
+  // Its sound under each play of it (#35).
+  const pass = (a.loop ? perLoop : perLoop + 1) / a.fps;
+  const windows: Window[] = o.range ? [{ t0: r0, t1: r1, at: 0 }] : Array.from({ length: o.loops }, (_, k) => ({ t0: 0, t1: a.duration, at: k * pass }));
+  const audio = o.sound ? await mixdown(segmentsOf(scene, o.sound, windows), total / a.fps) : null;
+  const enc = await createEncoder(o.width, o.height, a.fps, audio);
   for (let i = 0; i < total; i++) {
     if (signal?.aborted) {
       await enc.cancel();

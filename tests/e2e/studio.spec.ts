@@ -11,6 +11,7 @@ import { correctionTimesOf, keyTimesOf, moments } from '../../lib/track';
 import type { Animation, Camera, PathCamera, Scene } from '../../lib/types';
 import { CMU, bvh } from '../fixtures/bvh';
 import { characterGltf } from '../fixtures/gltf';
+import { wav } from '../fixtures/wav';
 /** The two people's poses in the Library's Poses. */
 const TOGETHER = STAGINGS.length;
 
@@ -1391,6 +1392,36 @@ test('exports an animation as a frame sheet and as a video', async ({ page }) =>
   [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Download' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^Wave_both_arms\.(webm|mp4)$/);
   expect(readFileSync((await download.path())!).length).toBeGreaterThan(2000);
+});
+
+test('a sound on the scene (#35): added from a file, on its own row, dragged along it, carried in the video', async ({ page }) => {
+  test.setTimeout(300_000);
+  // Added by its command, from a file: the still scene animated as long as it.
+  await page.keyboard.press('Control+k');
+  await page.getByRole('dialog', { name: 'Command palette' }).getByRole('combobox', { name: 'Find a command' }).fill('add a sound');
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('option', { name: /^Add a sound…/ }).click()]);
+  await chooser.setFiles({ name: 'Beat.wav', mimeType: 'audio/wav', buffer: wav(3) });
+  await expect(page.getByRole('status').filter({ hasText: 'Added “Beat” (3.0 s) to the scene' })).toBeVisible();
+  let s = await live(page);
+  expect(s.scene.sound).toMatchObject({ start: 0 });
+  expect(s.scene.animation!.duration).toBe(3);
+  // Its row, its waveform; dragged along it.
+  const block = page.locator('.tl-row.sound .tl-travel.sound');
+  await expect(block).toContainText('Beat');
+  const box = (await block.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
+  s = await live(page);
+  expect(s.scene.sound!.start).toBeGreaterThan(0.1);
+  // The video carries it: an audio track as well as the picture.
+  await page.keyboard.press('Control+e');
+  await page.getByRole('radio', { name: 'Video', exact: true }).click();
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.getByRole('button', { name: 'Download' }).click()]);
+  const mb = await import('mediabunny');
+  const input = new mb.Input({ source: new mb.BufferSource(readFileSync((await download.path())!)), formats: mb.ALL_FORMATS });
+  expect((await input.getTracks()).map((t) => t.type).sort()).toEqual(['audio', 'video']);
 });
 
 test('cuts shots and exports a keyframe pack with depth and normal passes', async ({ page }) => {

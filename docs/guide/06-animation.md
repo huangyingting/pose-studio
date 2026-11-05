@@ -52,6 +52,10 @@ The timeline zooms with `Ctrl` + wheel or its zoom buttons and scrolls with `Shi
 - what a conversation is cut on (the director's **Conversation** and **Group** go to whoever says one);
 - a subtitle in an exported video and the storyboard's video.
 
+## A sound
+
+**Add a sound…** (the timeline's ⋯, or the command palette), or an audio file dropped on the timeline, puts dialogue or music on the scene to time it to: a WAV, MP3, OGG or M4A. A still scene is animated for as long as the sound. It has a row under the shots with its waveform: drag it along the row to move it, its edges to trim it. Drags of anything else snap to its ends and its beats (its louder peaks). It is heard as the scene plays, from where the playhead is in it, and a moment of it when you scrub. Its menu (right-click its row): **Replace the sound…**, **How loud**, **Mute the sound**, **Take the sound off** (the Library keeps it). One sound per scene; it is saved with the project, in its file and, signed in, on your other devices.
+
 ## A block and its menu
 
 ![A motion's block right-clicked: selected, its menu beside it](images/action-inspector.png)

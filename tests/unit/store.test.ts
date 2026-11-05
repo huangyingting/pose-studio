@@ -207,7 +207,7 @@ describe('share link limits', () => {
 describe('a project file', () => {
   it('opened: its scenes in place of these or after them; what the user made in it added to what is here, by id', async () => {
     const { openProject } = await import('@/lib/actions');
-    const { modelFilesIn, parseLibrary, toBase64 } = await import('@/lib/doc');
+    const { filesIn, parseLibrary, toBase64 } = await import('@/lib/doc');
     const store = new Store(new MemoryStorage());
     const pose = { ...referencePoses()[0], id: 'mine' };
     store.commit((lib) => ({ ...lib, poses: [pose] }));
@@ -222,7 +222,7 @@ describe('a project file', () => {
     expect(store.getState().library.poses).toHaveLength(2);
     // An imported character's file goes with it, and comes back as it was.
     const bytes = new Uint8Array(70_000).map((_, i) => i % 251);
-    const [back] = modelFilesIn({ modelFiles: [{ id: 'model-1', data: toBase64(bytes.buffer) }] });
+    const [back] = filesIn({ modelFiles: [{ id: 'model-1', data: toBase64(bytes.buffer) }] }, 'modelFiles');
     expect(back.id).toBe('model-1');
     expect(new Uint8Array(back.data)).toEqual(bytes);
   });

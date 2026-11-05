@@ -16,18 +16,18 @@ import { DIRECTOR_STYLES } from '@/lib/coverage';
 import { type Animation } from '@/lib/types';
 import { startPlayback, type Clock } from './clock';
 import { openContextMenu } from './ContextMenu';
-import { choices, command, menu, menuItems, setApp, tipOf, titleOf, type Ctx } from './commands';
+import { App, choices, command, menu, menuItems, setApp, tipOf, titleOf, type Ctx } from './commands';
 import ActionPicker, { type PickerAt } from './ActionPicker';
 import { CommandButton } from './CommandButton';
 import { stepDone } from './nextStep';
 import { rovingKey, useRoving, type Roving } from './roving';
 import { useScene, useStore, useStudio } from './store-context';
 import { useDrags } from './timeline/drags';
-import { CameraRow, FigureRow, PropRow, Ruler, ShotsRow, type TrackView } from './timeline/rows';
+import { CameraRow, FigureRow, PropRow, Ruler, ShotsRow, SoundRow, type TrackView } from './timeline/rows';
 import { IconButton, Menu, NumberField, type Notify } from './ui';
 
 /** Row heights (px): the time ruler, the shots, each figure, each prop moving, the path camera. */
-const ROW = { ruler: 20, shots: 30, figure: 36, prop: 28, camera: 30, layers: 30 };
+const ROW = { ruler: 20, shots: 30, sound: 30, figure: 36, prop: 28, camera: 30, layers: 30 };
 
 /** Current playhead: the clock while playing, the document time otherwise. */
 export function usePlayhead(clock: Clock) {
@@ -487,13 +487,15 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
     });
   });
   // (Rows tall enough to take hold of: a block, its edges and its buttons, a key.)
-  const top = ROW.ruler + ROW.shots;
+  // The sound's row (#35), when the scene has one.
+  const heard = !!scene.sound && (store.getState().library.sounds ?? []).some((x) => x.id === scene.sound!.id);
+  const top = ROW.ruler + ROW.shots + (heard ? ROW.sound : 0);
   const figureY = (id: string) => top + figures.findIndex((f) => f.id === id) * ROW.figure + ROW.figure / 2;
   const propY = (j: number) => top + figures.length * ROW.figure + j * ROW.prop + ROW.prop / 2;
   // The camera row only for a camera on a path (selected, or filming at the playhead): its points to
   // retime; a camera on a rule places itself, with nothing to edit here.
   const cameraRow = rowCam.kind === 'path';
-  const rows = [ROW.ruler, ROW.shots, ...figures.map((f) => ROW.figure + (unfolded.has(f.id) ? ROW.layers : 0)), ...moving.map(() => ROW.prop), ...(cameraRow ? [ROW.camera] : [])].map((h) => `${h}px`).join(' ');
+  const rows = [ROW.ruler, ROW.shots, ...(heard ? [ROW.sound] : []), ...figures.map((f) => ROW.figure + (unfolded.has(f.id) ? ROW.layers : 0)), ...moving.map(() => ROW.prop), ...(cameraRow ? [ROW.camera] : [])].map((h) => `${h}px`).join(' ');
   const step = TICKS.find((x) => x * pxPerSecond >= 10) ?? 60;
   const labelStep = LABELS.find((x) => x * pxPerSecond >= 56) ?? 120;
   const ticks: number[] = [];
@@ -601,7 +603,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           side="top"
           align="end"
           className="ibtn"
-          items={() => menuItems([...(compact ? ['timeline.deleteKey', 'timeline.cut', '-'] : []), 'timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.deleteCameraPoint', 'timeline.remove'], c)}
+          items={() => menuItems([...(compact ? ['timeline.deleteKey', 'timeline.cut', '-'] : []), 'timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'sound.add', '-', 'timeline.deleteCameraPoint', 'timeline.remove'], c)}
         >
           <Ellipsis size={17} aria-hidden />
         </Menu>
@@ -623,11 +625,20 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           // (Clicked in, it takes the keys; not from what has a focus of its own.)
           onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('input, textarea, select')) e.currentTarget.focus({ preventScroll: true }); }}
           onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
+          // An audio file dropped on the tracks: the scene's sound (#35).
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+          onDrop={(e) => {
+            const file = [...e.dataTransfer.files].find((f) => f.type.startsWith('audio/') || /\.(wav|mp3|ogg|oga|opus|m4a|aac|flac)$/i.test(f.name));
+            if (!file) return;
+            e.preventDefault();
+            App().importSound(file);
+          }}
         >
           {keysHere && <span className="tl-keys" aria-hidden><kbd>←</kbd><kbd>→</kbd> frame · <kbd>Shift</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> person · <kbd>Home</kbd><kbd>End</kbd> · <kbd>=</kbd><kbd>−</kbd> zoom · <kbd>M</kbd> marker · <kbd>I</kbd><kbd>O</kbd> in, out · <kbd>Esc</kbd></span>}
           <div className="tl-labels" style={{ gridTemplateRows: rows }}>
             <span className="tl-head ruler" aria-hidden />
             <span className="tl-head shots" aria-hidden>Shots</span>
+            {heard && <span className="tl-head sound" aria-hidden>Sound</span>}
             {multi ? figures.map((f) => (
               <button
                 key={f.id}
@@ -670,6 +681,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           <div className="tl-lanes" ref={track} onPointerDown={scrub} style={{ gridTemplateRows: rows }}>
             <Ruler tl={tl} />
             <ShotsRow tl={tl} />
+            {heard && <SoundRow tl={tl} />}
             {figures.map((f) => <FigureRow key={f.id} tl={tl} f={f} />)}
             {moving.map((p) => <PropRow key={p.id} tl={tl} p={p} />)}
             {cameraRow && <CameraRow tl={tl} />}
