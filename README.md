@@ -28,7 +28,7 @@ One codebase builds two editions:
 
 ## Build and run
 
-Requires Node 20.9+ and a browser with WebGL.
+Requires Node 22.13+ or 24+ (as CI and the Docker image use) and a browser with WebGL.
 
 ```bash
 npm install          # also fetches the on-device pose model (~9 MB) into public/mediapipe
