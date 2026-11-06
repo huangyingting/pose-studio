@@ -89,6 +89,7 @@ export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolea
   ...Object.fromEntries(['sword-and-shield-idle', 'sword-and-shield-attack', 'sword-and-shield-block', 'sword-and-shield-impact', 'sword-and-shield-death'].map((m) => [m, [{ kind: 'sword' as const, hand: 'R' as const }, { kind: 'shield' as const, hand: 'L' as const }]])),
   'baseball-hit': [{ kind: 'bat', hand: 'R' }],
   'golf-drive': [{ kind: 'club', hand: 'R' }],
+  'golf-putt': [{ kind: 'club', hand: 'R' }],
   'talking-on-phone': [{ kind: 'phone', hand: 'R' }],
   'texting-while-standing': [{ kind: 'phone', hand: 'R' }],
   'texting-and-walking': [{ kind: 'phone', hand: 'R' }],

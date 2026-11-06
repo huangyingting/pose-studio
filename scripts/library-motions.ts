@@ -299,6 +299,22 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Walk With Briefcase': ['Walk with a briefcase', 'Using things'],
   'Walk With Shopping Bag': ['Walk with a shopping bag', 'Using things'],
   'Moonwalk': ['Moonwalk', 'Dance'],
+  'Soccer Pass': ['Pass a ball (football)', 'Sport & acrobatics'],
+  'Kick Soccerball': ['Kick a ball', 'Sport & acrobatics'],
+  'Header Soccerball': ['Head a ball', 'Sport & acrobatics'],
+  'Soccer Tackle': ['Slide tackle', 'Sport & acrobatics'],
+  'Throw In': ['Throw-in', 'Sport & acrobatics'],
+  'Goalkeeper Catch': ['Goalkeeper, catch', 'Sport & acrobatics'],
+  'Goalkeeper Diving Save': ['Goalkeeper, diving save', 'Sport & acrobatics'],
+  'Quarterback Pass': ['Quarterback pass', 'Sport & acrobatics'],
+  'Baseball Catcher': ['Baseball catcher', 'Sport & acrobatics'],
+  'Baseball Umpire': ['Umpire, calling it', 'Sport & acrobatics'],
+  'Dribble': ['Dribble a basketball', 'Sport & acrobatics'],
+  'Boxing': ['Box', 'Fighting'],
+  'Golf Putt': ['Putt', 'Sport & acrobatics'],
+  'Frisbee Throw': ['Throw a frisbee', 'Sport & acrobatics'],
+  'Slipping': ['Slip and fall', 'Moving'],
+  'Wiping Sweat': ['Wipe your brow', 'Standing & waiting'],
 };
 
 /**
@@ -355,6 +371,7 @@ const ONCE = [
   'Stand To Roll', 'Sprinting Forward Roll', 'Slide Feet First', 'Running Jump', 'Falling To Roll', 'Vault Over Box', 'Jump Down',
   'Being Electrocuted', 'Big Stomach Hit', 'Hit By Car', 'Kick To The Groin', 'Shoulder Hit And Fall',
   'Kneeling Down', 'Kneeling Pointing', 'Crouch To Prone', 'Prone To Crouch',
+  'Soccer Pass', 'Kick Soccerball', 'Header Soccerball', 'Soccer Tackle', 'Throw In', 'Goalkeeper Catch', 'Goalkeeper Diving Save', 'Quarterback Pass', 'Baseball Catcher', 'Baseball Umpire', 'Golf Putt', 'Frisbee Throw', 'Slipping', 'Wiping Sweat',
 ];
 
 /**

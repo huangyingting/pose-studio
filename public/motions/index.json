@@ -90,6 +90,18 @@
   "turn": 0
  },
  {
+  "id": "library:baseball-catcher",
+  "name": "Baseball catcher",
+  "duration": 9.167,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:baseball-pitching",
   "name": "Baseball pitch",
   "duration": 5.2,
@@ -156,6 +168,19 @@
   "duration": 2.733,
   "people": 1,
   "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:boxing",
+  "name": "Box",
+  "duration": 2.2,
+  "people": 1,
+  "group": "Fighting",
+  "loop": true,
   "move": [
    0,
    0
@@ -449,6 +474,19 @@
   "duration": 10.8,
   "people": 1,
   "group": "Sitting & lying",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:dribble",
+  "name": "Dribble a basketball",
+  "duration": 2.1,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
   "move": [
    0,
    0
@@ -767,6 +805,30 @@
   }
  },
  {
+  "id": "library:goalkeeper-catch",
+  "name": "Goalkeeper, catch",
+  "duration": 2.1,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.791,
+   0.936
+  ],
+  "turn": 3
+ },
+ {
+  "id": "library:goalkeeper-diving-save",
+  "name": "Goalkeeper, diving save",
+  "duration": 3.4,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   2.258,
+   1.897
+  ],
+  "turn": -1
+ },
+ {
   "id": "library:golf-drive",
   "name": "Golf drive",
   "duration": 5.3,
@@ -854,6 +916,18 @@
   "people": 1,
   "group": "Feelings",
   "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:header-soccerball",
+  "name": "Head a ball",
+  "duration": 1.9,
+  "people": 1,
+  "group": "Sport & acrobatics",
   "move": [
    0,
    0
@@ -1199,6 +1273,24 @@
   "turn": 0
  },
  {
+  "id": "library:kick-soccerball",
+  "name": "Kick a ball",
+  "duration": 0.567,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "impact": 0.3,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   0.18,
+   0.444,
+   0.794
+  ]
+ },
+ {
   "id": "library:kick-to-the-groin",
   "name": "Kicked in the groin",
   "duration": 2.9,
@@ -1541,6 +1633,18 @@
   "turn": 0
  },
  {
+  "id": "library:soccer-pass",
+  "name": "Pass a ball (football)",
+  "duration": 1.6,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:soccer-penalty-kick",
   "name": "Penalty kick",
   "duration": 1.5,
@@ -1758,6 +1862,30 @@
    -0.015
   ],
   "turn": -2
+ },
+ {
+  "id": "library:golf-putt",
+  "name": "Putt",
+  "duration": 3.367,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0.031,
+   0.023
+  ],
+  "turn": 31
+ },
+ {
+  "id": "library:quarterback-pass",
+  "name": "Quarterback pass",
+  "duration": 7.667,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -1.135,
+   0.26
+  ],
+  "turn": -94
  },
  {
   "id": "library:raising-hand",
@@ -2231,6 +2359,18 @@
   "turn": 0
  },
  {
+  "id": "library:soccer-tackle",
+  "name": "Slide tackle",
+  "duration": 2.733,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0.765,
+   3.974
+  ],
+  "turn": -7
+ },
+ {
   "id": "library:slide-feet-first",
   "name": "Slide, feet first",
   "duration": 1.533,
@@ -2241,6 +2381,18 @@
    6.722
   ],
   "turn": 0
+ },
+ {
+  "id": "library:slipping",
+  "name": "Slip and fall",
+  "duration": 2.933,
+  "people": 1,
+  "group": "Moving",
+  "move": [
+   0.153,
+   -1.119
+  ],
+  "turn": -132
  },
  {
   "id": "library:smoking",
@@ -2659,6 +2811,30 @@
   "turn": 0
  },
  {
+  "id": "library:frisbee-throw",
+  "name": "Throw a frisbee",
+  "duration": 3.3,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:throw-in",
+  "name": "Throw-in",
+  "duration": 2.767,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.428,
+   3.287
+  ],
+  "turn": -6
+ },
+ {
   "id": "library:standing-thumbs-up",
   "name": "Thumbs up",
   "duration": 4.167,
@@ -2714,6 +2890,18 @@
   "group": "Using things",
   "loop": true,
   "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:baseball-umpire",
+  "name": "Umpire, calling it",
+  "duration": 2.633,
+  "people": 1,
+  "group": "Sport & acrobatics",
   "move": [
    0,
    0
@@ -3114,6 +3302,18 @@
   "people": 1,
   "group": "Talking & gestures",
   "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:wiping-sweat",
+  "name": "Wipe your brow",
+  "duration": 2.633,
+  "people": 1,
+  "group": "Standing & waiting",
   "move": [
    0,
    0
