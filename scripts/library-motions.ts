@@ -379,6 +379,20 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Bicep Curl': ['Bicep curls', 'Sport & acrobatics'],
   'Kettlebell Swing': ['Kettlebell swings', 'Sport & acrobatics'],
   'Overhead Squat': ['Overhead squats', 'Sport & acrobatics'],
+  'Beckon': ['Beckon', 'Talking & gestures'],
+  'Celebrate': ['Celebrate, shaking fists', 'Feelings'],
+  'Cover Face': ['Cover your face', 'Feelings'],
+  'Walk Exhausted': ['Walk, exhausted', 'Moving'],
+  'Knock On Door': ['Knock on a door', 'Using things'],
+  'Meditate': ['Meditate, sitting cross-legged', 'Sitting & lying'],
+  'Take Photo': ['Take a photo', 'Using things'],
+  'Scratch Head': ['Scratch your head', 'Talking & gestures'],
+  'Tie Shoelaces': ['Tie your shoelaces', 'Using things'],
+  'Sneeze': ['Sneeze', 'Standing & waiting'],
+  'Stir Pot': ['Stir a pot', 'Using things'],
+  'Check Time': ['Check the time, impatient', 'Standing & waiting'],
+  'Check Shoe': ['Check your shoe', 'Standing & waiting'],
+  'Petting Animal': ['Pet an animal', 'Using things'],
 };
 
 /**
@@ -440,6 +454,7 @@ const ONCE = [
   'Kneeling Down', 'Kneeling Pointing', 'Crouch To Prone', 'Prone To Crouch',
   'Soccer Pass', 'Kick Soccerball', 'Header Soccerball', 'Soccer Tackle', 'Throw In', 'Goalkeeper Catch', 'Goalkeeper Diving Save', 'Quarterback Pass', 'Baseball Catcher', 'Baseball Umpire', 'Golf Putt', 'Frisbee Throw', 'Slipping', 'Wiping Sweat',
   'Breakdance Freezes', 'Thriller', 'Zombie Biting', 'Zombie Scream', 'Fix Kneeling', 'Plant Seeds', 'Pull Up Plants', 'Take From Table', 'Eat',
+  'Celebrate', 'Cover Face', 'Knock On Door', 'Meditate', 'Take Photo', 'Scratch Head', 'Tie Shoelaces', 'Sneeze', 'Check Time', 'Check Shoe', 'Beckon',
 ];
 
 /**

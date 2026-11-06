@@ -10,7 +10,7 @@ const FIGHT = ['punch', 'kick', 'jab', 'uppercut', 'block', 'guard', 'dodge', 'f
 /** Everyday words, and what the Library's names say for them. */
 const ALSO: Record<string, string[]> = {
   gun: ['pistol', 'rifle'], shoot: ['fire', 'aim', 'shot'], weapon: ['pistol', 'rifle', 'sword', 'knife', 'grenade', 'bow'], archery: ['bow', 'arrow'], weights: ['curls', 'kettlebell', 'squats'], dumbbell: ['curls'], barbell: ['overhead squats'], blade: ['sword', 'knife'], bomb: ['grenade'], army: ['rifle', 'cover', 'crawl, low'], soldier: ['rifle', 'salute', 'cover'],
-  hello: ['wave', 'greet'], hi: ['wave', 'greet'], bye: ['wave'], goodbye: ['wave'], greeting: ['greet', 'wave', 'bow', 'shake hands'],
+  hello: ['wave', 'greet'], 'come here': ['beckon'], come: ['beckon'], call: ['beckon', 'yell'], hi: ['wave', 'greet'], bye: ['wave'], goodbye: ['wave'], greeting: ['greet', 'wave', 'bow', 'shake hands'],
   workout: WORKOUT, exercise: WORKOUT, gym: WORKOUT, train: WORKOUT,
   fight: FIGHT, attack: [...FIGHT, 'strike'], hit: [...FIGHT, 'hit'], martial: ['kick', 'capoeira'],
   dead: ['die', 'shot', 'lie face down', 'knocked out'], death: ['die', 'shot'], kill: ['strangle', 'shot', 'die', 'stab'],
@@ -23,6 +23,8 @@ const ALSO: Record<string, string[]> = {
   floor: ['ground', 'lie', 'lying', 'crawl', 'kneel'], sleep: ['sleep', 'lie'], rest: ['idle', 'sit', 'lie'],
   love: ['kiss', 'hug', 'blow a kiss'], romance: ['kiss', 'hug', 'blow a kiss'], party: ['dance', 'cheer', 'clap', 'drink'],
   stunt: ['roll', 'flip', 'vault', 'slide', 'cartwheel', 'jump'], parkour: ['vault', 'roll', 'jump', 'ledge'],
+  tired: ['exhausted', 'yawn'], impatient: ['check the time'], watch: ['check the time'], camera: ['photo'], cook: ['stir'], kitchen: ['stir', 'eat'], dog: ['pet an animal'], cat: ['pet an animal'], yoga: ['meditate'], door: ['door'], shoe: ['shoe'],
+  embarrassed: ['cover your face'], shame: ['cover your face'], confused: ['scratch your head', 'shrug'], win: ['celebrate', 'cheer', 'victory'], victory: ['celebrate', 'victory'], ill: ['sneeze', 'cough'], sick: ['sneeze', 'cough'],
   monster: ['zombie'], horror: ['zombie', 'scream', 'thriller'], undead: ['zombie'],
   garden: ['plant', 'water the'], farm: ['plant', 'water the'], food: ['eat'], axe: ['chop'], wood: ['chop'], disco: ['dance', 'twist', 'ymca', 'macarena', 'shuffle'],
 };

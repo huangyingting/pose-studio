@@ -152,6 +152,18 @@
   "turn": 37
  },
  {
+  "id": "library:beckon",
+  "name": "Beckon",
+  "duration": 5.07,
+  "people": 1,
+  "group": "Talking & gestures",
+  "move": [
+   0.013,
+   -0.02
+  ],
+  "turn": -4
+ },
+ {
   "id": "library:belly-dance",
   "name": "Belly dance",
   "duration": 19.633,
@@ -327,6 +339,42 @@
   "turn": -134
  },
  {
+  "id": "library:celebrate",
+  "name": "Celebrate, shaking fists",
+  "duration": 7.729999999999999,
+  "people": 1,
+  "group": "Feelings",
+  "move": [
+   -0.02,
+   0.053
+  ],
+  "turn": -1
+ },
+ {
+  "id": "library:check-time",
+  "name": "Check the time, impatient",
+  "duration": 8.100000000000001,
+  "people": 1,
+  "group": "Standing & waiting",
+  "move": [
+   -0.084,
+   0.089
+  ],
+  "turn": 14
+ },
+ {
+  "id": "library:check-shoe",
+  "name": "Check your shoe",
+  "duration": 4.7,
+  "people": 1,
+  "group": "Standing & waiting",
+  "move": [
+   0.024,
+   0.042
+  ],
+  "turn": -1
+ },
+ {
   "id": "library:victory",
   "name": "Cheer",
   "duration": 8.533,
@@ -454,6 +502,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:cover-face",
+  "name": "Cover your face",
+  "duration": 8.7,
+  "people": 1,
+  "group": "Feelings",
+  "move": [
+   0.172,
+   0.551
+  ],
+  "turn": 19
  },
  {
   "id": "library:crawling",
@@ -1668,6 +1728,18 @@
   "turn": 0
  },
  {
+  "id": "library:knock-on-door",
+  "name": "Knock on a door",
+  "duration": 5,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -0.068,
+   -0.02
+  ],
+  "turn": 18
+ },
+ {
   "id": "library:knocked-out",
   "name": "Knocked out",
   "duration": 5.6,
@@ -1937,6 +2009,18 @@
   "turn": 0
  },
  {
+  "id": "library:meditate",
+  "name": "Meditate, sitting cross-legged",
+  "duration": 13.37,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   -0.024,
+   -0.163
+  ],
+  "turn": 12
+ },
+ {
   "id": "library:moonwalk",
   "name": "Moonwalk",
   "duration": 1.033,
@@ -2027,6 +2111,19 @@
    0.338,
    2.767
   ]
+ },
+ {
+  "id": "library:petting-animal",
+  "name": "Pet an animal",
+  "duration": 14.167,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:picking-up",
@@ -2611,6 +2708,18 @@
   "turn": 2
  },
  {
+  "id": "library:scratch-head",
+  "name": "Scratch your head",
+  "duration": 6.029999999999999,
+  "people": 1,
+  "group": "Talking & gestures",
+  "move": [
+   -0.015,
+   0.025
+  ],
+  "turn": 12
+ },
+ {
   "id": "library:searching-pockets",
   "name": "Search your pockets",
   "duration": 5,
@@ -2964,6 +3073,18 @@
   "turn": 0
  },
  {
+  "id": "library:sneeze",
+  "name": "Sneeze",
+  "duration": 5.700000000000001,
+  "people": 1,
+  "group": "Standing & waiting",
+  "move": [
+   0,
+   0.017
+  ],
+  "turn": 4
+ },
+ {
   "id": "library:spinning",
   "name": "Spin on one foot",
   "duration": 1.7,
@@ -3090,6 +3211,18 @@
    1.993
   ],
   "turn": 10
+ },
+ {
+  "id": "library:stir-pot",
+  "name": "Stir a pot",
+  "duration": 6.9,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   0.004,
+   -0.04
+  ],
+  "turn": -9
  },
  {
   "id": "library:strangle",
@@ -3262,6 +3395,18 @@
    ],
    "facing": -136
   }
+ },
+ {
+  "id": "library:take-photo",
+  "name": "Take a photo",
+  "duration": 9.159999999999998,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -0.044,
+   0.021
+  ],
+  "turn": 5
  },
  {
   "id": "library:cover-idle",
@@ -3448,6 +3593,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:tie-shoelaces",
+  "name": "Tie your shoelaces",
+  "duration": 13.5,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -0.022,
+   0.048
+  ],
+  "turn": 3
  },
  {
   "id": "library:tripping",
@@ -3783,6 +3940,18 @@
    2.609
   ],
   "turn": 0
+ },
+ {
+  "id": "library:walk-exhausted",
+  "name": "Walk, exhausted",
+  "duration": 9.27,
+  "people": 1,
+  "group": "Moving",
+  "move": [
+   -2.276,
+   4.048
+  ],
+  "turn": -8
  },
  {
   "id": "library:formal-walk",
