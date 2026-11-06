@@ -278,6 +278,16 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Kick To The Groin': ['Kicked in the groin', 'Fighting'],
   'Shoulder Hit And Fall': ['Shot in the shoulder, fall', 'Fighting'],
   'Sitting Dazed': ['Sit on the ground, dazed', 'Sitting & lying'],
+  'Kneeling Down': ['Kneel down', 'Sitting & lying'],
+  'Kneeling Inspecting': ['Kneel, looking at the ground', 'Sitting & lying'],
+  'Kneeling Pointing': ['Kneel and point', 'Sitting & lying'],
+  'Crouch To Prone': ['Get down flat', 'Sitting & lying'],
+  'Prone To Crouch': ['Get up from lying flat', 'Sitting & lying'],
+  'Laying Seizure': ['Seizure, lying', 'Sitting & lying'],
+  'Guitar Playing': ['Play the guitar', 'Using things'],
+  'Piano Playing': ['Play the piano, sitting', 'Using things'],
+  'Playing Drums': ['Play the drums, sitting', 'Using things'],
+  'Playing The Violin': ['Play the violin', 'Using things'],
 };
 
 /**
@@ -288,6 +298,7 @@ const SEATED: Record<string, 'start' | 'end'> = {
   'Sitting Idle': 'start', 'Sitting Talking': 'start', 'Clapping': 'start', 'Cheering While Sitting': 'start', 'Aim Pistol': 'start',
   'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start', 'Typing': 'start', 'Writing': 'start',
   'Sitting Angry': 'start', 'Sitting Disbelief': 'start', 'Sitting Laughing': 'start', 'Sitting Pointing': 'start', 'Asking Question': 'start',
+  'Piano Playing': 'start', 'Playing Drums': 'start',
 };
 for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
 
@@ -332,6 +343,7 @@ const ONCE = [
   'Idle To Push Up', 'Push Up To Idle', 'Idle To Situp', 'Situp To Idle',
   'Stand To Roll', 'Sprinting Forward Roll', 'Slide Feet First', 'Running Jump', 'Falling To Roll', 'Vault Over Box', 'Jump Down',
   'Being Electrocuted', 'Big Stomach Hit', 'Hit By Car', 'Kick To The Groin', 'Shoulder Hit And Fall',
+  'Kneeling Down', 'Kneeling Pointing', 'Crouch To Prone', 'Prone To Crouch',
 ];
 
 /**

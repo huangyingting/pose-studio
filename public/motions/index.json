@@ -613,6 +613,18 @@
   ]
  },
  {
+  "id": "library:crouch-to-prone",
+  "name": "Get down flat",
+  "duration": 1.8,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   -0.006,
+   -0.005
+  ],
+  "turn": 14
+ },
+ {
   "id": "library:idle-to-push-up",
   "name": "Get down for push-ups",
   "duration": 2.6,
@@ -662,6 +674,18 @@
    0.47
   ],
   "turn": 4
+ },
+ {
+  "id": "library:prone-to-crouch",
+  "name": "Get up from lying flat",
+  "duration": 1.8,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   0.006,
+   0.005
+  ],
+  "turn": -13
  },
  {
   "id": "library:crouch-to-stand",
@@ -1225,6 +1249,43 @@
   "turn": 0
  },
  {
+  "id": "library:kneeling-pointing",
+  "name": "Kneel and point",
+  "duration": 3.9,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:kneeling-down",
+  "name": "Kneel down",
+  "duration": 2.767,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   -0.011,
+   -0.001
+  ],
+  "turn": -2
+ },
+ {
+  "id": "library:kneeling-inspecting",
+  "name": "Kneel, looking at the ground",
+  "duration": 4.933,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:knocked-out",
   "name": "Knocked out",
   "duration": 5.6,
@@ -1509,6 +1570,59 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:playing-drums",
+  "name": "Play the drums, sitting",
+  "duration": 4.7,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:guitar-playing",
+  "name": "Play the guitar",
+  "duration": 6.233,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:piano-playing",
+  "name": "Play the piano, sitting",
+  "duration": 9.5,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:playing-the-violin",
+  "name": "Play the violin",
+  "duration": 14,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -0.009,
+   -0.023
+  ],
+  "turn": -6
  },
  {
   "id": "library:pointing",
@@ -1896,6 +2010,19 @@
   "duration": 5,
   "people": 1,
   "group": "Using things",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:laying-seizure",
+  "name": "Seizure, lying",
+  "duration": 5,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
   "move": [
    0,
    0

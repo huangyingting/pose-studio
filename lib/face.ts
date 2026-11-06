@@ -53,7 +53,8 @@ const MOODS: Record<string, Mood | Mood[]> = {
   agony: { feel: 'sad', by: 1 }, 'injured-hurting-idle': { feel: 'sad', by: 0.8 }, 'injured-idle': { feel: 'sad', by: 0.6 }, 'injured-run': { feel: 'sad', by: 0.6 }, 'sitting-dazed': { feel: 'sad', by: 0.4 }, 'dizzy-idle': { feel: 'sad', by: 0.3 },
   'being-electrocuted': { feel: 'surprised', by: 1 }, 'hit-by-car': { feel: 'surprised', by: 1 }, 'big-stomach-hit': { feel: 'surprised', by: 0.7 }, 'kick-to-the-groin': { feel: 'surprised', by: 0.9 }, 'shoulder-hit-and-fall': { feel: 'surprised', by: 0.7 },
   strangle: [{ feel: 'angry', by: 0.9 }, { feel: 'surprised', by: 1 }], 'shoulder-throw': [{ feel: 'angry', by: 0.7 }, { feel: 'surprised', by: 0.9 }], 'grab-and-slam': [{ feel: 'angry', by: 0.9 }, { feel: 'surprised', by: 0.9 }],
-  'jostled-passenger': { feel: 'surprised', by: 0.3 }, takedown: [{ feel: 'angry', by: 0.8 }, { feel: 'surprised', by: 0.8 }],
+  'jostled-passenger': { feel: 'surprised', by: 0.3 },
+  'guitar-playing': { feel: 'happy', by: 0.5 }, 'playing-drums': { feel: 'happy', by: 0.5 }, 'piano-playing': { feel: 'relaxed', by: 0.5 }, 'playing-the-violin': { feel: 'relaxed', by: 0.6 }, 'laying-seizure': { feel: 'blink', by: 1 }, takedown: [{ feel: 'angry', by: 0.8 }, { feel: 'surprised', by: 0.8 }],
 };
 
 /** A motion's mood for the one in its part `part` (the Library's by the file's name), or as set by hand for them (Role.face). */
