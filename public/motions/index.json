@@ -163,6 +163,19 @@
   "turn": 0
  },
  {
+  "id": "library:burpee",
+  "name": "Burpees",
+  "duration": 3.133,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:capoeira",
   "name": "Capoeira",
   "duration": 4.8,
@@ -575,6 +588,18 @@
   ]
  },
  {
+  "id": "library:idle-to-push-up",
+  "name": "Get down for push-ups",
+  "duration": 2.6,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0.035,
+   0.163
+  ],
+  "turn": -68
+ },
+ {
   "id": "library:entering-car",
   "name": "Get into a car",
   "duration": 5.467,
@@ -624,6 +649,30 @@
    0.265
   ],
   "turn": -26
+ },
+ {
+  "id": "library:push-up-to-idle",
+  "name": "Get up from push-ups",
+  "duration": 3.1,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.035,
+   -0.163
+  ],
+  "turn": 68
+ },
+ {
+  "id": "library:situp-to-idle",
+  "name": "Get up from sit-ups",
+  "duration": 4.4,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.033,
+   -0.094
+  ],
+  "turn": 15
  },
  {
   "id": "library:getting-up",
@@ -1111,6 +1160,18 @@
   }
  },
  {
+  "id": "library:idle-to-situp",
+  "name": "Lie down for sit-ups",
+  "duration": 3.867,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   0.033,
+   0.094
+  ],
+  "turn": -15
+ },
+ {
   "id": "library:lying-down",
   "name": "Lie down on a bed",
   "duration": 5.733,
@@ -1277,6 +1338,19 @@
   "turn": 5
  },
  {
+  "id": "library:plank",
+  "name": "Plank",
+  "duration": 3,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:pointing",
   "name": "Point at someone",
   "duration": 2.767,
@@ -1371,6 +1445,19 @@
   "move": [
    -0.012,
    3.034
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:push-up",
+  "name": "Push-ups",
+  "duration": 1.533,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },
@@ -1686,6 +1773,19 @@
   "turn": 3
  },
  {
+  "id": "library:situps",
+  "name": "Sit-ups",
+  "duration": 2.233,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:sitting-idle",
   "name": "Sit, idle",
   "duration": 6.4,
@@ -1786,6 +1886,19 @@
   "move": [
    -0.013,
    3.124
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:air-squat",
+  "name": "Squats",
+  "duration": 1.867,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },
@@ -2384,6 +2497,19 @@
   "move": [
    -0.017,
    4.11
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:warming-up",
+  "name": "Warm up",
+  "duration": 6.3,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },

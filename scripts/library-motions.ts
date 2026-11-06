@@ -245,6 +245,16 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Nervously Look Around': ['Look around, nervous', 'Standing & waiting'],
   'Rejected': ['Rejected', 'Feelings'],
   'Searching Pockets': ['Search your pockets', 'Using things'],
+  'Air Squat': ['Squats', 'Sport & acrobatics'],
+  'Burpee': ['Burpees', 'Sport & acrobatics'],
+  'Idle To Push Up': ['Get down for push-ups', 'Sport & acrobatics'],
+  'Push Up': ['Push-ups', 'Sport & acrobatics'],
+  'Push Up To Idle': ['Get up from push-ups', 'Sport & acrobatics'],
+  'Plank': ['Plank', 'Sport & acrobatics'],
+  'Idle To Situp': ['Lie down for sit-ups', 'Sport & acrobatics'],
+  'Situps': ['Sit-ups', 'Sport & acrobatics'],
+  'Situp To Idle': ['Get up from sit-ups', 'Sport & acrobatics'],
+  'Warming Up': ['Warm up', 'Sport & acrobatics'],
 };
 
 /**
@@ -282,6 +292,7 @@ const ONCE = [
   'Waving Hello', 'Raising Hand', 'Yelling', 'Looking Behind', 'Putting Down', 'Arm Stretching', 'Start Walking', 'Stop Walking', 'Rifle Reload',
   'Death From The Back', 'Dying', 'Knocked Out', 'Tripping', 'Stumble Backwards', 'Shove Reaction', 'Crouch Look Around Corner', 'Entering Car', 'Exiting Car',
   'Sitting Angry', 'Sitting Disbelief', 'Sitting Pointing', 'Asking Question', 'Standing Greeting', 'Excited', 'Looking Down', 'Rejected', 'Searching Pockets',
+  'Idle To Push Up', 'Push Up To Idle', 'Idle To Situp', 'Situp To Idle',
 ];
 
 /**
