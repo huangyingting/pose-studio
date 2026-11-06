@@ -9,11 +9,11 @@ const FIGHT = ['punch', 'kick', 'jab', 'uppercut', 'block', 'guard', 'dodge', 'f
 
 /** Everyday words, and what the Library's names say for them. */
 const ALSO: Record<string, string[]> = {
-  gun: ['pistol', 'rifle'], shoot: ['fire', 'aim', 'shot'], weapon: ['pistol', 'rifle', 'sword'], army: ['rifle', 'cover', 'crawl, low'], soldier: ['rifle', 'salute', 'cover'],
+  gun: ['pistol', 'rifle'], shoot: ['fire', 'aim', 'shot'], weapon: ['pistol', 'rifle', 'sword', 'knife', 'grenade'], blade: ['sword', 'knife'], bomb: ['grenade'], army: ['rifle', 'cover', 'crawl, low'], soldier: ['rifle', 'salute', 'cover'],
   hello: ['wave', 'greet'], hi: ['wave', 'greet'], bye: ['wave'], goodbye: ['wave'], greeting: ['greet', 'wave', 'bow', 'shake hands'],
   workout: WORKOUT, exercise: WORKOUT, gym: WORKOUT, train: WORKOUT,
   fight: FIGHT, attack: [...FIGHT, 'strike'], hit: [...FIGHT, 'hit'], martial: ['kick', 'capoeira'],
-  dead: ['die', 'shot', 'lie face down', 'knocked out'], death: ['die', 'shot'], kill: ['strangle', 'shot', 'die'],
+  dead: ['die', 'shot', 'lie face down', 'knocked out'], death: ['die', 'shot'], kill: ['strangle', 'shot', 'die', 'stab'],
   injured: ['hurt', 'limping', 'agony', 'pain'], wounded: ['hurt', 'limping', 'agony', 'pain'], pain: ['hurt', 'agony', 'pain'],
   happy: ['cheer', 'laugh', 'excited', 'happy', 'clap'], joy: ['cheer', 'laugh', 'excited', 'happy'], sad: ['cry', 'sad', 'rejected', 'defeated', 'disappointed'],
   afraid: ['scared', 'nervous'], fear: ['scared', 'nervous'], shocked: ['surprised', 'disbelief'],

@@ -74,6 +74,17 @@ describe('motions, round 4 (#61)', () => {
     expect(GAITS.run).toContain('library:rifle-run');
   });
 
+  it('a knife comes with stabbing, in the left hand that stabs; a sword with the sword\'s motions, in the right; running with a pistol or a sword and shield are steps a run can take', () => {
+    for (const [slug, kind, hand] of [['stabbing', 'knife', 'L'], ['knife-idle', 'knife', 'L'], ['one-hand-sword-combo', 'sword', 'R'], ['great-sword-slash', 'sword', 'R'], ['pistol-kneeling-idle', 'pistol', 'R']] as const) {
+      const { store, a } = fresh();
+      startAnimation(store, 4);
+      applyMotion(store, a, captured(slug));
+      expect(store.scene.props.find((p) => p.kind === kind)?.hold, slug).toEqual({ figure: a, hand });
+    }
+    expect(GAITS.run).toContain('library:pistol-run');
+    expect(GAITS.run).toContain('library:sword-and-shield-run');
+  });
+
   it('a motion recorded on a low seat (Drink, sitting: the knees up) brings a lower chair, not one its thighs go through; the others the usual one', () => {
     for (const [slug, high] of [['sitting-drinking', 0.75], ['sitting-idle', 1]] as const) {
       const { store, a } = fresh();

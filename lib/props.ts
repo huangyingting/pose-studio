@@ -121,6 +121,8 @@ function pieces(kind: PropKind): Piece[] {
     // (Held at the base: the handle through the fist, the rest on from it.)
     case 'sword':
       return [[cylinder(0.016, 0.2, 0.005), [0, 0.1, 0]], [box(0.2, 0.025, 0.03, 0.005), [0, 0.21, 0]], [box(0.05, 0.75, 0.008, 0.003), [0, 0.6, 0]]];
+    case 'knife':
+      return [[cylinder(0.014, 0.11, 0.005), [0, 0.055, 0]], [box(0.05, 0.012, 0.022, 0.003), [0, 0.116, 0]], [box(0.028, 0.17, 0.004, 0.0015), [0, 0.207, 0]]];
     case 'bat':
       return [[cylinder(0.015, 0.42, 0.005), [0, 0.21, 0]], [cylinder(0.033, 0.46, 0.014), [0, 0.6, 0]], [cylinder(0.022, 0.02, 0.006), [0, 0.01, 0]]];
     case 'club':

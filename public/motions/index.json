@@ -13,6 +13,19 @@
   "turn": 0
  },
  {
+  "id": "library:pistol-kneeling-idle",
+  "name": "Aim a pistol, kneeling",
+  "duration": 3.8,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:aim-pistol",
   "name": "Aim a pistol, sitting",
   "duration": 5.433,
@@ -481,6 +494,18 @@
   "turn": 0
  },
  {
+  "id": "library:draw-sword",
+  "name": "Draw a sword",
+  "duration": 0.5,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   0.024,
+   -0.075
+  ],
+  "turn": -14
+ },
+ {
   "id": "library:dribble",
   "name": "Dribble a basketball",
   "duration": 2.1,
@@ -868,6 +893,45 @@
   "move": [
    -0.021,
    5.063
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:great-sword-attack",
+  "name": "Great sword, attack",
+  "duration": 1.2,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:great-sword-idle",
+  "name": "Great sword, ready",
+  "duration": 2,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:great-sword-slash",
+  "name": "Great sword, slash",
+  "duration": 1.267,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },
@@ -1378,6 +1442,19 @@
   "turn": 0
  },
  {
+  "id": "library:knife-idle",
+  "name": "Knife, ready",
+  "duration": 4.467,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:knocked-out",
   "name": "Knocked out",
   "duration": 5.6,
@@ -1595,6 +1672,19 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:lower-pistol",
+  "name": "Lower a pistol, sitting",
+  "duration": 5.367,
+  "people": 1,
+  "group": "Weapons",
+  "seat": "start",
+  "move": [
+   -0.003,
+   0.01
+  ],
+  "turn": 3
  },
  {
   "id": "library:moonwalk",
@@ -2058,6 +2148,19 @@
   "turn": 0
  },
  {
+  "id": "library:pistol-run",
+  "name": "Run with a pistol",
+  "duration": 0.733,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   -0.01,
+   2.328
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:rifle-run",
   "name": "Run with a rifle",
   "duration": 0.667,
@@ -2067,6 +2170,19 @@
   "move": [
    -0.012,
    2.901
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:sword-and-shield-run",
+  "name": "Run with a sword and shield",
+  "duration": 0.7,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   -0.012,
+   2.913
   ],
   "turn": 0
  },
@@ -2211,6 +2327,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:sheath-sword",
+  "name": "Sheathe a sword",
+  "duration": 1.267,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   0.02,
+   -0.077
+  ],
+  "turn": 37
  },
  {
   "id": "library:death-from-the-back",
@@ -2485,6 +2613,19 @@
   "turn": 0
  },
  {
+  "id": "library:stabbing",
+  "name": "Stab with a knife",
+  "duration": 2.367,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:breathing-idle",
   "name": "Stand, breathing",
   "duration": 9.933,
@@ -2690,6 +2831,18 @@
   "turn": 0
  },
  {
+  "id": "library:one-hand-sword-combo",
+  "name": "Sword, combo",
+  "duration": 4.533,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   -0.005,
+   1.167
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:takedown",
   "name": "Tackle",
   "duration": 3.5,
@@ -2816,6 +2969,18 @@
   "duration": 3.3,
   "people": 1,
   "group": "Sport & acrobatics",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:throw-grenade",
+  "name": "Throw a grenade, kneeling",
+  "duration": 3.5,
+  "people": 1,
+  "group": "Weapons",
   "move": [
    0,
    0

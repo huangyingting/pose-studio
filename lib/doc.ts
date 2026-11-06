@@ -101,6 +101,7 @@ const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
   pistol: [1, 1, 1],
   rifle: [1, 1, 1],
   sword: [1, 1, 1],
+  knife: [1, 1, 1],
   shield: [1, 1, 1],
   bat: [1, 1, 1],
   club: [1, 1, 1],

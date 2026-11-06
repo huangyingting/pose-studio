@@ -17,7 +17,7 @@ import { PROP_LABELS, type BodyParams, type Figure, type Pose, type Prop, type P
 const D2R = Math.PI / 180;
 
 /** Kinds that make sense in a hand (the handheld ones, a ball, a small box). */
-export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'pistol', 'rifle', 'sword', 'shield', 'bat', 'club', 'bag', 'sphere', 'box'];
+export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'pistol', 'rifle', 'sword', 'knife', 'shield', 'bat', 'club', 'bag', 'sphere', 'box'];
 
 /**
  * Where a prop sits in the hand of a figure with `body`: by its first handle (in the fist, its
@@ -48,6 +48,7 @@ export function grip(prop: Pick<Prop, 'kind' | 'scale' | 'handles'>, hand: Side,
       return { position: at(0.06, -0.14, 0.01), rotation: [0, s > 0 ? 180 : 0, 0] };
     case 'pistol': // the grip through the fist, the barrel along the fingers (ahead, the arm out)
     case 'rifle':
+    case 'knife': // the handle through the fist, the blade on from the thumb
       return { position: at(0.02, -0.085, -0.055), rotation: [90, 0, 0] };
     case 'sword': // the handle through the fist, the blade on from the thumb
       return { position: at(0.02, -0.085, -0.1), rotation: [90, 0, 0] };
@@ -84,9 +85,12 @@ export function held(prop: Prop, figure: Figure, hand: Side): { prop: Prop; figu
  * that hand (lib/actions/motion.ts). `between`: in both, where the motion first has them (a box carried).
  */
 export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolean }[]> = {
-  ...Object.fromEntries(['aim-pistol', 'pistol-idle', 'pistol-walk', 'pistol-whip', 'shooting'].map((m) => [m, [{ kind: 'pistol' as const, hand: 'R' as const }]])),
+  ...Object.fromEntries(['aim-pistol', 'pistol-idle', 'pistol-walk', 'pistol-whip', 'shooting', 'lower-pistol', 'pistol-kneeling-idle', 'pistol-run'].map((m) => [m, [{ kind: 'pistol' as const, hand: 'R' as const }]])),
   ...Object.fromEntries(['rifle-idle', 'rifle-aiming-idle', 'firing-rifle', 'firing-rifle-kneeling', 'rifle-reload', 'rifle-walk', 'rifle-walk-aiming', 'rifle-run'].map((m) => [m, [{ kind: 'rifle' as const, hand: 'R' as const }]])),
-  ...Object.fromEntries(['sword-and-shield-idle', 'sword-and-shield-attack', 'sword-and-shield-block', 'sword-and-shield-impact', 'sword-and-shield-death'].map((m) => [m, [{ kind: 'sword' as const, hand: 'R' as const }, { kind: 'shield' as const, hand: 'L' as const }]])),
+  ...Object.fromEntries(['sword-and-shield-idle', 'sword-and-shield-attack', 'sword-and-shield-block', 'sword-and-shield-impact', 'sword-and-shield-death', 'sword-and-shield-run'].map((m) => [m, [{ kind: 'sword' as const, hand: 'R' as const }, { kind: 'shield' as const, hand: 'L' as const }]])),
+  ...Object.fromEntries(['draw-sword', 'sheath-sword', 'one-hand-sword-combo', 'great-sword-idle', 'great-sword-slash', 'great-sword-attack'].map((m) => [m, [{ kind: 'sword' as const, hand: 'R' as const }]])),
+  stabbing: [{ kind: 'knife', hand: 'L' }],
+  'knife-idle': [{ kind: 'knife', hand: 'L' }],
   'baseball-hit': [{ kind: 'bat', hand: 'R' }],
   'golf-drive': [{ kind: 'club', hand: 'R' }],
   'golf-putt': [{ kind: 'club', hand: 'R' }],

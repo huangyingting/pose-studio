@@ -315,6 +315,19 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Frisbee Throw': ['Throw a frisbee', 'Sport & acrobatics'],
   'Slipping': ['Slip and fall', 'Moving'],
   'Wiping Sweat': ['Wipe your brow', 'Standing & waiting'],
+  'Draw Sword': ['Draw a sword', 'Weapons'],
+  'Sheath Sword': ['Sheathe a sword', 'Weapons'],
+  'One Hand Sword Combo': ['Sword, combo', 'Weapons'],
+  'Sword And Shield Run': ['Run with a sword and shield', 'Weapons'],
+  'Great Sword Idle': ['Great sword, ready', 'Weapons'],
+  'Great Sword Slash': ['Great sword, slash', 'Weapons'],
+  'Great Sword Attack': ['Great sword, attack', 'Weapons'],
+  'Throw Grenade': ['Throw a grenade, kneeling', 'Weapons'],
+  'Lower Pistol': ['Lower a pistol, sitting', 'Weapons'],
+  'Pistol Kneeling Idle': ['Aim a pistol, kneeling', 'Weapons'],
+  'Pistol Run': ['Run with a pistol', 'Weapons'],
+  'Stabbing': ['Stab with a knife', 'Weapons'],
+  'Knife Idle': ['Knife, ready', 'Weapons'],
 };
 
 /**
@@ -326,6 +339,7 @@ const SEATED: Record<string, 'start' | 'end'> = {
   'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start', 'Typing': 'start', 'Writing': 'start',
   'Sitting Angry': 'start', 'Sitting Disbelief': 'start', 'Sitting Laughing': 'start', 'Sitting Pointing': 'start', 'Asking Question': 'start',
   'Piano Playing': 'start', 'Playing Drums': 'start',
+  'Lower Pistol': 'start',
 };
 for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
 

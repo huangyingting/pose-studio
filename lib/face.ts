@@ -43,6 +43,8 @@ const MOODS: Record<string, Mood | Mood[]> = {
   'waving-hello': { feel: 'happy', by: 0.7 }, 'clapping-standing': { feel: 'happy', by: 0.8 }, yelling: { feel: 'angry', by: 0.9, talk: true },
   smoking: { feel: 'relaxed', by: 0.4 }, 'arm-stretching': { feel: 'relaxed', by: 0.5 }, 'looking-behind': { feel: 'surprised', by: 0.3 },
   ...Object.fromEntries(['rifle-idle', 'rifle-aiming-idle', 'firing-rifle', 'firing-rifle-kneeling', 'rifle-walk', 'rifle-walk-aiming', 'rifle-run'].map((m) => [m, { feel: 'angry' as const, by: 0.5 }])),
+  ...Object.fromEntries(['pistol-kneeling-idle', 'pistol-run', 'sword-and-shield-run', 'great-sword-idle', 'knife-idle', 'draw-sword'].map((m) => [m, { feel: 'angry' as const, by: 0.5 }])),
+  ...Object.fromEntries(['one-hand-sword-combo', 'great-sword-slash', 'great-sword-attack', 'stabbing', 'throw-grenade'].map((m) => [m, { feel: 'angry' as const, by: 0.8 }])),
   'cover-idle': { feel: 'surprised', by: 0.4 }, 'crouch-look-around-corner': { feel: 'surprised', by: 0.4 },
   'death-from-the-back': { feel: 'surprised', by: 0.6 }, dying: { feel: 'sad', by: 0.9 }, 'shove-reaction': { feel: 'surprised', by: 0.6 },
   tripping: { feel: 'surprised', by: 0.8 }, 'stumble-backwards': { feel: 'surprised', by: 0.8 },
