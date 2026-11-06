@@ -54,7 +54,7 @@ export function moveScene(store: Store, from: number, to: number) {
 /**
  * A project file opened: its scenes in place of these (`replace`, with its settings, its frame and
  * style) or after them (`append`, with new ids); with either, what the user made in it (saved poses,
- * templates, shoot presets, imported characters and motions) added to what is here, by id (one
+ * templates, shoot presets, imported characters, motions and sounds) added to what is here, by id (one
  * already here kept). One step to undo.
  */
 export function openProject(store: Store, file: Library, mode: 'replace' | 'append') {
@@ -72,6 +72,7 @@ export function openProject(store: Store, file: Library, mode: 'replace' | 'appe
     poses: merge(lib.poses, file.poses),
     clips: merge(lib.clips, file.clips),
     models: merge(lib.models, file.models),
+    sounds: merge(lib.sounds, file.sounds),
     templates: merge(lib.templates, file.templates),
     shoots: merge(lib.shoots, file.shoots),
   }), '', { sceneIndex: at, selection: openingSelection(scenes[0]), activeFigure: null });

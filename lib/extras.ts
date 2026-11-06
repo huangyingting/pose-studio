@@ -6,26 +6,27 @@ import { cameraAt } from './cameras';
 import { newFigure, nextName } from './doc';
 import { legsOf } from './locomotion';
 import { withFacing } from './relations';
-import { setBlocks } from './sets';
+import { setBlocks, setFootprints, type Footprint } from './sets';
 import { uid } from './uid';
 import type { Action, Figure, Scene } from './types';
 
 /*
  * Extras (#57): people passing by behind the action, to and fro along lanes of their own across
  * what the scene's camera sees, further back than the cast, each in its own build and walk,
- * pausing at either end. Lanes stop short of a set's walls, and one with a wall between it and the
- * cast is not used. Extras are never filmed as a coverage's subject (lib/coverage.ts), and their
+ * pausing at either end. A lane is the longest stretch of it clear of a set's walls and furniture
+ * and the scene's props, and one with a wall between it and the cast is not used. Extras are never filmed as a coverage's subject (lib/coverage.ts), and their
  * own steps are not the cast's to fix (lib/qa.ts); walking into someone still is.
  */
 
-/** How far behind the cast the first lane is, and the next ones (m). */
-const FIRST = 3;
+/** How far behind the cast the first lane is, the least between two, and the steps tried between (m). */
+const FIRST = 1.5;
 const GAP = 1.3;
+const STEP = 0.5;
 /** How far a lane goes either side of the middle (m), and the least it may be left with. */
 const HALF = 7;
 const SHORTEST = 3;
-/** How far short of a wall a lane stops (m). */
-const CLEAR = 0.6;
+/** How far from a wall or a thing a lane keeps (m): a passer-by's half width and a little. */
+const CLEAR = 0.45;
 /** How long an extra waits at either end before turning back (s), at least and at most. */
 const PAUSE: [number, number] = [0.6, 2.2];
 /** Their walks and builds, in turn. */
@@ -41,7 +42,42 @@ const spread = (n: number) => {
   return x - Math.floor(x);
 };
 
-/** The lanes behind the cast, as the scene's camera sees them, nearest first. */
+/**
+ * The longest clear stretch of a lane through `c` along `right` (from −HALF to HALF of it), keeping
+ * CLEAR from everything in `things`; null if none.
+ */
+function clearest(c: THREE.Vector3, right: THREE.Vector3, things: Footprint[]): [number, number] | null {
+  const taken: [number, number][] = [];
+  for (const f of things) {
+    // (The lane in the thing's own axes: where it is within its box, grown by CLEAR, along each.)
+    const a = (f.yaw * Math.PI) / 180;
+    const [cos, sin] = [Math.cos(a), Math.sin(a)];
+    const [wx, wz] = [c.x - f.cx, c.z - f.cz];
+    const [ox, oz, dx, dz] = [wx * cos - wz * sin, wx * sin + wz * cos, right.x * cos - right.z * sin, right.x * sin + right.z * cos];
+    let [u0, u1] = [-Infinity, Infinity];
+    for (const [o, d, h] of [[ox, dx, f.hx + CLEAR], [oz, dz, f.hz + CLEAR]]) {
+      if (Math.abs(d) < 1e-9) {
+        if (Math.abs(o) > h) [u0, u1] = [1, 0];
+        continue;
+      }
+      const [p, q] = [(-h - o) / d, (h - o) / d];
+      [u0, u1] = [Math.max(u0, Math.min(p, q)), Math.min(u1, Math.max(p, q))];
+    }
+    if (u0 < u1) taken.push([u0, u1]);
+  }
+  taken.sort((p, q) => p[0] - q[0]);
+  let best: [number, number] | null = null;
+  let from = -HALF;
+  for (const [t0, t1] of [...taken, [HALF, Infinity] as [number, number]]) {
+    const to = Math.min(t0, HALF);
+    if (to - from > (best ? best[1] - best[0] : 0)) best = [from, to];
+    from = Math.max(from, t1);
+    if (from >= HALF) break;
+  }
+  return best;
+}
+
+/** The lanes behind the cast, as the scene's camera sees them, nearest first (at least GAP apart). */
 function lanes(scene: Scene, count: number): Lane[] {
   const cast = scene.figures.filter((f) => !f.extra && !f.hidden);
   const mid = cast.length ? cast.reduce((m, f) => [m[0] + f.position[0] / cast.length, m[1] + f.position[2] / cast.length], [0, 0]) : [0, 0];
@@ -50,21 +86,26 @@ function lanes(scene: Scene, count: number): Lane[] {
   if (look.lengthSq() < 1e-6) look.set(0, 0, -1);
   look.normalize();
   const right = new THREE.Vector3(-look.z, 0, look.x);
+  // (What stands in the way: the set's walls and furniture, the cast where they start, the scene's props on the floor.)
+  const things: Footprint[] = [...setFootprints(scene.set), ...cast.map((f) => ({ cx: f.position[0], cz: f.position[2], hx: 0.3, hz: 0.3, yaw: 0 })), ...scene.props.filter((p) => !p.hold).map((p) => ({
+    cx: p.position[0], cz: p.position[2], hx: p.kind === 'chair' || p.kind === 'stool' ? 0.3 : p.scale[0] / 2, hz: p.kind === 'chair' || p.kind === 'stool' ? 0.3 : p.scale[2] / 2, yaw: p.rotation[1],
+  }))];
   const at = (x: number, z: number) => new THREE.Vector3(x, 0.5, z);
   const from = at(mid[0], mid[1]);
   const out: Lane[] = [];
-  for (let k = 0; out.length < count && k < count * 3; k++) {
-    const c = from.clone().addScaledVector(look, FIRST + GAP * k);
-    // (Beyond a wall from the cast: none further back either.)
-    if (setBlocks(scene.set, from, c) !== null) break;
-    const reach = (dir: number) => {
-      const d = setBlocks(scene.set, c, c.clone().addScaledVector(right, dir * HALF));
-      return d === null ? HALF : Math.max(0, d - CLEAR);
-    };
-    const [l, r] = [reach(-1), reach(1)];
-    if (l + r < SHORTEST) continue;
+  const depths: number[] = [];
+  for (let k = 0; out.length < count && k < count * 8; k++) {
+    const depth = FIRST + STEP * k;
+    if (depths.some((d) => Math.abs(d - depth) < GAP - 1e-6)) continue;
+    const c = from.clone().addScaledVector(look, depth);
+    const clear = clearest(c, right, things);
+    if (!clear || clear[1] - clear[0] < SHORTEST) continue;
     const end = (d: number): [number, number] => [Math.round((c.x + right.x * d) * 1000) / 1000, Math.round((c.z + right.z * d) * 1000) / 1000];
-    out.push({ a: end(-l), b: end(r) });
+    // (Not beyond a wall from the cast: the middle of its clear stretch in sight of them.)
+    const mid = c.clone().addScaledVector(right, (clear[0] + clear[1]) / 2);
+    if (setBlocks(scene.set, from, mid) !== null) continue;
+    out.push({ a: end(clear[0]), b: end(clear[1]) });
+    depths.push(depth);
   }
   return out;
 }

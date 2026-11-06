@@ -921,6 +921,49 @@ export function setTops(id: string | undefined): StandTop[] {
   return tops;
 }
 
+/** Something on the floor to walk round: a box from above (its middle, half its width and depth, turned by yaw degrees). */
+export interface Footprint { cx: number; cz: number; hx: number; hz: number; yaw: number }
+const footprints = new Map<string, Footprint[]>();
+/** The highest a thing may stand off the floor and still be in the way (not a lamp hung from the ceiling). */
+const LOW = 1;
+/** The least a thing is tall to be in the way (not a rug, a path). */
+const TALL = 0.15;
+/** Taller than this, a thing is in the way only by its trunk or post, this far round (m). */
+const TREE = 2.5;
+const POST = 0.3;
+
+/**
+ * What stands on a set's floor to walk round (#57: extras): its walls and built pieces, its
+ * furniture (each model as big as npm run sets found it), a ready-made scene's walls and the tops
+ * of its furniture; not its floor, a rug, nor what hangs from the ceiling.
+ */
+export function setFootprints(id: string | undefined): Footprint[] {
+  if (!id) return [];
+  let out = footprints.get(id);
+  if (out) return out;
+  out = [];
+  for (const p of setById(id)?.build() ?? []) {
+    const [kind] = p.shape;
+    if (p.ground || p.at[1] > LOW) continue;
+    const yaw = p.rot?.[1] ?? 0;
+    if (kind === 'box' && p.shape[2] >= TALL && !(p.rot && (Math.abs(p.rot[0]) > 1 || Math.abs(p.rot[2]) > 1))) out.push({ cx: p.at[0], cz: p.at[2], hx: p.shape[1] / 2, hz: p.shape[3] / 2, yaw });
+    else if (kind === 'cyl' && p.shape[3] >= TALL) { const r = Math.max(p.shape[1], p.shape[2]); out.push({ cx: p.at[0], cz: p.at[2], hx: r, hz: r, yaw: 0 }); }
+    else if (kind === 'model') {
+      const size = INDEX.models[p.shape[1]]?.size;
+      const scale = p.shape[2] ?? 1;
+      if (!size || size[1] * scale < TALL) continue;
+      // (A tree, a street lamp: in the way by its trunk or its post, not as wide as its crown or its arm.)
+      const [hx, hz] = size[1] * scale > TREE ? [Math.min((size[0] / 2) * scale, POST), Math.min((size[2] / 2) * scale, POST)] : [(size[0] / 2) * scale, (size[2] / 2) * scale];
+      out.push({ cx: p.at[0], cz: p.at[2], hx, hz, yaw });
+    } else if (kind === 'scene') {
+      const sc = INDEX.scenes[p.shape[1]];
+      for (const [x0, z0, x1, z1] of [...(sc?.walls ?? []), ...(sc?.tops ?? [])]) out.push({ cx: (x0 + x1) / 2 + p.at[0], cz: (z0 + z1) / 2 + p.at[2], hx: (x1 - x0) / 2, hz: (z1 - z0) / 2, yaw: 0 });
+    }
+  }
+  footprints.set(id, out);
+  return out;
+}
+
 /** In a top's own axes: how far along its width (hx) and its depth (hz) a point is from its middle. */
 const across = (t: StandTop, x: number, z: number) => { const [dx, dz] = [x - t.cx, z - t.cz]; return [dx * t.c - dz * t.s, dx * t.s + dz * t.c] as const; };
 

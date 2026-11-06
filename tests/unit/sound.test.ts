@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveSound, removeSound, sceneSound, setSceneSound, setSoundOptions, startAnimation, trimSound } from '@/lib/actions';
+import { moveSound, openProject, removeSound, sceneSound, setSceneSound, setSoundOptions, startAnimation, trimSound } from '@/lib/actions';
 import { newAnimation } from '@/lib/animation';
 import { sceneShots, storyWindows } from '@/lib/board';
 import { newFigure, newScene, parseLibrary } from '@/lib/doc';
@@ -20,6 +20,18 @@ describe('a scene\'s sound (#35)', () => {
     const odd = parseLibrary({ scenes: [{ ...scene, sound: { id: 'snd1', start: 'x', from: -3, to: 1, volume: 7 } }], sounds: [{ id: 'snd1', duration: -1, peaks: [500, 'a'] }] });
     expect(odd.scenes[0].sound).toEqual({ id: 'snd1', start: 0, to: 1 });
     expect(odd.sounds![0]).toMatchObject({ duration: 0, peaks: [100, 0] });
+  });
+
+  it('comes with a project file opened in place of this one, or added to it (the library lists it as the file did)', () => {
+    const { store: from } = fresh();
+    setSceneSound(from, SONG);
+    const file = parseLibrary(JSON.parse(JSON.stringify(from.getState().library)));
+    for (const mode of ['replace', 'append'] as const) {
+      const { store } = fresh();
+      openProject(store, file, mode);
+      expect(store.getState().library.sounds, mode).toEqual([SONG]);
+      expect(sceneSound(store)?.info, mode).toEqual(SONG);
+    }
   });
 
   it('put on a scene: in the library once, from the start; a still scene animated as long as it; replaced in the same place', () => {
