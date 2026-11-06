@@ -14,9 +14,8 @@ import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
-import { PROP_LABELS, type Action, type PropKind, type Scene, type Travel } from '../types';
-import { GEAR, held, heldBetween } from '../hold';
-import { samplePart } from '../clip';
+import type { Action, PropKind, Scene, Travel } from '../types';
+import { withGear } from '../hold';
 import { retime, setBlend, setClipOptions } from './timeline';
 import { addFigure, sittingAt } from './figures';
 
@@ -270,7 +269,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
       const cast = [figureId, ...partners(store, figureId, people - 1)];
       store.updateScene((s) => insertClip(s, cast, motionId, start));
       seatUnder(store, figureId, motionId, start);
-      gearUp(store, figureId, motionId);
+      store.updateScene((s) => withGear(s, figureId, motionId));
       store.select({ kind: 'figure', figure: figureId });
       store.setTime(start);
       return true;
@@ -345,26 +344,6 @@ function seatUnder(store: Store, figureId: string, motionId: string, start: numb
   const [bx, bz] = [x - Math.sin((facing * Math.PI) / 180) * 0.1, z - Math.cos((facing * Math.PI) / 180) * 0.1];
   const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
   store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('chair', [r3(bx), 0, r3(bz)], nextName('Chair', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0] }] }));
-}
-
-/**
- * A Library motion that holds something (a pistol, a sword and a shield, a phone…) puts it in the
- * figure's hand (lib/hold.ts GEAR), unless that hand holds something already.
- */
-function gearUp(store: Store, figureId: string, motionId: string) {
-  const gear = motionId.startsWith(LIBRARY) ? GEAR[motionId.slice(LIBRARY.length)] : undefined;
-  const clip = clipById(motionId);
-  if (!gear || !clip) return;
-  for (const g of gear) {
-    const s = store.scene;
-    const figure = s.figures.find((f) => f.id === figureId);
-    if (!figure || s.props.some((p) => p.hold?.figure === figureId && p.hold.hand === g.hand)) continue;
-    const prop = newProp(g.kind, [0, 0, 0], nextName(PROP_LABELS[g.kind], s.props.map((p) => p.name)));
-    // (In both hands: where the motion first has them. The motion's own hands hold it: the
-    // figure's are left as they are, not keyed into a grip where the motion starts.)
-    const put = g.between ? heldBetween(prop, figure, samplePart(clip.parts[0], 0, clip.duration, clip.loop), g.hand) : held(prop, figure, g.hand).prop;
-    store.updateScene((x) => ({ ...x, props: [...x.props, put] }));
-  }
 }
 
 /**

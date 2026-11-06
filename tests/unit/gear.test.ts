@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { addProp, applyMotion } from '@/lib/actions';
+import { addProp, applyMotion, applyUpperBody, setClipOptions } from '@/lib/actions';
 import { figurePoseAt, propWorldAt } from '@/lib/evaluate';
 import { GEAR } from '@/lib/hold';
 import { Rig } from '@/lib/relations';
@@ -46,5 +46,18 @@ describe('the gear a motion holds', () => {
     const mid = l.clone().add(r).multiplyScalar(0.5);
     expect(Math.hypot(at.position[0] - mid.x, at.position[2] - mid.z)).toBeLessThan(0.08);
     expect(Math.abs(box.scale[0] - (l.distanceTo(r) - 0.06))).toBeLessThan(0.08);
+  });
+
+  it('mirrored, its gear goes to the other hand (and back); given to the upper body only, it comes too', () => {
+    const { store, a } = fresh();
+    applyMotion(store, a, captured('sword-and-shield-idle'));
+    const act = store.scene.animation!.actions.find((x) => x.source.kind === 'clip')!;
+    setClipOptions(store, act.id, { mirror: true });
+    expect(holding(store, a)).toEqual(['shield@R', 'sword@L']);
+    setClipOptions(store, act.id, { mirror: false });
+    expect(holding(store, a)).toEqual(['shield@L', 'sword@R']);
+    const { store: s2, a: b } = fresh();
+    expect(applyUpperBody(s2, b, captured('texting-and-walking'))).toBe(true);
+    expect(holding(s2, b)).toEqual(['phone@R']);
   });
 });

@@ -1,3 +1,4 @@
+import { withGear } from '../hold';
 import { cameraFrom, newScene, nextName, uid } from '../doc';
 import { snapTime, newAnimation } from '../animation';
 import { BUILT_IN, LIBRARY, clipById, hasClip } from '../assets';
@@ -305,7 +306,8 @@ export function applyUpperBody(store: Store, figureId: string, motionId: string)
   if (!store.scene.animation) store.updateScene((s) => ({ ...s, animation: { ...newAnimation(s, 2), loop: false } }), '');
   const animation = addUpper(store.scene, figureId, clip ? motionId : BUILT_IN + motionId, store.getState().time);
   if (!animation) return false;
-  store.updateScene((s) => ({ ...s, animation }));
+  // (What it holds in its hands too: a phone to one texting as they walk.)
+  store.updateScene((s) => withGear({ ...s, animation }, figureId, motionId));
   return true;
 }
 

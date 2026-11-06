@@ -11,6 +11,7 @@ import { fromQuat, toQuat, facingOf } from '../pose';
 import type { Store } from '../store';
 import { strikeTime, REACT_LEAD } from '../strike';
 import type { Action, Scene, Pose, Vec3, PropTarget, Marker, Role } from '../types';
+import { withGear } from '../hold';
 
 /* The timeline: keys and actions moved, retimed, blended and recast; markers; the in and out, locked and muted rows. */
 
@@ -281,6 +282,8 @@ export function setClipOptions(store: Store, id: string, patch: { speed?: number
     });
     return { ...s, animation: { ...s.animation, actions } };
   }, key);
+  // (Mirrored, or back: what it holds goes to the hand it now holds it in.)
+  if (patch.mirror !== undefined && act.roles.length === 1) store.updateScene((s) => withGear(s, act.roles[0].figure, act.source.kind === 'clip' ? act.source.clip : '', patch.mirror), key);
 }
 
 /** Give a role of an action of several people to another figure (see track.recast). */

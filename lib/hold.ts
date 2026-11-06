@@ -3,7 +3,10 @@ import { HAND_PRESETS } from './hands';
 import { scaleOf } from './mannequin';
 import { Rig } from './relations';
 import { handlesOf } from './props';
-import type { BodyParams, Figure, Pose, Prop, PropKind, Scene, Side, Vec3 } from './types';
+import { clipById } from './assets';
+import { mirrorPose, samplePart } from './clip';
+import { newProp, nextName } from './doc';
+import { PROP_LABELS, type BodyParams, type Figure, type Pose, type Prop, type PropKind, type Scene, type Side, type Vec3 } from './types';
 
 /*
  * Props in a hand. A held prop's position and rotation are relative to the wrist (the hand hangs
@@ -118,6 +121,34 @@ export function heldBetween(prop: Prop, figure: Figure, pose: Pose, hand: Side):
   } finally {
     rig.dispose();
   }
+}
+
+/**
+ * The scene with the gear a Library motion holds (GEAR) in the hands its figure plays it with
+ * (mirrored, the other ones): what it holds of it already moved there, what it lacks put there,
+ * unless that hand holds something else. The motion's own hands hold it: the figure's are left as
+ * they are (not keyed into a grip where it starts).
+ */
+export function withGear(scene: Scene, figureId: string, motionId: string, mirror = false): Scene {
+  const gear = motionId.startsWith('library:') ? GEAR[motionId.slice(8)] : undefined;
+  const clip = clipById(motionId);
+  const figure = scene.figures.find((f) => f.id === figureId);
+  if (!gear || !clip || !figure) return scene;
+  let props = scene.props;
+  // (Its own gear moving between the hands, a sword and a shield changing places, is in the way of nothing.)
+  const ours = (p: Prop) => p.hold?.figure === figureId && gear.some((g) => g.kind === p.kind);
+  for (const g of gear) {
+    const hand: Side = mirror ? (g.hand === 'L' ? 'R' : 'L') : g.hand;
+    const mine = props.find((p) => p.hold?.figure === figureId && p.kind === g.kind);
+    if (mine?.hold?.hand === hand) continue;
+    if (props.some((p) => p.hold?.figure === figureId && p.hold.hand === hand && !ours(p))) continue;
+    const prop = mine ?? newProp(g.kind, [0, 0, 0], nextName(PROP_LABELS[g.kind], props.map((p) => p.name)));
+    // (In both hands: where the motion first has them.)
+    const first = samplePart(clip.parts[0], 0, clip.duration, clip.loop);
+    const put = g.between ? heldBetween(prop, figure, mirror ? mirrorPose(first) : first, hand) : held(prop, figure, hand).prop;
+    props = mine ? props.map((p) => (p.id === mine.id ? put : p)) : [...props, put];
+  }
+  return props === scene.props ? scene : { ...scene, props };
 }
 
 /** The prop let go: it lands upright on the floor under where it was, keeping its heading. */
