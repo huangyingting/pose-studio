@@ -85,6 +85,17 @@ describe('motions, round 4 (#61)', () => {
     }
   });
 
+  it('vaulting a box, or jumping down off one, brings the box (as high as the recording has it) where there is none; nobody goes through it', () => {
+    for (const [slug, high] of [['vault-over-box', 0.9], ['jump-down', 0.6]] as const) {
+      const { store, a } = fresh();
+      startAnimation(store, 5);
+      setAnimationOptions(store, { loop: false });
+      applyMotion(store, a, captured(slug));
+      expect(store.scene.props.filter((p) => p.kind === 'box').map((p) => p.scale[1]), slug).toEqual([high]);
+      expect(checkMotion(store.scene).filter((i) => i.kind === 'overlap').map((i) => i.message), slug).toEqual([]);
+    }
+  });
+
   it('crawls go on lap after lap; the new motions of two are two people, the selected one leading', () => {
     for (const name of ['Crawl', 'Crawl, low']) {
       const m = index.find((x) => x.name === name)!;

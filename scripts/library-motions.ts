@@ -255,6 +255,13 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Situps': ['Sit-ups', 'Sport & acrobatics'],
   'Situp To Idle': ['Get up from sit-ups', 'Sport & acrobatics'],
   'Warming Up': ['Warm up', 'Sport & acrobatics'],
+  'Stand To Roll': ['Roll forward', 'Sport & acrobatics'],
+  'Sprinting Forward Roll': ['Roll forward, running', 'Sport & acrobatics'],
+  'Slide Feet First': ['Slide, feet first', 'Sport & acrobatics'],
+  'Running Jump': ['Running jump', 'Sport & acrobatics'],
+  'Falling To Roll': ['Land and roll', 'Sport & acrobatics'],
+  'Vault Over Box': ['Vault over a box', 'Moving'],
+  'Jump Down': ['Jump down', 'Moving'],
 };
 
 /**
@@ -274,6 +281,19 @@ for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED
  */
 const IN_CAR: Record<string, 'start' | 'end'> = { 'Entering Car': 'end', 'Driving': 'start', 'Exiting Car': 'start' };
 for (const name of Object.keys(IN_CAR)) if (!LIST[name]) throw new Error(`IN_CAR names ${name}, not a motion in LIST`);
+
+/**
+ * The motions over or off something, by their file's name: the box they need, in the frame they start
+ * in (x to their left, z ahead; its middle on the floor) and its size (m), as the recording has it:
+ * hands planted on it, legs clearing it, feet standing on it. Given with none there, one is put there.
+ */
+const NEEDS: Record<string, { at: [number, number]; size: [number, number, number] }> = {
+  // (A step vault: hands planted at its near edge at 1.05–1.15 m, the right foot on its top, the left clearing it.)
+  'Vault Over Box': { at: [0.1, 1.975], size: [0.8, 0.9, 0.65] },
+  // (Standing on it, 0.6 m up; stepping off its front edge.)
+  'Jump Down': { at: [0, -0.075], size: [0.8, 0.6, 0.75] },
+};
+for (const name of Object.keys(NEEDS)) if (!LIST[name]) throw new Error(`NEEDS names ${name}, not a motion in LIST`);
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const rig = new Rig();
@@ -293,6 +313,7 @@ const ONCE = [
   'Death From The Back', 'Dying', 'Knocked Out', 'Tripping', 'Stumble Backwards', 'Shove Reaction', 'Crouch Look Around Corner', 'Entering Car', 'Exiting Car',
   'Sitting Angry', 'Sitting Disbelief', 'Sitting Pointing', 'Asking Question', 'Standing Greeting', 'Excited', 'Looking Down', 'Rejected', 'Searching Pockets',
   'Idle To Push Up', 'Push Up To Idle', 'Idle To Situp', 'Situp To Idle',
+  'Stand To Roll', 'Sprinting Forward Roll', 'Slide Feet First', 'Running Jump', 'Falling To Roll', 'Vault Over Box', 'Jump Down',
 ];
 
 /**
@@ -483,7 +504,7 @@ for (const p of MADE_PAIRS) out.push({ file: p.file, clip: madePair(p), group: p
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end'; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end'; needs?: { at: [number, number]; size: [number, number, number] }; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
 
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;
@@ -498,6 +519,7 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
     ...(impact !== undefined ? { impact } : {}),
     ...(SEATED[file] ? { seat: SEATED[file] } : {}),
     ...(IN_CAR[file] ? { car: IN_CAR[file] } : {}),
+    ...(NEEDS[file] ? { needs: NEEDS[file] } : {}),
     // (Where it takes its person, and where a strike lands: lib/strike.ts clipCourse.)
     ...clipCourse(ready, impact),
   });

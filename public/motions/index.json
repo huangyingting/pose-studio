@@ -1007,6 +1007,29 @@
   "turn": 0
  },
  {
+  "id": "library:jump-down",
+  "name": "Jump down",
+  "duration": 3.5,
+  "people": 1,
+  "group": "Moving",
+  "needs": {
+   "at": [
+    0,
+    -0.075
+   ],
+   "size": [
+    0.8,
+    0.6,
+    0.75
+   ]
+  },
+  "move": [
+   -0.055,
+   1.25
+  ],
+  "turn": -5
+ },
+ {
   "id": "library:jump",
   "name": "Jump forward",
   "duration": 2.433,
@@ -1087,6 +1110,18 @@
    0.908
   ],
   "turn": 24
+ },
+ {
+  "id": "library:falling-to-roll",
+  "name": "Land and roll",
+  "duration": 1.8,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.052,
+   3.066
+  ],
+  "turn": -9
  },
  {
   "id": "library:landing",
@@ -1523,6 +1558,30 @@
   "turn": 0
  },
  {
+  "id": "library:stand-to-roll",
+  "name": "Roll forward",
+  "duration": 2.367,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.019,
+   4.541
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:sprinting-forward-roll",
+  "name": "Roll forward, running",
+  "duration": 1.167,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.01,
+   5.82
+  ],
+  "turn": -5
+ },
+ {
   "id": "library:roundhouse-kick",
   "name": "Roundhouse kick",
   "duration": 2.5,
@@ -1617,6 +1676,18 @@
    2.901
   ],
   "turn": 0
+ },
+ {
+  "id": "library:running-jump",
+  "name": "Running jump",
+  "duration": 0.867,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.016,
+   4.276
+  ],
+  "turn": 11
  },
  {
   "id": "library:sad-idle",
@@ -1822,6 +1893,18 @@
   "move": [
    0,
    0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:slide-feet-first",
+  "name": "Slide, feet first",
+  "duration": 1.533,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "move": [
+   -0.027,
+   6.722
   ],
   "turn": 0
  },
@@ -2307,6 +2390,29 @@
    1.266,
    0.638
   ]
+ },
+ {
+  "id": "library:vault-over-box",
+  "name": "Vault over a box",
+  "duration": 3.533,
+  "people": 1,
+  "group": "Moving",
+  "needs": {
+   "at": [
+    0.1,
+    1.975
+   ],
+   "size": [
+    0.8,
+    0.9,
+    0.65
+   ]
+  },
+  "move": [
+   -0.864,
+   3.13
+  ],
+  "turn": 8
  },
  {
   "id": "library:walk",

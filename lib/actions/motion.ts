@@ -271,6 +271,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
       store.updateScene((s) => insertClip(s, cast, motionId, start));
       seatUnder(store, figureId, motionId, start);
       carUnder(store, figureId, motionId, start);
+      boxNeeded(store, figureId, motionId, start);
       store.updateScene((s) => withGear(s, figureId, motionId));
       store.select({ kind: 'figure', figure: figureId });
       store.setTime(start);
@@ -354,6 +355,23 @@ function seatUnder(store: Store, figureId: string, motionId: string, start: numb
   // (In twentieths of the usual one.)
   const high = hips - CHAIR_SEAT < ON_SEAT[0] ? Math.round(Math.max(0.6, (hips - ON_SEAT[1]) / CHAIR_SEAT) * 20) / 20 : 1;
   store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('chair', [r3(bx), 0, r3(bz)], nextName('Chair', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0], ...(high < 1 ? { scale: [1, high, 1] as Vec3 } : {}) }] }));
+}
+
+/**
+ * A motion over or off a box (vaulting one, jumping down off one) given where there is none: one is
+ * put where the motion has it, as big as it has it, square to the way they start.
+ */
+function boxNeeded(store: Store, figureId: string, motionId: string, start: number) {
+  const need = (LIBRARY_INDEX as unknown as { id: string; needs?: { at: [number, number]; size: Vec3 } }[]).find((m) => m.id === motionId)?.needs;
+  const act = need && actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === motionId && Math.abs(x.start - start) < 1e-3);
+  const marks = act && marksOf(store.scene, act, figureId);
+  if (!need || !marks) return;
+  const { at: [x, z], facing } = marks.start;
+  const a = (facing * Math.PI) / 180;
+  const [bx, bz] = [x + need.at[0] * Math.cos(a) + need.at[1] * Math.sin(a), z - need.at[0] * Math.sin(a) + need.at[1] * Math.cos(a)];
+  if (store.scene.props.some((p) => !p.hold && p.kind === 'box' && Math.hypot(p.position[0] - bx, p.position[2] - bz) < 0.5)) return;
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('box', [r3(bx), 0, r3(bz)], nextName('Box', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0], scale: [...need.size] as Vec3 }] }));
 }
 
 /**
