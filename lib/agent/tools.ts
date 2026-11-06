@@ -409,7 +409,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: 'add_prop',
-    description: 'Add a prop, optionally named (e.g. "Desk"): on the floor (box, ball, cylinder, chair, stool, step, wall), or in a figure\'s hand (stick, phone, cup, book, ball, box: give held_by and hand; it follows the hand). Returns its id.',
+    description: 'Add a prop, optionally named (e.g. "Desk"): on the floor (box, ball, cylinder, chair, stool, step, wall, car), or in a figure\'s hand (stick, phone, cup, book, ball, box: give held_by and hand; it follows the hand). Returns its id.',
     schema: obj({
       kind: str('Prop', PROP_KINDS),
       x: num('Floor X (metres; ignored when held)'),

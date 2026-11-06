@@ -25,7 +25,23 @@ function cylinder(radius: number, height: number, bevel = 0.012) {
   return new THREE.LatheGeometry(pts, 40);
 }
 
-type Piece = [THREE.BufferGeometry, Vec3];
+/** A part, where it goes, and (false) whether nothing bumps into it: what hands grip, as a car's steering wheel. */
+type Piece = [THREE.BufferGeometry, Vec3, solid?: false];
+
+/** A rod from a to b (a car's pillar, a steering column): placed at its middle. */
+function strut(a: Vec3, b: Vec3, radius: number): Piece {
+  const [p, q] = [new THREE.Vector3(...a), new THREE.Vector3(...b)];
+  const along = q.clone().sub(p);
+  const geo = cylinder(radius, along.length(), radius / 3).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), along.normalize()));
+  const mid = p.add(q).multiplyScalar(0.5);
+  return [geo, [mid.x, mid.y, mid.z]];
+}
+
+/**
+ * A car's driver, in its own frame (facing +z, x to its left, from its middle on the ground): where
+ * the hips are in the driver's seat, as the Library's getting in, driving and getting out have them.
+ */
+export const CAR_DRIVER = { at: [0.37, -0.1] as [number, number], hips: 0.84 };
 
 /** A gymnastics ribbon: the stick (its tip this far along it), the ribbon's length and its cross-section, in segments. */
 export const RIBBON = { stick: 0.6, length: 4, width: 0.05, thickness: 0.004, segments: 20 };
@@ -121,6 +137,35 @@ function pieces(kind: PropKind): Piece[] {
         ...legs,
       ];
     }
+    case 'car': { // facing +z, the driver's seat on its left (+x), the driver's door open; room inside for the driver's body (CAR_DRIVER)
+      const [dx, dz] = CAR_DRIVER.at;
+      const wheel = (x: number, z: number): Piece => [cylinder(0.33, 0.22, 0.04).rotateZ(Math.PI / 2), [x, 0.33, z]];
+      const seat = (x: number): Piece[] => [[box(0.48, 0.46, 0.56, 0.05), [x, 0.41, dz]], [box(0.48, 0.72, 0.1, 0.04), [x, 1, dz - 0.38]]];
+      const side = (x: number): Piece[] => [
+        strut([x * 0.84, 1, 0.75], [x * 0.8, 1.55, 0.45], 0.03),
+        strut([x * 0.86, 1, -0.55], [x * 0.82, 1.55, -0.55], 0.03),
+        strut([x * 0.86, 1, -1.5], [x * 0.82, 1.55, -1.4], 0.03),
+      ];
+      const column = strut([dx - 0.04, 1.07, 0.23], [dx - 0.04, 0.98, 0.5], 0.025) as [THREE.BufferGeometry, Vec3];
+      // (The driver's door, hinged at its front, swung 70° open.)
+      const open = 70 * D2R;
+      return [
+        wheel(0.78, 1.35), wheel(-0.78, 1.35), wheel(0.78, -1.4), wheel(-0.78, -1.4),
+        [box(1.6, 0.06, 2.25, 0.02), [0, 0.15, -0.375]],
+        [box(1.8, 0.7, 1.45, 0.08), [0, 0.65, 1.475]],
+        [box(1.8, 0.7, 0.7, 0.08), [0, 0.65, -1.85]],
+        [box(0.06, 0.82, 2.25, 0.02), [-0.87, 0.61, -0.375]],
+        [box(0.06, 0.82, 0.95, 0.02), [0.87, 0.61, -1.025]],
+        [box(0.05, 0.82, 1, 0.02).rotateY(-open), [0.9 + 0.5 * Math.sin(open), 0.61, 0.75 - 0.5 * Math.cos(open)]],
+        [box(1.7, 0.25, 0.3, 0.04), [0, 0.975, 0.62]],
+        [new THREE.TorusGeometry(0.16, 0.018, 8, 32).rotateX(20 * D2R), [dx - 0.04, 1.07, 0.23], false],
+        [...column, false],
+        ...seat(dx), ...seat(-dx),
+        [box(1.5, 0.44, 0.5, 0.05), [0, 0.4, -1.15]], [box(1.5, 0.6, 0.1, 0.04), [0, 0.92, -1.45]],
+        [box(1.64, 0.05, 1.9, 0.02), [0, 1.575, -0.5]],
+        ...side(1), ...side(-1),
+      ];
+    }
   }
 }
 
@@ -134,10 +179,15 @@ export class PropObject {
 
   /** A ribbon's ribbon (drawn, but not solid: nothing stands on it or bumps into it). */
   private ribbon: THREE.Mesh | null = null;
+  /** Its parts that are not solid either (gripped: a car's steering wheel). */
+  private loose = new Set<THREE.Mesh>();
 
   constructor(ink: Ink, readonly kind: PropKind, readonly id: string) {
     this.parts = new InkedParts(ink, 'prop');
-    for (const [geo, pos] of pieces(kind)) this.parts.add(this.object, geo, { prop: id }, pos);
+    for (const [geo, pos, solid] of pieces(kind)) {
+      const mesh = this.parts.add(this.object, geo, { prop: id }, pos);
+      if (solid === false) this.loose.add(mesh);
+    }
     if (kind === 'ribbon') {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((RIBBON.segments + 1) * 4 * 3), 3));
@@ -161,7 +211,7 @@ export class PropObject {
 
   /** The parts that are solid: what stands on the floor, what is stood on, what bodies bump into. */
   get solids() {
-    return this.parts.bodies.filter((m) => m !== this.ribbon);
+    return this.parts.bodies.filter((m) => m !== this.ribbon && !this.loose.has(m));
   }
 
   /**

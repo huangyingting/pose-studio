@@ -38,7 +38,7 @@ const to = 'public/motions';
 const MIRRORED = ['Walk Right', 'Strafe Right', 'Turn 90 Right'];
 
 /** Left out: one person's half of a motion of two (alone, it is not the motion; those PAIRS has are put together). */
-const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr', 'Release Hostage Villain', 'Release Hostage Hostage', 'Kiss 1', 'Kiss 2'];
+const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr', 'Release Hostage Villain', 'Release Hostage Hostage', 'Kiss 1', 'Kiss 2', 'Strangling', 'Being Strangled', 'Takedown Attacker', 'Takedown Victim'];
 
 /**
  * Motions of two people put together from halves captured apart, each at the place it starts
@@ -55,6 +55,9 @@ const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; par
   { file: 'Release Hostage', name: 'Let a hostage go', group: 'Fighting', lead: 'Release Hostage Villain', partner: 'Release Hostage Hostage', roles: ['Captor', 'Hostage'], at: [-0.06, 0.48], facing: 0 },
   // (Her head a little in front of his as she rises on her toes, her arms round his neck, his hands at her waist.)
   { file: 'Kiss', name: 'Kiss', group: 'Feelings', lead: 'Kiss 1', partner: 'Kiss 2', roles: ['Lead', 'Partner'], at: [0, 0.57], facing: 180 },
+  // (Coming up behind: the hands round the neck as it struggles, sinks and falls. The tackler's head at the other's middle as the legs are taken.)
+  { file: 'Strangle', name: 'Strangle from behind', group: 'Fighting', lead: 'Strangling', partner: 'Being Strangled', roles: ['Attacker', 'Victim'], at: [-0.131, 2.76], facing: -4 },
+  { file: 'Takedown', name: 'Tackle', group: 'Fighting', lead: 'Takedown Attacker', partner: 'Takedown Victim', roles: ['Tackler', 'Tackled'], at: [0.23, 1.35], facing: 212 },
 ];
 
 /**
@@ -85,6 +88,12 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Descending Stairs': ['Walk down stairs', 'Moving'],
   'Running Up Stairs': ['Run up stairs', 'Moving'],
   'Climbing Ladder': ['Climb a ladder', 'Moving'],
+  'Start Walking': ['Start walking', 'Moving'],
+  'Stop Walking': ['Walk to a stop', 'Moving'],
+  'Crawling': ['Crawl', 'Moving'],
+  'Low Crawl': ['Crawl, low', 'Moving'],
+  'Tripping': ['Trip and fall', 'Moving'],
+  'Stumble Backwards': ['Stumble back and fall', 'Moving'],
   'Idle': ['Stand, idle', 'Standing & waiting'],
   'Standing Idle': ['Stand, shifting weight', 'Standing & waiting'],
   'Breathing Idle': ['Stand, breathing', 'Standing & waiting'],
@@ -92,6 +101,8 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Look Around': ['Look around', 'Standing & waiting'],
   'Leaning On A Wall': ['Lean on a wall', 'Standing & waiting'],
   'Yawn': ['Yawn', 'Standing & waiting'],
+  'Looking Behind': ['Look behind', 'Standing & waiting'],
+  'Arm Stretching': ['Stretch', 'Standing & waiting'],
   'Sitting Idle': ['Sit, idle', 'Sitting & lying'],
   'Stand To Sit': ['Sit down on a chair', 'Sitting & lying'],
   'Sit To Stand': ['Get up from a chair', 'Sitting & lying'],
@@ -109,6 +120,8 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Laying Moaning': ['Groan in pain, lying', 'Sitting & lying'],
   'Laying Hand Gesture': ['Talk, lying', 'Sitting & lying'],
   'Kneel': ['Down on one knee, and up', 'Sitting & lying'],
+  'Writing': ['Write, sitting', 'Using things'],
+  'Lying Dead': ['Lie face down, still', 'Sitting & lying'],
   'Talking': ['Talk, explaining', 'Talking & gestures'],
   'Quick Informal Bow': ['Bow, quick', 'Talking & gestures'],
   'Sitting Talking': ['Talk, sitting', 'Talking & gestures'],
@@ -125,6 +138,8 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Standing Thumbs Up': ['Thumbs up', 'Talking & gestures'],
   'Shake Fist': ['Shake a fist', 'Talking & gestures'],
   'Praying': ['Pray', 'Talking & gestures'],
+  'Waving Hello': ['Wave hello', 'Talking & gestures'],
+  'Raising Hand': ['Raise a hand', 'Talking & gestures'],
   'Angry': ['Angry', 'Feelings'],
   'Crying': ['Cry', 'Feelings'],
   'Sad Idle': ['Sad', 'Feelings'],
@@ -137,6 +152,8 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Victory': ['Cheer', 'Feelings'],
   'Cheering While Sitting': ['Cheer, sitting', 'Sitting & lying'],
   'Thinking': ['Think', 'Feelings'],
+  'Clapping Standing': ['Clap', 'Feelings'],
+  'Yelling': ['Yell', 'Feelings'],
   'Carrying': ['Hold a box', 'Using things'],
   'Lifting Object': ['Lift a heavy box', 'Using things'],
   'Pick Up Item': ['Grab something on the run', 'Moving'],
@@ -152,6 +169,11 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Talking On Phone': ['Talk on the phone', 'Using things'],
   'Texting While Standing': ['Text on a phone', 'Using things'],
   'Typing': ['Type, sitting', 'Using things'],
+  'Putting Down': ['Put something down', 'Using things'],
+  'Smoking': ['Smoke', 'Using things'],
+  'Entering Car': ['Get into a car', 'Using things'],
+  'Driving': ['Drive', 'Using things'],
+  'Exiting Car': ['Get out of a car', 'Using things'],
   'Aim Pistol': ['Aim a pistol, sitting', 'Weapons'],
   'Shooting': ['Fire a pistol', 'Weapons'],
   'Sword And Shield Idle': ['Sword and shield, ready', 'Weapons'],
@@ -162,6 +184,14 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Pistol Idle': ['Aim a pistol', 'Weapons'],
   'Pistol Walk': ['Walk, aiming a pistol', 'Weapons'],
   'Pistol Whip': ['Strike with a pistol', 'Weapons'],
+  'Rifle Idle': ['Hold a rifle, ready', 'Weapons'],
+  'Rifle Aiming Idle': ['Aim a rifle', 'Weapons'],
+  'Firing Rifle': ['Fire a rifle', 'Weapons'],
+  'Firing Rifle Kneeling': ['Fire a rifle, kneeling', 'Weapons'],
+  'Rifle Reload': ['Reload a rifle', 'Weapons'],
+  'Rifle Walk': ['Walk with a rifle', 'Weapons'],
+  'Rifle Walk Aiming': ['Walk, aiming a rifle', 'Weapons'],
+  'Rifle Run': ['Run with a rifle', 'Weapons'],
   'Fight Idle': ['Fighting stance', 'Fighting'],
   'Jab Cross': ['Jab, cross', 'Fighting'],
   'Hook Punch': ['Hook punch', 'Fighting'],
@@ -177,6 +207,12 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Receive Punch To The Face': ['Punched in the face', 'Fighting'],
   'Death From The Front': ['Hit, fall forward', 'Fighting'],
   'Falling Back Death': ['Hit, fall back', 'Fighting'],
+  'Death From The Back': ['Shot in the back', 'Fighting'],
+  'Dying': ['Die, collapsing', 'Fighting'],
+  'Knocked Out': ['Knocked out', 'Fighting'],
+  'Shove Reaction': ['Shoved', 'Fighting'],
+  'Cover Idle': ['Take cover, crouched', 'Fighting'],
+  'Crouch Look Around Corner': ['Look round a corner, crouched', 'Fighting'],
   'Jump': ['Jump forward', 'Sport & acrobatics'],
   'Standing Jump': ['Jump on the spot', 'Sport & acrobatics'],
   'Jump Over': ['Dive over and roll', 'Sport & acrobatics'],
@@ -206,9 +242,16 @@ const LIST: Record<string, [string, MotionGroup]> = {
  */
 const SEATED: Record<string, 'start' | 'end'> = {
   'Sitting Idle': 'start', 'Sitting Talking': 'start', 'Clapping': 'start', 'Cheering While Sitting': 'start', 'Aim Pistol': 'start',
-  'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start', 'Typing': 'start',
+  'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start', 'Typing': 'start', 'Writing': 'start',
 };
 for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
+
+/**
+ * The motions done in a car's driver's seat, by their file's name: in it from the start, or (getting
+ * in) at the end. Given to someone with no car there, one is put round them (lib/actions/motion.ts).
+ */
+const IN_CAR: Record<string, 'start' | 'end'> = { 'Entering Car': 'end', 'Driving': 'start', 'Exiting Car': 'start' };
+for (const name of Object.keys(IN_CAR)) if (!LIST[name]) throw new Error(`IN_CAR names ${name}, not a motion in LIST`);
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const rig = new Rig();
@@ -224,6 +267,8 @@ const ONCE = [
   'Cartwheel', 'Spinning', 'Falling Down', 'Getting Up', 'Mma Kick', 'Picking Up', 'Quick Informal Bow',
   'Jump', 'Hit Reaction', 'Hook Punch', 'Jab Cross', 'Receive Punch To The Face', 'Roundhouse Kick', 'Uppercut', 'Lifting Object', 'Button Pushing', 'Pulling Lever', 'Throw Object',
   'Kneel', 'Pistol Whip', 'Sword And Shield Impact', 'Blow A Kiss',
+  'Waving Hello', 'Raising Hand', 'Yelling', 'Looking Behind', 'Putting Down', 'Arm Stretching', 'Start Walking', 'Stop Walking', 'Rifle Reload',
+  'Death From The Back', 'Dying', 'Knocked Out', 'Tripping', 'Stumble Backwards', 'Shove Reaction', 'Crouch Look Around Corner', 'Entering Car', 'Exiting Car',
 ];
 
 /**
@@ -268,7 +313,47 @@ function level(clip: Clip): Clip {
 
 /** A clip as captured: its people's bodies a sex and a height (a capture's actor has no build of ours). */
 const asCaptured = (clip: Clip): Clip => ({ ...clip, parts: clip.parts.map((p) => (p.body ? { ...p, body: { sex: p.body.sex, height: p.body.height } } : p)) });
-const read = async (file: string) => level(refineClip(asCaptured(parseClip(JSON.parse(await readFile(join(from, file), 'utf8')))!)));
+/**
+ * Raised (m) from where it was captured: driving was captured on a chair, its feet on the floor; in
+ * a car's seat they are on the car's floor, its hips where getting in leaves them and getting out starts.
+ */
+const RAISED: Record<string, number> = { 'Driving': 0.227 };
+const raised = (clip: Clip): Clip => (!RAISED[clip.name] ? clip : {
+  ...clip, parts: clip.parts.map((p) => ({ ...p, tracks: p.tracks.map((t) => (t.name !== 'hips.position' ? t : { ...t, values: t.values.map((v, i) => (i % 3 === 1 ? round(v + RAISED[clip.name]) : v)) })) })),
+});
+/**
+ * Toes softened: captured, they flick 30–45° in a frame as a foot leaves the floor (and getting up
+ * off the floor, tucked toes come free 80° in three): each toe key mixed with its neighbours' (¼, ½,
+ * ¼), twice, and again until none turns more than 20° in a frame (at most eight times). First, toes
+ * bent past 90° (dragged under the foot in a crawl, 153°) come back to 90°.
+ */
+function softToes(clip: Clip): Clip {
+  const [q, a, b] = [new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion()];
+  return {
+    ...clip, parts: clip.parts.map((part) => ({
+      ...part, tracks: part.tracks.map((t) => {
+        if (!/^(left|right)Toes\.quaternion$/.test(t.name)) return t;
+        let v = [...t.values];
+        const rest = new THREE.Quaternion();
+        for (let i = 0; i < v.length / 4; i++) {
+          const bend = q.fromArray(v, i * 4).angleTo(rest);
+          if (bend > Math.PI / 2) a.copy(rest).slerp(q, Math.PI / 2 / bend).toArray(v, i * 4);
+        }
+        const most = () => Math.max(0, ...Array.from({ length: v.length / 4 - 1 }, (_, i) => a.fromArray(v, i * 4).angleTo(b.fromArray(v, i * 4 + 4)))) * (180 / Math.PI);
+        for (let pass = 0; pass < 8 && (pass < 2 || most() > 20); pass++) {
+          const next = [...v];
+          for (let i = 1; i < v.length / 4 - 1; i++) {
+            a.fromArray(v, (i - 1) * 4).slerp(b.fromArray(v, (i + 1) * 4), 0.5);
+            q.fromArray(v, i * 4).slerp(a, 0.5).toArray(next, i * 4);
+          }
+          v = next;
+        }
+        return { ...t, values: v.map((x) => Math.round(x * 1e5) / 1e5) };
+      }),
+    })),
+  };
+}
+const read = async (file: string) => softToes(level(refineClip(raised(asCaptured(parseClip(JSON.parse(await readFile(join(from, file), 'utf8')))!)))));
 const files = (await readdir(from)).filter((f) => f.endsWith('.clip.json')).sort();
 const clips = new Map<string, Clip>();
 for (const f of files) {
@@ -304,11 +389,11 @@ async function paired(p: (typeof PAIRS)[number]): Promise<Clip> {
       return { ...t, values: v };
     }),
   };
-  const both = refineClip({
+  const both = softToes(refineClip({
     // (Each part named by its role, as the inspector lists who plays it.)
     ...a, name: p.file, duration: Math.min(a.duration, b.duration), parts: [{ ...a.parts[0], name: p.roles[0] }, { ...placed, name: p.roles[1] }],
     contacts: [...(a.contacts ?? []).map((c) => ({ ...c, part: 0 })), ...(b.contacts ?? []).map((c) => ({ ...c, part: 1 }))],
-  });
+  }));
   // (Hands held both ways at once, a handshake: both kept; as played, the shorter one's follows.)
   return { ...both, contacts: [...(both.contacts ?? []), ...detectGrips(both, 30)] };
 }
@@ -374,7 +459,7 @@ for (const p of MADE_PAIRS) out.push({ file: p.file, clip: madePair(p), group: p
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end'; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
 
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;
@@ -388,6 +473,7 @@ for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name
     ...(loop ? { loop: true as const } : {}),
     ...(impact !== undefined ? { impact } : {}),
     ...(SEATED[file] ? { seat: SEATED[file] } : {}),
+    ...(IN_CAR[file] ? { car: IN_CAR[file] } : {}),
     // (Where it takes its person, and where a strike lands: lib/strike.ts clipCourse.)
     ...clipCourse(ready, impact),
   });

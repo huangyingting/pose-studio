@@ -23,13 +23,13 @@ const turnOf = (p: Pose, q: Pose, j: keyof Pose['bones']) => {
 };
 
 /** A figure walking to (x, z) from the stage's middle, in the captured steps given (else the Library's Walk). */
-function walked(to: [number, number], gait?: string, via?: [number, number], strafe?: boolean) {
+function walked(to: [number, number], gait?: string, via?: [number, number], strafe?: boolean, mode: 'walk' | 'run' = 'walk') {
   const { store, a } = fresh();
   startAnimation(store, 2);
   store.setTime(0);
   // (Played once: going round, the end back to the start is no slide.)
   store.updateScene((s) => ({ ...s, animation: { ...s.animation!, loop: false } }));
-  travelTo(store, a, to, 'walk', strafe ? { strafe } : {});
+  travelTo(store, a, to, mode, strafe ? { strafe } : {});
   const extra = { ...(gait ? { gait } : {}), ...(via ? { via: [{ at: via, facing: 0 }] } : {}) };
   store.updateScene((s) => ({ ...s, animation: { ...s.animation!, actions: s.animation!.actions.map((x) => (x.source.kind === 'travel' ? { ...x, source: { ...x.source, ...extra } } : x)) } }));
   const act = actionsOf(store.scene.animation!, a).find((x) => x.source.kind === 'travel')!;
@@ -80,6 +80,15 @@ describe('a walk with a captured cycle (#26)', () => {
       const { store, a, act } = walked([0, 6], gait);
       const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
       expect(Math.hypot(end.position[0], end.position[2] - 6), gait).toBeLessThan(0.1);
+      expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop').map((i) => i.message), gait).toEqual([]);
+    }
+  });
+
+  it('in every run a run can go with (a jog, a sprint, with a rifle…): where it is sent, its feet held', () => {
+    for (const gait of GAITS.run) {
+      const { store, a, act } = walked([0, 8], gait, undefined, false, 'run');
+      const end = figurePoseAt(store.scene, a, act.start + act.duration)!;
+      expect(Math.hypot(end.position[0], end.position[2] - 8), gait).toBeLessThan(0.1);
       expect(checkMotion(store.scene).filter((i) => i.kind === 'slide' || i.kind === 'pop').map((i) => i.message), gait).toEqual([]);
     }
   });

@@ -1898,7 +1898,7 @@ test('the timeline is always there: what a figure does next from its + at the pl
   // The row's + at the playhead (the walk's end): a motion from there.
   const end = s.time;
   await timeline.getByRole('button', { name: /^What Figure does next, from/ }).click();
-  await picker.getByRole('menuitem', { name: /^Wave, both arms/ }).click();
+  await picker.getByRole('menuitem', { name: /^Wave hello/ }).click();
   s = await live(page);
   const wave = actionsOf(s.scene.animation!, s.active).find((x) => x.source.kind === 'clip')!;
   expect(wave.start).toBeCloseTo(end, 1);

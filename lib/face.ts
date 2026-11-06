@@ -40,6 +40,15 @@ const MOODS: Record<string, Mood | Mood[]> = {
   'falling-down': { feel: 'surprised', by: 0.8 }, 'standing-dodge-left': { feel: 'surprised', by: 0.5 }, 'sword-and-shield-impact': { feel: 'surprised', by: 0.6 }, 'sword-and-shield-death': { feel: 'surprised', by: 0.5 },
   bored: { feel: 'relaxed', by: 0.4 }, yawn: { feel: 'relaxed', by: 0.5, talk: true }, praying: { feel: 'relaxed', by: 0.6 }, thinking: { feel: 'relaxed', by: 0.3 },
   'texting-while-standing': { feel: 'relaxed', by: 0.3 }, 'texting-and-walking': { feel: 'relaxed', by: 0.3 },
+  'waving-hello': { feel: 'happy', by: 0.7 }, 'clapping-standing': { feel: 'happy', by: 0.8 }, yelling: { feel: 'angry', by: 0.9, talk: true },
+  smoking: { feel: 'relaxed', by: 0.4 }, 'arm-stretching': { feel: 'relaxed', by: 0.5 }, 'looking-behind': { feel: 'surprised', by: 0.3 },
+  ...Object.fromEntries(['rifle-idle', 'rifle-aiming-idle', 'firing-rifle', 'firing-rifle-kneeling', 'rifle-walk', 'rifle-walk-aiming', 'rifle-run'].map((m) => [m, { feel: 'angry' as const, by: 0.5 }])),
+  'cover-idle': { feel: 'surprised', by: 0.4 }, 'crouch-look-around-corner': { feel: 'surprised', by: 0.4 },
+  'death-from-the-back': { feel: 'surprised', by: 0.6 }, dying: { feel: 'sad', by: 0.9 }, 'shove-reaction': { feel: 'surprised', by: 0.6 },
+  tripping: { feel: 'surprised', by: 0.8 }, 'stumble-backwards': { feel: 'surprised', by: 0.8 },
+  // (Out cold, or lying dead: eyes shut.)
+  'knocked-out': { feel: 'blink', by: 1 }, 'lying-dead': { feel: 'blink', by: 1 },
+  strangle: [{ feel: 'angry', by: 0.9 }, { feel: 'surprised', by: 1 }], takedown: [{ feel: 'angry', by: 0.8 }, { feel: 'surprised', by: 0.8 }],
 };
 
 /** A motion's mood for the one in its part `part` (the Library's by the file's name), or as set by hand for them (Role.face). */

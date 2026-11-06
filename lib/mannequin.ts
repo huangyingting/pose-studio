@@ -3,7 +3,7 @@ import { buildOf, widthOf } from './body';
 import { BOTS, BOTS_FILE, BOT_TARGETS } from './bots';
 import { withBase } from './paths';
 import { Ink, InkedParts, type Highlight } from './ink';
-import { clampRotation, jointLimits, sided, wrapDeg } from './joints';
+import { jointLimits, sided, wrapDeg } from './joints';
 import { boneToRig, fingerToRig, rigToBone, toQuat } from './pose';
 import { JOINT_PARENT } from './skeleton';
 import {
@@ -89,6 +89,7 @@ interface Bot {
 
 /** A turn worked out on its way to a joint (posing makes no quaternions of its own). */
 const TURN = new THREE.Quaternion();
+const GIVEN = new THREE.Euler();
 
 const decoded = new Map<string, Bot>();
 /** The bots' meshes (public/mannequin/BOTS_FILE): fetched before anything is posed or drawn (loadBots), or given (Node). */
@@ -477,12 +478,15 @@ export class Mannequin {
    * working out where the feet go (planted, held) poses a figure many times, its hands unchanged.
    */
   private handsSet: { L: Hand; R: Hand; fingers: unknown[] } | null = null;
+  /** The bones it was last given (a joint past its range in them may stay as far past it: constrain). */
+  private given: Figure['bones'] | null = null;
 
   /** Pose the figure from document state. */
   apply(fig: Figure) {
     if (this.setBody(fig.body)) this.handsSet = null;
     // (Through one quaternion kept for it, copied once: each change to a joint's own works out its angles again.)
     for (const name of JOINTS) this.joints[name].quaternion.copy(boneToRig(name, fig.bones[name], TURN));
+    this.given = fig.bones;
     const fingers = FINGER_BONES.map((b) => fig.bones[b]);
     const was = this.handsSet;
     if (!was || was.L !== fig.hands.L || was.R !== fig.hands.R || fingers.some((q, i) => q !== was.fingers[i])) {
@@ -505,15 +509,21 @@ export class Mannequin {
     return { bones, position: [r(p.x), r(p.y), r(p.z)] };
   }
 
-  /** Clamp the given joints to their anatomical ranges. */
+  /**
+   * Clamp the given joints to their anatomical ranges. One the pose it was given has past its range
+   * (a captured motion's: real shoulders and wrists go further) may stay as far past it, or come
+   * back in, but does not jump into it as it is edited.
+   */
   constrain(names: readonly JointName[]) {
     for (const name of names) {
       if (name === 'hips') continue;
       const obj = this.joints[name];
       const cur = stableEuler(obj.rotation, [0, 0, 0]);
-      const lim = jointLimits(name);
+      const given = this.given?.[name];
+      const had = given ? stableEuler(GIVEN.setFromQuaternion(boneToRig(name, given, TURN), obj.rotation.order), [0, 0, 0]) : null;
+      const lim = jointLimits(name).map(([lo, hi], i) => [Math.min(lo, had?.[i] ?? lo), Math.max(hi, had?.[i] ?? hi)]);
       if (cur.every((v, i) => v >= lim[i][0] && v <= lim[i][1])) continue;
-      const c = clampRotation(name, cur);
+      const c = cur.map((v, i) => Math.min(lim[i][1], Math.max(lim[i][0], v)));
       obj.rotation.set(c[0] * D2R, c[1] * D2R, c[2] * D2R);
     }
     this.object.updateMatrixWorld(true);

@@ -1,5 +1,5 @@
 import {
-  Armchair, BookOpen, Box, BrickWall, Brush, Circle, CircleDashed, Coffee, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
+  Armchair, BookOpen, Box, BrickWall, Brush, Car, Circle, CircleDashed, Coffee, Cylinder, Disc, Goal, Minus, PenTool, PencilLine, RectangleHorizontal, Rows3,
   Crosshair, Droplets, FlagTriangleRight, Grid2x2, Handbag, Ribbon, Shield, Slash, Smartphone, Smile, SeparatorHorizontal, Sun, Sword, Target, Wand,
   type LucideIcon,
 } from 'lucide-react';
@@ -30,6 +30,7 @@ export const PROP_ICONS: Record<PropKind, LucideIcon> = {
   bat: Slash,
   club: FlagTriangleRight,
   bag: Handbag,
+  car: Car,
 };
 
 /** Icon per render style (toolbar menu, export / practice pickers). */

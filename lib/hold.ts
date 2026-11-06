@@ -85,6 +85,7 @@ export function held(prop: Prop, figure: Figure, hand: Side): { prop: Prop; figu
  */
 export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolean }[]> = {
   ...Object.fromEntries(['aim-pistol', 'pistol-idle', 'pistol-walk', 'pistol-whip', 'shooting'].map((m) => [m, [{ kind: 'pistol' as const, hand: 'R' as const }]])),
+  ...Object.fromEntries(['rifle-idle', 'rifle-aiming-idle', 'firing-rifle', 'firing-rifle-kneeling', 'rifle-reload', 'rifle-walk', 'rifle-walk-aiming', 'rifle-run'].map((m) => [m, [{ kind: 'rifle' as const, hand: 'R' as const }]])),
   ...Object.fromEntries(['sword-and-shield-idle', 'sword-and-shield-attack', 'sword-and-shield-block', 'sword-and-shield-impact', 'sword-and-shield-death'].map((m) => [m, [{ kind: 'sword' as const, hand: 'R' as const }, { kind: 'shield' as const, hand: 'L' as const }]])),
   'baseball-hit': [{ kind: 'bat', hand: 'R' }],
   'golf-drive': [{ kind: 'club', hand: 'R' }],

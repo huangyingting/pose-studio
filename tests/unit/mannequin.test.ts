@@ -101,11 +101,29 @@ describe('Mannequin', () => {
 
   it('clamps joints to their limits', () => {
     const m = make();
-    m.apply(newFigure({ bones: bonesOf({ leftLowerLeg: [-60, 0, 0], rightLowerArm: [40, 0, 0] }) }));
+    m.apply(newFigure());
+    // (Turned past them, as a drag would.)
+    m.joints.leftLowerLeg.rotation.set(-60 * (Math.PI / 180), 0, 0);
+    m.joints.rightLowerArm.rotation.set(40 * (Math.PI / 180), 0, 0);
     m.constrain(['leftLowerLeg', 'rightLowerArm']);
     const j = anglesOf(m.read().bones);
     expect(j.leftLowerLeg).toBeUndefined(); // clamped to [0, 0, 0]
     expect(j.rightLowerArm).toBeUndefined();
+  });
+
+  it('leaves a joint past its range in the pose given (a captured shoulder) as far past it, or in, but not further: no jump as it is edited', () => {
+    const m = make();
+    const [lo] = jointLimits('leftShoulder')[1];
+    m.apply(newFigure({ bones: bonesOf({ leftShoulder: [0, lo - 30, 0] }) }));
+    m.constrain(['leftShoulder']);
+    expect(angle(m.read().bones, 'leftShoulder')[1]).toBeCloseTo(lo - 30, 0);
+    // Further out: back to where it was. In: as turned.
+    m.joints.leftShoulder.rotation.set(0, (lo - 45) * (Math.PI / 180), 0);
+    m.constrain(['leftShoulder']);
+    expect(angle(m.read().bones, 'leftShoulder')[1]).toBeCloseTo(lo - 30, 0);
+    m.joints.leftShoulder.rotation.set(0, (lo - 10) * (Math.PI / 180), 0);
+    m.constrain(['leftShoulder']);
+    expect(angle(m.read().bones, 'leftShoulder')[1]).toBeCloseTo(lo - 10, 0);
   });
 
   it('reads raised arms back without Euler flips', () => {

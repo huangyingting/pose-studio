@@ -6,6 +6,7 @@ import { cameraAt } from './cameras';
 import { newFigure, nextName } from './doc';
 import { legsOf } from './locomotion';
 import { withFacing } from './relations';
+import { localBounds } from './props';
 import { setBlocks, setFootprints, type Footprint } from './sets';
 import { uid } from './uid';
 import type { Action, Figure, Scene } from './types';
@@ -86,10 +87,13 @@ function lanes(scene: Scene, count: number): Lane[] {
   if (look.lengthSq() < 1e-6) look.set(0, 0, -1);
   look.normalize();
   const right = new THREE.Vector3(-look.z, 0, look.x);
-  // (What stands in the way: the set's walls and furniture, the cast where they start, the scene's props on the floor.)
-  const things: Footprint[] = [...setFootprints(scene.set), ...cast.map((f) => ({ cx: f.position[0], cz: f.position[2], hx: 0.3, hz: 0.3, yaw: 0 })), ...scene.props.filter((p) => !p.hold).map((p) => ({
-    cx: p.position[0], cz: p.position[2], hx: p.kind === 'chair' || p.kind === 'stool' ? 0.3 : p.scale[0] / 2, hz: p.kind === 'chair' || p.kind === 'stool' ? 0.3 : p.scale[2] / 2, yaw: p.rotation[1],
-  }))];
+  // (What stands in the way: the set's walls and furniture, the cast where they start, the scene's props on the floor, as big as each is.)
+  const things: Footprint[] = [...setFootprints(scene.set), ...cast.map((f) => ({ cx: f.position[0], cz: f.position[2], hx: 0.3, hz: 0.3, yaw: 0 })), ...scene.props.filter((p) => !p.hold).map((p) => {
+    const b = localBounds(p.kind);
+    const [ox, oz] = [((b.min.x + b.max.x) / 2) * p.scale[0], ((b.min.z + b.max.z) / 2) * p.scale[2]];
+    const a = (p.rotation[1] * Math.PI) / 180;
+    return { cx: p.position[0] + ox * Math.cos(a) + oz * Math.sin(a), cz: p.position[2] - ox * Math.sin(a) + oz * Math.cos(a), hx: ((b.max.x - b.min.x) / 2) * p.scale[0], hz: ((b.max.z - b.min.z) / 2) * p.scale[2], yaw: p.rotation[1] };
+  })];
   const at = (x: number, z: number) => new THREE.Vector3(x, 0.5, z);
   const from = at(mid[0], mid[1]);
   const out: Lane[] = [];

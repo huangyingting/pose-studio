@@ -14,8 +14,9 @@ import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
-import type { Action, PropKind, Scene, Travel } from '../types';
+import type { Action, PropKind, Scene, Travel, Vec3 } from '../types';
 import { withGear } from '../hold';
+import { CAR_DRIVER } from '../props';
 import { retime, setBlend, setClipOptions } from './timeline';
 import { addFigure, sittingAt } from './figures';
 
@@ -269,6 +270,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
       const cast = [figureId, ...partners(store, figureId, people - 1)];
       store.updateScene((s) => insertClip(s, cast, motionId, start));
       seatUnder(store, figureId, motionId, start);
+      carUnder(store, figureId, motionId, start);
       store.updateScene((s) => withGear(s, figureId, motionId));
       store.select({ kind: 'figure', figure: figureId });
       store.setTime(start);
@@ -328,10 +330,15 @@ export function setLine(store: Store, id: string, text: string | null, key = '')
 /** What a seat may be among the scene's props. */
 const SEATS: PropKind[] = ['chair', 'stool'];
 
+/** A chair's seat's height as made, and how far above a seat the hips come down on it (m; at least, and as a lower chair is made). */
+const CHAIR_SEAT = 0.49;
+const ON_SEAT: [number, number] = [0.04, 0.1];
+
 /**
  * A motion done sitting given to someone with nothing there to sit on (a set's seat, a chair or a
  * stool of the scene's): a chair is put under them, where they sit (at its start, or where sitting
- * down takes them), facing their way. Not sat in the air.
+ * down takes them), facing their way; a lower one where they sit lower than its seat (captured on a
+ * low seat, the knees up). Not sat in the air, nor through.
  */
 function seatUnder(store: Store, figureId: string, motionId: string, start: number) {
   const seat = (LIBRARY_INDEX as unknown as { id: string; seat?: 'start' | 'end' }[]).find((m) => m.id === motionId)?.seat;
@@ -343,7 +350,29 @@ function seatUnder(store: Store, figureId: string, motionId: string, start: numb
   // (Its seat's middle a little behind where the hips come down: as chairs are set for sitting, lib/films.ts.)
   const [bx, bz] = [x - Math.sin((facing * Math.PI) / 180) * 0.1, z - Math.cos((facing * Math.PI) / 180) * 0.1];
   const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
-  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('chair', [r3(bx), 0, r3(bz)], nextName('Chair', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0] }] }));
+  const hips = figurePoseAt(store.scene, figureId, seat === 'start' ? act.start : act.start + act.duration - 1e-3)?.position[1] ?? 1;
+  // (In twentieths of the usual one.)
+  const high = hips - CHAIR_SEAT < ON_SEAT[0] ? Math.round(Math.max(0.6, (hips - ON_SEAT[1]) / CHAIR_SEAT) * 20) / 20 : 1;
+  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('chair', [r3(bx), 0, r3(bz)], nextName('Chair', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0], ...(high < 1 ? { scale: [1, high, 1] as Vec3 } : {}) }] }));
+}
+
+/**
+ * A motion done in a car's driver's seat (getting in, driving, getting out) given to someone with no
+ * car there: a car is put round them, its driver's seat where they sit in it (at its start, or where
+ * getting in takes them), facing their way.
+ */
+function carUnder(store: Store, figureId: string, motionId: string, start: number) {
+  const seat = (LIBRARY_INDEX as unknown as { id: string; car?: 'start' | 'end' }[]).find((m) => m.id === motionId)?.car;
+  const act = seat && actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === motionId && Math.abs(x.start - start) < 1e-3);
+  const marks = act && marksOf(store.scene, act, figureId);
+  if (!marks) return;
+  const { at: [x, z], facing } = seat === 'start' ? marks.start : marks.end;
+  const a = (facing * Math.PI) / 180;
+  const [dx, dz] = CAR_DRIVER.at;
+  const [cx, cz] = [x - (dx * Math.cos(a) + dz * Math.sin(a)), z - (-dx * Math.sin(a) + dz * Math.cos(a))];
+  if (store.scene.props.some((p) => p.kind === 'car' && Math.hypot(p.position[0] - cx, p.position[2] - cz) < 1)) return;
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('car', [r3(cx), 0, r3(cz)], nextName('Car', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0] }] }));
 }
 
 /**

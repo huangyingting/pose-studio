@@ -4,8 +4,8 @@ import { PropObject } from './props';
 import { setTops } from './sets';
 import { HANDHELD, type Prop, type PropKind } from './types';
 
-const NOT_STOOD_ON: PropKind[] = ['sphere', 'hoop', 'bar'];
-/** Not stood on: held props, balls, things that fit in a hand, and a hoop's rim or a bar (a ball drops through, a jumper clears it). */
+const NOT_STOOD_ON: PropKind[] = ['sphere', 'hoop', 'bar', 'car'];
+/** Not stood on: held props, balls, things that fit in a hand, a hoop's rim or a bar (a ball drops through, a jumper clears it), and a car (sat in, walked by). */
 const standable = (p: Prop) => !p.hold && !NOT_STOOD_ON.includes(p.kind) && !HANDHELD.includes(p.kind);
 
 /*
