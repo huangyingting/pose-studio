@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { moveSound, openProject, removeSound, sceneSound, setSceneSound, setSoundOptions, startAnimation, trimSound } from '@/lib/actions';
+import { deleteSound, moveSound, openProject, removeSound, sceneSound, setSceneSound, setSoundOptions, startAnimation, trimSound, unusedSounds } from '@/lib/actions';
+import { loadSoundFile, pruneSoundFiles, saveSoundFile } from '@/lib/assetstore';
 import { newAnimation } from '@/lib/animation';
 import { sceneShots, storyWindows } from '@/lib/board';
 import { newFigure, newScene, parseLibrary } from '@/lib/doc';
@@ -32,6 +33,23 @@ describe('a scene\'s sound (#35)', () => {
       expect(store.getState().library.sounds, mode).toEqual([SONG]);
       expect(sceneSound(store)?.info, mode).toEqual(SONG);
     }
+  });
+
+  it('imported ones no scene plays may be deleted (one in use may not); their files let go when the app starts again', async () => {
+    const { store } = fresh();
+    setSceneSound(store, SONG);
+    setSceneSound(store, { ...SONG, id: 'snd2', name: 'Other' });
+    expect(unusedSounds(store).map((x) => x.id)).toEqual(['snd1']);
+    expect(deleteSound(store, 'snd2')).toBe(false);
+    expect(deleteSound(store, 'snd1')).toBe(true);
+    expect(store.getState().library.sounds!.map((x) => x.id)).toEqual(['snd2']);
+    store.undo();
+    expect(store.getState().library.sounds!.map((x) => x.id)).toEqual(['snd1', 'snd2']);
+    await saveSoundFile('snd1', new ArrayBuffer(4));
+    await saveSoundFile('snd2', new ArrayBuffer(4));
+    await pruneSoundFiles(['snd2']);
+    expect(await loadSoundFile('snd1')).toBeNull();
+    expect(await loadSoundFile('snd2')).not.toBeNull();
   });
 
   it('put on a scene: in the library once, from the start; a still scene animated as long as it; replaced in the same place', () => {

@@ -10,7 +10,7 @@ import {
   holdKey, setDirector, unpinShot, mirrorPose, pastePose, propNow, repeatAction, saveKeysAsMotion, setKeyEase, removeAnimation, removeShotCut, resetPose, saveAsShoot, savePose, saveTemplate, setAnimationOptions, setCameraPoint, setClipOptions,
   setFigureHidden, setGaze, setJumpHeight, setTravel, startAnimation, symmetrizePose, throwProp, travelTo, lastSteps, setGait, setJoint, holdOn, addCameraPoint, setCameraPointAim, setCameraPointStop, editRig, frameShot, setLens,
   addLight, applyLightingPreset, deleteLight, editLight, placeSceneLight, setLightRole, subjectOf, deleteMany, duplicateMany, stepFigure, turnFigure, stepProp, turnProp, stepMany, stepJoint, stepCamera, offsetPerformance,
-  sayLine, talkFor, setSoundOptions, removeSound, addExtras,
+  sayLine, talkFor, setSoundOptions, removeSound, addExtras, soundsOf, unusedSounds, deleteSound, setSceneSound,
 } from '@/lib/actions';
 import { KIND_NAMES, LIGHTING_PRESETS, MAX_LIGHTS, ROLE_NAMES, clampLight, keyLight, lightFrom, lightText, lightingOf } from '@/lib/lighting';
 import { snapTime } from '@/lib/animation';
@@ -1441,6 +1441,14 @@ export const COMMANDS: Command[] = [
     id: 'sound.volume', title: 'How loud', icon: Volume2, when: (c) => !!sceneOf(c).sound,
     items: (c) => [1, 0.75, 0.5, 0.25].map((v) => ({ title: `${Math.round(v * 100)}%`, checked: (sceneOf(c).sound?.volume ?? 1) === v, run: () => setSoundOptions(c.store, { volume: v }) })),
   },
+  {
+    id: 'sound.reuse', title: 'Use an imported sound', help: 'One of the sounds imported before, on this scene', icon: Music, when: (c) => soundsOf(c.store).length > 0,
+    items: (c) => soundsOf(c.store).map((x) => ({ title: `${x.name} (${x.duration.toFixed(1)} s)`, checked: sceneOf(c).sound?.id === x.id, run: () => setSceneSound(c.store, x) })),
+  },
+  {
+    id: 'sound.delete', title: 'Delete an imported sound', help: 'One no scene plays, from the project', icon: Trash2, danger: true, when: (c) => unusedSounds(c.store).length > 0,
+    items: (c) => unusedSounds(c.store).map((x) => ({ title: x.name, run: () => { if (deleteSound(c.store, x.id)) App().notifyUndo(`Deleted “${x.name}”`); } })),
+  },
   { id: 'sound.remove', title: 'Take the sound off', help: 'The library keeps it', icon: Trash2, danger: true, when: (c) => !!sceneOf(c).sound, run: (c) => removeSound(c.store) },
   { id: 'timeline.loop', title: 'Loop the animation', icon: Repeat, when: animated, checked: (c) => !!sceneOf(c).animation?.loop, run: (c) => setAnimationOptions(c.store, { loop: !sceneOf(c).animation!.loop }) },
   {
@@ -1618,7 +1626,7 @@ const MENUS = {
     'floor.figure', 'floor.standIn', 'floor.prop', 'light.add', '-', 'view.frameAll',
   ],
   timeline: ['timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'timeline.rangeIn', 'timeline.rangeOut', 'timeline.clearRange', '-', 'timeline.deleteCameraPoint', 'timeline.remove'],
-  sound: ['sound.add', 'sound.volume', 'sound.mute', '-', 'sound.remove'],
+  sound: ['sound.add', 'sound.reuse', 'sound.volume', 'sound.mute', '-', 'sound.remove', 'sound.delete'],
 } satisfies Record<string, MenuEntry[]>;
 
 export const menu = (name: keyof typeof MENUS, c: Ctx) => menuItems(MENUS[name], c);

@@ -11,7 +11,7 @@ import type { SceneSound, SoundInfo } from '../types';
 const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
 
 /** The library's sounds (those imported). */
-const soundsOf = (store: Store) => store.getState().library.sounds ?? [];
+export const soundsOf = (store: Store) => store.getState().library.sounds ?? [];
 
 /** The open scene's sound and what the library lists of it, if it has one. */
 export function sceneSound(store: Store): { sound: SceneSound; info: SoundInfo } | null {
@@ -77,6 +77,24 @@ export function removeSound(store: Store) {
     void _;
     return rest;
   });
+}
+
+/** The library's sounds no scene of the project plays (those that may be deleted). */
+export function unusedSounds(store: Store): SoundInfo[] {
+  const used = new Set(store.getState().library.scenes.flatMap((s) => (s.sound ? [s.sound.id] : [])));
+  return soundsOf(store).filter((x) => !used.has(x.id));
+}
+
+/** One of the library's sounds no scene plays, deleted from it (its file let go when the app next starts). */
+export function deleteSound(store: Store, id: string) {
+  if (!unusedSounds(store).some((x) => x.id === id)) return false;
+  store.commit((lib) => {
+    const sounds = (lib.sounds ?? []).filter((x) => x.id !== id);
+    const { sounds: _, ...rest } = lib;
+    void _;
+    return sounds.length ? { ...rest, sounds } : rest;
+  });
+  return true;
 }
 
 /** Without the fields left as they are by default (undefined). */

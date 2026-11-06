@@ -119,6 +119,20 @@ export async function loadSoundFile(id: string): Promise<ArrayBuffer | null> {
   return got ? (await got)?.data ?? null : memory.sounds.get(id) ?? null;
 }
 
+/**
+ * Let go of the sounds' files the library no longer lists (deleted from it, replaced: kept until
+ * the app starts again, so an undo can bring one back). Nothing if the store cannot be read.
+ */
+export async function pruneSoundFiles(listed: string[]) {
+  const keep = new Set(listed);
+  const ids = run<IDBValidKey[]>(SOUNDS, 'readonly', (s) => s.getAllKeys());
+  if (!ids) {
+    for (const id of memory.sounds.keys()) if (!keep.has(id)) memory.sounds.delete(id);
+    return;
+  }
+  for (const id of (await ids.catch(() => [])) as string[]) if (!keep.has(id)) await run(SOUNDS, 'readwrite', (s) => s.delete(id))?.catch(() => {});
+}
+
 /*
  * The library's thumbnails, kept between visits for this build of the app (a build's templates
  * and poses can look different from the last one's: drawn again then, once).

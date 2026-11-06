@@ -38,7 +38,7 @@ import { Clock, startPlayback } from './clock';
 import { STYLE_ICONS } from './icons';
 import Timeline from './Timeline';
 import { IconButton, Menu, Toasts, Toolbar, type Notify, type Toast } from './ui';
-import { loadModelFile, loadSoundFile, onOutdated, saveModelFile, saveSoundFile } from '@/lib/assetstore';
+import { loadModelFile, loadSoundFile, onOutdated, pruneSoundFiles, saveModelFile, saveSoundFile } from '@/lib/assetstore';
 import Viewport, { type CanvasHit, type FrameRequest, type ViewportApi } from './Viewport';
 import { ContextMenuHost, openContextMenu } from './ContextMenu';
 import { TooltipHost } from './Tooltip';
@@ -147,8 +147,9 @@ function App() {
     void loadPhysics();
     return onPhysicsReady(() => store.setTime(store.getState().time));
   }, [flies, store]);
-  // The scene's sound heard as it plays (#35).
+  // The scene's sound heard as it plays (#35); sounds' files the library no longer lists let go, once.
   useEffect(() => playSound(clock, store), [clock, store]);
+  useEffect(() => { void pruneSoundFiles((store.getState().library.sounds ?? []).map((x) => x.id)); }, [store]);
   // Imported clips come from the asset store after the first frame: what uses them is shown again.
   useEffect(() => onClips(() => store.setTime(store.getState().time)), [store]);
   const fileRef = useRef<HTMLInputElement>(null);

@@ -603,7 +603,7 @@ function Tracks({ clock, notify, openPicker }: { clock: Clock; notify: Notify; o
           side="top"
           align="end"
           className="ibtn"
-          items={() => menuItems([...(compact ? ['timeline.deleteKey', 'timeline.cut', '-'] : []), 'timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'sound.add', '-', 'timeline.deleteCameraPoint', 'timeline.remove'], c)}
+          items={() => menuItems([...(compact ? ['timeline.deleteKey', 'timeline.cut', '-'] : []), 'timeline.check', 'timeline.repeat', 'timeline.loop', '-', 'sound.add', 'sound.reuse', '-', 'timeline.deleteCameraPoint', 'timeline.remove'], c)}
         >
           <Ellipsis size={17} aria-hidden />
         </Menu>
