@@ -234,6 +234,17 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Rumba Dancing': ['Rumba', 'Dance'],
   'Salsa Dancing': ['Salsa', 'Dance'],
   'Swing Dancing': ['Swing', 'Dance'],
+  'Sitting Angry': ['Angry, sitting', 'Sitting & lying'],
+  'Sitting Disbelief': ['Disbelief, sitting', 'Sitting & lying'],
+  'Sitting Laughing': ['Laugh, sitting', 'Sitting & lying'],
+  'Sitting Pointing': ['Point, sitting', 'Sitting & lying'],
+  'Asking Question': ['Raise a hand, sitting', 'Sitting & lying'],
+  'Standing Greeting': ['Greet', 'Talking & gestures'],
+  'Excited': ['Excited', 'Feelings'],
+  'Looking Down': ['Look down', 'Standing & waiting'],
+  'Nervously Look Around': ['Look around, nervous', 'Standing & waiting'],
+  'Rejected': ['Rejected', 'Feelings'],
+  'Searching Pockets': ['Search your pockets', 'Using things'],
 };
 
 /**
@@ -243,6 +254,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
 const SEATED: Record<string, 'start' | 'end'> = {
   'Sitting Idle': 'start', 'Sitting Talking': 'start', 'Clapping': 'start', 'Cheering While Sitting': 'start', 'Aim Pistol': 'start',
   'Sitting Drinking': 'start', 'Sit To Stand': 'start', 'Stand To Sit': 'end', 'Sit To Type': 'start', 'Typing': 'start', 'Writing': 'start',
+  'Sitting Angry': 'start', 'Sitting Disbelief': 'start', 'Sitting Laughing': 'start', 'Sitting Pointing': 'start', 'Asking Question': 'start',
 };
 for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
 
@@ -269,6 +281,7 @@ const ONCE = [
   'Kneel', 'Pistol Whip', 'Sword And Shield Impact', 'Blow A Kiss',
   'Waving Hello', 'Raising Hand', 'Yelling', 'Looking Behind', 'Putting Down', 'Arm Stretching', 'Start Walking', 'Stop Walking', 'Rifle Reload',
   'Death From The Back', 'Dying', 'Knocked Out', 'Tripping', 'Stumble Backwards', 'Shove Reaction', 'Crouch Look Around Corner', 'Entering Car', 'Exiting Car',
+  'Sitting Angry', 'Sitting Disbelief', 'Sitting Pointing', 'Asking Question', 'Standing Greeting', 'Excited', 'Looking Down', 'Rejected', 'Searching Pockets',
 ];
 
 /**

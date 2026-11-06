@@ -72,6 +72,19 @@ describe('motions, round 4 (#61)', () => {
     }
   });
 
+  it('every motion done sitting, given where there is nothing to sit on, brings a chair nobody goes through', () => {
+    const seated = (JSON.parse(readFileSync('public/motions/index.json', 'utf8')) as { id: string; name: string; seat?: string }[]).filter((m) => m.seat);
+    expect(seated.length).toBeGreaterThan(10);
+    for (const m of seated) {
+      const { store, a } = fresh();
+      startAnimation(store, 12);
+      setAnimationOptions(store, { loop: false });
+      applyMotion(store, a, captured(m.id.slice(8)));
+      expect(store.scene.props.some((p) => p.kind === 'chair'), m.name).toBe(true);
+      expect(checkMotion(store.scene).filter((i) => i.kind === 'overlap').map((i) => i.message), m.name).toEqual([]);
+    }
+  });
+
   it('crawls go on lap after lap; the new motions of two are two people, the selected one leading', () => {
     for (const name of ['Crawl', 'Crawl, low']) {
       const m = index.find((x) => x.name === name)!;

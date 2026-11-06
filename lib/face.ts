@@ -48,6 +48,8 @@ const MOODS: Record<string, Mood | Mood[]> = {
   tripping: { feel: 'surprised', by: 0.8 }, 'stumble-backwards': { feel: 'surprised', by: 0.8 },
   // (Out cold, or lying dead: eyes shut.)
   'knocked-out': { feel: 'blink', by: 1 }, 'lying-dead': { feel: 'blink', by: 1 },
+  'sitting-angry': { feel: 'angry', by: 0.9, talk: true }, 'sitting-disbelief': { feel: 'surprised', by: 0.8 }, 'sitting-laughing': { feel: 'happy', by: 1, talk: true },
+  excited: { feel: 'happy', by: 1 }, rejected: { feel: 'sad', by: 0.8 }, 'nervously-look-around': { feel: 'surprised', by: 0.4 }, 'standing-greeting': { feel: 'happy', by: 0.6 },
   strangle: [{ feel: 'angry', by: 0.9 }, { feel: 'surprised', by: 1 }], takedown: [{ feel: 'angry', by: 0.8 }, { feel: 'surprised', by: 0.8 }],
 };
 

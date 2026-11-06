@@ -52,6 +52,19 @@
   "turn": 0
  },
  {
+  "id": "library:sitting-angry",
+  "name": "Angry, sitting",
+  "duration": 2.767,
+  "people": 1,
+  "group": "Sitting & lying",
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:standing-arguing",
   "name": "Argue",
   "duration": 20.8,
@@ -368,6 +381,19 @@
   "turn": 0
  },
  {
+  "id": "library:sitting-disbelief",
+  "name": "Disbelief, sitting",
+  "duration": 4.167,
+  "people": 1,
+  "group": "Sitting & lying",
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:jump-over",
   "name": "Dive over and roll",
   "duration": 2.267,
@@ -437,6 +463,18 @@
   "group": "Using things",
   "loop": true,
   "car": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:excited",
+  "name": "Excited",
+  "duration": 6.567,
+  "people": 1,
+  "group": "Feelings",
   "move": [
    0,
    0
@@ -651,6 +689,18 @@
   "move": [
    -0.021,
    5.063
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:standing-greeting",
+  "name": "Greet",
+  "duration": 5.1,
+  "people": 1,
+  "group": "Talking & gestures",
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },
@@ -1015,6 +1065,20 @@
   "turn": 0
  },
  {
+  "id": "library:sitting-laughing",
+  "name": "Laugh, sitting",
+  "duration": 8.333,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:leaning-on-a-wall",
   "name": "Lean on a wall",
   "duration": 1.933,
@@ -1110,9 +1174,34 @@
   "turn": 0
  },
  {
+  "id": "library:nervously-look-around",
+  "name": "Look around, nervous",
+  "duration": 6.267,
+  "people": 1,
+  "group": "Standing & waiting",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:looking-behind",
   "name": "Look behind",
   "duration": 4.033,
+  "people": 1,
+  "group": "Standing & waiting",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:looking-down",
+  "name": "Look down",
+  "duration": 4.767,
   "people": 1,
   "group": "Standing & waiting",
   "move": [
@@ -1193,6 +1282,19 @@
   "duration": 2.767,
   "people": 1,
   "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:sitting-pointing",
+  "name": "Point, sitting",
+  "duration": 3,
+  "people": 1,
+  "group": "Sitting & lying",
+  "seat": "start",
   "move": [
    0,
    0
@@ -1290,6 +1392,31 @@
   "duration": 4.067,
   "people": 1,
   "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:asking-question",
+  "name": "Raise a hand, sitting",
+  "duration": 5.833,
+  "people": 1,
+  "group": "Sitting & lying",
+  "seat": "start",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:rejected",
+  "name": "Rejected",
+  "duration": 4.8,
+  "people": 1,
+  "group": "Feelings",
   "move": [
    0,
    0
@@ -1453,6 +1580,18 @@
    0.04
   ],
   "turn": 2
+ },
+ {
+  "id": "library:searching-pockets",
+  "name": "Search your pockets",
+  "duration": 5,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:shake-fist",
