@@ -3,7 +3,7 @@ import { modelInfo } from '../model';
 import {
   addScene, addFigures, applyMotion, frameShot, setLens, coverScene, editCamera, editRig, editShot, newShoot, placeTemplate, addCamera, editAsPath, setCameraMove, applyPose, applyCameraMove, applyUpperBody, arrange, deleteAction, deleteFigure, deleteProp, dribbleProp, holdHandle, holdOn, letGo, lieOn, sitOn, standUp, turnTo, strikeFigure, lookAtFigure,
   holdProp, moveAction, moveMark, propNow, reachFor, retime, setBlend, setClipOptions, setFigureColor, setFigureModel, addLight, applyLightingPreset, editLight, setEnvironment, setLook, subjectOf, setGaze, setTravel, throwProp, travelTo,
-  carryProblem, setGait, setPlayRange, setActionLook, splitAt, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
+  carryProblem, setGait, addExtras, setFace, sceneSound, soundsOf, setSceneSound, moveSound, setSoundOptions, removeSound, setPlayRange, setActionLook, splitAt, editProjectSettings, offsetPerformance, setAnimationOptions, setDistance, setPlacement, startAnimation,
 } from '../actions';
 import { BODY_PRESETS } from '../body';
 import { LIGHTING_PRESETS, MAX_LIGHTS, kelvinColor, keyLight, lightFrom, lightText, lightingName, lightingOf, towards, type Place } from '../lighting';
@@ -21,13 +21,14 @@ import { allPoses, builtInPoses } from '../poses';
 import { COVERAGES, castCoverage } from '../coverage';
 import { describeShot } from '../prompt';
 import { checkMotion } from '../qa';
+import { soundSpan } from '../sound';
 import { CONTACTS, facing, type Contact } from '../relations';
 import { anglesOf, withAngles, type Angles } from '../pose';
 import { CAMERA_MOVES, SHOT_SIZES, TRIPOD_MOVES, liveCamera, rigRule, type Placement, type ShotSize } from '../cameras';
 import { shotSpans, spanAt } from '../shots';
 import type { Store } from '../store';
 import { SCENE_TEMPLATES, SHOOT_PRESETS, shootsOf, templatesOf } from '../templates';
-import { type Action, FIGURE_COLORS, JOINTS, MOVE_KINDS, type MoveKind, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
+import { type Action, FEELINGS, type Feeling, FIGURE_COLORS, JOINTS, MOVE_KINDS, type MoveKind, POSTURES, PROP_KINDS, PROP_LABELS, STYLES, type Side, type Travel, type Figure, type JointName, type LightKind, type Posture, type PropKind, type PathCamera, type Style, type Vec3 } from '../types';
 
 /*
  * What an AI assistant can do in the studio: read the scene and change it through the same
@@ -81,7 +82,7 @@ function sceneSummary(store: Store) {
     figures: s.figures.map((f) => ({
       id: f.id,
       name: f.name,
-      kind: f.proxy ? `stand-in (${f.proxy})` : 'figure',
+      kind: f.extra ? 'extra (passing by behind the cast)' : f.proxy ? `stand-in (${f.proxy})` : 'figure',
       body: `${sexOf(f)}, ${r2(f.body.height)} m`,
       position: { x: r2(f.position[0]), z: r2(f.position[2]) },
       facing: r1(facing(f)),
@@ -115,6 +116,7 @@ function sceneSummary(store: Store) {
         ...(x.reactsTo ? { reacts_to: x.reactsTo } : {}),
         ...(!x.layer && x.source.kind !== 'keys' ? { marks: x.roles.map((r) => { const m = marksOf(s, x, r.figure)?.end; return m && { x: r2(m.at[0]), z: r2(m.at[1]), facing: r1(m.facing) }; }) } : {}),
         ...(x.prop ? { prop: s.props.find((p) => p.id === x.prop)?.name } : {}),
+        ...(x.roles.some((r) => r.face) ? { faces: Object.fromEntries(x.roles.filter((r) => r.face).map((r) => [s.figures.find((f) => f.id === r.figure)?.name ?? r.figure, r.face])) } : {}),
       })),
       holds: (a.constraints ?? []).map((c) => ({ id: c.id, figure: s.figures.find((f) => f.id === c.figure)?.name, part: c.bone, start: r2(c.start), end: r2(c.end) })),
       // The shots cutting between the scene's cameras.
@@ -123,6 +125,14 @@ function sceneSummary(store: Store) {
         camera: s.cameras.find((c) => c.id === sp.shot.camera)?.name, ...(sp.shot.blend ? { blend: sp.shot.blend } : {}),
       })),
     } : null,
+    // Its sound (dialogue or music: where on the timeline it plays), and the sounds the user has imported.
+    sound: (() => {
+      const got = sceneSound(store);
+      if (!got) return null;
+      const span = soundSpan(got.sound, got.info);
+      return { name: got.info.name, start: r2(span.t0), end: r2(span.t1), ...(got.sound.volume !== undefined ? { volume: got.sound.volume } : {}), ...(got.sound.muted ? { muted: true } : {}) };
+    })(),
+    imported_sounds: soundsOf(store).map((x) => `${x.name} (${r1(x.duration)} s)`),
     // The scene's cameras (a still scene is filmed by the first): what each films, and its rig or its path's points (time, place, look point, lens in mm).
     cameras: s.cameras.map((c) => {
       const who = (id: string | undefined) => (id ? s.figures.find((f) => f.id === id)?.name : undefined);
@@ -375,6 +385,16 @@ export const TOOLS: AgentTool[] = [
       if (standIn) f = withPosture(f, (i.posture as Posture | null) ?? 'stand');
       addFigures(store, [f]);
       return `Added ${f.name} (${f.id}) at x ${r2(f.position[0])}, z ${r2(f.position[2])}.`;
+    },
+  },
+  {
+    name: 'add_extras',
+    description: 'Add extras: people passing by behind the cast, to and fro across what the camera sees, round the set\'s walls and furniture, for as long as the scene plays (a still scene is animated for 12 s). Never filmed as a coverage\'s subject. Fewer come where the set leaves no room; remove one with remove_figure.',
+    schema: obj({ count: num('How many (1–10)') }),
+    run: (store, i) => {
+      const came = addExtras(store, Math.max(1, Math.min(10, Math.round(Number(i.count) || 1))));
+      if (!came) throw new Error('No room for extras here: the set closes in behind the cast');
+      return `${came} extras passing by: ${store.scene.figures.filter((f) => f.extra).map((f) => f.name).join(', ')}.`;
     },
   },
   {
@@ -781,6 +801,20 @@ export const TOOLS: AgentTool[] = [
     },
   },
   {
+    name: 'set_face',
+    description: `How a figure looks while an action plays (by id, from get_scene), on a character with a face (the mannequin has none): ${FEELINGS.join(', ')}, or neutral (no feeling), over the one its motion has; null puts it back as the motion has it.`,
+    schema: obj({ action: str('Action id'), figure: FIGURE, face: opt(str('Feeling', [...FEELINGS, 'neutral'])) }),
+    run: (store, i) => {
+      const act = store.scene.animation?.actions.find((x) => x.id === i.action);
+      if (!act) throw new Error(`No action "${i.action}": get_scene lists them`);
+      const f = findFigure(store, i.figure);
+      if (!act.roles.some((r) => r.figure === f.id)) throw new Error(`${f.name} is not in ${actionLabel(act)}`);
+      const face = typeof i.face === 'string' ? (i.face as Feeling | 'neutral') : null;
+      setFace(store, act.id, f.id, face);
+      return `${f.name} in ${actionLabel(act)}: ${face ?? 'as its motion has it'}.`;
+    },
+  },
+  {
     name: 'upper_body',
     description: `Play a motion from the waist up over what a figure does at the playhead (waving while walking): any captured or made motion that is not a walk, run or jump, as apply_motion takes them. A motion that loops lasts as long as what is under it.`,
     schema: obj({ figure: FIGURE, motion: str('A captured motion\'s name, a made one\'s id, or an imported one\'s name') }),
@@ -832,6 +866,37 @@ export const TOOLS: AgentTool[] = [
       }
       lieOn(store, f.id, p.id);
       return `${f.name} lies on ${p.name}.`;
+    },
+  },
+  {
+    name: 'scene_sound',
+    description: 'The scene\'s sound (dialogue or music to time it to; heard as it plays, carried in its videos): one the user has imported (by name: get_scene lists them; the user imports new ones with Add a sound in the timeline) put on it in place of its own, where it starts on the timeline, how loud, muted, or taken off (the project keeps it). Null leaves a setting as it is.',
+    schema: obj({
+      sound: opt(str('An imported sound\'s name')),
+      start: opt(num('Where it starts on the timeline (s)')),
+      volume: opt(num('How loud (0–1)')),
+      muted: opt(bool('Muted')),
+      remove: opt(bool('Take it off the scene')),
+    }),
+    run: (store, i) => {
+      if (i.remove) {
+        removeSound(store);
+        return 'The scene has no sound now.';
+      }
+      return store.group(() => {
+        if (typeof i.sound === 'string') {
+          const q = i.sound.trim().toLowerCase();
+          const info = soundsOf(store).find((x) => x.id === i.sound || x.name.toLowerCase() === q) ?? soundsOf(store).find((x) => x.name.toLowerCase().includes(q));
+          if (!info) throw new Error(`No imported sound "${i.sound}". Imported: ${soundsOf(store).map((x) => x.name).join(', ') || 'none (the user imports one with Add a sound)'}`);
+          setSceneSound(store, info);
+        }
+        if (!sceneSound(store)) throw new Error('The scene has no sound: give one of the imported sounds');
+        if (typeof i.start === 'number') moveSound(store, i.start);
+        if (typeof i.volume === 'number' || typeof i.muted === 'boolean') setSoundOptions(store, { ...(typeof i.volume === 'number' ? { volume: i.volume } : {}), ...(typeof i.muted === 'boolean' ? { muted: i.muted } : {}) });
+        const { sound, info } = sceneSound(store)!;
+        const span = soundSpan(sound, info);
+        return `${info.name}: ${r2(span.t0)}–${r2(span.t1)} s on the timeline${sound.volume !== undefined ? `, at ${Math.round(sound.volume * 100)}%` : ''}${sound.muted ? ', muted' : ''}.`;
+      });
     },
   },
   {
@@ -956,5 +1021,5 @@ Joint angles are degrees, Euler X/Y/Z:
 Grounded figures stand on the floor automatically (a bent knee lowers the body).
 
 Animation is made of actions on each person's track: a walk, run or jump to a mark (move_to), a motion from the library (apply_motion: one person's, or a captured one of two, as shaking hands), poses keyed by hand (set_time, then set_joints), an upper-body motion over another (upper_body), a prop thrown, passed, shot or dribbled (throw_prop), contacts held over time (hold). get_scene lists the actions with their ids; edit_action moves, retimes, blends, speeds up or removes one, move_mark changes where it ends. Changing one action moves only what that person does after it.
-Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures from mark to mark with move_to, apply_pose or apply_motion for actions on the spot, then refine), then shoot (film_coverage for the whole scene, or cut_shot and camera_move shot by shot; then check_motion).
+Follow the workflow: set up the scene (cast: add_figure; set: add_prop; place with place_figure and relate), act (move figures from mark to mark with move_to, apply_pose or apply_motion for actions on the spot, then refine; people passing by behind with add_extras; timed to the scene's sound with scene_sound), then shoot (film_coverage for the whole scene, or cut_shot and camera_move shot by shot; then check_motion).
 Work like an artist: read the scene with get_scene, make natural, readable poses with clear weight and gesture. Set the body and legs with set_joints, then place hands with reach (on another figure, or on the figure's own hips, knees, chest or head) instead of guessing arm angles. To put a figure beside, in front of or facing another, use relate rather than working out coordinates. For animation: chain actions at the playhead, fix timing with edit_action, add a camera_move, and run check_motion. Keep replies short: say what you did.`;

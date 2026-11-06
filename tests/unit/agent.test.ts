@@ -244,4 +244,31 @@ describe('assistant tools', () => {
     expect(run(store, 'new_scene', { template: 'talk' })).toMatch(/^Opened "Talk", filmed in \d+ shots/);
     expect(store.scene.coverage?.id).toBe('dialogue');
   });
+
+  it('adds extras, puts an imported sound on the scene (placed, quieter, taken off), sets a face over a motion (#60)', () => {
+    const store = new Store(new MemoryStorage());
+    expect(run(store, 'add_extras', { count: 3 })).toMatch(/^3 extras passing by: Extra, Extra 2, Extra 3/);
+    const scene = JSON.parse(run(store, 'get_scene'));
+    expect(scene.figures.filter((f: { kind: string }) => f.kind.startsWith('extra'))).toHaveLength(3);
+    // Sounds: only one the user has imported.
+    expect(runTool(store, 'scene_sound', { sound: 'Song', start: null, volume: null, muted: null, remove: null }).text).toContain('Imported: none');
+    store.commit((lib) => ({ ...lib, sounds: [{ id: 'snd1', name: 'Song', duration: 6, peaks: [] }] }));
+    expect(run(store, 'scene_sound', { sound: 'song', start: 2, volume: 0.5, muted: null, remove: null })).toBe('Song: 2–8 s on the timeline, at 50%.');
+    expect(JSON.parse(run(store, 'get_scene')).sound).toEqual({ name: 'Song', start: 2, end: 8, volume: 0.5 });
+    // (One undo for the lot.)
+    store.undo();
+    expect(store.scene.sound).toBeUndefined();
+    run(store, 'scene_sound', { sound: 'Song', start: null, volume: null, muted: true, remove: null });
+    expect(store.scene.sound).toMatchObject({ id: 'snd1', muted: true });
+    run(store, 'scene_sound', { sound: null, start: null, volume: null, muted: null, remove: true });
+    expect(store.scene.sound).toBeUndefined();
+    // A face over what a motion has.
+    const cast = store.scene.figures.find((f) => !f.extra)!;
+    run(store, 'apply_motion', { figure: cast.name, motion: 'bow' });
+    const act = store.scene.animation!.actions.find((x) => x.roles[0].figure === cast.id)!;
+    expect(run(store, 'set_face', { action: act.id, figure: cast.name, face: 'surprised' })).toContain('surprised');
+    expect(JSON.parse(run(store, 'get_scene')).animation.actions.find((x: { id: string }) => x.id === act.id).faces).toEqual({ [cast.name]: 'surprised' });
+    run(store, 'set_face', { action: act.id, figure: cast.name, face: null });
+    expect(store.scene.animation!.actions.find((x) => x.id === act.id)!.roles[0].face).toBeUndefined();
+  });
 });
