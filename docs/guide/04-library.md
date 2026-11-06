@@ -17,7 +17,7 @@ The poses are grouped by posture (standing, sitting and squatting, kneeling and 
 
 ![A motion given to the figure: a block on its timeline row](images/library-motions.png)
 
-1. **Search** motions by what the person does.
+1. **Search** motions by what the person does, or in everyday words for it (*gun*, *workout*, *goodbye*, *football*…).
 2. **A motion**, clicked, goes on the selected figure's track at the playhead, from where it stands and facing its way.
 3. **Its block** on the figure's row of the timeline. See [Animation](06-animation.md) for what can be done with it.
 

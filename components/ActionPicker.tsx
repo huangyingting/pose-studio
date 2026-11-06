@@ -8,6 +8,7 @@ import { LIBRARY_CATEGORIES, type Thumb } from './side/libraryItems';
 import { Thumbnail } from './side/LibrarySection';
 import { useStore } from './store-context';
 import { inPopup } from './ui';
+import { matches } from '@/lib/search';
 
 /** The everyday beats offered first (Library motions, by id: captured ones, and picking a thing up). */
 const COMMON_BEATS = ['library:talking', 'library:waving-hello', 'library:head-nod-yes', 'library:shaking-head-no', 'library:pointing', 'library:stand-to-sit', 'library:sit-to-stand', 'library:picking-up'];
@@ -64,7 +65,7 @@ export default function ActionPicker({ at, onClose }: { at: PickerAt; onClose():
   ];
   const q = query.trim().toLowerCase();
   const shown = parts
-    .map((p) => ({ ...p, rows: !q || p.title.toLowerCase().includes(q) ? p.rows : p.rows.filter((r) => r.label.toLowerCase().includes(q)) }))
+    .map((p) => ({ ...p, rows: !q || p.title.toLowerCase().includes(q) ? p.rows : p.rows.filter((r) => matches(r.label, q)) }))
     .filter((p) => p.rows.length);
   const name = store.scene.figures.find((f) => f.id === at.figure)?.name ?? '';
 

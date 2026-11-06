@@ -15,6 +15,7 @@ import { endDrag, startDrag } from '../dragdrop';
 import { setHoverGhost } from '../hints';
 import { LIBRARY_CATEGORIES, type LibraryCategory, type LibraryItem, type LibraryUi, type Thumb } from './libraryItems';
 import type { SectionProps } from './sections';
+import { matches } from '@/lib/search';
 
 /**
  * Ready-made things to build a scene with, one category at a time (each its own section on the
@@ -46,7 +47,7 @@ export default function LibrarySection({ notify, notifyUndo, onPick, section }: 
 
   const q = query.trim().toLowerCase();
   const items = open.items(store, ui);
-  const found = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
+  const found = q ? items.filter((it) => matches(it.name, q)) : items;
   return (
     <div className="side-section library" aria-label={open.label}>
       <div className="side-head"><h2>{open.label}</h2></div>
