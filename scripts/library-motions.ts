@@ -328,6 +328,47 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Pistol Run': ['Run with a pistol', 'Weapons'],
   'Stabbing': ['Stab with a knife', 'Weapons'],
   'Knife Idle': ['Knife, ready', 'Weapons'],
+  'Belly Dance': ['Belly dance', 'Dance'],
+  'Breakdance Footwork': ['Breakdance, footwork', 'Dance'],
+  'Breakdance Freezes': ['Breakdance, freezes', 'Dance'],
+  'Breakdance Uprock': ['Breakdance, uprock', 'Dance'],
+  'Chicken Dance': ['Chicken dance', 'Dance'],
+  'Running Man': ['Running man', 'Dance'],
+  'Gangnam Style': ['Gangnam style', 'Dance'],
+  'House Dancing': ['House', 'Dance'],
+  'Locking': ['Locking', 'Dance'],
+  'Macarena': ['Macarena', 'Dance'],
+  'Northern Soul': ['Northern soul', 'Dance'],
+  'Robot Dance': ['Robot', 'Dance'],
+  'Samba Dancing': ['Samba', 'Dance'],
+  'Shuffling': ['Shuffle', 'Dance'],
+  'Silly Dancing': ['Silly dance', 'Dance'],
+  'Thriller': ['Thriller', 'Dance'],
+  'Tutting': ['Tutting', 'Dance'],
+  'Twist': ['Twist', 'Dance'],
+  'Wave Dance': ['Wave (hip hop)', 'Dance'],
+  'Ymca': ['YMCA', 'Dance'],
+  'Zombie Idle': ['Zombie, idle', 'Standing & waiting'],
+  'Zombie Walk': ['Zombie, walk', 'Moving'],
+  'Zombie Running': ['Zombie, run', 'Moving'],
+  'Zombie Attack': ['Zombie, attack', 'Fighting'],
+  'Zombie Biting': ['Zombie, feeding on the ground', 'Fighting'],
+  'Zombie Crawl': ['Zombie, crawl', 'Moving'],
+  'Zombie Scream': ['Zombie, scream', 'Feelings'],
+  'Zombie Stand Up': ['Zombie, rise from the ground', 'Sitting & lying'],
+  'Zombie Dying': ['Zombie, die', 'Fighting'],
+  'Climb Up Ledge': ['Climb up onto a ledge', 'Moving'],
+  'Walk Carrying Box': ['Walk carrying a box', 'Using things'],
+  'Eat': ['Eat something', 'Using things'],
+  'Take From Table': ['Take something from a table', 'Using things'],
+  'Fix Kneeling': ['Fix something, kneeling', 'Using things'],
+  'Water Plants': ['Water the plants', 'Using things'],
+  'Plant Seeds': ['Plant seeds', 'Using things'],
+  'Pull Up Plants': ['Pull up plants', 'Using things'],
+  'Chop Wood': ['Chop wood', 'Using things'],
+  'Arms Folded': ['Stand, arms folded', 'Standing & waiting'],
+  'Get Up From Back': ['Get up from lying on your back', 'Sitting & lying'],
+  'Formal Walk': ['Walk, formal', 'Moving'],
 };
 
 /**
@@ -361,6 +402,8 @@ const NEEDS: Record<string, { at: [number, number]; size: [number, number, numbe
   'Vault Over Box': { at: [0.1, 1.975], size: [0.8, 0.9, 0.65] },
   // (Standing on it, 0.6 m up; stepping off its front edge.)
   'Jump Down': { at: [0, -0.075], size: [0.8, 0.6, 0.75] },
+  // (A spring up onto it, the right foot on its near edge, standing on it 1 m up.)
+  'Climb Up Ledge': { at: [0, 1.4], size: [1, 1, 1.3] },
 };
 for (const name of Object.keys(NEEDS)) if (!LIST[name]) throw new Error(`NEEDS names ${name}, not a motion in LIST`);
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -386,6 +429,7 @@ const ONCE = [
   'Being Electrocuted', 'Big Stomach Hit', 'Hit By Car', 'Kick To The Groin', 'Shoulder Hit And Fall',
   'Kneeling Down', 'Kneeling Pointing', 'Crouch To Prone', 'Prone To Crouch',
   'Soccer Pass', 'Kick Soccerball', 'Header Soccerball', 'Soccer Tackle', 'Throw In', 'Goalkeeper Catch', 'Goalkeeper Diving Save', 'Quarterback Pass', 'Baseball Catcher', 'Baseball Umpire', 'Golf Putt', 'Frisbee Throw', 'Slipping', 'Wiping Sweat',
+  'Breakdance Freezes', 'Thriller', 'Zombie Biting', 'Zombie Scream', 'Fix Kneeling', 'Plant Seeds', 'Pull Up Plants', 'Take From Table', 'Eat',
 ];
 
 /**

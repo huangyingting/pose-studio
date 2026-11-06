@@ -193,8 +193,8 @@ const LEAP_LANDING = 0.6;
 
 /** The Library's captured cycles a walk or a run can go with (#26), the first the usual one. */
 export const GAITS: Record<'walk' | 'run', readonly string[]> = {
-  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward', 'library:injured-walk', 'library:pistol-walk', 'library:rifle-walk', 'library:swaying-walk', 'library:catwalk-walk', 'library:old-man-walk'],
-  run: ['library:jog-forward', 'library:run-forward', 'library:sprint', 'library:rifle-run', 'library:pistol-run', 'library:sword-and-shield-run', 'library:injured-run'],
+  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward', 'library:injured-walk', 'library:pistol-walk', 'library:rifle-walk', 'library:swaying-walk', 'library:catwalk-walk', 'library:old-man-walk', 'library:formal-walk'],
+  run: ['library:jog-forward', 'library:run-forward', 'library:sprint', 'library:rifle-run', 'library:pistol-run', 'library:sword-and-shield-run', 'library:injured-run', 'library:zombie-running'],
 };
 /** The steps a walk or run takes unless others are chosen: a real person's. */
 export const CAPTURED_STEPS: Record<'walk' | 'run', string> = { walk: 'library:walk', run: 'library:run-forward' };

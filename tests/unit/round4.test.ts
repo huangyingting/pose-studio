@@ -83,6 +83,12 @@ describe('motions, round 4 (#61)', () => {
     }
     expect(GAITS.run).toContain('library:pistol-run');
     expect(GAITS.run).toContain('library:sword-and-shield-run');
+    // Walking with a box brings the box, between the hands; a zombie runs as a run's steps.
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    applyMotion(store, a, captured('walk-carrying-box'));
+    expect(store.scene.props.filter((p) => p.kind === 'box').map((p) => p.hold?.figure)).toEqual([a]);
+    expect(GAITS.run).toContain('library:zombie-running');
   });
 
   it('a motion recorded on a low seat (Drink, sitting: the knees up) brings a lower chair, not one its thighs go through; the others the usual one', () => {
@@ -109,8 +115,8 @@ describe('motions, round 4 (#61)', () => {
     }
   });
 
-  it('vaulting a box, or jumping down off one, brings the box (as high as the recording has it) where there is none; nobody goes through it', () => {
-    for (const [slug, high] of [['vault-over-box', 0.9], ['jump-down', 0.6]] as const) {
+  it('vaulting a box, jumping down off one or climbing up onto one brings the box (as high as the recording has it) where there is none; nobody goes through it', () => {
+    for (const [slug, high] of [['vault-over-box', 0.9], ['jump-down', 0.6], ['climb-up-ledge', 1]] as const) {
       const { store, a } = fresh();
       startAnimation(store, 5);
       setAnimationOptions(store, { loop: false });

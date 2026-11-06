@@ -139,6 +139,19 @@
   "turn": 37
  },
  {
+  "id": "library:belly-dance",
+  "name": "Belly dance",
+  "duration": 19.633,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:standing-block",
   "name": "Block",
   "duration": 2,
@@ -193,6 +206,44 @@
   "duration": 2.2,
   "people": 1,
   "group": "Fighting",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:breakdance-footwork",
+  "name": "Breakdance, footwork",
+  "duration": 3.167,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:breakdance-freezes",
+  "name": "Breakdance, freezes",
+  "duration": 6.7,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   0.449,
+   -0.532
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:breakdance-uprock",
+  "name": "Breakdance, uprock",
+  "duration": 2.1,
+  "people": 1,
+  "group": "Dance",
   "loop": true,
   "move": [
    0,
@@ -277,6 +328,32 @@
   "turn": 0
  },
  {
+  "id": "library:chicken-dance",
+  "name": "Chicken dance",
+  "duration": 4.767,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:chop-wood",
+  "name": "Chop wood",
+  "duration": 0.967,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:clapping-standing",
   "name": "Clap",
   "duration": 1.167,
@@ -315,6 +392,29 @@
    -0.043
   ],
   "turn": 0
+ },
+ {
+  "id": "library:climb-up-ledge",
+  "name": "Climb up onto a ledge",
+  "duration": 0.633,
+  "people": 1,
+  "group": "Moving",
+  "needs": {
+   "at": [
+    0,
+    1.4
+   ],
+   "size": [
+    1,
+    1,
+    1.3
+   ]
+  },
+  "move": [
+   -0.006,
+   1.851
+  ],
+  "turn": 1
  },
  {
   "id": "library:laying-severe-cough",
@@ -559,6 +659,18 @@
   "turn": 0
  },
  {
+  "id": "library:eat",
+  "name": "Eat something",
+  "duration": 1.333,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:being-electrocuted",
   "name": "Electrocuted",
   "duration": 8.067,
@@ -646,6 +758,18 @@
   "turn": 0
  },
  {
+  "id": "library:fix-kneeling",
+  "name": "Fix something, kneeling",
+  "duration": 5.2,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:front-flip",
   "name": "Front flip, running",
   "duration": 1.667,
@@ -674,6 +798,19 @@
    1.286,
    1.166
   ]
+ },
+ {
+  "id": "library:gangnam-style",
+  "name": "Gangnam style",
+  "duration": 12.367,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:crouch-to-prone",
@@ -747,6 +884,18 @@
   "move": [
    0.006,
    0.005
+  ],
+  "turn": -13
+ },
+ {
+  "id": "library:get-up-from-back",
+  "name": "Get up from lying on your back",
+  "duration": 1.533,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   0.003,
+   0.172
   ],
   "turn": -13
  },
@@ -1172,6 +1321,19 @@
    1.206,
    0.753
   ]
+ },
+ {
+  "id": "library:house-dancing",
+  "name": "House",
+  "duration": 26.167,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:hug",
@@ -1612,6 +1774,18 @@
   "turn": 0
  },
  {
+  "id": "library:locking",
+  "name": "Locking",
+  "duration": 17,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   -0.591,
+   0.167
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:look-around",
   "name": "Look around",
   "duration": 6.333,
@@ -1687,6 +1861,19 @@
   "turn": 3
  },
  {
+  "id": "library:macarena",
+  "name": "Macarena",
+  "duration": 8.233,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:moonwalk",
   "name": "Moonwalk",
   "duration": 1.033,
@@ -1704,6 +1891,19 @@
   "duration": 2.6,
   "people": 1,
   "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:northern-soul",
+  "name": "Northern soul",
+  "duration": 16.067,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
   "move": [
    0,
    0
@@ -1771,6 +1971,18 @@
   "people": 1,
   "group": "Sport & acrobatics",
   "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:plant-seeds",
+  "name": "Plant seeds",
+  "duration": 2.767,
+  "people": 1,
+  "group": "Using things",
   "move": [
    0,
    0
@@ -1905,6 +2117,18 @@
   "turn": 0
  },
  {
+  "id": "library:pull-up-plants",
+  "name": "Pull up plants",
+  "duration": 2.5,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:receive-punch-to-the-face",
   "name": "Punched in the face",
   "duration": 1.3,
@@ -2034,6 +2258,19 @@
   "group": "Using things",
   "loop": true,
   "car": "passenger",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:robot-dance",
+  "name": "Robot",
+  "duration": 15.433,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
   "move": [
    0,
    0
@@ -2211,6 +2448,19 @@
   "turn": 11
  },
  {
+  "id": "library:running-man",
+  "name": "Running man",
+  "duration": 10.833,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:sad-idle",
   "name": "Sad",
   "duration": 2.8,
@@ -2245,6 +2495,18 @@
   "move": [
    0,
    0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:samba-dancing",
+  "name": "Samba",
+  "duration": 10.767,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   2.783,
+   2.71
   ],
   "turn": 0
  },
@@ -2401,6 +2663,32 @@
   "duration": 2,
   "people": 1,
   "group": "Talking & gestures",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:shuffling",
+  "name": "Shuffle",
+  "duration": 7.5,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:silly-dancing",
+  "name": "Silly dance",
+  "duration": 5.433,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
   "move": [
    0,
    0
@@ -2618,6 +2906,19 @@
   "duration": 2.367,
   "people": 1,
   "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:arms-folded",
+  "name": "Stand, arms folded",
+  "duration": 2.5,
+  "people": 1,
+  "group": "Standing & waiting",
   "loop": true,
   "move": [
    0,
@@ -2875,6 +3176,18 @@
   "turn": 0
  },
  {
+  "id": "library:take-from-table",
+  "name": "Take something from a table",
+  "duration": 0.833,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:talking-on-phone",
   "name": "Talk on the phone",
   "duration": 30,
@@ -2950,6 +3263,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:thriller",
+  "name": "Thriller",
+  "duration": 29.833,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   -0.095,
+   4.084
+  ],
+  "turn": -2
  },
  {
   "id": "library:throw-object",
@@ -3048,6 +3373,32 @@
   "turn": -180
  },
  {
+  "id": "library:tutting",
+  "name": "Tutting",
+  "duration": 16.933,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:twist",
+  "name": "Twist",
+  "duration": 9.433,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:typing",
   "name": "Type, sitting",
   "duration": 16.467,
@@ -3137,6 +3488,19 @@
   "move": [
    0.006,
    -1.352
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:walk-carrying-box",
+  "name": "Walk carrying a box",
+  "duration": 2,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   0,
+   1.464
   ],
   "turn": 0
  },
@@ -3295,6 +3659,19 @@
   "turn": 0
  },
  {
+  "id": "library:formal-walk",
+  "name": "Walk, formal",
+  "duration": 1.333,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   0,
+   1.464
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:happy-walk",
   "name": "Walk, happy",
   "duration": 1.1,
@@ -3437,6 +3814,32 @@
   "turn": 0
  },
  {
+  "id": "library:water-plants",
+  "name": "Water the plants",
+  "duration": 3.8,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:wave-dance",
+  "name": "Wave (hip hop)",
+  "duration": 15.967,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:waving-hello",
   "name": "Wave hello",
   "duration": 4.733,
@@ -3521,6 +3924,132 @@
   "move": [
    0,
    0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:ymca",
+  "name": "YMCA",
+  "duration": 4.5,
+  "people": 1,
+  "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-attack",
+  "name": "Zombie, attack",
+  "duration": 4.633,
+  "people": 1,
+  "group": "Fighting",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-crawl",
+  "name": "Zombie, crawl",
+  "duration": 5.133,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.009,
+   2.248
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-dying",
+  "name": "Zombie, die",
+  "duration": 3.333,
+  "people": 1,
+  "group": "Fighting",
+  "move": [
+   -0.195,
+   1.218
+  ],
+  "turn": -39
+ },
+ {
+  "id": "library:zombie-biting",
+  "name": "Zombie, feeding on the ground",
+  "duration": 6.933,
+  "people": 1,
+  "group": "Fighting",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-idle",
+  "name": "Zombie, idle",
+  "duration": 6.1,
+  "people": 1,
+  "group": "Standing & waiting",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-stand-up",
+  "name": "Zombie, rise from the ground",
+  "duration": 3.1,
+  "people": 1,
+  "group": "Sitting & lying",
+  "move": [
+   0.085,
+   -0.072
+  ],
+  "turn": 71
+ },
+ {
+  "id": "library:zombie-running",
+  "name": "Zombie, run",
+  "duration": 0.8,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.01,
+   2.485
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-scream",
+  "name": "Zombie, scream",
+  "duration": 2.8,
+  "people": 1,
+  "group": "Feelings",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:zombie-walk",
+  "name": "Zombie, walk",
+  "duration": 4.033,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.006,
+   1.384
   ],
   "turn": 0
  }

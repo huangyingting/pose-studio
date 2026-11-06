@@ -14,6 +14,8 @@ describe('searching the Library in everyday words (#62)', () => {
     expect(found('goodbye')).toContain('Wave hello');
     expect(found('football')).toContain('Tackle');
     expect(found('dead')).toContain('Lie face down, still');
+    expect(found('monster')).toEqual(expect.arrayContaining(['Zombie, walk', 'Zombie, attack']));
+    expect(found('garden')).toEqual(expect.arrayContaining(['Water the plants', 'Plant seeds', 'Pull up plants']));
     expect(found('weapon')).toEqual(expect.arrayContaining(['Stab with a knife', 'Throw a grenade, kneeling', 'Great sword, slash']));
     // Every everyday word finds something the Library has.
     for (const q of ['gun', 'shoot', 'hello', 'bye', 'workout', 'fight', 'dead', 'injured', 'happy', 'sad', 'afraid', 'shout', 'vehicle', 'cigarette', 'football', 'hide', 'floor', 'love', 'party', 'stunt']) expect(found(q).length, q).toBeGreaterThan(0);

@@ -100,6 +100,7 @@ export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolea
   drinking: [{ kind: 'cup', hand: 'L' }],
   'sitting-drinking': [{ kind: 'cup', hand: 'R' }],
   carrying: [{ kind: 'box', hand: 'R', between: true }],
+  'walk-carrying-box': [{ kind: 'box', hand: 'R', between: true }],
   'walk-with-briefcase': [{ kind: 'bag', hand: 'R' }],
   'walk-with-shopping-bag': [{ kind: 'bag', hand: 'R' }],
 };

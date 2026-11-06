@@ -22,7 +22,9 @@ const ALSO: Record<string, string[]> = {
   hide: ['cover', 'corner', 'crouch', 'sneak'], stealth: ['sneak', 'cover', 'corner', 'crawl'],
   floor: ['ground', 'lie', 'lying', 'crawl', 'kneel'], sleep: ['sleep', 'lie'], rest: ['idle', 'sit', 'lie'],
   love: ['kiss', 'hug', 'blow a kiss'], romance: ['kiss', 'hug', 'blow a kiss'], party: ['dance', 'cheer', 'clap', 'drink'],
-  stunt: ['roll', 'flip', 'vault', 'slide', 'cartwheel', 'jump'], parkour: ['vault', 'roll', 'jump'],
+  stunt: ['roll', 'flip', 'vault', 'slide', 'cartwheel', 'jump'], parkour: ['vault', 'roll', 'jump', 'ledge'],
+  monster: ['zombie'], horror: ['zombie', 'scream', 'thriller'], undead: ['zombie'],
+  garden: ['plant', 'water the'], farm: ['plant', 'water the'], food: ['eat'], axe: ['chop'], wood: ['chop'], disco: ['dance', 'twist', 'ymca', 'macarena', 'shuffle'],
 };
 
 /** Whether `name` matches what was searched for: as it says, or in the words people use for it. */
