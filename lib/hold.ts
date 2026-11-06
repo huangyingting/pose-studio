@@ -100,7 +100,7 @@ export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolea
  * A box held in both hands of `figure` posed as `pose` (a motion's start): in `hand`'s grip, level
  * and square to the line between them, as wide as they are apart (less the palms), its bottom below them.
  */
-export function heldBetween(prop: Prop, figure: Figure, pose: Pose, hand: Side): Prop {
+function heldBetween(prop: Prop, figure: Figure, pose: Pose, hand: Side): Prop {
   const rig = new Rig();
   try {
     const m = rig.model({ ...figure, ...pose, id: `${figure.id}:between` });
