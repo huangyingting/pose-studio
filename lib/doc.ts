@@ -106,6 +106,10 @@ const PROP_DEFAULT_SCALE: Record<PropKind, Vec3> = {
   bat: [1, 1, 1],
   club: [1, 1, 1],
   bag: [1, 1, 1],
+  bow: [1, 1, 1],
+  dumbbell: [1, 1, 1],
+  kettlebell: [1, 1, 1],
+  barbell: [1, 1, 1],
   car: [1, 1, 1],
 };
 

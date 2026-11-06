@@ -4,12 +4,12 @@
  * goodbye for a wave), so a search finds the motion its name does not say in those words.
  */
 
-const WORKOUT = ['push-ups', 'sit-ups', 'squats', 'burpees', 'plank', 'warm up', 'jumping jacks', 'skip rope', 'punching bag'];
+const WORKOUT = ['push-ups', 'sit-ups', 'squats', 'burpees', 'plank', 'warm up', 'jumping jacks', 'skip rope', 'punching bag', 'curls', 'kettlebell', 'overhead squats'];
 const FIGHT = ['punch', 'kick', 'jab', 'uppercut', 'block', 'guard', 'dodge', 'fighting', 'tackle', 'strangle', 'capoeira'];
 
 /** Everyday words, and what the Library's names say for them. */
 const ALSO: Record<string, string[]> = {
-  gun: ['pistol', 'rifle'], shoot: ['fire', 'aim', 'shot'], weapon: ['pistol', 'rifle', 'sword', 'knife', 'grenade'], blade: ['sword', 'knife'], bomb: ['grenade'], army: ['rifle', 'cover', 'crawl, low'], soldier: ['rifle', 'salute', 'cover'],
+  gun: ['pistol', 'rifle'], shoot: ['fire', 'aim', 'shot'], weapon: ['pistol', 'rifle', 'sword', 'knife', 'grenade', 'bow'], archery: ['bow', 'arrow'], weights: ['curls', 'kettlebell', 'squats'], dumbbell: ['curls'], barbell: ['overhead squats'], blade: ['sword', 'knife'], bomb: ['grenade'], army: ['rifle', 'cover', 'crawl, low'], soldier: ['rifle', 'salute', 'cover'],
   hello: ['wave', 'greet'], hi: ['wave', 'greet'], bye: ['wave'], goodbye: ['wave'], greeting: ['greet', 'wave', 'bow', 'shake hands'],
   workout: WORKOUT, exercise: WORKOUT, gym: WORKOUT, train: WORKOUT,
   fight: FIGHT, attack: [...FIGHT, 'strike'], hit: [...FIGHT, 'hit'], martial: ['kick', 'capoeira'],

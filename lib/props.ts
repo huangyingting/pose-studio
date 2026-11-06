@@ -131,6 +131,19 @@ function pieces(kind: PropKind): Piece[] {
       return [[cylinder(0.3, 0.03, 0.012).rotateX(Math.PI / 2), [0, 0.3, 0]], [cylinder(0.06, 0.02, 0.008).rotateX(Math.PI / 2), [0, 0.3, 0.025]]];
     case 'bag': // a handbag, its handle over the top
       return [[box(0.32, 0.24, 0.12, 0.03), [0, 0.12, 0]], [new THREE.TorusGeometry(0.09, 0.008, 8, 24, Math.PI), [0, 0.24, 0]]];
+    case 'bow': { // standing on its lower tip, its grip 0.7 m up; its back ahead (+z), the string behind
+      const [chord, rise] = [1.4, 0.2];
+      const r = (chord * chord / 4 + rise * rise) / (2 * rise);
+      const half = Math.asin(chord / 2 / r);
+      const limbs = new THREE.TorusGeometry(r, 0.012, 8, 40, half * 2).rotateZ(-half).rotateY(-Math.PI / 2).translate(0, 0, -r);
+      return [[limbs, [0, 0.7, 0]], [cylinder(0.02, 0.14, 0.006), [0, 0.7, 0]], [cylinder(0.0015, chord, 0.0005), [0, 0.7, -rise]]];
+    }
+    case 'dumbbell': // on end; its handle between a weight either side
+      return [[cylinder(0.015, 0.26, 0.004), [0, 0.13, 0]], [cylinder(0.055, 0.06, 0.01), [0, 0.23, 0]], [cylinder(0.055, 0.06, 0.01), [0, 0.03, 0]]];
+    case 'kettlebell': // on its base, its handle over the top
+      return [[new THREE.SphereGeometry(0.11, 24, 16), [0, 0.11, 0]], [new THREE.TorusGeometry(0.075, 0.014, 8, 20, Math.PI), [0, 0.19, 0]]];
+    case 'barbell': // lying on its plates, along x
+      return [[cylinder(0.014, 2, 0.004).rotateZ(Math.PI / 2), [0, 0.22, 0]], [cylinder(0.22, 0.05, 0.01).rotateZ(Math.PI / 2), [0.8, 0.22, 0]], [cylinder(0.22, 0.05, 0.01).rotateZ(Math.PI / 2), [-0.8, 0.22, 0]]];
     case 'chair': {
       const legs: Piece[] = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => [cylinder(0.02, 0.44, 0.006), [x * 0.19, 0.22, z * 0.19]]);
       return [

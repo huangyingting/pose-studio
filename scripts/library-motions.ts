@@ -369,6 +369,16 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Arms Folded': ['Stand, arms folded', 'Standing & waiting'],
   'Get Up From Back': ['Get up from lying on your back', 'Sitting & lying'],
   'Formal Walk': ['Walk, formal', 'Moving'],
+  'Standing Equip Bow': ['Take out a bow', 'Weapons'],
+  'Standing Draw Arrow': ['Draw an arrow', 'Weapons'],
+  'Standing Aim Idle': ['Aim a bow', 'Weapons'],
+  'Standing Aim Recoil': ['Loose an arrow', 'Weapons'],
+  'Standing Aim Walk Forward': ['Walk, aiming a bow', 'Weapons'],
+  'Standing Disarm Bow': ['Put a bow away', 'Weapons'],
+  'Shooting Arrow': ['Shoot an arrow', 'Weapons'],
+  'Bicep Curl': ['Bicep curls', 'Sport & acrobatics'],
+  'Kettlebell Swing': ['Kettlebell swings', 'Sport & acrobatics'],
+  'Overhead Squat': ['Overhead squats', 'Sport & acrobatics'],
 };
 
 /**

@@ -17,7 +17,7 @@ import { PROP_LABELS, type BodyParams, type Figure, type Pose, type Prop, type P
 const D2R = Math.PI / 180;
 
 /** Kinds that make sense in a hand (the handheld ones, a ball, a small box). */
-export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'pistol', 'rifle', 'sword', 'knife', 'shield', 'bat', 'club', 'bag', 'sphere', 'box'];
+export const HOLDABLE: readonly PropKind[] = ['stick', 'ring', 'ribbon', 'phone', 'cup', 'book', 'pistol', 'rifle', 'sword', 'knife', 'shield', 'bat', 'club', 'bag', 'bow', 'dumbbell', 'kettlebell', 'barbell', 'sphere', 'box'];
 
 /**
  * Where a prop sits in the hand of a figure with `body`: by its first handle (in the fist, its
@@ -52,6 +52,14 @@ export function grip(prop: Pick<Prop, 'kind' | 'scale' | 'handles'>, hand: Side,
       return { position: at(0.02, -0.085, -0.055), rotation: [90, 0, 0] };
     case 'sword': // the handle through the fist, the blade on from the thumb
       return { position: at(0.02, -0.085, -0.1), rotation: [90, 0, 0] };
+    case 'bow': // by its grip, the middle of it: its limbs up and down from the fist, its back ahead
+      return { position: at(0.02, -0.085, -0.7), rotation: [90, 0, 0] };
+    case 'dumbbell':
+      return { position: at(0.02, -0.085, -0.13), rotation: [90, 0, 0] };
+    case 'barbell': // overhand, 0.4 m from its middle: the bar on from the thumb, across to the other hand
+      return { position: at(0.02, -0.305, 0.4), rotation: [0, -90, 0] };
+    case 'kettlebell': // hanging from the fingers by its handle
+      return { position: at(0.03, -0.3, 0), rotation: [0, 90, 0] };
     case 'bat':
     case 'club':
       return { position: at(0.02, -0.085, -0.08), rotation: [90, 0, 0] };
@@ -101,6 +109,10 @@ export const GEAR: Record<string, { kind: PropKind; hand: Side; between?: boolea
   'sitting-drinking': [{ kind: 'cup', hand: 'R' }],
   carrying: [{ kind: 'box', hand: 'R', between: true }],
   'walk-carrying-box': [{ kind: 'box', hand: 'R', between: true }],
+  ...Object.fromEntries(['standing-equip-bow', 'standing-draw-arrow', 'standing-aim-idle', 'standing-aim-recoil', 'standing-aim-walk-forward', 'standing-disarm-bow', 'shooting-arrow'].map((m) => [m, [{ kind: 'bow' as const, hand: 'L' as const }]])),
+  'bicep-curl': [{ kind: 'dumbbell', hand: 'R' }, { kind: 'dumbbell', hand: 'L' }],
+  'kettlebell-swing': [{ kind: 'kettlebell', hand: 'R' }],
+  'overhead-squat': [{ kind: 'barbell', hand: 'R' }],
   'walk-with-briefcase': [{ kind: 'bag', hand: 'R' }],
   'walk-with-shopping-bag': [{ kind: 'bag', hand: 'R' }],
 };
@@ -148,7 +160,9 @@ export function withGear(scene: Scene, figureId: string, motionId: string, mirro
   const ours = (p: Prop) => p.hold?.figure === figureId && gear.some((g) => g.kind === p.kind);
   for (const g of gear) {
     const hand: Side = mirror ? (g.hand === 'L' ? 'R' : 'L') : g.hand;
-    const mine = props.find((p) => p.hold?.figure === figureId && p.kind === g.kind);
+    // (One of a kind in each hand, a dumbbell in each: each its own.)
+    const twice = gear.filter((x) => x.kind === g.kind).length > 1;
+    const mine = props.find((p) => p.hold?.figure === figureId && p.kind === g.kind && (!twice || p.hold.hand === hand));
     if (mine?.hold?.hand === hand) continue;
     if (props.some((p) => p.hold?.figure === figureId && p.hold.hand === hand && !ours(p))) continue;
     const prop = mine ?? newProp(g.kind, [0, 0, 0], nextName(PROP_LABELS[g.kind], props.map((p) => p.name)));

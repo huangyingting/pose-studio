@@ -91,6 +91,33 @@ describe('motions, round 4 (#61)', () => {
     expect(GAITS.run).toContain('library:zombie-running');
   });
 
+  it('a bow comes with the bow\'s motions, in the left hand; bicep curls bring a dumbbell for each hand; an overhead squat a barbell across both hands', () => {
+    for (const [slug, kind, hand] of [['shooting-arrow', 'bow', 'L'], ['standing-aim-idle', 'bow', 'L'], ['kettlebell-swing', 'kettlebell', 'R']] as const) {
+      const { store, a } = fresh();
+      startAnimation(store, 4);
+      applyMotion(store, a, captured(slug));
+      expect(store.scene.props.find((p) => p.kind === kind)?.hold, slug).toEqual({ figure: a, hand });
+    }
+    const curls = fresh();
+    startAnimation(curls.store, 6);
+    applyMotion(curls.store, curls.a, captured('bicep-curl'));
+    expect(curls.store.scene.props.filter((p) => p.kind === 'dumbbell').map((p) => p.hold?.hand).sort()).toEqual(['L', 'R']);
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    applyMotion(store, a, captured('overhead-squat'));
+    const bar = store.scene.props.find((p) => p.kind === 'barbell')!;
+    for (const t of [0.2, 0.9]) {
+      const w = propWorldAt(store.scene, bar.id, t)!;
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(...w.position), new THREE.Quaternion().setFromEuler(new THREE.Euler(w.rotation[0] * D2R, w.rotation[1] * D2R, w.rotation[2] * D2R)), new THREE.Vector3(1, 1, 1));
+      const line = new THREE.Line3(new THREE.Vector3(-1, 0.22, 0).applyMatrix4(m), new THREE.Vector3(1, 0.22, 0).applyMatrix4(m));
+      const j = new Rig().model(figurePoseAt(store.scene, a, t)!).joints;
+      for (const hand of [j.leftHand, j.rightHand]) {
+        const at = hand.getWorldPosition(new THREE.Vector3());
+        expect(line.closestPointToPoint(at, true, new THREE.Vector3()).distanceTo(at)).toBeLessThan(0.1);
+      }
+    }
+  });
+
   it('a motion recorded on a low seat (Drink, sitting: the knees up) brings a lower chair, not one its thighs go through; the others the usual one', () => {
     for (const [slug, high] of [['sitting-drinking', 0.75], ['sitting-idle', 1]] as const) {
       const { store, a } = fresh();

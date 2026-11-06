@@ -1,5 +1,18 @@
 [
  {
+  "id": "library:standing-aim-idle",
+  "name": "Aim a bow",
+  "duration": 3.767,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:pistol-idle",
   "name": "Aim a pistol",
   "duration": 4,
@@ -144,6 +157,19 @@
   "duration": 19.633,
   "people": 1,
   "group": "Dance",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:bicep-curl",
+  "name": "Bicep curls",
+  "duration": 5.867,
+  "people": 1,
+  "group": "Sport & acrobatics",
   "loop": true,
   "move": [
    0,
@@ -604,6 +630,18 @@
    -0.075
   ],
   "turn": -14
+ },
+ {
+  "id": "library:standing-draw-arrow",
+  "name": "Draw an arrow",
+  "duration": 1.033,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   0.034,
+   0.006
+  ],
+  "turn": -29
  },
  {
   "id": "library:dribble",
@@ -1499,6 +1537,19 @@
   "turn": 0
  },
  {
+  "id": "library:kettlebell-swing",
+  "name": "Kettlebell swings",
+  "duration": 1.967,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:kick-soccerball",
   "name": "Kick a ball",
   "duration": 0.567,
@@ -1848,6 +1899,18 @@
   "turn": 0
  },
  {
+  "id": "library:standing-aim-recoil",
+  "name": "Loose an arrow",
+  "duration": 0.7,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   -0.034,
+   -0.006
+  ],
+  "turn": 29
+ },
+ {
   "id": "library:lower-pistol",
   "name": "Lower a pistol, sitting",
   "duration": 5.367,
@@ -1919,6 +1982,19 @@
   "move": [
    -0.007,
    1.665
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:overhead-squat",
+  "name": "Overhead squats",
+  "duration": 1.867,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "move": [
+   0,
+   0
   ],
   "turn": 0
  },
@@ -2164,6 +2240,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:standing-disarm-bow",
+  "name": "Put a bow away",
+  "duration": 1.1,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   -0.012,
+   -0.008
+  ],
+  "turn": 62
  },
  {
   "id": "library:putting-down",
@@ -2601,6 +2689,19 @@
    -0.077
   ],
   "turn": 37
+ },
+ {
+  "id": "library:shooting-arrow",
+  "name": "Shoot an arrow",
+  "duration": 5,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:death-from-the-back",
@@ -3176,6 +3277,18 @@
   "turn": 0
  },
  {
+  "id": "library:standing-equip-bow",
+  "name": "Take out a bow",
+  "duration": 0.9,
+  "people": 1,
+  "group": "Weapons",
+  "move": [
+   0.012,
+   0.008
+  ],
+  "turn": -62
+ },
+ {
   "id": "library:take-from-table",
   "name": "Take something from a table",
   "duration": 0.833,
@@ -3590,6 +3703,19 @@
   "move": [
    -0.006,
    1.348
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:standing-aim-walk-forward",
+  "name": "Walk, aiming a bow",
+  "duration": 1.2,
+  "people": 1,
+  "group": "Weapons",
+  "loop": true,
+  "move": [
+   -0.006,
+   1.393
   ],
   "turn": 0
  },
