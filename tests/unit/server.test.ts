@@ -185,6 +185,12 @@ describe('assets API', () => {
     const heard = await routes.asset.GET(new Request('http://x/api/assets/snd-1'), at('snd-1'));
     expect(new Uint8Array(await heard.arrayBuffer())).toEqual(wav);
     expect((await putAsset('snd-2', new TextEncoder().encode('just some text'), 'audio/octet-stream')).status).toBe(400);
+    // Known as a sound (the list says which: those the sync may let go of), a character not.
+    const { listSounds } = await import('@/lib/server/assets');
+    expect(await listSounds('u1')).toEqual(['snd-1']);
+    // Deleted (a sound the library let go of): gone.
+    expect((await routes.asset.DELETE(new Request('http://x/api/assets/snd-1', { method: 'DELETE' }), at('snd-1'))).status).toBe(200);
+    expect((await routes.asset.GET(new Request('http://x/api/assets/snd-1'), at('snd-1'))).status).toBe(404);
     user = 'u2';
     expect((await routes.asset.GET(new Request('http://x/api/assets/model-1'), at('model-1'))).status).toBe(404);
   });

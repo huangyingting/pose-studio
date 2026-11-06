@@ -1,5 +1,5 @@
 import 'server-only';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DATABASE_URL } from './db';
 
@@ -21,8 +21,17 @@ const KINDS = { json: 'application/json', bin: 'application/octet-stream', snd: 
 type AssetKind = keyof typeof KINDS;
 
 export async function listAssets(user: string): Promise<string[]> {
+  return (await files(user)).map((f) => f.replace(/\.\w+$/, ''));
+}
+
+/** The ids of a user's assets that are sounds (#35). */
+export async function listSounds(user: string): Promise<string[]> {
+  return (await files(user)).filter((f) => f.endsWith('.snd')).map((f) => f.replace(/\.snd$/, ''));
+}
+
+async function files(user: string): Promise<string[]> {
   try {
-    return (await readdir(/*turbopackIgnore: true*/ dir(user))).map((f) => f.replace(/\.\w+$/, ''));
+    return await readdir(/*turbopackIgnore: true*/ dir(user));
   } catch {
     return [];
   }
@@ -43,4 +52,9 @@ export async function readAsset(user: string, id: string): Promise<{ data: Buffe
 export async function writeAsset(user: string, id: string, kind: AssetKind, data: string | Uint8Array) {
   await mkdir(/*turbopackIgnore: true*/ dir(user), { recursive: true });
   await writeFile(/*turbopackIgnore: true*/ file(user, `${id}.${kind}`), data);
+}
+
+/** An asset's file deleted (whatever its kind); nothing if there is none. */
+export async function deleteAsset(user: string, id: string) {
+  for (const kind of Object.keys(KINDS) as AssetKind[]) await rm(/*turbopackIgnore: true*/ file(user, `${id}.${kind}`), { force: true });
 }

@@ -137,7 +137,8 @@ export class CloudSync {
     if (!force && print === this.clips) return;
     const res = await fetch(withBase('/api/assets'), { cache: 'no-store' });
     if (!res.ok) throw new Error(String(res.status));
-    const there = new Set(((await res.json()) as { ids: string[] }).ids);
+    const list = (await res.json()) as { ids: string[]; sounds?: string[] };
+    const there = new Set(list.ids);
     const url = (id: string) => withBase(`/api/assets/${encodeURIComponent(id)}`);
     const send = async (id: string, body: BodyInit, type: string) => {
       const put = await fetch(url(id), { method: 'PUT', headers: { 'Content-Type': type }, body });
@@ -164,6 +165,8 @@ export class CloudSync {
         }
       }
     }
+    // (A sound the library no longer lists, on any device now that they agree: its file let go there too.)
+    for (const id of list.sounds ?? []) if (!sounds.includes(id)) await fetch(url(id), { method: 'DELETE' });
     for (const id of sounds) {
       const file = await loadSoundFile(id);
       if (file && !there.has(id)) await send(id, file, 'audio/octet-stream');

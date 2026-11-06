@@ -1,6 +1,6 @@
 import { parseClip } from '@/lib/doc';
 import { currentUserId } from '@/lib/server/auth';
-import { readAsset, validId, writeAsset } from '@/lib/server/assets';
+import { deleteAsset, readAsset, validId, writeAsset } from '@/lib/server/assets';
 
 /*
  * One of the signed-in user's imported assets, kept on the server as a file: a clip's frames
@@ -48,5 +48,15 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   }
   if (!clip || clip.id !== id) return Response.json({ error: 'Not a clip' }, { status: 400 });
   await writeAsset(userId, id, 'json', JSON.stringify(clip));
+  return Response.json({ ok: true });
+}
+
+/** One of the user's assets deleted: a sound the library no longer lists (lib/cloud.ts). */
+export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const userId = await currentUserId();
+  if (!userId) return Response.json({ error: 'Sign in to sync your library' }, { status: 401 });
+  const { id } = await ctx.params;
+  if (!validId(id)) return Response.json({ error: 'Invalid id' }, { status: 400 });
+  await deleteAsset(userId, id);
   return Response.json({ ok: true });
 }
