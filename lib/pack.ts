@@ -76,7 +76,11 @@ export async function keyframePack(shots: StoryShot[], name: string, o: PackOpti
     if (!info || soundFiles.has(info.id)) continue;
     const data = await loadSoundFile(info.id);
     if (!data) continue;
-    const file = `sounds/${safeFilename(info.name, 'sound')}.${soundExt(data)}`;
+    // (Two of the same name: the second numbered, not packed over the first.)
+    const base = `sounds/${safeFilename(info.name, 'sound')}`;
+    const taken = new Set(soundFiles.values());
+    let file = `${base}.${soundExt(data)}`;
+    for (let n = 2; taken.has(file); n++) file = `${base}_${n}.${soundExt(data)}`;
     soundFiles.set(info.id, file);
     entries.push({ name: file, data: new Uint8Array(data) });
   }
