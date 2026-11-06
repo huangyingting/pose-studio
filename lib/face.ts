@@ -29,7 +29,7 @@ const MOODS: Record<string, Mood | Mood[]> = {
   ...Object.fromEntries(['zombie-idle', 'zombie-walk', 'zombie-running', 'zombie-attack', 'zombie-biting', 'zombie-crawl', 'zombie-stand-up'].map((m) => [m, { feel: 'angry' as const, by: 0.8 }])),
   'zombie-scream': { feel: 'angry', by: 1, talk: true },
   celebrate: { feel: 'happy', by: 1, talk: true }, 'cover-face': { feel: 'sad', by: 0.8 }, 'check-time': { feel: 'angry', by: 0.3 }, 'walk-exhausted': { feel: 'sad', by: 0.5 },
-  meditate: { feel: 'relaxed', by: 0.8 }, 'petting-animal': { feel: 'happy', by: 0.6 }, 'scratch-head': { feel: 'surprised', by: 0.2 }, beckon: { feel: 'happy', by: 0.3 },
+  meditate: { feel: 'relaxed', by: 0.8 }, 'rock-baby': { feel: 'happy', by: 0.5 }, pace: { feel: 'angry', by: 0.3 }, 'kpop-dance': { feel: 'happy', by: 0.6 }, 'petting-animal': { feel: 'happy', by: 0.6 }, 'scratch-head': { feel: 'surprised', by: 0.2 }, beckon: { feel: 'happy', by: 0.3 },
   crying: { feel: 'sad', by: 1 }, 'sad-idle': { feel: 'sad', by: 0.8 }, 'defeat-idle': { feel: 'sad', by: 0.8 }, disappointed: { feel: 'sad', by: 0.7 },
   'laying-moaning': { feel: 'sad', by: 0.9 }, 'laying-severe-cough': { feel: 'sad', by: 0.6 }, 'injured-walk': { feel: 'sad', by: 0.6 }, 'limping-walk': { feel: 'sad', by: 0.5 },
   angry: { feel: 'angry', by: 1, talk: true }, 'shake-fist': { feel: 'angry', by: 0.9 }, 'fight-idle': { feel: 'angry', by: 0.4 },

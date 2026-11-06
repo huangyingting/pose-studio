@@ -395,6 +395,10 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Petting Animal': ['Pet an animal', 'Using things'],
   'Swim Crawl': ['Swim', 'Sport & acrobatics'],
   'Treading Water': ['Tread water', 'Sport & acrobatics'],
+  'Rock Baby': ['Rock a baby', 'Using things'],
+  'Pace': ['Pace back and forth', 'Standing & waiting'],
+  'Pull Rope': ['Pull a rope', 'Using things'],
+  'Kpop Dance': ['K-pop', 'Dance'],
 };
 
 /**
@@ -460,6 +464,7 @@ const ONCE = [
   'Soccer Pass', 'Kick Soccerball', 'Header Soccerball', 'Soccer Tackle', 'Throw In', 'Goalkeeper Catch', 'Goalkeeper Diving Save', 'Quarterback Pass', 'Baseball Catcher', 'Baseball Umpire', 'Golf Putt', 'Frisbee Throw', 'Slipping', 'Wiping Sweat',
   'Breakdance Freezes', 'Thriller', 'Zombie Biting', 'Zombie Scream', 'Fix Kneeling', 'Plant Seeds', 'Pull Up Plants', 'Take From Table', 'Eat',
   'Celebrate', 'Cover Face', 'Knock On Door', 'Meditate', 'Take Photo', 'Scratch Head', 'Tie Shoelaces', 'Sneeze', 'Check Time', 'Check Shoe', 'Beckon',
+  'Pace', 'Pull Rope',
 ];
 
 /**

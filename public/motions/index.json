@@ -1597,6 +1597,18 @@
   "turn": 0
  },
  {
+  "id": "library:kpop-dance",
+  "name": "K-pop",
+  "duration": 18.667,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   0.779,
+   1.594
+  ],
+  "turn": 78
+ },
+ {
   "id": "library:kettlebell-swing",
   "name": "Kettlebell swings",
   "duration": 1.967,
@@ -2083,6 +2095,18 @@
   "turn": 0
  },
  {
+  "id": "library:pace",
+  "name": "Pace back and forth",
+  "duration": 7.24,
+  "people": 1,
+  "group": "Standing & waiting",
+  "move": [
+   1.033,
+   0.563
+  ],
+  "turn": -63
+ },
+ {
   "id": "library:soccer-pass",
   "name": "Pass a ball (football)",
   "duration": 1.6,
@@ -2278,6 +2302,18 @@
   "turn": 0
  },
  {
+  "id": "library:pull-rope",
+  "name": "Pull a rope",
+  "duration": 5.6,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -1.814,
+   -1.488
+  ],
+  "turn": -14
+ },
+ {
   "id": "library:pull-heavy-object",
   "name": "Pull something heavy",
   "duration": 1.1,
@@ -2461,6 +2497,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:rock-baby",
+  "name": "Rock a baby",
+  "duration": 8.83,
+  "people": 1,
+  "group": "Using things",
+  "move": [
+   -0.213,
+   0.025
+  ],
+  "turn": 20
  },
  {
   "id": "library:stand-to-roll",

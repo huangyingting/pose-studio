@@ -16,6 +16,8 @@ describe('searching the Library in everyday words (#62)', () => {
     expect(found('dead')).toContain('Lie face down, still');
     expect(found('come here')).toContain('Beckon');
     expect(found('tired')).toContain('Walk, exhausted');
+    expect(found('baby')).toContain('Rock a baby');
+    expect(found('waiting')).toEqual(expect.arrayContaining(['Pace back and forth', 'Check the time, impatient']));
     expect(found('monster')).toEqual(expect.arrayContaining(['Zombie, walk', 'Zombie, attack']));
     expect(found('garden')).toEqual(expect.arrayContaining(['Water the plants', 'Plant seeds', 'Pull up plants']));
     expect(found('weapon')).toEqual(expect.arrayContaining(['Stab with a knife', 'Throw a grenade, kneeling', 'Great sword, slash']));
