@@ -419,6 +419,19 @@
   "turn": 8
  },
  {
+  "id": "library:dizzy-idle",
+  "name": "Dizzy",
+  "duration": 4.267,
+  "people": 1,
+  "group": "Feelings",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:standing-dodge-left",
   "name": "Dodge",
   "duration": 0.967,
@@ -481,6 +494,18 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:being-electrocuted",
+  "name": "Electrocuted",
+  "duration": 8.067,
+  "people": 1,
+  "group": "Fighting",
+  "move": [
+   -0.581,
+   1.245
+  ],
+  "turn": -25
  },
  {
   "id": "library:excited",
@@ -845,6 +870,30 @@
   ]
  },
  {
+  "id": "library:hit-by-car",
+  "name": "Hit by a car",
+  "duration": 4.833,
+  "people": 1,
+  "group": "Fighting",
+  "move": [
+   -1.649,
+   0.242
+  ],
+  "turn": -36
+ },
+ {
+  "id": "library:big-stomach-hit",
+  "name": "Hit in the stomach",
+  "duration": 1.4,
+  "people": 1,
+  "group": "Fighting",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:falling-back-death",
   "name": "Hit, fall back",
   "duration": 2.6,
@@ -963,6 +1012,45 @@
   }
  },
  {
+  "id": "library:injured-hurting-idle",
+  "name": "Hurt, doubled over",
+  "duration": 6.033,
+  "people": 1,
+  "group": "Feelings",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:injured-idle",
+  "name": "Hurt, standing",
+  "duration": 9.333,
+  "people": 1,
+  "group": "Feelings",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:agony",
+  "name": "In agony",
+  "duration": 3.7,
+  "people": 1,
+  "group": "Feelings",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:jab-cross",
   "name": "Jab, cross",
   "duration": 2.133,
@@ -1066,6 +1154,24 @@
    0
   ],
   "turn": 0
+ },
+ {
+  "id": "library:kick-to-the-groin",
+  "name": "Kicked in the groin",
+  "duration": 2.9,
+  "people": 1,
+  "group": "Fighting",
+  "impact": 2.39,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0,
+  "reach": [
+   0.086,
+   0.1,
+   0.252
+  ]
  },
  {
   "id": "library:kiss",
@@ -1678,6 +1784,18 @@
   "turn": 0
  },
  {
+  "id": "library:injured-run",
+  "name": "Run, hurt",
+  "duration": 0.633,
+  "people": 1,
+  "group": "Moving",
+  "move": [
+   -0.006,
+   1.57
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:running-jump",
   "name": "Running jump",
   "duration": 0.867,
@@ -1807,6 +1925,18 @@
   "turn": 1
  },
  {
+  "id": "library:shoulder-hit-and-fall",
+  "name": "Shot in the shoulder, fall",
+  "duration": 3.1,
+  "people": 1,
+  "group": "Fighting",
+  "move": [
+   -0.196,
+   -1.534
+  ],
+  "turn": 27
+ },
+ {
   "id": "library:shove-reaction",
   "name": "Shoved",
   "duration": 3,
@@ -1842,6 +1972,19 @@
    -0.476
   ],
   "turn": 3
+ },
+ {
+  "id": "library:sitting-dazed",
+  "name": "Sit on the ground, dazed",
+  "duration": 8.333,
+  "people": 1,
+  "group": "Sitting & lying",
+  "loop": true,
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:situps",

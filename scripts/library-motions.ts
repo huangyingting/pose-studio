@@ -262,6 +262,17 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Falling To Roll': ['Land and roll', 'Sport & acrobatics'],
   'Vault Over Box': ['Vault over a box', 'Moving'],
   'Jump Down': ['Jump down', 'Moving'],
+  'Agony': ['In agony', 'Feelings'],
+  'Being Electrocuted': ['Electrocuted', 'Fighting'],
+  'Big Stomach Hit': ['Hit in the stomach', 'Fighting'],
+  'Dizzy Idle': ['Dizzy', 'Feelings'],
+  'Hit By Car': ['Hit by a car', 'Fighting'],
+  'Injured Hurting Idle': ['Hurt, doubled over', 'Feelings'],
+  'Injured Idle': ['Hurt, standing', 'Feelings'],
+  'Injured Run': ['Run, hurt', 'Moving'],
+  'Kick To The Groin': ['Kicked in the groin', 'Fighting'],
+  'Shoulder Hit And Fall': ['Shot in the shoulder, fall', 'Fighting'],
+  'Sitting Dazed': ['Sit on the ground, dazed', 'Sitting & lying'],
 };
 
 /**
@@ -314,6 +325,7 @@ const ONCE = [
   'Sitting Angry', 'Sitting Disbelief', 'Sitting Pointing', 'Asking Question', 'Standing Greeting', 'Excited', 'Looking Down', 'Rejected', 'Searching Pockets',
   'Idle To Push Up', 'Push Up To Idle', 'Idle To Situp', 'Situp To Idle',
   'Stand To Roll', 'Sprinting Forward Roll', 'Slide Feet First', 'Running Jump', 'Falling To Roll', 'Vault Over Box', 'Jump Down',
+  'Being Electrocuted', 'Big Stomach Hit', 'Hit By Car', 'Kick To The Groin', 'Shoulder Hit And Fall',
 ];
 
 /**
