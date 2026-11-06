@@ -400,7 +400,7 @@ const raised = (clip: Clip): Clip => (!RAISED[clip.name] ? clip : {
 /**
  * Toes softened: captured, they flick 30–45° in a frame as a foot leaves the floor (and getting up
  * off the floor, tucked toes come free 80° in three): each toe key mixed with its neighbours' (¼, ½,
- * ¼), twice, and again until none turns more than 20° in a frame (at most eight times). First, toes
+ * ¼), twice, and again until none turns more than 20° in a frame (at most sixteen times). First, toes
  * bent past 90° (dragged under the foot in a crawl, 153°) come back to 90°.
  */
 function softToes(clip: Clip): Clip {
@@ -416,7 +416,7 @@ function softToes(clip: Clip): Clip {
           if (bend > Math.PI / 2) a.copy(rest).slerp(q, Math.PI / 2 / bend).toArray(v, i * 4);
         }
         const most = () => Math.max(0, ...Array.from({ length: v.length / 4 - 1 }, (_, i) => a.fromArray(v, i * 4).angleTo(b.fromArray(v, i * 4 + 4)))) * (180 / Math.PI);
-        for (let pass = 0; pass < 8 && (pass < 2 || most() > 20); pass++) {
+        for (let pass = 0; pass < 16 && (pass < 2 || most() > 20); pass++) {
           const next = [...v];
           for (let i = 1; i < v.length / 4 - 1; i++) {
             a.fromArray(v, (i - 1) * 4).slerp(b.fromArray(v, (i + 1) * 4), 0.5);
