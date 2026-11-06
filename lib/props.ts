@@ -144,6 +144,8 @@ function pieces(kind: PropKind): Piece[] {
       return [[new THREE.SphereGeometry(0.11, 24, 16), [0, 0.11, 0]], [new THREE.TorusGeometry(0.075, 0.014, 8, 20, Math.PI), [0, 0.19, 0]]];
     case 'barbell': // lying on its plates, along x
       return [[cylinder(0.014, 2, 0.004).rotateZ(Math.PI / 2), [0, 0.22, 0]], [cylinder(0.22, 0.05, 0.01).rotateZ(Math.PI / 2), [0.8, 0.22, 0]], [cylinder(0.22, 0.05, 0.01).rotateZ(Math.PI / 2), [-0.8, 0.22, 0]]];
+    case 'water': // a pool's water, its surface 1 m up (scaled): drawn see-through, and not solid
+      return [[box(1, 1, 1, 0.002), [0, 0.5, 0], false]];
     case 'chair': {
       const legs: Piece[] = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => [cylinder(0.02, 0.44, 0.006), [x * 0.19, 0.22, z * 0.19]]);
       return [
@@ -202,7 +204,9 @@ export class PropObject {
     for (const [geo, pos, solid] of pieces(kind)) {
       const mesh = this.parts.add(this.object, geo, { prop: id }, pos);
       if (solid === false) this.loose.add(mesh);
+      if (kind === 'water') mesh.castShadow = false;
     }
+    this.parts.water = kind === 'water';
     if (kind === 'ribbon') {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((RIBBON.segments + 1) * 4 * 3), 3));
@@ -323,7 +327,7 @@ export class PropObject {
 
   setIdMode(on: boolean, firstId: number) {
     // A see-through prop draws no lines over what is behind it: hidden for the line pass.
-    if (this.parts.faded && on) {
+    if ((this.parts.faded || this.parts.water) && on) {
       this.shown = this.object.visible;
       this.object.visible = false;
     } else if (!on && this.shown !== null) {

@@ -278,6 +278,8 @@ export class Ink {
   readonly linked = createOutlineMaterial(this.linkedUniforms);
   /** See-through, for props that block the view of the figure being edited. */
   readonly faded = new THREE.MeshBasicMaterial({ color: '#c9ccd6', transparent: true, opacity: 0.2, depthWrite: false });
+  /** Water: see-through blue, whatever the style. */
+  readonly water = new THREE.MeshBasicMaterial({ color: '#5aa9e6', transparent: true, opacity: 0.35, depthWrite: false });
   private baseThickness = 1.6;
   private style: Style = 'line';
   private materials = new Map<string, StyleMaterials>();
@@ -508,6 +510,7 @@ export class Ink {
     for (const m of this.materials.values()) for (const mat of Object.values(m)) mat.dispose();
     this.materials.clear();
     this.faded.dispose();
+    this.water.dispose();
     for (const m of this.idMats.values()) m.dispose();
     this.idMats.clear();
     for (const m of this.twoSidedMats.values()) m.dispose();
@@ -542,6 +545,8 @@ export class InkedParts {
   silhouetteByLines = false;
   /** Drawn see-through, without lines (it stands between the camera and what is edited). */
   faded = false;
+  /** Drawn as water: see-through blue, without lines. */
+  water = false;
 
   /** `bare`: its parts only, without outlines or lines (one only worked out with, never drawn). */
   constructor(private ink: Ink, private kind: 'figure' | 'prop', private bare = false) {}
@@ -622,12 +627,12 @@ export class InkedParts {
     const prop = this.kind === 'prop';
     for (const mesh of this.bodies) {
       const state = isSelected(mesh);
-      mesh.material = this.sided(mesh, this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body);
+      mesh.material = this.sided(mesh, this.water ? (state ? m.hover : this.ink.water) : this.faded ? this.ink.faded : state === 'hover' ? m.hover : prop ? (state ? m.propSel : m.prop) : state ? m.bodySel : m.body);
       // (Cut out by its texture, a tree's leaves: filled flat as the shape of its leaves, from both sides.)
-      if (mesh.userData.cutout && !this.faded) mesh.material = this.ink.cutoutFill(prop ? m.prop : m.body, mesh.userData.cutout);
+      if (mesh.userData.cutout && !this.faded && !this.water) mesh.material = this.ink.cutoutFill(prop ? m.prop : m.body, mesh.userData.cutout);
     }
     this.style = style;
-    if (this.faded) for (const h of this.hulls) h.visible = false;
+    if (this.faded || this.water) for (const h of this.hulls) h.visible = false;
     else this.applyLinked();
   }
 
@@ -645,7 +650,7 @@ export class InkedParts {
     for (const h of this.hulls) {
       h.material = this.linked ? this.ink.linked : this.ink.outline;
       // (Not round what is cut out by its texture, a tree's leaves: a flat card's hull is the card, its back in ink.)
-      if (!this.faded) h.visible = this.linked || (outline && !h.parent?.userData.cutout);
+      if (!this.faded && !this.water) h.visible = this.linked || (outline && !h.parent?.userData.cutout);
     }
   }
 

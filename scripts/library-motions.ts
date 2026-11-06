@@ -393,6 +393,8 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Check Time': ['Check the time, impatient', 'Standing & waiting'],
   'Check Shoe': ['Check your shoe', 'Standing & waiting'],
   'Petting Animal': ['Pet an animal', 'Using things'],
+  'Swim Crawl': ['Swim', 'Sport & acrobatics'],
+  'Treading Water': ['Tread water', 'Sport & acrobatics'],
 };
 
 /**
@@ -421,13 +423,16 @@ for (const name of Object.keys(IN_CAR)) if (!LIST[name]) throw new Error(`IN_CAR
  * in (x to their left, z ahead; its middle on the floor) and its size (m), as the recording has it:
  * hands planted on it, legs clearing it, feet standing on it. Given with none there, one is put there.
  */
-const NEEDS: Record<string, { at: [number, number]; size: [number, number, number] }> = {
+const NEEDS: Record<string, { kind?: 'water'; at: [number, number]; size: [number, number, number] }> = {
   // (A step vault: hands planted at its near edge at 1.05–1.15 m, the right foot on its top, the left clearing it.)
   'Vault Over Box': { at: [0.1, 1.975], size: [0.8, 0.9, 0.65] },
   // (Standing on it, 0.6 m up; stepping off its front edge.)
   'Jump Down': { at: [0, -0.075], size: [0.8, 0.6, 0.75] },
   // (A spring up onto it, the right foot on its near edge, standing on it 1 m up.)
   'Climb Up Ledge': { at: [0, 1.4], size: [1, 1, 1.3] },
+  // (A pool round them, its surface 1.1 m up, 10 m on ahead of them: swimming on, lap after lap, goes on through it.)
+  'Swim Crawl': { kind: 'water', at: [0, 4], size: [4, 1.1, 10] },
+  'Treading Water': { kind: 'water', at: [0, 0], size: [4, 1.1, 4] },
 };
 for (const name of Object.keys(NEEDS)) if (!LIST[name]) throw new Error(`NEEDS names ${name}, not a motion in LIST`);
 const slug = (name: string) => name.toLowerCase().replace(/°/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -474,7 +479,8 @@ const loops = (clip: Clip) => CLIMBS.includes(clip.name) || (!ONCE.includes(clip
  * floor all the way, so that it goes round without a jump.
  */
 function level(clip: Clip): Clip {
-  if (!isCycle(clip.name) || CLIMBS.includes(clip.name)) return clip;
+  // (Not one raised off the floor: swimming, at the water's surface.)
+  if (!isCycle(clip.name) || CLIMBS.includes(clip.name) || RAISED[clip.name]) return clip;
   const parts = clip.parts.map((part) => {
     const t = part.tracks.find((x) => x.name === 'hips.position');
     if (!t) return part;
@@ -504,7 +510,8 @@ const asCaptured = (clip: Clip): Clip => ({ ...clip, parts: clip.parts.map((p) =
  * the floor; in a car's seat they are on the car's floor, its hips where getting in leaves them and
  * getting out starts.
  */
-const RAISED: Record<string, number> = { 'Driving': 0.227, 'Jostled Passenger': 0.25 };
+// (Swimming, captured on the floor: at the water's surface, 1.1 m up.)
+const RAISED: Record<string, number> = { 'Driving': 0.227, 'Jostled Passenger': 0.25, 'Swim Crawl': 0.7 };
 const raised = (clip: Clip): Clip => (!RAISED[clip.name] ? clip : {
   ...clip, parts: clip.parts.map((p) => ({ ...p, tracks: p.tracks.map((t) => (t.name !== 'hips.position' ? t : { ...t, values: t.values.map((v, i) => (i % 3 === 1 ? round(v + RAISED[clip.name]) : v)) })) })),
 });
@@ -646,7 +653,7 @@ for (const p of MADE_PAIRS) out.push({ file: p.file, clip: madePair(p), group: p
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end' | 'passenger'; needs?: { at: [number, number]; size: [number, number, number] }; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end' | 'passenger'; needs?: { kind?: 'water'; at: [number, number]; size: [number, number, number] }; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
 
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;

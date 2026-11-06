@@ -118,6 +118,20 @@ describe('motions, round 4 (#61)', () => {
     }
   });
 
+  it('swimming brings water round them, its surface 1.1 m up, the swimmer at it; treading water after uses the same water; nobody stands on it', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 8);
+    setAnimationOptions(store, { loop: false });
+    applyMotion(store, a, captured('swim-crawl'));
+    store.setTime(3);
+    applyMotion(store, a, captured('treading-water'));
+    const water = store.scene.props.filter((p) => p.kind === 'water');
+    expect(water.map((p) => p.scale[1])).toEqual([1.1]);
+    expect(figurePoseAt(store.scene, a, 1)!.position[1]).toBeGreaterThan(0.9);
+    expect(groundOf(store.scene.props)(water[0].position[0], water[0].position[2])).toBe(0);
+    expect(checkMotion(store.scene).filter((i) => i.kind === 'overlap').map((i) => i.message)).toEqual([]);
+  });
+
   it('a motion recorded on a low seat (Drink, sitting: the knees up) brings a lower chair, not one its thighs go through; the others the usual one', () => {
     for (const [slug, high] of [['sitting-drinking', 0.75], ['sitting-idle', 1]] as const) {
       const { store, a } = fresh();

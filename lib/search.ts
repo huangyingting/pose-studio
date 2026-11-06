@@ -25,6 +25,7 @@ const ALSO: Record<string, string[]> = {
   stunt: ['roll', 'flip', 'vault', 'slide', 'cartwheel', 'jump'], parkour: ['vault', 'roll', 'jump', 'ledge'],
   tired: ['exhausted', 'yawn'], impatient: ['check the time'], watch: ['check the time'], camera: ['photo'], cook: ['stir'], kitchen: ['stir', 'eat'], dog: ['pet an animal'], cat: ['pet an animal'], yoga: ['meditate'], door: ['door'], shoe: ['shoe'],
   embarrassed: ['cover your face'], shame: ['cover your face'], confused: ['scratch your head', 'shrug'], win: ['celebrate', 'cheer', 'victory'], victory: ['celebrate', 'victory'], ill: ['sneeze', 'cough'], sick: ['sneeze', 'cough'],
+  pool: ['swim', 'tread water'], water: ['swim', 'tread water', 'water the'], swimming: ['swim', 'tread water'],
   monster: ['zombie'], horror: ['zombie', 'scream', 'thriller'], undead: ['zombie'],
   garden: ['plant', 'water the'], farm: ['plant', 'water the'], food: ['eat'], axe: ['chop'], wood: ['chop'], disco: ['dance', 'twist', 'ymca', 'macarena', 'shuffle'],
 };

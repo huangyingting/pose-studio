@@ -3292,6 +3292,31 @@
   "turn": 0
  },
  {
+  "id": "library:swim-crawl",
+  "name": "Swim",
+  "duration": 1.333,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "needs": {
+   "kind": "water",
+   "at": [
+    0,
+    4
+   ],
+   "size": [
+    4,
+    1.1,
+    10
+   ]
+  },
+  "move": [
+   0,
+   3.267
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:swing-dancing",
   "name": "Swing",
   "duration": 20.9,
@@ -3605,6 +3630,31 @@
    0.048
   ],
   "turn": 3
+ },
+ {
+  "id": "library:treading-water",
+  "name": "Tread water",
+  "duration": 3,
+  "people": 1,
+  "group": "Sport & acrobatics",
+  "loop": true,
+  "needs": {
+   "kind": "water",
+   "at": [
+    0,
+    0
+   ],
+   "size": [
+    4,
+    1.1,
+    4
+   ]
+  },
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
  },
  {
   "id": "library:tripping",

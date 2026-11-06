@@ -14,7 +14,7 @@ import { forward } from '../relations';
 import type { Store } from '../store';
 import type { Issue } from '../qa';
 import { REACT_LEAD } from '../strike';
-import type { Action, PropKind, Scene, Travel, Vec3 } from '../types';
+import { PROP_LABELS, type Action, type Prop, type PropKind, type Scene, type Travel, type Vec3 } from '../types';
 import { withGear } from '../hold';
 import { CAR_DRIVER } from '../props';
 import { retime, setBlend, setClipOptions } from './timeline';
@@ -271,7 +271,7 @@ export function applyMotion(store: Store, figureId: string, motionId: string) {
       store.updateScene((s) => insertClip(s, cast, motionId, start));
       seatUnder(store, figureId, motionId, start);
       carUnder(store, figureId, motionId, start);
-      boxNeeded(store, figureId, motionId, start);
+      propNeeded(store, figureId, motionId, start);
       store.updateScene((s) => withGear(s, figureId, motionId));
       store.select({ kind: 'figure', figure: figureId });
       store.setTime(start);
@@ -358,20 +358,27 @@ function seatUnder(store: Store, figureId: string, motionId: string, start: numb
 }
 
 /**
- * A motion over or off a box (vaulting one, jumping down off one) given where there is none: one is
- * put where the motion has it, as big as it has it, square to the way they start.
+ * A motion over or off a box (vaulting one, jumping down off one), or done in water (swimming), given
+ * where there is none: one is put where the motion has it, as big as it has it, square to the way
+ * they start. (Water is there already where they start in some; a box within half a metre of where it goes.)
  */
-function boxNeeded(store: Store, figureId: string, motionId: string, start: number) {
-  const need = (LIBRARY_INDEX as unknown as { id: string; needs?: { at: [number, number]; size: Vec3 } }[]).find((m) => m.id === motionId)?.needs;
+function propNeeded(store: Store, figureId: string, motionId: string, start: number) {
+  const need = (LIBRARY_INDEX as unknown as { id: string; needs?: { kind?: 'water'; at: [number, number]; size: Vec3 } }[]).find((m) => m.id === motionId)?.needs;
   const act = need && actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === motionId && Math.abs(x.start - start) < 1e-3);
   const marks = act && marksOf(store.scene, act, figureId);
   if (!need || !marks) return;
+  const kind = need.kind ?? 'box';
   const { at: [x, z], facing } = marks.start;
   const a = (facing * Math.PI) / 180;
   const [bx, bz] = [x + need.at[0] * Math.cos(a) + need.at[1] * Math.sin(a), z - need.at[0] * Math.sin(a) + need.at[1] * Math.cos(a)];
-  if (store.scene.props.some((p) => !p.hold && p.kind === 'box' && Math.hypot(p.position[0] - bx, p.position[2] - bz) < 0.5)) return;
+  const within = (p: Prop) => {
+    const r = (p.rotation[1] * Math.PI) / 180;
+    const [dx, dz] = [x - p.position[0], z - p.position[2]];
+    return Math.abs(dx * Math.cos(r) - dz * Math.sin(r)) < p.scale[0] / 2 && Math.abs(dx * Math.sin(r) + dz * Math.cos(r)) < p.scale[2] / 2;
+  };
+  if (store.scene.props.some((p) => !p.hold && p.kind === kind && (kind === 'water' ? within(p) : Math.hypot(p.position[0] - bx, p.position[2] - bz) < 0.5))) return;
   const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
-  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp('box', [r3(bx), 0, r3(bz)], nextName('Box', s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0], scale: [...need.size] as Vec3 }] }));
+  store.updateScene((s) => ({ ...s, props: [...s.props, { ...newProp(kind, [r3(bx), 0, r3(bz)], nextName(PROP_LABELS[kind], s.props.map((p) => p.name))), rotation: [0, Math.round(facing * 10) / 10 || 0, 0], scale: [...need.size] as Vec3 }] }));
 }
 
 /**
