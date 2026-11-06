@@ -193,7 +193,7 @@ const LEAP_LANDING = 0.6;
 
 /** The Library's captured cycles a walk or a run can go with (#26), the first the usual one. */
 export const GAITS: Record<'walk' | 'run', readonly string[]> = {
-  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward', 'library:injured-walk', 'library:pistol-walk', 'library:rifle-walk'],
+  walk: ['library:walk', 'library:walk-forward', 'library:happy-walk', 'library:crouch-walk-forward', 'library:injured-walk', 'library:pistol-walk', 'library:rifle-walk', 'library:swaying-walk', 'library:catwalk-walk', 'library:old-man-walk'],
   run: ['library:jog-forward', 'library:run-forward', 'library:sprint', 'library:rifle-run', 'library:injured-run'],
 };
 /** The steps a walk or run takes unless others are chosen: a real person's. */

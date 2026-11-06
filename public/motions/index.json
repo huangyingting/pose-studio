@@ -1505,6 +1505,18 @@
   "turn": 0
  },
  {
+  "id": "library:moonwalk",
+  "name": "Moonwalk",
+  "duration": 1.033,
+  "people": 1,
+  "group": "Dance",
+  "move": [
+   0.004,
+   -1.011
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:head-nod-yes",
   "name": "Nod yes",
   "duration": 2.6,
@@ -2270,6 +2282,19 @@
   "turn": 0
  },
  {
+  "id": "library:tiptoe-sneak-walk",
+  "name": "Sneak, tiptoeing",
+  "duration": 1.067,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.009,
+   2.108
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:spinning",
   "name": "Spin on one foot",
   "duration": 1.7,
@@ -2813,6 +2838,19 @@
   "turn": 0
  },
  {
+  "id": "library:walk-with-briefcase",
+  "name": "Walk with a briefcase",
+  "duration": 1.033,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   -0.007,
+   1.687
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:rifle-walk",
   "name": "Walk with a rifle",
   "duration": 1.3,
@@ -2822,6 +2860,19 @@
   "move": [
    -0.006,
    1.56
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:walk-with-shopping-bag",
+  "name": "Walk with a shopping bag",
+  "duration": 1.267,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "move": [
+   -0.006,
+   1.348
   ],
   "turn": 0
  },
@@ -2861,6 +2912,19 @@
   "move": [
    -0.008,
    1.852
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:catwalk-walk",
+  "name": "Walk, catwalk",
+  "duration": 1.2,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.005,
+   1.213
   ],
   "turn": 0
  },
@@ -2916,6 +2980,71 @@
   "turn": 0
  },
  {
+  "id": "library:old-man-walk",
+  "name": "Walk, old",
+  "duration": 1.267,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.002,
+   0.514
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:sad-walk",
+  "name": "Walk, sad",
+  "duration": 1.467,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.005,
+   1.187
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:strut-walking",
+  "name": "Walk, strutting",
+  "duration": 1.433,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.006,
+   1.394
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:swagger-walk",
+  "name": "Walk, swagger",
+  "duration": 2.8,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.011,
+   2.605
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:swaying-walk",
+  "name": "Walk, swaying",
+  "duration": 1.167,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.006,
+   1.491
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:texting-and-walking",
   "name": "Walk, texting",
   "duration": 3.3,
@@ -2925,6 +3054,19 @@
   "move": [
    -0.017,
    4.11
+  ],
+  "turn": 0
+ },
+ {
+  "id": "library:tough-walk",
+  "name": "Walk, tough",
+  "duration": 1.267,
+  "people": 1,
+  "group": "Moving",
+  "loop": true,
+  "move": [
+   -0.006,
+   1.455
   ],
   "turn": 0
  },

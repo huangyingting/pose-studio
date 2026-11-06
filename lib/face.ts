@@ -54,6 +54,7 @@ const MOODS: Record<string, Mood | Mood[]> = {
   'being-electrocuted': { feel: 'surprised', by: 1 }, 'hit-by-car': { feel: 'surprised', by: 1 }, 'big-stomach-hit': { feel: 'surprised', by: 0.7 }, 'kick-to-the-groin': { feel: 'surprised', by: 0.9 }, 'shoulder-hit-and-fall': { feel: 'surprised', by: 0.7 },
   strangle: [{ feel: 'angry', by: 0.9 }, { feel: 'surprised', by: 1 }], 'shoulder-throw': [{ feel: 'angry', by: 0.7 }, { feel: 'surprised', by: 0.9 }], 'grab-and-slam': [{ feel: 'angry', by: 0.9 }, { feel: 'surprised', by: 0.9 }],
   'jostled-passenger': { feel: 'surprised', by: 0.3 },
+  'sad-walk': { feel: 'sad', by: 0.6 }, 'tough-walk': { feel: 'angry', by: 0.3 }, 'strut-walking': { feel: 'happy', by: 0.4 }, 'swagger-walk': { feel: 'relaxed', by: 0.5 }, moonwalk: { feel: 'happy', by: 0.6 },
   'guitar-playing': { feel: 'happy', by: 0.5 }, 'playing-drums': { feel: 'happy', by: 0.5 }, 'piano-playing': { feel: 'relaxed', by: 0.5 }, 'playing-the-violin': { feel: 'relaxed', by: 0.6 }, 'laying-seizure': { feel: 'blink', by: 1 }, takedown: [{ feel: 'angry', by: 0.8 }, { feel: 'surprised', by: 0.8 }],
 };
 

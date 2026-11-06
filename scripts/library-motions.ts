@@ -288,6 +288,17 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Piano Playing': ['Play the piano, sitting', 'Using things'],
   'Playing Drums': ['Play the drums, sitting', 'Using things'],
   'Playing The Violin': ['Play the violin', 'Using things'],
+  'Swaying Walk': ['Walk, swaying', 'Moving'],
+  'Catwalk Walk': ['Walk, catwalk', 'Moving'],
+  'Tough Walk': ['Walk, tough', 'Moving'],
+  'Old Man Walk': ['Walk, old', 'Moving'],
+  'Sad Walk': ['Walk, sad', 'Moving'],
+  'Tiptoe Sneak Walk': ['Sneak, tiptoeing', 'Moving'],
+  'Strut Walking': ['Walk, strutting', 'Moving'],
+  'Swagger Walk': ['Walk, swagger', 'Moving'],
+  'Walk With Briefcase': ['Walk with a briefcase', 'Using things'],
+  'Walk With Shopping Bag': ['Walk with a shopping bag', 'Using things'],
+  'Moonwalk': ['Moonwalk', 'Dance'],
 };
 
 /**

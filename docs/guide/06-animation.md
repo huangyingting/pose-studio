@@ -41,7 +41,7 @@ The timeline zooms with `Ctrl` + wheel or its zoom buttons and scrolls with `Shi
 
 ![The walk on the timeline, its marks on the floor](images/walk-done.png)
 
-1. **The walk's block**. The figure gets there in a natural time, in a real person's steps (the Library's recorded Walk or Run) with its feet planted (no sliding). Its marks are numbered discs on the floor, joined by its path; drag one to move the spot. Its **Steps** (which walk or run: brisk, happy, hurt, sneaking, aiming a pistol, with a rifle, a jog, a sprint, a run with a rifle…) are chosen in the walk's inspector; the next walk takes the steps you chose last. Backing up (keeping its facing), a walk steps backward upright, a sneak crouched.
+1. **The walk's block**. The figure gets there in a natural time, in a real person's steps (the Library's recorded Walk or Run) with its feet planted (no sliding). Its marks are numbered discs on the floor, joined by its path; drag one to move the spot. Its **Steps** (which walk or run: brisk, happy, old, swaying, a catwalk, hurt, sneaking, aiming a pistol, with a rifle, a jog, a sprint, hurt, with a rifle…) are chosen in the walk's inspector; the next walk takes the steps you chose last. Backing up (keeping its facing), a walk steps backward upright, a sneak crouched.
 
 **Move to…** in the figure's inspector, and a figure's right-click menu, do the same: pick the spot afterwards on the floor.
 
