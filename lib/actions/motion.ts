@@ -375,18 +375,19 @@ function boxNeeded(store: Store, figureId: string, motionId: string, start: numb
 }
 
 /**
- * A motion done in a car's driver's seat (getting in, driving, getting out) given to someone with no
- * car there: a car is put round them, its driver's seat where they sit in it (at its start, or where
- * getting in takes them), facing their way.
+ * A motion done in a car's seat (getting in, driving, getting out; riding beside the driver) given to
+ * someone with no car there: a car is put round them, its seat where they sit in it (at its start, or
+ * where getting in takes them), facing their way.
  */
 function carUnder(store: Store, figureId: string, motionId: string, start: number) {
-  const seat = (LIBRARY_INDEX as unknown as { id: string; car?: 'start' | 'end' }[]).find((m) => m.id === motionId)?.car;
+  const seat = (LIBRARY_INDEX as unknown as { id: string; car?: 'start' | 'end' | 'passenger' }[]).find((m) => m.id === motionId)?.car;
   const act = seat && actionsOf(store.scene.animation!, figureId).find((x) => x.source.kind === 'clip' && x.source.clip === motionId && Math.abs(x.start - start) < 1e-3);
   const marks = act && marksOf(store.scene, act, figureId);
   if (!marks) return;
-  const { at: [x, z], facing } = seat === 'start' ? marks.start : marks.end;
+  const { at: [x, z], facing } = seat === 'end' ? marks.end : marks.start;
   const a = (facing * Math.PI) / 180;
-  const [dx, dz] = CAR_DRIVER.at;
+  // (The passenger's seat: the driver's across the car.)
+  const [dx, dz] = seat === 'passenger' ? [-CAR_DRIVER.at[0], CAR_DRIVER.at[1]] : CAR_DRIVER.at;
   const [cx, cz] = [x - (dx * Math.cos(a) + dz * Math.sin(a)), z - (-dx * Math.sin(a) + dz * Math.cos(a))];
   if (store.scene.props.some((p) => p.kind === 'car' && Math.hypot(p.position[0] - cx, p.position[2] - cz) < 1)) return;
   const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;

@@ -38,7 +38,7 @@ const to = 'public/motions';
 const MIRRORED = ['Walk Right', 'Strafe Right', 'Turn 90 Right'];
 
 /** Left out: one person's half of a motion of two (alone, it is not the motion; those PAIRS has are put together). */
-const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr', 'Release Hostage Villain', 'Release Hostage Hostage', 'Kiss 1', 'Kiss 2', 'Strangling', 'Being Strangled', 'Takedown Attacker', 'Takedown Victim'];
+const HALVES = ['Shaking Hands 1', 'Shaking Hands 2', 'Hostage Situation Villain', 'Hostage Situation Hostage', 'Shoulder Throw Aggressor', 'Shoulder Throw Victim', 'Administering Cpr', 'Receiving Cpr', 'Release Hostage Villain', 'Release Hostage Hostage', 'Kiss 1', 'Kiss 2', 'Strangling', 'Being Strangled', 'Takedown Attacker', 'Takedown Victim', 'Grab And Slam', 'Getting Smashed'];
 
 /**
  * Motions of two people put together from halves captured apart, each at the place it starts
@@ -57,6 +57,10 @@ const PAIRS: { file: string; name: string; group: MotionGroup; lead: string; par
   { file: 'Kiss', name: 'Kiss', group: 'Feelings', lead: 'Kiss 1', partner: 'Kiss 2', roles: ['Lead', 'Partner'], at: [0, 0.57], facing: 180 },
   // (Coming up behind: the hands round the neck as it struggles, sinks and falls. The tackler's head at the other's middle as the legs are taken.)
   { file: 'Strangle', name: 'Strangle from behind', group: 'Fighting', lead: 'Strangling', partner: 'Being Strangled', roles: ['Attacker', 'Victim'], at: [-0.131, 2.76], facing: -4 },
+  // (Grappled from in front and thrown over the shoulder; grabbed and slammed down: placed where the
+  // thrower's forearms meet the other's arms and chest, the two overlapping least.)
+  { file: 'Shoulder Throw', name: 'Shoulder throw', group: 'Fighting', lead: 'Shoulder Throw Aggressor', partner: 'Shoulder Throw Victim', roles: ['Thrower', 'Thrown'], at: [-4.6, -0.15], facing: 150 },
+  { file: 'Grab And Slam', name: 'Grab and slam down', group: 'Fighting', lead: 'Grab And Slam', partner: 'Getting Smashed', roles: ['Attacker', 'Victim'], at: [-0.2, 0.9], facing: 155 },
   { file: 'Takedown', name: 'Tackle', group: 'Fighting', lead: 'Takedown Attacker', partner: 'Takedown Victim', roles: ['Tackler', 'Tackled'], at: [0.23, 1.35], facing: 212 },
 ];
 
@@ -174,6 +178,7 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Entering Car': ['Get into a car', 'Using things'],
   'Driving': ['Drive', 'Using things'],
   'Exiting Car': ['Get out of a car', 'Using things'],
+  'Jostled Passenger': ['Ride in a car, jostled', 'Using things'],
   'Aim Pistol': ['Aim a pistol, sitting', 'Weapons'],
   'Shooting': ['Fire a pistol', 'Weapons'],
   'Sword And Shield Idle': ['Sword and shield, ready', 'Weapons'],
@@ -287,10 +292,11 @@ const SEATED: Record<string, 'start' | 'end'> = {
 for (const name of Object.keys(SEATED)) if (!LIST[name]) throw new Error(`SEATED names ${name}, not a motion in LIST`);
 
 /**
- * The motions done in a car's driver's seat, by their file's name: in it from the start, or (getting
- * in) at the end. Given to someone with no car there, one is put round them (lib/actions/motion.ts).
+ * The motions done in a car, by their file's name: in its driver's seat from the start, or (getting
+ * in) at the end, or in its passenger's seat. Given to someone with no car there, one is put round
+ * them (lib/actions/motion.ts).
  */
-const IN_CAR: Record<string, 'start' | 'end'> = { 'Entering Car': 'end', 'Driving': 'start', 'Exiting Car': 'start' };
+const IN_CAR: Record<string, 'start' | 'end' | 'passenger'> = { 'Entering Car': 'end', 'Driving': 'start', 'Exiting Car': 'start', 'Jostled Passenger': 'passenger' };
 for (const name of Object.keys(IN_CAR)) if (!LIST[name]) throw new Error(`IN_CAR names ${name}, not a motion in LIST`);
 
 /**
@@ -371,10 +377,11 @@ function level(clip: Clip): Clip {
 /** A clip as captured: its people's bodies a sex and a height (a capture's actor has no build of ours). */
 const asCaptured = (clip: Clip): Clip => ({ ...clip, parts: clip.parts.map((p) => (p.body ? { ...p, body: { sex: p.body.sex, height: p.body.height } } : p)) });
 /**
- * Raised (m) from where it was captured: driving was captured on a chair, its feet on the floor; in
- * a car's seat they are on the car's floor, its hips where getting in leaves them and getting out starts.
+ * Raised (m) from where it was captured: driving (and riding) was captured on a chair, its feet on
+ * the floor; in a car's seat they are on the car's floor, its hips where getting in leaves them and
+ * getting out starts.
  */
-const RAISED: Record<string, number> = { 'Driving': 0.227 };
+const RAISED: Record<string, number> = { 'Driving': 0.227, 'Jostled Passenger': 0.25 };
 const raised = (clip: Clip): Clip => (!RAISED[clip.name] ? clip : {
   ...clip, parts: clip.parts.map((p) => ({ ...p, tracks: p.tracks.map((t) => (t.name !== 'hips.position' ? t : { ...t, values: t.values.map((v, i) => (i % 3 === 1 ? round(v + RAISED[clip.name]) : v)) })) })),
 });
@@ -516,7 +523,7 @@ for (const p of MADE_PAIRS) out.push({ file: p.file, clip: madePair(p), group: p
 
 await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
-const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end'; needs?: { at: [number, number]; size: [number, number, number] }; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
+const index: { id: string; name: string; duration: number; people: number; group: MotionGroup; loop?: true; impact?: number; seat?: 'start' | 'end'; car?: 'start' | 'end' | 'passenger'; needs?: { at: [number, number]; size: [number, number, number] }; move: [number, number]; turn: number; reach?: [number, number, number]; partner?: { at: [number, number]; facing: number } }[] = [];
 
 for (const { file, clip, group, loop, impact } of out.sort((a, b) => a.clip.name.localeCompare(b.clip.name))) {
   const id = `library:${slug(file)}`;

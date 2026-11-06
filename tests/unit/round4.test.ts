@@ -41,6 +41,19 @@ describe('motions, round 4 (#61)', () => {
     expect(groundOf(store.scene.props)(seat[0], seat[1])).toBe(0);
   });
 
+  it('riding in a car brings one with its passenger\'s seat (across from the driver\'s) where they sit; nobody goes through it', () => {
+    const { store, a } = fresh();
+    startAnimation(store, 4);
+    setAnimationOptions(store, { loop: false });
+    applyMotion(store, a, captured('jostled-passenger'));
+    const car = store.scene.props.find((p) => p.kind === 'car')!;
+    const f = figurePoseAt(store.scene, a, 1)!;
+    const yaw = car.rotation[1] * D2R;
+    const [dx, dz] = [-CAR_DRIVER.at[0], CAR_DRIVER.at[1]];
+    expect(Math.hypot(f.position[0] - (car.position[0] + dx * Math.cos(yaw) + dz * Math.sin(yaw)), f.position[2] - (car.position[2] - dx * Math.sin(yaw) + dz * Math.cos(yaw)))).toBeLessThan(0.05);
+    expect(checkMotion(store.scene).filter((i) => i.kind === 'overlap').map((i) => i.message)).toEqual([]);
+  });
+
   it('a rifle comes with the rifle\'s motions, in the right hand: aimed, the other hand on its barrel and its stock at the shoulder', () => {
     const { store, a } = fresh();
     startAnimation(store, 4);

@@ -755,6 +755,25 @@
   "turn": 85
  },
  {
+  "id": "library:grab-and-slam",
+  "name": "Grab and slam down",
+  "duration": 2.267,
+  "people": 2,
+  "group": "Fighting",
+  "move": [
+   -0.012,
+   0.192
+  ],
+  "turn": 92,
+  "partner": {
+   "at": [
+    -0.463,
+    0.759
+   ],
+   "facing": 105
+  }
+ },
+ {
   "id": "library:pick-up-item",
   "name": "Grab something on the run",
   "duration": 1.2,
@@ -1664,6 +1683,20 @@
   "turn": 0
  },
  {
+  "id": "library:jostled-passenger",
+  "name": "Ride in a car, jostled",
+  "duration": 2.667,
+  "people": 1,
+  "group": "Using things",
+  "loop": true,
+  "car": "passenger",
+  "move": [
+   0,
+   0
+  ],
+  "turn": 0
+ },
+ {
   "id": "library:stand-to-roll",
   "name": "Roll forward",
   "duration": 2.367,
@@ -1935,6 +1968,25 @@
    -1.534
   ],
   "turn": 27
+ },
+ {
+  "id": "library:shoulder-throw",
+  "name": "Shoulder throw",
+  "duration": 5.467,
+  "people": 2,
+  "group": "Fighting",
+  "move": [
+   -0.407,
+   2.338
+  ],
+  "turn": -31,
+  "partner": {
+   "at": [
+    0.012,
+    2.567
+   ],
+   "facing": -39
+  }
  },
  {
   "id": "library:shove-reaction",
