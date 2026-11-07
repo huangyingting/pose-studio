@@ -22,13 +22,13 @@ const ALSO: Record<string, string[]> = {
   hide: ['cover', 'corner', 'crouch', 'sneak'], stealth: ['sneak', 'cover', 'corner', 'crawl'],
   floor: ['ground', 'lie', 'lying', 'crawl', 'kneel'], sleep: ['sleep', 'lie'], rest: ['idle', 'sit', 'lie'],
   love: ['kiss', 'hug', 'blow a kiss'], romance: ['kiss', 'hug', 'blow a kiss'], party: ['dance', 'cheer', 'clap', 'drink'],
-  stunt: ['roll', 'flip', 'vault', 'slide', 'cartwheel', 'jump'], parkour: ['vault', 'roll', 'jump', 'ledge'],
+  stunt: ['roll', 'flip', 'vault', 'slide', 'cartwheel', 'jump'], parkour: ['vault', 'roll', 'jump'],
   tired: ['exhausted', 'yawn'], impatient: ['check the time'], watch: ['check the time'], camera: ['photo'], cook: ['stir'], kitchen: ['stir', 'eat'], dog: ['pet an animal'], cat: ['pet an animal'], yoga: ['meditate'], door: ['door'], shoe: ['shoe'],
   embarrassed: ['cover your face'], shame: ['cover your face'], confused: ['scratch your head', 'shrug'], win: ['celebrate', 'cheer', 'victory'], victory: ['celebrate', 'victory'], ill: ['sneeze', 'cough'], sick: ['sneeze', 'cough'],
   pool: ['swim', 'tread water'], water: ['swim', 'tread water', 'water the'], swimming: ['swim', 'tread water'],
   baby: ['rock a baby'], child: ['rock a baby'], tug: ['pull a rope'], kpop: ['k-pop'], waiting: ['pace', 'check the time', 'bored', 'idle'], nervous: ['nervous', 'pace'], worried: ['pace', 'nervous'],
   monster: ['zombie'], horror: ['zombie', 'scream', 'thriller'], undead: ['zombie'],
-  garden: ['plant', 'water the'], farm: ['plant', 'water the'], food: ['eat'], axe: ['chop'], wood: ['chop'], disco: ['dance', 'twist', 'ymca', 'macarena', 'shuffle'],
+  garden: ['plant', 'water the'], farm: ['plant', 'water the'], food: ['eat', 'fruit'], axe: ['chop'], tool: ['hammer', 'chop'], build: ['hammer'], fruit: ['fruit', 'apple'], wood: ['chop'], disco: ['dance', 'twist', 'ymca', 'macarena', 'shuffle'],
 };
 
 /** Whether `name` matches what was searched for: as it says, or in the words people use for it. */

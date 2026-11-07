@@ -156,8 +156,8 @@ describe('motions, round 4 (#61)', () => {
     }
   });
 
-  it('vaulting a box, jumping down off one or climbing up onto one brings the box (as high as the recording has it) where there is none; nobody goes through it', () => {
-    for (const [slug, high] of [['vault-over-box', 0.9], ['jump-down', 0.6], ['climb-up-ledge', 1]] as const) {
+  it('vaulting a box, or jumping down off one, brings the box (as high as the recording has it) where there is none; nobody goes through it', () => {
+    for (const [slug, high] of [['vault-over-box', 0.9], ['jump-down', 0.6]] as const) {
       const { store, a } = fresh();
       startAnimation(store, 5);
       setAnimationOptions(store, { loop: false });

@@ -357,12 +357,13 @@ const LIST: Record<string, [string, MotionGroup]> = {
   'Zombie Scream': ['Zombie, scream', 'Feelings'],
   'Zombie Stand Up': ['Zombie, rise from the ground', 'Sitting & lying'],
   'Zombie Dying': ['Zombie, die', 'Fighting'],
-  'Climb Up Ledge': ['Climb up onto a ledge', 'Moving'],
   'Walk Carrying Box': ['Walk carrying a box', 'Using things'],
-  'Eat': ['Eat something', 'Using things'],
+  'Eat': ['Eat an apple', 'Using things'],
   'Take From Table': ['Take something from a table', 'Using things'],
   'Fix Kneeling': ['Fix something, kneeling', 'Using things'],
   'Water Plants': ['Water the plants', 'Using things'],
+  'Hammer Nail': ['Hammer a nail', 'Using things'],
+  'Pick Fruit': ['Pick fruit from a tree', 'Using things'],
   'Plant Seeds': ['Plant seeds', 'Using things'],
   'Pull Up Plants': ['Pull up plants', 'Using things'],
   'Chop Wood': ['Chop wood', 'Using things'],
@@ -432,8 +433,6 @@ const NEEDS: Record<string, { kind?: 'water'; at: [number, number]; size: [numbe
   'Vault Over Box': { at: [0.1, 1.975], size: [0.8, 0.9, 0.65] },
   // (Standing on it, 0.6 m up; stepping off its front edge.)
   'Jump Down': { at: [0, -0.075], size: [0.8, 0.6, 0.75] },
-  // (A spring up onto it, the right foot on its near edge, standing on it 1 m up.)
-  'Climb Up Ledge': { at: [0, 1.4], size: [1, 1, 1.3] },
   // (A pool round them, its surface 1.1 m up, 10 m on ahead of them: swimming on, lap after lap, goes on through it.)
   'Swim Crawl': { kind: 'water', at: [0, 4], size: [4, 1.1, 10] },
   'Treading Water': { kind: 'water', at: [0, 0], size: [4, 1.1, 4] },
@@ -462,7 +461,7 @@ const ONCE = [
   'Being Electrocuted', 'Big Stomach Hit', 'Hit By Car', 'Kick To The Groin', 'Shoulder Hit And Fall',
   'Kneeling Down', 'Kneeling Pointing', 'Crouch To Prone', 'Prone To Crouch',
   'Soccer Pass', 'Kick Soccerball', 'Header Soccerball', 'Soccer Tackle', 'Throw In', 'Goalkeeper Catch', 'Goalkeeper Diving Save', 'Quarterback Pass', 'Baseball Catcher', 'Baseball Umpire', 'Golf Putt', 'Frisbee Throw', 'Slipping', 'Wiping Sweat',
-  'Breakdance Freezes', 'Thriller', 'Zombie Biting', 'Zombie Scream', 'Fix Kneeling', 'Plant Seeds', 'Pull Up Plants', 'Take From Table', 'Eat',
+  'Breakdance Freezes', 'Thriller', 'Zombie Biting', 'Zombie Scream', 'Fix Kneeling', 'Plant Seeds', 'Pull Up Plants', 'Take From Table', 'Eat', 'Hammer Nail', 'Chop Wood', 'Water Plants',
   'Celebrate', 'Cover Face', 'Knock On Door', 'Meditate', 'Take Photo', 'Scratch Head', 'Tie Shoelaces', 'Sneeze', 'Check Time', 'Check Shoe', 'Beckon',
   'Pace', 'Pull Rope',
 ];
